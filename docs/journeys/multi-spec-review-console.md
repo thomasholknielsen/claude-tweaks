@@ -1,6 +1,7 @@
 ---
 files:
   - skills/flow/multispec-review-console.md
+  - skills/flow/multispec-batch-curation.md
   - skills/wrap-up/cleanup-procedures.md
   - skills/_shared/staged-patch.md
   - skills/wrap-up/curation-engine.md
@@ -21,7 +22,7 @@ files:
 - **Action:** Read through the named batch sections in order — Auto-applied, Pending review, Low-confidence findings (if any spec's `/review` surfaced an unreproduced finding), Contested findings (if any spec had a cross-lens debate that didn't converge), then the five engine-fed sections (Skill/Documentation/Journey/Configuration updates, Reference repairs — inserted verbatim from `wrap-up-engine.js render --spec-state`), then Cleanup actions, Issue closures, Translated briefs, and the Queue writes / Memory updates / Upstream feedback sections.
 - **Should feel:** Like reading one coherent report, not five specs' worth of disconnected logs stitched together — every row is `Spec`-tagged so it's traceable back to its origin without losing the batch view.
 - **Should understand:** A row's number is part of one global sequence spanning every batch section (no restart between sections) — the numbers in the next step's override instructions refer to this sequence, not a per-section one. `Q#`/`M#`/`U#` sit outside that global sequence but are still part of the same terminal decision (see Step 3).
-- **Red flags:** A row missing its `Spec` column; a section present in some spec's `decisions.md`/`staged/` but absent from the rendered table (the console's own Hard requirement forbids silently dropping any item); the five engine-fed sections showing a different table shape than a plain `| # | Spec | Target | Change | Disposition |` (that would mean the engine's output was hand-expanded instead of inserted verbatim); a staged proposal reported as dangling or missing when its judge wrote it into the worktree's shadow of the run dir — the batch pass's post-fan-out shadow sweep (`skills/wrap-up/curation-engine.md` §4) should have relocated it and logged a `Shadow sweep:` line, so a dangling report means the sweep did not run.
+- **Red flags:** A row missing its `Spec` column; a section present in some spec's `decisions.md`/`staged/` but absent from the rendered table (the console's own Hard requirement forbids silently dropping any item); the five engine-fed sections showing a different table shape than a plain `| # | Spec | Target | Change | Disposition |` (that would mean the engine's output was hand-expanded instead of inserted verbatim); a staged proposal reported as dangling or missing when its judge wrote it into the worktree's shadow of the run dir — the batch pass's post-fan-out shadow sweep (`skills/wrap-up/curation-engine.md` §4, scoped per parent and per `spec-{N}/` run dir by `skills/flow/multispec-batch-curation.md`) should have relocated it and logged a `Shadow sweep:` line, so a dangling report means the sweep did not run.
 
 ### 2. Check the Cleanup actions rows before approving — terminal
 - **URL:** the "Cleanup actions" section of the same rendered console.
