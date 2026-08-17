@@ -1,10 +1,10 @@
 # Incident log
 
-Post-mortem narratives behind the rules in [CLAUDE.md](../CLAUDE.md)'s `## Don'ts`.
+Post-mortem narratives behind the rules in [docs/donts.md](donts.md), which [CLAUDE.md](../CLAUDE.md)'s `## Don'ts` points to.
 
 Each rule there that was compressed carries a tag like `[IL-07]`. The matching entry below holds that rule's original full narrative — the specific build it bit, how it was caught, and what it cost — kept **verbatim**, because the value of these accounts is their specificity.
 
-The rules are the enforceable artifact and live in `CLAUDE.md`. This file is the evidence behind them: read it during retros, when a rule looks arbitrary and you need to know what it cost, or when deciding whether a rule still earns its place.
+The rules are the enforceable artifact and live in `docs/donts.md`. This file is the evidence behind them: read it during retros, when a rule looks arbitrary and you need to know what it cost, or when deciding whether a rule still earns its place.
 
 ---
 
