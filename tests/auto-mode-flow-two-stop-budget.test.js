@@ -47,13 +47,9 @@ const TAG_WINDOW = 400; // chars of context scanned before/after a hit for HARD-
 function untaggedInvocations(text, label, exemptWholeFile) {
   if (exemptWholeFile) return [];
   const hits = [];
-  let m;
-  INVOKE_RE.lastIndex = 0;
-  while ((m = INVOKE_RE.exec(text))) {
-    const windowStart = Math.max(0, m.index - TAG_WINDOW);
-    const windowEnd = Math.min(text.length, m.index + m[0].length + TAG_WINDOW);
-    const window = text.slice(windowStart, windowEnd);
-    if (/HARD-GATE|failure.?card/i.test(window)) continue;
+  for (const m of text.matchAll(INVOKE_RE)) {
+    const context = text.slice(Math.max(0, m.index - TAG_WINDOW), m.index + m[0].length + TAG_WINDOW);
+    if (/HARD-GATE|failure.?card/i.test(context)) continue;
     const line = text.slice(0, m.index).split('\n').length;
     hits.push({ file: label, line, snippet: m[0] });
   }
