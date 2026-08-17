@@ -263,8 +263,8 @@ stop before attempting any release.
    live claim) resolves the same way. The CLI reads the blob at `claims/issue-${ISSUE}.json` on
    `claims-registry` itself; a `runId` other than `$RUN_ID` means a successor holds the lock — it
    exits `4`, writes nothing, posts nothing, and appends `AUTO — skipped release of issue
-   #{issue}: claim held by run {claim.runId}` to `decisions.md`; continue to the next step's
-   label handling for nothing else — the issue is done here.
+   #{issue}: claim held by run {claim.runId}` to `decisions.md`; skip the remaining steps for
+   this issue — a successor owns it now.
 
    **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
    `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" above) — release happens once, at
@@ -272,7 +272,7 @@ stop before attempting any release.
    `--run "$MULTISPEC_PARENT_DIR"` instead: the claim dispatch wrote is keyed to the parent
    directory's basename (the identity minted for the whole group), while each spec's own
    `$PIPELINE_RUN_DIR` in that context is the `spec-{N}/` subdirectory, not the parent.
-4. **Release in one command** — ownership check, `releasePayload` tombstone `PUT` (sha = the
+4. **Release in one command** — ownership check, tombstone `PUT` (sha = the
    blob's current sha from the CLI's own read), release comment, and the label removals of steps
    6-7, once per issue:
 
@@ -284,7 +284,7 @@ stop before attempting any release.
    (`--remove-grants` per step 6's rule.) The CLI wraps `gh` only — in a `gh`-absent environment
    run the same read-classify-write over the MCP tools per `_shared/github-write-transport.md`;
    the MCP path stays the documented fallback rather than a second mode of the CLI.
-5. Exit `0` = released. Exit `3` = a 404/422 from the blob write — the claim was already released
+5. Exit `0` = released. Exit `3` = a 404/409/422 from the blob write — the claim was already released
    or swept (or the sha went stale between the read and this write); the CLI still posts the
    release comment so the trail records the outcome. Exit `1` = any other failure: retry the
    command once, then log and continue — TTL is the backstop, never block wrap-up. Exit `2` =
@@ -309,7 +309,8 @@ stop before attempting any release.
    failed.
 8. The CLI logs the release (or ownership skip) and every label removal to `decisions.md` (status
    `AUTO`, reason string as detail). Log the `parked` restoration yourself:
-   `node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO --step
-   "Section E" --text "restored parked on #{issue}" --reversibility high`.
+   `node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO
+   --section "/wrap-up" --step "Section E" --text "restored parked on #{issue}" --reversibility
+   high`.
 
 This section does not apply to conversation-based work — cleanup planning's item 7 condition (record-based work) already excludes it before Section E is ever reached.

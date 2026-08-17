@@ -126,9 +126,11 @@ Skills append, never rewrite. Pattern:
 For the very first entry of a pipeline run, `/flow` (or the first standalone skill) writes the file header and the pipeline config snapshot. Subsequent entries are added under skill headings.
 
 **One command per entry.** `bin/log-decision.js` performs steps 1-3 for a single entry — format
-per the Entry schema above, place under the `## /{skill}` heading (creating it when absent), append
-— and refuses a run dir that does not resolve under `$RUN_ROOT` (`_shared/pipeline-run-dir.md`'s
-Anchoring section) with exit `3`, so a worktree-local shadow is never written silently:
+per the Entry schema above; when `--section` is passed, the entry is placed under the `## /{skill}`
+heading (creating it when absent), otherwise appended at EOF. It refuses to write with exit `3`
+when the run dir is missing, not anchored under `$RUN_ROOT` (`_shared/pipeline-run-dir.md`'s
+Anchoring section — i.e. a worktree-local shadow), or unwritable, so a worktree-local shadow is
+never written silently:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO \
