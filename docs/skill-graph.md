@@ -210,6 +210,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/docs-health` | Same subject check — routes to `/feedback`. |
 | `_shared/learning-routing.md` | This skill is the contract's D5 writer — Steps 2-3 read the classifier directly to confirm a learning is D5 and to re-run it from rule 4 on self-reference collapse. |
 | `_shared/feedback-objectives.md` | The maintainer-objective rubric the bare-invocation session evaluation judges against — the judge dispatch (session-evaluation.md) inlines its body verbatim; the rubric file is the canonical enumeration of the objective set. |
+| `_shared/transcript-judge.md` | Step "session-evaluation" dispatch mechanics (transcript resolution, judge dispatch, slicing, degradation, watermark protocol) cite this shared harness instead of restating it — consumer key `feedback`. |
 | `bin/resolve-profile.js` | The session-evaluation judge dispatches as one `[Use: Frontier]` singleton Task agent per invocation (dispatched per `session-evaluation.md`, the standalone-invocation cap — no `--run-dir`, since this skill is typically invoked with no pipeline run directory) — record #221. Step 6's scrub judgment now resolves `[Use: Capable]` instead. |
 
 ## flow
