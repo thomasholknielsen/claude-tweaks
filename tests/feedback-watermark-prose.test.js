@@ -135,7 +135,9 @@ test('.gitignore and step-04-gitignore-suggestions.md carry the byte-identical i
 // --- 5. docs/plugin-structure.md: bin/lib/feedback/ family line names both modules ---
 
 test('docs/plugin-structure.md: a bin/lib/feedback/ family line names both file-feedback.js and watermark.js', () => {
-  const match = PLUGIN_STRUCTURE.match(/^bin\/lib\/feedback\/\s+→.*$/m);
+  // The payload moved under `plugin/` (#418); the doc's tree spells the family
+  // line repo-root-relative, so the pin tracks the new spelling.
+  const match = PLUGIN_STRUCTURE.match(/^plugin\/bin\/lib\/feedback\/\s+→.*$/m);
   assert.ok(match, 'bin/lib/feedback/ family line must exist');
   assert.match(match[0], /file-feedback\.js/, 'family line must mention file-feedback.js');
   assert.match(match[0], /watermark\.js/, 'family line must mention watermark.js');

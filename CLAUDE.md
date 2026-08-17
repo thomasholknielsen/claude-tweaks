@@ -9,7 +9,7 @@ A Claude Code plugin containing markdown skill files that guide Claude through a
 | Layer | Technology |
 |-------|-----------|
 | Runtime | Claude Code plugin system + Node 18+ (for the statusline) |
-| Content | Markdown (SKILL.md files with YAML frontmatter); Node modules under `bin/` |
+| Content | Markdown (SKILL.md files with YAML frontmatter); Node modules under `plugin/bin/` |
 | Dependencies | Superpowers plugin (`/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`, `/superpowers:systematic-debugging`), code-simplifier plugin (`code-simplifier:code-simplifier` subagent), agent-browser (optional), git CLI (optional — statusline git segment only), gh CLI (optional — default transport for `work-backend: github-issues`: work-record system, the four health-sweep skills' issue filing, /tidy and /help's PR/issue scans. Not required since 6.24.0 — a `gh`-absent env (typically cloud Routine sandbox) routes the same CRUD via `_shared/github-write-transport.md`'s MCP path, with `_shared/issue-claims.md`'s file-blob lock standing in for the ref-level one) |
 | Test runner | `node --test tests/` (built-in, no external deps) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
@@ -18,27 +18,27 @@ A Claude Code plugin containing markdown skill files that guide Claude through a
 
 Full directory tree, the per-skill sub-file table, and the command reference live in `docs/plugin-structure.md`. Orientation:
 
-- `skills/{name}/SKILL.md` — skill definition; `skills/{name}/*.md` — sub-files lazy-loaded by that skill
-- `skills/_shared/*.md` — cross-skill contracts, criteria, and canonical procedures cited by skills rather than restated
-- `bin/` — Node executables; `bin/lib/{name}/` — multi-file modules as flat sibling directories, NOT a nested `_shared/` wrapper (that convention is specific to `skills/_shared/`)
-- `hooks/hooks.json` + `bin/hooks.js` — one dispatcher for every hook event
+- `plugin/skills/{name}/SKILL.md` — skill definition; `plugin/skills/{name}/*.md` — sub-files lazy-loaded by that skill
+- `plugin/skills/_shared/*.md` — cross-skill contracts, criteria, and canonical procedures cited by skills rather than restated
+- `plugin/bin/` — Node executables; `plugin/bin/lib/{name}/` — multi-file modules as flat sibling directories, NOT a nested `_shared/` wrapper (that convention is specific to `plugin/skills/_shared/`)
+- `plugin/hooks/hooks.json` + `plugin/bin/hooks.js` — one dispatcher for every hook event
 - `tests/` — `node --test` suites; `evals/` — a separate Node project (own `package.json`/`node_modules`), not part of the plugin runtime
 
 ## Conventions
 
 ### Skill authoring — moved
 
-SKILL.md structure, Interaction patterns (incl. the canonical CSC template), Frontmatter conventions, the Interaction style directive, and Parallel execution directives now live in `docs/skill-authoring.md`. Read it before creating or editing any `skills/**/*.md`.
+SKILL.md structure, Interaction patterns (incl. the canonical CSC template), Frontmatter conventions, the Interaction style directive, and Parallel execution directives now live in `docs/skill-authoring.md`. Read it before creating or editing any `plugin/skills/**/*.md`.
 
 ### Versioning
 
-- Version lives in `.claude-plugin/plugin.json`
+- Version lives in `plugin/.claude-plugin/plugin.json`
 - Bump minor version for feature additions, patch for fixes
 - Commit message style: `{Verb} {what} — {detail}` (imperative, no conventional commit prefixes)
 
 ### Releasing (two repos)
 
-Invocation: `node bin/release.js <minor|patch> "<summary>"` from clean `main`. The whole-branch review gates the bump — run it before the version bump, not as a later task in the same plan. Full procedure, judgment calls, and the shipped-vs-never-shipped renumber split: `docs/releasing.md`.
+Invocation: `node plugin/bin/release.js <minor|patch> "<summary>"` from clean `main`. The whole-branch review gates the bump — run it before the version bump, not as a later task in the same plan. Full procedure, judgment calls, and the shipped-vs-never-shipped renumber split: `docs/releasing.md`.
 
 ### Cross-references
 
@@ -50,7 +50,7 @@ Invocation: `node bin/release.js <minor|patch> "<summary>"` from clean `main`. T
 
 ### Hooks
 
-All hook registrations route through `bin/hooks.js <event>` — one dispatcher, one module per event in `bin/lib/hooks/`. The full contract — tiered posture, run-dir resolution and ownership, the never-break-a-session invariant, and its consumers — is in `docs/hooks.md`. Read it before touching `bin/hooks.js`, `bin/lib/hooks/`, or `hooks/hooks.json`.
+All hook registrations route through `plugin/bin/hooks.js <event>` — one dispatcher, one module per event in `plugin/bin/lib/hooks/`. The full contract — tiered posture, run-dir resolution and ownership, the never-break-a-session invariant, and its consumers — is in `docs/hooks.md`. Read it before touching `plugin/bin/hooks.js`, `plugin/bin/lib/hooks/`, or `plugin/hooks/hooks.json`.
 
 ## Philosophy
 
@@ -79,10 +79,10 @@ How to execute any task here. These apply project-wide unless a more specific ru
 ```bash
 npm test                            # Full suite — tests/ (includes every tests/bin-lib/{module} suite) and tools/upstream-drift/tests/ — a recursive glob, not a fixed list; new tests/bin-lib/{x} directories are picked up automatically
 npm run test:perf                   # Timing budgets (perf/) — deliberately excluded from npm test, see docs/plugin-structure.md
-claude --plugin-dir ./              # Local development — load plugin from current directory
+claude --plugin-dir ./plugin        # Local development — load the payload subtree from this checkout
 ```
 
-Per-suite test invocations, the `bin/*.js` CLIs (the four health sweeps plus the standalone CLIs listed there), and the evals harness commands are in `docs/plugin-structure.md`.
+Per-suite test invocations, the `plugin/bin/*.js` CLIs (the four health sweeps plus the standalone CLIs listed there), and the evals harness commands are in `docs/plugin-structure.md`.
 
 A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken.
 
@@ -90,21 +90,21 @@ A `npm test` failure count that varies run-to-run on byte-identical code tracks 
 
 The contract is **dispatch correctness** discipline, not a token-saving measure: the clean room is what makes N agents independent evidence rather than N echoes, the status line stops a failed dispatch from aggregating as a clean result, and the templates keep aggregation mechanical rather than paraphrased. Costing less to run is a side effect, never the rationale.
 
-Skills that dispatch parallel Task agents must reference `skills/_shared/subagent-output-contract.md` and follow its full contract: minimal **input** (scope + paths + literal output template — no conversation history), a **status line** (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`) as the agent's first reply line, an **output template** (Template A/B/C) inlined verbatim in the dispatch prompt, and **model profile selection** (`Fast | Standard | Capable`; `Frontier` only at contract-enumerated singleton slots, never in a fan-out — resolved per the contract's Model Selection section) appropriate to the work. Agents only see what's in their prompt — references to sibling files don't reach them. Used by `/browse`, `/design-wrapper` (`review` mode Step 3.8 — craft critics), `/dispatch` (`build,test` then `review,polish,wrap-up`, two Task calls per file-overlap group, own GROUP/OUTCOME/MANIFEST template — none of A/B/C fit; status line + input discipline still apply, `skills/dispatch/SKILL.md` Step 5), `/help`, `/init`, `/review`, `/specify`, `/test` (qa-prompts), `/tidy`, and `/visual-review`. When adding a new dispatch site, follow the full pattern, not just the output template.
+Skills that dispatch parallel Task agents must reference `plugin/skills/_shared/subagent-output-contract.md` and follow its full contract: minimal **input** (scope + paths + literal output template — no conversation history), a **status line** (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`) as the agent's first reply line, an **output template** (Template A/B/C) inlined verbatim in the dispatch prompt, and **model profile selection** (`Fast | Standard | Capable`; `Frontier` only at contract-enumerated singleton slots, never in a fan-out — resolved per the contract's Model Selection section) appropriate to the work. Agents only see what's in their prompt — references to sibling files don't reach them. Used by `/browse`, `/design-wrapper` (`review` mode Step 3.8 — craft critics), `/dispatch` (`build,test` then `review,polish,wrap-up`, two Task calls per file-overlap group, own GROUP/OUTCOME/MANIFEST template — none of A/B/C fit; status line + input discipline still apply, `plugin/skills/dispatch/SKILL.md` Step 5), `/help`, `/init`, `/review`, `/specify`, `/test` (qa-prompts), `/tidy`, and `/visual-review`. When adding a new dispatch site, follow the full pattern, not just the output template.
 
-**Third-party agents are exempt**, on a structural condition: the agent's definition lives outside this repo's `agents/` directory, so it ships with someone else's plugin and is invoked as a delegation. Anything under our own `agents/` is never exempt. The exemption covers the agent only — the caller still normalizes the foreign output at the boundary, checks availability at the *agent* level (plugin presence does not imply agent presence), and distinguishes unavailable / failed / empty / unparseable rather than reporting a clean result. `impeccable-finish-reviewer` is the one such dispatch today (`design-wrapper/modes/review.md` Step 3.7). Full carve-out: the Exemption section of that `_shared` file.
+**Third-party agents are exempt**, on a structural condition: the agent's definition lives outside this repo's `plugin/agents/` directory, so it ships with someone else's plugin and is invoked as a delegation. Anything under our own `plugin/agents/` is never exempt. The exemption covers the agent only — the caller still normalizes the foreign output at the boundary, checks availability at the *agent* level (plugin presence does not imply agent presence), and distinguishes unavailable / failed / empty / unparseable rather than reporting a clean result. `impeccable-finish-reviewer` is the one such dispatch today (`design-wrapper/modes/review.md` Step 3.7). Full carve-out: the Exemption section of that `_shared` file.
 
 ### Auto-Mode Contract + Bookend Architecture (v4.6+)
 
 claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.
 
-**Single source of truth:** `skills/_shared/auto-mode-contract.md` — defines mode states, decision precedence (CLI arg > pipeline config > project policy > skill default), reversibility/confidence/severity floors, the HARD-GATE exemption list, and what `auto` never silences (ledger resolve Phase 2, work-record creation — new backlog or parked records, governance gates) — except the narrow, explicit `autonomy` ceiling's bookkeeping capabilities (see `_shared/autonomy-ceiling.md`), which let floor-clearing ledger residue, queue writes, and ops-ack resolve without a click at `trusted`/`unattended`, and — at `unattended` only — let the Review Console's memory, queue-write, and upstream-filing approvals resolve with zero clicks under `consoleAutoResolve`.
+**Single source of truth:** `plugin/skills/_shared/auto-mode-contract.md` — defines mode states, decision precedence (CLI arg > pipeline config > project policy > skill default), reversibility/confidence/severity floors, the HARD-GATE exemption list, and what `auto` never silences (ledger resolve Phase 2, work-record creation — new backlog or parked records, governance gates) — except the narrow, explicit `autonomy` ceiling's bookkeeping capabilities (see `_shared/autonomy-ceiling.md`), which let floor-clearing ledger residue, queue writes, and ops-ack resolve without a click at `trusted`/`unattended`, and — at `unattended` only — let the Review Console's memory, queue-write, and upstream-filing approvals resolve with zero clicks under `consoleAutoResolve`.
 
-**Audit trail:** `skills/_shared/auto-decision-log.md` — every auto-resolution writes a one-line entry to `.claude-tweaks/pipelines/{run-id}/decisions.md` per that file's canonical entry schema. The Review Console reads this log. Staged code-fix proposals follow `skills/_shared/staged-patch.md` — validated with `git apply --check` at staging time and re-derived from their `Invariant:` preamble at the console when the diff has gone stale.
+**Audit trail:** `plugin/skills/_shared/auto-decision-log.md` — every auto-resolution writes a one-line entry to `.claude-tweaks/pipelines/{run-id}/decisions.md` per that file's canonical entry schema. The Review Console reads this log. Staged code-fix proposals follow `plugin/skills/_shared/staged-patch.md` — validated with `git apply --check` at staging time and re-derived from their `Invariant:` preamble at the console when the diff has gone stale.
 
 **Strict rule:** skills MUST NOT invent new mid-flow stops in `auto` mode. If a decision is decision-worthy, stage it (log it, don't act) and surface at the Review Console. Mid-flow stops are reserved for HARD-GATEs (test failures, spec compliance, structural coupling, plan validation) and the explicit "not silenced" list in the contract.
 
-**Per-pipeline run directory** (collision-safe across parallel agents): `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Resolve it — and `PIPELINE_RUN_DIR`, adoptable only once it resolves under `$RUN_ROOT` — per `skills/_shared/pipeline-run-dir.md`: `$RUN_ROOT` is the main checkout, never the cwd worktree, and a bare relative path silently shadows it `[IL-127]`. **Project policy** lives in `.claude-tweaks/policy.yml` — the only config home since 6.48.0 — read as defaults by the Manifesto, overridable per-run.
+**Per-pipeline run directory** (collision-safe across parallel agents): `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Resolve it — and `PIPELINE_RUN_DIR`, adoptable only once it resolves under `$RUN_ROOT` — per `plugin/skills/_shared/pipeline-run-dir.md`: `$RUN_ROOT` is the main checkout, never the cwd worktree, and a bare relative path silently shadows it `[IL-127]`. **Project policy** lives in `.claude-tweaks/policy.yml` — the only config home since 6.48.0 — read as defaults by the Manifesto, overridable per-run.
 
 ## Design integration
 
@@ -132,7 +132,7 @@ work-types: labels
 
 **`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.
 
-**Integration model** (`skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first` — a worktree run is born public (draft PR at run start, every phase pushes, merge happens via `gh pr merge`); no-forge projects use `local-merge`, the permanent fallback. Never re-derive which one applies ad hoc — read the resolution, once, per that file.
+**Integration model** (`plugin/skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first` — a worktree run is born public (draft PR at run start, every phase pushes, merge happens via `gh pr merge`); no-forge projects use `local-merge`, the permanent fallback. Never re-derive which one applies ad hoc — read the resolution, once, per that file.
 
 **Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/claude-tweaks:specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
