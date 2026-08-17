@@ -1,9 +1,9 @@
 ---
 files:
-  - bin/lib/code-health/candidates-dead-code.js
-  - bin/lib/code-health/focus-generators.js
-  - skills/code-health/SKILL.md
-  - skills/code-health/focus-mode.md
+  - plugin/bin/lib/code-health/candidates-dead-code.js
+  - plugin/bin/lib/code-health/focus-generators.js
+  - plugin/skills/code-health/SKILL.md
+  - plugin/skills/code-health/focus-mode.md
 ---
 
 # Code-Health Focus Sweep

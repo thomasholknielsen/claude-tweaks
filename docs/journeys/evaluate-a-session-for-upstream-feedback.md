@@ -1,9 +1,9 @@
 ---
 files:
-  - skills/feedback/SKILL.md
-  - skills/feedback/session-evaluation.md
-  - skills/_shared/feedback-objectives.md
-  - skills/_shared/upstream-feedback-batch.md
+  - plugin/skills/feedback/SKILL.md
+  - plugin/skills/feedback/session-evaluation.md
+  - plugin/skills/_shared/feedback-objectives.md
+  - plugin/skills/_shared/upstream-feedback-batch.md
 ---
 
 # Evaluate a Session for Upstream Feedback

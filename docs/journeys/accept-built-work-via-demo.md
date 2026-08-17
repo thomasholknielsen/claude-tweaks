@@ -1,10 +1,10 @@
 ---
 files:
-  - skills/demo/SKILL.md
-  - skills/demo/entry-paths.md
-  - skills/demo/legacy-brief-compatibility.md
-  - skills/wrap-up/verification-brief.md
-  - skills/_shared/observation-plan.md
+  - plugin/skills/demo/SKILL.md
+  - plugin/skills/demo/entry-paths.md
+  - plugin/skills/demo/legacy-brief-compatibility.md
+  - plugin/skills/wrap-up/verification-brief.md
+  - plugin/skills/_shared/observation-plan.md
 ---
 
 # Accept Built Work Show-First via /demo

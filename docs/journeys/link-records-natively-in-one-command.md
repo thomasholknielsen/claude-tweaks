@@ -1,8 +1,8 @@
 ---
 files:
-  - bin/link-records.js
-  - bin/lib/issues/link.js
-  - skills/specify/record-creation.md
+  - plugin/bin/link-records.js
+  - plugin/bin/lib/issues/link.js
+  - plugin/skills/specify/record-creation.md
 ---
 
 # Link a Decomposition's Records Natively in One Command

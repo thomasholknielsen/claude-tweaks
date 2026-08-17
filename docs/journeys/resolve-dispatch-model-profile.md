@@ -1,9 +1,9 @@
 ---
 files:
-  - bin/resolve-profile.js
-  - bin/lib/model-profiles/profiles.js
-  - bin/lib/model-profiles/policy-fragment.js
-  - skills/_shared/subagent-output-contract.md
+  - plugin/bin/resolve-profile.js
+  - plugin/bin/lib/model-profiles/profiles.js
+  - plugin/bin/lib/model-profiles/policy-fragment.js
+  - plugin/skills/_shared/subagent-output-contract.md
 ---
 
 # Resolve a Dispatch's Model Profile

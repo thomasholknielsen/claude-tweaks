@@ -1,13 +1,13 @@
 ---
 files:
-  - skills/tidy/step-6-auto.md
-  - skills/tidy/step-6-interactive.md
-  - skills/tidy/SKILL.md
-  - skills/tidy/scan-procedures.md
-  - bin/lib/reconcile/release-merged.js
-  - bin/lib/reconcile/archive-branches.js
-  - bin/lib/reconcile/prune-remote.js
-  - bin/lib/reconcile/reap-merged.js
+  - plugin/skills/tidy/step-6-auto.md
+  - plugin/skills/tidy/step-6-interactive.md
+  - plugin/skills/tidy/SKILL.md
+  - plugin/skills/tidy/scan-procedures.md
+  - plugin/bin/lib/reconcile/release-merged.js
+  - plugin/bin/lib/reconcile/archive-branches.js
+  - plugin/bin/lib/reconcile/prune-remote.js
+  - plugin/bin/lib/reconcile/reap-merged.js
 ---
 
 # Tidy Standalone-Auto Report: Verb-Grouped Sections and Reconcile-Converged Rows

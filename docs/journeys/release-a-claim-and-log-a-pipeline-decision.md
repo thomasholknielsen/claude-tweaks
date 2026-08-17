@@ -1,9 +1,9 @@
 ---
 files:
-  - bin/release-claim.js
-  - bin/lib/release-claim/release.js
-  - bin/log-decision.js
-  - bin/lib/log-decision/append.js
+  - plugin/bin/release-claim.js
+  - plugin/bin/lib/release-claim/release.js
+  - plugin/bin/log-decision.js
+  - plugin/bin/lib/log-decision/append.js
 ---
 
 # Release a Claim and Log a Pipeline Decision

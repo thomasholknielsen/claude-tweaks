@@ -1,8 +1,8 @@
 ---
 files:
-  - skills/routine/status.md
-  - skills/routine/create-and-update.md
-  - skills/_shared/routine-template-schema.md
+  - plugin/skills/routine/status.md
+  - plugin/skills/routine/create-and-update.md
+  - plugin/skills/_shared/routine-template-schema.md
 ---
 
 # Respond to Kernel-Stale Drift

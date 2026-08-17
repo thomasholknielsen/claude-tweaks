@@ -1,10 +1,10 @@
 ---
 files:
-  - bin/resolve-policy.js
-  - bin/lib/policy-schema.js
-  - bin/lib/policy.js
-  - bin/lib/merge-verification.js
-  - skills/_shared/policy-schema.md
+  - plugin/bin/resolve-policy.js
+  - plugin/bin/lib/policy-schema.js
+  - plugin/bin/lib/policy.js
+  - plugin/bin/lib/merge-verification.js
+  - plugin/skills/_shared/policy-schema.md
 ---
 
 # Resolve a Policy Key Through the Canonical Read Path

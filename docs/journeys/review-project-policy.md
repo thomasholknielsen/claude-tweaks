@@ -1,10 +1,10 @@
 ---
 files:
-  - skills/help/policy.md
-  - skills/help/SKILL.md
-  - bin/resolve-policy.js
-  - bin/lib/policy-schema.js
-  - skills/init/policy-review.md
+  - plugin/skills/help/policy.md
+  - plugin/skills/help/SKILL.md
+  - plugin/bin/resolve-policy.js
+  - plugin/bin/lib/policy-schema.js
+  - plugin/skills/init/policy-review.md
 ---
 
 # Review a Project's Policy Configuration

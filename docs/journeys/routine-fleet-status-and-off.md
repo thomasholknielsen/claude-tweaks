@@ -1,8 +1,8 @@
 ---
 files:
-  - skills/routine/fleet.md
-  - skills/routine/SKILL.md
-  - bin/lib/issues/fleet-counters.js
+  - plugin/skills/routine/fleet.md
+  - plugin/skills/routine/SKILL.md
+  - plugin/bin/lib/issues/fleet-counters.js
 ---
 
 # Routine Fleet Status and Off

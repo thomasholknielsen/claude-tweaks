@@ -1,10 +1,10 @@
 ---
 files:
-  - skills/_shared/pr-first-merge.md
-  - skills/dispatch/SKILL.md
-  - skills/dispatch/settle-and-merge.md
-  - skills/backlog/refine-mode.md
-  - skills/_shared/github-pr-scan.md
+  - plugin/skills/_shared/pr-first-merge.md
+  - plugin/skills/dispatch/SKILL.md
+  - plugin/skills/dispatch/settle-and-merge.md
+  - plugin/skills/backlog/refine-mode.md
+  - plugin/skills/_shared/github-pr-scan.md
 ---
 
 # Recover a Run the Merge-Verification Gate Parked

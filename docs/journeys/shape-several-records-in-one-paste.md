@@ -1,7 +1,7 @@
 ---
 files:
-  - skills/specify/SKILL.md
-  - skills/specify/shaping-mode.md
+  - plugin/skills/specify/SKILL.md
+  - plugin/skills/specify/shaping-mode.md
 ---
 
 # Shape Several Backlog Records in One Paste via /specify

@@ -1,12 +1,12 @@
 ---
 files:
-  - skills/flow/multispec-review-console.md
-  - skills/flow/multispec-batch-curation.md
-  - skills/wrap-up/cleanup-procedures.md
-  - skills/_shared/auto-mode-contract.md
-  - skills/_shared/staged-patch.md
-  - skills/wrap-up/curation-engine.md
-  - bin/wrap-up-engine.js
+  - plugin/skills/flow/multispec-review-console.md
+  - plugin/skills/flow/multispec-batch-curation.md
+  - plugin/skills/wrap-up/cleanup-procedures.md
+  - plugin/skills/_shared/auto-mode-contract.md
+  - plugin/skills/_shared/staged-patch.md
+  - plugin/skills/wrap-up/curation-engine.md
+  - plugin/bin/wrap-up-engine.js
 ---
 
 # Review and Approve a Multi-Spec /flow Run

@@ -1,10 +1,10 @@
 ---
 files:
-  - bin/lib/issues/backlog.js
-  - bin/lib/issues/record.js
-  - bin/lib/issues/facet-shape.js
-  - skills/backlog/overview-mode.md
-  - skills/backlog/SKILL.md
+  - plugin/bin/lib/issues/backlog.js
+  - plugin/bin/lib/issues/record.js
+  - plugin/bin/lib/issues/facet-shape.js
+  - plugin/skills/backlog/overview-mode.md
+  - plugin/skills/backlog/SKILL.md
 ---
 
 # Triage the Backlog Through the Funnel Overview

@@ -1,8 +1,8 @@
 ---
 files:
-  - skills/dispatch/SKILL.md
-  - skills/wrap-up/SKILL.md
-  - skills/_shared/pr-first-merge.md
+  - plugin/skills/dispatch/SKILL.md
+  - plugin/skills/wrap-up/SKILL.md
+  - plugin/skills/_shared/pr-first-merge.md
 ---
 
 # Resume a Parked Dispatch Run

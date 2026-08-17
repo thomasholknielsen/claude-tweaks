@@ -1,10 +1,10 @@
 ---
 files:
-  - bin/lib/hooks/skill-invocation.js
-  - bin/lib/hooks/run-integrity.js
-  - bin/lib/hooks/pre-tool-use.js
-  - bin/lib/hooks/session-start.js
-  - bin/hooks.js
+  - plugin/bin/lib/hooks/skill-invocation.js
+  - plugin/bin/lib/hooks/run-integrity.js
+  - plugin/bin/lib/hooks/pre-tool-use.js
+  - plugin/bin/lib/hooks/session-start.js
+  - plugin/bin/hooks.js
 ---
 
 # Run-Integrity Lifecycle: Detect, Remediate, and Gate Bypassed Pipeline Closures
