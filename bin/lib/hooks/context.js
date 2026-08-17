@@ -23,14 +23,17 @@ function readRunState(runDir) {
 // that no invocation ever initialized — carries neither run-state.json nor
 // decisions.md. Fallback attribution must never guess into one: a mint that
 // sorts newest absorbs foreign sessions' events until swept (#721). Keyed on
-// BOTH files being absent, never on config.yml — standalone run dirs
-// legitimately carry decisions.md but no config.yml. Consequence: hooks.js
-// CLI verbs that rely on this fallback with no --run (record-worktree,
-// record-pr, close-run) now only ever resolve an adopted run — safe because
-// every sanctioned caller runs after flow Step 3 has already initialized the
-// run dir (decisions.md or run-state.json already exists by then).
+// BOTH files being ABSENT (file presence, not parse success — a corrupt
+// run-state.json is still an adopted run, and readRunState's null covers
+// both cases), never on config.yml — standalone run dirs legitimately carry
+// decisions.md but no config.yml. Consequence: hooks.js CLI verbs that rely
+// on this fallback with no --run (record-worktree, record-pr, close-run) now
+// only ever resolve an adopted run — safe because every sanctioned caller
+// runs after flow Step 3 has already initialized the run dir (decisions.md
+// or run-state.json already exists by then).
 function isUnadoptedMint(dir, state) {
   if (state) return false;
+  if (fs.existsSync(path.join(dir, 'run-state.json'))) return false;
   return !fs.existsSync(path.join(dir, 'decisions.md'));
 }
 

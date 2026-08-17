@@ -207,3 +207,11 @@ test('only unadopted mints exist — resolves null rather than guessing into one
   assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, 'me'), { dir: null, attribution: null });
   assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, null), { dir: null, attribution: null });
 });
+
+test('a run with a corrupt run-state.json and no decisions.md is still not a mint — presence, not parseability', () => {
+  const cwd = project();
+  const dir = mkRun(cwd, '2026-07-01T090000-corrupt', null);
+  fs.writeFileSync(path.join(dir, 'run-state.json'), '{"status":"active", "worktree": "/trunc');
+
+  assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, 'me'), { dir, attribution: 'fallback' });
+});
