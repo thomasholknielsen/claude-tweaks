@@ -27,8 +27,8 @@ gh issue list --label demo:pending --state all --json number,title --limit 200
 ```
 
 Render as one line listing every matching record: `Awaiting sign-off: **{N} records** — #{n1}
-({title1}), #{n2} ({title2}), ... — run /demo #N on any of these` — omit entirely when the count
-is 0.
+({title1}), #{n2} ({title2}), ... — run /demo #{n1},#{n2},... to review them all` (a single ref
+when `{N}` is 1: `run /demo #{n1}`) — omit entirely when the count is 0.
 
 ## Scope: `acceptance-gap` (consumed by /tidy Step 4.8)
 
