@@ -690,7 +690,10 @@ test('reconcile(): mirror and remote-prune share one fetch, not two (D2)', async
 // here for the same reason the D2 test above documents: classify.js,
 // prune-remote.js, and shared-fetch.js each destructure `runGit` at module
 // load, so a module-property stub would never be observed.
-function withFetchArgvLog(fn) {
+// Async so a caller may await real work inside the PATH swap: restoring PATH
+// while an in-flight reconcile() still has fetches to issue would silently
+// stop logging them, and the count assertion would pass for the wrong reason.
+async function withFetchArgvLog(fn) {
   const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-fetchargv-'));
   const logFile = path.join(wrapperDir, 'fetch-argv.log');
   fs.writeFileSync(logFile, '');
@@ -704,17 +707,17 @@ function withFetchArgvLog(fn) {
   const originalPath = process.env.PATH;
   process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
   try {
-    fn();
+    await fn();
   } finally {
     process.env.PATH = originalPath;
   }
   return fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
 }
 
-test('sharedFetch: a mirror-only pass fetches the single integration ref, never --prune all-refs', () => {
+test('sharedFetch: a mirror-only pass fetches the single integration ref, never --prune all-refs', async () => {
   const { mainDir } = pairedFixture();
   const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
-  const calls = withFetchArgvLog(() => {
+  const calls = await withFetchArgvLog(() => {
     const r = sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: false });
     assert.equal(r.failure, null, 'the narrow fetch must succeed against the local bare origin');
   });
@@ -723,20 +726,20 @@ test('sharedFetch: a mirror-only pass fetches the single integration ref, never 
   assert.doesNotMatch(calls[0], /--prune/, 'mirror-only must not pay for a --prune all-refs fetch');
 });
 
-test('sharedFetch: a remote-prune pass still fetches --prune all-refs', () => {
+test('sharedFetch: a remote-prune pass still fetches --prune all-refs', async () => {
   const { mainDir } = pairedFixture();
   const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
-  const calls = withFetchArgvLog(() => {
+  const calls = await withFetchArgvLog(() => {
     sharedFetch(mainDir, { integration: 'main', mirror: false, remotePrune: true });
   });
   assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
   assert.match(calls[0], /fetch --prune origin$/, `remote-prune must keep the --prune all-refs shape, saw: ${calls[0]}`);
 });
 
-test('sharedFetch: mirror + remote-prune together fall back to the broader --prune shape (superset serves both)', () => {
+test('sharedFetch: mirror + remote-prune together fall back to the broader --prune shape (superset serves both)', async () => {
   const { mainDir } = pairedFixture();
   const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
-  const calls = withFetchArgvLog(() => {
+  const calls = await withFetchArgvLog(() => {
     sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: true });
   });
   assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
@@ -772,6 +775,31 @@ test('sharedFetch: the mirror-only shape pins its own tight hot-path budget — 
   const { sharedFetch } = require('../bin/lib/reconcile/shared-fetch');
   const r = withGitTimeoutOverride(1, () => sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: false }));
   assert.equal(r.failure, null, 'the mirror shape must carry an explicit timeoutMs, which git-exec resolves ahead of the env override');
+});
+
+// The finding this fix answers is about the PRODUCTION wiring, not just
+// sharedFetch's own signature: session-start.js's inline pass is what was
+// paying for a --prune all-refs fetch it had no use for. Pin the whole path.
+test('reconcile(): a FAST_CHECKS pass (session-start\'s inline hot path) issues only the narrow single-ref fetch', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const { FAST_CHECKS } = require('../bin/lib/hooks/session-start');
+  let calls;
+  try {
+    calls = await withFetchArgvLog(() => reconcile({ cwd: mainDir, checks: FAST_CHECKS }));
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+  assert.equal(calls.length, 1, `expected exactly one fetch on the fast path, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch origin main$/, `the inline hot path must not pay for --prune, saw: ${calls[0]}`);
 });
 
 // --- session-level freshness TTL short-circuit (#820, D7) ---
