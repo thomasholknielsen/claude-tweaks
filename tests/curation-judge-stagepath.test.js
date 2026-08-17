@@ -18,18 +18,30 @@ const BATCH = fs.readFileSync(path.join(SKILLS, 'flow', 'multispec-batch-curatio
 
 // The documented sweep — must appear verbatim inside a ```bash fence in curation-engine.md §4.
 const SWEEP_SNIPPET = [
-  'RUN_ROOT=$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd)',
-  'REL="${PIPELINE_RUN_DIR#"$RUN_ROOT"/}"           # e.g. .claude-tweaks/pipelines/{run-id}[/spec-{N}]',
-  'SHADOW="$WORKTREE/$REL"',
-  'if [ "$SHADOW" != "$PIPELINE_RUN_DIR" ] && [ -d "$SHADOW/staged" ]; then',
-  '  for f in "$SHADOW"/staged/*; do',
-  '    [ -e "$f" ] || continue',
-  '    mv -n "$f" "$PIPELINE_RUN_DIR/staged/" && echo "relocated: $(basename "$f")"',
-  '  done',
-  '  rmdir "$SHADOW/staged" 2>/dev/null || true',
-  'fi',
-  'if [ "$SHADOW" != "$PIPELINE_RUN_DIR" ] && [ -f "$SHADOW/decisions.md" ]; then',
-  '  cat "$SHADOW/decisions.md" >> "$PIPELINE_RUN_DIR/decisions.md" && rm "$SHADOW/decisions.md" && echo "relocated: decisions.md (appended)"',
+  'RUN_ROOT=$(cd "$(dirname "$(git rev-parse --git-common-dir)")" && pwd -P)',
+  'RUN_DIR=$( [ -n "$PIPELINE_RUN_DIR" ] && cd "$PIPELINE_RUN_DIR" 2>/dev/null && pwd -P )',
+  'WT=$( [ -n "$WORKTREE" ] && cd "$WORKTREE" 2>/dev/null && pwd -P )',
+  'if [ -z "$RUN_DIR" ] || [ -z "$WT" ]; then',
+  '  echo "sweep: PIPELINE_RUN_DIR or WORKTREE unset/missing — not swept"',
+  'elif [ "${RUN_DIR#"$RUN_ROOT"/}" = "$RUN_DIR" ]; then',
+  '  echo "sweep: $RUN_DIR is not under $RUN_ROOT — not swept"',
+  'else',
+  '  SHADOW="$WT/${RUN_DIR#"$RUN_ROOT"/}"           # the worktree\'s shadow of .claude-tweaks/pipelines/{run-id}[/spec-{N}]',
+  '  if [ ! "$SHADOW" -ef "$RUN_DIR" ] && [ -d "$SHADOW/staged" ]; then',
+  '    for f in "$SHADOW"/staged/*; do',
+  '      [ -e "$f" ] || continue',
+  '      base=$(basename "$f")',
+  '      if [ -e "$RUN_DIR/staged/$base" ]; then',
+  '        mv "$f" "$RUN_DIR/staged/$base.shadow-dup" && echo "collision: $base (kept as $base.shadow-dup)"',
+  '      else',
+  '        mv "$f" "$RUN_DIR/staged/" && echo "relocated: $base"',
+  '      fi',
+  '    done',
+  '    rmdir "$SHADOW/staged" 2>/dev/null || true',
+  '  fi',
+  '  if [ ! "$SHADOW" -ef "$RUN_DIR" ] && [ -f "$SHADOW/decisions.md" ]; then',
+  '    grep \'^- \' "$SHADOW/decisions.md" >> "$RUN_DIR/decisions.md"; rm "$SHADOW/decisions.md" && echo "relocated: decisions.md (entries appended)"',
+  '  fi',
   'fi',
 ].join('\n');
 
@@ -90,7 +102,7 @@ test('probe: the documented sweep relocates a staged file written to the worktre
   fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
   fs.mkdirSync(path.join(shadow, 'work'), { recursive: true });
   fs.writeFileSync(path.join(shadow, 'staged', 'wrap-up-skill-1.md'), 'proposal\n');
-  fs.writeFileSync(path.join(shadow, 'decisions.md'), '- STAGED stray line\n');
+  fs.writeFileSync(path.join(shadow, 'decisions.md'), '# Auto-Decision Log — x\n\n## /wrap-up\n- STAGED stray line\n');
   fs.writeFileSync(path.join(shadow, 'work', '1-spec.md'), 'materialized — must stay\n');
 
   const r = spawnSync('bash', ['-c', SWEEP_SNIPPET], {
@@ -103,7 +115,9 @@ test('probe: the documented sweep relocates a staged file written to the worktre
   assert.ok(fs.existsSync(path.join(runDir, 'staged', 'wrap-up-skill-1.md')), 'file now at the anchored path');
   assert.ok(!fs.existsSync(path.join(shadow, 'staged', 'wrap-up-skill-1.md')), 'shadow copy gone');
   assert.ok(!fs.existsSync(path.join(shadow, 'staged')), 'empty shadow staged/ removed');
-  assert.match(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), /STAGED stray line/, 'shadow decisions.md appended to the anchored log');
+  const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  assert.match(log, /STAGED stray line/, 'shadow decisions.md entry appended to the anchored log');
+  assert.ok(!log.includes('# Auto-Decision Log — x'), 'shadow decisions.md header dropped, not appended');
   assert.ok(!fs.existsSync(path.join(shadow, 'decisions.md')), 'shadow decisions.md removed after append');
   assert.ok(fs.existsSync(path.join(shadow, 'work', '1-spec.md')), 'work/ untouched');
 });
@@ -121,4 +135,76 @@ test('probe: the sweep is a no-op when no shadow exists', (t) => {
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), '');
   assert.ok(fs.existsSync(path.join(runDir, 'staged')), 'anchored staged/ survives — the same-path guard stops the sweep from rmdir-ing it');
+});
+
+// ---- Shared fixture builder for the remaining probes: a main checkout + linked worktree + anchored run dir ----
+function buildFixture(t, { realpath = true } = {}) {
+  const raw = fs.mkdtempSync(path.join(os.tmpdir(), 'stagepath-probe-'));
+  const root = realpath ? fs.realpathSync(raw) : raw;
+  t.after(() => fs.rmSync(raw, { recursive: true, force: true }));
+  const git = (cwd, ...args) => {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 30_000, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } });
+    assert.equal(r.status, 0, r.stderr);
+    return r;
+  };
+  const main = path.join(root, 'main');
+  fs.mkdirSync(main);
+  git(main, 'init', '-q');
+  git(main, 'config', 'user.email', 'probe@example.invalid');
+  git(main, 'config', 'user.name', 'probe');
+  fs.writeFileSync(path.join(main, 'a.txt'), 'a\n');
+  git(main, 'add', 'a.txt');
+  git(main, 'commit', '-q', '-m', 'base');
+  const wt = path.join(root, 'wt');
+  git(main, 'worktree', 'add', '-q', wt, '-b', 'probe');
+  const runRel = '.claude-tweaks/pipelines/2026-01-01T000000-spec-1/spec-1';
+  const runDir = path.join(main, runRel);
+  fs.mkdirSync(path.join(runDir, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# log\n');
+  return { main, wt, runDir, shadow: path.join(wt, runRel) };
+}
+const sweep = (cwd, env) => spawnSync('bash', ['-c', SWEEP_SNIPPET], { cwd, encoding: 'utf8', timeout: 30_000, env });
+
+test('probe: a same-basename collision keeps the anchored file, moves the shadow copy to .shadow-dup, and says so', (t) => {
+  const { wt, runDir, shadow } = buildFixture(t);
+  fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'staged', 'wrap-up-skill-1.md'), 'ANCHORED ORIGINAL\n');
+  fs.writeFileSync(path.join(shadow, 'staged', 'wrap-up-skill-1.md'), 'shadow copy\n');
+  const r = sweep(wt, { ...process.env, PIPELINE_RUN_DIR: runDir, WORKTREE: wt });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /collision: wrap-up-skill-1\.md \(kept as wrap-up-skill-1\.md\.shadow-dup\)/);
+  assert.doesNotMatch(r.stdout, /relocated: wrap-up-skill-1\.md/, 'a collision is never reported as a relocation');
+  assert.equal(fs.readFileSync(path.join(runDir, 'staged', 'wrap-up-skill-1.md'), 'utf8'), 'ANCHORED ORIGINAL\n', 'anchored file untouched');
+  assert.equal(fs.readFileSync(path.join(runDir, 'staged', 'wrap-up-skill-1.md.shadow-dup'), 'utf8'), 'shadow copy\n', 'shadow copy preserved at the anchored path');
+  assert.ok(!fs.existsSync(path.join(shadow, 'staged')), 'shadow staged/ emptied and removed');
+});
+
+test('probe: run from the main checkout with a trailing-slash WORKTREE, the guard holds and the anchored staged/ survives', (t) => {
+  const { main, runDir } = buildFixture(t);
+  const r = sweep(main, { ...process.env, PIPELINE_RUN_DIR: runDir + '/', WORKTREE: main + '/' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), '', 'a well-configured no-op prints nothing');
+  assert.ok(fs.existsSync(path.join(runDir, 'staged')), 'anchored staged/ survives — trailing slashes cannot defeat the -ef guard');
+});
+
+test('probe: a symlinked temp root (raw mkdtemp path, no realpath) still relocates — pwd -P normalizes both sides', (t) => {
+  const { wt, runDir, shadow } = buildFixture(t, { realpath: false });
+  fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(shadow, 'staged', 'claude-md-1.md'), 'p\n');
+  const r = sweep(wt, { ...process.env, PIPELINE_RUN_DIR: runDir, WORKTREE: wt });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /relocated: claude-md-1\.md/);
+  assert.ok(fs.existsSync(path.join(runDir, 'staged', 'claude-md-1.md')), 'relocated to the anchored path despite symlinked components');
+});
+
+test('probe: an unset WORKTREE is a loud diagnostic, not a silent no-op — nothing is moved', (t) => {
+  const { wt, runDir, shadow } = buildFixture(t);
+  fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(shadow, 'staged', 'x.md'), 'x\n');
+  const env = { ...process.env, PIPELINE_RUN_DIR: runDir };
+  delete env.WORKTREE;
+  const r = sweep(wt, env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /not swept/);
+  assert.ok(fs.existsSync(path.join(shadow, 'staged', 'x.md')), 'nothing moved when misconfigured');
 });
