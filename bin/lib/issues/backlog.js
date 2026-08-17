@@ -146,13 +146,27 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
   return records.map((r) => ({ ...r, createdAt: dateByPath[r.path] || new Date().toISOString() }));
 }
 
+// records[] -> the ready+granted subset only — the exact candidate set
+// overview-mode.md Step 2's native blockedBy pre-attach fetch must target
+// (refs #563). NOT the same as Step 3's buildable subset (dispatchable ∪
+// granted) — this runs BEFORE funnelBuckets has produced those buckets, so
+// "granted" here is computed independently of the in-set-blockers split
+// that native resolution is meant to correct. It also doesn't exclude
+// `isParentIssue` records, which funnelBuckets routes to `parents` rather than
+// `granted`/`dispatchable` — harmless, since a parent is never `ready`
+// (`_shared/work-record.md`'s Decomposition rules), so this stays the
+// buildable candidate set on any conforming repo.
+function readyGrantedSubset(records) {
+  return records.filter((r) => r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+}
+
 // records[] -> { captured, scored, shaped, granted, dispatchable, inFlight,
-// parked, notPlanned, needsYou }. The eight stage keys (captured..notPlanned)
-// are mutually exclusive buckets over the post-merge faceted set (github +
-// unsynced); needsYou is a separate overlay, not a bucket — see the overlay
-// loop's comment below. Together they form the funnel decision surface
-// /claude-tweaks:backlog overview's bare mode renders. First match wins, in
-// this order for the eight stage keys; the precedence
+// parked, notPlanned, parents, needsYou }. The nine stage keys
+// (captured..parents) are mutually exclusive buckets over the post-merge
+// faceted set (github + unsynced); needsYou is a separate overlay, not a
+// bucket — see the overlay loop's comment below. Together they form the funnel
+// decision surface /claude-tweaks:backlog overview's bare mode renders. First
+// match wins, in this order for the nine stage keys; the precedence
 // rationale: bot-state outranks stage labels because live work reflects current
 // reality (a record simultaneously bot:in-progress and parked/ready resolves
 // toward what is actually happening right now), and granted is checked before
@@ -169,21 +183,10 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // splitScoredUnscored's scored means FULLY scored — both risk and size — for
 // the lens views. Deliberate, not drift: the funnel tracks "has triage
 // started?" while the lenses need "is there enough signal to rank on?".
-// needsYou is an overlay, not a bucket — see the overlay loop's comment.
-// records[] -> the ready+granted subset only — the exact candidate set
-// overview-mode.md Step 2's native blockedBy pre-attach fetch must target
-// (refs #563). NOT the same as Step 3's buildable subset (dispatchable ∪
-// granted) — this runs BEFORE funnelBuckets has produced those buckets, so
-// "granted" here is computed independently of the in-set-blockers split
-// that native resolution is meant to correct.
-function readyGrantedSubset(records) {
-  return records.filter((r) => r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
-}
-
 function funnelBuckets(records) {
   const buckets = {
     captured: [], scored: [], shaped: [], granted: [],
-    dispatchable: [], inFlight: [], parked: [], notPlanned: [],
+    dispatchable: [], inFlight: [], parked: [], notPlanned: [], parents: [],
   };
   const openIds = new Set(records.map((r) => r.number ?? r.id).filter((n) => n != null));
   for (const r of records) {
@@ -196,13 +199,14 @@ function funnelBuckets(records) {
     if (f.bot.inProgress) buckets.inFlight.push(r);
     else if (f.stage === 'parked') buckets.parked.push(r);
     else if (f.notPlanned) buckets.notPlanned.push(r);
+    else if (f.isParentIssue) buckets.parents.push(r);
     else if (f.stage === 'ready' && granted && inSetBlockers.length > 0) buckets.granted.push(r);
     else if (f.stage === 'ready' && granted) buckets.dispatchable.push(r);
     else if (f.stage === 'ready') buckets.shaped.push(r);
     else if (f.priority || f.risk || f.size) buckets.scored.push(r);
     else buckets.captured.push(r);
   }
-  // needsYou is an OVERLAY, never a ninth stage: every record above keeps its
+  // needsYou is an OVERLAY, never a tenth stage: every record above keeps its
   // one primary bucket (exclusivity and sum-to-total invariants untouched).
   // Both needs-facets are LIVE on both drivers (record.js for github-issues,
   // local-store.js for local-files): needsDefinition since the needs:definition

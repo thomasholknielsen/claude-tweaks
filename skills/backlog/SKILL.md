@@ -7,7 +7,7 @@ argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup|trust] [--b
 
 # Backlog — Refine Labels and Understand the Queue
 
-Two modes over the same open work-record backlog: `refine` ensures every record carries the right `priority:*`/`**Related:**`/grant labels (a write sweep, human-confirmed); `overview` renders a distribution picture and recommends what to build next (read-only). Sits outside the main brainstorm-to-build chain, feeding judgment and authorization into it rather than gating it:
+Three modes over the same open work-record backlog: `refine` ensures every record carries the right `priority:*`/`**Related:**`/grant labels (a write sweep, human-confirmed); `overview` renders a distribution picture and recommends what to build next (read-only); `grant` is the headless machine-grant sweep (`work-backend: github-issues` only, opt-in). Sits outside the main brainstorm-to-build chain, feeding judgment and authorization into it rather than gating it:
 
 ```
 capture / code-health / harness-health / journey-health / docs-health   (file records)
