@@ -1,11 +1,11 @@
 ---
 name: shared-contract-extraction
-description: Use when extracting a cross-skill contract into a new `skills/_shared/*.md` file and migrating existing consumers to cite it — the consumer-list derivation, what each consumer keeps versus surrenders, the retirement sweep, and the conformance suite that pins the migration. Keywords - shared contract, `_shared`, extraction, consolidation, consumer migration, citation sweep, retired clause, conformance suite, IL-66, IL-70.
+description: Use when extracting a cross-skill contract into a new `plugin/skills/_shared/*.md` file and migrating existing consumers to cite it — the consumer-list derivation, what each consumer keeps versus surrenders, the retirement sweep, and the conformance suite that pins the migration. Keywords - shared contract, `_shared`, extraction, consolidation, consumer migration, citation sweep, retired clause, conformance suite, IL-66, IL-70.
 ---
 
 # Shared contract extraction
 
-How this repo extracts a recurring cross-skill rule into a new `skills/_shared/*.md` contract and migrates its consumers to cite it instead of restating it. Recurs constantly (`git log --diff-filter=A -- skills/_shared/` shows ~25 additions over six months, several explicitly extraction/consolidation commits: `b91e704b`, `47ed1675`, `d937f35d`, `31df65dc`, `ce9dab9c`, `545cd4fd`, `c59f19f8`, `3a270ad4`, `ccd502b0`) but has had no procedural home — the accumulated failure knowledge is scattered across five project-memory entries with no recipe tying them together.
+How this repo extracts a recurring cross-skill rule into a new `plugin/skills/_shared/*.md` contract and migrates its consumers to cite it instead of restating it. Recurs constantly (`git log --diff-filter=A -- 'plugin/skills/_shared/' 'skills/_shared/'` — both spellings, because this repo's history straddles the #418 payload move (ADR-0015); discount the cutover commit's own bulk add — shows ~25 additions over six months, several explicitly extraction/consolidation commits: `b91e704b`, `47ed1675`, `d937f35d`, `31df65dc`, `ce9dab9c`, `545cd4fd`, `c59f19f8`, `3a270ad4`, `ccd502b0`) but has had no procedural home — the accumulated failure knowledge is scattered across five project-memory entries with no recipe tying them together.
 
 ## The steps, in order
 
@@ -42,5 +42,5 @@ How this repo extracts a recurring cross-skill rule into a new `skills/_shared/*
 
 ## Evidence
 
-- Record #796 (`skills/_shared/github-rate-limit.md`, seven-plus consumer migration, `tests/github-rate-limit-conformance.test.js`) is the instance this skill was extracted from — including its own near-miss: the conformance suite initially paired the whitespace-spanning control scan with citation-presence assertions only, not retired-clause-absence assertions, caught by a reviewer's memory recall rather than written guidance. That gap is what step 5 above closes.
+- Record #796 (`plugin/skills/_shared/github-rate-limit.md`, seven-plus consumer migration, `tests/github-rate-limit-conformance.test.js`) is the instance this skill was extracted from — including its own near-miss: the conformance suite initially paired the whitespace-spanning control scan with citation-presence assertions only, not retired-clause-absence assertions, caught by a reviewer's memory recall rather than written guidance. That gap is what step 5 above closes.
 - Prior extraction/consolidation commits: `b91e704b`, `47ed1675`, `d937f35d` (IL-70 split), `31df65dc`, `ce9dab9c`, `545cd4fd`, `c59f19f8`, `3a270ad4`, `ccd502b0`.
