@@ -83,12 +83,30 @@ function defaultGhApi(args) {
   }
 }
 
-// (ghApi, repoSlug) -> { names: string[], failure: null|'gh-absent'|'network-failure' }
+// (ghApi, repoSlug) -> { entries: [{name, sha}], failure: null|'gh-absent'|'network-failure' }
+// One Contents-API directory listing — the SAME single call this module
+// already made — extended to keep each entry's `sha` (previously discarded
+// by `-q .[].name`) instead of adding a second Git Trees API call (#820,
+// D6). `claims/` is flat and single-level, so the directory listing already
+// carries everything a Trees API call would add.
+function listClaimEntries(ghApi, repoSlug) {
+  const r = ghApi([`repos/${repoSlug}/contents/claims?ref=${CLAIMS_BRANCH}`, '-q', '[.[] | {name, sha}]']);
+  if (r.failure) return { entries: [], failure: r.failure };
+  try {
+    const parsed = JSON.parse(r.stdout || '[]');
+    return { entries: Array.isArray(parsed) ? parsed : [], failure: null };
+  } catch {
+    return { entries: [], failure: 'network-failure' };
+  }
+}
+
+// Thin wrapper — the only pre-existing consumer (release-merged.js) is
+// migrating to listClaimEntries in the same change (see that module), but
+// kept exported as-is rather than removed, since a bare rename with no
+// remaining caller to prove it is unnecessary churn.
 function listClaimNames(ghApi, repoSlug) {
-  const r = ghApi([`repos/${repoSlug}/contents/claims?ref=${CLAIMS_BRANCH}`, '-q', '.[].name']);
-  if (r.failure) return { names: [], failure: r.failure };
-  const stdout = r.stdout || '';
-  return { names: stdout.split('\n').map((s) => s.trim()).filter(Boolean), failure: null };
+  const { entries, failure } = listClaimEntries(ghApi, repoSlug);
+  return { names: entries.map((e) => e.name), failure };
 }
 
 // (ghApi, repoSlug, issueNumber) -> { content, sha, failure, absent }
@@ -143,5 +161,5 @@ function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message })
 }
 
 module.exports = {
-  listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, claimPath, classifyGhApiError,
+  listClaimEntries, listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, claimPath, classifyGhApiError,
 };
