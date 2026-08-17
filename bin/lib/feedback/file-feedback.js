@@ -130,6 +130,7 @@ function fileOne({ repo, draft, runner = defaultRunner, bodyFile, writeFile = fs
 
 module.exports = {
   defaultRunner,
+  errorText,
   computeFingerprint,
   embedFingerprint,
   findDuplicate,

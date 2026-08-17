@@ -120,7 +120,7 @@ function run(argv, deps = realDeps) {
         fingerprint = feedback.computeFingerprint(draft);
       } catch (err) {
         anyFailure = true;
-        lines.push(`filing-failure: ${err && err.message}`);
+        lines.push(`filing-failure: ${feedback.errorText(err)}`);
         continue;
       }
       const marker = `<!-- fingerprint: ${fingerprint} -->`;
@@ -129,8 +129,12 @@ function run(argv, deps = realDeps) {
         if (hit) lines.push(`dedup-hit #${hit.number}`);
         else lines.push(`would-file (fingerprint ${fingerprint})`);
       } catch (err) {
+        // findDuplicate calls deps.runner (a real `gh` call outside tests) — its
+        // failure carries the actual diagnostic in .stderr/.stdout, or may not be
+        // an Error at all. Plain `err.message` silently drops that (matches the
+        // bug errorText() was written to prevent in bin/lib/issues/link.js).
         anyFailure = true;
-        lines.push(`filing-failure: ${err && err.message}`);
+        lines.push(`filing-failure: ${feedback.errorText(err)}`);
       }
       continue;
     }

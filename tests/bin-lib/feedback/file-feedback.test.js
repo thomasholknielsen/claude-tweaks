@@ -266,6 +266,25 @@ test('CLI --dry-run: zero create calls across a multi-draft batch; reports would
   assert.match(lines[1], new RegExp(`would-file \\(fingerprint ${fpB}\\)`));
 });
 
+test('CLI --dry-run: a runner failure in the dedup search reports the real gh error text, not a swallowed undefined', () => {
+  // Regression: the dry-run loop's dedup-search catch used to read `err.message`
+  // directly instead of `errorText(err)` — for a runner failure carrying its
+  // diagnostic in .stderr (or a thrown non-Error), that silently produced
+  // "filing-failure: undefined". Mirrors link.test.js's errorText-fallback coverage.
+  const draft = makeDraft();
+  const runner = (args) => {
+    if (isList(args)) { const e = new Error(); e.stderr = 'gh: rate limited (403)'; throw e; }
+    throw new Error('unexpected ' + args.join(' '));
+  };
+  const { deps, out } = cliDeps({ runner, readDraftsFile: () => [draft] });
+  const code = run(['--drafts', 'drafts.json', '--repo', 'acme/w', '--dry-run'], deps);
+  assert.equal(code, 1);
+  const line = out.join('').trim();
+  assert.match(line, /filing-failure:/);
+  assert.match(line, /rate limited \(403\)/);
+  assert.doesNotMatch(line, /filing-failure: undefined/);
+});
+
 test('CLI: missing --drafts exits 2 with zero runner calls', () => {
   const runner = () => { throw new Error('must not call gh'); };
   const { deps, err } = cliDeps({ runner });
