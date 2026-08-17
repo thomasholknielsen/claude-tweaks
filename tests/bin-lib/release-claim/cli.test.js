@@ -26,13 +26,18 @@ function mkRun() {
 // bin/log-decision.js's own cli.test.js uses), since a synthetic fixture root never
 // matches the real repo that mainCheckoutRoot(process.cwd()) would resolve to.
 function rootOf(runDir) { return path.dirname(path.dirname(path.dirname(runDir))); }
-function deps({ content, putThrows, gh = true, out, mainRoot }) {
+function deps({ content, putThrows, gh = true, out, mainRoot, editFailLabel }) {
   const calls = [];
   const runner = (a) => {
     calls.push(a);
     if (isGet(a)) { if (content === null) throw new Error('HTTP 404'); return JSON.stringify({ content, sha: 'blobsha1' }); }
     if (isPut(a)) { if (putThrows) throw new Error(putThrows); return '{}'; }
-    if (isComment(a) || isEdit(a)) return '';
+    if (isEdit(a)) {
+      const label = a[a.indexOf('--remove-label') + 1];
+      if (editFailLabel && label === editFailLabel) throw new Error('HTTP 404');
+      return '';
+    }
+    if (isComment(a)) return '';
     throw new Error('unexpected ' + a.join(' '));
   };
   return { calls, d: { runner, ghAvailable: () => gh, remoteUrl: () => 'git@github.com:acme/w.git', now: () => NOW, cwd: () => process.cwd(), mainRoot, stdout: (s) => out.push(['out', s]), stderr: (s) => out.push(['err', s]) } };
@@ -53,7 +58,31 @@ test('happy path: read -> PUT(sha) -> comment; --remove-grants adds two label re
   assert.equal(env.runId, RUN_DIR_NAME, 'runId is basename(--run), trailing slash stripped');
   assert.equal(env.logged, true);
   const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
-  assert.match(log, /^- AUTO \d{2}:\d{2}:\d{2} — Section E: released claim on #999 \(merged: spec 999\); link https:\/\/x\/1\. Reversibility: high\.$/m);
+  assert.match(log, /^- AUTO \d{2}:\d{2}:\d{2} — Section E: released claim on #999 \(merged: spec 999\); link https:\/\/x\/1; labels removed: auto:build, auto:merge\. Reversibility: high\.$/m);
+});
+
+test('a failed label removal (issue edit throws) warns to stderr and logs "label removal failed"; exit unchanged', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { d } = deps({ content: live(RUN_DIR_NAME), out, mainRoot: rootOf(runDir), editFailLabel: 'auto:merge' });
+  const code = run(['999', '--run', runDir, '--reason', 'merged: spec 999', '--remove-grants'], d);
+  assert.equal(code, 0, 'a best-effort label failure never changes the release outcome/exit code');
+  const err = out.filter((o) => o[0] === 'err').map((o) => o[1]).join('');
+  assert.match(err, /release-claim\.js: warning — could not remove label auto:merge on #999 \(best-effort, continuing\)/);
+  const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  assert.match(log, /labels removed: auto:build; label removal failed: auto:merge\./);
+});
+
+test('--section places the log line under the named heading; --step overrides the default "Section E"', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { d } = deps({ content: live(RUN_DIR_NAME), out, mainRoot: rootOf(runDir) });
+  const code = run(['999', '--run', runDir, '--reason', 'failed: build', '--section', '/dispatch', '--step', 'Settle'], d);
+  assert.equal(code, 0);
+  const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  const lines = log.split('\n');
+  assert.equal(lines[0], '## /dispatch');
+  assert.match(lines[1], /^- AUTO \d{2}:\d{2}:\d{2} — Settle: released claim on #999 \(failed: build\)\. Reversibility: high\.$/);
 });
 
 test('404/422 on the PUT: comment still posted, exit 3', () => {
@@ -74,12 +103,14 @@ test('blob owned by another run: exit 4, nothing written, skip line logged', () 
   assert.match(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), /skipped release of issue #999: claim held by run 2026-08-16T110000-spec-999/);
 });
 
-test('failed PUT (500): exit 1, no comment; missing run dir still releases (logged:false, warning)', () => {
+test('failed PUT (500): exit 1, no comment, FAILED line still logged; missing run dir still releases (logged:false, warning)', () => {
   const runDir = mkRun();
   const out = [];
-  const { calls, d } = deps({ content: live(RUN_DIR_NAME), putThrows: 'HTTP 500', out });
+  const { calls, d } = deps({ content: live(RUN_DIR_NAME), putThrows: 'HTTP 500', out, mainRoot: rootOf(runDir) });
   assert.equal(run(['999', '--run', runDir, '--reason', 'r'], d), 1);
   assert.equal(calls.filter(isComment).length, 0);
+  const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  assert.match(log, /^- AUTO \d{2}:\d{2}:\d{2} — Section E: release of #999 FAILED \(r\): HTTP 500\. Reversibility: n\/a\.$/m);
   const out2 = [];
   const { d: d2 } = deps({ content: live(RUN_DIR_NAME), out: out2 });
   // Same basename (so the ownership check still matches) under a directory that does not exist.

@@ -2,8 +2,9 @@
 // The one claim-release write path: read the claim blob, classify it, honor the
 // ownership rule, overwrite it with releasePayload's tombstone (conditional on
 // the read sha), post the release comment, and optionally strip labels — the
-// mechanics wrap-up/cleanup-procedures.md Section E steps 3-8 describe, in one
-// call. bin/release-claim.js is the thin CLI; bin/lib/reconcile/release-merged.js
+// mechanics wrap-up/cleanup-procedures.md Section E steps 3-6 and the
+// `bot:in-progress` half of step 7 describe, in one call. bin/release-claim.js
+// is the thin CLI; bin/lib/reconcile/release-merged.js
 // shares writeTombstone below instead of composing its own PUT. Injectable
 // runner(args) is invoked as `gh ${args.join(' ')}` (gh-api-module-pattern);
 // tests never touch real gh. Contract: skills/_shared/issue-claims.md.
@@ -26,7 +27,9 @@ function errorText(err) {
 
 function isNotFoundError(err) { return /\b404\b|Not Found/i.test(errorText(err)); }
 // 404 (already swept), 409/422 (sha mismatch — someone else re-claimed or released first).
-function isAlreadyReleasedError(err) { return /\b(404|409|422)\b/.test(errorText(err)); }
+// Anchored on the status-line shape (`HTTP <code>`) so a 500 whose body happens to mention
+// "404" is never downgraded to already-released.
+function isAlreadyReleasedError(err) { return /HTTP (404|409|422)\b/.test(errorText(err)); }
 
 // -> { content, sha } | { content:null, sha:null, absent:true }; other failures throw.
 function readClaimBlob({ owner, repo, issueNumber, runner = defaultRunner }) {

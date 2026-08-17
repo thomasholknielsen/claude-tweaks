@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // bin/release-claim.js — release a claims-registry claim in one command.
 //   node bin/release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] \
-//     [--remove-grants] [--remove-in-progress] [--repo owner/name] [--help]
+//     [--remove-grants] [--remove-in-progress] [--repo owner/name] \
+//     [--section "/<skill>"] [--step <text>] [--help]
 // Performs wrap-up/cleanup-procedures.md Section E steps 3-8 for one issue: read the
 // blob, ownership check (never delete a successor's claim), releasePayload -> tombstone
 // PUT carrying the read sha, release comment; --remove-grants strips auto:build/auto:merge,
@@ -22,11 +23,11 @@ const { execFileSync } = require('child_process');
 const release = require('./lib/release-claim/release');
 const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/append');
 
-const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--repo owner/name] [--help]\n';
+const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--repo owner/name] [--section "/<skill>"] [--step <text>] [--help]\n';
 const EXIT = { released: 0, 'already-released': 3, 'skipped-not-owner': 4, failed: 1 };
 
 function parseArgs(argv) {
-  const o = { issue: null, run: null, reason: null, link: null, removeGrants: false, removeInProgress: false, repo: null, help: false };
+  const o = { issue: null, run: null, reason: null, link: null, removeGrants: false, removeInProgress: false, repo: null, section: null, step: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => { const v = argv[++i]; return v === undefined ? null : v; };
@@ -37,6 +38,8 @@ function parseArgs(argv) {
     else if (a === '--remove-grants') o.removeGrants = true;
     else if (a === '--remove-in-progress') o.removeInProgress = true;
     else if (a === '--repo') o.repo = next();
+    else if (a === '--section') o.section = next();
+    else if (a === '--step') o.step = next();
     else if (/^--/.test(a)) return { error: `unknown argument: ${a}` };
     else if (o.issue === null) o.issue = a;
     else return { error: `unexpected argument: ${a}` };
@@ -61,9 +64,13 @@ const realDeps = {
 };
 
 function decisionText(issue, r, reason, link) {
+  if (r.outcome === 'failed') return `release of #${issue} FAILED (${reason}): ${r.error}`;
   if (r.outcome === 'skipped-not-owner') return `skipped release of issue #${issue}: claim held by run ${r.holder}`;
   const detail = r.outcome === 'already-released' ? ' — already released or swept' : '';
-  return `released claim on #${issue} (${reason})${link ? `; link ${link}` : ''}${detail}`;
+  let text = `released claim on #${issue} (${reason})${link ? `; link ${link}` : ''}${detail}`;
+  if (r.labelsRemoved && r.labelsRemoved.length) text += `; labels removed: ${r.labelsRemoved.join(', ')}`;
+  if (r.labelsFailed && r.labelsFailed.length) text += `; label removal failed: ${r.labelsFailed.join(', ')}`;
+  return text;
 }
 
 function run(argv, deps = realDeps) {
@@ -89,21 +96,23 @@ function run(argv, deps = realDeps) {
     owner: repoSpec.owner, repo: repoSpec.repo, issueNumber: issue, runId, reason: o.reason.trim(), link: o.link || undefined,
     removeGrants: o.removeGrants, removeInProgress: o.removeInProgress, runner: deps.runner, now: deps.now(),
   });
+  for (const label of r.labelsFailed || []) {
+    deps.stderr(`release-claim.js: warning — could not remove label ${label} on #${issue} (best-effort, continuing)\n`);
+  }
   let logged = false;
-  if (r.outcome !== 'failed') {
-    let target;
-    try { target = resolveTarget({ runDir, cwd: deps.cwd ? deps.cwd() : process.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
-    if (target.ok) {
-      const entry = formatEntry({ status: 'AUTO', now: deps.now(), step: 'Section E', text: decisionText(issue, r, o.reason.trim(), o.link), reversibility: r.outcome === 'skipped-not-owner' ? 'n/a' : 'high' });
-      try { appendEntry({ runDir, entry }); logged = true; } catch (err) { deps.stderr(`release-claim.js: decisions.md not written (${err && err.message})\n`); }
-    } else if (target.reason === 'not-anchored') {
-      deps.stderr(`release-claim.js: decisions.md not written — run dir is not anchored under the main checkout (a worktree-local shadow): ${runDir} — see _shared/pipeline-run-dir.md\n`);
-    } else {
-      deps.stderr(`release-claim.js: decisions.md not written — run dir does not exist: ${runDir}\n`);
-    }
+  let target;
+  try { target = resolveTarget({ runDir, cwd: deps.cwd ? deps.cwd() : process.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
+  if (target.ok) {
+    const reversibility = (r.outcome === 'skipped-not-owner' || r.outcome === 'failed') ? 'n/a' : 'high';
+    const entry = formatEntry({ status: 'AUTO', now: deps.now(), step: o.step || 'Section E', text: decisionText(issue, r, o.reason.trim(), o.link), reversibility });
+    try { appendEntry({ runDir, section: o.section, entry }); logged = true; } catch (err) { deps.stderr(`release-claim.js: decisions.md not written (${err && err.message})\n`); }
+  } else if (target.reason === 'not-anchored') {
+    deps.stderr(`release-claim.js: decisions.md not written — run dir is not anchored under the main checkout (a worktree-local shadow): ${runDir} — see _shared/pipeline-run-dir.md\n`);
+  } else {
+    deps.stderr(`release-claim.js: decisions.md not written — run dir does not exist: ${runDir}\n`);
   }
   deps.stdout(JSON.stringify({ issue, runId, reason: o.reason.trim(), link: o.link || null, outcome: r.outcome, holder: r.holder || null, commentPosted: r.commentPosted, labelsRemoved: r.labelsRemoved, labelsFailed: r.labelsFailed, note: r.note || null, error: r.error || null, logged }, null, 2) + '\n');
-  return EXIT[r.outcome];
+  return EXIT[r.outcome] ?? 1;
 }
 
 module.exports = { run, parseArgs, parseRepo };

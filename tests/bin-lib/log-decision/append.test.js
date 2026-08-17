@@ -27,7 +27,7 @@ test('formatEntry: spec-only location, default reversibility n/a, lever last', (
 test('formatEntry: no step/spec falls back to log-decision; rejects unknown status', () => {
   assert.match(formatEntry({ status: 'SCANNED', now: NOW, text: 'swept 3 files' }), /— log-decision: swept 3 files\. Reversibility: n\/a\.$/);
   assert.throws(() => formatEntry({ status: 'MAYBE', now: NOW, text: 'x' }), /status/);
-  assert.deepEqual(STATUSES, ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED']);
+  assert.deepEqual(STATUSES, ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED']);
 });
 
 test('resolveTarget: run dir under mainRoot ok; under either linked-worktree domain not-anchored; no .git above fails closed; missing dir', () => {
@@ -64,6 +64,34 @@ test('resolveTarget: run dir under mainRoot ok; under either linked-worktree dom
   fs.mkdirSync(orphanRun, { recursive: true });
   assert.deepEqual(resolveTarget({ runDir: orphanRun, mainRoot: orphanRoot }), { ok: false, reason: 'not-anchored' });
   assert.deepEqual(resolveTarget({ runDir: path.join(main, 'nope'), mainRoot: main }), { ok: false, reason: 'missing' });
+});
+
+// With `mainRoot: null` passed *explicitly* (not `undefined`), `resolveTarget`'s
+// `if (root)` guard is falsy, so the `rootReal !== gitRoot` domain comparison never
+// runs — the `.git`-is-a-FILE check on its own is the only thing standing between a
+// linked-worktree (or submodule) run dir and a false `ok: true`. This is the branch
+// deleting `|| found.isFile` would silently break while every other test (which
+// always injects a real `mainRoot`) stays green — see the discrimination proof in
+// final-fix-report.md.
+test('resolveTarget: with mainRoot explicitly null, the .git-is-a-FILE check alone gates a linked worktree', () => {
+  const wtRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-nullroot-wt-'));
+  const wt = path.join(wtRoot, '.claude', 'worktrees', 'wt');
+  const wtRun = path.join(wt, '.claude-tweaks', 'pipelines', 'run-a');
+  fs.mkdirSync(wtRun, { recursive: true });
+  fs.writeFileSync(path.join(wt, '.git'), 'gitdir: ../../../.git/worktrees/wt\n');
+  assert.deepEqual(resolveTarget({ runDir: wtRun, mainRoot: null }), { ok: false, reason: 'not-anchored' });
+
+  const mainRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-nullroot-main-'));
+  const main2 = path.join(mainRoot2, 'main');
+  const mainRun = path.join(main2, '.claude-tweaks', 'pipelines', 'run-b');
+  fs.mkdirSync(mainRun, { recursive: true });
+  fs.mkdirSync(path.join(main2, '.git'));
+  assert.equal(resolveTarget({ runDir: mainRun, mainRoot: null }).ok, true);
+
+  const orphanRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-nullroot-orphan-'));
+  const orphanRun2 = path.join(orphanRoot2, 'run-c');
+  fs.mkdirSync(orphanRun2, { recursive: true });
+  assert.deepEqual(resolveTarget({ runDir: orphanRun2, mainRoot: null }), { ok: false, reason: 'not-anchored' });
 });
 
 test('appendEntry: creates the file, then inserts under the named section before the next heading', () => {

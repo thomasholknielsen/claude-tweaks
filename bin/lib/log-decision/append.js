@@ -12,18 +12,19 @@
 // `.claude/worktrees/` and `.worktrees/` as two permanently separate,
 // equally live linked-worktree domains, so a substring match on one name
 // misses the other. Instead we walk up from the run dir to the nearest
-// ancestor holding a `.git` entry: a FILE there means a linked worktree
-// (either domain) — refused; a DIRECTORY means a real checkout root, which
-// must match the resolved mainRoot. No `.git` found anywhere above the run
-// dir also refuses — this predicate fails CLOSED on the unknown case, same
-// as bin/lib/hooks/worktree-reap.js.
+// ancestor holding a `.git` entry: a `.git` file (a linked worktree of
+// either domain, or a submodule) is refused — never the main checkout; a
+// DIRECTORY means a real checkout root, which must match the resolved
+// mainRoot. No `.git` found anywhere above the run dir also refuses — this
+// predicate fails CLOSED on the unknown case, same as
+// bin/lib/hooks/worktree-reap.js.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const { mainCheckoutRoot, safeReal } = require('../hooks/worktree-detect');
 
-const STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED'];
+const STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED'];
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -78,8 +79,6 @@ function resolveTarget({ runDir, cwd = process.cwd(), mainRoot }) {
   if (root) {
     const rootReal = safeReal(root) || root;
     if (rootReal !== gitRoot) return { ok: false, reason: 'not-anchored' };
-    const inRoot = real === rootReal || real.startsWith(rootReal + path.sep);
-    if (!inRoot) return { ok: false, reason: 'not-anchored' };
   }
   return { ok: true, file: path.join(real, 'decisions.md') };
 }
