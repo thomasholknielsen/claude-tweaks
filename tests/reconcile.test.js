@@ -676,3 +676,62 @@ test('reconcile(): mirror and remote-prune share one fetch, not two (D2)', async
   const fetchCalls = fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).length;
   assert.equal(fetchCalls, 1, `expected exactly one fetch, saw ${fetchCalls}`);
 });
+
+// --- session-level freshness TTL short-circuit (#820, D7) ---
+
+test('reconcile(): skipIfFresh=true short-circuits entirely when the cache is within TTL (D7)', async () => {
+  const { mainDir } = pairedFixture();
+  const cache = require('../bin/lib/reconcile/cache');
+  cache.writeCache(mainDir, { lastRunAt: Date.now(), claimShas: {} });
+  const r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipIfFresh: true });
+  assert.deepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
+  assert.equal(r.mirror, null);
+});
+
+test('reconcile(): skipIfFresh=true runs normally when the cache is stale (past TTL)', async () => {
+  const { mainDir } = pairedFixture();
+  const cache = require('../bin/lib/reconcile/cache');
+  cache.writeCache(mainDir, { lastRunAt: Date.now() - (60 * 60 * 1000), claimShas: {} });
+  const r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipIfFresh: true });
+  assert.notDeepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
+});
+
+test('reconcile(): skipIfFresh defaults to false — omitting it always runs, cache or not (back-compat for every existing caller)', async () => {
+  const { mainDir } = pairedFixture();
+  const cache = require('../bin/lib/reconcile/cache');
+  cache.writeCache(mainDir, { lastRunAt: Date.now(), claimShas: {} });
+  const r = await reconcile({ cwd: mainDir, checks: ['mirror'] });
+  assert.notDeepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
+});
+
+test('reconcile(): a real (non-short-circuited) pass stamps lastRunAt for the next skipIfFresh check', async () => {
+  const { mainDir } = pairedFixture();
+  // Same forcing as the preflight/budget/D2 tests above: pairedFixture()'s
+  // origin is a bare local repo, not a real GitHub remote, so
+  // resolveIntegrationModel's forge-detection fallback would otherwise land
+  // on local-merge — whose early return (index.js's model !== 'pr-first'
+  // branch) exits before the end-of-function stamp this test is checking.
+  // Force pr-first explicitly, and commit policy.yml so `git status
+  // --porcelain` reads clean (classifyMirror bails out early on a dirty
+  // tree, before ever reaching the stamp).
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const cache = require('../bin/lib/reconcile/cache');
+  const before = Date.now();
+  let r;
+  try {
+    r = await reconcile({ cwd: mainDir, checks: ['mirror'] });
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+  assert.deepEqual(r.skipped, [], `expected a fully-completed pass, saw ${JSON.stringify(r.skipped)}`);
+  const after = cache.readCache(mainDir);
+  assert.ok(after.lastRunAt >= before, 'lastRunAt must be stamped after a real pass');
+});

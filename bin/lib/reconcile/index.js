@@ -20,6 +20,7 @@ const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
 const { sharedFetch } = require('./shared-fetch');
+const { readCache, writeCache, isFresh } = require('./cache');
 
 // Execution order (mirror, red-tip, console, release, archive,
 // archive-branches, remote-prune, reap) is significant — see the ordering
@@ -47,6 +48,22 @@ async function reconcile(opts = {}) {
   if (!root) {
     result.skipped.push({ check: 'all', reason: 'no-repo' });
     return result;
+  }
+
+  // Whole-pass freshness short-circuit (#820, D7) — opt-in only (default
+  // false), so every existing direct caller of reconcile() (including the
+  // standalone `reconcile` CLI subcommand and every test written before this
+  // task) keeps today's always-runs semantics. Distinct from the GitHub-
+  // health preflight below: that answers "is GitHub reachable right now,"
+  // this answers "did any session already do this very recently." Checked
+  // before resolveIntegrationBranch/resolveIntegrationModel so a fresh cache
+  // costs zero I/O, not just zero network calls.
+  if (opts.skipIfFresh) {
+    const cache = readCache(root);
+    if (isFresh(cache, Date.now(), opts.ttlMs)) {
+      result.skipped.push({ check: 'all', reason: 'fresh-cache' });
+      return result;
+    }
   }
 
   const integration = resolveIntegrationBranch(root);
@@ -235,6 +252,14 @@ async function reconcile(opts = {}) {
     }
   }
 
+  // Stamp freshness only on a fully-completed pr-first pass — every earlier
+  // return in this function (no-repo, no-remote, local-merge fallback,
+  // preflight failure, budget-exceeded, and the skipIfFresh short-circuit
+  // itself) exits above this line and never reaches it, so a failed or
+  // partial pass never gets recorded as "fresh" for a future skipIfFresh
+  // check (#820, D7).
+  const cache = readCache(root);
+  writeCache(root, { ...cache, lastRunAt: Date.now() });
   return result;
 }
 
