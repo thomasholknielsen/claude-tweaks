@@ -177,6 +177,20 @@ Maximum 200 tokens total.
 
 When a dispatch's output genuinely doesn't fit A/B/C, define the format explicitly in the dispatch prompt rather than forcing it into one of the three.
 
+## Failed-agent retrieval
+
+A dispatched agent that dies mid-flight (session-limit interruption, tool crash) is a
+different case from one that finished — do not treat both the same way when collecting
+results.
+
+**Check the task-notification's `<status>` first.** `completed` → read the result as
+documented above. `failed` → the full envelope is not worth blocking on: retrieve only the
+tail — either a non-blocking `TaskOutput` call read for its trailing `<error>` block, or
+`tail -n 50` on the notification's own `<output-file>` path — never a blocking full-envelope
+`TaskOutput {block:true}`. The trailing error is the only actionable content; the rest is
+raw transcript internals (measured at ~6% of one run's total tool-result characters for zero
+net information when read in full).
+
 ## Exemption: third-party agents
 
 **The condition is structural, not a judgment call.** An agent is exempt from this contract when **its definition file lives outside the `agents/` directory this plugin owns** — it ships with a third-party plugin and is invoked as a delegation. Everything under this repository's `agents/` (declared in `.claude-plugin/plugin.json`'s `agents` array) is claude-tweaks-authored and is **never** exempt, however awkward its output is to parse. "This agent's output is inconvenient" is not a reading this paragraph supports: a dispatch site settles its own eligibility by asking where the agent file lives, with no appeal to intent.
