@@ -119,13 +119,19 @@ column. The header replaces the summary counts too — do not re-add a prose cou
 it; the header *is* the counts. The branch line below the header is a lane annotation, not a
 seventh stage column.
 
-Then at most **two annotation lines total**:
+Then at most **three annotation lines total**:
 
 - The trust consequence line from Step 1.5, when any applicable cell verdict requires it (all
   non-clean cells collapsed into that single semicolon-separated line — the per-cell phrasing never
   multiplies lines). Nothing when clean.
 - `parked {N} · not-planned {M} → /claude-tweaks:tidy owns these` — rendered from
   `.funnel.parked.length` / `.funnel.notPlanned.length`, only when either count is non-zero.
+- `parents {N} → close-out via /claude-tweaks:wrap-up's verification brief / /claude-tweaks:demo, not /claude-tweaks:specify` —
+  rendered from `.funnel.parents.length`, only when non-zero. A decomposition parent is never
+  `ready` and is not agent-sized work (`_shared/work-record.md`'s Decomposition rules) — its
+  close-out is the parent-gate path (`wrap-up/verification-brief.md`, backstopped by
+  `/claude-tweaks:tidy`'s `Open parent gate` action) or `/claude-tweaks:demo`'s parent-close
+  branch, never `/claude-tweaks:specify`.
 
 Every record appears exactly once across the header's populations (`funnelBuckets` is mutually
 exclusive by construction) — never re-list a record in a second stage or an extra summary — the
