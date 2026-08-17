@@ -6,6 +6,7 @@ files:
   - skills/tidy/scan-procedures.md
   - bin/lib/reconcile/release-merged.js
   - bin/lib/reconcile/archive-branches.js
+  - bin/lib/reconcile/prune-remote.js
   - bin/lib/reconcile/reap-merged.js
 ---
 
@@ -19,7 +20,7 @@ files:
 ## Steps
 
 ### 1. Scans run — reconcile converges first
-- **Action:** Tidy's scan procedures run `reconcile()` at their own trigger points. Under `pr-first`, the release check drops claims on merged-PR evidence (`merged: reconciled from PR #{n}`) or issue-closed evidence (`issue-closed: reconciled from #{n}`), the archive-branches check deletes cherry-equivalent plugin-owned branches and tags-then-deletes aged unmerged ones, and the reap check removes merged runs' worktrees — a locked worktree with a live owner is reap's skip, reported with its reason, never broken. Under `local-merge`, only `reap`'s legacy ancestry check runs — everything else keeps staging.
+- **Action:** Tidy's scan procedures run `reconcile()` at their own trigger points. Under `pr-first`, the release check drops claims on merged-PR evidence (`merged: reconciled from PR #{n}`) or issue-closed evidence (`issue-closed: reconciled from #{n}`), the archive-branches check deletes cherry-equivalent plugin-owned branches and tags-then-deletes aged unmerged ones, the remote-prune check deletes remote plugin-owned branches carrying both signals (a MERGED PR and cherry-equivalence) after refreshing origin, and the reap check removes merged runs' worktrees — a locked worktree with a live owner is reap's skip, reported with its reason, never broken. Under `local-merge`, only `reap`'s legacy ancestry check runs — everything else keeps staging.
 - **Expect:** No approval prompt for any of this — these are reconcile's background-convergence writes, outside the skill-side auto-mode contract; tidy only reports the results.
 
 ### 2. Findings route by the table, not judgment
@@ -40,7 +41,7 @@ files:
 
 ## Example render
 
-An example of the post-#685 shape for a sweep with 3 auto-applied cleanups, no staged items, 16 Yours records across four groups, and six clean scans (fictional records). The 16 Yours records fit in 37 lines; the whole report is 58, so this render ships as a digest with this full form in `report.md`:
+An example of the post-#695 shape for a sweep with 3 auto-applied cleanups, no staged items, 16 Yours records across four groups, and six clean scans (fictional records). The 16 Yours records fit in 28 lines; the whole report is 49, so this render ships as a digest with this full form in `report.md`:
 
 ````markdown
 ## Tidy Report — 2026-08-16
@@ -61,23 +62,14 @@ deleted      #601  Terminal track for design-wrapper — plan file       commit 
    #661  Dispatch two-call gate: settle before teardown                  ready, missing risk/size
    #663  Help dashboard trust table render                               ready, missing risk/size
    #670  Capture born-ready chain: --chained shaping                     ready, missing risk/size
-   /claude-tweaks:specify #640
-   /claude-tweaks:specify #652
-   /claude-tweaks:specify #655
-   /claude-tweaks:specify #661
-   /claude-tweaks:specify #663
-   /claude-tweaks:specify #670
+   /claude-tweaks:specify #640,#652,#655,#661,#663,#670
 /claude-tweaks:demo (5)
    #598  Merge verification policy key                                   closed, no acceptance
    #599  Reference card argument-hint pin                                closed, no acceptance
    #608  Specify native sub_issues linking                               closed, no acceptance
    #610  Specify native blocked_by linking                               closed, no acceptance
    #647  permittedGrants per-grant reasons                               closed, no acceptance
-   /claude-tweaks:demo #598
-   /claude-tweaks:demo #599
-   /claude-tweaks:demo #608
-   /claude-tweaks:demo #610
-   /claude-tweaks:demo #647
+   /claude-tweaks:demo #598,#599,#608,#610,#647
 git (2)
    #617  Design exhaust deferral gate                                    PR closed unmerged, wt kept
    #620  Revive needs-definition sweep                                   PR closed unmerged, wt kept

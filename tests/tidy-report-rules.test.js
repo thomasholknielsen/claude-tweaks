@@ -54,10 +54,10 @@ test('step-6-auto.md: Bucket mapping Clean row is per-scan count lines, not a co
   assert.match(bucket, /\{scan\}\s+\{count\} checked/);
 });
 
-// Mechanical: the grouping rule names flow + dispatch as today's batchable
-// targets and specify + demo as single-ref. Check that against the live
-// argument-hints the rule is keyed on, so the "today" clause cannot go stale
-// silently.
+// Mechanical: the grouping rule names flow, dispatch, specify, and demo as
+// today's batchable targets (#695 added specify + demo to that set). Check
+// that against the live argument-hints the rule is keyed on, so the "today"
+// clause cannot go stale silently.
 test('grouping rule\'s batchable-today claim matches the live argument-hints', () => {
   const hint = (skill) => {
     const m = read('skills', skill, 'SKILL.md').match(/^argument-hint:\s*"([^"]*)"/m);
@@ -67,8 +67,8 @@ test('grouping rule\'s batchable-today claim matches the live argument-hints', (
   const multi = /\[,\s*#/; // `<#n>[,#m,#o]` / `#N[,#M...]`
   assert.match(hint('flow'), multi);
   assert.match(hint('dispatch'), multi);
-  assert.doesNotMatch(hint('specify'), multi);
-  assert.doesNotMatch(hint('demo'), multi);
+  assert.match(hint('specify'), multi);
+  assert.match(hint('demo'), multi);
 });
 
 // --- Task 2: Report rules width discipline, digest, conformance scan ---
