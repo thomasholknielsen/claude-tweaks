@@ -263,6 +263,23 @@ Projected token cost
 exit=0
 ```
 
+`Agents (0)` in that inventory is **not** a payload gap, and was checked rather than assumed: the
+machine's installed 6.94.0 build reports the identical line while `agents/qa-agent.md` demonstrably
+loads (§1c's debug log: `Loaded agent from plugin claude-tweaks custom file: …/plugin/agents/qa-agent.md`,
+`Total plugin agents loaded: 2`).
+
+```
+$ claude plugin details claude-tweaks@claude-tweaks-marketplace | head -10
+claude-tweaks 6.94.0
+…
+  Skills (33)  assess-agent-autonomy, backlog, …, wrap-up
+  Agents (0)
+  Hooks (6)  SessionStart, SessionEnd, PreCompact, PreToolUse, PostToolUse, SubagentStop  (harness-only — no model context cost)
+```
+
+Same `Agents (0)` / `Skills (33)` / `Hooks (6)` triple pre- and post-cutover — a `plugin details`
+counting quirk, unchanged by the move.
+
 (`claude plugin details claude-tweaks-cutover-probe` — unqualified — returns
 `Plugin "claude-tweaks-cutover-probe" not found`; the qualified `name@marketplace` form is required,
 matching Probe 2 §3.0's unqualified-name trap.)
@@ -379,10 +396,86 @@ cover because its file list was hand-enumerated:
 | `work/714-spec.md` | 2 | a runnable `grep -n "AUTO-RESOLVED" skills/…` acceptance-criterion command |
 | `README.md` | 2 | `skills/_shared/autonomy-ceiling.md`, `skills/_shared/work-record.md` |
 
-`work/` is not on the AC's exclusion list. `README.md` is — but the brief's own whitespace-spanning
-control greps it explicitly, and the two references are real repo paths a reader would follow, so they
-were fixed rather than waved through. Every prefixed target was checked to exist at its new path
-(`ls plugin/bin/lib/wrap-up/facts.js …` — all 11 present). Fixed in commit `d591089b`.
+`work/` is not on the AC's exclusion list, so those three files are in scope by the AC's own terms.
+`README.md` **is** on the exclusion list (the spec's line 34 names it a dev-side file) — sweeping it
+was a **deliberate extension beyond the AC**, taken because the brief's own whitespace-spanning
+control greps `README.md` explicitly and because both references are real repo paths a reader would
+follow. Flagged as an extension rather than folded in silently. Fixed in commit `d591089b`.
+
+#### Target existence — 15 distinct targets, and the two that did not exist
+
+The four swept files name **15 distinct path targets** between them. Enumerated from the files
+themselves rather than recalled:
+
+```
+$ /usr/bin/grep -ohE '(plugin/|tests/bin-lib/)[A-Za-z0-9_./-]+' README.md work/320-spec.md work/422-spec.md work/714-spec.md | sort -u
+plugin/bin/lib/harness-health/scope.js
+plugin/bin/lib/wrap-up/engine-plan.js
+plugin/bin/lib/wrap-up/facts.js
+plugin/bin/lib/wrap-up/registry.js
+plugin/bin/resolve-policy.js
+plugin/skills/_shared/autonomy-ceiling.md
+plugin/skills/_shared/harness-health-analysis.md
+plugin/skills/_shared/work-record.md
+plugin/skills/dispatch/settle-and-merge.md
+plugin/skills/flow/multispec-review-console.md
+plugin/skills/wrap-up/claude-md-curation.md
+plugin/skills/wrap-up/review-console.md
+plugin/skills/wrap-up/SKILL.md
+tests/bin-lib/wrap-up/engine-plan.test.js
+tests/bin-lib/wrap-up/registry.test.js
+
+distinct targets: 15
+```
+
+**Correction (this supersedes an earlier "all 11 present" claim in this file).** The original
+verification checked 11 targets, not 15, and — worse — passed two that do not exist. Immediately
+after commit `d591089b` the real score was **13 of 15**. The two exceptions:
+
+```
+$ ls -d plugin/bin/lib/wrap-up/tests
+ls: plugin/bin/lib/wrap-up/tests: No such file or directory
+$ ls plugin/bin/lib/wrap-up/
+engine-plan.js  engine-record.js  engine-render.js  facts.js  reflog.js  registry.js  render.js  state.js
+```
+
+`work/320-spec.md` claimed the wrap-up engine's tests live at `bin/lib/wrap-up/tests/*.test.js`. That
+was already wrong before this build — the real files are the dev-side
+`tests/bin-lib/wrap-up/{engine-plan,registry}.test.js` — but the sweep's blanket `plugin/` prefix made
+a harmless stale assumption **newly harmful**: the two lines sit in a Deliverable and in ACs 1 and 3,
+so a future implementer of #320 would have been instructed to create test files *inside the shipped
+payload subtree*, which is precisely what this cutover exists to prevent. Repointed to
+`tests/bin-lib/wrap-up/…` (correctly unprefixed — they are dev-side).
+
+The lesson generalizes past this build: a mechanical path-prefix sweep inherits the correctness of
+every path it rewrites. Prefixing does not make a wrong path right; it makes a wrong path *authoritative*.
+Existence-check the post-sweep targets, not just the diff.
+
+Full re-verification after the repoint — every one of the 15:
+
+```
+$ while read -r p; do [ -e "$p" ] && echo "OK      $p" || echo "MISSING $p"; done < targets.txt
+OK      plugin/bin/lib/harness-health/scope.js
+OK      plugin/bin/lib/wrap-up/engine-plan.js
+OK      plugin/bin/lib/wrap-up/facts.js
+OK      plugin/bin/lib/wrap-up/registry.js
+OK      plugin/bin/resolve-policy.js
+OK      plugin/skills/_shared/autonomy-ceiling.md
+OK      plugin/skills/_shared/harness-health-analysis.md
+OK      plugin/skills/_shared/work-record.md
+OK      plugin/skills/dispatch/settle-and-merge.md
+OK      plugin/skills/flow/multispec-review-console.md
+OK      plugin/skills/wrap-up/claude-md-curation.md
+OK      plugin/skills/wrap-up/review-console.md
+OK      plugin/skills/wrap-up/SKILL.md
+OK      tests/bin-lib/wrap-up/engine-plan.test.js
+OK      tests/bin-lib/wrap-up/registry.test.js
+
+missing=0
+```
+
+15 of 15. The two corrected spellings are dev-side `tests/bin-lib/…`, which the AC pattern must not
+flag — `bin-lib` is not `bin/` — and the re-run in §3d confirms it does not.
 
 ### 3c. The one residual hit, and why it is not one
 

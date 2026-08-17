@@ -28,9 +28,9 @@ Surface: backend
 
 ## Acceptance Criteria
 
-1. A wrap-up run where `CLAUDE.md` (or an unscoped `.claude/rules/*.md` file) exceeds its tier's line budget, with `claudeMdCommandRenamed`/`dontCandidate`/`contradictedConvention`/`incidentRecorded` all false, opens the `claude-md` gate — covered by a new case in `plugin/bin/lib/wrap-up/tests/engine-plan.test.js` (alongside the existing "claude-md gate opens on fact OR signal" test) asserting `gate === 'open'` driven by `claudeMdOverBudget` alone.
+1. A wrap-up run where `CLAUDE.md` (or an unscoped `.claude/rules/*.md` file) exceeds its tier's line budget, with `claudeMdCommandRenamed`/`dontCandidate`/`contradictedConvention`/`incidentRecorded` all false, opens the `claude-md` gate — covered by a new case in `tests/bin-lib/wrap-up/engine-plan.test.js` (alongside the existing "claude-md gate opens on fact OR signal" test) asserting `gate === 'open'` driven by `claudeMdOverBudget` alone.
 2. A wrap-up run where every in-scope target is within budget and the other three signals are also false leaves the gate `closed` — unchanged regression behavior, covered in the same test file.
-3. `plugin/bin/lib/wrap-up/tests/registry.test.js` continues to pass with `claudeMdOverBudget` present in the row's `anyOf` array.
+3. `tests/bin-lib/wrap-up/registry.test.js` continues to pass with `claudeMdOverBudget` present in the row's `anyOf` array.
 4. `npm test` passes with no regressions.
 
 ## Technical Approach
