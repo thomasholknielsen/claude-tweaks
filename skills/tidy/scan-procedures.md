@@ -161,11 +161,12 @@ Anchor with `cd "{REPO_ROOT}" &&` / `cd "{RUN_ROOT}" &&` at the start of each co
 
 Skip silently when the repo has no GitHub remote (pre-check, before any listing attempt) —
 `gh` being unavailable alone no longer skips this step, per `_shared/github-write-transport.md`;
-use the MCP path instead. If the listing call itself fails mid-scan (rate limit, transient
-API error) after passing that pre-check, skip the rest of this step and note it in the
-report — per `_shared/issue-claims.md`'s Failure posture table ("Blob listing fails in /tidy
-→ skip the sweep step, note it in the report"), not silently. See `_shared/issue-claims.md`
-for the full protocol.
+use the MCP path instead. If the listing call itself fails mid-scan after passing that
+pre-check — recognized and classified per `_shared/github-rate-limit.md` for a rate limit,
+or any other transient API error — skip the rest of this step and note it in the report —
+per `_shared/issue-claims.md`'s Failure posture table ("Blob listing fails in /tidy → skip
+the sweep step, note it in the report"), not silently. See `_shared/issue-claims.md` for the
+full protocol.
 
 **Primary: list the `claims/` blob keyspace** (`_shared/issue-claims.md`'s "The lock" — "List
 all claims"). For each entry, read the blob and classify with `classifyClaimBlob`:
