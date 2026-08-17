@@ -12,7 +12,7 @@ files:
 **Persona:** claude-tweaks user (or a maintainer of a project using the plugin) returning days after a build shipped, who owes the record a human verdict and does not want to re-derive "how do I test this" from the diff.
 **Goal:** Reach an Approve / Request changes / Skip decision on one record after being *shown* the work — the observation plan executed in front of them — rather than being asked to choose how to verify it first.
 **Entry point:** A terminal in a session with the plugin loaded, holding a record number from `/claude-tweaks:help`'s outstanding list (Stage 4.7) or a `demo:pending` notification.
-**Success state:** The record carries `demo:approved` (or `demo:changes-requested` plus a linked follow-up record), and the human never had to answer a how-do-you-want-to-check-this question.
+**Success state:** The record carries `demo:approved` (or `demo:changes-requested` plus a linked follow-up record), and the human never had to answer a how-do-you-want-to-check-this question. For a `#N,#M` list, every ref that resolved carries its own verdict, applied as that verdict was given; a ref that resolved to nothing was reported and skipped without stopping the rest.
 
 ## Steps
 
