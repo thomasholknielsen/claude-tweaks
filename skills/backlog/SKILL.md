@@ -69,12 +69,12 @@ Read `refine-mode.md` in this skill's directory for the full `refine` procedure,
 **After `refine`:** render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
 **`/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to, e.g. #201,#202,#205}`** — skips re-selection, claims and builds them directly (recommended) — omit this line entirely if nothing was granted this run
-`/claude-tweaks:dispatch next` — claim and build the single highest-priority authorized record
+**`/claude-tweaks:dispatch next`** — claim and build the single highest-priority authorized record (recommended) — bold and suffix `(recommended)` only when the dispatch line above is omitted
 `/claude-tweaks:backlog refine` — review anything still left needing labels
 
 **After `overview`:** The rendered recommendation is never a static tag on one line — it is computed fresh each run and MUST be attached to exactly the line whose action matches the report's closing `Next:` line (Step 4's two-channel contract — the close-out block carries this-session moves only, never other-terminal command lists), resolving through the three-level precedence (needs-you first, then executable Dispatch entry, then fallback ladder): whichever line that resolves to renders first, bolded, with `(recommended)`, ahead of the lines below in their listed order. Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-`{the top item's launcher — /claude-tweaks:specify #N or /claude-tweaks:challenge #N}` — the one move only the human can make — omit this line when `needsYou` is empty
+`{the top item's launcher — /claude-tweaks:specify #N or /claude-tweaks:challenge --lens=1 #N}` — the one move only the human can make — omit this line when `needsYou` is empty
 `/claude-tweaks:flow {top-ranked executable Dispatch entry's refs, comma-joined}` — run the report's top Dispatch terminal in this session — omit when the Dispatch block contains no executable entry
 `/claude-tweaks:backlog refine` — apply the priority/Related/grant suggestions this overview surfaced — omit when nothing surfaced needs refining
 `/claude-tweaks:specify #{n}` — shape the single highest-priority backlog record this run surfaced — omit when the run surfaced no unshaped backlog record to shape (the `#{n}` placeholder must always resolve to a real record)
@@ -86,7 +86,7 @@ When situational filtering leaves **zero** lines, or the report's closing `Next:
 **After `grant`:** render only when a human is present to answer — mirrors `/claude-tweaks:dispatch`'s own `next` form rule (`dispatch/SKILL.md`'s Next Actions) exactly, since `grant` mode is the same headless-unit shape: a human typed `/claude-tweaks:backlog grant` directly, or a prior skill invoked it on a human's behalf → render; a scheduled Routine fired it → never render (nobody is present to answer, and an unanswered question at the end of a headless run is noise — the durable trace is the label state, the audit comments, and `decisions.md`, per `_shared/pipeline-run-dir.md`'s standalone-auto allowlist). When rendering, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
 **`/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to}`** — skips re-selection, claims and builds them directly (recommended) — omit this line entirely if nothing was granted this run
-`/claude-tweaks:backlog grant` — sweep anything still eligible since this run's --budget cap or new ready records
+**`/claude-tweaks:backlog grant`** — sweep anything still eligible since this run's --budget cap or new ready records (recommended) — bold and suffix `(recommended)` only when the dispatch line above is omitted
 
 No "set up a routine" line yet — `skills/backlog/routine-template.yml` doesn't exist (the companion sub-issue blocked on this one ships it; see this record's Non-Goals). Once it lands, add the analogous line here the same way `dispatch/SKILL.md`'s Next Actions offers `/claude-tweaks:routine create dispatch`.
 

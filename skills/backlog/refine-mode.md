@@ -22,7 +22,7 @@ fetch ends up skipped (ceiling below `trusted` and no `--trust`) is accepted ove
 canonical read is simpler than conditioning the resolve call itself on the value it exists to
 produce.
 
-**Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `/tmp/backlog-refine-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-refine-faceted.json`, `{EXTRA_FIELDS}` = `,body` — this pass needs bodies for synthesis). Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
+**Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `/tmp/backlog-refine-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-refine-faceted.json`) — reading through the session-scoped record snapshot, whose union field set always carries `body` (no `{EXTRA_FIELDS}` request needed) for this pass's synthesis. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
 
 ```bash
 node -e "
@@ -286,7 +286,7 @@ Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its
 suggestion as an annotation line under its row — a suggestion is never silently dropped.
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
-and paste-block templates, the consequence-line trust and framing annotation templates, the
+and paste-block templates, the consequence-line trust and `solution:unjustified` annotation templates, the
 count-summary line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line
 rule, and the confirm gate (`<!-- refine-confirm-gate -->`).
 

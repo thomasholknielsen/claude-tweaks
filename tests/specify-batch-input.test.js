@@ -49,7 +49,7 @@ test('specify ## Input documents the comma-list batch form', () => {
 
 test('specify Next Actions has a multiple-records-shaped row recommending a comma-list /flow', () => {
   assert.ok(
-    /\| Shaping mode — multiple records shaped in place \|[^\n]*\/claude-tweaks:flow #\{N1\},#\{N2\}/.test(SKILL),
+    /\| Shaping mode — multiple records shaped in place[^|]*\|[^\n]*\/claude-tweaks:flow #\{N1\},#\{N2\}/.test(SKILL),
     'Next Actions Situation table has no "multiple records shaped in place" row recommending /claude-tweaks:flow #{N1},#{N2},...',
   );
 });

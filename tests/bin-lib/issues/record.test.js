@@ -126,22 +126,31 @@ test('recordPayload emits labels in order: by:*, risk:*, size:*, ceremony:*, rea
   assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'ready', 'priority:high']);
 });
 
-test('recordPayload emits framing:baked when framing is truthy', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true });
-  assert.ok(result.labels.includes('framing:baked'));
+test('recordPayload emits solution:unjustified when solutionUnjustified is truthy', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', solutionUnjustified: true, ready: true });
+  assert.ok(result.labels.includes('solution:unjustified'));
+  assert.ok(!result.labels.includes('framing:baked'), 'emit side is new-spelling-only');
 });
 
-test('recordPayload emits no framing:baked label when framing is omitted', () => {
+test('recordPayload emits no solution:unjustified label when solutionUnjustified is omitted', () => {
   const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', ready: true });
+  assert.ok(!result.labels.includes('solution:unjustified'));
   assert.ok(!result.labels.includes('framing:baked'));
 });
 
-test('recordPayload places framing:baked between ceremony:* and ready in the emitted array', () => {
+test('recordPayload places solution:unjustified between ceremony:* and ready in the emitted array', () => {
   const result = recordPayload({
     title: 't', body: 'b', type: 'task', origin: 'capture',
-    risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
+    risk: 'low', size: 'low', ceremony: 'standard', solutionUnjustified: true, ready: true, priority: 'high',
   });
-  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'solution:unjustified', 'ready', 'priority:high']);
+});
+
+test('recordPayload throws on the pre-rename framing parameter, naming the field (mirrors the effort rejection)', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'b', type: 'task', framing: true }),
+    /framing/,
+  );
 });
 
 // The classification -> scoring-axis fold the health issue-payload builders read:
@@ -208,7 +217,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
-    origin: 'capture', risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null, stage: 'parked',
+    origin: 'capture', risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null, isParentIssue: false, notPlanned: false,
   });
@@ -234,7 +243,7 @@ test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', (
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
-    origin: null, risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null, stage: 'backlog',
+    origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null, isParentIssue: false, notPlanned: false,
   });
@@ -354,15 +363,22 @@ test('parseRecordFacets: ceremony defaults to null when the label is absent', ()
   assert.strictEqual(parseRecordFacets([]).ceremony, null);
 });
 
-// AC — framing axis (challenge framing-check, presence-only label)
+// AC 2 (record #677) — solution:unjustified axis (challenge framing-check, presence-only label;
+// renamed from framing:baked — the old label stays readable forever, [IL-85]-style)
 
-test('parseRecordFacets: framing:baked sets facets.framing to true', () => {
-  assert.strictEqual(parseRecordFacets(['framing:baked']).framing, true);
+test('parseRecordFacets: solution:unjustified sets facets.solutionUnjustified to true', () => {
+  assert.strictEqual(parseRecordFacets(['solution:unjustified']).solutionUnjustified, true);
 });
 
-test('parseRecordFacets: framing defaults to false when framing:baked is absent', () => {
-  assert.strictEqual(parseRecordFacets([]).framing, false);
-  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
+test('parseRecordFacets: legacy framing:baked label also sets facets.solutionUnjustified to true (permanent read-side fallback)', () => {
+  assert.strictEqual(parseRecordFacets(['framing:baked']).solutionUnjustified, true);
+});
+
+test('parseRecordFacets: solutionUnjustified defaults to false and there is no framing key', () => {
+  const facets = parseRecordFacets(['ready', 'risk:low']);
+  assert.strictEqual(facets.solutionUnjustified, false);
+  assert.strictEqual(parseRecordFacets([]).solutionUnjustified, false);
+  assert.ok(!('framing' in facets), 'the pre-rename facets.framing key must be gone');
 });
 
 // AC 2 (record #472) — needs:definition axis (presence-only label, /capture + /feedback)

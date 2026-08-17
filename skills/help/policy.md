@@ -110,7 +110,7 @@ printf '%s\n' "{key}: {value}" >> "$(git rev-parse --show-toplevel)/.claude-twea
 
 **If section 3 yielded zero recommendations** (either zero-finding case above): render all four render-contract sections as usual, then end with the single line `Nothing to change — configuration looks healthy; say "show advanced" to inspect defaults.` and skip the `AskUserQuestion` entirely. With a "No changes" option and no real recommendations, fewer than 2 real options exist for the call — a lone real choice needs no question: state the outcome directly rather than asking the user to pick between one meaningful option and a no-op.
 
-**Otherwise**, the mode's ONE `AskUserQuestion` call (`multiSelect: true`):
+**Otherwise**, the mode's ONE `AskUserQuestion` call (`multiSelect: true`). This call is a **blocking apply/write gate** — it decides which lines get written to `.claude-tweaks/policy.yml` before the skill can finish — so it falls under docs/skill-authoring.md's "decisions that block the skill from finishing" clause; it is not a terminal menu, and the plain-markdown close-out rule does not apply to it:
 
 - Options: the top recommended edits from section 3, **capped at 3**, ranked in section 3's own listing order (core-tier severity first), plus a "No changes" option.
 - Each option's `description` carries the exact `key: value` line that would be written. For an enum key, also list every legal value — read live from `POLICY_KEYS` in `bin/lib/policy-schema.js` (the pinned source of truth; never a hardcoded list in this file or the rendered option).

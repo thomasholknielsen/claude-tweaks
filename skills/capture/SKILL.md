@@ -86,18 +86,34 @@ script as a `process.argv` arg after `--`, never spliced into the JS source — 
 quote character would otherwise break out of the string literal, the same reason
 `code-health/focus-mode.md`'s F1 block passes its own values that way.
 
+Read through the session-scoped record snapshot (`_shared/record-queue-fetch.md`) instead of a
+bare fetch — `comments` carries each record's own comment bodies (the negative-evidence marker
+path, #268, reads `<!-- trust-negative-evidence: ... -->` back from here; the node block below
+spreads `...i` so it reaches `trustRows` unchanged), and the snapshot's union field set already
+carries it:
+
 ```bash
-# `comments` carries each record's own comment bodies — the negative-evidence
-# marker path (#268) reads `<!-- trust-negative-evidence: ... -->` back from
-# here; the node block below spreads `...i` so it reaches trustRows unchanged.
-gh issue list --state all --json number,labels,body,state,stateReason,closedAt,comments --limit 1000 > /tmp/capture-trust-records.json
+{Session-scoped record snapshot's read-fresh-or-fetch block, with {tmp-records-file} =
+ /tmp/capture-trust-records.json}
 ```
 
 Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting
-its value for `{integration-branch}` below:
+its value for `{integration-branch}` below. The git-log dump follows the same session-scoped
+freshness rule as the record snapshot (`_shared/record-queue-fetch.md`'s Session-scoped record
+snapshot section) — reuse `/tmp/ct-gitlog-{session-id}.txt`
+(`record-snapshot.js`'s `gitLogPath($CLAUDE_CODE_SESSION_ID)`) when fresh, else regenerate it:
 
 ```bash
-git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/capture-trust-git-log.txt
+GITLOG=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').gitLogPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
+if [ -n "$GITLOG" ] && node -e "
+  const { isFresh } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js');
+  process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
+" "$GITLOG" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
+  cp "$GITLOG" /tmp/capture-trust-git-log.txt
+else
+  git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/capture-trust-git-log.txt
+  [ -n "$GITLOG" ] && cp /tmp/capture-trust-git-log.txt "$GITLOG"
+fi
 ```
 
 ```bash
@@ -182,6 +198,14 @@ toward the grant.
 
    Append `--label needs:definition` to whichever `gh issue create` call above ran, when
    `$NEEDS_DEFINITION` is `true`.
+
+   Immediately after the `gh issue create` call succeeds, invalidate the session-scoped record
+   snapshot (`_shared/record-queue-fetch.md`) — this filing changed what a `--state all` pull
+   would return, so the next consumer must re-fetch rather than read the pre-filing snapshot:
+
+   ```bash
+   node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+   ```
 
 3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
 
@@ -271,7 +295,7 @@ as `$NEEDS_DEFINITION` — no judgment, and the presentation line below renders 
 clause (the human already decided). Otherwise, judge from the idea's content in this same turn:
 does it name a genuine open choice with no tradeoff made yet — two or more viable directions,
 no stated preference — or does it read as a single clear ask? This is a content call, not a
-structural heuristic: resist scoring it by length or keyword match, the same way `framing:baked`'s
+structural heuristic: resist scoring it by length or keyword match, the same way `solution:unjustified`'s
 judgment is a content call rather than a mechanical check. `$NEEDS_DEFINITION` is `true` only when
 the idea genuinely names an undecided choice; default `false` (clear) otherwise. When `true`, form
 a one-line rationale naming the open choice — this becomes `$DEFINITION_RATIONALE`, surfaced in
