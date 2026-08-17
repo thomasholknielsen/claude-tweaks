@@ -141,9 +141,23 @@ git commit -m "Shape record {id} into spec shape — ready"
 
 Nothing to commit on the `github-issues` driver — the edit above already landed via the API.
 
+### Read-back verification
+
+Immediately after each record's write lands — the `gh issue edit`/`writeRecord` call above, for that record specifically, before moving to the next record in the batch — re-fetch the record fresh (never trust the write call's own response) and assert it landed correctly:
+
+- **`work-backend: github-issues`:** `gh issue view {n} --json labels,body`.
+- **`work-backend: local-files`:** `readRecord(path)` (`bin/lib/issues/local-store.js`), re-reading from disk.
+
+Assert, against the re-fetched result:
+- `ready` is present, plus every scoring label this record's stamp step (above) added or already carried (`risk:*`, `size:*`, `ceremony:*`, Type).
+- The five spec-shaped sections (`## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, `## Gotchas`) plus `## Original request` are all present in the re-fetched body.
+- No unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) survived into the written body.
+
+A read-back failure does **not** roll back the write or stop the batch — it follows the same per-record failure-isolation posture as a write failure (above): note the specific assertion(s) that failed, keep shaping the rest of the batch, and surface every record's read-back failure together in Actions Performed below rather than stopping on the first one (`flow/materialize.md`'s Materialization hard gate uses the same all-at-once reporting convention for its own record-level failures).
+
 ### Actions Performed
 
-One row per record — a single-record run renders one row, a comma-list batch renders one row per shaped record (a record whose write failed renders its row with the failure in the Detail cell instead of the stamps):
+One row per record — a single-record run renders one row, a comma-list batch renders one row per shaped record (a record whose write failed, or whose read-back verification (above) failed, renders its row with the failure in the Detail cell instead of the stamps):
 
 | Action | Detail | Ref |
 |--------|--------|-----|
