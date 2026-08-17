@@ -98,10 +98,11 @@ application work. Nothing here authorizes anything; the backend simply cannot pr
 a correct diagram.
 
 Once the gate passes, run `_shared/record-queue-fetch.md`'s existing `github-issues`
-fetch procedure exactly as written, with one addition: append `body` to
-`{EXTRA_FIELDS}` (needed for the `Blocked by #N` parsing above). This produces the
-same faceted-record JSON `/help`, `/tidy`, and `/backlog` already consume — no new
-fetch logic, this type is one more consumer of that shared procedure.
+fetch procedure exactly as written — its session-scoped snapshot already carries `body`
+on the union field set (needed for the `Blocked by #N` parsing above), no
+`{EXTRA_FIELDS}` addition required anymore. This produces the same faceted-record JSON
+`/help`, `/tidy`, and `/backlog` already consume, sharing the same session snapshot they
+do — no new fetch logic, this type is one more consumer of that shared procedure.
 
 Also resolve `work-links` via the canonical read path (`_shared/work-record.md`'s Config
 keys table; `_shared/policy-schema.md`):

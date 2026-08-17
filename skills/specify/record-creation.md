@@ -24,7 +24,7 @@ node -e "
 "
 ```
 
-If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to fetching it fresh: `gh issue list --state all --json number,title,labels,body,state --limit 500 > /tmp/specify-all-issues.json` (same `--limit 500` as Step 1's fetch — see its rationale there).
+If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to reading through the session-scoped record snapshot the same way Step 1 does — `{Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md), with {tmp-records-file} = /tmp/specify-all-issues.json}`. A resumed session usually still has its own snapshot fresh at `/tmp/ct-records-{session-id}.json` (same session id, same TTL window), so this fallback is typically a cache hit, not a fresh `gh` round-trip.
 
 `work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker). `queryRecords('specs', {})` alone excludes closed records by default (its `filtersOnClosed` check treats an empty filter object as "open, as today," per `local-store.js`'s own header comment on the function) — this map needs both open and closed, mirroring the github driver's `--state all` fetch above: a fingerprint match against an already-closed local record still means "already exists" and must not be recreated on a resumed decomposition. Merge a default (open) query with an explicit `{ closed: true }` query — the same two-call idiom `tests/bin-lib/issues/local-store.test.js` demonstrates:
 
@@ -208,6 +208,16 @@ Capture `$SUB_ISSUE_NUM` / `$SUB_ISSUE_ID` for every sub-issue (created or resum
 **Write-path resilience.** A `gh` create failure for one sub-issue (the parent already exists on GitHub) falls back to `local-store.js` for that sub-issue only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch. Don't abort the whole decomposition over one failed sub-issue. `/tidy`'s Sync finding reconciles the local sub-issue onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link gets noted and the pass continues, it doesn't roll back everything already created.
 
 **Body size ceiling.** A sub-issue body pushing past roughly 50KB (GitHub's hard cap is 65,536 characters) is a decomposition smell, not a formatting problem — split the unit further rather than shipping an oversized sub-issue.
+
+**Snapshot invalidation.** Once every `gh issue create` call in this step's batch (parent and
+every sub-issue) has run, invalidate the session-scoped record snapshot once — this step's own
+Idempotency map stays correct in-memory for the rest of the batch without it, so there is no need
+to invalidate after each individual create, only after the whole batch, before Step 4 or any later
+consumer reads the queue again:
+
+```bash
+node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+```
 
 ### Rules
 
