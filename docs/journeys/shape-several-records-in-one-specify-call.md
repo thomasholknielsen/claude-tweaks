@@ -2,7 +2,6 @@
 files:
   - skills/specify/SKILL.md
   - skills/specify/shaping-mode.md
-  - skills/help/reference-card.md
 ---
 
 # Shape Several Records in One /specify Call

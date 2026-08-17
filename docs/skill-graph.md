@@ -95,7 +95,7 @@ depends on them.
 
 | Target | Relationship |
 |---|---|
-| `/specify` | Only caller — invokes `framing-check` inline (not a Task dispatch) from both record-creation paths (`shaping-mode.md`'s single-record path, `record-creation.md`'s per-sub-issue loop), immediately alongside the existing `ceremony-check` call. `--lens` is never called by a pipeline orchestrator; it is human-invoked only. Reciprocal of `/specify`'s own `/challenge` row. |
+| `/specify` | Only caller — invokes `framing-check` inline (not a Task dispatch) from both record-creation paths (`shaping-mode.md`'s per-record loop, `record-creation.md`'s per-sub-issue loop), immediately alongside the existing `ceremony-check` call. `--lens` is never called by a pipeline orchestrator; it is human-invoked only. Reciprocal of `/specify`'s own `/challenge` row. |
 | `_shared/work-record.md` | Taxonomy home for the `framing:baked` label a `solution-baked` verdict stamps on the record — `framing-check` itself reads no stage; it does no fetch and works only from the body the caller already holds in memory (`challenge/SKILL.md`'s Step 1: Gather). |
 | `/backlog` | `overview`'s bare-mode Needs-you lane *composes* a bare-ref `/claude-tweaks:challenge #{N}` launcher as a paste line for `kind: 'unjustified'` records (dormant until #471 adds that form) — this is text for a human to run, not an invocation; `/specify` above remains the only skill that actually calls `/challenge`. Reciprocal of `/backlog`'s own `/challenge` row. |
 
