@@ -86,11 +86,21 @@ function readManifest(runDir) {
   return parseManifestYaml(text);
 }
 
+// Write to a per-process tmp file, then atomically rename over the real path —
+// same pattern as bin/lib/hooks/context.js's writeRunState, for the same reason:
+// fs.renameSync is atomic on every platform Node supports (same dir, same
+// filesystem), so a crash mid-write during a long multi-spec run (the exact
+// scenario #690 exists to survive) leaves the previous manifest.yml intact
+// instead of a torn/partial file.
 function writeManifest(runDir, manifest) {
+  const finalPath = manifestPath(runDir);
+  const tmpPath = path.join(runDir, `manifest.yml.tmp-${process.pid}`);
   try {
-    fs.writeFileSync(manifestPath(runDir), serializeManifestYaml(manifest));
+    fs.writeFileSync(tmpPath, serializeManifestYaml(manifest));
+    fs.renameSync(tmpPath, finalPath);
     return true;
   } catch {
+    try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
     return false;
   }
 }
