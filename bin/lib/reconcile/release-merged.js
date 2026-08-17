@@ -156,11 +156,12 @@ function releaseMerged({ cwd } = {}) {
     if (claim.failure) { skipped.push({ issueNumber, reason: claim.failure }); continue; }
 
     const classified = classifyClaimBlob(claim.content, Date.now());
+    const isActive = classified.state === 'live' || classified.state === 'stale';
     let runId = null;
-    if (classified.state === 'live' || classified.state === 'stale') {
+    if (isActive) {
       try { runId = JSON.parse(claim.content).runId || null; } catch { /* falls through to no-run-id below */ }
     }
-    if ((classified.state === 'live' || classified.state === 'stale') && !runId) {
+    if (isActive && !runId) {
       skipped.push({ issueNumber, reason: 'no-run-id' });
       continue;
     }
@@ -189,7 +190,7 @@ function releaseMerged({ cwd } = {}) {
     // forever (overwrites, not deletions), so an ungated fetch here would be
     // a growing per-pass gh api cost with zero effect on non-candidates.
     let issueState;
-    if ((classified.state === 'live' || classified.state === 'stale') && needsIssueEvidence(prState)) {
+    if (isActive && needsIssueEvidence(prState)) {
       // One gh api call per candidate, per pass — intentional; bounded by the
       // open claim count (typically small), not by repo or issue history size.
       issueState = readIssueState(repoSlug, issueNumber);
@@ -197,7 +198,7 @@ function releaseMerged({ cwd } = {}) {
 
     const decision = decideRelease(classified.state, prState, issueState);
     if (decision.action === 'skip') {
-      if (classified.state !== 'live' && classified.state !== 'stale') continue; // absent/tombstone/unreadable — not worth logging as a skip
+      if (!isActive) continue; // absent/tombstone/unreadable — not worth logging as a skip
       skipped.push({ issueNumber, runId, reason: joinFailure || decision.reason });
       continue;
     }
