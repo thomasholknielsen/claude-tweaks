@@ -110,7 +110,7 @@ Using the facets already read in Resolve-the-input case 1/5 (`parseRecordFacets`
 - **`parked` present** — remove it; a record entering shaping mode is being promoted out of hold.
 - **`ready`** — add it (idempotent when already present, e.g. a born-ready record).
 
-**Per-record invocation (batch runs).** On a comma-list batch, this section's `ceremony-check #{n}` and `framing-check #{n}` invocations above run once per record, inside this per-record loop — never reused, never rendered from memory for a later record in the same batch. **Self-check before writing:** confirm exactly one `ceremony-check #{n}` and one `framing-check #{n}` Skill invocation exist for this record before the compose-then-write-once pass below — a divergent ceremony or framing verdict across records in the same batch is only valid when each record had its own invocation.
+**Per-record invocation.** Every run — a single record or a comma-list batch alike — the `ceremony-check #{n}` and `framing-check #{n}` invocations above run once per record; on a batch this means once per record inside the per-record loop, never reused or rendered from memory for a later record. **Self-check before writing:** confirm exactly one `ceremony-check #{n}` and one `framing-check #{n}` Skill invocation exist for this record before the compose-then-write-once pass below — a divergent ceremony or framing verdict across records, whether within one batch or across sequential single-record runs in the same session, is only valid when each record had its own invocation.
 
 ### Compose-then-write-once
 

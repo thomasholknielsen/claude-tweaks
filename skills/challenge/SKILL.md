@@ -23,7 +23,7 @@ Not for: producing a standalone document, dispatching subagents, or gating anyth
 
 `$ARGUMENTS` is the literal `framing-check` (optionally followed by `#{n}`), a bare record reference (`#42`), or `--lens=<n[,n...]>` followed by a work record reference (`#42`), a topic, or a problem statement.
 
-The three forms are mutually exclusive, distinguished by the leading token: a literal `framing-check` prefix always selects that mode, a bare `#{n}` with no such prefix selects the evidence-or-accept-risk mode below. `framing-check`'s own input is the record body the caller already holds in memory — the optional trailing `#{n}` carries no fetch, it exists only for attribution (see Mode: framing-check below), mirroring `/claude-tweaks:assess-agent-autonomy`'s `ceremony-check #{n}` convention (`assess-agent-autonomy/SKILL.md`'s Input section).
+The three forms are mutually exclusive, distinguished by the leading token: a literal `framing-check` prefix always selects that mode, a `--lens=` prefix always selects lens mode (with a trailing `#{n}` there naming the lens target, not attribution), and a bare `#{n}` with neither prefix selects the evidence-or-accept-risk mode below. `framing-check`'s own input is the record body the caller already holds in memory — the optional trailing `#{n}` carries no fetch, it exists only for attribution (see Mode: framing-check below), mirroring `/claude-tweaks:assess-agent-autonomy`'s `ceremony-check #{n}` convention (`assess-agent-autonomy/SKILL.md`'s Input section).
 
 For --lens and the bare record-reference form, resolve the target the same way `/claude-tweaks:capture` does (see its Backend Selection): a `#{n}` reference fetches via `gh issue view {n} --json title,body,labels` under `work-backend: github-issues` (the bare form needs `labels`; `--lens` ignores them), or, under `work-backend: local-files`, glob `specs/{n}-*.md` for the matching file, then `readRecord(path)` (`bin/lib/issues/local-store.js`). A topic or problem statement is used as given.
 
@@ -116,7 +116,7 @@ Rendered for `--lens` and bare-`#N` invocations (see Component-Skill Contract). 
 
 Bare `#N` is likewise **always** human-invoked and always renders `## Next Actions`. No pipeline orchestrator calls it — a pipeline that wants a framing judgment calls `framing-check`.
 
-`$ARGUMENTS` is therefore the detection signal, and it is unambiguous: the literal `framing-check`, a `--lens=` prefix, or (with neither) a bare record reference. `$PIPELINE_RUN_DIR` is not consulted.
+`$ARGUMENTS` is therefore the detection signal, and it is unambiguous: a leading literal `framing-check` (optionally followed by `#{n}`), a `--lens=` prefix, or (with neither) a bare record reference. `$PIPELINE_RUN_DIR` is not consulted.
 
 ## Anti-Patterns
 
