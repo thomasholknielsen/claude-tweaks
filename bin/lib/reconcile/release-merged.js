@@ -198,7 +198,13 @@ function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
     // this can never skip re-reading (and rejoining) an active candidate;
     // it only skips re-fetching content this module already knows is dead
     // weight, since `classifyClaimBlob` is a pure function of content and a
-    // terminal state never un-terminals itself (#820, D6).
+    // terminal state never un-terminals itself (#820, D6). Re-propagating
+    // `entry.sha` here (rather than re-deriving claim.sha, which we don't
+    // have — the whole point of this branch is skipping that read) is safe:
+    // a cache HIT means this exact sha was already proven terminal by a
+    // real read+classify on a PRIOR pass (see the `!isActive` branch below,
+    // which caches `claim.sha` — the two are equal for a quiescent claim
+    // since a listing sha and a blob-content sha are the same git blob sha).
     if (shouldSkipClaimRead(entry, cache.claimShas[issueNumber])) {
       nextClaimShas[issueNumber] = entry.sha; // still terminal, still cached
       continue; // matches the `if (!isActive) continue;` no-log behavior below
@@ -210,7 +216,18 @@ function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
     const classified = classifyClaimBlob(claim.content, Date.now());
     const isActive = classified.state === 'live' || classified.state === 'stale';
     if (!isActive) {
-      nextClaimShas[issueNumber] = entry.sha; // terminal — cacheable, see the skip branch above
+      // Cache the sha of the content actually classified (claim.sha, from
+      // THIS fresh read), never the listing's entry.sha (from the earlier
+      // directory-listing call) — the two can diverge under a race where
+      // another agent released the claim between the listing and this read
+      // (#820 review). claim.sha is also what writeTombstone already treats
+      // as the authoritative sha for a conditional write, so this matches
+      // the rest of the module. A null claim.sha (e.g. a 404-race/no-content
+      // misread that classifyClaimBlob(null, ...) reports as 'absent') is
+      // self-disarming: shouldSkipClaimRead's cachedSha === null guard never
+      // treats it as a cache hit, so that claim simply stays un-cached and
+      // is re-read (and can self-heal) on the next pass.
+      nextClaimShas[issueNumber] = claim.sha; // terminal — cacheable, see the skip branch above
       continue; // absent/tombstone/unreadable — not worth logging as a skip
     }
 

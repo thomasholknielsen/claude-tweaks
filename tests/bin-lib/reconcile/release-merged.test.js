@@ -110,3 +110,48 @@ test('releaseMerged: a tombstoned claim with an unchanged sha is never re-fetche
   releaseMerged({ cwd: root, ghApi }); // second pass: sha unchanged, must not re-read
   assert.equal(readCalls, 1, 'second pass must skip the read for an unchanged terminal-state sha');
 });
+
+// Guards against terminal-only caching silently widening to cover active
+// (live/stale) claims — the invariant this task exists to hold. A live
+// claim's PR/issue join can change pass-to-pass even when its content
+// hasn't, so it must never be cached/skipped, unlike the tombstone above.
+test('releaseMerged: a live claim with an unchanged sha is still re-fetched every pass', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { execFileSync } = require('child_process');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-cache-live-'));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
+
+  // Un-expired claimedAt/ttlHours + a runId — matches this file's existing
+  // claim-marker fixture shape (see claims.js's claimPayload).
+  const liveContent = JSON.stringify({
+    runId: 'no-such-run', sessionId: 's1', claimedAt: new Date().toISOString(), ttlHours: 72, host: 'h',
+  });
+
+  let readCalls = 0;
+  const ghApi = (args) => {
+    if (args[0].includes('/contents/claims?')) {
+      return { stdout: JSON.stringify([{ name: 'issue-8.json', sha: 'live-sha' }]), failure: null, status: null };
+    }
+    if (args[0].includes('/contents/claims/issue-8.json')) {
+      readCalls += 1;
+      return { stdout: JSON.stringify({ content: liveContent, sha: 'live-sha' }), failure: null, status: null };
+    }
+    if (args[0].includes('/issues/8')) {
+      // No local run-state.json for 'no-such-run', so the PR join fails
+      // closed (no-run-state) and decideRelease falls through to the
+      // issue-state lookup — this fake answers it 'OPEN' so the claim
+      // resolves to an ordinary skip ('no-run-state'), never a release,
+      // keeping this test's only assertion on `readCalls`.
+      return { stdout: 'OPEN\n', failure: null, status: null };
+    }
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+
+  releaseMerged({ cwd: root, ghApi });
+  assert.equal(readCalls, 1);
+  releaseMerged({ cwd: root, ghApi }); // second pass: sha unchanged, but the claim is live — must still re-read
+  assert.equal(readCalls, 2, 'a live claim must never be cached/skipped, even with an unchanged sha');
+});
