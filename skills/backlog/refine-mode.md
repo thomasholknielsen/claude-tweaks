@@ -378,7 +378,10 @@ gh issue edit "$ISSUE" --remove-label ready
 gh issue comment "$ISSUE" --body-file /tmp/backlog-refine-flagback-${ISSUE}.md
 ```
 
-Log every action to this run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md`):
+Check each write's own result before logging it — a non-zero exit from any `gh`/`writeRecord` call
+above is a failure, not a success, regardless of which lane produced it. Log every action to this
+run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md`) via the matching
+template below, success or failure:
 
 ```
 AUTO {time} — Backlog refine: set priority:{tier} on #{n}.
@@ -386,7 +389,12 @@ AUTO {time} — Backlog refine: updated **Related:** on #{n} to reference #{m}.
 AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, size:{sizeTier}). Rationale: {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
+FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
 ```
+
+The closing summary below counts these lines by type — a `FAILED` line is the only source for both
+the tally's `failed` count and the per-failure lines; a write with no matching `AUTO`/`FAILED` line
+was never attempted, so it counts toward neither.
 
 **Closing summary (required, rendered as assistant text — never delegated to tool output; a
 shell print of the tally does not satisfy this):** after the apply pass above completes, render
@@ -439,8 +447,10 @@ directory so resume/reconcile paths can classify it as terminal instead of `stat
 node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run <absolute-run-dir>
 ```
 
-Always pass an explicit `--run <absolute-run-dir>` — the same path named in the closing summary's
-audit-trail line above. Omitting it falls back to the newest non-terminal run dir under the
+Always pass an explicit `--run <absolute-run-dir>` — the run directory itself: the closing summary's
+audit-trail line above names the `decisions.md` *file* inside it, so strip the trailing
+`/decisions.md` to get the directory `close-run` requires (it rejects a file path outright).
+Omitting `--run` falls back to the newest non-terminal run dir under the
 project's `.claude-tweaks/pipelines/`, which can belong to a different, still-active session, and
 closing that one would silently disarm that session's own worktree enforcement. `close-run`
 creates `run-state.json` when the run dir never had one — every refine standalone run — and stamps
