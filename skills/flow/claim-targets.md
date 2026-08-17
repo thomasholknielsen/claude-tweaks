@@ -145,9 +145,14 @@ gh issue comment "$ISSUE" --body-file /tmp/flow-claim-comment-${ISSUE}.md
 
 **On contest for a target** (rejected write, or classification `'live'`/`'unreadable'`):
 
-- **Single-target run** — release nothing (nothing else was claimed), then stop the pipeline
-  before Step 3 (no worktree, no run directory left behind beyond the mint from Step above, which
-  the reconciler's `isOrphanedMint` sweep reclaims after 24h if it was freshly minted here):
+- **Single-target run** — release nothing (nothing else was claimed). When this invocation minted
+  the run dir itself (`PIPELINE_RUN_DIR` was unset on entry) and it still holds no `config.yml`
+  (never adopted), remove the minted directory immediately — an empty mint left in place sorts
+  newest and steals the hook fallback resolver's attribution until the reconciler's
+  `isOrphanedMint` sweep catches it (~24h); a dispatch-minted dir (`PIPELINE_RUN_DIR` set on
+  entry) belongs to the caller and is left in place. The same removal rule applies to the
+  multi-target abort and the transient-failure stop below. Then stop the pipeline before Step 3
+  (no worktree, nothing else left behind):
 
   ```markdown
   ## Flow: Claim contested

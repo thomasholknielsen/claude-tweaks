@@ -50,3 +50,10 @@ test('the three mint sites cite the UTC rule instead of restating a bare format 
     assert.match(content, /UTC|date -u/, `${p} must carry the UTC signal at its mint/path site`);
   }
 });
+
+test('claim-targets contest path removes a self-minted empty dir immediately (#721)', () => {
+  const content = read('skills/flow/claim-targets.md');
+  assert.match(content, /remove (the|it|that) (self-)?mint(ed)?[^.]*immediately|removed? immediately/i);
+  assert.match(content, /PIPELINE_RUN_DIR[^.]*unset on entry/);
+  assert.doesNotMatch(content, /isOrphanedMint` sweep reclaims after 24h if it was freshly minted here/);
+});
