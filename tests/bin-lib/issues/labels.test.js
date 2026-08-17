@@ -33,17 +33,24 @@ test('error message names the label', () => {
   assert.throws(() => ensureLabelPayload('code-health:review-quality', 'x'.repeat(101)), /code-health:review-quality/);
 });
 
-test('framing:baked is bootstrappable with a description within the cap', () => {
+test('solution:unjustified is bootstrappable with a description within the cap', () => {
   // Read the description from the canonical fence (see canonicalLabelsFromBootstrapDoc
   // below) instead of hand-copying it, so a future edit to that source that pushes the
   // description over the cap fails here rather than drifting silently.
-  const [, description] = canonicalLabelsFromBootstrapDoc().find(([name]) => name === 'framing:baked');
-  const payload = ensureLabelPayload('framing:baked', description);
-  assert.strictEqual(payload.name, 'framing:baked');
+  const row = canonicalLabelsFromBootstrapDoc().find(([name]) => name === 'solution:unjustified');
+  assert.ok(row, 'label-bootstrap.md must carry solution:unjustified in LABELS_JSON');
+  const [, description] = row;
+  const payload = ensureLabelPayload('solution:unjustified', description);
+  assert.strictEqual(payload.name, 'solution:unjustified');
   assert.ok(payload.description.length <= 100);
 });
 
-test('framing:baked is exported as a LABELS constant', () => {
+test('framing:baked is no longer in the canonical bootstrap set (record #677 rename)', () => {
+  assert.ok(!canonicalLabelsFromBootstrapDoc().some(([name]) => name === 'framing:baked'));
+});
+
+test('solution:unjustified is exported as a LABELS constant; framing:baked stays as the read-side legacy constant', () => {
+  assert.strictEqual(LABELS.SOLUTION_UNJUSTIFIED, 'solution:unjustified');
   assert.strictEqual(LABELS.FRAMING_BAKED, 'framing:baked');
 });
 
