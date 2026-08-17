@@ -24,6 +24,8 @@ block — except under `--chained`, which returns to the caller instead (a comma
 `## Next Actions`). Kept out of `SKILL.md` because shaping is now the primary path (`#N` record
 references are the primary input) and it has no use for decomposition mode's much larger body.
 
+**Parallel-safety.** Under `work-backend: github-issues`, shaping a record writes no local files — it edits the GitHub issue directly via `gh`, so no worktree is required and multiple records may be shaped concurrently with zero collision risk. `work-backend: local-files` does write a tracked file (`writeRecord`) and is not safe to parallelize without isolation.
+
 ---
 
 ### Edit the body into spec shape
