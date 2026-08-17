@@ -19,6 +19,15 @@ description: >
   caught directly by the dir-file-count max: 0 ceiling below, the same
   mechanism evals/scenarios/wrap-up-fix-now-not-file.yaml uses to catch a
   ledger item filed instead of fixed.
+  The report-text half of AC 3 ("the run reports the missing reason") is
+  deliberately not pinned by any assertion here: the assertion registry
+  (evals/assertions/index.js) has no generic "resultText contains this
+  substring" type — the closest ones (findings-include, verdict-matches,
+  routing-destination-matches, filter-outcome-matches) are all shape-specific
+  to other skills' output formats and don't apply to capture's refusal
+  report. The tool-count min: above is what guards against a silent no-op
+  (an SDK error, a sandbox denial, or zero tool calls) standing in for a
+  genuine refusal.
 fixture:
   base: init-baseline
 skill_invocation:
@@ -47,4 +56,5 @@ assertions:
     path: "specs"
     max: 0
   - type: tool-count
+    min: 3
     max: 30

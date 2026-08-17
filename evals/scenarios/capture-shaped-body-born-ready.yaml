@@ -24,6 +24,13 @@ description: >
   body (file-contains fails); a build that filed a SECOND record (e.g. also
   writing a stub alongside the shaped one) fails the dir-file-count max: 1
   ceiling.
+  capture's own SKILL.md describes this filing step in terms of
+  recordPayload (the github-issues payload builder), not the local-files
+  createRecord call this scenario's fixture actually exercises; the
+  label→frontmatter isomorphism these local-record-facet assertions rely on
+  (a ready label becomes stage: 'ready' frontmatter, risk:*/size:* labels
+  become risk/size frontmatter) is documented instead at
+  skills/specify/record-creation.md, lines 190-199.
 fixture:
   base: init-baseline
   seed:
