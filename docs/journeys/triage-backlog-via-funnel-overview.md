@@ -20,7 +20,7 @@ files:
 - **Action:** Run the skill with no lens argument and read the header block at the top of the report.
 - **Should feel:** Like a process gauge, not a report — six stages in pipeline order (`captured ▶ scored ▶ shaped ▶ granted ▶ dispatchable ▶ in flight`), a count per stage, and a fully-qualified command under each actionable stage.
 - **Should understand:** The buckets are mutually exclusive (`funnelBuckets` in `bin/lib/issues/backlog.js` — first-match-wins precedence: live bot work outranks stage labels; a granted-but-blocked record shows as `granted`, never `dispatchable`). The header *is* the counts — there is no separate summary paragraph.
-- **Red flags:** A record id in the header; a Critical/Risk-Value/Cleanup table rendering without a lens argument; stage counts that don't sum to the open queue; a "step passed" narration line (narration is failure-only).
+- **Red flags:** A record id in the header; a Critical/Risk-Value/Cleanup table rendering without a lens argument; stage counts that don't sum to the open queue; a per-step "running"/"passed" narration line (the narration allowance permits only one opening line plus failure/degradation lines).
 
 ### 2. Read the annotation lines — trust and parked/not-planned
 - **Action:** Look immediately beneath the header. At most two lines can appear: a trust consequence line (only when some class verdict is `mixed`, e.g. `trust: clean, except human:human|low (mixed) → merges below stay PR-gated`) and `parked N · not-planned M → /claude-tweaks:tidy owns these` (only when non-zero).
