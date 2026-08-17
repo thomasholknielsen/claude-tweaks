@@ -73,7 +73,7 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
    `PIPELINE_RUN_DIR was set to {path}, which {does not exist | is not anchored to the main checkout} — created a fresh run directory instead.`
 
-4. **Unset** → existing behavior, unchanged: create `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` (`$RUN_ROOT` per `_shared/pipeline-run-dir.md`'s Anchoring section — never the current directory, since this creation can run from inside a worktree; see `manifesto.md`'s Path conventions), write `config.yml`, initialize `decisions.md`, export it.
+4. **Unset** → existing behavior, unchanged: create `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` — via `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "{spec-slug}" --create`, never by composing `$RUN_ROOT` from the current directory (`_shared/pipeline-run-dir.md`'s Anchoring section — this creation can run from inside a worktree; see `manifesto.md`'s Path conventions) — write `config.yml`, initialize `decisions.md`, export the printed path.
 
 `/claude-tweaks:dispatch` Step 4 mints the directory case 2 adopts, before either Task call runs — both of a group's two Task calls (per `dispatch/task-prompt.md`) receive that same minted `PIPELINE_RUN_DIR` value directly on their command line; there is no longer a `MANIFEST:` line parsed out of the first call's report to derive it, and the earlier per-firing run-identity variable that bridged the two is gone with it — see `_shared/issue-claims.md`'s Identity section. A multi-spec run adopts the directory it is handed as the parent and still sub-namespaces `spec-{N}/` beneath it (`multi-spec.md`), exporting the per-spec subdirectory downstream exactly as a self-created parent would.
 

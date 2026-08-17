@@ -33,6 +33,7 @@
           { "type": "command", "if": "Bash(git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(cp *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(mv *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(mkdir *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(tee *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(sed *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(perl *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },

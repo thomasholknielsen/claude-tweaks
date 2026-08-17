@@ -492,3 +492,62 @@ test('AC6: close-run with no events.jsonl at all still warns and creates the fil
   assert.strictEqual(events.length, 1);
   assert.strictEqual(JSON.parse(events[0]).type, 'close-without-wrapup');
 });
+
+// --- #693: own-cwd guard — a raw Bash `git worktree remove` (never
+// ExitWorktree) must never be allowed to target the session's own cwd, or a
+// directory containing it: removing it deletes the shell's live working
+// directory out from under itself. This fires independent of any
+// pipeline-run assignment — AC2 above shows the run-assignment check alone
+// lets an ExitWorktree/`worktree remove` call through once close-run has
+// already run, which does nothing to stop the shell's own cwd being pulled
+// out from under it; that gap is exactly what let the real incident's raw
+// remove through.
+
+test('#693: Bash `git worktree remove <target>` denied when cwd is INSIDE target, no active run needed', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const sub = path.join(wt, 'sub');
+  fs.mkdirSync(sub);
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` }, cwd: sub });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: sub });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+  assert.ok(out.hookSpecificOutput.permissionDecisionReason.includes('ExitWorktree'),
+    'deny reason must point at ExitWorktree');
+});
+
+test('#693: Bash `git worktree remove <target>` denied when cwd EQUALS target exactly, no active run needed', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` }, cwd: wt });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('#693: `cd <elsewhere> && git worktree remove <own-cwd>` compound is still denied — the cd does not launder the target', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const payload = JSON.stringify({
+    tool_name: 'Bash', tool_input: { command: `cd ${root} && git worktree remove ${wt}` }, cwd: wt,
+  });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('#693: Bash `git worktree remove <target>` from the main checkout targeting a DIFFERENT worktree is allowed', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` }, cwd: root });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  assert.strictEqual(r.stdout.trim(), '');
+});
+
+test('#693: ExitWorktree removing the session\'s own cwd is unaffected by the own-cwd guard', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const payload = JSON.stringify({ tool_name: 'ExitWorktree', tool_input: { action: 'remove' }, cwd: wt, session_id: 'caller-1' });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
+  assert.strictEqual(r.stdout.trim(), '');
+});

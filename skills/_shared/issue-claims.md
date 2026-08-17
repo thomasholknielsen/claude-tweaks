@@ -100,7 +100,12 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   `tombstoneContent` with `sha` = the current file's blob sha — structurally the same
   conditional-overwrite as step 4's re-claim, differing only in what content it writes. A sha
   mismatch means someone else already broke/re-claimed it; treat as a release race (log, TTL is
-  the backstop, per the Failure posture table below).
+  the backstop, per the Failure posture table below). **`bin/release-claim.js`** performs this
+  whole sequence (read → classify → ownership check → tombstone `PUT` → comment → optional
+  label removals) in one command on the `gh` path — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js"
+  <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress]`,
+  exit `0` released / `3` already released or swept / `4` held by another run / `1` failed / `2`
+  malformed or `gh` absent. The MCP path stays the manual read-classify-write above.
 - **List all claims:** list the `claims/` directory on `CLAIMS_BRANCH`.
   - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/claims?ref=${CLAIMS_BRANCH}" -q '.[].name'`
   - **MCP:** the equivalent read-tree/list-directory tool call against `claims/` on
@@ -253,7 +258,8 @@ exists — it lands in the release marker and human line.
 
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a
-tombstone).
+tombstone) — `bin/release-claim.js` appends its own line; claim-side entries go through
+`bin/log-decision.js`.
 
 ## Close-via-merge
 

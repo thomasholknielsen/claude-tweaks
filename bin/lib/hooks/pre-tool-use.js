@@ -24,7 +24,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
+const { gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -273,13 +273,19 @@ function denyResult(reason) {
 // not extend the compound-command surface #174 tracks. Any other flags,
 // multiple positionals, or parse doubt skip that segment; never fabricate a
 // target — ambiguity resolves to allow.
+// Each entry carries `source` ('exitworktree' | 'bash') alongside the
+// resolved `path` — checkTeardownGate's own-cwd guard (#693) below applies
+// ONLY to the 'bash' source: ExitWorktree always resolves to ctx.cwd's own
+// toplevel (see the block comment above this function) and IS the sanctioned
+// own-cwd removal path, so the same "target is my own cwd" shape must never
+// deny it the way it denies a raw `git worktree remove`.
 function teardownTargets(ctx) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
   if (GATE_COVERAGE.teardownTools.includes(toolName)) {
     if (!toolInput || toolInput.action !== 'remove') return [];
     const top = toplevel(ctx.cwd || process.cwd());
-    return top ? [top] : [];
+    return top ? [{ path: top, source: 'exitworktree' }] : [];
   }
   if (toolName !== 'Bash' || !toolInput || typeof toolInput.command !== 'string') return [];
   const out = [];
@@ -302,7 +308,7 @@ function teardownTargets(ctx) {
     // `--`, like `--force`/`-f`, is a flag/terminator, never the path itself.
     const rest = toks.slice(i + 2).filter((t) => t !== '--force' && t !== '-f' && t !== '--');
     if (rest.length !== 1 || rest[0].startsWith('-')) return; // unconfident -> allow
-    out.push(path.resolve(dir, rest[0]));
+    out.push({ path: path.resolve(dir, rest[0]), source: 'bash' });
   });
   return out;
 }
@@ -332,8 +338,34 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
   // at least one target, since it costs an fs walk on every hook call
   // otherwise.
   const mainRoot = safeReal(wtDetect.mainCheckoutRoot(ctx.cwd || process.cwd()));
-  for (const target of targets) {
+  // Own-cwd guard (#693): resolved once per call, reused across targets.
+  const cwdReal = safeReal(ctx.cwd || process.cwd());
+  for (const { path: target, source } of targets) {
     if (mainRoot && safeReal(target) === mainRoot) continue;
+
+    // A raw Bash `git worktree remove` (never ExitWorktree — see teardownTargets'
+    // header comment) whose target IS the session's own cwd, or a directory
+    // containing it, deletes the shell's live working directory out from
+    // under itself: the incident #693 documents. This fires independent of
+    // any pipeline-run assignment below — a `close-run` already having run
+    // (which lifts the assignment-based deny further down, see AC2 in
+    // tests/teardown-gate.test.js) does nothing to stop the shell's own cwd
+    // being pulled out from under it, which is exactly the gap that let the
+    // incident's raw remove through. Ambiguity (unresolvable target or cwd)
+    // still resolves to allow, matching this file's own posture throughout.
+    if (source === 'bash') {
+      const targetReal = safeReal(target);
+      if (targetReal && cwdReal && (cwdReal === targetReal || cwdReal.startsWith(targetReal + path.sep))) {
+        return denyResult(
+          `claude-tweaks teardown gate: this \`git worktree remove\` targets ${target}, which is the ` +
+          `current session's own working directory (or an ancestor of it). Removing it deletes the ` +
+          `shell's live cwd and leaves the session with no git context. Use \`ExitWorktree\` instead — ` +
+          `it is the only sanctioned way to remove the worktree a session is standing in ` +
+          `(skills/wrap-up/cleanup-procedures.md Section C's Teardown ordering invariant).`,
+        );
+      }
+    }
+
     let exists = false;
     try { fs.statSync(target); exists = true; } catch { /* gone */ }
     // Recorded-or-target path already gone from disk -> allow (fail-open).
@@ -364,6 +396,70 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
       `${hit.runDir}. Tearing it down now skips the documented cleanup sequence (skills/wrap-up/cleanup-procedures.md ` +
       `Section C) and destroys the run's gitignored state. Finish via /claude-tweaks:wrap-up, or close the bookkeeping first: ` +
       `node "${pluginRoot()}/bin/hooks.js" close-run --run "${hit.runDir}", then retry.`,
+    );
+  }
+  return {};
+}
+
+// Pipeline-shadow guard (#692): refuses to CREATE `.claude-tweaks/pipelines/`
+// state inside a linked worktree at all — see _shared/pipeline-run-dir.md's
+// Anchoring section, and `node bin/hooks.js resolve-run-dir`, the command that
+// section now points callers at instead of composing $RUN_ROOT inline. Unlike
+// checkWorktreeRequired below, this guard is UNCONDITIONAL: it does not check
+// `worktree-always` policy, because run-dir anchoring is a plugin-architecture
+// invariant every project gets, not something a project opts into.
+//
+// Flags only a NEW creation — the run-dir-level path (the first path segment
+// under `.claude-tweaks/pipelines/`) does not already exist on disk. A
+// pre-anchoring run directory already sitting in a worktree is left alone
+// (tolerated transitionally by wrap-up/cleanup-procedures.md Section C step
+// 3.5's copy-out guard, sunset 2026-11-07): that guard only ever READS from
+// the worktree and WRITES to the main checkout, so it never trips this guard
+// itself, and further writes into an already-existing worktree-trapped run
+// dir (e.g. a still-running pre-anchoring pipeline appending events.jsonl)
+// must not be newly denied by a guard shipped after that pipeline started.
+function shadowPipelineRunDir(targetPath) {
+  if (typeof targetPath !== 'string' || !targetPath || !path.isAbsolute(targetPath)) return null;
+  const resolved = path.resolve(targetPath);
+  const { repoRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(resolved);
+  if (indeterminate || !repoRoot || !isLinkedWorktree) return null;
+  const pipelinesDir = path.join(repoRoot, PIPELINE_STATE_DIR);
+  // realTarget follows an existing symlink chain the same way the policy.yml
+  // exemption does; falls back to the literal resolved path when nothing
+  // exists yet (a brand-new mkdir target has no leaf, sometimes not even a
+  // parent, to realpath).
+  const real = realTarget(resolved) || resolved;
+  const relFromPipelines = path.relative(pipelinesDir, real);
+  if (!relFromPipelines || relFromPipelines.startsWith('..') || path.isAbsolute(relFromPipelines)) return null;
+  const runDirName = relFromPipelines.split(path.sep)[0];
+  const runDirCandidate = path.join(pipelinesDir, runDirName);
+  let exists = false;
+  try { exists = fs.statSync(runDirCandidate).isDirectory(); } catch { /* not there yet — a genuinely new shadow */ }
+  if (exists) return null;
+  return { worktreeRoot: repoRoot, runDirCandidate };
+}
+
+function checkPipelineShadowGuard(ctx) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  const toolInput = ctx.input && ctx.input.tool_input;
+  const candidates = [];
+  if (GATE_COVERAGE.tools.includes(toolName)) {
+    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
+    if (toolInput && typeof toolInput[field] === 'string') candidates.push(toolInput[field]);
+  } else if (toolName === 'Bash' && toolInput && typeof toolInput.command === 'string') {
+    const command = toolInput.command;
+    for (const t of fileWriteTargets(command, ctx.cwd)) candidates.push(t.file);
+    for (const t of mkdirTargets(command, ctx.cwd)) candidates.push(t.file);
+  }
+  for (const candidate of candidates) {
+    const shadow = shadowPipelineRunDir(candidate);
+    if (!shadow) continue;
+    return denyResult(
+      `claude-tweaks: refusing to create ${shadow.runDirCandidate} — a NEW pipeline run directory inside a ` +
+      `linked worktree (${shadow.worktreeRoot}). Run directories are anchored to the main checkout ` +
+      `(_shared/pipeline-run-dir.md's Anchoring section); creating one here would be a worktree-local shadow that ` +
+      `a later \`git worktree remove\` can silently destroy ([IL-127]). Resolve the correct path instead: ` +
+      `node "${pluginRoot()}/bin/hooks.js" resolve-run-dir --create (see pipeline-run-dir.md for the full flag set).`,
     );
   }
   return {};
@@ -531,6 +627,9 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
   const teardown = checkTeardownGate(ctx, teardownWarnings);
   if (teardown.json) return teardown;
 
+  const shadow = checkPipelineShadowGuard(ctx);
+  if (shadow.json) return shadow;
+
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
     && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
   // Shared by checkWorktreeRequired's Bash branch above and the E1 loop
@@ -653,4 +752,6 @@ module.exports = {
   isPolicyFile,
   isPolicyOnlyCommit,
   POLICY_COMMIT_ALLOWLIST,
+  shadowPipelineRunDir,
+  checkPipelineShadowGuard,
 };

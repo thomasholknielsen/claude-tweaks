@@ -455,4 +455,26 @@ function fileWriteTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, WRITE_SHAPES };
+// mkdir target parser — deliberately separate from WRITE_SHAPES/fileWriteTargets
+// (#692): WRITE_SHAPES feeds the worktree-always Bash-write gate's coverage,
+// which tests/hooks-gate-coverage.test.js pins to skills/_shared/policy-schema.md's
+// prose; folding mkdir in there would widen that unrelated gate as a side effect.
+// The pipeline-shadow guard (pre-tool-use.js) is this function's only consumer.
+// mkdir takes no flag that both consumes a value AND could plausibly be confused
+// with a positional except -m/--mode; every other positional is a target — mkdir
+// can create several directories in one invocation.
+const MKDIR_VALUE_FLAGS = new Set(['-m', '--mode']);
+function mkdirTargets(command, cwd) {
+  const targets = [];
+  forEachCommandSegment(command, cwd, (t, effCwd) => {
+    if (t[0] !== 'mkdir') return;
+    const { positionals } = partitionArgs(t.slice(1), MKDIR_VALUE_FLAGS);
+    for (const arg of positionals) {
+      const file = resolveWriteTarget(effCwd, arg);
+      if (file) targets.push({ action: 'mkdir', file });
+    }
+  });
+  return targets;
+}
+
+module.exports = { gitTargets, fileWriteTargets, mkdirTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, WRITE_SHAPES };
