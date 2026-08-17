@@ -17,7 +17,7 @@ Lifecycle: `/claude-tweaks:capture` → `/claude-tweaks:specify` [ **framing-che
 - **bare `#N`** — a record carries `solution:unjustified` and you want the one-step call: per-assumption evidence findings, then supply evidence or accept the risk. Invoked directly by a human (the backlog needs-you lane composes this launcher), never by a pipeline.
 - **`--lens=<n[,n...]>`** — you want a specific debiasing perspective on a problem, before or during brainstorming. Invoked directly by a human, never by a pipeline.
 
-Not for: producing a standalone document, dispatching subagents, or gating anything. This skill renders a verdict or a perspective — the bare-`#N` mode alone writes back to the record; nothing here writes files or gates anything.
+Not for: producing a standalone document, dispatching subagents, or gating anything. This skill renders a verdict or a perspective — the bare-`#N` mode alone writes back to the record itself (body, label, acceptance trace); no mode writes any other file, and nothing gates.
 
 ## Input
 
