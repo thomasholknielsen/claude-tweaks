@@ -189,9 +189,14 @@ render a verdict either way — never block on the lookup:
      network probing. Different → verdict is **Remote holder**; skip steps 3-4.
   3. **Worktree match:** derive the bare `spec-{ids}` portion of the holder's `runId` (strip
      the `{ISO-timestamp}-` prefix — e.g. runId `…T210742-spec-686-687` → `spec-686-687`) and
-     grep `git worktree list` for that substring, locked or not — it matches both the native
+     grep `git worktree list` for it, locked or not — it matches both the native
      `.claude/worktrees/flow-spec-{ids}` naming (illustrated above) and the documented
-     git-fallback naming (`.worktrees/flow/spec-{ids}`, `.worktrees/spec-{ids}`).
+     git-fallback naming (`.worktrees/flow/spec-{ids}`, `.worktrees/spec-{ids}`). Match the id
+     list as a **whole token**, never a bare substring: a hit counts only when the character
+     after it is not a digit and not a hyphen followed by a digit — `spec-72` must not match
+     `spec-720-…`, and `spec-720-721` must not match `spec-720-721-722-…` (a different run's
+     worktree). If more than one line still matches, list every match in the card's worktree
+     slot and treat the step as matched for verdict purposes.
   4. **Transcript freshness:** the holder's transcript lives at
      `~/.claude/projects/<project-slug>/<sessionId>.jsonl` (path rule per
      `feedback/session-evaluation.md` — slug is the session's absolute cwd with `/`, space,
