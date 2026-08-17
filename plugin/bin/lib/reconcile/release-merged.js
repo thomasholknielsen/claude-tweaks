@@ -8,14 +8,19 @@
 // pass picks up exactly where this one left off.
 'use strict';
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, execFile } = require('child_process');
+const { promisify } = require('util');
 const { runGit } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { readRunState } = require('../hooks/context');
 const { classifyClaimBlob, releasePayload } = require('../issues/claims');
 const claimStore = require('../issues/claim-store');
-const { resolvePrState } = require('./pr-state');
+const { resolvePrStateAsync } = require('./pr-state');
 const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
+const { readCache, writeCache } = require('./cache');
+const { runWithConcurrency } = require('./gh-pool');
+
+const execFileAsync = promisify(execFile);
 
 const GH_TIMEOUT_MS = 5000;
 
@@ -56,6 +61,28 @@ function needsIssueEvidence(prState) {
   return typeof prState === 'object' && prState.state === 'CLOSED';
 }
 
+// Pure: a claim listing entry + the cached sha last seen for that issue ->
+// skip the readClaimBlob call entirely when unchanged (#820, D6). Only ever
+// called by releaseMerged's loop below with a cache entry that was recorded
+// for a TERMINAL classified state (tombstone/unreadable) — a live/stale
+// claim's sha is never cached, because that claim's PR/issue join can still
+// change pass-to-pass even when its content hasn't (see the loop's own
+// comment). A terminal state, once classified, never un-terminals itself —
+// `classifyClaimBlob` is a pure function of content, so a byte-identical
+// blob reclassifies identically every time — so a cache hit here means "we
+// already know this claim is dead weight, don't re-fetch it."
+function shouldSkipClaimRead(entry, cachedSha) {
+  if (cachedSha === undefined || cachedSha === null) return false;
+  return entry.sha === cachedSha;
+}
+
+// Shared by ghApi and ghApiAsync below — both catch blocks classified a
+// caught exec error identically (ENOENT = no `gh` binary, anything else =
+// network-failure); one classifier instead of two copies that could drift.
+function classifyGhExecError(e) {
+  return e && e.code === 'ENOENT' ? 'gh-absent' : 'network-failure';
+}
+
 function ghApi(args) {
   try {
     const stdout = execFileSync('gh', ['api', ...args], {
@@ -63,8 +90,7 @@ function ghApi(args) {
     });
     return { stdout, failure: null };
   } catch (e) {
-    if (e && e.code === 'ENOENT') return { stdout: null, failure: 'gh-absent' };
-    return { stdout: null, failure: 'network-failure' };
+    return { stdout: null, failure: classifyGhExecError(e) };
   }
 }
 
@@ -82,14 +108,17 @@ function repoSlugOf(repoRoot) {
 }
 
 // Both delegate to claim-store.js's one contents-API implementation.
-// This module's own `ghApi` never sets `status` (unlike claim-store's
-// `defaultGhApi`), so `readClaimBlob`'s `absent: true` branch never fires
-// here — every failure still surfaces as `gh-absent`/`network-failure`
-// exactly as before this extraction (a 404 mid-iteration is a race with
-// another release pass, indistinguishable from any other read failure, and
-// was never distinguished here pre-extraction either).
-function listClaims(repoSlug) {
-  return claimStore.listClaimNames(ghApi, repoSlug);
+// `api` defaults to this module's own `ghApi`, which never sets `status`
+// (unlike claim-store's `defaultGhApi`), so `readClaimBlob`'s `absent: true`
+// branch never fires with the default — every failure still surfaces as
+// `gh-absent`/`network-failure` exactly as before this extraction (a 404
+// mid-iteration is a race with another release pass, indistinguishable from
+// any other read failure, and was never distinguished here pre-extraction
+// either). `api` is overridable so releaseMerged's own injectable `ghApi`
+// param (see below) reaches these calls in tests, mirroring claim-store's
+// seam rather than adding a second one.
+function listClaims(repoSlug, api = ghApi) {
+  return claimStore.listClaimEntries(api, repoSlug);
 }
 
 // claim-store.js keys on the issue number, not the blob filename. Callers
@@ -99,15 +128,38 @@ function issueNumberOf(name) {
   return Number(/^issue-(\d+)\.json$/.exec(name)[1]);
 }
 
-function readClaim(repoSlug, name) {
-  const r = claimStore.readClaimBlob(ghApi, repoSlug, issueNumberOf(name));
+function readClaim(repoSlug, name, api = ghApi) {
+  const r = claimStore.readClaimBlob(api, repoSlug, issueNumberOf(name));
   return { content: r.content, sha: r.sha, failure: r.failure };
 }
 
-// Issue-state lookup — same ghApi pattern (5s timeout). Unknown/errored
-// state returns undefined: fail closed, never releases on missing evidence.
-function readIssueState(repoSlug, issueNumber) {
-  const r = ghApi([`repos/${repoSlug}/issues/${issueNumber}`, '-q', '.state']);
+// Async counterpart of ghApi above, used only for the one remaining
+// per-active-claim gh call this module parallelizes (readIssueStateAsync,
+// via gh-pool's runWithConcurrency below) — listClaims/readClaim stay on
+// the sync ghApi, since Task 7 already showed most entries now cache-skip,
+// leaving little to gain there. A real (non-blocking) execFile is what lets
+// runWithConcurrency's cap actually run calls concurrently, unlike
+// execFileSync, which blocks the whole event loop regardless of how the
+// calling code is structured.
+async function ghApiAsync(args) {
+  try {
+    const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS });
+    return { stdout, failure: null };
+  } catch (e) {
+    return { stdout: null, failure: classifyGhExecError(e) };
+  }
+}
+
+// Issue-state lookup, async — same contract/timeout as the rest of this
+// module. Unknown/errored state returns undefined: fail closed, never
+// releases on missing evidence. `apiAsync` defaults to the real
+// `ghApiAsync` above but accepts an injectable override — releaseMerged
+// derives one from its own `ghApi` opt (see `apiAsync` below) so the same
+// single injectable-ghApi seam this module already uses for
+// listClaims/readClaim covers this call too, rather than adding a second
+// override parameter.
+async function readIssueStateAsync(repoSlug, issueNumber, apiAsync = ghApiAsync) {
+  const r = await apiAsync([`repos/${repoSlug}/issues/${issueNumber}`, '-q', '.state']);
   if (r.failure || !r.stdout) return undefined;
   const s = r.stdout.trim().toUpperCase();
   return s === 'OPEN' || s === 'CLOSED' ? s : undefined;
@@ -141,90 +193,205 @@ function writeTombstone(repoSlug, name, sha, tombstoneContent, reason, runner = 
 
 // Best-effort in both directions per `_shared/issue-claims.md` — a failed
 // add/remove never blocks the claim, the release, or the pipeline.
-function removeInProgressLabel(repoSlug, issueNumber) {
-  const r = ghApi(['--method', 'DELETE', `repos/${repoSlug}/issues/${issueNumber}/labels/bot%3Ain-progress`]);
+function removeInProgressLabel(repoSlug, issueNumber, api = ghApi) {
+  const r = api(['--method', 'DELETE', `repos/${repoSlug}/issues/${issueNumber}/labels/bot%3Ain-progress`]);
   return r.failure === null;
 }
 
-function releaseMerged({ cwd } = {}) {
+// opts: { cwd?, ghApi? } — `ghApi` is an injectable override for this
+// module's own gh-api calls (listing, per-claim reads, issue-state, label
+// removal), mirroring claim-store.js's seam, so tests never shell to the
+// real `gh` binary. Defaults to the module-level `ghApi` above.
+//
+// Runs in four phases (#820, D5 — parallelizing every per-active-claim gh
+// call, PR-state AND issue-state reads, through gh-pool's concurrency-capped
+// `runWithConcurrency`; PR-state was left serial in an earlier pass of this
+// diff — #820 review — since it fires for every active claim with a
+// resolvable branch, a superset of the candidates that also need issue
+// evidence, it is the more universally-triggered of the two and is now
+// pooled the same way):
+//   Phase 1 (sync) — read/classify/join every claim not cache-skipped,
+//     collecting active (live/stale) candidates with their branch join
+//     (PR-state deferred to Phase 1.5).
+//   Phase 1.5 (parallel) — one runWithConcurrency batch resolving every
+//     joinable candidate's PR-state fetch.
+//   Phase 2 (parallel) — one runWithConcurrency batch resolving every
+//     candidate's issue-state fetch (only for candidates PR evidence alone
+//     can't decide — see needsIssueEvidence, now evaluated against Phase
+//     1.5's resolved prState).
+//   Phase 3 (sync) — decide + write. Writes stay serial: each is its own
+//     conditional-update with its own sha, so there's no benefit to
+//     parallelizing them, and serial writes keep this module's existing
+//     one-write-at-a-time posture.
+async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
   const released = [];
   const skipped = [];
   const root = cwd || process.cwd();
   const repoSlug = repoSlugOf(root);
   if (!repoSlug) return { released, skipped, failure: 'no-remote' };
 
-  const { names, failure } = listClaims(repoSlug);
+  const api = ghApiOverride || ghApi;
+  // Async-compatible counterpart of `api` for Phase 2's readIssueStateAsync
+  // calls — reuses the same single injectable `ghApi` opt rather than
+  // adding a second override parameter. A sync test fake's return value is
+  // simply wrapped in an already-resolved promise; production defaults to
+  // the real (non-blocking) ghApiAsync.
+  const apiAsync = ghApiOverride ? (args) => Promise.resolve(ghApiOverride(args)) : ghApiAsync;
+
+  const { entries, failure } = listClaims(repoSlug, api);
   if (failure) return { released, skipped, failure };
+
+  const cache = readCache(root);
+  const nextClaimShas = {};
 
   const wtList = runGit(['worktree', 'list', '--porcelain'], root);
   const worktrees = wtList.failure ? [] : parseWorktreeList(wtList.stdout);
 
-  for (const name of names) {
-    const m = /^issue-(\d+)\.json$/.exec(name);
+  // Phase 1: synchronous read/classify/join for every claim not cache-skipped.
+  const candidates = [];
+  for (const entry of entries) {
+    const m = /^issue-(\d+)\.json$/.exec(entry.name);
     if (!m) continue;
     const issueNumber = Number(m[1]);
 
-    const claim = readClaim(repoSlug, name);
+    // A cache hit here only ever fires for a sha last recorded below with a
+    // TERMINAL classified state (tombstone/unreadable) — see the `!isActive`
+    // branch. A live/stale claim's sha is never written to the cache, so
+    // this can never skip re-reading (and rejoining) an active candidate;
+    // it only skips re-fetching content this module already knows is dead
+    // weight, since `classifyClaimBlob` is a pure function of content and a
+    // terminal state never un-terminals itself (#820, D6). Re-propagating
+    // `entry.sha` here (rather than re-deriving claim.sha, which we don't
+    // have — the whole point of this branch is skipping that read) is safe:
+    // a cache HIT means this exact sha was already proven terminal by a
+    // real read+classify on a PRIOR pass (see the `!isActive` branch below,
+    // which caches `claim.sha` — the two are equal for a quiescent claim
+    // since a listing sha and a blob-content sha are the same git blob sha).
+    if (shouldSkipClaimRead(entry, cache.claimShas[issueNumber])) {
+      nextClaimShas[issueNumber] = entry.sha; // still terminal, still cached
+      continue; // matches the `if (!isActive) continue;` no-log behavior below
+    }
+
+    const claim = readClaim(repoSlug, entry.name, api);
     if (claim.failure) { skipped.push({ issueNumber, reason: claim.failure }); continue; }
 
     const classified = classifyClaimBlob(claim.content, Date.now());
     const isActive = classified.state === 'live' || classified.state === 'stale';
-    let runId = null;
-    if (isActive) {
-      try { runId = JSON.parse(claim.content).runId || null; } catch { /* falls through to no-run-id below */ }
+    if (!isActive) {
+      // Cache the sha of the content actually classified (claim.sha, from
+      // THIS fresh read), never the listing's entry.sha (from the earlier
+      // directory-listing call) — the two can diverge under a race where
+      // another agent released the claim between the listing and this read
+      // (#820 review). claim.sha is also what writeTombstone already treats
+      // as the authoritative sha for a conditional write, so this matches
+      // the rest of the module. A null claim.sha (e.g. a 404-race/no-content
+      // misread that classifyClaimBlob(null, ...) reports as 'absent') is
+      // self-disarming: shouldSkipClaimRead's cachedSha === null guard never
+      // treats it as a cache hit, so that claim simply stays un-cached and
+      // is re-read (and can self-heal) on the next pass.
+      nextClaimShas[issueNumber] = claim.sha; // terminal — cacheable, see the skip branch above
+      continue; // absent/tombstone/unreadable — not worth logging as a skip
     }
-    if (isActive && !runId) {
+
+    let runId = null;
+    try { runId = JSON.parse(claim.content).runId || null; } catch { /* falls through to no-run-id below */ }
+    if (!runId) {
       skipped.push({ issueNumber, reason: 'no-run-id' });
       continue;
     }
 
-    let prState = null;
     let joinFailure = null; // 'no-run-state' | 'no-branch' — preserved as the skip reason when no evidence releases
-    if (runId) {
-      const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
-      const runState = readRunState(runDir);
-      const wtEntry = runState && runState.worktree
-        ? worktrees.find((w) => path.resolve(w.path) === path.resolve(runState.worktree))
-        : null;
-      const branch = wtEntry ? wtEntry.branch : null;
-      if (!runState || !runState.worktree) {
-        joinFailure = 'no-run-state'; // archived/gone run dir — issue-closed evidence below may still release
-      } else if (!branch) {
-        joinFailure = 'no-branch';
-      } else {
-        prState = resolvePrState(root, branch);
-      }
+    const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+    const runState = readRunState(runDir);
+    const wtEntry = runState && runState.worktree
+      ? worktrees.find((w) => path.resolve(w.path) === path.resolve(runState.worktree))
+      : null;
+    const branch = wtEntry ? wtEntry.branch : null;
+    if (!runState || !runState.worktree) {
+      joinFailure = 'no-run-state'; // archived/gone run dir — issue-closed evidence below may still release
+    } else if (!branch) {
+      joinFailure = 'no-branch';
     }
+    // prState is resolved in Phase 1.5 below (deferred so the per-active-claim
+    // `gh pr list` call goes through the pool, not this sync loop) — null here
+    // is a placeholder, never a "no PR" result; joinFailure gates whether
+    // Phase 1.5 attempts the fetch at all.
 
-    // Fetch issue state only for release candidates where PR evidence alone
-    // cannot release: the no-pr and pr-closed-unmerged join results (incl.
-    // join failures above). Gated on live/stale first — tombstones persist
-    // forever (overwrites, not deletions), so an ungated fetch here would be
-    // a growing per-pass gh api cost with zero effect on non-candidates.
-    let issueState;
-    if (isActive && needsIssueEvidence(prState)) {
-      // One gh api call per candidate, per pass — intentional; bounded by the
-      // open claim count (typically small), not by repo or issue history size.
-      issueState = readIssueState(repoSlug, issueNumber);
-    }
+    // `sha` here is claim.sha (this fresh read's blob sha, NOT the earlier
+    // listing's entry.sha) — the same sha writeTombstone below treats as
+    // authoritative for its conditional write, and the same distinction
+    // the `!isActive` cache-write above draws for exactly the same reason.
+    candidates.push({
+      issueNumber, runId, name: entry.name, sha: claim.sha, classifiedState: classified.state, prState: null, joinFailure, branch,
+    });
+  }
 
-    const decision = decideRelease(classified.state, prState, issueState);
+  // Phase 1.5: parallel PR-state fetches, capped, only for candidates whose
+  // branch actually resolved (joinFailure === null) — a candidate with
+  // 'no-run-state'/'no-branch' has nothing to resolve a PR against, so it
+  // costs nothing here, matching Phase 2's own "gated the same way the
+  // serial version gated its call" discipline (#820 review).
+  const needPrState = candidates.filter((c) => c.joinFailure === null);
+  const prStates = await runWithConcurrency(
+    needPrState,
+    (c) => resolvePrStateAsync(root, c.branch),
+  );
+  const prStateByIssue = new Map(
+    needPrState.map((c, i) => [c.issueNumber, prStates[i] instanceof Error ? 'network-failure' : prStates[i]]),
+  );
+  for (const c of candidates) {
+    if (c.joinFailure === null) c.prState = prStateByIssue.get(c.issueNumber);
+  }
+
+  // Phase 2: parallel issue-state fetches, capped, only for candidates that
+  // need one (needsIssueEvidence) — gated the same way the prior serial
+  // loop gated its per-candidate fetch, so non-candidates cost nothing.
+  const needIssue = candidates.filter((c) => needsIssueEvidence(c.prState));
+  const issueStates = await runWithConcurrency(
+    needIssue,
+    (c) => readIssueStateAsync(repoSlug, c.issueNumber, apiAsync),
+  );
+  const issueStateByIssue = new Map(
+    needIssue.map((c, i) => [c.issueNumber, issueStates[i] instanceof Error ? undefined : issueStates[i]]),
+  );
+
+  // Phase 3: decide + write, synchronous (writes stay serial — see header comment).
+  for (const c of candidates) {
+    const issueState = issueStateByIssue.get(c.issueNumber);
+    const decision = decideRelease(c.classifiedState, c.prState, issueState);
     if (decision.action === 'skip') {
-      if (!isActive) continue; // absent/tombstone/unreadable — not worth logging as a skip
-      skipped.push({ issueNumber, runId, reason: joinFailure || decision.reason });
+      // No nextClaimShas write here: an active (live/stale) claim's PR/issue
+      // join can change pass-to-pass even when its content hasn't, so it
+      // must never be cached/skipped — only the two TERMINAL-state
+      // continue branches in Phase 1 above ever populate nextClaimShas.
+      skipped.push({ issueNumber: c.issueNumber, runId: c.runId, reason: c.joinFailure || decision.reason });
       continue;
     }
 
     const reason = decision.reason === 'issue-closed'
-      ? `issue-closed: reconciled from #${issueNumber}`
+      ? `issue-closed: reconciled from #${c.issueNumber}`
       : decision.reason;
-    const payload = releasePayload({ issueNumber, runId, reason, now: Date.now() });
-    const ok = writeTombstone(repoSlug, name, claim.sha, payload.tombstoneContent, reason);
-    if (!ok) { skipped.push({ issueNumber, runId, reason: 'release-write-failed' }); continue; }
-    removeInProgressLabel(repoSlug, issueNumber); // best-effort, never gates the release
-    released.push(releasedEntry(issueNumber, runId, prState));
+    const payload = releasePayload({ issueNumber: c.issueNumber, runId: c.runId, reason, now: Date.now() });
+    const ok = writeTombstone(repoSlug, c.name, c.sha, payload.tombstoneContent, reason);
+    if (!ok) { skipped.push({ issueNumber: c.issueNumber, runId: c.runId, reason: 'release-write-failed' }); continue; }
+    removeInProgressLabel(repoSlug, c.issueNumber, api); // best-effort, never gates the release
+    released.push(releasedEntry(c.issueNumber, c.runId, c.prState));
   }
+
+  // Re-read immediately before writing rather than reusing the `cache`
+  // snapshot captured at function entry (before Phase 1.5/2's async gh-pool
+  // network calls, which can take real wall-clock seconds): under this
+  // repo's normal concurrent-worktree-session usage, a concurrent
+  // reconcile() process can write a fresher `lastRunAt` inside that window,
+  // and writing back the stale entry-time snapshot would silently revert it
+  // — index.js's own final cache write already reads and writes back-to-back
+  // for exactly this reason (#820 review). `claimShas: nextClaimShas` stays a
+  // full replacement, not a merge — this pass's own listing-driven rebuild is
+  // already a complete, self-consistent claimShas set for what it observed.
+  writeCache(root, { ...readCache(root), claimShas: nextClaimShas });
   return { released, skipped };
 }
 
-module.exports = { releaseMerged, decideRelease, releasedEntry, repoSlugOf, writeTombstone };
+module.exports = {
+  releaseMerged, decideRelease, releasedEntry, repoSlugOf, writeTombstone, shouldSkipClaimRead,
+};

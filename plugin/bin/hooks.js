@@ -19,8 +19,25 @@ const wtDetect = require('./lib/hooks/worktree-detect');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
+// The write-only, janitorial half of reconcile/index.js's ALL_CHECKS — run
+// by the `reconcile-background` subcommand below, off session-start.js's hot
+// path (#820, D8). Exported (alongside session-start.js's own FAST_CHECKS
+// export) so a test can assert the two lists partition ALL_CHECKS exactly —
+// no overlap, nothing silently dropped when a check is added to one list and
+// not the other.
+const BACKGROUND_CHECKS = ['release', 'archive', 'archive-branches', 'remote-prune', 'reap'];
+
 function loadModule(event) {
   try { return require('./lib/hooks/' + event); } catch { return null; }
+}
+
+// Shared by the resolve-run-dir and spec-status subcommands below — each
+// previously defined its own identical `--flag value` lookup closure over a
+// different local array (`args` vs `rest`); one function taking the array
+// explicitly instead of two copies that could drift.
+function flagVal(args, name) {
+  const i = args.indexOf(name);
+  return i === -1 ? null : args[i + 1];
 }
 
 function isDirectory(p) {
@@ -85,7 +102,7 @@ function resolveRunArg(args, cwd, env) {
   return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };
 }
 
-function main(argv) {
+async function main(argv) {
   const cmd = argv[2];
   if (cmd === 'record-worktree') {
     // --run <path> pins the target run dir explicitly, mirroring close-run
@@ -130,18 +147,14 @@ function main(argv) {
     // event), and a skill step needs a real signal to branch on when nothing
     // resolves or an inherited PIPELINE_RUN_DIR turns out to be a shadow.
     const args = argv.slice(3);
-    function flagVal(name) {
-      const i = args.indexOf(name);
-      return i === -1 ? null : args[i + 1];
-    }
     let result;
     try {
       result = require('./lib/hooks/run-dir-resolve').resolve({
         cwd: process.cwd(),
         env: process.env,
-        specSlug: flagVal('--spec-slug'),
-        mode: flagVal('--mode'),
-        standalone: flagVal('--standalone'),
+        specSlug: flagVal(args, '--spec-slug'),
+        mode: flagVal(args, '--mode'),
+        standalone: flagVal(args, '--standalone'),
         create: args.includes('--create'),
         rootOnly: args.includes('--root-only'),
       });
@@ -192,14 +205,10 @@ function main(argv) {
     // multi-spec.md's "Run directory layout"), never a per-spec
     // PIPELINE_RUN_DIR subdirectory.
     const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
-    function flagVal(name) {
-      const idx = rest.indexOf(name);
-      return idx === -1 ? null : rest[idx + 1];
-    }
-    const specArg = flagVal('--spec');
-    const statusArg = flagVal('--status');
-    const phaseArg = flagVal('--phase');
-    const nowArg = flagVal('--now'); // test-only clock override; real callers omit it
+    const specArg = flagVal(rest, '--spec');
+    const statusArg = flagVal(rest, '--status');
+    const phaseArg = flagVal(rest, '--phase');
+    const nowArg = flagVal(rest, '--now'); // test-only clock override; real callers omit it
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — spec status not recorded\n`);
     } else if (!runDir) {
@@ -337,11 +346,85 @@ function main(argv) {
     const opts = { dryRun: args.includes('--dry-run'), cwd: process.cwd() };
     let out;
     try {
-      out = require('./lib/reconcile').reconcile(opts);
+      out = await require('./lib/reconcile').reconcile(opts);
     } catch {
       out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
     }
     process.stdout.write(JSON.stringify(out) + '\n');
+    return 0;
+  }
+  if (cmd === 'reconcile-background') {
+    // Detached-process counterpart to the `reconcile` subcommand above:
+    // session-start.js's fast path spawns this (see that file's own header
+    // comment on the fast/background split, #820 D8) to run only the
+    // write-only janitorial checks off the hot path. Never a session-
+    // blocking failure — this process is detached (spawn'd with
+    // `detached: true, stdio: 'ignore'` and unref'd) and nothing reads its
+    // exit code or stdout, so every path below returns 0 and best-effort
+    // swallows its own errors rather than surfacing them anywhere.
+    const cwd = process.cwd();
+    const { reconcile } = require('./lib/reconcile');
+    const { mainCheckoutRoot } = require('./lib/hooks/worktree-detect');
+    const { isFresh } = require('./lib/reconcile/cache');
+    const { QUIET_SKIP_REASONS } = require('./lib/hooks/worktree-reap');
+    const root = mainCheckoutRoot(cwd) || cwd;
+    const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
+
+    // Freshness is decided from THIS status file's own `completedAt` —
+    // deliberately NOT reconcile()'s shared reconcile-cache.json `lastRunAt`
+    // stamp. That stamp fires unconditionally at the end of ANY
+    // fully-completed pr-first pass regardless of which `checks` subset ran,
+    // so session-start.js's own FAST_CHECKS call (mirror/red-tip/console)
+    // also stamps it moments before this process starts — reusing it here
+    // would make this process (and the spawn-gate that decided to launch it)
+    // see a false "fresh" from a pass that never touched
+    // release/archive/archive-branches/remote-prune/reap, and the
+    // background checks would never run. Caught by task review against a
+    // real pr-first remote (#820 Task 10 fix-up); reconcile()'s own
+    // lastRunAt/cache.js contract is untouched by this fix.
+    let existingStatus = null;
+    try { existingStatus = JSON.parse(fs.readFileSync(statusPath, 'utf8')); } catch { /* none yet */ }
+    const alreadyFresh = isFresh(
+      { lastRunAt: existingStatus && typeof existingStatus.completedAt === 'number' ? existingStatus.completedAt : null },
+      Date.now(),
+    );
+    if (alreadyFresh) {
+      // A very recent background pass already ran — do nothing, not even a
+      // status-file touch (surfaced/completedAt are left exactly as they
+      // are), since nothing new happened. Same stdout line as a completed
+      // run: nothing reads this detached process's stdout or exit code, so
+      // there is no caller to distinguish the two for.
+      process.stdout.write('claude-tweaks: reconcile-background complete\n');
+      return 0;
+    }
+
+    let summary = {};
+    try {
+      const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS });
+      summary = {
+        released: (r.claims || []).filter((c) => c.action === 'released').length,
+        archived: (r.runs || []).filter((x) => x.action === 'archived').length,
+        archivedBranches: (r.branches || []).filter((b) => b.kind === 'branch' && (b.action === 'delete' || b.action === 'tag-and-delete')).length,
+        prunedRemote: (r.remoteBranches || []).filter((b) => b.action === 'delete').length,
+        reaped: (r.worktrees || []).filter((w) => w.action === 'reaped').length,
+        // Individually-named worktrees left in place and why — a more
+        // granular signal than the check-level `skipped` array below.
+        // Restores the pre-#820-D8 inline block's diagnostic, filtered the
+        // same way that block filtered it (routine/expected skip reasons
+        // stay quiet — see worktree-reap.js's QUIET_SKIP_REASONS).
+        notableWorktrees: (r.worktrees || [])
+          .filter((w) => w.action === 'skipped' && !QUIET_SKIP_REASONS.has(w.reason))
+          .map((w) => ({ path: w.path, reason: w.reason })),
+        skipped: r.skipped || [],
+      };
+    } catch {
+      summary = { failed: true };
+    }
+    try {
+      fs.mkdirSync(path.dirname(statusPath), { recursive: true });
+      fs.writeFileSync(statusPath, JSON.stringify({ completedAt: Date.now(), summary, surfaced: false }));
+    } catch { /* best-effort — this process is detached and unwatched either way */ }
+    process.stdout.write('claude-tweaks: reconcile-background complete\n');
     return 0;
   }
   if (!EVENTS.includes(cmd)) return 0;
@@ -370,15 +453,13 @@ function main(argv) {
   const runDir = ctxLib.resolveRunDir(cwd, process.env);
   const runState = runDir ? ctxLib.readRunState(runDir) : null;
   const ownedRun = ctxLib.resolveRun(cwd, process.env, input.session_id);
-  const out = mod.run({ input, runDir, runState, ownedRun, cwd }) || {};
+  const out = (await mod.run({ input, runDir, runState, ownedRun, cwd })) || {};
   if (out.json) fs.writeSync(1, JSON.stringify(out.json));
   return typeof out.exit === 'number' ? out.exit : 0;
 }
 
 if (require.main === module) {
-  let code = 0;
-  try { code = main(process.argv); } catch { code = 0; }
-  process.exit(code);
+  main(process.argv).then((code) => process.exit(code)).catch(() => process.exit(0));
 }
 
-module.exports = { main };
+module.exports = { main, BACKGROUND_CHECKS };

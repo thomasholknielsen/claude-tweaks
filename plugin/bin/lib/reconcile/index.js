@@ -19,14 +19,17 @@ const { archiveMerged } = require('./archive-merged');
 const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
+const { sharedFetch } = require('./shared-fetch');
+const { readCache, writeCache, isFresh } = require('./cache');
 
 // Execution order (mirror, red-tip, console, release, archive,
 // archive-branches, remote-prune, reap) is significant — see the ordering
 // comment above the release/archive/archive-branches/reap dispatch below.
-// red-tip runs immediately after mirror specifically so it reads the ref
-// mirror-ff.js's own fetch just refreshed, rather than fetching a second
-// time (#561). This array is the requested-subset default only; it is never
-// iterated to determine dispatch order.
+// red-tip runs immediately after mirror specifically so it reads the ref the
+// shared fetch (shared-fetch.js, #820 D2 — formerly mirror-ff.js's own
+// fetch) just refreshed, rather than fetching a second time (#561). This
+// array is the requested-subset default only; it is never iterated to
+// determine dispatch order.
 const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'];
 
 // opts: { dryRun?: boolean, checks?: string[], cwd?: string }
@@ -35,7 +38,7 @@ const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-
 // agent session's MCP tools), so a gh-absent environment reports that reason
 // per-check rather than attempting an MCP fallback (see
 // `_shared/integration-model.md`).
-function reconcile(opts = {}) {
+async function reconcile(opts = {}) {
   const dryRun = !!opts.dryRun;
   const checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
   const cwd = opts.cwd || process.cwd();
@@ -45,6 +48,22 @@ function reconcile(opts = {}) {
   if (!root) {
     result.skipped.push({ check: 'all', reason: 'no-repo' });
     return result;
+  }
+
+  // Whole-pass freshness short-circuit (#820, D7) — opt-in only (default
+  // false), so every existing direct caller of reconcile() (including the
+  // standalone `reconcile` CLI subcommand and every test written before this
+  // task) keeps today's always-runs semantics. Distinct from the GitHub-
+  // health preflight below: that answers "is GitHub reachable right now,"
+  // this answers "did any session already do this very recently." Checked
+  // before resolveIntegrationBranch/resolveIntegrationModel so a fresh cache
+  // costs zero I/O, not just zero network calls.
+  if (opts.skipIfFresh) {
+    const cache = readCache(root);
+    if (isFresh(cache, Date.now(), opts.ttlMs)) {
+      result.skipped.push({ check: 'all', reason: 'fresh-cache' });
+      return result;
+    }
   }
 
   const integration = resolveIntegrationBranch(root);
@@ -77,16 +96,92 @@ function reconcile(opts = {}) {
     return result;
   }
 
-  if (checks.includes('mirror')) {
-    result.mirror = mirrorFastForward(root, integration);
+  // GitHub-health preflight — every check below this point is network-
+  // dependent under pr-first (mirror/red-tip/console/release/remote-prune
+  // hit GitHub directly; archive/archive-branches/reap all call
+  // resolvePrState, also a gh call) — so a single upfront failure/timeout
+  // (~2s) skips the whole requested set in one entry, instead of each check
+  // separately accumulating its own 5-10s timeout (#820). Called via
+  // require(...).ghHealthCheck() rather than a module-load-time destructure
+  // so a test's `require('./preflight').ghHealthCheck = fn` monkeypatch
+  // actually reaches this call site.
+  const health = require('./preflight').ghHealthCheck();
+  if (!health.ok) {
+    result.skipped.push({ check: checks.join(','), reason: `preflight-${health.reason}` });
+    return result;
+  }
+
+  // Overall wall-clock ceiling for the rest of this pass (#820, D4) — bounds
+  // the SUM of every dispatched check's time, not any single check's own
+  // timeout. Created once here via require(...).createBudget() rather than a
+  // module-load-time destructure, so a test's
+  // `require('./budget').createBudget = fn` monkeypatch reaches this call
+  // site. Checked before each of the 8 dispatch blocks below, in dispatch
+  // order; each guard's slice is "every requested check from here on",
+  // so a budget exhausted mid-pass reports the whole remainder in one
+  // `skipped` entry and returns immediately rather than running a partial
+  // remainder.
+  const budget = require('./budget').createBudget();
+  const DISPATCH_ORDER = ['mirror', 'red-tip', 'console', 'release', 'archive', 'archive-branches', 'remote-prune', 'reap'];
+  function overBudget(remainingFromHere) {
+    if (!budget.exceeded()) return false;
+    const notYetRun = remainingFromHere.filter((c) => checks.includes(c));
+    if (notYetRun.length) result.skipped.push({ check: notYetRun.join(','), reason: 'budget-exceeded' });
+    return true;
+  }
+
+  if (overBudget(DISPATCH_ORDER.slice(0))) return result;
+  // One shared `git fetch` for whichever of mirror/red-tip/remote-prune are
+  // requested — mirror (via classify.js) and remote-prune previously each
+  // ran their own separate fetch, two full round trips to the same remote
+  // per pass (#820, D2). Its SHAPE is scoped to what was actually requested
+  // (narrow single-ref + a tight hot-path cap for a mirror-only pass, full
+  // `--prune` all-refs on git-exec's own env-overridable budget once
+  // remote-prune is in the set) — see shared-fetch.js's header for why each
+  // shape is what it is. `sharedFetchOk` gates all three dispatch blocks
+  // below: red-tip is included even though it triggers no fetch itself,
+  // because it reads the ref this fetch (formerly mirror's own) just
+  // refreshed — see the ordering comment on red-tip's dispatch below. A
+  // failed fetch is recorded once here rather than once per check.
+  let sharedFetchOk = true;
+  const wantsMirror = checks.includes('mirror');
+  const wantsRemotePrune = checks.includes('remote-prune');
+  // Whether the fetch actually ran this pass, not just whether it ran
+  // without error — sharedFetchOk alone defaults to `true` even when the
+  // block below never executes at all (neither mirror nor remote-prune
+  // requested), which would let red-tip's gate below silently read a
+  // never-refreshed local ref if a future `checks` subset ever requests
+  // red-tip without either (#820 review — currently unreachable, since
+  // every caller's FAST_CHECKS/ALL_CHECKS pairs red-tip with mirror, but the
+  // gate should say so rather than rely on that pairing holding forever).
+  const fetchRan = wantsMirror || wantsRemotePrune;
+  if (fetchRan) {
+    const fetched = sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
+    if (fetched.failure) {
+      sharedFetchOk = false;
+      const affected = ['mirror', 'red-tip', 'remote-prune'].filter((c) => checks.includes(c));
+      if (affected.length) result.skipped.push({ check: affected.join(','), reason: 'fetch-failed' });
+    }
+  } else if (checks.includes('red-tip')) {
+    result.skipped.push({ check: 'red-tip', reason: 'no-fetch-this-pass' });
+  }
+  if (checks.includes('mirror') && sharedFetchOk) {
+    result.mirror = mirrorFastForward(root, integration, { skipFetch: true });
   }
 
   // Detection only — never mutates repo/run state. Reads origin/{integration}
-  // via the local ref mirror's own fetch above just refreshed — deliberately
-  // no fetch of its own (#561). Placed immediately after mirror for that
-  // reason; unconditional under pr-first, no local-merge equivalent (the
-  // model !== 'pr-first' early-return above already exits before this line).
-  if (checks.includes('red-tip')) {
+  // via the shared fetch above (formerly mirror-ff.js's own fetch) —
+  // deliberately no fetch of its own (#561). Placed immediately after mirror
+  // for that reason; unconditional under pr-first, no local-merge equivalent
+  // (the model !== 'pr-first' early-return above already exits before this
+  // line). Gated on `sharedFetchOk` too: a failed shared fetch leaves
+  // origin/{integration} exactly as stale as a failed mirror fetch used to,
+  // so red-tip has nothing fresh to read either. Also gated on `fetchRan`
+  // (see above) — `sharedFetchOk` alone can't distinguish "fetch ran and
+  // succeeded" from "fetch never ran," and only the former actually
+  // refreshed the ref red-tip reads.
+  if (overBudget(DISPATCH_ORDER.slice(1))) return result;
+  if (checks.includes('red-tip') && sharedFetchOk && fetchRan) {
     result.redTip = redTipCheck(root, integration, {
       onSkip: (reason) => result.skipped.push({ check: 'red-tip', reason }),
     });
@@ -96,8 +191,9 @@ function reconcile(opts = {}) {
   // to release/archive/reap's own ordering constraints (below) is
   // unconstrained. Placed here, right after mirror, since it needs neither a
   // worktree-list join nor merged-PR evidence, unlike the three that follow.
+  if (overBudget(DISPATCH_ORDER.slice(2))) return result;
   if (checks.includes('console')) {
-    result.console = consoleExecuteDetect({ cwd: root });
+    result.console = await consoleExecuteDetect({ cwd: root });
   }
 
   // Ordering is load-bearing, not incidental: release, archive, and
@@ -112,6 +208,7 @@ function reconcile(opts = {}) {
   // for). `reap` runs LAST among the five for this reason — the same class
   // of hazard `bin/lib/hooks/session-start.js` already documents for its
   // own stale-run-scan-before-reap ordering.
+  if (overBudget(DISPATCH_ORDER.slice(3))) return result;
   if (checks.includes('release')) {
     // Release performs one write kind (a conditional-overwrite of the claim
     // blob) with no meaningful "preview" — unlike ff/reap/archive, there is
@@ -120,7 +217,7 @@ function reconcile(opts = {}) {
     if (dryRun) {
       result.skipped.push({ check: 'release', reason: 'dry-run-not-supported' });
     } else {
-      const r = releaseMerged({ cwd: root });
+      const r = await releaseMerged({ cwd: root });
       if (r.failure) {
         result.skipped.push({ check: 'release', reason: r.failure });
       } else {
@@ -130,6 +227,7 @@ function reconcile(opts = {}) {
     }
   }
 
+  if (overBudget(DISPATCH_ORDER.slice(4))) return result;
   if (checks.includes('archive')) {
     const r = archiveMerged({ cwd: root, dryRun });
     result.runs = r.archived.map((d) => ({ runDir: d, action: 'archived' }))
@@ -139,6 +237,7 @@ function reconcile(opts = {}) {
   // Same live-ref dependency as release/archive: derives branch state from
   // refs reap may remove. Runs after archive (run-dir archival may release
   // branch attachments), before reap (which stays last — see above).
+  if (overBudget(DISPATCH_ORDER.slice(5))) return result;
   if (checks.includes('archive-branches')) {
     const r = archiveBranches({ cwd: root, integration, dryRun });
     if (r.failure) {
@@ -152,8 +251,9 @@ function reconcile(opts = {}) {
   // two-signal evidence bar). Same live-ref dependency as archive-branches:
   // the worktree-attachment guard must read worktrees reap has not yet
   // removed, so this too runs before reap (which stays last — see above).
-  if (checks.includes('remote-prune')) {
-    const r = pruneRemote({ cwd: root, integration, dryRun });
+  if (overBudget(DISPATCH_ORDER.slice(6))) return result;
+  if (checks.includes('remote-prune') && sharedFetchOk) {
+    const r = pruneRemote({ cwd: root, integration, dryRun, skipFetch: true });
     if (r.failure) {
       result.skipped.push({ check: 'remote-prune', reason: r.failure });
     } else {
@@ -161,6 +261,7 @@ function reconcile(opts = {}) {
     }
   }
 
+  if (overBudget(DISPATCH_ORDER.slice(7))) return result;
   if (checks.includes('reap')) {
     const r = reapMerged({ cwd: root, dryRun });
     if (r.failure) {
@@ -171,6 +272,14 @@ function reconcile(opts = {}) {
     }
   }
 
+  // Stamp freshness only on a fully-completed pr-first pass — every earlier
+  // return in this function (no-repo, no-remote, local-merge fallback,
+  // preflight failure, budget-exceeded, and the skipIfFresh short-circuit
+  // itself) exits above this line and never reaches it, so a failed or
+  // partial pass never gets recorded as "fresh" for a future skipIfFresh
+  // check (#820, D7).
+  const cache = readCache(root);
+  writeCache(root, { ...cache, lastRunAt: Date.now() });
   return result;
 }
 
