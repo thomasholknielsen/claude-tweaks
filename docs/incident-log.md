@@ -1,10 +1,10 @@
 # Incident log
 
-Post-mortem narratives behind the rules in [CLAUDE.md](../CLAUDE.md)'s `## Don'ts`.
+Post-mortem narratives behind the rules in [docs/donts.md](donts.md), which [CLAUDE.md](../CLAUDE.md)'s `## Don'ts` points to.
 
 Each rule there that was compressed carries a tag like `[IL-07]`. The matching entry below holds that rule's original full narrative — the specific build it bit, how it was caught, and what it cost — kept **verbatim**, because the value of these accounts is their specificity.
 
-The rules are the enforceable artifact and live in `CLAUDE.md`. This file is the evidence behind them: read it during retros, when a rule looks arbitrary and you need to know what it cost, or when deciding whether a rule still earns its place.
+The rules are the enforceable artifact and live in `docs/donts.md`. This file is the evidence behind them: read it during retros, when a rule looks arbitrary and you need to know what it cost, or when deciding whether a rule still earns its place.
 
 ---
 
@@ -957,3 +957,11 @@ In a session started under plugin build 6.87.0 (pre-#602: its `bin/lib/policy.js
 Nothing in the pipeline was positioned to catch this. `policy-deprecations.md`'s own shared predicate (clause a: grep the old key, gone; clause b: install-pointer version, satisfied) is worded entirely in terms of what the *install metadata* shows, so it read as cleared by construction — the wording didn't just fail to catch the gap, it certified the exact action that caused it. `auditPolicy` reports a stray old line as a rename-cleanup candidate, not a live gate dependency, so it gave no signal either. And `bin/lib/hooks/session-start.js` — which already runs once per session and already knows how to read `policy.yml` — never stated which key the running build actually resolved the gate from, so there was no point in the session where the operator could have noticed the mismatch before acting on it.
 
 The generalizable rule: a transitional twin's removal condition must be phrased against the *running* build, never the install pointer, because `claude plugin update` moving the pointer and a session's own hooks re-reading that pointer are two different events with no ordering guarantee between them — the same "running build, not install metadata" rule `[IL-89]` established for version-field checks applies with equal force to any policy key a hook reads at a spelling that changed across a release boundary. The corollary is that a removal condition worded correctly still can't retroactively catch a deletion made after a session starts — closing that requires the session to announce, at start, which key its own gate resolved from, so the operator has the fact in hand before acting on a belief about it.
+
+## IL-134 — A batched two-file `cat` call silently truncated 11 KB mid-result, and per-dispatch `ScheduleWakeup` parks outnumbered the resume signals that actually fired
+
+Session evaluation of a six-spec `/flow` run's controller (#712, filed via `/claude-tweaks:feedback` self-reference) found two independent context-overhead defects in the same controller. First: the controller batched two `_shared`/skill sub-files into one `cat a; cat b` shell call to save a round trip. The harness caps tool-result size, and the combined output exceeded it — the tail was silently dropped mid-result, with no error or truncation marker. The controller believed it had read text it never saw, costing two later re-reads once the gap was discovered. Second: the same run made 72 `noop: true` `ScheduleWakeup` parks (9.8% of its total API calls) at roughly 503K average context per call, even though the dispatched agents' own task-notifications were the actual resume signal in every case but two — the parks were near-total waste against the signal already arriving on its own.
+
+Both defects share a root cause: treating a convenience batching of independent operations (two file reads, N per-agent waits) as free, when the harness enforces a hard cap on one axis (tool-result bytes) and a redundant signal exists on the other (task-notifications already firing per agent). Neither failure raises an error — the `cat` truncation is silent by construction (the cap just stops emitting), and a `noop` park is by definition a no-op, so nothing in either loop's own output flags the waste.
+
+The generalizable rule: don't batch two full skill/`_shared` sub-files into a single `cat` call — their combined size can exceed the tool-result cap, and the truncation is silent; read them separately, or size-check first. Don't schedule a `ScheduleWakeup` park per dispatched agent in a fan-out — task-notifications are the primary resume signal and already fire per agent; cap parking to at most one long-delay watchdog per dispatch wave.
