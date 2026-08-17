@@ -147,12 +147,12 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 }
 
 // records[] -> { captured, scored, shaped, granted, dispatchable, inFlight,
-// parked, notPlanned, needsYou }. The eight stage keys (captured..notPlanned)
+// parked, notPlanned, parents }. The nine stage keys (captured..parents)
 // are mutually exclusive buckets over the post-merge faceted set (github +
 // unsynced); needsYou is a separate overlay, not a bucket — see the overlay
 // loop's comment below. Together they form the funnel decision surface
 // /claude-tweaks:backlog overview's bare mode renders. First match wins, in
-// this order for the eight stage keys; the precedence
+// this order for the nine stage keys; the precedence
 // rationale: bot-state outranks stage labels because live work reflects current
 // reality (a record simultaneously bot:in-progress and parked/ready resolves
 // toward what is actually happening right now), and granted is checked before
@@ -183,7 +183,7 @@ function readyGrantedSubset(records) {
 function funnelBuckets(records) {
   const buckets = {
     captured: [], scored: [], shaped: [], granted: [],
-    dispatchable: [], inFlight: [], parked: [], notPlanned: [],
+    dispatchable: [], inFlight: [], parked: [], notPlanned: [], parents: [],
   };
   const openIds = new Set(records.map((r) => r.number ?? r.id).filter((n) => n != null));
   for (const r of records) {
@@ -196,6 +196,7 @@ function funnelBuckets(records) {
     if (f.bot.inProgress) buckets.inFlight.push(r);
     else if (f.stage === 'parked') buckets.parked.push(r);
     else if (f.notPlanned) buckets.notPlanned.push(r);
+    else if (f.isParentIssue) buckets.parents.push(r);
     else if (f.stage === 'ready' && granted && inSetBlockers.length > 0) buckets.granted.push(r);
     else if (f.stage === 'ready' && granted) buckets.dispatchable.push(r);
     else if (f.stage === 'ready') buckets.shaped.push(r);
