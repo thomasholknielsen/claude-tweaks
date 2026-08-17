@@ -24,7 +24,7 @@ After the cleanup, also apply:
 
 Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode,
 include one `Fixes #{issue}` line per resolved issue in this commit message — it is the
-closing-keyword carrier for current-branch runs (see `cleanup-procedures.md` Section C); GitHub
+closing-keyword carrier for current-branch runs (see `cleanup-procedures-execution.md` Section C); GitHub
 closes the issues when the commit reaches the default branch. Resolve the issue set from any
 materialized headers under `${RUN_DIR}/work/*-spec.md` when they exist (a multi-spec
 current-branch run can resolve more than one — read each match's `record:` field), otherwise

@@ -7,12 +7,13 @@
 const { runGit } = require('../hooks/git-exec');
 const { classifyMirror } = require('./classify');
 
-// repoRoot, integration branch name -> { state, action, reason?, warning? }
+// repoRoot, integration branch name, opts?: { skipFetch? } ->
+//   { state, action, reason?, warning? }
 //   action: 'none' | 'fast-forwarded' | 'failed' | 'skipped'
 // 'ahead'/'diverged' are anomalies under pr-first (nothing should ever
 // commit directly to the mirror) — reported with a warning, never acted on.
-function mirrorFastForward(repoRoot, integration) {
-  const classified = classifyMirror(repoRoot, integration);
+function mirrorFastForward(repoRoot, integration, opts = {}) {
+  const classified = classifyMirror(repoRoot, integration, opts);
   if (classified.failure) {
     return { state: null, action: 'skipped', reason: classified.failure };
   }

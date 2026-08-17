@@ -10,9 +10,13 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { iterRunDirsWithState } = require('../hooks/context');
+const { runWithConcurrency } = require('./gh-pool');
+
+const execFileAsync = promisify(execFile);
 
 const FETCH_TIMEOUT_MS = 5000;
 // _shared/console-execution.md's Pre-execution claim section — a claim older
@@ -67,14 +71,18 @@ function parseItemTicks(body) {
   return ticks;
 }
 
-function fetchPrComments(repoRoot, prNumber) {
+// Async (promisified execFile, non-blocking) so this module's per-run-dir
+// fetches can genuinely run concurrently through gh-pool's
+// runWithConcurrency below, unlike the old execFileSync, which blocks the
+// event loop regardless of how the calling code is structured (#820, D5).
+async function fetchPrComments(repoRoot, prNumber) {
   let stdout;
   try {
-    stdout = execFileSync(
+    ({ stdout } = await execFileAsync(
       'gh',
       ['pr', 'view', String(prNumber), '--json', 'comments'],
-      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: FETCH_TIMEOUT_MS },
-    );
+      { cwd: repoRoot, encoding: 'utf8', timeout: FETCH_TIMEOUT_MS },
+    ));
   } catch (e) {
     if (e && e.code === 'ENOENT') return { ok: false, reason: 'gh-absent' };
     return { ok: false, reason: 'network-failure' };
@@ -89,18 +97,32 @@ function fetchPrComments(repoRoot, prNumber) {
   return { ok: true, comments };
 }
 
+// Pure: consoleJson + now -> the pre-fetch skip reason, or null when
+// eligible. Shared by decideConsoleExecute below (the full post-fetch
+// decision) and consoleExecuteDetect's synchronous scan further down — the
+// two-phase split (#820, D5) needs the scan to reject everything it can
+// BEFORE issuing a `gh pr view` fetch, using exactly the same checks
+// decideConsoleExecute re-applies once comments are in hand. One ladder
+// instead of two copies that could drift.
+function preFetchSkipReason(consoleJson, now) {
+  if (consoleJson === null) return 'no-console';
+  if (consoleJson === undefined) return 'unparseable-console-json';
+  if (consoleJson.resolved === true) return 'already-resolved';
+  if (!isClaimReclaimable(consoleJson.executingAt, now)) return 'claimed';
+  const commentIds = Array.isArray(consoleJson.commentIds) ? consoleJson.commentIds : [];
+  if (!commentIds.length) return 'no-comment-ids';
+  if (!consoleJson.prNumber) return 'no-pr-number';
+  return null;
+}
+
 // Pure: consoleJson + fetched comments + now -> a detection verdict. No I/O,
 // so the race/claim/idempotence logic is unit-testable without gh.
 //   { action: 'ready', prNumber, commentIds, items } | { action: 'skip', reason }
 function decideConsoleExecute(consoleJson, comments, now) {
-  if (consoleJson === null) return { action: 'skip', reason: 'no-console' };
-  if (consoleJson === undefined) return { action: 'skip', reason: 'unparseable-console-json' };
-  if (consoleJson.resolved === true) return { action: 'skip', reason: 'already-resolved' };
-  if (!isClaimReclaimable(consoleJson.executingAt, now)) return { action: 'skip', reason: 'claimed' };
+  const skipReason = preFetchSkipReason(consoleJson, now);
+  if (skipReason) return { action: 'skip', reason: skipReason };
 
-  const commentIds = Array.isArray(consoleJson.commentIds) ? consoleJson.commentIds : [];
-  if (!commentIds.length) return { action: 'skip', reason: 'no-comment-ids' };
-  if (!consoleJson.prNumber) return { action: 'skip', reason: 'no-pr-number' };
+  const commentIds = consoleJson.commentIds;
 
   const byId = new Map();
   for (const c of comments || []) {
@@ -130,7 +152,13 @@ function decideConsoleExecute(consoleJson, comments, now) {
 }
 
 // opts: { cwd? } -> { ready: [{ runDir, prNumber, commentIds, items }], skipped: [{ runDir, reason }] }
-function consoleExecuteDetect(opts = {}) {
+// Runs in two phases (#820, D5): a synchronous scan collecting every run dir
+// that needs a `gh pr view` fetch (fast fs reads + pure pre-checks), then
+// one gh-pool `runWithConcurrency` batch resolving all of those fetches at
+// once, then a final synchronous pass deciding each — since each fetch
+// result feeds its own `decideConsoleExecute` call, decide happens after,
+// not inside, the parallel batch.
+async function consoleExecuteDetect(opts = {}) {
   const ready = [];
   const skipped = [];
   const start = opts.cwd || process.cwd();
@@ -138,24 +166,24 @@ function consoleExecuteDetect(opts = {}) {
   if (!root) return { ready, skipped };
   const now = opts.now || Date.now();
 
+  const candidates = [];
   for (const { dir } of iterRunDirsWithState(root)) {
     const consoleJson = readConsoleJson(dir);
-    if (consoleJson === null) { skipped.push({ runDir: dir, reason: 'no-console' }); continue; }
-    if (consoleJson === undefined) { skipped.push({ runDir: dir, reason: 'unparseable-console-json' }); continue; }
-    if (consoleJson.resolved === true) { skipped.push({ runDir: dir, reason: 'already-resolved' }); continue; }
-    if (!isClaimReclaimable(consoleJson.executingAt, now)) { skipped.push({ runDir: dir, reason: 'claimed' }); continue; }
-
-    const commentIds = Array.isArray(consoleJson.commentIds) ? consoleJson.commentIds : [];
-    if (!commentIds.length) { skipped.push({ runDir: dir, reason: 'no-comment-ids' }); continue; }
-    if (!consoleJson.prNumber) { skipped.push({ runDir: dir, reason: 'no-pr-number' }); continue; }
-
-    const fetch = fetchPrComments(root, consoleJson.prNumber);
-    if (!fetch.ok) { skipped.push({ runDir: dir, reason: fetch.reason }); continue; }
-
-    const decision = decideConsoleExecute(consoleJson, fetch.comments, now);
-    if (decision.action === 'skip') { skipped.push({ runDir: dir, reason: decision.reason }); continue; }
-    ready.push({ runDir: dir, prNumber: decision.prNumber, commentIds: decision.commentIds, items: decision.items });
+    const skipReason = preFetchSkipReason(consoleJson, now);
+    if (skipReason) { skipped.push({ runDir: dir, reason: skipReason }); continue; }
+    candidates.push({ dir, consoleJson });
   }
+
+  const fetches = await runWithConcurrency(candidates, (c) => fetchPrComments(root, c.consoleJson.prNumber));
+
+  candidates.forEach((c, i) => {
+    const fetch = fetches[i] instanceof Error ? { ok: false, reason: 'network-failure' } : fetches[i];
+    if (!fetch.ok) { skipped.push({ runDir: c.dir, reason: fetch.reason }); return; }
+    const decision = decideConsoleExecute(c.consoleJson, fetch.comments, now);
+    if (decision.action === 'skip') { skipped.push({ runDir: c.dir, reason: decision.reason }); return; }
+    ready.push({ runDir: c.dir, prNumber: decision.prNumber, commentIds: decision.commentIds, items: decision.items });
+  });
+
   return { ready, skipped };
 }
 

@@ -1,11 +1,11 @@
 # Wrap-Up Review Console — Template
 
-Referenced by `skills/wrap-up/review-console.md`'s "Present the console" section. This is the literal shape to render — every section's column layout and worked example rows, with fictional data standing in for a real run's `decisions.md`/`staged/` content. Read `review-console.md` itself for the numbering rules, the engine-vs-prose-fallback distinction, and the operative `AskUserQuestion` call that follows this template.
+Referenced by `skills/wrap-up/review-console-interactive.md`'s "Present the console" section. This is the literal shape to render — every section's column layout and worked example rows, with fictional data standing in for a real run's `decisions.md`/`staged/` content. Read `review-console-interactive.md` itself for the numbering rules, the engine-vs-prose-fallback distinction, and the operative `AskUserQuestion` call that follows this template.
 
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. Every section below — the named batch sections, plus Queue writes, Memory updates, and Upstream feedback — resolves via the same terminal Approve all / Override / Stop choice. Approve all applies each section's own default (batch sections: apply; `Q#`/`M#`: their pre-checked `Apply` default; `U#`: its unchecked/declined default) with no further prompts. Override is what still drills `Q#`/`M#`/`U#` individually — one or more chunked `multiSelect` calls, `_shared/batched-item-drill.md` for `Q#`/`M#`, `_shared/upstream-feedback-batch.md` for `U#` (see `review-console.md`'s Hard requirements for why).
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. Every section below — the named batch sections, plus Queue writes, Memory updates, and Upstream feedback — resolves via the same terminal Approve all / Override / Stop choice. Approve all applies each section's own default (batch sections: apply; `Q#`/`M#`: their pre-checked `Apply` default; `U#`: its unchecked/declined default) with no further prompts. Override is what still drills `Q#`/`M#`/`U#` individually — one or more chunked `multiSelect` calls, `_shared/batched-item-drill.md` for `Q#`/`M#`, `_shared/upstream-feedback-batch.md` for `U#` (see `review-console-interactive.md`'s Hard requirements for why).
 
 #### Auto-applied (already in commits — override = revert)
 

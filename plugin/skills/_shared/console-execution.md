@@ -82,7 +82,7 @@ same honesty stance as every other gh-dependent claim in this pr-first integrati
 
 An **interactive** (non-headless) session that reaches `_shared/console-on-pr.md`'s render/post
 step also asks via `AskUserQuestion`, using the same Approve all / Override / Stop question
-`wrap-up/review-console.md`'s "Present the console" already asks — rendered from the same content
+`wrap-up/review-console-interactive.md`'s "Present the console" already asks — rendered from the same content
 just posted to the PR. Two surfaces, one answer: whichever resolves first wins.
 
 - **Chat answers first:** execute directly via this file's Execution routing above, then perform
