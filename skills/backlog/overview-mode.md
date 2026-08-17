@@ -2,9 +2,11 @@
 
 Entirely mechanical — no per-record LLM reads, so it scales to the full fetched set cheaply. Renders a funnel decision surface over the open queue and recommends what to build next; the `critical`/`risk-value`/`cleanup`/`trust` lenses are one explicit argument away.
 
-**Failure-only narration:** interstitial status lines render only when a check fails or degrades (truncation warning hit, fetch fallback taken, trust fetch skipped) — never to announce that a step ran or passed. A clean step is silent; its output speaks through the report itself.
+**Narration allowance:** exactly one opening status line at the start of the run, plus a line whenever a check fails or degrades (truncation warning hit, fetch fallback taken, trust fetch skipped) — nothing else. No per-step "running"/"passed" line; each step below restates this allowance in one clause.
 
 ## Step 1: Fetch
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md`, same as `refine-mode.md`'s priority/Related fetch (`{tmp-records-file}` = `/tmp/backlog-overview-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-overview-faceted.json`) — reading through the session-scoped record snapshot, shared with `/capture`/`/specify`/`/help`/`/tidy`/`/visualize` and, within this run, with `refine-mode.md`'s own fetch below. Step 3's recommendation pass needs every candidate's `body` (for `rankNextToBuild`'s internal `parseDependencies` call) — the snapshot's union field set always carries `body`, no `{EXTRA_FIELDS}` request needed, so every candidate's unblocks-count computes correctly rather than silently reading 0 and quietly corrupting the bare-mode recommendation's tie-break order. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way (port the retired `/claude-tweaks:review-backlog` skill's old Step 1 unsynced fold-in verbatim):
 
@@ -34,6 +36,8 @@ This last script reads `/tmp/backlog-overview-faceted.json`'s github-only conten
 
 ## Step 1.5: Trust table (read-only)
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 *(Omit this entire step under `work-backend: local-files` — see `_shared/trust-table.md`'s
 framing note; `demo:approved`/`demo:changes-requested` are a `github-issues` concept and there is
 nothing to fetch.)*
@@ -57,6 +61,8 @@ The verdict vocabulary is read verbatim from `bin/lib/issues/trust.js`'s row ver
 The full table render moves to the trust lens (Step 2).
 
 ## Step 2: Route by lens
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 **Native blocked-by pre-attach (bare mode only, `work-links: native` repos only — refs #563).** Before the funnel-computation script below runs, resolve native `blockedBy` links for the **ready+granted subset only** (`bl.readyGrantedSubset(all)`, `bin/lib/issues/backlog.js`) — the only records whose `granted`/`dispatchable` split this header renders. This is deliberately narrower than Step 3's own buildable subset (`dispatchable` ∪ `granted`, computed only after this script runs) — see that function's own comment for why the two are not interchangeable.
 
@@ -139,6 +145,8 @@ counted twice by design.
 
 ## Step 3 (bare only): Recommend what to build next
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 Restricted to the buildable subset — `funnelBuckets` output `dispatchable` ∪ `granted` (Step 2's
 `.funnel` view) — one predicate, owned by `funnelBuckets`, so the header's counts and this
 recommendation's population can never drift apart. Step 2's own native `blockedBy` pre-attach
@@ -175,6 +183,8 @@ node -e "
 Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role. At precedence level 1 (non-empty `needsYou`, see the Needs-you section's Precedence below), the report's closing `Next:` line and the Next Actions block's recommended line deliberately name the needs-you item instead — this callout stays the build-candidate recommendation regardless, since the two answer different questions (what to build vs. what needs a human decision first).
 
 ## Step 4: Batch emitter (bare mode)
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 Bare mode only — lens runs end at their own table (Step 2) and never reach this step.
 
