@@ -183,7 +183,7 @@ Otherwise: read `curation-engine.md` in this skill's directory and execute its i
 
 Classify once, before `plan`, over Phase 1's whole insight set. The counts open the gate; the Memory and Upstream judges then narrow to whatever earlier rows left unclaimed, which is why they run last.
 
-Every reflect insight in this whole-insight-set carries its own `Evidence:` and `Cost this session:` lines (`reflect/full-mode.md` etc., #858) — no signal here strips them. A `staged/*.md` proposal built from an insight (Skills, Memory, Upstream feedback rows) keeps both lines verbatim inside its `## Finding` body, so a Review Console approver sees what the proposal is anchored to and what it cost, not just the compressed recommendation.
+Every reflect insight in this whole-insight-set carries its own `Evidence:` and `Cost this session:` lines (`reflect/full-mode.md` etc., #858) — no signal here strips them. Reflect's own `staged/reflect-{n}.md` template (`reflect/SKILL.md`'s `## Finding` body) carries both lines as part of that prose, with no new field added; Phase 2's judges (Skills, Memory, Upstream feedback rows) read that same insight text as their input, so whatever each stages downstream still traces back to a source naming what it's anchored to and what it cost, not a compressed recommendation with the anchor stripped.
 
 **Engine failure is never permission to skip a row.** The prose fallback in `curation-engine.md` section 6 is unconditional and takes no diagnosis, and the report states which path ran.
 

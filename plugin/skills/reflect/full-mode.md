@@ -22,7 +22,7 @@ Every finding any lens produces carries two lines beyond its description: an `Ev
 
 **Evidence format is path-specific:**
 - **Inline path** (this lens ran in the main thread, no transcript read) — a pointer into the session's own context: a named tool call, an error message, a file:line, or a user turn. Never a transcript byte offset — there is no transcript read on this path.
-- **Dispatched path** (the standalone `[Use: Frontier]` singleton, which reads the transcript via `_shared/transcript-judge.md`, #857) — a transcript-anchored pointer per that file's finding norms: a quoted excerpt or a precise location reference.
+- **Dispatched path** (the standalone `[Use: Frontier]` singleton, which reads the transcript via `_shared/transcript-judge.md`, #857) — a transcript-anchored pointer: a quoted excerpt or a precise location reference, since this path (unlike inline) has an actual transcript to point into.
 
 ### Near-misses Chain Walk
 

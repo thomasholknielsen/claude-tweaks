@@ -150,14 +150,17 @@ test('hindsight-mode.md frames Evidence pointers as partial-session, never end-o
 // --- 9. No mode file requires Measurement: (AC5 discrimination: template requirement vs contrast clause) ---
 
 test('no mode file requires Measurement: inside a finding template — it stays feedback-only', () => {
+  // A `**Measurement:** {...}` line reads as a template-required field unless
+  // the same line also carries the feedback-only contrast clause. Matches
+  // across the whole file (not line-by-line) so a `{...}` payload spanning
+  // no newline is caught regardless of surrounding prose.
+  const templateFieldWithoutContrast = /\*\*Measurement:\*\*\s*\{[^}]*\}(?![^\n]*feedback-only)/;
   for (const [name, content] of [['full-mode.md', FULL_MODE], ['light-mode.md', LIGHT_MODE], ['hindsight-mode.md', HINDSIGHT_MODE]]) {
-    const measurementLines = content.split('\n').filter((l) => l.includes('Measurement:'));
-    for (const line of measurementLines) {
-      assert.ok(
-        line.includes('feedback-only') || !/\*\*Measurement:\*\*\s*\{/.test(line),
-        `${name}: a Measurement: line outside a feedback-only contrast clause reads as a template requirement: "${line}"`,
-      );
-    }
+    assert.doesNotMatch(
+      content,
+      templateFieldWithoutContrast,
+      `${name}: found a Measurement: template field with no feedback-only contrast clause on the same line`,
+    );
   }
 });
 
@@ -177,7 +180,8 @@ test('reflect SKILL.md Step 3 names Cost this session: as a triage input for cla
 
 test('wrap-up SKILL.md documents that staged proposals keep Evidence:/Cost this session: verbatim', () => {
   assert.match(WRAP_UP, /Every reflect insight in this whole-insight-set carries its own `Evidence:` and `Cost this session:` lines/);
-  assert.match(WRAP_UP, /keeps both lines verbatim inside its `## Finding` body/);
+  assert.match(WRAP_UP, /Reflect's own `staged\/reflect-\{n\}\.md` template \(`reflect\/SKILL\.md`'s `## Finding` body\) carries both lines/);
+  assert.match(WRAP_UP, /Phase 2's judges \(Skills, Memory, Upstream feedback rows\) read that same insight text as their input/);
 });
 
 test('wrap-up SKILL.md anti-pattern row cites the Evidence: line as the mechanical anchor carrier', () => {
