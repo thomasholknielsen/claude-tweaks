@@ -432,6 +432,22 @@ second bookkeeping channel:
 A fully clean run still renders `0 failed` explicitly and omits the per-failure lines — the
 tally line's `0 failed` is the only signal a clean run needs.
 
+**Close the run dir.** After the closing summary above renders, close this run's standalone run
+directory so resume/reconcile paths can classify it as terminal instead of `status: unknown`:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run <absolute-run-dir>
+```
+
+Always pass the explicit `--run <absolute-run-dir>` — the same path named in the closing
+summary's audit-trail line above. Never omit it: the implicit fallback resolves to the newest
+non-terminal run dir in the whole plugin, which can belong to a different, still-active session —
+closing that one would silently disarm that session's own worktree enforcement. `close-run`
+creates `run-state.json` when the run dir never had one (every refine standalone run, until this
+change) and stamps it `status: clean` — no separate direct write. A "no recorded wrap-up
+invocation" warning line is expected here and not an error; refine runs standalone and never
+invokes `/claude-tweaks:wrap-up`.
+
 ## Concurrency
 
 Two humans running `/claude-tweaks:backlog refine` at the same time is safe by construction — every label add is idempotent, so two overlapping grants on the same record just repeat the same write. The one sharp edge is a genuine race between a grant and a flag-back landing on the *same* record in the same window: last-writer-wins on GitHub's own label state. This is acceptable, not engineered around — it is a narrow, self-correcting window (the next `/claude-tweaks:backlog refine` run reads whatever state won and proceeds from there), not worth a lock.
