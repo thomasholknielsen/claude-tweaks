@@ -100,7 +100,7 @@ In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `$RU
 
 | File | Written by | Read by |
 |---|---|---|
-| `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification, design-critique |
+| `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification, design-critique, merge-authorization |
 | `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up`'s Phase 4 (Wrap-Up Review Console) |
 | `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up`'s Phase 4 |
 
