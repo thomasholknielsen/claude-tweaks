@@ -296,11 +296,11 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
 
 ## Next Actions
 
-Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — exactly once, after the last item of a `#N[,#M...]` batch; each conditional line keys on the batch as a whole:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — exactly once, after the last item of a `#N[,#M...]` batch; each conditional line keys on the batch as a whole. Exactly one of these three outcome branches applies per invocation — render only that branch's line, bolded and suffixed `(recommended)`:
 
-**`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item; renders only when a `demo:changes-requested` follow-up was filed for any item this run (recommended)
-`/claude-tweaks:help` — full pipeline status
-`/claude-tweaks:help` — lists every #N still awaiting sign-off (Stage 4.7); renders only when any item this run remains `demo:pending` after Skip
+- **A `demo:changes-requested` follow-up was filed for any item this run** (Request-changes outcome): **`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item (recommended)
+- **No follow-up was filed, and any item this run remains `demo:pending` after Skip:** **`/claude-tweaks:help`** — lists every #N still awaiting sign-off (Stage 4.7) (recommended)
+- **Approved, or Skip resolved with nothing left pending across the batch:** **`/claude-tweaks:help`** — full pipeline status (recommended)
 
 ## Component-Skill Contract
 
