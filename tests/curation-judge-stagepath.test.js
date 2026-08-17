@@ -12,18 +12,18 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const SKILLS = path.join(__dirname, '..', 'skills');
+const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const ENGINE = fs.readFileSync(path.join(SKILLS, 'wrap-up', 'curation-engine.md'), 'utf8');
 const BATCH = fs.readFileSync(path.join(SKILLS, 'flow', 'multispec-batch-curation.md'), 'utf8');
 
 // #692: the sweep snippet's RUN_ROOT line now shells out to
 // `node bin/hooks.js resolve-run-dir --root-only`, so a live spawn needs
-// CLAUDE_PLUGIN_ROOT pointing at THIS repo (where bin/hooks.js physically
-// lives) — independent of whatever temp git repo a given probe's `cwd` is.
-// Every spawnSync below spreads `...process.env`, so setting it once here
-// propagates everywhere; guarded so a real value (an actual plugin-hosted
-// run) is never clobbered.
-if (!process.env.CLAUDE_PLUGIN_ROOT) process.env.CLAUDE_PLUGIN_ROOT = path.join(__dirname, '..');
+// CLAUDE_PLUGIN_ROOT pointing at THIS repo's plugin payload root (`plugin/`,
+// where bin/hooks.js physically lives) — independent of whatever temp git repo
+// a given probe's `cwd` is. Every spawnSync below spreads `...process.env`, so
+// setting it once here propagates everywhere; guarded so a real value (an
+// actual plugin-hosted run) is never clobbered.
+if (!process.env.CLAUDE_PLUGIN_ROOT) process.env.CLAUDE_PLUGIN_ROOT = path.join(__dirname, '..', 'plugin');
 
 // The documented sweep — must appear verbatim inside a ```bash fence in curation-engine.md §4.
 const SWEEP_SNIPPET = [

@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { gitTargets, fileWriteTargets, mkdirTargets } = require('../bin/lib/hooks/git-command');
+const { gitTargets, fileWriteTargets, mkdirTargets } = require('../plugin/bin/lib/hooks/git-command');
 
 test('plain commit resolves to cwd', () => {
   assert.deepStrictEqual(gitTargets('git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);

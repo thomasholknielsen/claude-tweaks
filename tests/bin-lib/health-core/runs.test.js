@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { computeChurn } = require('../../../bin/lib/health-core/runs');
+const { computeChurn } = require('../../../plugin/bin/lib/health-core/runs');
 
 // recordRun/readRuns (local-disk run-log persistence) were removed by the
 // durable-state migration — run history now lives on the health-state git
@@ -12,7 +12,7 @@ const { computeChurn } = require('../../../bin/lib/health-core/runs');
 // deleted rather than wired up.
 
 test('runs module exports only computeChurn — recordRun was removed as dead code', () => {
-  const runs = require('../../../bin/lib/health-core/runs');
+  const runs = require('../../../plugin/bin/lib/health-core/runs');
   assert.deepStrictEqual(Object.keys(runs), ['computeChurn']);
 });
 

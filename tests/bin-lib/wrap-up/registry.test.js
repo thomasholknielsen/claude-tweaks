@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { REGISTRY, rowById, ROW_IDS } = require('../../../bin/lib/wrap-up/registry');
+const { REGISTRY, rowById, ROW_IDS } = require('../../../plugin/bin/lib/wrap-up/registry');
 
 test('registry has the 8 rows in canonical order', () => {
   assert.deepStrictEqual(ROW_IDS, [

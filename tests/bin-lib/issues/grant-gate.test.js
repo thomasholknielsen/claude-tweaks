@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { evaluateGrantGate } = require('../../../bin/lib/issues/grant-gate.js');
+const { evaluateGrantGate } = require('../../../plugin/bin/lib/issues/grant-gate.js');
 
 // Fixture: an agent-filed, clean-trust, low-risk record — every gate clear.
 // Individual tests mutate one dimension at a time (record labels/facets, policy,
@@ -75,6 +75,27 @@ test('AC2 key 2: grant-origination opt-in unset refuses even at unattended', () 
   });
   assert.equal(result.grant, false);
   assert.equal(result.failedKey, 'grant-origination-opt-in');
+});
+
+test('needs:definition refuses unconditionally, before trust/origin are consulted', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:definition'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'needs-definition');
+});
+
+test('needs:definition refuses even with no trustVerdicts/grantCheck passed at all', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:definition'] }),
+    policy: basePolicy(),
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'needs-definition');
+  assert.equal(result.needsGrantCheck, undefined);
 });
 
 test('AC2 key 3: no cell at all for this class refuses (distinct from a present insufficient-evidence row)', () => {

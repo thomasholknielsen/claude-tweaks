@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { sanitizeWorktreeName } = require('../../../bin/lib/worktree/name');
+const { sanitizeWorktreeName } = require('../../../plugin/bin/lib/worktree/name');
 
 // EnterWorktree's own charset (build/worktree-setup.md's Gotcha, mirrored from #689):
 // letters, digits, dots, underscores, dashes per /-segment, <=64 chars total.

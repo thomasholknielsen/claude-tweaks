@@ -1,6 +1,6 @@
 name: learning-routing-classification
 description: >
-  Measures the judgment in skills/_shared/learning-routing.md's ordered
+  Measures the judgment in plugin/skills/_shared/learning-routing.md's ordered
   classifier — not the filing, which cannot run here because runner.js
   sandboxes network access and every D5 outcome ends in a gh call.
   /claude-tweaks:feedback --dry-run classifies, drafts, scrubs, and stops,

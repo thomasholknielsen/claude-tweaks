@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const SKILL_PATH = path.join(REPO_ROOT, 'skills', 'research', 'SKILL.md');
+const SKILL_PATH = path.join(REPO_ROOT, 'plugin', 'skills', 'research', 'SKILL.md');
 
 function readSkill() {
   return fs.readFileSync(SKILL_PATH, 'utf8');
@@ -21,13 +21,13 @@ function parseFrontmatter(content) {
   return fm;
 }
 
-const VERIFY_MODE_PATH = path.join(REPO_ROOT, 'skills', 'research', 'verify-mode.md');
+const VERIFY_MODE_PATH = path.join(REPO_ROOT, 'plugin', 'skills', 'research', 'verify-mode.md');
 
 function readVerifyMode() {
   return fs.readFileSync(VERIFY_MODE_PATH, 'utf8');
 }
 
-const SOURCE_REGISTRY_PATH = path.join(REPO_ROOT, 'skills', 'research', 'source-registry.md');
+const SOURCE_REGISTRY_PATH = path.join(REPO_ROOT, 'plugin', 'skills', 'research', 'source-registry.md');
 
 function readSourceRegistry() {
   return fs.readFileSync(SOURCE_REGISTRY_PATH, 'utf8');

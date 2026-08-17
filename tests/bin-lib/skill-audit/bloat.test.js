@@ -20,7 +20,7 @@ const {
   auditCorpus,
   formatBloatReport,
   bloatReport,
-} = require('../../../bin/lib/skill-audit/bloat.js');
+} = require('../../../plugin/bin/lib/skill-audit/bloat.js');
 
 const REPO = path.join(__dirname, '..', '..', '..');
 
@@ -149,7 +149,7 @@ for (const { id, bloat, legit } of PROVENANCE_CASES) {
 // the *code under test*'s pre-existing behavior; a looser pattern turns three
 // real instructions into noise, and nothing else in this suite would notice.
 test('does not flag /build\'s legitimate "pre-existing behavior" instructions', () => {
-  const buildSkill = fs.readFileSync(path.join(REPO, 'skills', 'build', 'SKILL.md'), 'utf8');
+  const buildSkill = fs.readFileSync(path.join(REPO, 'plugin', 'skills', 'build', 'SKILL.md'), 'utf8');
   const hits = findProvenance(buildSkill);
   assert.deepStrictEqual(
     hits.map((h) => `L${h.line} ${h.id}`),
@@ -270,7 +270,7 @@ test('bloatReport reports only the target, dedupes it out of its own corpus, and
 });
 
 test('auditCorpus runs over the whole live skill corpus and reports a usable baseline', () => {
-  const skillsDir = path.join(REPO, 'skills');
+  const skillsDir = path.join(REPO, 'plugin', 'skills');
   const files = [];
   const walk = (d) => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {

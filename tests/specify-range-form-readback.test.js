@@ -16,7 +16,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
 test('specify SKILL.md documents the #A-#B/#A–#B range form and its expansion rule', () => {
-  const src = readFlat('skills/specify/SKILL.md');
+  const src = readFlat('plugin/skills/specify/SKILL.md');
   assert.ok(src.includes('**Range form (`#A-#B`/`#A–#B` — shaping-mode-only).**'), 'Range form paragraph marker missing from SKILL.md');
   assert.ok(src.includes('expands to the equivalent comma-joined list'), 'range-to-comma-list expansion rule missing from SKILL.md');
   // The leading backtick here closes `A`'s code span from the prose ("`A`
@@ -27,19 +27,19 @@ test('specify SKILL.md documents the #A-#B/#A–#B range form and its expansion 
 });
 
 test('specify SKILL.md wires range expansion into the batch-branch resolution bullet', () => {
-  const src = readFlat('skills/specify/SKILL.md');
+  const src = readFlat('plugin/skills/specify/SKILL.md');
   assert.ok(src.includes('first, expand a range-form first argument'), 'batch-branch bullet does not mention range expansion');
   // The pre-existing sequential-per-element rule this task must not disturb:
   assert.ok(src.includes('a loop never a fan-out (no Task dispatch, one record at a time)'), 'pre-existing sequential-per-element rule was disturbed');
 });
 
 test('specify SKILL.md caps the range form at 25 expanded elements with a hard-error message', () => {
-  const src = readFlat('skills/specify/SKILL.md');
+  const src = readFlat('plugin/skills/specify/SKILL.md');
   assert.ok(src.includes('ranges are capped at 25'), 'range expansion cap (25 elements) hard-error message missing from SKILL.md');
 });
 
 test('specify SKILL.md rejects a malformed range at case 1 rather than silently falling through to topic resolution', () => {
-  const src = readFlat('skills/specify/SKILL.md');
+  const src = readFlat('plugin/skills/specify/SKILL.md');
   assert.ok(src.includes('looks like a range but is not valid'), 'malformed-range hard-error message missing from SKILL.md');
   assert.ok(src.includes('Range-shaped rejection point'), 'range-shaped rejection point clause missing from the batch-branch bullet');
   assert.ok(
@@ -49,7 +49,7 @@ test('specify SKILL.md rejects a malformed range at case 1 rather than silently 
 });
 
 test('shaping-mode.md documents mandatory read-back verification after each record write', () => {
-  const src = readFlat('skills/specify/shaping-mode.md');
+  const src = readFlat('plugin/skills/specify/shaping-mode.md');
   assert.ok(src.includes('### Read-back verification'), 'Read-back verification subsection missing from shaping-mode.md');
   assert.ok(src.includes('re-fetch the record fresh'), 'read-back re-fetch rule missing');
   assert.ok(src.includes('does **not** roll back the write or stop the batch'), 'read-back failure-isolation rule missing');

@@ -11,9 +11,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { POLICY_KEYS, resolvePolicyKeys } = require('../bin/lib/policy-schema');
+const { POLICY_KEYS, resolvePolicyKeys } = require('../plugin/bin/lib/policy-schema');
 
-const CLI = path.join(__dirname, '..', 'bin', 'resolve-policy.js');
+const CLI = path.join(__dirname, '..', 'plugin', 'bin', 'resolve-policy.js');
 const REPO_ROOT = path.join(__dirname, '..');
 const VALUES = ['merge-when-green', 'wait', 'off'];
 
@@ -44,7 +44,7 @@ test('resolvePolicyKeys stays pure for merge-verification — unset resolves to 
 
 // --- PR-CI detection ---
 
-const mv = require('../bin/lib/merge-verification');
+const mv = require('../plugin/bin/lib/merge-verification');
 
 test('workflowHasPullRequestTrigger: every legal on: shape that names pull_request(_target)', () => {
   const yes = [

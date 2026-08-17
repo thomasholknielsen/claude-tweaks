@@ -8,7 +8,7 @@ const {
   extractChangelogRange,
   findHeadingDefects,
   findCoverageGaps,
-} = require('../bin/lib/changelog.js');
+} = require('../plugin/bin/lib/changelog.js');
 
 const SAMPLE_CHANGELOG = `# Changelog
 

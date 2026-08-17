@@ -20,11 +20,11 @@ const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 const ROOT = path.join(__dirname, '..');
 const SHARED_DOC = fs.readFileSync(
-  path.join(ROOT, 'skills', '_shared', 'pipeline-run-dir.md'),
+  path.join(ROOT, 'plugin', 'skills', '_shared', 'pipeline-run-dir.md'),
   'utf8',
 );
 const WRAP_UP_SKILL = fs.readFileSync(
-  path.join(ROOT, 'skills', 'wrap-up', 'SKILL.md'),
+  path.join(ROOT, 'plugin', 'skills', 'wrap-up', 'SKILL.md'),
   'utf8',
 );
 
@@ -58,9 +58,10 @@ function runResolutionWith(snippet, { cwd, runDirEnv, specSlug }) {
       ...process.env,
       // wrap-up/SKILL.md's snippet now shells out to
       // `node bin/hooks.js resolve-run-dir` (#692) — CLAUDE_PLUGIN_ROOT must
-      // point at THIS repo (where bin/hooks.js lives), independent of `cwd`
-      // above (a temp fixture repo). Guarded so a real value is never clobbered.
-      CLAUDE_PLUGIN_ROOT: process.env.CLAUDE_PLUGIN_ROOT || ROOT,
+      // point at THIS repo's plugin payload root (`plugin/`, where bin/hooks.js
+      // lives), independent of `cwd` above (a temp fixture repo). Guarded so a
+      // real value is never clobbered.
+      CLAUDE_PLUGIN_ROOT: process.env.CLAUDE_PLUGIN_ROOT || path.join(ROOT, 'plugin'),
       PIPELINE_RUN_DIR: runDirEnv || '',
       SPEC_SLUG: specSlug || 'no-match-xyz',
       MODE: '',

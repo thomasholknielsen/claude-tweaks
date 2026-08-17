@@ -7,7 +7,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { runGit, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS } = require('../bin/lib/hooks/git-exec');
+const { runGit, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS } = require('../plugin/bin/lib/hooks/git-exec');
 const { gitRepo } = require('./helpers/git-fixtures');
 
 test('runGit: success returns trimmed stdout and a null failure', () => {

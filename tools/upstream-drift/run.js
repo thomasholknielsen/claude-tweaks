@@ -9,13 +9,13 @@
 // already-filed `by:upstream-drift` issues so a re-run over unresolved drift
 // updates rather than duplicates.
 //
-// Maintainer-only tooling. Nothing under bin/ may import from here — the
-// import is one-way, tools/ -> bin/lib/health-core/, and a test in
+// Maintainer-only tooling. Nothing under plugin/bin/ may import from here —
+// the import is one-way, tools/ -> plugin/bin/lib/health-core/, and a test in
 // tests/run.test.js pins that direction.
 //
 // ─── Why there is no rotation cursor ─────────────────────────────────────
 //
-// The four shipped health sweeps (bin/{code,harness,journey,docs}-health.js)
+// The four shipped health sweeps (plugin/bin/{code,harness,journey,docs}-health.js)
 // rotate through targets on a 90-day cursor because there is always more
 // repo to audit and no signal saying which part changed. Here the signal is
 // exact: nothing is worth looking at until a version moves, and everything
@@ -43,10 +43,10 @@ const { execSync } = require('node:child_process');
 
 const { loadManifest } = require('./manifest');
 const { checkVersion, checkAssertions, replayFixtures, checkContentPins, isContentPinned } = require('./checks');
-const { createFingerprint } = require('../../bin/lib/health-core/fingerprint');
-const { createCache } = require('../../bin/lib/health-core/cache');
-const { decide } = require('../../bin/lib/health-core/dedup');
-const { loadIssueIndex } = require('../../bin/lib/health-core/issue-index');
+const { createFingerprint } = require('../../plugin/bin/lib/health-core/fingerprint');
+const { createCache } = require('../../plugin/bin/lib/health-core/cache');
+const { decide } = require('../../plugin/bin/lib/health-core/dedup');
+const { loadIssueIndex } = require('../../plugin/bin/lib/health-core/issue-index');
 
 const TOOL_NAME = 'upstream-drift';
 const LABEL = 'by:upstream-drift';

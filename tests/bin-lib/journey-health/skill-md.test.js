@@ -10,7 +10,7 @@ const {
   registerRequiredTokenTests,
 } = require('../health-core/skill-md-house-checks');
 
-const SKILL = path.resolve(__dirname, '..', '..', '..', 'skills', 'journey-health', 'SKILL.md');
+const SKILL = path.resolve(__dirname, '..', '..', '..', 'plugin', 'skills', 'journey-health', 'SKILL.md');
 const read = () => fs.readFileSync(SKILL, 'utf8');
 
 test('exists', () => {

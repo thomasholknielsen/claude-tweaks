@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { fingerprint, normalizeDescription } = require('../../../bin/lib/docs-health/fingerprint');
+const { fingerprint, normalizeDescription } = require('../../../plugin/bin/lib/docs-health/fingerprint');
 
 test('fingerprint returns a docshealth-<8hex> id', () => {
   const id = fingerprint({ assetType: 'doc', target: 'decisions/0007-foo', section: 'Freshness', description: 'stated count is stale' });

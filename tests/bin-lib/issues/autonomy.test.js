@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { CEILINGS, resolveCeiling, permittedGrants, clearsFloor, bookkeepingPermissions } = require('../../../bin/lib/issues/autonomy.js');
+const { CEILINGS, resolveCeiling, permittedGrants, clearsFloor, bookkeepingPermissions } = require('../../../plugin/bin/lib/issues/autonomy.js');
 
 const cleanRow = { verdict: 'clean', kind: 'producer', dispositioned: 9, coverage: 0.9 };
 
@@ -468,6 +468,6 @@ test('clearsFloor: an unknown string returns false', () => {
 });
 
 test('autonomy.js source carries the regex fallback removal condition verbatim', () => {
-  const src = require('fs').readFileSync(require.resolve('../../../bin/lib/issues/autonomy.js'), 'utf8');
+  const src = require('fs').readFileSync(require.resolve('../../../plugin/bin/lib/issues/autonomy.js'), 'utf8');
   assert.ok(src.includes('Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.'));
 });

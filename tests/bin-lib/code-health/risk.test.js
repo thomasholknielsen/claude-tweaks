@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { computeRisk } = require('../../../bin/lib/code-health/risk');
+const { computeRisk } = require('../../../plugin/bin/lib/code-health/risk');
 
 const CASES = [
   // [severity, likelihood, expectedRisk]

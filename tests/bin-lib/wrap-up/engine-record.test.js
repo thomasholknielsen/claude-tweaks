@@ -10,8 +10,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { buildWorklist } = require('../../../bin/lib/wrap-up/engine-plan');
-const { initState, recordResult } = require('../../../bin/lib/wrap-up/engine-record');
+const { buildWorklist } = require('../../../plugin/bin/lib/wrap-up/engine-plan');
+const { initState, recordResult } = require('../../../plugin/bin/lib/wrap-up/engine-record');
 
 // Same fixture as engine-plan.test.js: 'skills' and 'journeys' open (via
 // multiFileDiff / journeysExist), 'docs' closed (no docs/ tree).

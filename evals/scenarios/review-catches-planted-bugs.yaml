@@ -8,7 +8,7 @@ fixture:
     - apply-patch: planted-bugs.patch
 skill_invocation:
   # No answer_overrides for "review-effort": this is a bare, no-argument
-  # invocation, and skills/review/SKILL.md's Step 2.5 only poses a
+  # invocation, and plugin/skills/review/SKILL.md's Step 2.5 only poses a
   # review-effort AskUserQuestion when an explicit argument or a work-record's
   # risk/effort labels are available — neither applies here, so the tier is
   # resolved silently via a git-diff-size heuristic instead, with no question

@@ -17,7 +17,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
-const ENGINE_JS = path.join(__dirname, '..', 'bin', 'wrap-up-engine.js');
+const ENGINE_JS = path.join(__dirname, '..', 'plugin', 'bin', 'wrap-up-engine.js');
 
 function runPlan(args, cwd) {
   try {

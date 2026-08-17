@@ -3,10 +3,10 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const c = require('../bin/lib/coordination');
+const c = require('../plugin/bin/lib/coordination');
 
 const PRIMITIVE_DOC = fs.readFileSync(
-  path.join(__dirname, '..', 'skills', '_shared', 'multi-agent-coordination.md'),
+  path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'multi-agent-coordination.md'),
   'utf8',
 );
 // Several of /review's decision-log templates live in sub-files lazy-loaded from SKILL.md rather
@@ -14,10 +14,10 @@ const PRIMITIVE_DOC = fs.readFileSync(
 // Per-Candidate Refutation's in step3-debate-and-refutation.md. Concatenate all three so this
 // still asserts against the real documented format wherever it currently lives.
 const REVIEW_SKILL = ['SKILL.md', 'step3-lens-dispatch.md', 'step3-debate-and-refutation.md']
-  .map((f) => fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', f), 'utf8'))
+  .map((f) => fs.readFileSync(path.join(__dirname, '..', 'plugin', 'skills', 'review', f), 'utf8'))
   .join('\n');
 const SPECIFY_RED_TEAM = fs.readFileSync(
-  path.join(__dirname, '..', 'skills', 'specify', 'red-team.md'),
+  path.join(__dirname, '..', 'plugin', 'skills', 'specify', 'red-team.md'),
   'utf8',
 );
 
@@ -618,7 +618,7 @@ test('/review summary assembly: confirmed flow to summary; unconfirmed + contest
   // The template itself lives in console-template.md — review-console.md's "Present
   // the console" section points readers there rather than inlining it (40 KB ceiling).
   const REVIEW_CONSOLE = fs.readFileSync(
-    path.join(__dirname, '..', 'skills', 'wrap-up', 'console-template.md'),
+    path.join(__dirname, '..', 'plugin', 'skills', 'wrap-up', 'console-template.md'),
     'utf8',
   );
   assert.ok(

@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { domainChurn } = require('../../../bin/lib/health-core/churn');
+const { domainChurn } = require('../../../plugin/bin/lib/health-core/churn');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'health-core-churn-')); }
 
@@ -83,9 +83,9 @@ test('domainChurn caches identical (root, paths, sinceMs) calls instead of re-sp
 // domainChurn's result depends only on (root, relPaths, sinceMs), never on
 // which caller asked.
 test('domainChurn is a single shared cache across every consumer scope.js', () => {
-  const harnessScope = require('../../../bin/lib/harness-health/scope');
-  const journeyScope = require('../../../bin/lib/journey-health/scope');
-  const docsScope = require('../../../bin/lib/docs-health/scope');
+  const harnessScope = require('../../../plugin/bin/lib/harness-health/scope');
+  const journeyScope = require('../../../plugin/bin/lib/journey-health/scope');
+  const docsScope = require('../../../plugin/bin/lib/docs-health/scope');
   assert.strictEqual(harnessScope.domainChurn, domainChurn);
   assert.strictEqual(journeyScope.domainChurn, domainChurn);
   assert.strictEqual(docsScope.domainChurn, domainChurn);

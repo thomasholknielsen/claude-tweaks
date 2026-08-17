@@ -6,9 +6,9 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readRunState } = require('../bin/lib/hooks/context');
+const { readRunState } = require('../plugin/bin/lib/hooks/context');
 
-const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
+const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
 function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
   try {
@@ -319,7 +319,7 @@ test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the o
 });
 
 test('hooks.json registers PreToolUse matchers for Edit, Write, and NotebookEdit', () => {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const matchers = config.hooks.PreToolUse.map((entry) => entry.matcher);
   assert.ok(matchers.includes('Edit'), 'expected an Edit matcher');
   assert.ok(matchers.includes('Write'), 'expected a Write matcher');
@@ -327,7 +327,7 @@ test('hooks.json registers PreToolUse matchers for Edit, Write, and NotebookEdit
 });
 
 test('hooks.json registers a PreToolUse matcher for ExitWorktree (unfiltered, literal tool-name match)', () => {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const entry = config.hooks.PreToolUse.find((e) => e.matcher === 'ExitWorktree');
   assert.ok(entry, 'expected a PreToolUse ExitWorktree matcher entry');
   assert.strictEqual(entry.hooks.length, 1);
@@ -337,14 +337,14 @@ test('hooks.json registers a PreToolUse matcher for ExitWorktree (unfiltered, li
 });
 
 test("hooks.json's PreToolUse Bash `if` patterns include Bash(git worktree *)", () => {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const bashEntry = config.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
   const ifs = bashEntry.hooks.map((h) => h.if);
   assert.ok(ifs.includes('Bash(git worktree *)'), 'expected PreToolUse\'s Bash matcher to include an "if": "Bash(git worktree *)" entry');
 });
 
 test('hooks.json registers a PostToolUse matcher for Skill (unfiltered, literal tool-name match)', () => {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const skillEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Skill');
   assert.ok(skillEntry, 'expected a PostToolUse Skill matcher entry');
   assert.strictEqual(skillEntry.hooks.length, 1);
@@ -358,7 +358,7 @@ test('hooks.json registers a PostToolUse matcher for AskUserQuestion (unfiltered
   // `if (ctx.input.tool_name === 'AskUserQuestion') return logAskUserQuestion(ctx);`
   // branch since #452, but with no matcher entry here the hook was never
   // spawned for that tool at all — the branch was dead code in production.
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const askEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'AskUserQuestion');
   assert.ok(askEntry, 'expected a PostToolUse AskUserQuestion matcher entry');
   assert.strictEqual(askEntry.hooks.length, 1);
@@ -377,7 +377,7 @@ test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_F
   // parser: no registered `if` pattern matched its literal text, so both
   // the worktree-always deny and the E1 wrong-checkout deny silently never
   // fired for this shape.
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const requiredPatterns = ['Bash(git -c *)', 'Bash(git --exec-path=*)', 'Bash(git --namespace=*)'];
   for (const event of ['PreToolUse', 'PostToolUse']) {
     const bashEntry = config.hooks[event].find((e) => e.matcher === 'Bash');

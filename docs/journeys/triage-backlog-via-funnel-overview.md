@@ -1,10 +1,10 @@
 ---
 files:
-  - bin/lib/issues/backlog.js
-  - bin/lib/issues/record.js
-  - bin/lib/issues/facet-shape.js
-  - skills/backlog/overview-mode.md
-  - skills/backlog/SKILL.md
+  - plugin/bin/lib/issues/backlog.js
+  - plugin/bin/lib/issues/record.js
+  - plugin/bin/lib/issues/facet-shape.js
+  - plugin/skills/backlog/overview-mode.md
+  - plugin/skills/backlog/SKILL.md
 ---
 
 # Triage the Backlog Through the Funnel Overview
@@ -19,7 +19,7 @@ files:
 ### 1. Read the funnel header — bare `/claude-tweaks:backlog`
 - **Action:** Run the skill with no lens argument and read the header block at the top of the report.
 - **Should feel:** Like a process gauge, not a report — six stages in pipeline order (`captured ▶ scored ▶ shaped ▶ granted ▶ dispatchable ▶ in flight`), a count per stage, and a fully-qualified command under each actionable stage.
-- **Should understand:** The buckets are mutually exclusive (`funnelBuckets` in `bin/lib/issues/backlog.js` — first-match-wins precedence: live bot work outranks stage labels; a granted-but-blocked record shows as `granted`, never `dispatchable`). The header *is* the counts — there is no separate summary paragraph.
+- **Should understand:** The buckets are mutually exclusive (`funnelBuckets` in `plugin/bin/lib/issues/backlog.js` — first-match-wins precedence: live bot work outranks stage labels; a granted-but-blocked record shows as `granted`, never `dispatchable`). The header *is* the counts — there is no separate summary paragraph.
 - **Red flags:** A record id in the header; a Critical/Risk-Value/Cleanup table rendering without a lens argument; a record missing from every funnel population, or counted in two of them (the six header stages alone do not sum to the open queue — parked, not-planned, and parents are annotation-line populations, not header columns); a decomposition parent counted in the `scored`, `shaped`, `granted`, or `dispatchable` stage; a per-step "running"/"passed" narration line (the narration allowance permits only one opening line plus failure/degradation lines).
 
 ### 2. Read the annotation lines — trust, parked/not-planned, and parents
@@ -36,7 +36,7 @@ files:
 
 ### 4. Trust the recommendation's dependency data — or see it loudly refuse
 - **Action:** In bare mode, read the "Recommended next" callout on a repo with `work-links: native` and a wired dependency chain.
-- **Should feel:** Grounded — the recommendation ranks on the native blocked-by graph (`blockersOf` in `bin/lib/issues/ranking.js`: attached `blockedBy` → local `facets.blockedBy` → canonical body lines), not on prose guesses. A chain's tail record never outranks its unbuilt prerequisites on a phantom zero-dependency read.
+- **Should feel:** Grounded — the recommendation ranks on the native blocked-by graph (`blockersOf` in `plugin/bin/lib/issues/ranking.js`: attached `blockedBy` → local `facets.blockedBy` → canonical body lines), not on prose guesses. A chain's tail record never outranks its unbuilt prerequisites on a phantom zero-dependency read.
 - **Should understand:** When a record's body *mentions* a dependency in prose but nothing resolves mechanically, the dependency-mismatch flag fires: the flagged records get no mechanical recommendation, and the headline is either a corrected pick with its evidence cited inline, or a plain "ranking is unreliable for these" statement pointing at `/claude-tweaks:backlog refine`'s repair. An unsynced local record's blockers are never matched against GitHub issue numbers (different id namespaces).
 - **Red flags:** A "Recommended next" the same output later retracts; a chain's last record recommended first on a natively-wired repo; a flagged record silently dropped from the report.
 

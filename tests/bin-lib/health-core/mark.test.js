@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   makeCmdMark, MARK_STATUSES, mergeDeclinedIntoCache, mergeWontfixIntoDeclined,
-} = require('../../../bin/lib/health-core/mark');
+} = require('../../../plugin/bin/lib/health-core/mark');
 
 // Regression: cmdMark used to be duplicated near-verbatim across
 // harness-health.js, journey-health.js, and docs-health.js (code-health.js

@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'bin', 'code-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'code-health.js');
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-vf-'));
@@ -222,7 +222,7 @@ test('validate-findings: writes cache after a non-dry-run', () => {
 });
 
 // P2 additions: confidence-floor gate
-const { applyConfidenceFloor } = require('../../../bin/lib/code-health/validate-finding');
+const { applyConfidenceFloor } = require('../../../plugin/bin/lib/code-health/validate-finding');
 
 test('applyConfidenceFloor passes a high-confidence finding for a high-floor criterion', () => {
   const result = applyConfidenceFloor({ confidence: 'high' }, 'high');

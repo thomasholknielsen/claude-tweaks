@@ -12,15 +12,15 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const COMMENTS = read('skills', '_shared', 'pr-run-comments.md');
-const LIFECYCLE = read('skills', '_shared', 'pr-early-run-lifecycle.md');
-const SETTLE = read('skills', 'dispatch', 'settle-and-merge.md');
-const BRIEF = read('skills', 'wrap-up', 'verification-brief.md');
-const WRAP_EXEC = read('skills', 'wrap-up', 'execution-and-verification.md');
-const REVIEW_SKILL = read('skills', 'review', 'SKILL.md');
-const STATUS_SCAN = read('skills', 'help', 'status-scan.md');
-const SCAN_PROCEDURES = read('skills', 'tidy', 'scan-procedures.md');
-const SESSION_START = read('bin', 'lib', 'hooks', 'session-start.js');
+const COMMENTS = read('plugin', 'skills', '_shared', 'pr-run-comments.md');
+const LIFECYCLE = read('plugin', 'skills', '_shared', 'pr-early-run-lifecycle.md');
+const SETTLE = read('plugin', 'skills', 'dispatch', 'settle-and-merge.md');
+const BRIEF = read('plugin', 'skills', 'wrap-up', 'verification-brief.md');
+const WRAP_EXEC = read('plugin', 'skills', 'wrap-up', 'execution-and-verification.md');
+const REVIEW_SKILL = read('plugin', 'skills', 'review', 'SKILL.md');
+const STATUS_SCAN = read('plugin', 'skills', 'help', 'status-scan.md');
+const SCAN_PROCEDURES = read('plugin', 'skills', 'tidy', 'scan-procedures.md');
+const SESSION_START = read('plugin', 'bin', 'lib', 'hooks', 'session-start.js');
 
 test('the pr-first gate is one condition, stated once, in pr-run-comments.md', () => {
   assert.match(COMMENTS, /run-state\.json.*carries a `pr` object/);

@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { dedupAndDispatch } = require('../../../bin/lib/health-core/validate-findings-dispatch');
+const { dedupAndDispatch } = require('../../../plugin/bin/lib/health-core/validate-findings-dispatch');
 
 function makeDeps({ decideImpl, cacheContents = {} } = {}) {
   const readCache = () => ({ ...cacheContents });

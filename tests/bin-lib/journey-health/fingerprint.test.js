@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { fingerprint, normalizeDescription } = require('../../../bin/lib/journey-health/fingerprint');
+const { fingerprint, normalizeDescription } = require('../../../plugin/bin/lib/journey-health/fingerprint');
 
 test('fingerprint is stable for identical input', () => {
   const args = { journey: 'checkout-flow', category: 'drift', section: 'self-review', description: 'Persona is a placeholder' };

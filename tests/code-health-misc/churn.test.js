@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { computeChurn } = require('../../bin/lib/code-health/cache');
+const { computeChurn } = require('../../plugin/bin/lib/code-health/cache');
 
 // recordRun/readRuns (local-disk run-log persistence) were removed by the
 // health-state migration — run history now lives on the durable health-state

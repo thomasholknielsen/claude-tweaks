@@ -13,7 +13,7 @@ description: >
   it as sufficient files every project-local convention that happens to
   mention a skill name as a public plugin defect.
 
-  This scenario never reaches skills/feedback/SKILL.md's Step 3 self-reference
+  This scenario never reaches plugin/skills/feedback/SKILL.md's Step 3 self-reference
   check at all: Step 2 classifies via _shared/learning-routing.md, finds the
   result is not D5, and stops immediately ("If it is not D5, stop. Report the
   destination the contract actually returned and hand the learning back to

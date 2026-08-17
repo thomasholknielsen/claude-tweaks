@@ -17,13 +17,13 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const MANIFESTO = read('skills', 'flow', 'manifesto.md');
-const FLOW_SKILL = read('skills', 'flow', 'SKILL.md');
-const MULTI_SPEC = read('skills', 'flow', 'multi-spec.md');
-const STEPS_AND_GATES = read('skills', 'flow', 'steps-and-gates.md');
-const AUTO_MODE_CONTRACT = read('skills', '_shared', 'auto-mode-contract.md');
-const CONTEXT_FLOW = read('skills', 'help', 'context-flow.md');
-const MATERIALIZE = read('skills', 'flow', 'materialize.md');
+const MANIFESTO = read('plugin', 'skills', 'flow', 'manifesto.md');
+const FLOW_SKILL = read('plugin', 'skills', 'flow', 'SKILL.md');
+const MULTI_SPEC = read('plugin', 'skills', 'flow', 'multi-spec.md');
+const STEPS_AND_GATES = read('plugin', 'skills', 'flow', 'steps-and-gates.md');
+const AUTO_MODE_CONTRACT = read('plugin', 'skills', '_shared', 'auto-mode-contract.md');
+const CONTEXT_FLOW = read('plugin', 'skills', 'help', 'context-flow.md');
+const MATERIALIZE = read('plugin', 'skills', 'flow', 'materialize.md');
 
 test("manifesto.md's Path conventions anchor the run directory to $RUN_ROOT", () => {
   assert.match(

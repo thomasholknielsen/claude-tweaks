@@ -15,8 +15,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
-const wtDetect = require('../bin/lib/hooks/worktree-detect');
-const { run } = require('../bin/materialize');
+const wtDetect = require('../plugin/bin/lib/hooks/worktree-detect');
+const { run } = require('../plugin/bin/materialize');
 
 function withCwd(dir, fn) {
   const prev = process.cwd();

@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { computeWordCount } = require('../../../bin/lib/docs-health/depth');
+const { computeWordCount } = require('../../../plugin/bin/lib/docs-health/depth');
 
 test('computeWordCount counts plain words with no frontmatter', () => {
   const result = computeWordCount('one two three four five');

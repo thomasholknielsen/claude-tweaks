@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   fetchIssues, fetchNativeDependencies, buildRecords, buildOverlapGroups,
-} = require('../../../bin/lib/preflight-records/preflight-records');
+} = require('../../../plugin/bin/lib/preflight-records/preflight-records');
 
 const isGraphQL = (args) => args[0] === 'api' && args[1] === 'graphql';
 const isIssueView = (args, n) => args[0] === 'issue' && args[1] === 'view' && args[2] === String(n);
@@ -166,7 +166,7 @@ test('buildOverlapGroups: records sharing a key file union into one group; items
 
 // --- CLI ----------------------------------------------------------------
 
-const { run } = require('../../../bin/preflight-records');
+const { run } = require('../../../plugin/bin/preflight-records');
 
 function cliDeps({ runner, workLinks = 'body-text', remoteUrl = 'https://github.com/acme/w.git' } = {}) {
   const out = [];

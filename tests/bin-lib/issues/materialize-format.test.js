@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { shapeGate, liftMetadata, composeHeader, composeFile, sectionText } = require('../../../bin/lib/issues/materialize-format');
-const wtDetect = require('../../../bin/lib/hooks/worktree-detect');
+const { shapeGate, liftMetadata, composeHeader, composeFile, sectionText } = require('../../../plugin/bin/lib/issues/materialize-format');
+const wtDetect = require('../../../plugin/bin/lib/hooks/worktree-detect');
 
 const SHAPED_BODY = [
   'Surface: backend',
@@ -127,7 +127,7 @@ test('composeFile: header, then "# {n}: {title}", then the body verbatim', () =>
 
 // ---- materialize.js CLI -----------------------------------------------------
 
-const { run: cliRun } = require('../../../bin/materialize');
+const { run: cliRun } = require('../../../plugin/bin/materialize');
 
 // #790/[IL-127]: materialize.js's run() now rejects a --run-dir that doesn't
 // resolve under the main checkout (bin/lib/hooks/worktree-detect.js's

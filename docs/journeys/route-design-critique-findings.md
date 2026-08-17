@@ -1,10 +1,10 @@
 ---
 files:
-  - skills/design-wrapper/critics.md
-  - skills/design-wrapper/modes/review.md
-  - skills/design-wrapper/modes/polish.md
-  - skills/review/review-summary-template.md
-  - skills/flow/polish-execution.md
+  - plugin/skills/design-wrapper/critics.md
+  - plugin/skills/design-wrapper/modes/review.md
+  - plugin/skills/design-wrapper/modes/polish.md
+  - plugin/skills/review/review-summary-template.md
+  - plugin/skills/flow/polish-execution.md
 ---
 
 # Route Design-Critique Findings to Their Consumers

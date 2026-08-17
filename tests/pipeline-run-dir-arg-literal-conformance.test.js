@@ -32,13 +32,13 @@ function walkFilesRelative(root, relBase = '') {
   return out;
 }
 
-// Dynamically scan all .md files under skills/ recursively
+// Dynamically scan all .md files under plugin/skills/ recursively
 function getAllSkillFiles() {
-  const skillsDir = path.join(ROOT, 'skills');
+  const skillsDir = path.join(ROOT, 'plugin', 'skills');
   const files = walkFilesRelative(skillsDir);
   return files
     .filter(f => f.endsWith('.md'))
-    .map(f => path.join('skills', f));
+    .map(f => path.join('plugin', 'skills', f));
 }
 
 // A bare-relative literal: `--run`/`--run-dir` (or `--run-dir=`) directly

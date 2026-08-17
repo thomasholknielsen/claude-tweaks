@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { STALE_DAYS_LIGHT, STALE_DAYS_DEEP } = require('../../../bin/lib/journey-health/score');
+const { STALE_DAYS_LIGHT, STALE_DAYS_DEEP } = require('../../../plugin/bin/lib/journey-health/score');
 
 test('STALE_DAYS_LIGHT is 30', () => {
   assert.strictEqual(STALE_DAYS_LIGHT, 30);

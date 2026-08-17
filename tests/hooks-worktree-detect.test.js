@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot } = require('../bin/lib/hooks/worktree-detect');
+const { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot } = require('../plugin/bin/lib/hooks/worktree-detect');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 test('nearestExistingDir: existing directory returns itself', () => {

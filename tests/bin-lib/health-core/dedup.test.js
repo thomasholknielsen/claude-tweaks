@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { decide } = require('../../../bin/lib/health-core/dedup');
+const { decide } = require('../../../plugin/bin/lib/health-core/dedup');
 
 test('decide files a brand-new finding with no issue or cache match', () => {
   assert.deepStrictEqual(decide({ id: 'x-abc' }, {}, {}), { action: 'file' });

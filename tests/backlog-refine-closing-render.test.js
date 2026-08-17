@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const REFINE_MODE_PATH = path.join(__dirname, '..', 'skills', 'backlog', 'refine-mode.md');
+const REFINE_MODE_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'refine-mode.md');
 const refineModeProse = fs.readFileSync(REFINE_MODE_PATH, 'utf8');
 
 // The pre-change Step 5 text (#741) — no closing-summary block, just the AUTO log-line
@@ -56,5 +56,19 @@ test('Step 5 closing summary requires an explicit 0 failed on a fully clean run'
   assertClaimPinned(
     /fully clean run still renders `0 failed` explicitly/,
     'unconditional 0-failed rendering requirement missing',
+  );
+});
+
+test('Step 5 closing summary requires a skipped bucket in the per-type tally, always present', () => {
+  assertClaimPinned(
+    /`skipped` and `failed` always\s+present, even at zero/,
+    'always-present skipped-count requirement missing (#764)',
+  );
+});
+
+test('Step 5 closing summary requires an explicit 0 skipped on a fully clean run', () => {
+  assertClaimPinned(
+    /explicitly \(and `0 skipped` alongside it\)/,
+    'unconditional 0-skipped rendering requirement missing (#764)',
   );
 });

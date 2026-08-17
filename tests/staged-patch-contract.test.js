@@ -13,7 +13,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { FIXTURE_TIMEOUT_MS } = require('./helpers/git-fixtures');
 
-const SKILLS = path.join(__dirname, '..', 'skills');
+const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const CONTRACT = path.join(SKILLS, '_shared', 'staged-patch.md');
 const read = (...p) => fs.readFileSync(path.join(SKILLS, ...p), 'utf8');
 

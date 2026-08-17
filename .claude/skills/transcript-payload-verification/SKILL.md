@@ -32,6 +32,12 @@ standard step in implementing the handler.
    `~/.claude/projects/<project-slug>/<session-id>.jsonl` (one line per turn/event, JSON-encoded).
    The project-slug is derived from the working directory path; the session-id is this session's
    own UUID.
+   **Resolve the config root; do not assume `~/.claude`.** When `$CLAUDE_CONFIG_DIR` is set the
+   store is `$CLAUDE_CONFIG_DIR/projects/`. On this machine that is
+   `~/.claude-accounts/{account}/projects/`, which `~/.claude/projects/` happens to resolve to
+   (same inode) — but the sibling `plugins/` directory does *not* coincide, and reading the
+   `~/.claude` spelling of it is what made a probe in #418 report a registered marketplace as
+   absent. Never generalize one child's coincidence to the rest of the tree.
 2. **Grep for the target tool's `tool_use`/`tool_result` pairs.** Each `tool_use` block names the
    tool and its input; the matching `tool_result` (or a later `tool_use` referencing the same
    `tool_use_id`) carries what actually came back. Read several real examples, not just one — a
@@ -43,7 +49,7 @@ standard step in implementing the handler.
 4. **Still write defensively.** Verifying against one session's transcript only confirms the
    current harness/SDK version's behavior — it doesn't guarantee future stability. Parse
    defensively (never throw on an unexpected shape) regardless of what the transcript showed; see
-   `bin/lib/hooks/post-tool-use.js`'s `extractToolResponseText` for the pattern this project
+   `plugin/bin/lib/hooks/post-tool-use.js`'s `extractToolResponseText` for the pattern this project
    already uses for exactly this reason.
 
 ## When to use

@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { buildValidateFindingsUpdate } = require('../../../bin/lib/journey-health/cache');
+const { buildValidateFindingsUpdate } = require('../../../plugin/bin/lib/journey-health/cache');
 
 // Pure unit coverage for the merge logic cmdValidateFindings (bin/journey-health.js)
 // hands to writeDurableState as its mutator. This closure previously lived

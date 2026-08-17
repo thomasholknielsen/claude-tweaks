@@ -23,7 +23,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const CLI = path.join(__dirname, '..', '..', '..', 'bin', 'wrap-up-state.js');
+const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'wrap-up-state.js');
 
 function run(args, cwd) {
   const r = spawnSync(process.execPath, [CLI, ...args], {

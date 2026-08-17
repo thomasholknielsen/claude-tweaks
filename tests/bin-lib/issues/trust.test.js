@@ -5,8 +5,8 @@ const assert = require('node:assert');
 const {
   riskBand, trustRows, MIN_SAMPLES, MIN_VERDICTS, parseGitLog, discoverClosingCommits,
   isClosingCommitReverted, resolveOperationalOutcome, DEFAULT_REVERT_WINDOW_DAYS,
-} = require('../../../bin/lib/issues/trust.js');
-const { attemptFailedCommentBody } = require('../../../bin/lib/issues/retry.js');
+} = require('../../../plugin/bin/lib/issues/trust.js');
+const { attemptFailedCommentBody } = require('../../../plugin/bin/lib/issues/retry.js');
 
 test('riskBand splits low from everything else', () => {
   assert.equal(riskBand(['risk:low']), 'low');

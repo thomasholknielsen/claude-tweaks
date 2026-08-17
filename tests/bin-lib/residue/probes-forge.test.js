@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { probeForge } = require('../../../bin/lib/residue/probes/forge');
+const { probeForge } = require('../../../plugin/bin/lib/residue/probes/forge');
 
 function stubRunner(responses) {
   return (argv) => (Object.prototype.hasOwnProperty.call(responses, argv.join(' ')) ? responses[argv.join(' ')] : null);

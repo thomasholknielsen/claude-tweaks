@@ -12,7 +12,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const SUMMARY = read('skills', 'flow', 'summary-template.md');
+const SUMMARY = read('plugin', 'skills', 'flow', 'summary-template.md');
 const AUTHORING = read('docs', 'skill-authoring.md');
 
 test('skill-authoring.md: Next Actions convention names the premise-verification rule for state-changing options', () => {
@@ -32,7 +32,7 @@ test('summary-template.md: the release row is conditional and mutually exclusive
 
 test('summary-template.md: the release row cites the #678 release-status subcommand as its source, falling back to inline git commands', () => {
   assert.match(SUMMARY, /reuse that value verbatim rather than re-running the check/);
-  assert.match(SUMMARY, /no `bin\/release\.js status`-shaped subcommand.*render the row from the two inline git commands/s);
+  assert.match(SUMMARY, /no `plugin\/bin\/release\.js status`-shaped subcommand.*render the row from the two inline git commands/s);
   assert.match(SUMMARY, /git merge-base --is-ancestor <merge> <newest-bump-commit>/);
 });
 
@@ -42,5 +42,5 @@ test('summary-template.md: neither release-row form is unconditionally Recommend
 });
 
 test('summary-template.md: Next Actions still documents assembling only applicable lines, base 2 plus conditionals', () => {
-  assert.match(SUMMARY, /the base 2 always; the three conditional lines only when their trigger condition holds/);
+  assert.match(SUMMARY, /the base 2 always; the four conditional lines only when their trigger condition holds/);
 });

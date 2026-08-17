@@ -1,7 +1,7 @@
 ---
 files:
-  - skills/challenge/SKILL.md
-  - skills/backlog/overview-mode.md
+  - plugin/skills/challenge/SKILL.md
+  - plugin/skills/backlog/overview-mode.md
 ---
 
 # Resolve an Unjustified-Solution Record in One Call

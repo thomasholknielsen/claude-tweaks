@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { probeSuite } = require('../../../bin/lib/residue/probes/suite');
-const { probeRelease } = require('../../../bin/lib/residue/probes/release');
+const { probeSuite } = require('../../../plugin/bin/lib/residue/probes/suite');
+const { probeRelease } = require('../../../plugin/bin/lib/residue/probes/release');
 
 const SCOPE = { ran: true, reason: null, base: 'a1b2c3d', headBranch: 'worktree-feat', branches: [], worktrees: [] };
 

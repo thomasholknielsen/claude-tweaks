@@ -1,10 +1,10 @@
 ---
 files:
-  - skills/flow/claim-targets.md
-  - bin/claim-targets.js
-  - bin/lib/claim-targets/claim-targets.js
-  - bin/lib/issues/claim-store.js
-  - skills/_shared/issue-claims.md
+  - plugin/skills/flow/claim-targets.md
+  - plugin/bin/claim-targets.js
+  - plugin/bin/lib/claim-targets/claim-targets.js
+  - plugin/bin/lib/issues/claim-store.js
+  - plugin/skills/_shared/issue-claims.md
 ---
 
 # Act on a Contested Claim at the Start of a Run

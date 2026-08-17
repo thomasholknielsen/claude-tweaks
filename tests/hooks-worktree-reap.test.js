@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const {
   parseWorktreeList, isPidAlive, lockVerdict, isStale, isContentIdentical, reapWorktrees,
   resolveIntegrationBranch, ORPHAN_GRACE_MS, MAX_EXAMINED_PER_RUN, REASON, QUIET_SKIP_REASONS,
-} = require('../bin/lib/hooks/worktree-reap');
+} = require('../plugin/bin/lib/hooks/worktree-reap');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');

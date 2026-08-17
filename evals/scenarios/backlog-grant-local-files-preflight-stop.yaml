@@ -4,8 +4,8 @@ description: >
   /claude-tweaks:backlog grant actually stop under work-backend: local-files
   rather than proceeding to evaluate its gate chain and stamp grants on a
   record that would look eligible (ready, risk:low, agent origin) under
-  github-issues? grant mode's own Preflight (skills/backlog/SKILL.md,
-  skills/backlog/grant-mode.md Step 0) documents the same full stop refine's
+  github-issues? grant mode's own Preflight (plugin/skills/backlog/SKILL.md,
+  plugin/skills/backlog/grant-mode.md Step 0) documents the same full stop refine's
   grant sub-stage has: machine-granting is github-issues-only, with no
   exception when no interactive human is present. This is the same
   Preflight-boundary class the backlog-refine-permission-matrix-compliance
@@ -13,7 +13,7 @@ description: >
   the sandbox denies all network egress (evals/README.md's Safety model), so
   the gate chain itself is unreachable here by construction; per-key refusal
   attribution is covered at the unit layer instead
-  (bin/lib/issues/tests/grant-gate.test.js, one refusal case per gate key
+  (tests/bin-lib/issues/grant-gate.test.js, one refusal case per gate key
   plus all-clear and cap-boundary cases — see #270's scope amendment). What
   this scenario pins is the one boundary the sandbox CAN reach: a
   local-files firing must write nothing, grant nothing, and touch no

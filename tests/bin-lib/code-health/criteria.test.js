@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { CRITERIA, criteriaForArea, getCriterion } = require('../../../bin/lib/code-health/criteria');
+const { CRITERIA, criteriaForArea, getCriterion } = require('../../../plugin/bin/lib/code-health/criteria');
 
 test('CRITERIA is a non-empty array of criterion objects', () => {
   assert.ok(Array.isArray(CRITERIA));
