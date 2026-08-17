@@ -1,7 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-13T052419-dispatch-standalone",
-  "reason": "merged: spec 337",
-  "releasedAt": "2026-08-13T05:49:40.473Z",
-  "link": "d208eda41a35afe4b206f34e095f9ab929523756"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:38:30.543Z"
 }
