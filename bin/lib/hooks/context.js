@@ -19,6 +19,24 @@ function readRunState(runDir) {
   try { return JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8')); } catch { return null; }
 }
 
+// An unadopted mint — a directory mkdir'd by dispatch Step 4 or flow Step 2.8
+// that no invocation ever initialized — carries neither run-state.json nor
+// decisions.md. Fallback attribution must never guess into one: a mint that
+// sorts newest absorbs foreign sessions' events until swept (#721). Keyed on
+// BOTH files being ABSENT (file presence, not parse success — a corrupt
+// run-state.json is still an adopted run, and readRunState's null covers
+// both cases), never on config.yml — standalone run dirs legitimately carry
+// decisions.md but no config.yml. Consequence: hooks.js CLI verbs that rely
+// on this fallback with no --run (record-worktree, record-pr, close-run) now
+// only ever resolve an adopted run — safe because every sanctioned caller
+// runs after flow Step 3 has already initialized the run dir (decisions.md
+// or run-state.json already exists by then).
+function isUnadoptedMint(dir, state) {
+  if (state) return false;
+  if (fs.existsSync(path.join(dir, 'run-state.json'))) return false;
+  return !fs.existsSync(path.join(dir, 'decisions.md'));
+}
+
 // Run dirs are named as ISO-timestamp-prefixed slugs (e.g. 2026-07-01T090000-spec-1).
 // Other siblings under pipelines/ — notably archive/, the wrap-up archival
 // destination — are not runs. archive/ sorts AFTER ISO names lexically, so an
@@ -114,7 +132,10 @@ function resolveRun(cwd, env, sessionId) {
     // owner we cannot compare against would just be the old guess with fewer
     // candidates, and `record-worktree`/`close-run` deliberately resolve runs
     // they do NOT own so they can report that fact (see bin/hooks.js).
-    for (const { dir } of iterRunDirsWithState(cwd)) return { dir, attribution: 'fallback' };
+    for (const { dir, state } of iterRunDirsWithState(cwd)) {
+      if (isUnadoptedMint(dir, state)) continue;
+      return { dir, attribution: 'fallback' };
+    }
     return { dir: null, attribution: null };
   }
   let unowned = null;
@@ -122,7 +143,7 @@ function resolveRun(cwd, env, sessionId) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
     if (owner === me) return { dir, attribution: 'session' };
     // Newest-first, so the first unowned run is the one the old code returned.
-    if (!owner && !unowned) unowned = dir;
+    if (!owner && !unowned && !isUnadoptedMint(dir, state)) unowned = dir;
   }
   return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
 }

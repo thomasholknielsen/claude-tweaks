@@ -156,7 +156,8 @@ Anchoring section (`git rev-parse --git-common-dir`, then its parent directory).
 **representative record** is its lowest-numbered member (the same rule
 `_shared/pr-early-run-lifecycle.md` already uses for a bundle's PR title). Create
 `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-record-{representative}/` — mkdir only: no
-`config.yml`, no `decisions.md`, and no claim written here either. Call the result
+`config.yml`, no `decisions.md`, and no claim written here either. `{ISO-timestamp}` is UTC, per
+`_shared/pipeline-run-dir.md`'s ISO-timestamp rule (`date -u`). Call the result
 `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
 `decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
 {$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed directory is reclaimed by
@@ -167,6 +168,12 @@ Nothing else happens in this step. Claiming, the `bot:in-progress` bootstrap, an
 comment all live in `/flow`'s Step 2.8 (`flow/claim-targets.md`), which the group's first Task
 call reaches under the identity this mint establishes — handing both Task calls the same
 directory to claim under is this step's whole purpose. Proceed to Step 5.
+
+This group's own file-overlap membership was already fixed by Step 2's `groupByFileOverlap` queue
+pull (`queue-pull-script.md`) — the same primitive `bin/preflight-records.js`'s `overlapGroups`
+field derives, for a caller needing that grouping outside dispatch's own queue-pull path (e.g.
+`/flow`'s own multi-spec pre-flight, `multi-spec.md`'s Validation step 3). This step re-derives
+nothing; it only mints a directory for the group Step 2 already computed.
 
 ### Concurrency note (Preflight reads, not claim correctness)
 

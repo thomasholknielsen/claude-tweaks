@@ -30,14 +30,14 @@ test('parseInput returns {} on garbage and non-objects', () => {
 
 test('resolveRunDir prefers PIPELINE_RUN_DIR when it exists on disk', () => {
   const project = tmpProject();
-  const run = mkRun(project, '2026-07-01T090000-spec-1');
+  const run = mkRun(project, '2026-07-01T090000-spec-1', { status: 'active' });
   assert.strictEqual(ctx.resolveRunDir(project, { PIPELINE_RUN_DIR: run }), run);
   assert.strictEqual(ctx.resolveRunDir(project, { PIPELINE_RUN_DIR: '/nope' }), run);
 });
 
 test('resolveRunDir picks newest non-terminal, skips clean runs', () => {
   const project = tmpProject();
-  const oldRun = mkRun(project, '2026-07-01T090000-spec-1');
+  const oldRun = mkRun(project, '2026-07-01T090000-spec-1', { status: 'active' });
   const cleanRun = mkRun(project, '2026-07-02T090000-spec-2', { status: 'clean' });
   assert.strictEqual(ctx.resolveRunDir(project, {}), oldRun);
   assert.ok(cleanRun); // silences unused warning; clean run must NOT be returned
@@ -50,7 +50,7 @@ test('resolveRunDir returns null with no pipelines dir', () => {
 
 test('resolveRunDir falls through to the scan when PIPELINE_RUN_DIR points at a file, not a directory', () => {
   const project = tmpProject();
-  const run = mkRun(project, '2026-07-01T090000-spec-1');
+  const run = mkRun(project, '2026-07-01T090000-spec-1', { status: 'active' });
   const notADir = path.join(project, 'not-a-dir.txt');
   fs.writeFileSync(notADir, 'x');
   assert.strictEqual(ctx.resolveRunDir(project, { PIPELINE_RUN_DIR: notADir }), run);
@@ -66,7 +66,7 @@ test('listRunDirs returns non-terminal newest first', () => {
 
 test('listRunDirs excludes the archive/ sibling (and other non-run-id-shaped dirs); resolveRunDir never resolves it', () => {
   const project = tmpProject();
-  const live = mkRun(project, '2026-07-01T090000-spec-1');
+  const live = mkRun(project, '2026-07-01T090000-spec-1', { status: 'active' });
   mkRun(project, 'archive'); // wrap-up archival destination; sorts AFTER ISO names lexically
   assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
   assert.strictEqual(ctx.resolveRunDir(project, {}), live);

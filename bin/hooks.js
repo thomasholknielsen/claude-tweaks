@@ -242,7 +242,11 @@ function main(argv) {
   // Two views of the same runs, because enforcement and bookkeeping want
   // different things (#62).
   //
-  // `runDir`/`runState` stay UNFILTERED — the newest non-terminal run. E1's
+  // `runDir`/`runState` stay owner-UNFILTERED — the newest non-terminal run
+  // regardless of who owns it (the one exception: unadopted mints — bare
+  // mkdir'd dirs with neither run-state.json nor decisions.md — are skipped
+  // by resolveRun's fallback since #721, so a mint can no longer shadow an
+  // older adopted run and accidentally suppress E1's bystander warning). E1's
   // working-directory gate is about this checkout, not about who owns the run:
   // its whole foreign-session branch exists to warn a bystander that the
   // checkout belongs to somebody else's worktree, which it can only do by

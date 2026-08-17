@@ -13,7 +13,7 @@ Before starting, validate the list:
 
 > **Parallel execution:** Use parallel tool calls aggressively — frontmatter/record reads across N targets (step 3 below) are independent and should run concurrently.
 
-3. **Pre-flight** — collect each target's set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule, and key files via the record body's `### Key Files` subsection (see "Cross-spec conflict detection" below). These feed the ordering check, Pipeline Preview, and conflict detection (Step 5).
+3. **Pre-flight** — collect each target's set from `materialize.md`'s Resolution (facets + body, read-only): `blocked-by:` dependencies, `surface:`/`design-intent:` via the lift rule, and key files from the body's `### Key Files` subsection. These feed the ordering check, Pipeline Preview, and conflict detection (Step 5). `bin/preflight-records.js <n> [<n> ...] [--work-links native|body-text] [--repo owner/name]` mechanizes this step — and Step 5's conflict detection — in one command, printing `{records, overlapGroups, workLinks}` (exit 0 success, 1 any fetch failed with every failing record named, 2 malformed); see its `--help` for details.
 4. **Dependency-aware ordering** — see "Dependency-aware ordering" below. Topologically sort and reconcile with the user's order.
 5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping key files (`### Key Files` in each record body).
 
@@ -59,11 +59,11 @@ The dependency check is the same regardless of whether the prerequisite is in-ru
 
 ## Cross-spec conflict detection
 
-When two specs in the run declare overlapping files, sequential execution can compound (spec 159 builds on top of spec 157's changes, possibly conflicting with what spec 159's spec assumed) and parallel execution (when added later) would conflict outright.
+When two specs in the run declare overlapping files, sequential execution can compound (spec 159 builds on spec 157's changes, possibly conflicting with what its spec assumed) and future parallel execution would conflict outright.
 
 ### Procedure
 
-1. Collect each target's key files into a single `[{id, keyFiles}]` list: extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from the record body already fetched during Validation step 3 above — the same extraction `/claude-tweaks:specify` Step 1 and `help/status-scan.md`'s Conflict detection section perform. A record with no `### Key Files` subsection (not yet spec-shaped — shouldn't happen for a target that reached this pipeline, but treat defensively) contributes an empty `keyFiles` array rather than erroring.
+1. Collect each target's key files into a single `[{id, keyFiles}]` list: extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from the record body already fetched during Validation step 3 above — the same extraction `/claude-tweaks:specify` Step 1 and `help/status-scan.md`'s Conflict detection section perform. A record with no `### Key Files` subsection (not yet spec-shaped; shouldn't happen here, but handled defensively) contributes an empty `keyFiles` array rather than erroring.
 2. Call the shared grouping primitive — `groupByFileOverlap` (`bin/lib/issues/grouping.js`), the same one `/claude-tweaks:help`'s dashboard conflict detection and `/claude-tweaks:specify`'s creation-time check both use — over the combined list.
 3. Any group of size > 1 returned by `groupByFileOverlap` shares files across targets — record a **conflict warning** for each pair in that group.
 
@@ -75,17 +75,13 @@ Surface conflicts in the Pipeline Preview block as a dedicated footer line:
 Conflicts: spec 157 ↔ spec 159 both modify src/auth/session.ts; spec 159 ↔ spec 160 both modify src/api/users.ts
 ```
 
-This is a **warning, not a hard fail**. Sequential execution is usually fine — but the user deserves to know that spec 159's plan was written assuming `src/auth/session.ts` had its pre-157 shape, and after 157 runs, that file will look different.
+This is a **warning, not a hard fail** — sequential execution is usually fine, but the user should know spec 159's plan assumed `src/auth/session.ts`'s pre-157 shape, which changes once 157 runs.
 
 If `auto` mode is set and conflicts are detected, the Manifesto still renders (as a read-only FYI in default `auto`, or as the approval gate under `confirm` / `hybrid`) — the conflict footer just makes it visible before the pipeline proceeds. No mid-flow re-prompt.
 
 ### Anti-patterns
 
-| Anti-pattern | Why it fails |
-|---|---|
-| Treating any file overlap as a hard fail | Many specs legitimately touch the same file (e.g., adding new tests to the same test file). False positives would block real work. |
-| Suppressing the warning when conflicts are detected | Conflict footer is the user's only signal that spec interdependencies exist. Silent compounding is the bug to avoid. |
-| Auto-reordering specs to avoid conflicts | Conflicts are not the same as dependencies — re-ordering only helps if a `blocked-by:` edge actually exists. Don't conflate the two. |
+Never hard-fail on file overlap (specs legitimately share files — false positives block real work), never suppress the conflict footer (it is the user's only interdependency signal), and never auto-reorder to dodge a conflict — re-ordering only helps when a real `blocked-by:` edge exists; conflicts and dependencies are different things.
 
 ## Run directory layout
 
@@ -112,7 +108,7 @@ $RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 
 The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
 
-**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written by `/flow` in the same step that creates the subdirectory (Step 3, right after the Manifesto writes the parent's). Every per-spec skill resolves levers via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" …`, and `PIPELINE_RUN_DIR` is the per-spec subdirectory (table below) — a subdirectory without `config.yml` makes that call resolve `source: default` and silently drop the Manifesto's answers for the whole spec (observed on the #678 run: `review-auto-apply-ceiling` read `default` from `spec-678/` while the parent held `run-config: medium`). The copy is what keeps the per-spec resolution and the parent's Manifesto in agreement; a mid-run in-place edit to a lever (`/wrap-up`'s ceremony escape hatch downgrading `ceremony-profile`) lands in the spec's own copy and scopes to that spec, which is the intended reading.
+**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written by `/flow` in the same step that creates the subdirectory (Step 3). Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec (observed on the #678 run: `review-auto-apply-ceiling` read `default` from `spec-678/` while the parent held `run-config: medium`). A mid-run in-place lever edit (the ceremony escape hatch) lands in the spec's own copy and scopes to that spec — intended.
 
 `manifest.yml` lists the records in execution order plus their status as the run progresses. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — so `multispec-batch-curation.md`'s registry pass has a stable pre-batch baseline to read back rather than re-deriving it after N specs' worth of commits have landed:
 
@@ -138,7 +134,7 @@ multispec:
 
 Before spec 1's pipeline begins — after the shared worktree exists and is checked out (`worktree` mode), or in the current checkout otherwise — run `test/verification.md` Steps 1-2 (type check, lint, tests) **once** against the unmodified base, before any spec's build touches the code.
 
-Why: without this, a batch of N specs independently re-diagnoses the same pre-existing failure from scratch up to N times — each spec's own `/test` step finds the same broken check and re-derives its root cause, with no shared record because the only trace lives in gitignored report files.
+Why: without this, each of N specs independently re-diagnoses the same pre-existing failure from scratch — every spec's own `/test` step re-derives the same root cause, with no shared record since the only trace lives in gitignored report files.
 
 Record any failures as ledger items in the **parent** run directory (not a per-spec subdir): phase `test`, status `open`, description naming the failing check and its root cause if apparent. If the sweep finds zero failures, skip the ledger write and proceed silently — do not add a "sweep clean" entry.
 
@@ -164,10 +160,10 @@ Note on claim ownership for a dispatched bundle: each spec's own `PIPELINE_RUN_D
 When `worktree` is specified, a sequential run uses **one shared worktree for the whole run — NOT one per record.** All records build and commit into the same worktree on a single feature branch, and the branch is finished **once** at the end of the run.
 
 1. **Create once, up front** — `/flow` creates a single worktree from the current local HEAD following `skills/build/worktree-setup.md` (including its Step 4 unconditional catch-up with the integration branch). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs longer than 3, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list) — `{N}` is the record id, the same keying as the run directory layout above. `/flow` then `cd`s into the worktree.
-2. **Per-record builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every record's pipeline inside the shared worktree. Each per-record `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by `MULTISPEC_SHARED_WORKTREE`) and **skips worktree creation**, committing into the shared branch. Every record — the first included — materializes as part of its own build step, writing `{parent}/spec-{N}/work/{N}-spec.md` directly into the already-existing shared worktree. This is just `materialize.md`'s worktree-first ordering applied once at the run level instead of once per record: the worktree exists before any materialization, so no record is a special case. It does NOT call `/superpowers:finishing-a-development-branch` between records.
+2. **Per-record builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every record's pipeline inside the shared worktree. Each per-record `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by the env var) and **skips creation**, committing into the shared branch. Every record — the first included — materializes in its own build step, writing `{parent}/spec-{N}/work/{N}-spec.md` into the existing worktree (`materialize.md`'s worktree-first ordering applied once at run level; no record is a special case). It does NOT call `/superpowers:finishing-a-development-branch` between records.
 3. **Finish once at the end** — after the last record's pipeline and the consolidated Review Console, `/flow` finishes the single feature branch via `/superpowers:finishing-a-development-branch` (merge / PR / discard). Re-check `main` divergence immediately before this step, not just at the Step 2.5 pre-flight (a point-in-time check at pipeline *start*) — a long-running multi-record run has a real window for `main` to move again while records 2..N build. If it has, rebase onto the new tip inside the worktree first (checking for real file overlap, not just presence in the diff — see the git-diff-merge-base gotcha in CLAUDE.md's Don'ts) so the branch stays fast-forward-mergeable, then proceed with the finish.
 
-Why shared, not per-record: sequential records in one run are one logical unit of work on one base. Per-record worktrees would each branch from the same base and then need N separate merges that can't see each other's commits — exactly the divergence/stale-base problem worktrees are meant to avoid. One branch accumulates the records in dependency order and merges back as a single reconciled changeset.
+Why shared, not per-record: sequential records in one run are one logical unit of work on one base. Per-record worktrees would each branch from that base and need N separate merges unable to see each other's commits — the divergence/stale-base problem worktrees exist to avoid. One branch accumulates the records in dependency order and merges back as a single reconciled changeset.
 
 > Separate-terminal parallel runs (`/flow #42 worktree` in each terminal) are different — those are N independent single-record runs and each correctly gets its own worktree. See `worktree-merge.md`.
 
@@ -183,11 +179,11 @@ spec 159 — FAILED at test (3 type errors)
 spec 160 — not run (previous spec failed)
 ```
 
-The consolidated Review Console still runs at the end with whatever was accumulated up to the failure. Specs 158-160 appear in the **Not run** footer with status `not-run` and reason `previous spec failed (159)`.
+The consolidated Review Console still runs with whatever was accumulated up to the failure; specs 158-160 appear in the **Not run** footer with status `not-run`, reason `previous spec failed (159)`.
 
 ### `keep-going` — continue on failure
 
-When the user passes `/flow 157,159,160 keep-going`, HARD-GATE failures in one spec **do not** stop subsequent specs. Each spec's pipeline runs to completion (or fails on its own gate); the consolidated console surfaces all outcomes together.
+When the user passes `/flow 157,159,160 keep-going`, HARD-GATE failures in one spec **do not** stop subsequent specs — each runs to completion (or fails on its own gate) and the consolidated console surfaces all outcomes together.
 
 ```
 spec 157 — passed
@@ -201,12 +197,12 @@ The consolidated Review Console's **Not run / Failed** footer distinguishes:
 |---|---|---|
 | 159 | failed | test gate (3 type errors) — see `spec-159/decisions.md` for details |
 
-This is **opt-in** for a reason: it inverts the compounding-risk safety. Use when:
-- Specs are genuinely independent (no `blocked-by:` edges between them)
+This is **opt-in** — it inverts the compounding-risk safety. Use when:
+- Specs are genuinely independent (no `blocked-by:` edges)
 - You want to see all failures together rather than fix-and-retry serially
 - A batch of small refactors where one failing doesn't invalidate the others
 
-Do NOT use `keep-going` when specs have `blocked-by:` relationships — the failed spec's downstream may compound the bug. The dependency check (above) does not auto-disable `keep-going`, but a warning surfaces in the Pipeline Preview footer:
+Do NOT use `keep-going` when specs have `blocked-by:` relationships — the failed spec's downstream may compound the bug. The dependency check above doesn't auto-disable it, but a warning surfaces in the Pipeline Preview footer:
 
 ```
 keep-going + dependencies: spec 159 depends on 157 — if 157 fails, 159 may also fail or produce incorrect output. Consider running without keep-going.
@@ -214,12 +210,12 @@ keep-going + dependencies: spec 159 depends on 157 — if 157 fails, 159 may als
 
 ### Interaction with worktree mode
 
-The run shares **one worktree** (see "Shared worktree" above), so there is no per-spec worktree to discard or preserve. A failed spec leaves its commits in the shared branch:
+The run shares **one worktree** (see "Shared worktree" above) — no per-spec worktree to discard or preserve. A failed spec leaves its commits in the shared branch:
 
-- **Default mode** — the shared worktree contains commits up to and including the failed spec; subsequent specs don't run. The branch is **not** finished automatically; the consolidated console notes the path so the user can inspect before deciding to merge or discard.
-- **`keep-going`** — subsequent specs keep committing into the same shared branch on top of the failed spec's commits. This compounds the failed spec's state into later specs (same risk as current-branch mode) — which is why `keep-going` is opt-in and meant for genuinely independent specs.
+- **Default mode** — the shared worktree contains commits up to and including the failed spec; subsequent specs don't run. The branch is **not** finished automatically; the consolidated console notes the path for the user to inspect before merging or discarding.
+- **`keep-going`** — subsequent specs keep committing into the same shared branch atop the failed spec's commits, compounding its state into later specs (same risk as current-branch mode) — why it's opt-in, meant for independent specs.
 
-The consolidated console's **Not run / Failed** footer notes the shared worktree path once:
+The consolidated console's **Not run / Failed** footer notes the shared worktree path:
 
 ```
 | 159 | failed | test gate (3 type errors) — shared worktree at `.worktrees/flow/spec-157-159-160` preserved; inspect before finishing |
@@ -229,41 +225,10 @@ The user finishes or discards the single shared branch after triage (`/superpowe
 
 ## Consolidated Review Console (end of run)
 
-After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or the run aborts at a HARD-GATE failure), `/flow` runs **one consolidated Review Console** in `auto` or `hybrid` mode. This replaces the N per-spec consoles that would otherwise interrupt the user between specs. For the full procedure, console template, run-directory layout details, approval/override/stop semantics, and the not-run footer for aborted runs, read `multispec-review-console.md` in this skill's directory.
+After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or the run aborts at a HARD-GATE failure), `/flow` runs **one consolidated Review Console** in `auto` or `hybrid` mode, replacing the N per-spec consoles that would otherwise interrupt the user between specs. For the full procedure, template, run-directory layout, approval/override/stop semantics, and the not-run footer for aborted runs, read `multispec-review-console.md` in this skill's directory.
 
 In interactive mode, per-spec consoles run inline as today — no consolidation step.
 
 ## Multi-Spec Summary
 
-After all specs complete (or one fails), present a consolidated summary:
-
-```markdown
-## Flow: Multi-Spec Pipeline Complete  {— keep-going if applicable}
-
-| Spec | Build | Test | Review | Polish | Wrap-Up | Outcome |
-|------|-------|------|--------|--------|---------|---------|
-| {N} | passed | passed | PASS | applied + re-verified | done | Complete |
-| {N} | passed | passed | PASS | skipped (no-polish) | done | Complete (no polish) |
-| {N} | passed | passed | BLOCKED | — | — | Stopped at review |
-| {N} | passed | passed | PASS | re-verify failed | — | Stopped at re-verify |
-| {N} | passed | FAILED | — | — | — | Failed (test gate) — continued (keep-going) |
-| {N} | — | — | — | — | — | Not run (previous spec failed) |
-
-**Release status:** {one line for the run's single shared branch, from `_shared/pr-first-merge.md` Step 4.1, verbatim — same vocabulary as `summary-template.md`'s line; `n/a — not merged in this run (outcome: {armed | pending-review})` when the bundle PR did not merge in this run}
-{On either backfill form, `summary-template.md`'s same **Backfill:** line}
-
-### Manual Steps Required (all specs)
-| # | Spec | What | Where |
-|---|------|------|-------|
-| 1 | {N} | {description} | {source} |
-(or: No manual steps required.)
-
-### Per-Spec Details
-(expand each spec's key outputs, failures, and review findings)
-```
-
-The header includes `— keep-going` when the run was invoked with that flag. The outcome column distinguishes:
-- `Complete` — all gates passed
-- `Stopped at {step}` — HARD-GATE failure, remaining specs not run (default mode)
-- `Failed ({gate}) — continued (keep-going)` — HARD-GATE failure but pipeline continued to the next spec
-- `Not run (previous spec failed)` — only appears in default mode; never under `keep-going`
+Read `multispec-summary.md` in this skill's directory when rendering — the template and outcome-column vocabulary live there.
