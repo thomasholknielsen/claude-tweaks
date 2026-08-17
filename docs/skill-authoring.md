@@ -20,7 +20,9 @@ Skills do **not** carry a Relationship to Other Skills table. That convention wa
 
 **Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in CLAUDE.md's `## Don'ts`.
 
-A sub-file may carry a **tighter per-file pin** than that ceiling when a step reads it on a hot path: `skills/flow/manifesto.md` and `skills/flow/multi-spec.md` are each pinned under 20480 bytes by `tests/run-dir-timestamp-utc.test.js` (#724), and both currently sit within a few hundred bytes of it. Check `wc -c` and the pinning test before adding to a file that has a budget of its own — 40 KB is the default ceiling, not the only one in force.
+A sub-file may carry a **tighter per-file pin** than that ceiling when a step reads it on a hot path: `skills/flow/manifesto.md` (21504 bytes) and `skills/flow/multi-spec.md` (20480 bytes) each carry their own pin in `tests/run-dir-timestamp-utc.test.js` (#724) — check the live `BUDGETS` map there for current values rather than hardcoding a number here, since a future lever can move either one again. Check `wc -c` and the pinning test before adding to a file that has a budget of its own — 40 KB is the default ceiling, not the only one in force.
+
+**Extracting to a sub-file under budget pressure.** When a file nearing its ceiling needs new content, extract the least-structural part — rationale paragraphs, "why" explanations, edge-case walkthroughs — into a cited sub-file rather than trimming inline prose to the point of losing clarity. This repo has done it repeatedly: `console-template.md`, `manifesto-overrides.md`, and `manifesto-authorized-merge.md` (extracted from `flow/manifesto.md` to clear its own #724 pin) are worked examples.
 
 ## Inline `_shared` contract vs a new component skill
 

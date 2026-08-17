@@ -18,7 +18,7 @@ A run with `merge-verification: merge-when-green` (derived), `autonomy: unattend
 ## Deliverables
 
 - [ ] Add a merge-authorization lever to the Pipeline Config Manifesto (`ask` / `pre-authorized`, a string enum matching every other lever's convention rather than a boolean) letting the human pre-authorize "merge automatically once every HARD-GATE is green and the full suite has just passed," answered interactively at run start
-- [ ] When pre-authorized, the finishing step (`/superpowers:finishing-a-development-branch` / `design-wrapper` merge step, whichever owns the actual `gh pr merge` call) executes the merge automatically as soon as the last HARD-GATE clears, and logs the auto-resolution per `_shared/auto-decision-log.md`
+- [ ] When pre-authorized, the Wrap-Up Review Console's Auto-merge short-circuit (`wrap-up/review-console.md`, extended by the new `wrap-up/manifesto-authorized-merge.md` sub-file) executes the merge automatically as soon as the last HARD-GATE clears — via the same `_shared/pr-first-merge.md` Step 3 / local-merge `git merge` call the terminal one-click path uses — and logs the auto-resolution per `_shared/auto-decision-log.md`
 - [ ] When declined or left unanswered at Manifesto time, the terminal Wrap-Up Review Console offers a one-click Recommended `AskUserQuestion` merge option instead, so the just-proven green state is still current when the merge lands
 - [ ] Update `_shared/auto-mode-contract.md` and `_shared/autonomy-ceiling.md` to document both paths and make explicit that a Manifesto-time answer is a live, interactive human grant — not a headless auto-grant — so the existing `auto:*` invariant (interactive-human-only grants) is preserved under both paths
 
@@ -32,7 +32,7 @@ A run with `merge-verification: merge-when-green` (derived), `autonomy: unattend
 
 ## Technical Approach
 
-Likely touch points: the Pipeline Config Manifesto's option set (wherever it's assembled — `/claude-tweaks:flow` and/or `design-wrapper`), the finishing/merge step that currently emits "the merge is yours" prose, `_shared/auto-decision-log.md` (new decision-log entry shape for an auto-merge), `_shared/autonomy-ceiling.md`'s bookkeeping-capability list, and the Wrap-Up Review Console's existing one-click `AskUserQuestion` pattern (reuse rather than invent a second mechanism).
+Touch points (confirmed): the Pipeline Config Manifesto's lever table (`flow/manifesto.md`); the Wrap-Up Review Console's pre-existing Auto-merge short-circuit (`wrap-up/review-console.md`, extended by the new `wrap-up/manifesto-authorized-merge.md` sub-file) — not `/superpowers:finishing-a-development-branch` or `design-wrapper`, neither of which owns the merge call under `integration-model: pr-first`; `_shared/auto-decision-log.md`; `_shared/autonomy-ceiling.md`'s bookkeeping-capability list; and `_shared/pr-first-merge.md` Step 3 / local-merge's `git merge` command (both already parameterized by tag, reused rather than duplicated).
 
 ## Gotchas
 
