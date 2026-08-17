@@ -34,11 +34,20 @@ Read `console-template.md` and render that exact shape — every section's colum
 
 Immediately after presenting the console tables above, call `AskUserQuestion` with `question`: `"How do you want to handle the Review Console items?"`, `header`: `"Review Console"`, `multiSelect`: `false`. Cleanup actions' worktree/branch-finish row is what makes the merge decision real (`cleanup-procedures-execution.md` Section C) — folding it into these options is what keeps that row from becoming its own improvised stop (`_shared/auto-mode-contract.md`'s bookend rule).
 
-**`integration-model: pr-first`** — four options:
-- Option 1 — `label`: `"Approve all + merge (Recommended)"`, `description`: `"Apply pending items, accept auto-applied, apply skill + config updates, execute cleanup incl. merging the branch (items 1-{N}); resolve every Q#/M# to Apply and every U# to declined — their own stated defaults, no further prompts"`
-- Option 2 — `label`: `"Approve all, leave PR open"`, `description`: `"Same as above, but skip the branch-finish merge — the PR stays open for manual merge later"`
+**`integration-model: pr-first`** — read the PR's live CI status before rendering the options
+below, the same read `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) classifies
+as green/pending/red (`gh pr view {pr-number} --json state,mergeStateStatus,headRefOid,statusCheckRollup`)
+— cite that classification rather than restating it. This is the same rule
+`dispatch/SKILL.md`'s "Confirm before resuming" applies to its own Resume/Cancel options, so a
+run reaching both prompts in one session (dispatch's resume confirmation, then this console on
+re-entry) never sees them disagree. Four options:
+- Option 1 — `label`: `"Approve all + merge"` (append `" (Recommended)"` when CI reads green or pending), `description`: `"Apply pending items, accept auto-applied, apply skill + config updates, execute cleanup incl. merging the branch (items 1-{N}); resolve every Q#/M# to Apply and every U# to declined — their own stated defaults, no further prompts"`
+- Option 2 — `label`: `"Approve all, leave PR open"` (append `" (Recommended)"` instead when CI reads red — apply everything except the merge, which stays blocked until CI is fixed), `description`: `"Same as above, but skip the branch-finish merge — the PR stays open for manual merge later"`
 - Option 3 — `label`: `"Override specific items"`, `description`: `"Reply with #s to skip/modify (e.g., \"skip 5, modify 7, revert 1\"); also the only path that drills Q#/M#/U# individually"`
 - Option 4 — `label`: `"Stop and re-engage"`, `description`: `"Pause the pipeline; resume after manual review"`
+
+Exactly one of options 1 and 2 carries `(Recommended)`, never both, never neither. Options 3 and 4
+never carry it — they are the deliberate-override and pause paths, not defaults.
 
 **`integration-model: local-merge`** — no PR to leave open, so the merge decision isn't split; unchanged three options: `"Approve all (Recommended)"` (apply pending items and execute cleanup, incl. branch-finish), `"Override specific items"`, `"Stop and re-engage"`, same descriptions as above minus the merge clause.
 

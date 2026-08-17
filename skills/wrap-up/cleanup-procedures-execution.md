@@ -193,11 +193,29 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    session is standing in: the harness holds a live lock on it, so raw `git worktree remove`
    fails with exit 128 (`[IL-58]`), and `SessionStart`'s reaper never touches a live-pid lock
    either — it returns `in-use` and skips, correctly, because a session's own worktree at
-   wrap-up time always has a live pid. `ExitWorktree` is the only remedy for that case. Verify
-   `git rev-parse HEAD` matches on both the worktree branch and the branch it merged into
-   before passing `discard_changes: true` (`[IL-45]`). For a worktree this session does **not**
-   occupy and that `git worktree list --porcelain` shows unlocked, `git worktree remove {path}`
-   is fine.
+   wrap-up time always has a live pid. `ExitWorktree` is the only remedy for that case.
+
+   **Prove it before passing `discard_changes: true` — the ancestry check, not a bare SHA
+   match.** Run `_shared/scratch-worktree.md`'s "Tearing down" (§6) ancestry check —
+   `git merge-base --is-ancestor HEAD origin/{integration-branch}` — against the branch this
+   worktree's branch actually merged into, rather than a `git rev-parse HEAD` equality test
+   (`[IL-45]`'s original mitigation): equality only holds after a fast-forward, and this file's
+   own merge procedure (`review-console.md`'s "On approval," `pr-first-merge.md` Step 3) uses
+   `--no-ff`, so the integration branch's tip is a *new* merge commit whose SHA never equals the
+   worktree branch's — an ancestry check is what actually proves the `--no-ff` case safe, not
+   just the fast-forward one. **Exit 0** authorizes `discard_changes: true` directly, with the
+   same one-line stated reason that file's §6 uses — no separate confirmation once the check has
+   actually run and passed; this is what "proven, not improvised" means for this call too. **Non-zero**
+   — stop and surface via `git log origin/{integration-branch}..HEAD --oneline`, same as that
+   file's own non-zero branch; never override on a non-zero result. `[IL-45]`'s content-diff
+   fallback (`git diff <branch> <default-branch>` empty) still applies for a branch discarded
+   without ever merging (no `origin/{integration-branch}` ancestry to prove) — the ancestry check
+   above is the primary proof whenever a merge actually happened, since it is strictly stronger:
+   it holds for `--no-ff`, fast-forward, and squash/rebase merges alike, all of which the SHA
+   equality test alone would reject.
+
+   For a worktree this session does **not** occupy and that `git worktree list --porcelain`
+   shows unlocked, `git worktree remove {path}` is fine.
 5. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 6. If the branch was merged (the same condition step 5 just checked), also delete the
    remote branch — run `_shared/pr-first-merge-post-merge.md`'s `## Step 5: Delete the remote
