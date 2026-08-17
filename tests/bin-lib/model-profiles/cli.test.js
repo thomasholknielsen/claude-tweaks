@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const CLI = path.join(__dirname, '..', '..', '..', 'bin', 'resolve-profile.js');
+const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'resolve-profile.js');
 
 // Every pre-#763 test predates resolve-profile.js reading
 // CLAUDE_CODE_SESSION_ID at all, so none of them isolate from it. Now that a
@@ -148,7 +148,7 @@ test('a resolution avoids a model recorded as failed this session, via CLAUDE_CO
   assert.strictEqual(r.model, 'opus');
   assert.strictEqual(r.source, 'degraded:session-failure');
   // cleanup — do not leak this test's blacklist file to a later run
-  const { failurePath } = require('../../../bin/lib/model-profiles/session-failures');
+  const { failurePath } = require('../../../plugin/bin/lib/model-profiles/session-failures');
   fs.rmSync(failurePath(sessionId), { force: true });
 });
 
@@ -185,7 +185,7 @@ test('record-failure prints a JSON confirmation on success', () => {
   const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
   const out = JSON.parse(execFileSync('node', [CLI, 'record-failure', 'opus'], { cwd: dir, env, encoding: 'utf8' }));
   assert.deepStrictEqual(out, { recorded: true, model: 'opus', sessionId });
-  const { failurePath } = require('../../../bin/lib/model-profiles/session-failures');
+  const { failurePath } = require('../../../plugin/bin/lib/model-profiles/session-failures');
   fs.rmSync(failurePath(sessionId), { force: true });
 });
 
@@ -201,6 +201,6 @@ test('record-failure rejects a model name that is not a real family alias, and r
   const r = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
   assert.strictEqual(r.model, 'fable');
   assert.strictEqual(r.source, 'default');
-  const { failurePath } = require('../../../bin/lib/model-profiles/session-failures');
+  const { failurePath } = require('../../../plugin/bin/lib/model-profiles/session-failures');
   fs.rmSync(failurePath(sessionId), { force: true });
 });

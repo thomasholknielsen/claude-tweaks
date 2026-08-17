@@ -1,10 +1,10 @@
 ---
 files:
-  - skills/help/policy.md
-  - skills/help/SKILL.md
-  - bin/resolve-policy.js
-  - bin/lib/policy-schema.js
-  - skills/init/policy-review.md
+  - plugin/skills/help/policy.md
+  - plugin/skills/help/SKILL.md
+  - plugin/bin/resolve-policy.js
+  - plugin/bin/lib/policy-schema.js
+  - plugin/skills/init/policy-review.md
 ---
 
 # Review a Project's Policy Configuration
@@ -20,14 +20,14 @@ files:
 - **URL:** `/claude-tweaks:help policy`
 - **Action:** Invoke `/claude-tweaks:help` with the `policy` argument.
 - **Should feel:** A dedicated mode, not the usual dashboard — no command-reference cheat sheet, no workflow status scan.
-- **Should understand:** `policy` mode skips `SKILL.md`'s own Section 1 (cheat sheet) and Section 2 (status scan) entirely — `skills/help/policy.md` owns the whole run from Gather through its own `## Next Actions`, which replaces `SKILL.md`'s default Next Actions block.
+- **Should understand:** `policy` mode skips `SKILL.md`'s own Section 1 (cheat sheet) and Section 2 (status scan) entirely — `plugin/skills/help/policy.md` owns the whole run from Gather through its own `## Next Actions`, which replaces `SKILL.md`'s default Next Actions block.
 - **Red flags:** The dashboard's workflow status or command reference rendering alongside the policy sections; a second Gather call re-running `resolve-policy.js --all` mid-mode instead of reusing the one held snapshot.
 
 ### 2. Read the four sections — chat
 - **URL:** no command — the agent's rendered response
 - **Action:** Read Set levers (grouped by category, each row `` `{key}` — {value} ({source}) · default: {default} — {summary} ``), Issues (each non-empty list, or the literal `Policy config issues: none` line), Notable defaults (core-tier keys still on default where a project signal argues otherwise, or one of the two zero-finding lines), and Advanced tier (one collapsed `{N} advanced levers on defaults` line).
 - **Should feel:** Complete in one read — every set lever's value, source, and meaning, without a second lookup.
-- **Should understand:** All four sections render from the single `--all` snapshot taken at Gather time; a `null` default renders as `default: no default`, not literal `null`, except the two derived-default keys' own special case — `integration-model` renders `computed (forge detection)`, `merge-verification` renders `computed (derivation ladder)`. `housekeeping-auto-merge` is a third, differently-shaped derived case (#580): its metadata `default` stays the literal `false` (the `supervised` base) while its unset resolved value derives from `autonomy` — so on a `trusted`/`unattended` project the held snapshot carries `{"value":true,"source":"default"}` for it. That pairing never reaches this section: Set levers renders only keys whose `source` is not `default`, and the derivation fires precisely when the key is unset — while the `autonomy` value driving it is always itself a set lever. A derived `true` therefore surfaces in Notable defaults (if a probe argues for it) or in no row at all, and `node bin/resolve-policy.js housekeeping-auto-merge` is where it is read directly (`docs/journeys/resolve-a-policy-key.md` step 1).
+- **Should understand:** All four sections render from the single `--all` snapshot taken at Gather time; a `null` default renders as `default: no default`, not literal `null`, except the two derived-default keys' own special case — `integration-model` renders `computed (forge detection)`, `merge-verification` renders `computed (derivation ladder)`. `housekeeping-auto-merge` is a third, differently-shaped derived case (#580): its metadata `default` stays the literal `false` (the `supervised` base) while its unset resolved value derives from `autonomy` — so on a `trusted`/`unattended` project the held snapshot carries `{"value":true,"source":"default"}` for it. That pairing never reaches this section: Set levers renders only keys whose `source` is not `default`, and the derivation fires precisely when the key is unset — while the `autonomy` value driving it is always itself a set lever. A derived `true` therefore surfaces in Notable defaults (if a probe argues for it) or in no row at all, and `node plugin/bin/resolve-policy.js housekeeping-auto-merge` is where it is read directly (`docs/journeys/resolve-a-policy-key.md` step 1).
 - **Red flags:** A section silently skipped instead of rendering its own zero-finding line; a hand-typed default value instead of one read from the snapshot; an unset `housekeeping-auto-merge` promoted into Set levers because its derived value is `true` — the derivation changes the value, never the `source` that decides which section a key belongs to.
 
 ### 3. Expand the advanced tier — chat
@@ -51,7 +51,7 @@ files:
 - **Should understand:** A rejected value is reported and its line is never written; a new issue found by the single post-apply re-audit reverts that key specifically — deleting the line if it didn't exist before this apply, restoring the prior Gather-snapshot value if it did — and no edit is confirmed to the user until that re-audit comes back clean. In a main checkout under `worktree-always: true`, what happens next depends on the running plugin build. On a build newer than `6.86.0` the policy.yml-only write exemption is live: Step 4's question is offered as normal, and each approved line is written as an isolated `Edit`/`Write` to `.claude-tweaks/policy.yml`, staged on its own, then committed by a **separate** bare `git commit` call — never chained, and never staging anything else. On an older build the exemption doesn't exist: the pre-check catches the main checkout before Step 4's question is offered at all, and the agent renders each recommendation as a paste-ready `printf` command for the user to run outside the session.
 - **Red flags:** A confirmed edit whose re-audit was skipped; a main-checkout apply that chains its `git add` and `git commit` into one call, or stages anything besides `.claude-tweaks/policy.yml` (either shape is denied whole); on a build at or below `6.86.0`, a main-checkout write attempted instead of falling back to paste-ready commands.
 
-Reviewing configuration this way is read-only-safe up through Step 3 — `/claude-tweaks:init`'s own Update Mode Policy Configuration Review offers the same rendered content (via `skills/help/policy.md`'s Render contract, one renderer, two entrances) as a read-only second entrance, pointing back at `/claude-tweaks:help policy` for the actual edits — `/init` never writes `.claude-tweaks/policy.yml` itself through this path.
+Reviewing configuration this way is read-only-safe up through Step 3 — `/claude-tweaks:init`'s own Update Mode Policy Configuration Review offers the same rendered content (via `plugin/skills/help/policy.md`'s Render contract, one renderer, two entrances) as a read-only second entrance, pointing back at `/claude-tweaks:help policy` for the actual edits — `/init` never writes `.claude-tweaks/policy.yml` itself through this path.
 
 ## Origin
 - Updated at wrap-up of the policy-key rename run: Step 5's main-checkout branch now tracks the build-version gate the policy.yml write exemption introduced (#537/#589)

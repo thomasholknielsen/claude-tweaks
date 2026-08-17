@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { toIssuePayload } = require('../../../bin/lib/docs-health/issue-payload');
-const { extractFingerprint } = require('../../../bin/lib/issues/record');
+const { toIssuePayload } = require('../../../plugin/bin/lib/docs-health/issue-payload');
+const { extractFingerprint } = require('../../../plugin/bin/lib/issues/record');
 
 function finding(overrides = {}) {
   return {

@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   resolveDatabaseIds, linkSubIssues, linkBlockedBy, isAlreadyLinkedError,
-} = require('../../../bin/lib/issues/link');
+} = require('../../../plugin/bin/lib/issues/link');
 
 // Fake runners are lazy functions inspecting `args` only when called (CLAUDE.md's eager-IIFE ban).
 const isGraphQL = (args) => args[0] === 'api' && args[1] === 'graphql';
@@ -87,7 +87,7 @@ test('isAlreadyLinkedError: only a 422 whose message mentions already', () => {
   assert.equal(isAlreadyLinkedError(e3), false);
 });
 
-const { run } = require('../../../bin/link-records');
+const { run } = require('../../../plugin/bin/link-records');
 
 function cliDeps({ runner, ghAvailable = true, remoteUrl = 'https://github.com/acme/w.git' } = {}) {
   const out = []; const err = [];
@@ -164,7 +164,7 @@ test('link-records CLI: a blocked-by pair with a missing side is a malformed inv
 });
 
 test('parseRepo: dotted repo names survive; only a trailing .git is stripped', () => {
-  const { parseRepo } = require('../../../bin/link-records');
+  const { parseRepo } = require('../../../plugin/bin/link-records');
   assert.deepEqual(parseRepo('https://github.com/owner/my.repo.git'), { owner: 'owner', repo: 'my.repo' });
   assert.deepEqual(parseRepo('https://github.com/owner/my.repo'), { owner: 'owner', repo: 'my.repo' });
   assert.deepEqual(parseRepo('git@github.com:owner/repo.git'), { owner: 'owner', repo: 'repo' });

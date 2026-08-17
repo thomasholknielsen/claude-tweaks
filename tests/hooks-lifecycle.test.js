@@ -5,8 +5,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const sessionEnd = require('../bin/lib/hooks/session-end');
-const preCompact = require('../bin/lib/hooks/pre-compact');
+const sessionEnd = require('../plugin/bin/lib/hooks/session-end');
+const preCompact = require('../plugin/bin/lib/hooks/pre-compact');
 
 function mkRun(state) {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-lc-'));

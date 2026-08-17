@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { decide } = require('../../../bin/lib/docs-health/dedup');
+const { decide } = require('../../../plugin/bin/lib/docs-health/dedup');
 
 test('decide files a brand-new finding with no issue or cache match', () => {
   assert.deepStrictEqual(decide({ id: 'docshealth-abc' }, {}, {}), { action: 'file' });

@@ -3,8 +3,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   rankNextToBuild, blockersOf, findUnresolvedDependencyProse, transitiveUnblocksCount, buildChains,
-} = require('../../../bin/lib/issues/ranking');
-const { parseRecordFacets } = require('../../../bin/lib/issues/record');
+} = require('../../../plugin/bin/lib/issues/ranking');
+const { parseRecordFacets } = require('../../../plugin/bin/lib/issues/record');
 
 function candidate(overrides) {
   return {

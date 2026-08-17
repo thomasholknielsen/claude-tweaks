@@ -5,7 +5,7 @@ const {
   ISSUE_REF_SOURCE,
   extractIssueNumbers,
   generateWorkflowYaml,
-} = require('../bin/lib/issue-branch-tracking');
+} = require('../plugin/bin/lib/issue-branch-tracking');
 
 test('extractIssueNumbers matches GitHub closing keywords, case-insensitive', () => {
   const messages = [

@@ -1,21 +1,47 @@
 ---
 name: skill-prose-conformance-tests
-description: Use when adding or changing a `node --test` suite that pins the prose in `skills/**/*.md` — when reading live skill text is legitimate versus when to freeze a fixture, how to prove an assertion can actually go red, and how to byte-pin an executable snippet and run it. Keywords - prose test, conformance test, byte-pin, live corpus, fixture, skill markdown, live probe, IL-80.
+description: Use when adding or changing a `node --test` suite that pins the prose in `plugin/skills/**/*.md` — when reading live skill text is legitimate versus when to freeze a fixture, how to prove an assertion can actually go red, and how to byte-pin an executable snippet and run it. Keywords - prose test, conformance test, byte-pin, live corpus, fixture, skill markdown, live probe, IL-80.
 ---
 
 # Skill-prose conformance tests
 
 ## Overview
 
-This repo ships markdown as its product: `skills/**/*.md` is the payload, not documentation about it. So its correctness gets pinned the way code does — 36 of the 78 suites under `tests/` read a skill file and assert on its text. That makes prose-reading tests a first-class house pattern here, and one with a failure mode ordinary unit tests do not have: the subject is a file somebody is *supposed* to edit.
+This repo ships markdown as its product: `plugin/skills/**/*.md` is the payload, not documentation about it. So its correctness gets pinned the way code does — a large share of the suites under `tests/` read a skill file and assert on its text. That makes prose-reading tests a first-class house pattern here, and one with a failure mode ordinary unit tests do not have: the subject is a file somebody is *supposed* to edit.
 
 ## Key Patterns
 
 ### Read live prose only when the prose is the declared contract
 
-`tests/wrap-up-registry-pin.test.js` binds `skills/wrap-up/SKILL.md`'s Phase 2 registry table to the code registry it documents (`bin/lib/wrap-up/registry.js`). Reading the live file is correct there because updating that table *is* the intended response to a registry change. `tests/hooks-gate-coverage.test.js` states the same carve-out for the same reason; the two cite each other as the house pattern.
+`tests/wrap-up-registry-pin.test.js` binds `plugin/skills/wrap-up/SKILL.md`'s Phase 2 registry table to the code registry it documents (`plugin/bin/lib/wrap-up/registry.js`). Reading the live file is correct there because updating that table *is* the intended response to a registry change. `tests/hooks-gate-coverage.test.js` states the same carve-out for the same reason; the two cite each other as the house pattern.
 
-Everywhere else, freeze the input. `[IL-80]`: a test opened `skills/review/SKILL.md`, deleted its `## Relationship to Other Skills` section in memory, and asserted the loss checker reported ≥95% of the section's identifiers lost. It passed at 100% — and then the migration it was gating deleted that section from all 32 skills, and the test failed on its own precondition. It was not broken by a regression; it was invalidated by its own subject matter succeeding. The fix was to commit the file verbatim at the last pre-deletion commit as a fixture under `tests/fixtures/`, so the experiment keeps running on exactly the bytes that produced the recorded numbers.
+Everywhere else, freeze the input. `[IL-80]`: a test opened `plugin/skills/review/SKILL.md`, deleted its `## Relationship to Other Skills` section in memory, and asserted the loss checker reported ≥95% of the section's identifiers lost. It passed at 100% — and then the migration it was gating deleted that section from all 32 skills, and the test failed on its own precondition. It was not broken by a regression; it was invalidated by its own subject matter succeeding. The fix was to commit the file verbatim at the last pre-deletion commit as a fixture under `tests/fixtures/`, so the experiment keeps running on exactly the bytes that produced the recorded numbers.
+
+### Prove go-red with a frozen pre-change excerpt beside the live file
+
+`[IL-105]` says prove the assertion can go red; the mechanism this repo converged on three times is to freeze the bytes the change *replaced* as a fixture constant inside the test, then assert every pattern twice — it matches the live file, and it does **not** match the frozen excerpt. `tests/backlog-refine-reverify-before-write.test.js` and `tests/backlog-refine-closing-render.test.js` both wrap the pair in a one-claim-per-call helper:
+
+```js
+// The pre-change Step 5 opening (#764) — narration-allowance line followed directly by the
+// Priority/Related write block, no reverify subsection between them.
+const PRE_CHANGE_STEP_5_HEAD = `## Step 5: Apply
+
+*(Narration allowance: …)*
+
+**Priority/Related rows:** For every record the priority decision resolved to apply:
+`;
+
+// One claim per call: the pattern must match the shipped prose AND fail against the
+// pre-change text, so a green result proves the regex can actually go red [IL-105].
+function assertClaimPinned(pattern, missingMessage) {
+  assert.match(refineModeProse, pattern, missingMessage);
+  assert.doesNotMatch(PRE_CHANGE_STEP_5_HEAD, pattern, 'pattern must NOT match the pre-change text (proves it can go red)');
+}
+```
+
+The excerpt is a string literal in the test file, not a read of history, so it survives every later edit to the live file — the same reason `[IL-80]`'s fixture exists. `tests/backlog-narration-bounded-allowance.test.js` runs the identical fixture in the other direction for its retirement sweep: `assert.match(PRE_CHANGE_BANNER, pattern)` proves the sweep pattern is discriminating rather than vacuous, because it must catch the clause the change retired.
+
+**The blind spot: `doesNotMatch` passes for free when the control lacks the tokens.** An adjacency claim — two tokens joined by a `[\s\S]{0,N}` window — only goes red against the control when the control contains *both* tokens and separates them by more than `N`. A control that contains neither token, or only one, satisfies `doesNotMatch` for the wrong reason, and the window (the whole adjacency claim) is never exercised. `tests/backlog-refine-reverify-before-write.test.js`'s cross-reference test is exactly this case: `/Step 6 auto-apply table already applies the identical rule[\s\S]{0,150}step-6-auto\.md/` is checked against a `PRE_CHANGE_STEP_5_HEAD` that mentions neither token, so nothing tests that `150` — the pattern would still be green at any window width. For an adjacency or ordering claim, build the control so it carries the anchor and lacks only the thing being pinned, and run the *same* extraction over both: `tests/backlog-narration-bounded-allowance.test.js` calls `textAfterHeader(PRE_CHANGE_BANNER, '## Step 1: Fetch')`, so the frozen text supplies the header and the miss is attributable to the reminder's absence rather than the header's.
 
 ### Byte-pin an executable snippet, then run that same string
 

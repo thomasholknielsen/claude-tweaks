@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.95.0 — Cut plugin payload over to plugin/ with git-subdir marketplace source
+
+Cut plugin payload over to plugin/ with git-subdir marketplace source.
+
 ## v6.94.0 — Hand-scripted procedure CLIs — release-claim + log-decision with anchoring guards (#686); multi-spec run infrastructure — spec-status/manifest atomic writes, sanitizeWorktreeName, two-AskUserQuestion-stop cap, PR-first console merge-decision fold (#687-#693); Multi-Spec Review Console applied fixes for #741-#743; capture --batch multi-entry filing + character-budget cap + session-scoped temp paths (#781, #783, #784); bare /feedback session-evaluation guarantee + rubric sharpening (#785, #805); backlog refine dependency-repair log fix (#792); anchoring-guard bypass fixes in run-dir/decisions.md structural checks (#813)
 
 Hand-scripted procedure CLIs — release-claim + log-decision with anchoring guards (#686); multi-spec run infrastructure — spec-status/manifest atomic writes, sanitizeWorktreeName, two-AskUserQuestion-stop cap, PR-first console merge-decision fold (#687-#693); Multi-Spec Review Console applied fixes for #741-#743; capture --batch multi-entry filing + character-budget cap + session-scoped temp paths (#781, #783, #784); bare /feedback session-evaluation guarantee + rubric sharpening (#785, #805); backlog refine dependency-repair log fix (#792); anchoring-guard bypass fixes in run-dir/decisions.md structural checks (#813).

@@ -9,8 +9,8 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { POLICY_KEYS_READ } = require('../../../bin/lib/model-profiles/profiles');
-const { POLICY_KEYS } = require('../../../bin/lib/policy-schema');
+const { POLICY_KEYS_READ } = require('../../../plugin/bin/lib/model-profiles/profiles');
+const { POLICY_KEYS } = require('../../../plugin/bin/lib/policy-schema');
 
 test('every POLICY_KEYS_READ name is registered in POLICY_KEYS', () => {
   const registered = new Set(POLICY_KEYS.map((entry) => entry.key));

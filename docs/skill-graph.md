@@ -3,10 +3,9 @@
 Every relationship between claude-tweaks skills, stated once.
 
 This file is maintainer documentation. It is **not** part of the shipped plugin —
-`evals/runner.js`'s `PLUGIN_SNAPSHOT_DIRS` covers `.claude-plugin`, `skills`, `agents`,
-`hooks`, `bin`, and `commands`, not `docs/`. No skill reads it at runtime, and consuming
-projects have no use for a map of this plugin's internal wiring. That is why the content
-could leave the `SKILL.md` files at all.
+`docs/` is outside the plugin payload, the `plugin/` subtree (ADR-0015). No skill reads
+it at runtime, and consuming projects have no use for a map of this plugin's internal
+wiring. That is why the content could leave the `SKILL.md` files at all.
 
 Edges are stated once, not once per direction. The per-skill `## Relationship to Other
 Skills` tables it replaces stated each edge twice, and the two copies drifted.
@@ -20,6 +19,13 @@ alphabetically first side owns it. So a relationship involving `/review` may liv
 `/build`, and the `/review` section will not restate it. Non-skill targets — `_shared/*.md`
 fragments, `bin/` modules, design docs, `agents/qa-agent.md` — sit with the skill that
 depends on them.
+
+**Payload paths in this file are relative to the payload root**, i.e. the repo's `plugin/`
+subtree (ADR-0015) — the same root the bare `_shared/x.md` and `{skill}/{file}.md`
+citations throughout already assume. So `bin/lib/issues/record.js` below is
+`plugin/bin/lib/issues/record.js` in a checkout, and `skills/_shared/integration-branch.md`
+is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`docs/…`,
+`tests/…`, `evals/…`) are written from the repo root and are unambiguous by their prefix.
 
 ## assess-agent-autonomy
 
@@ -376,7 +382,7 @@ depends on them.
 | `/challenge` | Invokes `framing-check` inline (not a Task dispatch), once per record — each of Shaping mode's shaped records, decomposition mode's per sub-issue — immediately alongside the `ceremony-check` call, before the record's stage label is stamped. A `solution-baked` verdict stamps `solution:unjustified` and writes the surfaced assumptions into the record's own `## Gotchas`. Reciprocal of `/challenge`'s own `/specify` row, which carries the fuller mode/label contract. |
 | `/design-wrapper` | `/specify` invokes `/design-wrapper shape <topic>` (Step 2.5b) as a pre-decomposition step on frontend design docs, to enrich the doc with UX/UI planning. `/specify` asks the design-intent question and writes `Surface:` and `Design-intent:` as body-metadata lines (Step 2.5c + Step 3's per-sub-issue procedure, or Shaping mode's Metadata block per shaped record) — never frontmatter, never labels; the wrapper reads them from the materialized header spec 20 lifts them into (Layer 2 detection for `Surface:`, `polish`'s intent-driven dispatch for `Design-intent:`, active in v4.5.0). Step 2.5b-ii opens with a scope-resolved pre-check that offers `explore` first: absent a `DESIGN.md`, the identity tournament replaces today's single-scaffold offer outright, and a pick seeds `DESIGN.md` via upstream (`design_md: "seeded"`) with `live` intentionally not re-offered that round; with a `DESIGN.md` already locked, the layout tournament is offered ahead of `live` instead, and a pick's `visual_reference` feeds `live` on the winner. Either branch's `{skipped}` return falls through to today's single-scaffold offer unchanged. When the shape brief is confirmed, `/specify` may also invoke `live` mode (Step 2.5b-ii) against a throwaway scaffold and write an accepted direction's path as a `Visual-reference:` body-metadata line. `Design-seed:` is the exception in that block — `spec-template.md` declares it so it is a recognized field, but `/specify` never writes a value, because the seed comes from a direction contract that does not exist until the build has run; the wrapper's `review` mode writes it post-build (see this file's `demo` section). The full pre-step procedure lives in `specify/design-pre-steps.md`. |
 | `/help` | Shows which sub-issue records from `/specify` are `ready` for `/build` — also uses Key Files for implicit dependency detection. |
-| `/research` | Two edges. **Advisory (bare-topic):** prior-art lookup before authoring a record — `spec-template.md`'s Technical Approach section prompts citing an existing `/research` report's finding directly in Technical Approach or Gotchas, rather than re-deriving it (wired — `grep -rn "research" skills/specify/` resolves here). **Positional (`verify` mode):** `/research verify` runs *before* `/superpowers:brainstorming`, not after `/specify` — grounding the design `/specify` will later decompose, not the record `/specify` shapes. See the `## research` section's `/superpowers:brainstorming` row for the full position. |
+| `/research` | Two edges. **Advisory (bare-topic):** prior-art lookup before authoring a record — `spec-template.md`'s Technical Approach section prompts citing an existing `/research` report's finding directly in Technical Approach or Gotchas, rather than re-deriving it (wired — `grep -rn "research" plugin/skills/specify/` resolves here). **Positional (`verify` mode):** `/research verify` runs *before* `/superpowers:brainstorming`, not after `/specify` — grounding the design `/specify` will later decompose, not the record `/specify` shapes. See the `## research` section's `/superpowers:brainstorming` row for the full position. |
 | `/review` | Reads the `risk:*`/`size:*` labels this skill stamps (Shaping mode's "Stamp scoring and stage labels" step; decomposition mode's Step 3) to auto-derive its own `review-effort` tier (Step 2.5) — a read of the same labels via the same low-level helpers `assess-agent-autonomy`'s other modes already consume, not a skill-to-skill call. |
 | `/tidy` | Reviews backlog-stage records for staleness; its Promote action recommends `/specify #{n}` to shape a record into `ready`. Step 8's old backlog-entry deletion is retired — a captured record has no separate file to delete (Shaping mode edits it in place). |
 | `/superpowers:executing-plans` | Executes sub-issue records AFTER `/specify` — uses the plan from `/superpowers:writing-plans`, via `/build`'s batched execution strategy. |

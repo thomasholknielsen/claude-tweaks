@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SKILLS_DIR = path.join(__dirname, '..', 'skills');
+const SKILLS_DIR = path.join(__dirname, '..', 'plugin', 'skills');
 const FRAGMENT = '_shared/run-resume-freshness.md';
 
 // The three resume paths named in #676's own Current State — a fresh

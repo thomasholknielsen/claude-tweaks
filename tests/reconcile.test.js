@@ -7,15 +7,15 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { classifyMirror } = require('../bin/lib/reconcile/classify');
-const { mirrorFastForward } = require('../bin/lib/reconcile/mirror-ff');
-const { decideReap } = require('../bin/lib/reconcile/reap-merged');
-const { decideRelease } = require('../bin/lib/reconcile/release-merged');
-const { decideArchive, readConsoleState } = require('../bin/lib/reconcile/archive-merged');
-const { isWorktreeLocked } = require('../bin/lib/hooks/worktree-reap');
-const { reconcile } = require('../bin/lib/reconcile');
+const { classifyMirror } = require('../plugin/bin/lib/reconcile/classify');
+const { mirrorFastForward } = require('../plugin/bin/lib/reconcile/mirror-ff');
+const { decideReap } = require('../plugin/bin/lib/reconcile/reap-merged');
+const { decideRelease } = require('../plugin/bin/lib/reconcile/release-merged');
+const { decideArchive, readConsoleState } = require('../plugin/bin/lib/reconcile/archive-merged');
+const { isWorktreeLocked } = require('../plugin/bin/lib/hooks/worktree-reap');
+const { reconcile } = require('../plugin/bin/lib/reconcile');
 
-const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
+const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
 function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
   try {
@@ -277,7 +277,7 @@ function runDirFixture() {
 }
 
 test('archiveRunDir: the git mv of work/ is committed, not left staged (no uncommitted rename after archival)', () => {
-  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
   const { root, runDir, runId } = runDirFixture();
 
   const result = archiveRunDir(root, runDir);
@@ -298,7 +298,7 @@ test('archiveRunDir: the git mv of work/ is committed, not left staged (no uncom
 });
 
 test('archiveRunDir: run-state.json moves to the archived location with status: clean, not left orphaned at the old path', () => {
-  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
   const { root, runDir, runId } = runDirFixture();
 
   const result = archiveRunDir(root, runDir);
@@ -312,8 +312,8 @@ test('archiveRunDir: run-state.json moves to the archived location with status: 
 });
 
 test('archiveRunDir: the old run dir is removed once empty — a later iterRunDirsWithState pass never re-yields it', () => {
-  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
-  const { iterRunDirsWithState } = require('../bin/lib/hooks/context');
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { iterRunDirsWithState } = require('../plugin/bin/lib/hooks/context');
   const { root, runDir } = runDirFixture();
 
   archiveRunDir(root, runDir);
@@ -345,7 +345,7 @@ function mintEmptyRunDir(root, runId, { ageMs = 0 } = {}) {
 }
 
 test('isOrphanedMint: false when config.yml exists, regardless of age', () => {
-  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const dir = mintEmptyRunDir(root, '2026-08-01T000000-record-999', { ageMs: ORPHAN_MINT_TTL_MS * 2 });
   fs.writeFileSync(path.join(dir, 'config.yml'), 'x: 1\n');
@@ -353,21 +353,21 @@ test('isOrphanedMint: false when config.yml exists, regardless of age', () => {
 });
 
 test('isOrphanedMint: false when empty but within the grace window', () => {
-  const { isOrphanedMint } = require('../bin/lib/reconcile/archive-merged');
+  const { isOrphanedMint } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const dir = mintEmptyRunDir(root, '2026-08-15T000000-record-999');
   assert.strictEqual(isOrphanedMint(dir), false);
 });
 
 test('isOrphanedMint: true when empty (no config.yml) and older than the TTL', () => {
-  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const dir = mintEmptyRunDir(root, '2026-08-01T000000-record-999', { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
   assert.strictEqual(isOrphanedMint(dir), true);
 });
 
 test('archiveMerged: an orphaned mint older than the TTL is archived on the next sweep, not left in place', () => {
-  const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const runId = '2026-08-01T120000-record-999';
   mintEmptyRunDir(root, runId, { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
@@ -381,7 +381,7 @@ test('archiveMerged: an orphaned mint older than the TTL is archived on the next
 });
 
 test('archiveMerged: an orphaned mint within the TTL is left in place, not archived', () => {
-  const { archiveMerged } = require('../bin/lib/reconcile/archive-merged');
+  const { archiveMerged } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const runId = '2026-08-15T120000-record-999';
   const dir = mintEmptyRunDir(root, runId);
@@ -484,7 +484,7 @@ test('reconcile: reap dispatches strictly after release and archive in source or
   // Pinned structurally, the same way tests/hooks-gate-coverage.test.js
   // pins prose to code — a real ordering regression here has no other test
   // that would catch it without fabricating live PR/claim state.
-  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
   const releaseIdx = src.indexOf("checks.includes('release')");
   const archiveIdx = src.indexOf("checks.includes('archive')");
   const reapIdx = src.lastIndexOf("checks.includes('reap')"); // the pr-first dispatch, not the local-merge fallback above it
@@ -494,13 +494,13 @@ test('reconcile: reap dispatches strictly after release and archive in source or
 });
 
 test('reconcile: ALL_CHECKS includes red-tip immediately after mirror', () => {
-  const { ALL_CHECKS } = require('../bin/lib/reconcile');
+  const { ALL_CHECKS } = require('../plugin/bin/lib/reconcile');
   const mirrorIdx = ALL_CHECKS.indexOf('mirror');
   assert.strictEqual(ALL_CHECKS[mirrorIdx + 1], 'red-tip', 'red-tip must be the entry immediately after mirror');
 });
 
 test('reconcile: red-tip dispatches immediately after mirror in source order (load-bearing — reads the ref mirror-ff just fetched)', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
   const mirrorIdx = src.indexOf("checks.includes('mirror')");
   const redTipIdx = src.indexOf("checks.includes('red-tip')");
   const consoleIdx = src.indexOf("checks.includes('console')");

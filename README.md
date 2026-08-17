@@ -91,7 +91,7 @@ Every unit of work — a captured idea, a health-skill finding, or a human-filed
 BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/flow claims──► BUILDING ──user merges──► CLOSED
 ```
 
-- **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction). Under `autonomy: trusted` or higher, once the `producer:capture` class has earned a `clean` trust verdict, a capture reaches `ready` at filing time too — by chaining into `/claude-tweaks:specify --chained` shaping, which stamps `ready` under its own authority — see `skills/_shared/autonomy-ceiling.md`.
+- **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction). Under `autonomy: trusted` or higher, once the `producer:capture` class has earned a `clean` trust verdict, a capture reaches `ready` at filing time too — by chaining into `/claude-tweaks:specify --chained` shaping, which stamps `ready` under its own authority — see `plugin/skills/_shared/autonomy-ceiling.md`.
 - **ready** — spec-shaped and agent-sized. `/claude-tweaks:specify` gets a record here, either by shaping it in place or by decomposing a design doc into a parent record plus ready sub-issues.
 - **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:backlog refine` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one. The `autonomy` ceiling defines one machine-origination exception at its `unattended` tier, gated behind a second, explicit opt-in (`grant-origination-enabled` in `policy.yml`, off by default): `/claude-tweaks:backlog grant`, the headless machine-grant mode, is the one path that reads both keys and acts on them, itself narrowed by a per-record gate chain (clean trust verdict, agent-filed origin, content-aware review, no floor trip).
 - **building** — an agent holds the claim. `/claude-tweaks:dispatch` selects an authorized record's whole file-overlap group and mints its run directory; `/claude-tweaks:flow` claims the group at its own Step 2.8, whether dispatched or run directly.
@@ -106,7 +106,7 @@ Two storage drivers back the same taxonomy, set once by `/claude-tweaks:init` an
 | `work-backend: github-issues` | A GitHub issue | Labels express stage/scoring/grants/bot-state; native GitHub Issue Types or `type:*` labels express Type. Headless dispatch (`/claude-tweaks:dispatch`) requires this driver — GitHub's RBAC is the mechanism the authorization model depends on. |
 | `work-backend: local-files` | `specs/{id}-{slug}.md`, one file per record | Frontmatter expresses the same facets for isomorphism. `/claude-tweaks:backlog refine`'s grants are recorded but have no headless consumer — run `/claude-tweaks:flow`/`/claude-tweaks:build` manually against a chosen record instead. |
 
-See `skills/_shared/work-record.md` for the full axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state, Acceptance), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
+See `plugin/skills/_shared/work-record.md` for the full axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state, Acceptance), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
 
 ## Skills
 

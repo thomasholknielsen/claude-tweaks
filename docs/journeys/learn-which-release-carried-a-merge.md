@@ -1,10 +1,10 @@
 ---
 files:
-  - bin/release.js
-  - bin/lib/release/status.js
-  - skills/_shared/pr-first-merge.md
-  - skills/_shared/pr-run-comments.md
-  - skills/flow/summary-template.md
+  - plugin/bin/release.js
+  - plugin/bin/lib/release/status.js
+  - plugin/skills/_shared/pr-first-merge.md
+  - plugin/skills/_shared/pr-run-comments.md
+  - plugin/skills/flow/summary-template.md
   - docs/releasing.md
 ---
 
@@ -18,17 +18,17 @@ files:
 ## Steps
 
 ### 1. Ask the subcommand — terminal or Step 4.1
-- **URL:** `node bin/release.js status --merge <merge-sha> --records <n>[,<m>...] --ref origin/main --json` (Step 4.1 runs the plugin-root form, `node "${CLAUDE_PLUGIN_ROOT}/bin/release.js" status …`, after `git fetch origin main`)
-- **Action:** Pass the merge commit and the record numbers the merge carried (from the materialized header's `record:` or the PR body's `Fixes #{n}` lines — never guessed). The subcommand walks the version-bump commits reachable from `--ref` (commits that changed `.claude-plugin/plugin.json#version`), newest → oldest with `--topo-order`, and keeps the *oldest* bump that still has the merge as an ancestor — the release that first carried it — then checks which `#N` tokens (ranges like `#620-#625` count) that version's CHANGELOG entry names.
+- **URL:** `node plugin/bin/release.js status --merge <merge-sha> --records <n>[,<m>...] --ref origin/main --json` (Step 4.1 runs the plugin-root form, `node "${CLAUDE_PLUGIN_ROOT}/bin/release.js" status …` — `CLAUDE_PLUGIN_ROOT` already points at the payload, so it carries no `plugin/` segment — after `git fetch origin main`)
+- **Action:** Pass the merge commit and the record numbers the merge carried (from the materialized header's `record:` or the PR body's `Fixes #{n}` lines — never guessed). The subcommand walks the version-bump commits reachable from `--ref` (commits that changed the manifest's `#version`), newest → oldest with `--topo-order`, and keeps the *oldest* bump that still has the merge as an ancestor — the release that first carried it — then checks which `#N` tokens (ranges like `#620-#625` count) that version's CHANGELOG entry names. The walk spans BOTH manifest spellings, because #418's payload cutover moved it: history after the cutover carries `plugin/.claude-plugin/plugin.json`, history before it carries `.claude-plugin/plugin.json`, and a walk pinned to one spelling would report every commit on the other side as never having shipped a version.
 - **Should feel:** Instant and unambiguous — one JSON object or one sentence, exit 0, no `gh`, no network beyond the fetch the caller already did.
 - **Should understand:** `{"shipped": false}` means the merge is newer than every bump — a bump is pending. `{"shipped": true, "version": "X", …, "missing": [...]}` names the carrying version and exactly which records its entry misses (`missing: []` when every record is named; `entryFound: false` when the version has no entry at all).
-- **Red flags:** A reassuring "not yet in a release" for a sha that doesn't exist (the guard is `git rev-parse --verify --quiet <sha>^{commit}` — a bad sha exits 1, never 0); a "backfill needed" for a record the entry names inside a range; any answer at all for a ref with no `.claude-plugin/plugin.json` (exit 1: `no plugin manifest at {ref}`).
+- **Red flags:** A reassuring "not yet in a release" for a sha that doesn't exist (the guard is `git rev-parse --verify --quiet <sha>^{commit}` — a bad sha exits 1, never 0); a "backfill needed" for a record the entry names inside a range; any answer at all for a ref carrying neither manifest spelling — `plugin/.claude-plugin/plugin.json` nor `.claude-plugin/plugin.json` (exit 1: `no plugin manifest at {ref}`).
 
 ### 2. Read the human line in the closing report — flow summary / PR
 - **URL:** `/claude-tweaks:flow`'s Pipeline Summary (`**Release status:**` line) — or the PR's `release-status` comment (`<!-- run-comment: release-status -->`)
 - **Action:** Read the one line: `not yet in a release — bump pending` / `already carried by vX.Y.Z — every record named in CHANGELOG` / `already carried by vX.Y.Z — CHANGELOG backfill needed: #A, #B` / `already carried by vX.Y.Z — CHANGELOG has no vX.Y.Z entry; backfill needed: #A, #B` / `n/a — no plugin manifest at {ref}` / `release status unavailable — {reason}` / `n/a — not merged in this run (outcome: {armed | pending-review})`.
 - **Should feel:** Like a status light, not a paragraph — the same words every time, so a glance suffices and a grep works.
-- **Should understand:** Only the two backfill forms owe anyone work; "bump pending" means the next `node bin/release.js <minor|patch>` will write the records up normally.
+- **Should understand:** Only the two backfill forms owe anyone work; "bump pending" means the next `node plugin/bin/release.js <minor|patch>` will write the records up normally.
 - **Red flags:** A paraphrased line (the vocabulary is fixed — the report quotes it verbatim); a `**Backfill:**` line with no staged path or PR comment behind it.
 
 ### 3. Apply a backfill — scratch worktree PR

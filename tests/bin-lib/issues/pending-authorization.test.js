@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { isPendingAuthorization } = require('../../../bin/lib/issues/pending-authorization');
+const { isPendingAuthorization } = require('../../../plugin/bin/lib/issues/pending-authorization');
 
 function facets({ build = false, merge = false, inProgress = false, blocked = false } = {}) {
   return { grants: { build, merge }, bot: { inProgress, blocked } };

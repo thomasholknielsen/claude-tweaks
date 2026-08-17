@@ -4,8 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { execFileSync } = require('node:child_process');
-const { probePipelineRuns } = require('../../../bin/lib/residue/probes/pipeline-runs');
-const { archiveRunDir } = require('../../../bin/lib/reconcile/archive-merged');
+const { probePipelineRuns } = require('../../../plugin/bin/lib/residue/probes/pipeline-runs');
+const { archiveRunDir } = require('../../../plugin/bin/lib/reconcile/archive-merged');
 
 function makeFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'residue-pipeline-runs-'));

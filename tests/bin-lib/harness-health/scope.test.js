@@ -9,8 +9,8 @@ const {
   listRules, parseRulePaths, listClaudeMd, listTargets,
   readDesignIntegrationFlag, listDesignArtifacts,
   listMemory, selectMemoryTarget,
-} = require('../../../bin/lib/harness-health/scope');
-const { STALE_DAYS } = require('../../../bin/lib/harness-health/score');
+} = require('../../../plugin/bin/lib/harness-health/scope');
+const { STALE_DAYS } = require('../../../plugin/bin/lib/harness-health/score');
 
 function tmp(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-scope-'));

@@ -14,7 +14,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const pre = require('../bin/lib/hooks/pre-tool-use');
+const pre = require('../plugin/bin/lib/hooks/pre-tool-use');
 const { isPolicyOnlyCommit, POLICY_COMMIT_ALLOWLIST } = pre;
 
 // Sibling suites contending for the same machine can push a plain git init/

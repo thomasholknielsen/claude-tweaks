@@ -11,12 +11,12 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const SCRATCH = read('skills', '_shared', 'scratch-worktree.md');
-const SETUP = read('skills', '_shared', 'worktree-setup.md');
-const MERGE = read('skills', '_shared', 'pr-first-merge.md');
-const MERGE_POST_MERGE = read('skills', '_shared', 'pr-first-merge-post-merge.md');
-const CLEANUP = read('skills', 'wrap-up', 'cleanup-procedures.md');
-const CLEANUP_PROCEDURES_EXECUTION = read('skills', 'wrap-up', 'cleanup-procedures-execution.md');
+const SCRATCH = read('plugin', 'skills', '_shared', 'scratch-worktree.md');
+const SETUP = read('plugin', 'skills', '_shared', 'worktree-setup.md');
+const MERGE = read('plugin', 'skills', '_shared', 'pr-first-merge.md');
+const MERGE_POST_MERGE = read('plugin', 'skills', '_shared', 'pr-first-merge-post-merge.md');
+const CLEANUP = read('plugin', 'skills', 'wrap-up', 'cleanup-procedures.md');
+const CLEANUP_PROCEDURES_EXECUTION = read('plugin', 'skills', 'wrap-up', 'cleanup-procedures-execution.md');
 
 // --- 1. scratch-worktree.md §6: ancestry check + both outcomes ---
 

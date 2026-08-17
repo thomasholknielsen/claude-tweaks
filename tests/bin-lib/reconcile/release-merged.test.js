@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { decideRelease, releasedEntry, writeTombstone } = require('../../../bin/lib/reconcile/release-merged');
+const { decideRelease, releasedEntry, writeTombstone } = require('../../../plugin/bin/lib/reconcile/release-merged');
 
 // AC1: open PR always wins over issue-closed evidence
 test('decideRelease: live claim + open PR + closed issue -> skip pr-open', () => {

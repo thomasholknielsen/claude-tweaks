@@ -8,7 +8,7 @@ const path = require('path');
 
 const { seedDurableState } = require('../health-core/seed-durable-state');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'bin', 'harness-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'harness-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-vf-')); }
 

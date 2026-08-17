@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { evaluateQaEvidence } = require('../../../bin/lib/journey-health/qa-evidence');
+const { evaluateQaEvidence } = require('../../../plugin/bin/lib/journey-health/qa-evidence');
 
 const NOW = Date.parse('2026-07-11T00:00:00.000Z');
 

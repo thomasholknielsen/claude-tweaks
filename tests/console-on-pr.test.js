@@ -11,10 +11,10 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const CONSOLE_ON_PR = read('skills', '_shared', 'console-on-pr.md');
-const REVIEW_CONSOLE = read('skills', 'wrap-up', 'review-console.md');
-const REVIEW_CONSOLE_INTERACTIVE = read('skills', 'wrap-up', 'review-console-interactive.md');
-const MULTISPEC_CONSOLE = read('skills', 'flow', 'multispec-review-console.md');
+const CONSOLE_ON_PR = read('plugin', 'skills', '_shared', 'console-on-pr.md');
+const REVIEW_CONSOLE = read('plugin', 'skills', 'wrap-up', 'review-console.md');
+const REVIEW_CONSOLE_INTERACTIVE = read('plugin', 'skills', 'wrap-up', 'review-console-interactive.md');
+const MULTISPEC_CONSOLE = read('plugin', 'skills', 'flow', 'multispec-review-console.md');
 
 test('the gate is integration-model: pr-first AND a pr object on run-state.json', () => {
   assert.match(CONSOLE_ON_PR, /Canonical for `integration-model: pr-first`/);

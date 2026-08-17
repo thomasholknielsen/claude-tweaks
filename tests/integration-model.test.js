@@ -6,9 +6,9 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { detectIntegrationModel, resolvePolicyKeys, POLICY_KEYS } = require('../bin/lib/policy-schema');
+const { detectIntegrationModel, resolvePolicyKeys, POLICY_KEYS } = require('../plugin/bin/lib/policy-schema');
 
-const RESOLVE_POLICY = path.join(__dirname, '..', 'bin', 'resolve-policy.js');
+const RESOLVE_POLICY = path.join(__dirname, '..', 'plugin', 'bin', 'resolve-policy.js');
 const REPO_ROOT = path.join(__dirname, '..');
 
 function gitRepo({ remote } = {}) {
@@ -104,7 +104,7 @@ test('CLI: this repo (real gh session) resolves a valid enum value with no polic
 // shape: any file mentioning the resolved key routes on it and must cite the
 // canonical fragment, or state why not.
 
-const SKILLS_DIR = path.join(__dirname, '..', 'skills');
+const SKILLS_DIR = path.join(__dirname, '..', 'plugin', 'skills');
 const FRAGMENT = '_shared/integration-model.md';
 const TOKEN = /integration-model/;
 

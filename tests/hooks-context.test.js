@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
-const ctx = require('../bin/lib/hooks/context');
+const ctx = require('../plugin/bin/lib/hooks/context');
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-hooks-'));
@@ -160,7 +160,7 @@ test('writeRunState serializes concurrent writers under an effectively-unbounded
 
   const WORKERS = 8;
   const ITERATIONS = 40;
-  const contextPath = path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'context.js');
+  const contextPath = path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'hooks', 'context.js');
   const workerScript = (i) => `
     const ctx = require(${JSON.stringify(contextPath)});
     for (let n = 0; n < ${ITERATIONS}; n++) {
@@ -208,7 +208,7 @@ test('writeRunState under the fail-open path (budget=0) — every worker still e
 
   const WORKERS = 8;
   const ITERATIONS = 40;
-  const contextPath = path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'context.js');
+  const contextPath = path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'hooks', 'context.js');
   const workerScript = (i) => `
     const ctx = require(${JSON.stringify(contextPath)});
     for (let n = 0; n < ${ITERATIONS}; n++) {

@@ -4,9 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { listSkillDirs, KNOWN_SKILLS } = require('../bin/lib/skill-audit/skill-catalog');
+const { listSkillDirs, KNOWN_SKILLS } = require('../plugin/bin/lib/skill-audit/skill-catalog');
 
-const SKILLS_DIR = path.join(__dirname, '..', 'skills');
+const SKILLS_DIR = path.join(__dirname, '..', 'plugin', 'skills');
 const ROOT = path.join(__dirname, '..');
 
 const CANONICAL_DIRECTIVE =
@@ -18,7 +18,7 @@ const CANONICAL_DIRECTIVE =
   'documented machine-consumed decision, named inline.';
 
 function skillNames() {
-  return listSkillDirs(ROOT);
+  return listSkillDirs(path.join(ROOT, 'plugin'));
 }
 
 const read = (name) => fs.readFileSync(path.join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');

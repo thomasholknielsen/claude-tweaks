@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SKILLS = path.join(__dirname, '..', 'skills');
+const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const GATE_FILE = path.join(SKILLS, '_shared', 'pr-first-merge.md');
 const read = (...p) => fs.readFileSync(path.join(SKILLS, ...p), 'utf8');
 

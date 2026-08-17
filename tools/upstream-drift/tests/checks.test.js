@@ -136,7 +136,7 @@ test('checkAssertions: ok when the literal is present in the resolved file', () 
   const entry = {
     name: 'impeccable-cli',
     assertions: [
-      { file: 'skills/design-wrapper/impeccable-cli.md', claims: 'writes findings to stdout', 'upstream-path': 'cli/engine/cli/main.mjs', 'must-match': 'process.stdout.write(formatFindings' },
+      { file: 'plugin/skills/design-wrapper/impeccable-cli.md', claims: 'writes findings to stdout', 'upstream-path': 'cli/engine/cli/main.mjs', 'must-match': 'process.stdout.write(formatFindings' },
     ],
   };
   const result = checkAssertions(entry, { root });
@@ -211,7 +211,7 @@ test('checkAssertions: must-match containing regex metacharacters matches as a L
   const entry = {
     name: 'impeccable-plugin',
     assertions: [
-      { file: 'skills/design-wrapper/command-map.md', claims: 'exposes a polish command', 'upstream-path': 'skills/impeccable/SKILL.md', 'must-match': 'polish [target]' },
+      { file: 'plugin/skills/design-wrapper/command-map.md', claims: 'exposes a polish command', 'upstream-path': 'skills/impeccable/SKILL.md', 'must-match': 'polish [target]' },
     ],
   };
   const result = checkAssertions(entry, { root });

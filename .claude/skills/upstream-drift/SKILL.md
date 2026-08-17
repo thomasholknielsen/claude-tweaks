@@ -24,7 +24,7 @@ tools/upstream-drift/manifest.yml
 
 `allowed-tools` is declared to **restrict**, per CLAUDE.md: `Edit` and `Write` are deliberately absent, which is what makes "never edits anything" a contract rather than a promise. `Task` is present because Step 2 dispatches — a declared set that omits a tool the skill actually uses is a bug, not a tighter restriction.
 
-**Not shipped.** This is maintainer-only tooling. It lives under `.claude/skills/` — a project-local skill, loaded only when working in this repo, never for plugin consumers. It is deliberately **not** under `skills/`, which is the plugin's shipped payload. For the same reason its frontmatter `name` is the bare `upstream-drift` rather than CLAUDE.md's `claude-tweaks:{skill}` form: that namespace belongs to the shipped plugin, and claiming it here would imply this skill ships. The deviation is intentional, not drift.
+**Not shipped.** This is maintainer-only tooling. It lives under `.claude/skills/` — a project-local skill, loaded only when working in this repo, never for plugin consumers. It is deliberately **not** under `plugin/skills/`, which is the plugin's shipped payload — #418 moved that payload into `plugin/`; this skill stayed at the repo root because it never ships. For the same reason its frontmatter `name` is the bare `upstream-drift` rather than CLAUDE.md's `claude-tweaks:{skill}` form: that namespace belongs to the shipped plugin, and claiming it here would imply this skill ships. The deviation is intentional, not drift.
 
 ## When to Use
 
@@ -32,7 +32,7 @@ tools/upstream-drift/manifest.yml
 - You want to know what upstream can do that this repo has never used — the class of finding no assertion can produce, because there is nothing yet to assert against.
 - A pin in `tools/upstream-drift/manifest.yml` changed, or you added an entry, and you want to see what the checks say about it now.
 
-Not for: editing upstream, or editing `skills/**`. This skill produces findings; when they should become `by:upstream-drift` GitHub issues, `tools/upstream-drift/run.js` emits the deduplicated payloads on stdout and the caller — this skill's user, or a human piping the output — files them. Not for auditing this repo's own harness documentation — that is `/claude-tweaks:harness-health`.
+Not for: editing upstream, or editing `plugin/skills/**`. This skill produces findings; when they should become `by:upstream-drift` GitHub issues, `tools/upstream-drift/run.js` emits the deduplicated payloads on stdout and the caller — this skill's user, or a human piping the output — files them. Not for auditing this repo's own harness documentation — that is `/claude-tweaks:harness-health`.
 
 ## Input
 
@@ -68,7 +68,7 @@ Filter to `--dep` if given. Under `--capability-only`, still run this step — t
 
 > **Parallel execution (conditional):** When more than one dependency is due, dispatch one Task agent per dependency. Otherwise, run Step 4 sequentially in the main thread.
 
-Each dependency is fully independent — different upstream repos, different tags, different contract roots — so there is no shared state to serialize. When dispatching, follow `skills/_shared/subagent-output-contract.md`: give each agent a `Standard` model tier, the minimal input (the dependency's manifest entry, its Step 1 results, the repository root), and **inline the entire body of `judge-procedure.md` below its horizontal rule, verbatim**, into the agent's prompt. Agents see only their own prompt; a pointer to the file does not reach them. Require the four-value status line (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`) as the first line of the reply.
+Each dependency is fully independent — different upstream repos, different tags, different contract roots — so there is no shared state to serialize. When dispatching, follow `plugin/skills/_shared/subagent-output-contract.md`: give each agent a `Standard` model tier, the minimal input (the dependency's manifest entry, its Step 1 results, the repository root), and **inline the entire body of `judge-procedure.md` below its horizontal rule, verbatim**, into the agent's prompt. Agents see only their own prompt; a pointer to the file does not reach them. Require the four-value status line (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`) as the first line of the reply.
 
 Skip this step entirely under `--drift-only`.
 

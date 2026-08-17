@@ -10,8 +10,8 @@ const {
   bodyOutsideSection,
   rowIdentifiers,
   compareTables,
-} = require('../../../bin/lib/skill-audit/anti-patterns.js');
-const { listSkillDirs, KNOWN_SKILLS } = require('../../../bin/lib/skill-audit/skill-catalog.js');
+} = require('../../../plugin/bin/lib/skill-audit/anti-patterns.js');
+const { listSkillDirs, KNOWN_SKILLS } = require('../../../plugin/bin/lib/skill-audit/skill-catalog.js');
 
 const SAMPLE = [
   '# Some skill',
@@ -116,9 +116,11 @@ test('compareTables CATCHES a dropped identifier inside a surviving row', () => 
 });
 
 test('every shipped skill has a parseable Anti-Patterns table', () => {
-  const skillsDir = path.join(__dirname, '..', '..', '..', 'skills');
-  const repoRoot = path.join(__dirname, '..', '..', '..');
-  const names = listSkillDirs(repoRoot);
+  const skillsDir = path.join(__dirname, '..', '..', '..', 'plugin', 'skills');
+  // listSkillDirs resolves `skills/` directly beneath the root it is given —
+  // that root is the plugin payload root (`plugin/`), not the repo root.
+  const pluginRoot = path.join(__dirname, '..', '..', '..', 'plugin');
+  const names = listSkillDirs(pluginRoot);
   // Directory-derived, not a hard-coded `33` -- see skill-catalog.js.
   assert.ok(names.length >= 30, `expected the whole skill corpus, found ${names.length}`);
   for (const known of KNOWN_SKILLS) {

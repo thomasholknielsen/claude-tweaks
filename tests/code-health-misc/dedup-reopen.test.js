@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { decide } = require('../../bin/lib/code-health/dedup');
+const { decide } = require('../../plugin/bin/lib/code-health/dedup');
 
 const finding = { fingerprint: 'fp-abc', risk: 'high', title: 'Oversized module' };
 

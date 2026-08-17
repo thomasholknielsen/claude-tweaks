@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const {
   iterBumpCommits, findBumpCommits, carryingBump, changelogCoverage, releaseStatus,
   formatStatusLine, formatBackfillSection,
-} = require('../../../bin/lib/release/status.js');
+} = require('../../../plugin/bin/lib/release/status.js');
 
 const manifest = (v) => JSON.stringify({ name: 'claude-tweaks', version: v }, null, 2);
 
@@ -22,12 +22,12 @@ function makeDeps({ contains = {}, changelog = '' } = {}) {
     calls.push(key);
     if (key.startsWith('cat-file -e ')) return '';
     if (key.startsWith('log --format=%H ')) return 'B2\nB1\nE\nR\n';
-    let m = /^show (\w+)\^:\.claude-plugin\/plugin\.json$/.exec(key);
+    let m = /^show (\w+)\^:plugin\/\.claude-plugin\/plugin\.json$/.exec(key);
     if (m) {
       if (!parent[m[1]]) throw new Error(`fatal: invalid object name '${m[1]}^'`);
       return manifests[parent[m[1]]];
     }
-    m = /^show (\w+):\.claude-plugin\/plugin\.json$/.exec(key);
+    m = /^show (\w+):plugin\/\.claude-plugin\/plugin\.json$/.exec(key);
     if (m) return manifests[m[1]];
     m = /^merge-base --is-ancestor (\w+) (\w+)$/.exec(key);
     if (m) {
@@ -58,7 +58,7 @@ test('findBumpCommits keeps only commits whose manifest version differs from the
 test('findBumpCommits scopes the log to the ref it was given, topologically ordered', () => {
   const { deps, calls } = makeDeps();
   findBumpCommits(deps, 'origin/main');
-  assert.ok(calls.includes('log --format=%H --topo-order origin/main -- .claude-plugin/plugin.json'), calls.join('\n'));
+  assert.ok(calls.includes('log --format=%H --topo-order origin/main -- plugin/.claude-plugin/plugin.json .claude-plugin/plugin.json'), calls.join('\n'));
 });
 
 test('findBumpCommits rethrows git errors that are not "no parent"', () => {
@@ -71,7 +71,7 @@ test('findBumpCommits rethrows git errors that are not "no parent"', () => {
 });
 
 test('findBumpCommits hard-fails when the ref has no plugin manifest at all', () => {
-  const git = (args) => { if (args.join(' ').startsWith('cat-file -e ')) throw new Error("fatal: path '.claude-plugin/plugin.json' does not exist in 'main'"); throw new Error('unreachable'); };
+  const git = (args) => { if (args.join(' ').startsWith('cat-file -e ')) throw new Error("fatal: path 'plugin/.claude-plugin/plugin.json' does not exist in 'main'"); throw new Error('unreachable'); };
   const deps = { git, readFile: () => '' };
   assert.throws(() => findBumpCommits(deps, 'main'), /no plugin manifest at main/);
 });
@@ -208,7 +208,7 @@ test('iterBumpCommits wraps a malformed primary manifest with the commit it fail
     const key = args.join(' ');
     if (key.startsWith('cat-file -e ')) return '';
     if (key.startsWith('log --format=%H ')) return 'X\n';
-    if (key === 'show X:.claude-plugin/plugin.json') return 'not-json';
+    if (key === 'show X:plugin/.claude-plugin/plugin.json') return 'not-json';
     throw new Error(`unexpected git: ${key}`);
   };
   const deps = { git, readFile: () => '' };
@@ -230,7 +230,7 @@ test('iterBumpCommits reports a bad ref as "could not resolve", not "no plugin m
 test('iterBumpCommits still reports "no plugin manifest" for a genuinely missing path at a valid ref', () => {
   const git = (args) => {
     if (args.join(' ').startsWith('cat-file -e ')) {
-      throw new Error("fatal: path '.claude-plugin/plugin.json' does not exist in 'HEAD'");
+      throw new Error("fatal: path 'plugin/.claude-plugin/plugin.json' does not exist in 'HEAD'");
     }
     throw new Error('unreachable');
   };
@@ -267,13 +267,13 @@ test('carryingBump walks iterBumpCommits lazily — never reads manifests past t
     const key = args.join(' ');
     if (key.startsWith('cat-file -e ')) return '';
     if (key.startsWith('log --format=%H ')) return 'C4\nC3\nC2\nC1\n';
-    let m = /^show (\w+)\^:\.claude-plugin\/plugin\.json$/.exec(key);
+    let m = /^show (\w+)\^:plugin\/\.claude-plugin\/plugin\.json$/.exec(key);
     if (m) {
       testedShas.add(m[1]);
       if (!parent[m[1]]) throw new Error(`fatal: invalid object name '${m[1]}^'`);
       return manifests[parent[m[1]]];
     }
-    m = /^show (\w+):\.claude-plugin\/plugin\.json$/.exec(key);
+    m = /^show (\w+):plugin\/\.claude-plugin\/plugin\.json$/.exec(key);
     if (m) { testedShas.add(m[1]); return manifests[m[1]]; }
     m = /^merge-base --is-ancestor (\w+) (\w+)$/.exec(key);
     if (m) {

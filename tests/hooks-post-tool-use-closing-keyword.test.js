@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const post = require('../bin/lib/hooks/post-tool-use');
+const post = require('../plugin/bin/lib/hooks/post-tool-use');
 
 function gitRepoWithMessage(message, dateOverride) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ck-'));

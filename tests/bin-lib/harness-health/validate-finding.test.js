@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { validateFinding } = require('../../../bin/lib/harness-health/validate-finding');
+const { validateFinding } = require('../../../plugin/bin/lib/harness-health/validate-finding');
 
 function validPatch(overrides = {}) {
   return {

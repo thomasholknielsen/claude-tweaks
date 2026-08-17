@@ -24,7 +24,7 @@ node_modules/
 !.claude-tweaks/pipelines/archive/*/spec-*/work/**
 .claude-tweaks/research/
 # Local finding caches — all four health skills write .claude-tweaks/{skill}/cache.json
-# (bin/lib/health-core/cache.js). Listed individually, never as a blanket
+# (plugin/bin/lib/health-core/cache.js). Listed individually, never as a blanket
 # .claude-tweaks/ rule, because .claude-tweaks/routines/*.yml is meant to be committed.
 .claude-tweaks/code-health/
 .claude-tweaks/harness-health/

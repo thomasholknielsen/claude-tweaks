@@ -2,15 +2,15 @@ name: dispatch-local-files-preflight-stop
 description: >
   Regression check for the same class of Preflight-boundary violation the
   backlog-refine-permission-matrix-compliance scenario found and fixed in
-  skills/backlog/SKILL.md (see .superpowers/sdd/task-9-report.md): does
+  plugin/skills/backlog/SKILL.md (see .superpowers/sdd/task-9-report.md): does
   /claude-tweaks:dispatch actually stop under work-backend: local-files
   rather than proceeding to claim and build a record that would look
   authorized (grants.build: true, stage: ready) under github-issues?
-  dispatch's own Preflight (skills/dispatch/SKILL.md) originally used the
+  dispatch's own Preflight (plugin/skills/dispatch/SKILL.md) originally used the
   same "point the user at X manually and stop" phrasing that proved
   insufficient in triage's own real, twice-reproduced run; it was
   strengthened to the same explicit stop language as part of this
-  branch's final-review follow-up (see skills/dispatch/SKILL.md's Preflight
+  branch's final-review follow-up (see plugin/skills/dispatch/SKILL.md's Preflight
   section) BEFORE any real run against this scenario was made — so the
   first real run here is a confirming run for the fix, not evidence a bug
   exists. The fixture is a realistic, /init'd project (base: init-baseline

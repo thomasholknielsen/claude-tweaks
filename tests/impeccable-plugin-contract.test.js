@@ -23,8 +23,8 @@ const { loadManifest } = require('../tools/upstream-drift/manifest');
 
 const REPO_ROOT = path.join(__dirname, '..');
 const FIXTURES = path.join(__dirname, 'fixtures', 'impeccable-plugin');
-const CONTRACT_DOC = path.join(REPO_ROOT, 'skills', 'design-wrapper', 'impeccable-plugin.md');
-const DETECTION_DOC = path.join(REPO_ROOT, 'skills', 'design-wrapper', 'frontend-detection.md');
+const CONTRACT_DOC = path.join(REPO_ROOT, 'plugin', 'skills', 'design-wrapper', 'impeccable-plugin.md');
+const DETECTION_DOC = path.join(REPO_ROOT, 'plugin', 'skills', 'design-wrapper', 'frontend-detection.md');
 const SCRIPT_REL = path.join('skills', 'impeccable', 'scripts', 'context-signals.mjs');
 
 const manifest = loadManifest(path.join(REPO_ROOT, 'tools', 'upstream-drift', 'manifest.yml'));

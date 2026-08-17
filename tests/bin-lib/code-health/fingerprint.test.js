@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { fingerprint, normalizeSignature } = require('../../../bin/lib/code-health/fingerprint');
-const { fingerprintFromBasis } = require('../../../bin/lib/health-core/fingerprint');
+const { fingerprint, normalizeSignature } = require('../../../plugin/bin/lib/code-health/fingerprint');
+const { fingerprintFromBasis } = require('../../../plugin/bin/lib/health-core/fingerprint');
 
 test('fingerprint returns a codehealth-<8hex> id', () => {
   const id = fingerprint({ lens: 'todo-comments', areaId: '.', signature: 'TODO x', file: 'a.js:12' });
@@ -40,7 +40,7 @@ test('normalizeSignature strips line refs, collapses whitespace, lowercases', ()
 
 // ── v2 fingerprint ─────────────────────────────────────────────────────────
 
-const { normalizeAnchor } = require('../../../bin/lib/code-health/fingerprint');
+const { normalizeAnchor } = require('../../../plugin/bin/lib/code-health/fingerprint');
 
 test('normalizeAnchor lowercases path, strips :line and :line:col on either side of #', () => {
   // symbol side must not be stripped — only :line(:col) artifacts

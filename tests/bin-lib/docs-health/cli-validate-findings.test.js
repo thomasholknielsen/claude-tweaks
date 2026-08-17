@@ -8,7 +8,7 @@ const path = require('path');
 
 const { seedDurableState } = require('../health-core/seed-durable-state');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'bin', 'docs-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'docs-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-vf-')); }
 

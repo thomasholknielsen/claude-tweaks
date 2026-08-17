@@ -11,15 +11,15 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const EXEC = read('skills', '_shared', 'console-execution.md');
-const REVIEW_CONSOLE = read('skills', 'wrap-up', 'review-console.md');
-const REVIEW_CONSOLE_INTERACTIVE = read('skills', 'wrap-up', 'review-console-interactive.md');
-const MULTISPEC_CONSOLE = read('skills', 'flow', 'multispec-review-console.md');
-const DISPATCH_SKILL = read('skills', 'dispatch', 'SKILL.md');
-const SCAN_PROCEDURES = read('skills', 'tidy', 'scan-procedures.md');
-const AUTONOMY_CEILING = read('skills', '_shared', 'autonomy-ceiling.md');
-const CONTEXT_JS = read('bin', 'lib', 'hooks', 'context.js');
-const INDEX_JS = read('bin', 'lib', 'reconcile', 'index.js');
+const EXEC = read('plugin', 'skills', '_shared', 'console-execution.md');
+const REVIEW_CONSOLE = read('plugin', 'skills', 'wrap-up', 'review-console.md');
+const REVIEW_CONSOLE_INTERACTIVE = read('plugin', 'skills', 'wrap-up', 'review-console-interactive.md');
+const MULTISPEC_CONSOLE = read('plugin', 'skills', 'flow', 'multispec-review-console.md');
+const DISPATCH_SKILL = read('plugin', 'skills', 'dispatch', 'SKILL.md');
+const SCAN_PROCEDURES = read('plugin', 'skills', 'tidy', 'scan-procedures.md');
+const AUTONOMY_CEILING = read('plugin', 'skills', '_shared', 'autonomy-ceiling.md');
+const CONTEXT_JS = read('plugin', 'bin', 'lib', 'hooks', 'context.js');
+const INDEX_JS = read('plugin', 'bin', 'lib', 'reconcile', 'index.js');
 
 test('detection is Node-only, gh-CLI-only, and execution always happens in an agent session', () => {
   assert.match(EXEC, /Detection is pure Node \(`bin\/lib\/reconcile\/console-execute\.js`\)/);
