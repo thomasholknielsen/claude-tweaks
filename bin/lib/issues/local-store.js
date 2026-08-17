@@ -4,7 +4,7 @@
 // style bin/lib/policy.js uses — the plugin ships zero runtime npm deps, so there
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
 // shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
-// risk, size, ceremony, framing, priority, stage, grants{build,merge}, bot{inProgress,
+// risk, size, ceremony, solutionUnjustified, priority, stage, grants{build,merge}, bot{inProgress,
 // blocked}, acceptance, isParentIssue — plus type, parent, blockedBy, unsynced, closed,
 // closedAt, which are local-files-only); the github driver's callers get
 // type/parent/blockedBy from the issue JSON itself, not from labels. No network calls.
@@ -90,18 +90,22 @@ function parseBracketList(raw) {
 // fmLines -> facets. Unrecognized lines are silently skipped (permissive
 // line-regex parser, matching bin/lib/policy.js's style).
 //
-// Two keys are not resolved by the plain last-matching-line-wins rule every
+// Three keys are not resolved by the plain last-matching-line-wins rule every
 // other key here uses — `size` (a `size:` line always beats a pre-rename
-// `effort:` line) and `isParentIssue` (an explicit `is-parent-issue:` line
-// always beats the pre-rename legacy line), whichever order the two
-// lines of each pair appear in; each value is held aside during the pass and
-// applied afterward, and never when the new-form line was found. Same
-// deferred-apply shape as record.js's parseRecordFacets.
+// `effort:` line), `isParentIssue` (an explicit `is-parent-issue:` line
+// always beats the pre-rename legacy line), and `solutionUnjustified` (an
+// explicit `solution-unjustified:` line always beats a pre-rename `framing:`
+// line), whichever order the lines of each pair appear in; each value is
+// held aside during the pass and applied afterward, and never when the
+// new-form line was found. Same deferred-apply shape as record.js's
+// parseRecordFacets.
 function parseFrontmatterLines(fmLines) {
   const facets = defaultFacets();
   let effortFallback = null;
   let sawNewParentLine = false;
   let legacyParentFallback = null;
+  let sawNewUnjustifiedLine = false;
+  let legacyFramingFallback = null;
 
   for (const rawLine of fmLines) {
     const line = rawLine.trim();
@@ -116,7 +120,10 @@ function parseFrontmatterLines(fmLines) {
     // Last such line wins among repeats, exactly as the pre-rename effort: parse did.
     if ((m = /^effort:\s*(.+)$/.exec(line))) { effortFallback = m[1].trim(); continue; }
     if ((m = /^ceremony:\s*(.+)$/.exec(line))) { facets.ceremony = m[1].trim(); continue; }
-    if ((m = /^framing:\s*(true|false)$/.exec(line))) { facets.framing = m[1] === 'true'; continue; }
+    if ((m = /^solution-unjustified:\s*(true|false)$/.exec(line))) { facets.solutionUnjustified = m[1] === 'true'; sawNewUnjustifiedLine = true; continue; }
+    // Read-side framing: fallback — PERMANENT cross-project support (pre-rename local records keep framing: lines); removable only at a major version that drops pre-rename repo support. [IL-85]
+    // Precedence is held-aside, not OR: an explicit solution-unjustified: line (either value) must win over any legacy line, so the legacy value applies after the pass and only when no new line was seen.
+    if ((m = /^framing:\s*(true|false)$/.exec(line))) { legacyFramingFallback = m[1] === 'true'; continue; }
     if ((m = /^not-planned:\s*(true|false)$/.exec(line))) { facets.notPlanned = m[1] === 'true'; continue; }
     if ((m = /^needs-definition:\s*(true|false)$/.exec(line))) { facets.needsDefinition = m[1] === 'true'; continue; }
     if ((m = /^priority:\s*(.+)$/.exec(line))) { facets.priority = m[1].trim(); continue; }
@@ -143,6 +150,7 @@ function parseFrontmatterLines(fmLines) {
 
   if (facets.size === null) facets.size = effortFallback;
   if (!sawNewParentLine && legacyParentFallback !== null) facets.isParentIssue = legacyParentFallback;
+  if (!sawNewUnjustifiedLine && legacyFramingFallback !== null) facets.solutionUnjustified = legacyFramingFallback;
 
   return facets;
 }
@@ -198,7 +206,7 @@ function serializeFrontmatter(facets) {
   if (facets.risk) lines.push(`risk: ${facets.risk}`);
   if (facets.size) lines.push(`size: ${facets.size}`);
   if (facets.ceremony) lines.push(`ceremony: ${facets.ceremony}`);
-  if (facets.framing) lines.push('framing: true');
+  if (facets.solutionUnjustified) lines.push('solution-unjustified: true');
   if (facets.notPlanned) lines.push('not-planned: true');
   if (facets.needsDefinition) lines.push('needs-definition: true');
   if (facets.priority) lines.push(`priority: ${facets.priority}`);

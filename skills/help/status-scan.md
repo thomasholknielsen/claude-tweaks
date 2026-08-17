@@ -85,7 +85,7 @@ node -e "
 
 **Wake-ready sub-count** (parked, milestone due in the past) is a cheap heuristic, not full trigger evaluation — a `local-files` parked record's trigger lives as body prose (`**Trigger:**`/`**Watched paths:**` lines), too expensive to read per-record on a dashboard pass. Omit the sub-count under this driver and report the bare `parked` count only. Full trigger evaluation (including watched-path `git log` checks on both drivers) stays `/claude-tweaks:tidy`'s job — this is a maintenance signal, not a substitute.
 
-**Framing flag:** flag every `backlog`-bucket record showing a baked framing verdict — under `work-backend: github-issues` the `framing:baked` label, under `work-backend: local-files` `facets.framing === true` (already present on the fetched record above — no extra call either way) — the verdict `/claude-tweaks:specify` stamped via `/claude-tweaks:challenge`'s `framing-check` mode when it shaped the record. Flag matches in the Needs Attention table with a pointer to read the record's `## Gotchas`, where framing-check wrote the surfaced assumptions — not a suggestion to re-run `/claude-tweaks:challenge`, which only `/claude-tweaks:specify` invokes.
+**Justification flag:** flag every `backlog`-bucket record carrying an unjustified-solution verdict — under `work-backend: github-issues` the `solution:unjustified` label (or its pre-rename spelling `framing:baked`), under `work-backend: local-files` `facets.solutionUnjustified === true` (already present on the fetched record above — no extra call either way) — the verdict `/claude-tweaks:specify` stamped via `/claude-tweaks:challenge`'s `framing-check` mode when it shaped the record. Flag matches in the Needs Attention table with a pointer to read the record's `## Gotchas`, where framing-check wrote the surfaced assumptions — not a suggestion to re-run `/claude-tweaks:challenge`, which only `/claude-tweaks:specify` invokes.
 
 ### PR-state join (in-flight runs and tombstones)
 
@@ -112,7 +112,7 @@ line(s). Join against Stage 1's `ready`/`authorized`/`building` buckets:
   Flag the record in the Needs Attention table either way — a human deciding whether to retry
   doesn't need the marker check to know a closed PR is worth a look: `{ref} — closed run (PR
   #{number}, {url}), likely tombstoned — retry via /claude-tweaks:dispatch or
-  /claude-tweaks:flow {ref}`, reusing the same table the conflict/framing flags already render
+  /claude-tweaks:flow {ref}`, reusing the same table the conflict/Justification flags already render
   into rather than a new section.
 - **`state: MERGED`**, or no matching PR at all → nothing to flag; the record's own bucket
   (backlog/ready/etc.) already reflects its real state.
@@ -167,7 +167,7 @@ node -e "
 
 The table below renders in this ranked order, not the fetch's own order.
 
-Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group, one row per `framing:baked` backlog record, and one row carrying the ranked `ready`+`authorized` order computed above (Finding: the ordered `{ref}` list) so the Ready to Build table can render in that order.
+Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group, one row per `solution:unjustified` backlog record, and one row carrying the ranked `ready`+`authorized` order computed above (Finding: the ordered `{ref}` list) so the Ready to Build table can render in that order.
 
 There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (their data sources — `specs/backlog/*.md`, the old spec index, and `specs/*.md` frontmatter — are retired). The rest of the numbering (Stage 2, 4.5, 4.6, 4.7, 5, 6, 7) is unchanged, so existing cross-references — including this file's own later stages and `SKILL.md`'s Priority Order — keep pointing at the right stage.
 
