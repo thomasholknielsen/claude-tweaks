@@ -77,6 +77,21 @@ async function reconcile(opts = {}) {
     return result;
   }
 
+  // GitHub-health preflight — every check below this point is network-
+  // dependent under pr-first (mirror/red-tip/console/release/remote-prune
+  // hit GitHub directly; archive/archive-branches/reap all call
+  // resolvePrState, also a gh call) — so a single upfront failure/timeout
+  // (~2s) skips the whole requested set in one entry, instead of each check
+  // separately accumulating its own 5-10s timeout (#820). Called via
+  // require(...).ghHealthCheck() rather than a module-load-time destructure
+  // so a test's `require('./preflight').ghHealthCheck = fn` monkeypatch
+  // actually reaches this call site.
+  const health = require('./preflight').ghHealthCheck();
+  if (!health.ok) {
+    result.skipped.push({ check: checks.join(','), reason: `preflight-${health.reason}` });
+    return result;
+  }
+
   if (checks.includes('mirror')) {
     result.mirror = mirrorFastForward(root, integration);
   }

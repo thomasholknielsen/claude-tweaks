@@ -546,3 +546,28 @@ test('reconcile(): returns a thenable (async contract) even when every check sta
   assert.equal(typeof r, 'object');
   void originDir;
 });
+
+// --- preflight (#820): one upfront gh-health check gates the whole set ---
+
+test('reconcile(): a failing GitHub-health preflight skips every requested check in one entry, never per-check timeouts (D1)', async () => {
+  const { mainDir } = pairedFixture();
+  // pairedFixture()'s origin is a bare local repo, not a GitHub remote, so
+  // resolveIntegrationModel's forge-detection fallback would otherwise land
+  // on local-merge (no gh-backed repo to detect) — force pr-first explicitly
+  // so this test actually reaches the preflight, per the same pattern used
+  // above at policy.yml: 'integration-model: pr-first\n'.
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+
+  const preflight = require('../bin/lib/reconcile/preflight');
+  const original = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['mirror', 'release'] });
+    assert.equal(r.mirror, null);
+    assert.equal(r.claims, null);
+    assert.deepEqual(r.skipped, [{ check: 'mirror,release', reason: 'preflight-github-unreachable' }]);
+  } finally {
+    preflight.ghHealthCheck = original;
+  }
+});
