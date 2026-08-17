@@ -68,12 +68,12 @@ All four scope items compose; **D** is conditional.
 - [ ] The report template in `step-6-auto.md` renders Applied / Approve / Yours rows and Clean inside a fenced code block with aligned columns; the "no box-drawing tables" rule text explicitly distinguishes `┌─┐` art (banned) from aligned columns (required); the clickable-link tradeoff is stated.
 - [ ] `step-6-auto.md`'s Bucket mapping (or an adjacent "Yours grouping" rule) states that Yours groups by the human's command, names the group order (`specify`, `demo`, `git`, `capture`, `backlog refine`, fallback), and states the batch-vs-paste-block rule keyed to the target skill's `argument-hint`.
 - [ ] `step-6-interactive.md`'s template mirrors the new fenced shape and still cross-references (never restates) the Report rules.
-- [ ] `skills/tidy/SKILL.md`'s `## Next Actions` derivation still resolves against the new Yours shape (group order = report order; batch head commands are valid `description` values) — no dangling reference to per-scan Yours ordering.
+- [ ] `skills/tidy/SKILL.md`'s `## Next Actions` derivation still resolves against the new Yours shape (group order = report order; one plain-markdown line per Yours group carrying its batch line, first paste line, or ref-less line — #646's handoff convention) — no dangling reference to per-scan Yours ordering.
 - [ ] `step-6-auto.md` states the D threshold (~40 lines) and the `{run-dir}/report.md` digest behavior, and that below the threshold nothing extra is written.
 - [ ] `docs/journeys/tidy-standalone-auto-report.md` Step 3 Expect matches the new shape (fenced columns, command-grouped Yours, no shorthand).
 - [ ] A `node --test` suite pins the new rule text (width cap, shorthand ban, command grouping, conformance heading) and fails when any is removed; `npm test` passes.
 - [ ] `wc -c skills/tidy/SKILL.md` stays ≤ 40960 bytes (the 40 KB SKILL.md ceiling `bin/lib/skill-audit/context-cost.js` enforces) after the Next Actions edit — it is at 40931 bytes today, so the edit must be byte-neutral or move text into a sub-file.
-- [ ] A dry rendering of the 2026-08-16 sweep's 16 Yours items against the new template fits in ≤ ~40 lines with every row carrying its own command (worked example included in the PR description or the journey doc, not in the skill file).
+- [ ] A dry rendering of a 16-record Yours section against the new template fits in ≤ ~40 lines with every row covered by a command line (worked example in the journey doc: Yours 37 lines; the whole report is 58, so the digest rule fires — proving D).
 
 ## Technical Approach
 
