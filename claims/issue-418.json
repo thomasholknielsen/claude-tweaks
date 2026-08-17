@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-17T081938-record-418",
-  "sessionId": "c405ff8c-26be-5e96-a6f5-e932c092b0ec",
-  "claimedAt": "2026-08-17T08:29:13.689Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "reason": "failed: build-gate-task-plugin-root-premise-falsified",
+  "releasedAt": "2026-08-17T08:35:00.000Z"
 }
