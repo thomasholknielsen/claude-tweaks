@@ -1,5 +1,5 @@
 // tests/github-rate-limit-conformance.test.js
-// Pins skills/_shared/github-rate-limit.md's taxonomy/burst-shape text and each
+// Pins plugin/skills/_shared/github-rate-limit.md's taxonomy/burst-shape text and each
 // of its seven consumers' citation of it. Deliberately does not re-pin any
 // consumer's own degradation outcome wording — that stays owned by each
 // consumer's existing pin suites (or is untested prose where no suite exists).
@@ -12,7 +12,7 @@ const path = require('path');
 const REPO_ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 
-const CONTRACT_PATH = 'skills/_shared/github-rate-limit.md';
+const CONTRACT_PATH = 'plugin/skills/_shared/github-rate-limit.md';
 const CONTRACT = read(CONTRACT_PATH);
 
 // --- the three taxonomy signatures ---
@@ -77,12 +77,12 @@ for (const anchor of BURST_SHAPE_ANCHORS) {
 // each consumer is also checked with all whitespace collapsed.
 
 const CONSUMER_FILES = [
-  'skills/_shared/forge-detection.md',
-  'skills/_shared/pr-run-comments.md',
-  'skills/tidy/scan-procedures.md',
-  'skills/_shared/issue-claims.md',
-  'skills/assess-agent-autonomy/failure-check.md',
-  'skills/_shared/github-write-transport.md',
+  'plugin/skills/_shared/forge-detection.md',
+  'plugin/skills/_shared/pr-run-comments.md',
+  'plugin/skills/tidy/scan-procedures.md',
+  'plugin/skills/_shared/issue-claims.md',
+  'plugin/skills/assess-agent-autonomy/failure-check.md',
+  'plugin/skills/_shared/github-write-transport.md',
   '.claude/skills/gh-api-module-pattern/SKILL.md',
 ];
 
@@ -108,10 +108,10 @@ for (const rel of CONSUMER_FILES) {
 // begin with — their tasks were purely additive) ---
 
 const RETIRED_CLAUSES = {
-  'skills/_shared/forge-detection.md': '(rate limit, network, transient API errors)',
-  'skills/_shared/pr-run-comments.md': '(network, auth, rate limit)',
-  'skills/tidy/scan-procedures.md': '(rate limit, transient',
-  'skills/assess-agent-autonomy/failure-check.md': 'rate-limit (HTTP 429) responses, network timeouts',
+  'plugin/skills/_shared/forge-detection.md': '(rate limit, network, transient API errors)',
+  'plugin/skills/_shared/pr-run-comments.md': '(network, auth, rate limit)',
+  'plugin/skills/tidy/scan-procedures.md': '(rate limit, transient',
+  'plugin/skills/assess-agent-autonomy/failure-check.md': 'rate-limit (HTTP 429) responses, network timeouts',
 };
 
 for (const [rel, retired] of Object.entries(RETIRED_CLAUSES)) {
@@ -131,19 +131,19 @@ for (const [rel, retired] of Object.entries(RETIRED_CLAUSES)) {
 // consumer" half made concrete, not a second copy of any existing pin) ---
 
 test('forge-detection.md keeps its DONE_WITH_CONCERNS outcome', () => {
-  assert.ok(read('skills/_shared/forge-detection.md').includes('DONE_WITH_CONCERNS'));
+  assert.ok(read('plugin/skills/_shared/forge-detection.md').includes('DONE_WITH_CONCERNS'));
 });
 
 test('pr-run-comments.md keeps its log-to-decisions retryable-failure outcome', () => {
-  assert.ok(read('skills/_shared/pr-run-comments.md').includes('as a retryable failure per the gate section above'));
+  assert.ok(read('plugin/skills/_shared/pr-run-comments.md').includes('as a retryable failure per the gate section above'));
 });
 
 test('scan-procedures.md keeps its skip-the-sweep-step outcome', () => {
-  assert.ok(read('skills/tidy/scan-procedures.md').includes('skip the rest of this step and note it in the report'));
+  assert.ok(read('plugin/skills/tidy/scan-procedures.md').includes('skip the rest of this step and note it in the report'));
 });
 
 test('issue-claims.md keeps its retry-once and TTL-backstop outcome wording verbatim', () => {
-  const content = read('skills/_shared/issue-claims.md');
+  const content = read('plugin/skills/_shared/issue-claims.md');
   assert.ok(content.includes('retry the comment once, warn, proceed; claim stands either way'));
   assert.ok(content.includes('Log; TTL is the backstop'));
 });
@@ -156,8 +156,8 @@ test('docs/skill-graph.md carries edges to the new contract from at least four s
   assert.ok(matches.length >= 4, `found ${matches.length} edges, expected >= 4`);
 });
 
-test('no skills/**/SKILL.md restates the taxonomy row names', () => {
-  const skillsDir = path.join(REPO_ROOT, 'skills');
+test('no plugin/skills/**/SKILL.md restates the taxonomy row names', () => {
+  const skillsDir = path.join(REPO_ROOT, 'plugin', 'skills');
   const offenders = [];
   const walk = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
