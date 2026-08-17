@@ -1,7 +1,7 @@
 ---
 name: capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
-argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task] [--needs-definition|--no-needs-definition]'
+argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task] [--needs-definition|--no-needs-definition] [--batch <path>]'
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -23,11 +23,12 @@ Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/superpow
 
 ## Input
 
-`$ARGUMENTS` is parsed as `<idea text> [--route=<value>] [--title="..."] [--type=<value>] [--needs-definition|--no-needs-definition]`:
+`$ARGUMENTS` is parsed as `<idea text> [--route=<value>] [--title="..."] [--type=<value>] [--needs-definition|--no-needs-definition] [--batch <path>]`:
 
 | Argument | Behavior |
 |----------|----------|
-| Free-text idea | The body of the new backlog record (title is derived from the first phrase or supplied via `--title=`). |
+| Free-text idea | The body of the new backlog record (title is derived from the first phrase or supplied via `--title=`). Mutually exclusive with `--batch` — a batch invocation has no single idea text. |
+| `--batch <path>` | Multi-entry filing — see Batch Mode below. `<path>` is a JSON file listing `{title, body, type?}` entries; each files through the same per-entry pipeline a single invocation runs, in one routing/confirmation pass for the whole set. Every other flag in this table applies uniformly across the batch unless an individual entry object supplies its own same-named field, which wins for that entry only. |
 | `--route=brainstorm` / `--route=keep` / `--route=absorb:N` | Skip the post-capture routing prompt; apply the route directly. Legacy `--route` values are still accepted as aliases — see Immediate Routing. |
 | `--title="..."` | Override the auto-derived title. |
 | `--type=bug` / `--type=feature` / `--type=task` | Override the keyword-guessed Type outright — skips Guessing the Type below. Useful for auto-mode/headless capture calls (a Routine, or a scripted call from another skill's Next Action) where there is no next message to send a free-text correction in, and for any calling skill that already knows the correct type. |
@@ -46,6 +47,10 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
 | 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: local-files` captures always have something to commit — the new record file, or, under route `absorb:N`, the edited/deleted target record file. `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record — its `absorb:N` route edits the target issue via `gh` CLI only (see Route execution below), so no local file is touched. |
 
+## Batch Mode
+
+Reached only when `--batch <path>` is supplied — files multiple entries from one JSON file through the same per-entry pipeline Workflow Step 1 runs for a single invocation, with one routing/confirmation pass and one summary table for the whole set. Read `batch-mode.md` in this skill's directory for the full procedure: the entry-file shape, the per-entry loop and its fail-safe batching, over-cap entry handling, batch-level routing, and the Batch Summary template.
+
 ## Backend Selection
 
 Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). A missing flag is treated as `local-files` — same missing-flag convention as `design-integration`.
@@ -59,7 +64,7 @@ Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEE
 `/claude-tweaks:specify` shaping immediately after filing (`Skill(skill: "claude-tweaks:specify",
 args: "#{n} --chained")` — headless, no Next Actions), so the record lands spec-shaped, scored,
 and `ready` under specify's own authority — able to pass `/claude-tweaks:backlog refine` Step
-3.5's spec-shape gate, which a bare `ready` stamp on a 5-line stub never could (#575). See
+3.5's spec-shape gate, which a bare `ready` stamp on a raw stub never could (#575). See
 `_shared/autonomy-ceiling.md`. At `supervised`, the default and the state of any repo that has not
 opted in, this never fires and the paragraph above holds unchanged. A filing that took the
 Shaped-body branch (below) never chains either — there is nothing left to shape.
@@ -168,14 +173,14 @@ toward the grant.
    lives in `_shared/label-bootstrap.md`'s `LABELS_JSON` (`["needs:definition", "Undecided idea —
    must go through /specify's brainstorm redirect before reaching ready"]`).
 
-2. Build the payload via `recordPayload` and create the issue:
+2. Build the payload via `recordPayload` and create the issue. Both temp files below key off `$CLAUDE_CODE_SESSION_ID` (the same session identity `_shared/issue-claims.md` stamps on a claim) rather than a fixed name — a concurrent `/capture` invocation against the same checkout gets its own path, never this session's:
 
    ```bash
    node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
      const p=recordPayload({title:process.argv[1], body:process.argv[2], type:process.argv[3], origin:'capture'});
-     require('fs').writeFileSync('/tmp/capture-payload.json', JSON.stringify(p))" "$TITLE" "$BODY" "$TYPE"
+     require('fs').writeFileSync('/tmp/capture-' + (process.env.CLAUDE_CODE_SESSION_ID||'') + '-payload.json', JSON.stringify(p))" "$TITLE" "$BODY" "$TYPE"
 
-   node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/capture-payload.json','utf8')).body)" > /tmp/capture-body.md
+   node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/capture-' + (process.env.CLAUDE_CODE_SESSION_ID||'') + '-payload.json','utf8')).body)" > "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md"
    ```
 
    **Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `$TYPE` via GitHub's native Issue Type; `work-types: labels` adds the matching `type:$TYPE` label instead (the pairs live in `record.js`'s `TYPE_LABELS`):
@@ -184,14 +189,14 @@ toward the grant.
    # work-types: native
    gh issue create \
      --title "$TITLE" \
-     --body-file /tmp/capture-body.md \
+     --body-file "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md" \
      --type "$TYPE" \
      --label by:capture
 
    # work-types: labels
    gh issue create \
      --title "$TITLE" \
-     --body-file /tmp/capture-body.md \
+     --body-file "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md" \
      --label by:capture \
      --label "type:$TYPE"
    ```
@@ -201,10 +206,12 @@ toward the grant.
 
    Immediately after the `gh issue create` call succeeds, invalidate the session-scoped record
    snapshot (`_shared/record-queue-fetch.md`) — this filing changed what a `--state all` pull
-   would return, so the next consumer must re-fetch rather than read the pre-filing snapshot:
+   would return, so the next consumer must re-fetch rather than read the pre-filing snapshot — and
+   remove this step's own temp files, now that `gh issue create` has read them:
 
    ```bash
    node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+   rm -f "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-payload.json" "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md"
    ```
 
 3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
@@ -240,9 +247,9 @@ Add `needsDefinition: true` to the `facets` object literal above, parallel to `t
 
 ## Shaped-body branch
 
-**Detection is by what is supplied, never by who invoked.** Split `$BODY` on line-anchored `## ` headings. The body is **shaped** when it contains `## Current State`, `## Deliverables`, and exactly one of `## Acceptance Criteria` / `## Open Question`, each followed by non-empty content, and none of the three placeholder markers `_shared/work-record.md`'s Spec-shaped body section names appears anywhere. Anything before the first heading becomes `header` (e.g. a `Trigger:` line the caller supplied) — EXCEPT an `Origin:` line and a `Defer-reason:` line, each lifted out of `header` into `provenance` (`origin` / `deferReason`) so the composer renders each exactly once; when both a body-carried `Origin:` line and `--origin=` are supplied, the body's line wins and the flag is ignored with a one-line note. A body that has the headings but fails the check falls through to the stub branch below with one line saying why. The deferral check below runs regardless of which branch is taken — it keys on content and `--source`, not on shape, so an unshaped `--source` filing without a valid reason also stops. A human who pastes a shaped body takes this branch too; a human typing a short idea still gets the 5-line stub and today's behavior.
+**Detection is by what is supplied, never by who invoked.** Split `$BODY` on line-anchored `## ` headings. The body is **shaped** when it contains `## Current State`, `## Deliverables`, and exactly one of `## Acceptance Criteria` / `## Open Question`, each followed by non-empty content, and none of the three placeholder markers `_shared/work-record.md`'s Spec-shaped body section names appears anywhere. Anything before the first heading becomes `header` (e.g. a `Trigger:` line the caller supplied) — EXCEPT an `Origin:` line and a `Defer-reason:` line, each lifted out of `header` into `provenance` (`origin` / `deferReason`) so the composer renders each exactly once; when both a body-carried `Origin:` line and `--origin=` are supplied, the body's line wins and the flag is ignored with a one-line note. A body that has the headings but fails the check falls through to the stub branch below with one line saying why. The deferral check below runs regardless of which branch is taken — it keys on content and `--source`, not on shape, so an unshaped `--source` filing without a valid reason also stops. A human who pastes a shaped body takes this branch too; a human typing a short idea still gets the stub and today's behavior.
 
-On match, skip Entry Format's stub assembly and its 5-line cap, and run this precedence:
+On match, skip Entry Format's stub assembly and its character-budget cap, and run this precedence:
 
 1. **Judging Definition first — and it wins.** `needs:definition` (judged, or `--needs-definition`, or an `## Open Question` section present) → compose via `specShapedBody` with `openQuestion`, `filedBy: 'capture'`, footer `_Filed by \`capture\` via specShapedBody._`, and file with `needs:definition`, no `ready`, no scoring (an undecided record is never born-ready). `--defer-reason=` is **not** required here — a needs-you record is not a deferral; when supplied it is still rendered via `provenance.deferReason`.
 2. **The deferral check.** The filing is a deferral when the body carries an `Origin:` line, `--origin=` was supplied (both content signals — either way the composed body carries provenance), **or** any `--source` value was given — the rule keys on "any `--source`", not named producers. A deferral with no `--defer-reason=` and no `Defer-reason:` line in the text → **stop and report the missing reason; file nothing** (the same hard gate `wrap-up/refused-proposals.md` enforces at the console). This check is evaluated before branch selection — a supplied `--defer-reason=` is never silently dropped on the stub path (a stub deferral's validated value is passed to `recordPayload({deferReason})`, which inserts the body line). This is the one deliberate content-keyed exception where invoker identity enters (`--source` as the headless-caller equivalent of the `Origin:` content signal), named as such.
@@ -268,9 +275,16 @@ Scope: Rough sense of what it might involve (can be vague)
 
 **`work-backend: local-files`** — this becomes the record body under the frontmatter; `local-store.js`'s `writeRecord` composes the `# {title}` heading above it automatically.
 
-### Hard cap: ~5 lines per entry
+### Hard cap: ~400 characters per entry
 
-If it takes more than 5 lines to describe, it's past the raw-capture stage — run `/superpowers:brainstorming` on it instead. Applies to both drivers. The cap governs the stub branch only — a supplied shaped body (see Shaped-body branch above) is exempt by design.
+Measured over the `Context:` + `Scope:` field content combined (the prose after each label, not the labels themselves, not `**Related:**`) — a character budget, not a line count. Line count is gameable: a long paragraph wrapped or packed onto exactly 5 lines is not shorter than the same words spread across ten, and a naive line-count cap lets it through uncapped. Roughly 400 characters matches the two one-line "Good entries" examples below.
+
+When the combined content exceeds the budget, it's past the raw-capture stage — branch on what kind of "past raw-capture" it is:
+
+- **Genuinely undecided, half-formed thinking** (the common case) — run `/superpowers:brainstorming` on it instead.
+- **Already-decided, evidence-carrying content** (an audit- or health-sweep-derived finding that already names a file/line and a determined fix, and would just be padded to fit the stub fields otherwise) — compose it as a spec-shaped body (`## Current State` / `## Deliverables` / `## Acceptance Criteria`) and pass that as `$BODY` instead of the stub fields. This takes the Shaped-body branch above, which has no length cap and files the record scored and `ready` — the sanctioned exception path, not a workaround of this cap.
+
+Applies to both drivers. The cap governs the stub branch only — a supplied shaped body (see Shaped-body branch above) is exempt by design, which is also where the second case above lands.
 
 ## Adding an Entry
 
@@ -395,7 +409,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | Pattern | Why It Fails |
 |---------|-------------|
 | Capturing an idea that already has a spec | Duplicates intent across two files — annotate the spec so it stays the source of truth |
-| A *human brain-dump* growing past 5 lines to dodge the cap | Half-formed thinking that needs length needs `/superpowers:brainstorming`, not a longer stub. A supplied spec-shaped body is different — that is the Shaped-body branch's intended input, filed born-ready |
+| A *human brain-dump* growing past the character budget to dodge the cap | Half-formed thinking that needs length needs `/superpowers:brainstorming`, not a longer stub. A supplied spec-shaped body is different — that is the Shaped-body branch's intended input, filed born-ready |
 | Never reviewing the backlog | Without periodic `/claude-tweaks:tidy` triage the backlog becomes a graveyard and ideas lose context |
 | Adding implementation details to a backlog record | A record captures *what* and *why* — *how* is brainstorming + spec territory and shifts faster than the idea |
 | Skipping `/superpowers:brainstorming` and jumping straight to specs | Specs encode unchallenged premises without the assumptions and constraints brainstorming surfaces |
