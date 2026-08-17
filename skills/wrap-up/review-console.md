@@ -284,7 +284,7 @@ This is the tier split for headless firings: `supervised`/`trusted` keep today's
 
 Resolve the ceiling once — `CEILING=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy)` — and check `bookkeepingPermissions(ceiling).consoleAutoResolve` (`bin/lib/issues/autonomy.js`, granted at `unattended` only — see `_shared/autonomy-ceiling.md`). When **not** granted, skip this section entirely and proceed to "Present the console" below — the ordinary `supervised`/`trusted`/interactive path, unchanged. When `--dry-run` was also passed, its preview-only behavior (above) takes precedence regardless of ceiling — nothing here executes a real write.
 
-When granted, render the console as an **informational report** instead of a prompt: every section from "Present the console" below still appears — Auto-applied through Cleanup actions, plus `Q#`/`M#`/`U#` — nothing is dropped or summarized away. Then resolve every item per its own stated default, with **zero** `AskUserQuestion` calls:
+When granted, render the console as an **informational report**, not a prompt: every section below still appears (Auto-applied through Cleanup actions, `Q#`/`M#`/`U#`, Refused rows), each row stamped `AUTO-RESOLVED` — nothing dropped. Then resolve every item per its stated default, **zero** `AskUserQuestion` calls:
 
 - Every batch-section item (Auto-applied through Cleanup actions) resolves as if "Approve all" had been chosen.
 - Every `Q#`/`M#` item resolves to `Apply` — its pre-checked default in `_shared/batched-item-drill.md`. Refused rows are never auto-resolved (`refused-proposals.md`).
