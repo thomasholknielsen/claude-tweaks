@@ -2,14 +2,27 @@
 // bin/resolve-profile.js
 //
 // CLI wrapper around bin/lib/model-profiles — owns ALL I/O (policy read,
-// frontier tally read/append). resolve() itself stays pure. Contract cited
-// by dispatch sites: skills/_shared/subagent-output-contract.md §Model
-// Selection.
+// frontier tally read/append, session-scoped model-failure blacklist
+// read/write). resolve() itself stays pure. Contract cited by dispatch
+// sites: skills/_shared/subagent-output-contract.md §Model Selection.
+//
+// Session-failure blacklist (#763): every normal `<profile>` resolution
+// reads the CLAUDE_CODE_SESSION_ID-keyed blacklist
+// (bin/lib/model-profiles/session-failures.js) and passes it to resolve()
+// as `failedModels`, so a model that already failed with a credit/usage
+// exhaustion error this session is never re-resolved. A dispatch site that
+// observes such a failure records it via:
+//
+//   node bin/resolve-profile.js record-failure <model>
+//
+// before retrying or reporting — see subagent-output-contract.md's Model
+// Selection section for when to call this.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const { resolve } = require('./lib/model-profiles/profiles');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
+const { readFailedModels, recordFailure } = require('./lib/model-profiles/session-failures');
 
 function fail(msg) {
   process.stderr.write(`resolve-profile: ${msg}\n`);
@@ -29,9 +42,20 @@ function main(argv) {
   const args = argv.slice(2);
   const profile = args.shift();
   if (!profile) {
-    fail('usage: resolve-profile.js <profile> [--stance <s>] [--unattended] [--run-dir <path>]');
+    fail('usage: resolve-profile.js <profile>|record-failure <model> [--stance <s>] [--unattended] [--run-dir <path>]');
     return;
   }
+
+  if (profile === 'record-failure') {
+    const model = args.shift();
+    if (!model) { fail('record-failure requires a model name'); return; }
+    const sessionId = process.env.CLAUDE_CODE_SESSION_ID;
+    if (!sessionId) { fail('record-failure requires CLAUDE_CODE_SESSION_ID to be set — nothing recorded'); return; }
+    recordFailure(sessionId, model);
+    process.stdout.write(`${JSON.stringify({ recorded: true, model, sessionId })}\n`);
+    return;
+  }
+
   let stance;
   let unattended = false;
   let runDir;
@@ -61,9 +85,11 @@ function main(argv) {
       .split('\n').filter((l) => l.startsWith('frontier\t')).length;
   }
 
+  const failedModels = readFailedModels(process.env.CLAUDE_CODE_SESSION_ID);
+
   let result;
   try {
-    result = resolve(profile, { policy, stance, unattended, frontierUsed });
+    result = resolve(profile, { policy, stance, unattended, frontierUsed, failedModels });
   } catch (e) {
     fail(e.message);
     return;

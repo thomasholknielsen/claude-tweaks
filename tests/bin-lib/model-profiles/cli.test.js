@@ -124,3 +124,53 @@ test('malformed policy exits non-zero naming the problem', () => {
     (e) => /soon/.test(String(e.stderr)),
   );
 });
+
+test('a resolution avoids a model recorded as failed this session, via CLAUDE_CODE_SESSION_ID', () => {
+  const dir = tmpProject(null);
+  const sessionId = `cli-test-${process.pid}-fail-avoid`;
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
+  execFileSync('node', [CLI, 'record-failure', 'fable'], { cwd: dir, env, encoding: 'utf8' });
+  const r = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.strictEqual(r.model, 'opus');
+  assert.strictEqual(r.source, 'degraded:session-failure');
+  // cleanup — do not leak this test's blacklist file to a later run
+  const { failurePath } = require('../../../bin/lib/model-profiles/session-failures');
+  fs.rmSync(failurePath(sessionId), { force: true });
+});
+
+test('a resolution with no CLAUDE_CODE_SESSION_ID set is unaffected by any blacklist', () => {
+  const dir = tmpProject(null);
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_SESSION_ID;
+  const r = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.strictEqual(r.model, 'fable');
+});
+
+test('record-failure with no model name exits 1 naming the problem', () => {
+  const dir = tmpProject(null);
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: `cli-test-${process.pid}-no-model` };
+  assert.throws(
+    () => execFileSync('node', [CLI, 'record-failure'], { cwd: dir, env, encoding: 'utf8' }),
+    (e) => e.status === 1 && /record-failure requires a model name/.test(String(e.stderr)),
+  );
+});
+
+test('record-failure with no CLAUDE_CODE_SESSION_ID exits 1 naming the problem, records nothing', () => {
+  const dir = tmpProject(null);
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_SESSION_ID;
+  assert.throws(
+    () => execFileSync('node', [CLI, 'record-failure', 'fable'], { cwd: dir, env, encoding: 'utf8' }),
+    (e) => e.status === 1 && /CLAUDE_CODE_SESSION_ID/.test(String(e.stderr)),
+  );
+});
+
+test('record-failure prints a JSON confirmation on success', () => {
+  const dir = tmpProject(null);
+  const sessionId = `cli-test-${process.pid}-confirm`;
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
+  const out = JSON.parse(execFileSync('node', [CLI, 'record-failure', 'opus'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.deepStrictEqual(out, { recorded: true, model: 'opus', sessionId });
+  const { failurePath } = require('../../../bin/lib/model-profiles/session-failures');
+  fs.rmSync(failurePath(sessionId), { force: true });
+});
