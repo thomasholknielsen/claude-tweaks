@@ -1003,3 +1003,14 @@ and "fix" it into the wrong home (or, as here, simply not flag it because the fi
 still resolves). Run a second, targeted grep for `{old-filename}.*(Section [A-Z]|Step [0-9])`-shaped
 patterns across the repo, separate from the plain-filename sweep, whenever a split relocates named
 subsections.
+
+## IL-138 — Edit/Write tool-level worktree pinning overrides the hook's own pipeline-bookkeeping exemption
+
+The `worktree-always` PreToolUse hook exempts writes under `.claude-tweaks/pipelines/` so a
+worktree session can update its main-checkout-anchored run bookkeeping. That hook-level
+exemption is necessary but not sufficient: the Edit/Write/NotebookEdit tools apply their own,
+separate cross-checkout write-pinning that the hook exemption does not cover, so Edit/Write
+against `decisions.md`/`manifest.yml`/`staged/*.md` from inside a worktree session is refused
+anyway. Caught on the #856/#857/#858 `/flow` run via repeated Edit/Write `tool_use_error`
+results against those exact paths; cost several redundant round-trips before the workaround
+(Bash heredoc instead of Edit/Write) was adopted.
