@@ -30,7 +30,8 @@ description: >
   label→frontmatter isomorphism these local-record-facet assertions rely on
   (a ready label becomes stage: 'ready' frontmatter, risk:*/size:* labels
   become risk/size frontmatter) is documented instead at
-  skills/specify/record-creation.md, lines 190-199.
+  skills/specify/record-creation.md's "Sub-issues" section, in its
+  work-backend: local-files paragraph.
 fixture:
   base: init-baseline
   seed:
