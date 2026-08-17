@@ -55,7 +55,10 @@ scoped to that `#N` (Step 1); `#N[,#M...]` — a comma-separated list of record 
 (a space after a comma is tolerated and trimmed) — is an explicit human-supplied batch: each ref
 runs the `#N` path in list order,
 Step 1 → Step 2 → Step 3 to completion before the next ref begins, so a batch aborted part-way
-has already applied every verdict given so far and lost nothing. One verdict question per item —
+has already applied every verdict given so far and lost nothing.
+Per-item failure isolation: a ref that resolves to nothing — no such record, wrong repo, a
+malformed or empty token from a stray comma — is reported and skipped, and the remaining
+refs still run; the batch never aborts on one bad element. One verdict question per item —
 never a combined verdict, never cross-item merging, never a Task fan-out.
 A batch is the human's own list — never a sweep: `/demo` still never scans the backlog for what
 to include, and the no-argument session-recall path cannot be combined with refs. Never sweeps

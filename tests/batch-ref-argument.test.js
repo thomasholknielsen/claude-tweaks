@@ -24,6 +24,8 @@ test('specify Input states the batch is shaping-mode-only, refs-only, and sequen
   const src = read('skills/specify/SKILL.md');
   assert.ok(src.includes('runs shaping mode once per element, in list order, sequentially'), 'sequential-per-element rule missing from specify Input');
   assert.ok(src.includes('Batch applies to record references only'), 'refs-only rule missing from specify Input');
+  assert.ok(src.includes('stop before touching any record and name the offending element(s)'), 'mixed-list hard-error rule missing from specify Input');
+  assert.ok(src.includes('ordinary free text, resolved through cases 3-5 exactly as today'), 'no-refs free-text fallback missing from specify Input');
 });
 
 test('specify Next Actions has a multiple-records-shaped row recommending a comma-joined flow', () => {
@@ -48,4 +50,5 @@ test('demo Input states per-item completion before the next ref and never-a-swee
   const src = read('skills/demo/SKILL.md');
   assert.ok(src.includes('Step 1 → Step 2 → Step 3 to completion before the next ref begins'), 'per-item completion rule missing from demo Input');
   assert.ok(src.includes("A batch is the human's own list — never a sweep"), 'never-a-sweep restatement missing from demo Input');
+  assert.ok(src.includes('Per-item failure isolation: a ref that resolves to nothing'), 'per-item failure isolation missing from demo Input');
 });
