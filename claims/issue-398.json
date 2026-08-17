@@ -1,6 +1,6 @@
 {
   "released": true,
-  "runId": "manual-tidy-20260814T213101Z",
-  "reason": "swept: stale claim (orphaned by crashed batch dispatch run 2026-08-14T110139-dispatch-standalone; no worktree or run-state.json was ever created for this issue)",
-  "releasedAt": "2026-08-14T21:32:15.655Z"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:32:16.495Z"
 }
