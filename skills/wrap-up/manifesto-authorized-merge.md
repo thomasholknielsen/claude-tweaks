@@ -22,9 +22,11 @@ the lever authorizes the merge decision, not a skip of the content-judgment safe
 
 ## Tag selection
 
-`_shared/pr-first-merge.md` Step 3's `{tag}`: `fast-lane` when the live `auto:merge` label is
-present (the standing, pre-existing signal wins when both conditions hold); `manifesto-authorized`
-when only the `merge-authorization` lever triggered this branch (no `auto:merge` label).
+Both merge call sites resolve the same `{tag}` the same way: `_shared/pr-first-merge.md` Step 3's
+`{tag}` parameter (`pr-first` subsection) and the `local-merge` subsection's own inline `git merge
+-m "[{tag}] ..."` substitution. `{tag}` is `fast-lane` when the live `auto:merge` label is present
+(the standing, pre-existing signal wins when both conditions hold); `manifesto-authorized` when
+only the `merge-authorization` lever triggered this branch (no `auto:merge` label).
 
 ## Log line (lever-triggered case only)
 

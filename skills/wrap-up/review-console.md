@@ -150,7 +150,7 @@ if [ "$CURRENT" != "{integration-branch}" ]; then
   echo "Main checkout is on '$CURRENT', not '{integration-branch}' — a concurrent session switched it. Abort, do not merge." >&2
   exit 1
 fi
-git merge --no-ff {branch} -m "[fast-lane] {one-line summary}
+git merge --no-ff {branch} -m "[{tag}] {one-line summary}
 
 Fixes #{issue}"
 ```
@@ -167,7 +167,7 @@ Naming the branch explicitly is required: a bare `git push` from the worktree wo
 merged into is what publishes the merge; a different one leaves it stranded locally.
 
 The explicit `--no-ff` guarantees a real merge commit exists even when the
-branch would otherwise fast-forward — this is what the `[fast-lane]` tag
+branch would otherwise fast-forward — this is what the `{tag}` tag
 lands on, and the same commit message carries the `Fixes #{issue}` closing
 keyword per "Close-via-merge" in `_shared/issue-claims.md`. Still generate
 this console's full content (Auto-applied / Skill updates / Configuration
