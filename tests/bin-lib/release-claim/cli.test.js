@@ -18,9 +18,15 @@ function mkRun() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rc-'));
   const runDir = path.join(root, '.claude-tweaks', 'pipelines', RUN_DIR_NAME);
   fs.mkdirSync(runDir, { recursive: true });
+  fs.mkdirSync(path.join(root, '.git'));
   return runDir;
 }
-function deps({ content, putThrows, gh = true, out }) {
+// The real main checkout for `root/.claude-tweaks/pipelines/<name>` — resolveTarget's
+// anchoring check needs this injected as `mainRoot` in tests (the same seam
+// bin/log-decision.js's own cli.test.js uses), since a synthetic fixture root never
+// matches the real repo that mainCheckoutRoot(process.cwd()) would resolve to.
+function rootOf(runDir) { return path.dirname(path.dirname(path.dirname(runDir))); }
+function deps({ content, putThrows, gh = true, out, mainRoot }) {
   const calls = [];
   const runner = (a) => {
     calls.push(a);
@@ -29,14 +35,14 @@ function deps({ content, putThrows, gh = true, out }) {
     if (isComment(a) || isEdit(a)) return '';
     throw new Error('unexpected ' + a.join(' '));
   };
-  return { calls, d: { runner, ghAvailable: () => gh, remoteUrl: () => 'git@github.com:acme/w.git', now: () => NOW, stdout: (s) => out.push(['out', s]), stderr: (s) => out.push(['err', s]) } };
+  return { calls, d: { runner, ghAvailable: () => gh, remoteUrl: () => 'git@github.com:acme/w.git', now: () => NOW, cwd: () => process.cwd(), mainRoot, stdout: (s) => out.push(['out', s]), stderr: (s) => out.push(['err', s]) } };
 }
 const envelope = (out) => JSON.parse(out.filter((o) => o[0] === 'out').map((o) => o[1]).join(''));
 
 test('happy path: read -> PUT(sha) -> comment; --remove-grants adds two label removals; exit 0; logs to decisions.md', () => {
   const runDir = mkRun();
   const out = [];
-  const { calls, d } = deps({ content: live(RUN_DIR_NAME), out });
+  const { calls, d } = deps({ content: live(RUN_DIR_NAME), out, mainRoot: rootOf(runDir) });
   const code = run(['999', '--run', runDir + '/', '--reason', 'merged: spec 999', '--link', 'https://x/1', '--remove-grants'], d);
   assert.equal(code, 0);
   assert.deepEqual(calls.map((a) => (isGet(a) ? 'get' : isPut(a) ? 'put' : isComment(a) ? 'comment' : a[a.indexOf('--remove-label') + 1])), ['get', 'put', 'comment', 'auto:build', 'auto:merge']);
@@ -62,7 +68,7 @@ test('404/422 on the PUT: comment still posted, exit 3', () => {
 test('blob owned by another run: exit 4, nothing written, skip line logged', () => {
   const runDir = mkRun();
   const out = [];
-  const { calls, d } = deps({ content: live('2026-08-16T110000-spec-999'), out });
+  const { calls, d } = deps({ content: live('2026-08-16T110000-spec-999'), out, mainRoot: rootOf(runDir) });
   assert.equal(run(['999', '--run', runDir, '--reason', 'merged: spec 999', '--remove-grants'], d), 4);
   assert.equal(calls.length, 1, 'only the read');
   assert.match(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), /skipped release of issue #999: claim held by run 2026-08-16T110000-spec-999/);
@@ -80,6 +86,21 @@ test('failed PUT (500): exit 1, no comment; missing run dir still releases (logg
   assert.equal(run(['999', '--run', path.join(os.tmpdir(), 'rc-none-' + process.pid, RUN_DIR_NAME), '--reason', 'r'], d2), 0);
   assert.equal(envelope(out2).logged, false);
   assert.match(out2.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /decisions\.md not written/);
+
+  // A run dir that exists but sits under a worktree-local shadow (a linked
+  // worktree's `.git` is a FILE, not a directory) must be refused, never
+  // silently written to — [IL-127].
+  const shadowRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rc-shadow-'));
+  const wt = path.join(shadowRoot, '.claude', 'worktrees', 'wt');
+  const shadowRunDir = path.join(wt, '.claude-tweaks', 'pipelines', RUN_DIR_NAME);
+  fs.mkdirSync(shadowRunDir, { recursive: true });
+  fs.writeFileSync(path.join(wt, '.git'), 'gitdir: ../../../.git/worktrees/wt\n');
+  const out3 = [];
+  const { d: d3 } = deps({ content: live(RUN_DIR_NAME), out: out3 });
+  assert.equal(run(['999', '--run', shadowRunDir, '--reason', 'r'], d3), 0);
+  assert.equal(envelope(out3).logged, false);
+  assert.match(out3.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /not anchored/);
+  assert.equal(fs.existsSync(path.join(shadowRunDir, 'decisions.md')), false);
 });
 
 test('malformed invocation / gh absent exit 2 with the MCP fallback named; --help exits 0', () => {
@@ -87,6 +108,7 @@ test('malformed invocation / gh absent exit 2 with the MCP fallback named; --hel
   const out = [];
   const { d } = deps({ content: live(RUN_DIR_NAME), out });
   assert.equal(run(['--run', runDir, '--reason', 'r'], d), 2, 'issue missing');
+  assert.match(out.filter((o) => o[0] === 'err').map((o) => o[1]).join(''), /<issue> is required/);
   assert.equal(run(['abc', '--run', runDir, '--reason', 'r'], d), 2, 'issue not a number');
   assert.equal(run(['999', '--reason', 'r'], d), 2, '--run missing');
   assert.equal(run(['999', '--run', runDir], d), 2, '--reason missing');

@@ -6,18 +6,21 @@
 // blob, ownership check (never delete a successor's claim), releasePayload -> tombstone
 // PUT carrying the read sha, release comment; --remove-grants strips auto:build/auto:merge,
 // --remove-in-progress strips bot:in-progress; one AUTO line is appended to
-// <run-dir>/decisions.md when that directory exists. runId = basename(<run-dir>).
+// <run-dir>/decisions.md when that directory exists AND resolves as anchored under the
+// main checkout (resolveTarget — a worktree-local shadow is refused, never silently
+// written, matching bin/log-decision.js's guard [IL-127]). runId = basename(<run-dir>).
 // Exit 0 released; 3 already released or swept (404/409/422 — comment still posted);
 // 4 skipped, claim held by another run (nothing written); 1 failed; 2 malformed
 // invocation or `gh` absent — the MCP path in _shared/github-write-transport.md is the
-// documented fallback there, deliberately not grown into this CLI.
+// documented fallback there, deliberately not grown into this CLI. Logging is
+// bookkeeping, never a gate: the exit code always reflects the release outcome, never
+// whether decisions.md was written.
 'use strict';
 
 const path = require('path');
-const fs = require('fs');
 const { execFileSync } = require('child_process');
 const release = require('./lib/release-claim/release');
-const { formatEntry, appendEntry } = require('./lib/log-decision/append');
+const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/append');
 
 const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--repo owner/name] [--help]\n';
 const EXIT = { released: 0, 'already-released': 3, 'skipped-not-owner': 4, failed: 1 };
@@ -51,6 +54,8 @@ const realDeps = {
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
   now: () => Date.now(),
+  cwd: () => process.cwd(),
+  mainRoot: undefined,
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
 };
@@ -65,6 +70,7 @@ function run(argv, deps = realDeps) {
   const o = parseArgs(argv);
   if (o.error) { deps.stderr(o.error + '\n' + USAGE); return 2; }
   if (o.help) { deps.stdout(USAGE); return 0; }
+  if (o.issue === null) { deps.stderr('release-claim.js: <issue> is required\n' + USAGE); return 2; }
   const issue = Number(o.issue);
   if (!Number.isInteger(issue) || issue <= 0) { deps.stderr('release-claim.js: <issue> must be a positive integer\n' + USAGE); return 2; }
   if (!o.run) { deps.stderr('release-claim.js: --run <run-dir> is required (its basename is the claim runId)\n' + USAGE); return 2; }
@@ -85,11 +91,13 @@ function run(argv, deps = realDeps) {
   });
   let logged = false;
   if (r.outcome !== 'failed') {
-    let isDir = false;
-    try { isDir = fs.statSync(runDir).isDirectory(); } catch { isDir = false; }
-    if (isDir) {
+    let target;
+    try { target = resolveTarget({ runDir, cwd: deps.cwd ? deps.cwd() : process.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
+    if (target.ok) {
       const entry = formatEntry({ status: 'AUTO', now: deps.now(), step: 'Section E', text: decisionText(issue, r, o.reason.trim(), o.link), reversibility: r.outcome === 'skipped-not-owner' ? 'n/a' : 'high' });
       try { appendEntry({ runDir, entry }); logged = true; } catch (err) { deps.stderr(`release-claim.js: decisions.md not written (${err && err.message})\n`); }
+    } else if (target.reason === 'not-anchored') {
+      deps.stderr(`release-claim.js: decisions.md not written — run dir is not anchored under the main checkout (a worktree-local shadow): ${runDir} — see _shared/pipeline-run-dir.md\n`);
     } else {
       deps.stderr(`release-claim.js: decisions.md not written — run dir does not exist: ${runDir}\n`);
     }
