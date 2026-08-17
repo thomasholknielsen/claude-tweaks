@@ -310,7 +310,7 @@ rule, and the confirm gate (`<!-- refine-confirm-gate -->`).
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line; the closing summary below is the report, not narration.)*
 
-**Pre-write reverify (every write below).** Row confirmation happened at Step 4's `AskUserQuestion` render, which may have sat unanswered for hours — long enough for a concurrent session to grant, claim, or flag back the same record. Immediately before writing any row below (priority/related, grant, flag-back — never dependency-repair, which wires a `blocked-by` link rather than reading a grant/`ready` gate and is not this same race), re-fetch that record's live labels (`gh issue view $ISSUE --json labels -q '.labels[].name'`) and compare against the row's own premise — the facets already captured at Step 1's fetch (`{tmp-faceted-file}`), not re-derived. A grant row whose live labels lost `ready`, or a flag-back row whose live labels gained `risk:*`/`size:*`/`auto:build`/`bot:in-progress` since Step 1, has had its premise invalidated by a concurrent write: drop it from this write, add one line to the closing summary's report (`#{n} — skipped: premise changed since confirmation ({what changed})`), and do not call any of the `gh edit`/`writeRecord` calls below for that row. A priority/related row has no grant/`ready` gate to invalidate — re-fetch and compare its current `priority:*`/`**Related:**` state the same way, skipping only when the record already matches what would be written (a genuine no-op) or when a concurrent write already set a different value (log and skip rather than overwrite a fresher decision).
+**Pre-write reverify (every write below).** Row confirmation happened at Step 4's `AskUserQuestion` render, which may have sat unanswered for hours — long enough for a concurrent session to grant, claim, or flag back the same record. Immediately before writing any row below (priority/related, grant, flag-back — never dependency-repair, which wires a `blocked-by` link rather than reading a grant/`ready` gate and is not this same race), re-fetch that record's live labels (`gh issue view $ISSUE --json labels -q '.labels[].name'`) and compare against the row's own premise — the facets already captured at Step 1's fetch (`{tmp-faceted-file}`), not re-derived. A grant row whose live labels lost `ready`, or a flag-back row whose live labels gained `risk:*`/`size:*`/`auto:build`/`bot:in-progress` since Step 1, has had its premise invalidated by a concurrent write: drop it from this write, log a `SKIPPED` line to `decisions.md` (per the template below) — the closing summary already renders from these lines, no second channel — and do not call any of the `gh edit`/`writeRecord` calls below for that row. A priority/related row has no grant/`ready` gate to invalidate — re-fetch and compare its current `priority:*`/`**Related:**` state the same way, skipping only when the record already matches what would be written (a genuine no-op) or when a concurrent write already set a different value (log and skip rather than overwrite a fresher decision).
 
 Local-files driver: the equivalent re-read is `readRecord(path).facets` immediately before `writeRecord` — same skip-on-mismatch rule, since a concurrent session's edit to the tracked file is exactly the same class of stale-premise race as a concurrent GitHub label write.
 
@@ -400,23 +400,22 @@ AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: repaired dependency on #{n} — {wired native blocked-by referencing #{m} | appended Blocked by #{m} line}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
+SKIPPED {time} — Backlog refine: #{n} — premise changed since confirmation ({what changed}); dropped without writing.
 FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
 ```
 
-The closing summary below counts these lines by type — a `FAILED` line is the only source for both
-the tally's `failed` count and the per-failure lines; a write with no matching `AUTO`/`FAILED` line
-was never attempted, so it counts toward neither.
+The closing summary below counts these lines by type — a `FAILED` line is the source for the tally's `failed` count and the per-failure lines; a `SKIPPED` line (from the pre-write reverify above) is the source for the tally's `skipped` count and its own per-skip lines; a write with no matching `AUTO`/`FAILED`/`SKIPPED` line was never attempted, so it counts toward none of them.
 
 **Closing summary (required, rendered as assistant text — never delegated to tool output; a
 shell print of the tally does not satisfy this):** after the apply pass above completes, render
 a closing block from the same per-write outcomes already logged to `decisions.md` above — no
 second bookkeeping channel:
 
-1. **Per-type tally line** — one count per write type applied this run, with `failed` always
+1. **Per-type tally line** — one count per write type applied this run, with `skipped` and `failed` always
    present, even at zero:
 
    ```
-   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 0 failed
+   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 0 skipped · 0 failed
    ```
 
 2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry
@@ -440,7 +439,13 @@ second bookkeeping channel:
    `gh` calls) and Related/Flag-back rows (a `--body-file` edit) retry as the single failed call
    from that row's own mechanics above, not the whole row.
 
-3. **The run-directory path, absolute** — never relative (a bare relative
+3. **One line per skipped write** — the record ref and what changed, informational only (no retry command needed — the human re-runs refine to pick it up fresh next time):
+
+   ```
+   #123 — skipped: premise changed since confirmation (lost ready label)
+   ```
+
+4. **The run-directory path, absolute** — never relative (a bare relative
    `.claude-tweaks/pipelines/` path silently shadows the main-checkout copy when run from a
    worktree):
 
