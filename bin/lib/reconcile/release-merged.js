@@ -15,6 +15,7 @@ const { readRunState } = require('../hooks/context');
 const { classifyClaimBlob, releasePayload } = require('../issues/claims');
 const claimStore = require('../issues/claim-store');
 const { resolvePrState } = require('./pr-state');
+const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
 
 const GH_TIMEOUT_MS = 5000;
 
@@ -67,6 +68,12 @@ function ghApi(args) {
   }
 }
 
+// Raw `gh` runner for the shared write path below (ghApi prepends `api` and
+// swallows failures; writeTombstoneShared composes its own argv and needs the throw).
+function ghRunner(args) {
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS });
+}
+
 function repoSlugOf(repoRoot) {
   const remote = runGit(['remote', 'get-url', 'origin'], repoRoot);
   if (remote.failure || !remote.stdout) return null;
@@ -114,15 +121,22 @@ function releasedEntry(issueNumber, runId, prState) {
 }
 
 // Conditional-update — sha = the target file's current blob sha from the
-// fresh read above, per `_shared/issue-claims.md`'s "The lock" step 4/5. A
-// sha mismatch (someone else already broke/re-claimed it) surfaces as an
-// ordinary write failure here; the caller logs it as a release race, exactly
-// the posture that file's Failure posture table documents.
-function writeTombstone(repoSlug, name, sha, tombstoneContent, reason) {
-  const r = claimStore.writeClaimBlob(ghApi, repoSlug, issueNumberOf(name), {
-    content: tombstoneContent, sha, message: `Release claim ${name} — ${reason}`,
-  });
-  return r.ok;
+// fresh read above, per `_shared/issue-claims.md`'s "The lock" step 4/5. The
+// PUT itself is composed by bin/lib/release-claim/release.js's writeTombstone —
+// the one write path Section E's CLI and this reconciler share — so a sha
+// mismatch (someone else already broke/re-claimed it) surfaces as an ordinary
+// throw there and maps to false here; the caller logs it as a release race,
+// exactly the posture that file's Failure posture table documents. `runner`
+// is injectable for tests; the default keeps this module's 5s gh timeout.
+function writeTombstone(repoSlug, name, sha, tombstoneContent, reason, runner = ghRunner) {
+  const [owner, repo] = repoSlug.split('/');
+  const issueNumber = Number((/^issue-(\d+)\.json$/.exec(name) || [])[1]);
+  try {
+    writeTombstoneShared({ owner, repo, issueNumber, sha, tombstoneContent, message: `Release claim ${name} — ${reason}`, runner });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Best-effort in both directions per `_shared/issue-claims.md` — a failed
@@ -154,11 +168,12 @@ function releaseMerged({ cwd } = {}) {
     if (claim.failure) { skipped.push({ issueNumber, reason: claim.failure }); continue; }
 
     const classified = classifyClaimBlob(claim.content, Date.now());
+    const isActive = classified.state === 'live' || classified.state === 'stale';
     let runId = null;
-    if (classified.state === 'live' || classified.state === 'stale') {
+    if (isActive) {
       try { runId = JSON.parse(claim.content).runId || null; } catch { /* falls through to no-run-id below */ }
     }
-    if ((classified.state === 'live' || classified.state === 'stale') && !runId) {
+    if (isActive && !runId) {
       skipped.push({ issueNumber, reason: 'no-run-id' });
       continue;
     }
@@ -187,7 +202,7 @@ function releaseMerged({ cwd } = {}) {
     // forever (overwrites, not deletions), so an ungated fetch here would be
     // a growing per-pass gh api cost with zero effect on non-candidates.
     let issueState;
-    if ((classified.state === 'live' || classified.state === 'stale') && needsIssueEvidence(prState)) {
+    if (isActive && needsIssueEvidence(prState)) {
       // One gh api call per candidate, per pass — intentional; bounded by the
       // open claim count (typically small), not by repo or issue history size.
       issueState = readIssueState(repoSlug, issueNumber);
@@ -195,7 +210,7 @@ function releaseMerged({ cwd } = {}) {
 
     const decision = decideRelease(classified.state, prState, issueState);
     if (decision.action === 'skip') {
-      if (classified.state !== 'live' && classified.state !== 'stale') continue; // absent/tombstone/unreadable — not worth logging as a skip
+      if (!isActive) continue; // absent/tombstone/unreadable — not worth logging as a skip
       skipped.push({ issueNumber, runId, reason: joinFailure || decision.reason });
       continue;
     }
@@ -212,4 +227,4 @@ function releaseMerged({ cwd } = {}) {
   return { released, skipped };
 }
 
-module.exports = { releaseMerged, decideRelease, releasedEntry, repoSlugOf };
+module.exports = { releaseMerged, decideRelease, releasedEntry, repoSlugOf, writeTombstone };

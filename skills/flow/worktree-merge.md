@@ -90,7 +90,7 @@ For each completed branch (in order):
    [ "$(git branch --show-current)" = "{base-branch}" ] && git merge --ff-only <sha>
    ```
 
-   `<sha>` is the scratch worktree's HEAD after resolving and committing — resolve it there with `git rev-parse HEAD` and paste the literal value in; shell state doesn't survive between separate Bash calls (`_shared/scratch-worktree.md` §7). `git merge` itself is ungated and this fast-forward creates no new commit. Tear the scratch worktree down via `ExitWorktree` per that file's §6 — never a raw `git worktree remove`, which fails on the worktree's own live lock (`[IL-58]`). This scratch-worktree ceremony is `local-merge`-only — the `pr-first` path above never needs it, since its own conflict path surfaces inside the run's own real worktree, not the main checkout.
+   `<sha>` is the scratch worktree's HEAD after resolving and committing — resolve it there with `git rev-parse HEAD` and paste the literal value in; shell state doesn't survive between separate Bash calls (`_shared/scratch-worktree.md` §7). `git merge` itself is ungated and this fast-forward creates no new commit. Tear the scratch worktree down via `ExitWorktree` per that file's §6 — never a raw `git worktree remove`, which fails on the worktree's own live lock (`[IL-58]`); the same Teardown ordering invariant `wrap-up/cleanup-procedures.md` Section C states for a run's own worktree applies here — removal is the last action against the scratch worktree, only after the fast-forward above has landed. This scratch-worktree ceremony is `local-merge`-only — the `pr-first` path above never needs it, since its own conflict path surfaces inside the run's own real worktree, not the main checkout.
 
 ### Post-Merge Summary
 

@@ -1,106 +1,67 @@
 #!/usr/bin/env node
-// bin/log-decision.js — one appender for the canonical decisions.md entry
-// schema (_shared/auto-decision-log.md's "Entry schema").
-//   node bin/log-decision.js --run-dir <dir> [--spec <n>] [--skill <name>] <STATUS> <message...>
-// `message` is everything after STATUS, joined with spaces — the caller
-// composes the "{step or location}: {short action}. {detail}. Reversibility:
-// {high|med|low}{; commit ref}" text per the schema; this CLI only prefixes
-// the status word and a local HH:MM:SS timestamp, and appends the line under
-// the given --skill heading (or at end of file when --skill is omitted).
-// Exit 0 on success; 2 on a malformed invocation (bad STATUS, missing
-// --run-dir/message, or a --spec value that doesn't resolve to an existing
-// spec-{n}/ subdirectory).
+// bin/log-decision.js — append one _shared/auto-decision-log.md entry to a run's decisions.md.
+//   node bin/log-decision.js --run <run-dir> --status AUTO|STAGED|KEPT-PROMPT|SCANNED|REFUSED --text "..." \
+//     [--spec <n>] [--step <text>] [--reversibility high|med|low|n/a] [--lever "<k>=<v> (<source>)"] \
+//     [--section "/<skill>"] [--help]
+// Exit 0 appended (entry echoed to stdout); 2 malformed invocation; 3 run dir missing or not
+// anchored under the main checkout (a worktree-local shadow — _shared/pipeline-run-dir.md).
+// The decisions.md half of #637; the staged/ writer is #637's remaining scope.
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+const { STATUSES, formatEntry, resolveTarget, appendEntry } = require('./lib/log-decision/append');
 
-const VALID_STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED'];
-const USAGE = 'usage: log-decision.js --run-dir <dir> [--spec <n>] [--skill <name>] <STATUS> <message...>\n' +
-  `       STATUS is one of ${VALID_STATUSES.join('|')}\n`;
+const USAGE = 'usage: log-decision.js --run <run-dir> --status AUTO|STAGED|KEPT-PROMPT|SCANNED|REFUSED --text "..." [--spec <n>] [--step <text>] [--reversibility high|med|low|n/a] [--lever "<k>=<v> (<source>)"] [--section "/<skill>"] [--help]\n';
+const REVERSIBILITY = ['high', 'med', 'low', 'n/a'];
 
 function parseArgs(argv) {
-  const opts = { runDir: null, spec: null, skill: null, status: null, message: null, help: false };
-  const rest = [];
+  const o = { run: null, status: null, text: null, spec: null, step: null, reversibility: 'n/a', lever: null, section: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = () => argv[++i];
-    if (a === '--help' || a === '-h') { opts.help = true; }
-    else if (a === '--run-dir') opts.runDir = next();
-    else if (a === '--spec') opts.spec = next();
-    else if (a === '--skill') opts.skill = next();
-    else if (a.startsWith('--')) return { error: `unknown argument: ${a}` };
-    else rest.push(a);
+    const next = () => { const v = argv[++i]; return v === undefined ? null : v; };
+    if (a === '--help' || a === '-h') o.help = true;
+    else if (a === '--run') o.run = next();
+    else if (a === '--status') o.status = next();
+    else if (a === '--text') o.text = next();
+    else if (a === '--spec') o.spec = next();
+    else if (a === '--step') o.step = next();
+    else if (a === '--reversibility') o.reversibility = next();
+    else if (a === '--lever') o.lever = next();
+    else if (a === '--section') o.section = next();
+    else return { error: `unknown argument: ${a}` };
   }
-  if (opts.help) return opts;
-  if (rest.length === 0) return { error: 'missing STATUS argument' };
-  opts.status = rest[0];
-  opts.message = rest.slice(1).join(' ');
-  return opts;
-}
-
-function hhmmss(date = new Date()) {
-  return date.toTimeString().slice(0, 8);
-}
-
-// Insert `line` as the last entry under `## /{skill}` in `text`, creating the
-// section (appended at end of file) if it doesn't exist yet. No --skill:
-// append `line` at the very end of the file (a trailing newline is preserved).
-function insertEntry(text, line, skill) {
-  const body = text.endsWith('\n') ? text : text + '\n';
-  if (!skill) return body + line + '\n';
-  const heading = `## /${skill}`;
-  const headingIdx = body.indexOf(heading);
-  if (headingIdx === -1) {
-    const sep = body.endsWith('\n\n') ? '' : (body.endsWith('\n') ? '\n' : '\n\n');
-    return body + sep + heading + '\n' + line + '\n';
-  }
-  const afterHeadingLine = body.indexOf('\n', headingIdx) + 1;
-  const nextHeadingRel = body.slice(afterHeadingLine).search(/\n## /);
-  const chunkEnd = nextHeadingRel === -1 ? body.length : afterHeadingLine + nextHeadingRel + 1;
-  const chunk = body.slice(afterHeadingLine, chunkEnd);
-  // Insert right after the section's last content line, not after any blank
-  // line(s) separating it from the next heading — trim trailing newlines
-  // down to exactly one, insert there, then restore whatever was trimmed.
-  const trimmedChunk = chunk.replace(/\n+$/, '\n');
-  const trailing = chunk.slice(trimmedChunk.length);
-  return body.slice(0, afterHeadingLine) + trimmedChunk + line + '\n' + trailing + body.slice(chunkEnd);
+  return o;
 }
 
 const realDeps = {
-  exists: (p) => fs.existsSync(p),
-  mkdirp: (p) => fs.mkdirSync(p, { recursive: true }),
-  readFile: (p) => fs.readFileSync(p, 'utf8'),
-  writeFile: (p, content) => fs.writeFileSync(p, content),
-  now: () => new Date(),
+  now: () => Date.now(),
+  cwd: () => process.cwd(),
+  mainRoot: undefined,
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
 };
 
 function run(argv, deps = realDeps) {
-  const opts = parseArgs(argv);
-  if (opts.error) { deps.stderr(opts.error + '\n' + USAGE); return 2; }
-  if (opts.help) { deps.stdout(USAGE); return 0; }
-  if (!opts.runDir) { deps.stderr('missing required --run-dir\n' + USAGE); return 2; }
-  if (!VALID_STATUSES.includes(opts.status)) { deps.stderr(`STATUS must be one of ${VALID_STATUSES.join('|')} (got "${opts.status}")\n` + USAGE); return 2; }
-  if (!opts.message) { deps.stderr('missing required message text\n' + USAGE); return 2; }
-
-  const targetDir = opts.spec ? path.join(opts.runDir, `spec-${opts.spec}`) : opts.runDir;
-  if (opts.spec && !deps.exists(targetDir)) {
-    deps.stderr(`log-decision.js: --spec ${opts.spec} does not resolve to an existing ${targetDir}\n`);
-    return 2;
+  const o = parseArgs(argv);
+  if (o.error) { deps.stderr(o.error + '\n' + USAGE); return 2; }
+  if (o.help) { deps.stdout(USAGE); return 0; }
+  if (!o.run) { deps.stderr('log-decision.js: --run <run-dir> is required\n' + USAGE); return 2; }
+  if (!STATUSES.includes(o.status)) { deps.stderr(`log-decision.js: --status must be one of ${STATUSES.join('|')}\n` + USAGE); return 2; }
+  if (!o.text || !String(o.text).trim()) { deps.stderr('log-decision.js: --text is required\n' + USAGE); return 2; }
+  if (!REVERSIBILITY.includes(o.reversibility)) { deps.stderr(`log-decision.js: --reversibility must be one of ${REVERSIBILITY.join('|')}\n` + USAGE); return 2; }
+  if (o.spec !== null && !/^\d+$/.test(String(o.spec))) { deps.stderr('log-decision.js: --spec must be a record number\n' + USAGE); return 2; }
+  let target;
+  try { target = resolveTarget({ runDir: o.run, cwd: deps.cwd(), mainRoot: deps.mainRoot }); } catch (err) { deps.stderr(`log-decision.js: ${err && err.message}\n`); return 3; }
+  if (!target.ok) {
+    if (target.reason === 'missing') deps.stderr(`log-decision.js: run dir does not exist: ${o.run}\n`);
+    else deps.stderr(`log-decision.js: run dir is not anchored under the main checkout (a worktree-local shadow): ${o.run} — resolve $RUN_ROOT per _shared/pipeline-run-dir.md's Anchoring section and pass the main-checkout path\n`);
+    return 3;
   }
-  const file = path.join(targetDir, 'decisions.md');
-  const line = `- ${opts.status} ${hhmmss(deps.now())} — ${opts.message}`;
-
-  const existing = deps.exists(file) ? deps.readFile(file) : `# Auto-Decision Log — pipeline ${path.basename(opts.runDir)}\n`;
-  deps.mkdirp(targetDir);
-  deps.writeFile(file, insertEntry(existing, line, opts.skill));
-
-  deps.stdout(JSON.stringify({ file, line }, null, 2) + '\n');
+  const entry = formatEntry({ status: o.status, now: deps.now(), step: o.step, spec: o.spec, text: o.text, reversibility: o.reversibility, lever: o.lever });
+  try { appendEntry({ runDir: o.run, section: o.section, entry }); } catch (err) { deps.stderr(`log-decision.js: could not write decisions.md (${err && err.message})\n`); return 3; }
+  deps.stdout(entry + '\n');
   return 0;
 }
 
-module.exports = { run, parseArgs, insertEntry, hhmmss };
+module.exports = { run, parseArgs };
 
 if (require.main === module) process.exitCode = run(process.argv.slice(2), realDeps);

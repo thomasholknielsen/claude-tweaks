@@ -131,7 +131,22 @@ Skills append, never rewrite. Pattern:
 
 For the very first entry of a pipeline run, `/flow` (or the first standalone skill) writes the file header and the pipeline config snapshot. Subsequent entries are added under skill headings.
 
-**Under `worktree-always: true`, before a worktree exists for this run.** Every standalone-auto skill (`_shared/pipeline-run-dir.md`'s step 4 allowlist: `/tidy`, `/init`, `/capture`, `/dispatch`, `/backlog`) writes its own `decisions.md` directly against the main checkout — there is no per-run worktree the way a `/build`/`/flow` pipeline has one. The `worktree-always` PreToolUse gate blocks `Edit`/`Write`/`NotebookEdit` there, so the Read+Write pattern above is denied. Use a Bash append instead — the gate's Bash coverage is the `cp`/`mv`/`tee` shapes only, not output redirection (see CLAUDE.md's Hooks section):
+**One command per entry.** `bin/log-decision.js` performs steps 1-3 for a single entry — format
+per the Entry schema above; when `--section` is passed, the entry is placed under the `## /{skill}`
+heading (creating it when absent), otherwise appended at EOF. It refuses to write with exit `3`
+when the run dir is missing, not anchored under `$RUN_ROOT` (`_shared/pipeline-run-dir.md`'s
+Anchoring section — i.e. a worktree-local shadow), or unwritable, so a worktree-local shadow is
+never written silently:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO \
+  --section "/{skill-name}" --step "{step or location}" --text "{short action}" --reversibility high \
+  [--spec <n>] [--lever "<key>=<value> (<source>)"]
+```
+
+Prefer it over composing the line by hand or via a scratch `node -e` at every AUTO/STAGED site.
+
+**Under `worktree-always: true`, before a worktree exists for this run.** Every standalone-auto skill (`_shared/pipeline-run-dir.md`'s step 4 allowlist: `/tidy`, `/init`, `/capture`, `/dispatch`, `/backlog`) writes its own `decisions.md` directly against the main checkout — there is no per-run worktree the way a `/build`/`/flow` pipeline has one. The `worktree-always` PreToolUse gate blocks `Edit`/`Write`/`NotebookEdit` there, so the Read+Write pattern above is denied. Use `bin/log-decision.js` (above) or a Bash append instead — the gate's Bash coverage is the `cp`/`mv`/`tee` shapes only, not a Node process or output redirection (see CLAUDE.md's Hooks section):
 
 ```bash
 HEADING="## /{skill-name}"

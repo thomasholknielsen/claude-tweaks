@@ -302,11 +302,11 @@ test('a needs-you leftover payload composes Open Question with no ready and no s
 
 // --- #625: capture's shaped-body branch ---
 
-test('capture/SKILL.md carries the Shaped-body branch, the flag, and still the 5-line cap', () => {
+test('capture/SKILL.md carries the Shaped-body branch, the flag, and still the character-budget cap', () => {
   const c = read('skills/capture/SKILL.md');
   assert.ok(c.includes('Shaped-body branch'));
   assert.ok(c.includes('--defer-reason='));
-  assert.ok(c.includes('Hard cap: ~5 lines'));
+  assert.ok(c.includes('Hard cap: ~400 characters'));
 });
 
 test('both CLAUDE.md copies name the spec-shaped body in the no-implicit-deferrals bullet', () => {
