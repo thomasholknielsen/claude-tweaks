@@ -227,9 +227,9 @@ This spec's record is identified whenever this section runs (`SKILL.md` Phase 1 
 branch/commit reference, or, when `skills/flow/materialize.md` wrote one, a materialized header's
 `record:` field). Call that number `<n>`: the pipeline may hold `claims/issue-<n>.json` on
 `claims-registry` per `_shared/issue-claims.md`. A header is not required to attempt this — a run that never went
-through `/claude-tweaks:dispatch` never held a claim either: step 3's ownership check ends the
-section harmlessly there, before the write is attempted, logging the misleading-but-harmless
-`claim held by run undefined`. Release it only after the branch outcome is known (item 4, Git
+through `/claude-tweaks:dispatch` never held a claim either: step 3's CLI exits `3` (already
+released / never claimed) or `4` (held by another run) there without touching the blob. Release it
+only after the branch outcome is known (item 4, Git
 Worktree, completes first — the execution order of the canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
@@ -250,75 +250,66 @@ stop before attempting any release.
    `$LINK` is the final wrap-up commit sha — and that wrap-up commit's MESSAGE must carry the
    closing keywords (one `Fixes #{issue}` line per resolved issue; see Section C's carrier
    note). This applies per spec's own wrap-up commit in multi-spec current-branch runs.
-3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Resolve `$RUN_ID`
-   as `basename($PIPELINE_RUN_DIR)`. Whether that value matches the run id `/claude-tweaks:dispatch`
-   claimed under follows directly from dispatch minting the run directory itself: dispatch Step 4
-   mints `PIPELINE_RUN_DIR` and writes the claim's `runId` as that directory's own basename, then
-   passes the same `PIPELINE_RUN_DIR` value inline on both of a group's Task calls — `/flow` Step 3
-   adopts it (its case 2, for the first call reaching an empty minted directory, or case 1 once
-   `config.yml` exists) rather than creating a separate run directory of its own, so this pipeline's
-   `$PIPELINE_RUN_DIR` **is** the directory the claim was written under, for a singleton. (A
-   multi-spec bundle is the one exception this single-spec Section E does not itself resolve — see
-   the callout below.) A spec reaching this point through any other path (a human running
-   `/flow #{issue}` directly, or a spec merely *derived from* an issue with no live claim) resolves
-   the same way — there is no separate fallback branch needed now that a single run identity
-   covers both cases. Read the claim blob at `claims/issue-${ISSUE}.json`
-   on `claims-registry` (per `_shared/issue-claims.md`'s "The lock"). If its `runId` is not the
-   resolved `$RUN_ID`, a successor holds the lock — skip the write AND the comment, log
-   `AUTO — skipped release of issue #{issue}: claim held by run {claim.runId}`, and continue.
+3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers") — performed by the CLI in
+   step 4.** Resolve `$RUN_ID` as `basename($PIPELINE_RUN_DIR)`. Whether that value matches the
+   run id `/claude-tweaks:dispatch` claimed under follows directly from dispatch minting the run
+   directory itself: dispatch Step 4 mints `PIPELINE_RUN_DIR` and writes the claim's `runId` as that
+   directory's own basename, then passes the same `PIPELINE_RUN_DIR` value inline on both of a
+   group's Task calls — `/flow` Step 3 adopts it rather than creating a separate run directory of
+   its own, so this pipeline's `$PIPELINE_RUN_DIR` **is** the directory the claim was written
+   under, for a singleton. (A multi-spec bundle is the one exception this single-spec Section E does
+   not itself resolve — see the callout below.) A spec reaching this point through any other path
+   (a human running `/flow #{issue}` directly, or a spec merely *derived from* an issue with no
+   live claim) resolves the same way. The CLI reads the blob at `claims/issue-${ISSUE}.json` on
+   `claims-registry` itself; a `runId` other than `$RUN_ID` means a successor holds the lock — it
+   exits `4`, writes nothing, posts nothing, and appends `AUTO — skipped release of issue
+   #{issue}: claim held by run {claim.runId}` to `decisions.md`; continue to the next step's
+   label handling for nothing else — the issue is done here.
 
    **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
    `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" above) — release happens once, at
-   end-of-run, in `flow/multispec-review-console.md`'s "Shared teardown," which resolves `$RUN_ID`
-   as `basename($MULTISPEC_PARENT_DIR)` instead: the claim dispatch wrote is keyed to the parent
+   end-of-run, in `flow/multispec-review-console.md`'s "Shared teardown," which passes
+   `--run "$MULTISPEC_PARENT_DIR"` instead: the claim dispatch wrote is keyed to the parent
    directory's basename (the identity minted for the whole group), while each spec's own
-   `$PIPELINE_RUN_DIR` in that context is the `spec-{N}/` subdirectory, not the parent. This
-   section's own `basename($PIPELINE_RUN_DIR)` resolution above is correct only for the
-   non-deferred, single-run case — a singleton, or any run whose `$PIPELINE_RUN_DIR` names the
-   directory the claim was actually written under.
-4. Generate the release content/comment with `releasePayload`, conditionally overwrite the
-   blob with the tombstone (sha = the blob's current sha, from step 3's read), post the comment:
+   `$PIPELINE_RUN_DIR` in that context is the `spec-{N}/` subdirectory, not the parent.
+4. **Release in one command** — ownership check, `releasePayload` tombstone `PUT` (sha = the
+   blob's current sha from the CLI's own read), release comment, and the label removals of steps
+   6-7, once per issue:
 
    ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-     const p = c.releasePayload({issueNumber:Number(process.argv[1]),runId:process.argv[2],
-     reason:process.argv[3],link:process.argv[4]||undefined,now:Date.now()});
-     require('fs').writeFileSync(process.argv[5], p.tombstoneContent);
-     console.log(p.commentBody)" \
-     "$ISSUE" "$RUN_ID" "$REASON" "$LINK" "${RUN_DIR}/release-tombstone-${ISSUE}.json" \
-     > "${RUN_DIR}/release-${ISSUE}.md"
-   gh api --method PUT "repos/{owner}/{repo}/contents/claims/issue-${ISSUE}.json" \
-     -f "message=Release claim on issue #${ISSUE}" \
-     -f "content=$(base64 < "${RUN_DIR}/release-tombstone-${ISSUE}.json")" \
-     -f "branch=claims-registry" -f "sha=${CURRENT_BLOB_SHA}"
-   gh issue comment "$ISSUE" --body-file "${RUN_DIR}/release-${ISSUE}.md"
+   node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" "$ISSUE" --run "$PIPELINE_RUN_DIR" \
+     --reason "$REASON" ${LINK:+--link "$LINK"} --remove-in-progress [--remove-grants]
    ```
 
-5. A 404/422 from the blob write means the claim was already released or swept (or the sha went
-   stale between the read and this write) — log it and still post the release comment (the
-   comment trail should record the outcome). Any other failure: retry once, then log and
-   continue — TTL is the backstop, never block wrap-up.
-6. **Remove grants** when the outcome was `merged:` or `pr-opened:`: remove `auto:build` and
-   `auto:merge`, whichever are present (`gh issue edit "$ISSUE" --remove-label auto:build` /
-   `--remove-label auto:merge`, best-effort per label) — reversible, log each removal to
-   `decisions.md`. Skip issues released as `abandoned:` (the grant is the standing retry
-   request) and issues carrying no `auto:*` label. See "Grant revocation" and the "Release
-   triggers" table in `_shared/issue-claims.md`.
-7. **Remove `bot:in-progress`; restore `parked` if applicable.** Always remove
-   `bot:in-progress` (`gh issue edit "$ISSUE" --remove-label bot:in-progress`) — best-effort,
-   log a warning and continue on failure. Then, only when the outcome reason is
-   `abandoned: spec {spec}` (i.e. NOT `merged:`/`pr-opened:`) AND the materialized header
-   (`${RUN_DIR}/work/*-spec.md` — read directly; per the step above, the file is never deleted
-   before this point) carries `parked-at-shaping: true` (`materialize.md`'s field for exactly
-   this restore-on-abandon case): restore `parked` — bootstrap the label if missing (per
-   _shared/label-bootstrap.md, LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a
-   trigger condition']]), then `gh issue edit "$ISSUE" --add-label parked`. Skip restoration
-   silently when no materialized header exists or
-   `parked-at-shaping` is absent, or when the outcome was `merged:`/`pr-opened:` (the record
-   shipped or is under review — it should stay unparked). Best-effort — on failure, log a
-   warning and continue; `/tidy` Step 4.7's backstop check catches a restoration that silently
+   (`--remove-grants` per step 6's rule.) The CLI wraps `gh` only — in a `gh`-absent environment
+   run the same read-classify-write over the MCP tools per `_shared/github-write-transport.md`;
+   the MCP path stays the documented fallback rather than a second mode of the CLI.
+5. Exit `0` = released. Exit `3` = a 404/422 from the blob write — the claim was already released
+   or swept (or the sha went stale between the read and this write); the CLI still posts the
+   release comment so the trail records the outcome. Exit `1` = any other failure: retry the
+   command once, then log and continue — TTL is the backstop, never block wrap-up. Exit `2` =
+   malformed call or `gh` absent (see step 4's fallback).
+6. **Remove grants** when the outcome was `merged:` or `pr-opened:`: pass `--remove-grants`, which
+   strips `auto:build` and `auto:merge`, whichever are present, best-effort per label — reversible,
+   each removal logged to `decisions.md` by the CLI. Omit it for issues released as `abandoned:`
+   (the grant is the standing retry request); an issue carrying no `auto:*` label is a harmless
+   no-op. See "Grant revocation" and the "Release triggers" table in `_shared/issue-claims.md`.
+7. **Remove `bot:in-progress`; restore `parked` if applicable.** `--remove-in-progress` (always
+   passed) removes `bot:in-progress` — best-effort, the CLI logs a warning and continues on
+   failure. Then, only when the outcome reason is `abandoned: spec {spec}` (i.e. NOT
+   `merged:`/`pr-opened:`) AND the materialized header (`${RUN_DIR}/work/*-spec.md` — read
+   directly; per the step above, the file is never deleted before this point) carries
+   `parked-at-shaping: true` (`materialize.md`'s field for exactly this restore-on-abandon case):
+   restore `parked` — bootstrap the label if missing (per _shared/label-bootstrap.md, LABELS_JSON =
+   [['parked', 'Deferred backlog entry, waiting on a trigger condition']]), then
+   `gh issue edit "$ISSUE" --add-label parked`. Skip restoration silently when no materialized
+   header exists or `parked-at-shaping` is absent, or when the outcome was `merged:`/`pr-opened:`
+   (the record shipped or is under review — it should stay unparked). Best-effort — on failure, log
+   a warning and continue; `/tidy` Step 4.7's backstop check catches a restoration that silently
    failed.
-8. Log each release, grant removal, `bot:in-progress` removal, and `parked` restoration to
-   `decisions.md` (status `AUTO`, reason string as detail).
+8. The CLI logs the release (or ownership skip) and every label removal to `decisions.md` (status
+   `AUTO`, reason string as detail). Log the `parked` restoration yourself:
+   `node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO --step
+   "Section E" --text "restored parked on #{issue}" --reversibility high`.
 
 This section does not apply to conversation-based work — cleanup planning's item 7 condition (record-based work) already excludes it before Section E is ever reached.
