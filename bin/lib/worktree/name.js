@@ -12,13 +12,13 @@
 
 const MAX_LEN = 64;
 
-// Anything NOT in [A-Za-z0-9._-] becomes '-'; runs of '-' collapse to one;
-// the result is capped at MAX_LEN chars. Order matters: collapse before cap,
-// so the cap is enforced against the final, already-collapsed string.
+// Order matters: collapse runs of '-' before capping, so MAX_LEN is enforced
+// against the final, already-collapsed string.
 function sanitizeWorktreeName(name) {
-  const mapped = String(name).replace(/[^A-Za-z0-9._-]/g, '-');
-  const collapsed = mapped.replace(/-+/g, '-');
-  return collapsed.slice(0, MAX_LEN);
+  return String(name)
+    .replace(/[^A-Za-z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, MAX_LEN);
 }
 
 module.exports = { sanitizeWorktreeName, MAX_LEN };
