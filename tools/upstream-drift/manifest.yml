@@ -2,7 +2,8 @@
 #
 # What this repo claims about each upstream dependency, and how to test those
 # claims against the artifact actually installed. Maintainer-only tooling: this
-# directory is never shipped payload, and nothing under bin/ may import from it.
+# directory is never shipped payload (it lives outside plugin/), and nothing
+# under plugin/bin/ may import from it.
 #
 # The Impeccable plugin and the Impeccable CLI are TWO INDEPENDENT ENTRIES.
 # Conflating them is the documented root cause of the drift that motivated this
@@ -28,11 +29,11 @@ dependencies:
       - "cli/engine/cli/main.mjs"
       - "cli/engine/registry/antipatterns.mjs"
     assertions:
-      - file: "skills/design-wrapper/impeccable-cli.md"
+      - file: "plugin/skills/design-wrapper/impeccable-cli.md"
         claims: "findings JSON is written to stdout, not stderr"
         upstream-path: "cli/engine/cli/main.mjs"
         must-match: "process.stdout.write(formatFindings"
-      - file: "skills/design-wrapper/impeccable-cli.md"
+      - file: "plugin/skills/design-wrapper/impeccable-cli.md"
         claims: "a clean scan prints an empty JSON array rather than nothing"
         upstream-path: "cli/engine/cli/main.mjs"
         must-match: "process.stdout.write('[]"
@@ -65,27 +66,27 @@ dependencies:
       - "skills/impeccable/reference/document.md"
       - "skills/impeccable/scripts/concept-seed.mjs"
     assertions:
-      - file: "skills/design-wrapper/command-map.md"
+      - file: "plugin/skills/design-wrapper/command-map.md"
         claims: "the plugin exposes a polish command"
         upstream-path: "skills/impeccable/SKILL.md"
         must-match: "polish [target]"
-      - file: "skills/design-wrapper/modes/shape.md"
+      - file: "plugin/skills/design-wrapper/modes/shape.md"
         claims: "the plugin exposes a shape command taking a topic"
         upstream-path: "skills/impeccable/SKILL.md"
         must-match: "shape [feature]"
-      - file: "skills/design-wrapper/modes/live.md"
+      - file: "plugin/skills/design-wrapper/modes/live.md"
         claims: "live mode boots a server and enters a poll loop via scripts/live.mjs"
         upstream-path: "skills/impeccable/scripts/live.mjs"
         must-match: "enter the live variant poll loop"
-      - file: "skills/design-wrapper/impeccable-plugin.md"
+      - file: "plugin/skills/design-wrapper/impeccable-plugin.md"
         claims: "context-signals.mjs exports gatherSignals(cwd), defaulting to process.cwd()"
         upstream-path: "skills/impeccable/scripts/context-signals.mjs"
         must-match: "export async function gatherSignals(cwd = process.cwd())"
-      - file: "skills/design-wrapper/impeccable-plugin.md"
+      - file: "plugin/skills/design-wrapper/impeccable-plugin.md"
         claims: "the context-signals CLI entrypoint reads no argv — it passes process.cwd() and nothing else"
         upstream-path: "skills/impeccable/scripts/context-signals.mjs"
         must-match: "const signals = await gatherSignals(process.cwd());"
-      - file: "skills/design-wrapper/impeccable-plugin.md"
+      - file: "plugin/skills/design-wrapper/impeccable-plugin.md"
         claims: "scan.targets filters on scannability, not frontend-ness — bare .js and .ts are in SCANNABLE_EXT, which is why Layer 3 cannot be retired"
         upstream-path: "skills/impeccable/scripts/context-signals.mjs"
         must-match: "'.jsx', '.tsx', '.js', '.ts', '.vue', '.svelte', '.astro',"
@@ -94,39 +95,39 @@ dependencies:
       # surface as drift here — otherwise the parse quietly stops matching and /demo
       # renders an empty brief, which is indistinguishable from a record that simply
       # never had a contract.
-      - file: "skills/_shared/design-contract.md"
+      - file: "plugin/skills/_shared/design-contract.md"
         claims: "the direction contract lives in the built artifact's opening comment, not in a repo file at a fixed path"
         upstream-path: "skills/impeccable/reference/new-work.md"
         must-match: "as a contract in the artifact's opening comment"
-      - file: "skills/_shared/design-contract.md"
+      - file: "plugin/skills/_shared/design-contract.md"
         claims: "the contract's five block labels are exactly THESIS, OWN-WORLD, STORY, FIRST VIEWPORT, FORM"
         upstream-path: "agents/impeccable-finish-reviewer.md"
         must-match: "(THESIS, OWN-WORLD, STORY, FIRST VIEWPORT, FORM)"
-      - file: "skills/_shared/design-contract.md"
+      - file: "plugin/skills/_shared/design-contract.md"
         claims: "the FORM block carries the seed key, and only when the seed dealt stagings — so its absence is normal, not drift"
         upstream-path: "skills/impeccable/reference/new-work.md"
         must-match: "the seed key the script printed"
-      - file: "skills/design-wrapper/modes/explore.md"
+      - file: "plugin/skills/design-wrapper/modes/explore.md"
         claims: "the seed path reuses a completed workshop choice without re-asking"
         upstream-path: "skills/impeccable/reference/document.md"
         must-match: "use its chosen direction directly"
-      - file: "skills/design-wrapper/modes/explore.md"
+      - file: "plugin/skills/design-wrapper/modes/explore.md"
         claims: "reroll excludes already-shown directions"
         upstream-path: "skills/impeccable/reference/new-work.md"
         must-match: "Re-roll eliminates every direction already shown"
-      - file: "skills/design-wrapper/modes/explore.md"
+      - file: "plugin/skills/design-wrapper/modes/explore.md"
         claims: "the direction-scope invocation exists"
         upstream-path: "skills/impeccable/scripts/concept-seed.mjs"
         must-match: "--scope direction"
-      - file: "skills/design-wrapper/modes/explore.md"
+      - file: "plugin/skills/design-wrapper/modes/explore.md"
         claims: "after two consecutive rerolls, upstream asks what quality is missing"
         upstream-path: "skills/impeccable/reference/new-work.md"
         must-match: "after two consecutive re-rolls, ask what quality is missing"
-      - file: "skills/design-wrapper/modes/explore.md"
+      - file: "plugin/skills/design-wrapper/modes/explore.md"
         claims: "the canon standing exit is the user's door, never the mode's — listed last, never recommended"
         upstream-path: "skills/impeccable/reference/new-work.md"
         must-match: "It is the user's door, never yours"
-      - file: "skills/design-wrapper/modes/explore.md"
+      - file: "plugin/skills/design-wrapper/modes/explore.md"
         claims: "the surface-scope invocation exists"
         upstream-path: "skills/impeccable/scripts/concept-seed.mjs"
         must-match: "--scope surface"
@@ -159,15 +160,15 @@ dependencies:
       - "skills/finishing-a-development-branch/SKILL.md"
       - "skills/writing-plans/SKILL.md"
     assertions:
-      - file: "skills/_shared/subagent-output-contract.md"
+      - file: "plugin/skills/_shared/subagent-output-contract.md"
         claims: "the four-status vocabulary mirrors SDD's implementer statuses"
         upstream-path: "skills/subagent-driven-development/implementer-prompt.md"
         must-match: "DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT"
-      - file: "skills/build/SKILL.md"
+      - file: "plugin/skills/build/SKILL.md"
         claims: "SDD ends by invoking finishing-a-development-branch — the step /build suppresses"
         upstream-path: "skills/subagent-driven-development/SKILL.md"
         must-match: "Use superpowers:finishing-a-development-branch"
-      - file: "skills/build/SKILL.md"
+      - file: "plugin/skills/build/SKILL.md"
         claims: "SDD has a per-task model-selection heuristic the effort-tier override overrides"
         upstream-path: "skills/subagent-driven-development/SKILL.md"
         must-match: "## Model Selection"
@@ -175,39 +176,39 @@ dependencies:
         claims: "brainstorming's terminal step invokes writing-plans — the step the project override suppresses"
         upstream-path: "skills/brainstorming/SKILL.md"
         must-match: "Invoke the writing-plans skill"
-      - file: "skills/_shared/local-files-preflight-stop.md"
+      - file: "plugin/skills/_shared/local-files-preflight-stop.md"
         claims: "the SDD workspace lives at .superpowers/sdd/ — also cited as the SDD ledger by wrap-up's summary template"
         upstream-path: "skills/subagent-driven-development/scripts/sdd-workspace"
         must-match: 'base="$root/.superpowers/sdd"'
-      - file: "skills/build/failure-recovery.md"
+      - file: "plugin/skills/build/failure-recovery.md"
         claims: "SDD handles failed tasks with its own re-dispatch/escalation ladder — the recovery table defers to it before main-thread fallback"
         upstream-path: "skills/subagent-driven-development/SKILL.md"
         must-match: "provide more context and re-dispatch with the same model"
-      - file: "bin/lib/hooks/worktree-detect.js"
+      - file: "plugin/bin/lib/hooks/worktree-detect.js"
         claims: "ports using-git-worktrees' Step 0 GIT_DIR != GIT_COMMON + submodule-guard heuristic, so the hook and the skill never disagree about what counts as an isolated worktree"
         upstream-path: "skills/using-git-worktrees/SKILL.md"
         must-match: "**If `GIT_DIR != GIT_COMMON` (and not a submodule):**"
-      - file: "skills/_shared/scratch-worktree.md"
+      - file: "plugin/skills/_shared/scratch-worktree.md"
         claims: "falls back to git worktree add only when no native tool is available — using-git-worktrees Step 1a before Step 1b — and creates it under .worktrees/, verified by that skill's own Safety Verification substep"
         upstream-path: "skills/using-git-worktrees/SKILL.md"
         must-match: "#### Safety Verification (project-local directories only)"
-      - file: "bin/lib/hooks/worktree-reap.js"
+      - file: "plugin/bin/lib/hooks/worktree-reap.js"
         claims: "scopes reaping to .claude/worktrees/ because finishing-a-development-branch cleans up only .worktrees/ or worktrees/ — a permanently separate, superpowers-owned domain"
         upstream-path: "skills/finishing-a-development-branch/SKILL.md"
         must-match: "Clean up only worktrees under `.worktrees/` or `worktrees/`. Everything else belongs to the host."
-      - file: "skills/build/worktree-setup.md"
+      - file: "plugin/skills/build/worktree-setup.md"
         claims: "using-git-worktrees (v5.1.0+) asks for consent before creating a worktree (fixes upstream #991) — the prompt /build's auto mode pre-authorizes"
         upstream-path: "skills/using-git-worktrees/SKILL.md"
         must-match: "ask for consent before creating a worktree"
-      - file: "skills/wrap-up/cleanup-procedures.md"
+      - file: "plugin/skills/wrap-up/cleanup-procedures.md"
         claims: "finishing-a-development-branch's Option 1 (Merge Locally) runs a bare git merge with no --no-ff, so a fast-forward-eligible merge produces no merge commit"
         upstream-path: "skills/finishing-a-development-branch/SKILL.md"
         must-match: "git merge <feature-branch>"
-      - file: "skills/init/bootstrap/step-02-create-directory-structure.md"
+      - file: "plugin/skills/init/bootstrap/step-02-create-directory-structure.md"
         claims: "/init creates docs/superpowers/specs/ because that's brainstorming's default design-doc write path"
         upstream-path: "skills/brainstorming/SKILL.md"
         must-match: "docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md"
-      - file: "skills/init/bootstrap/step-02-create-directory-structure.md"
+      - file: "plugin/skills/init/bootstrap/step-02-create-directory-structure.md"
         claims: "/init creates docs/superpowers/plans/ because that's writing-plans' default plan write path"
         upstream-path: "skills/writing-plans/SKILL.md"
         must-match: "docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md"
@@ -225,13 +226,13 @@ dependencies:
   # compared against committed snapshots under
   # tools/upstream-drift/fixtures/emilkowalski-skills/ (MIT-licensed).
   # Nothing is installed by this repo (Emil's skills are live-loaded per
-  # skills/_shared/design-craft.md), so this entry deliberately declares no
+  # plugin/skills/_shared/design-craft.md), so this entry deliberately declares no
   # installed-probe — checks.js's checkContentPins() is its code path, not the
   # probe machinery.
   # Scope: only each consumed skill's SKILL.md is pinned; a future dispatch
   # site consuming any other file from a skill directory must extend this
   # entry's `consumed` list (and commit the matching fixture).
-  # The consumed list mirrors skills/_shared/design-craft.md's wired set.
+  # The consumed list mirrors plugin/skills/_shared/design-craft.md's wired set.
   - name: emilkowalski-skills
     kind: skill-repo
     pin: { commit: "78761e1b57f97dce65b983d640c70a68f39e8163", versioning: none }

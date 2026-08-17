@@ -2,14 +2,14 @@
 // commit pattern already used by tests/helpers/git-fixtures.js at the repo
 // root, scoped to evals/ so a scenario's fixture repo never touches the real
 // working tree. seedLocalWorkRecord writes through the real local-files
-// driver (bin/lib/issues/local-store.js) directly, so fixture records can
+// driver (plugin/bin/lib/issues/local-store.js) directly, so fixture records can
 // never drift from the format claude-tweaks skills actually read.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { createRecord, defaultFacets } from '../../bin/lib/issues/local-store.js';
-import { TIERS } from '../../bin/lib/issues/record.js';
+import { createRecord, defaultFacets } from '../../plugin/bin/lib/issues/local-store.js';
+import { TIERS } from '../../plugin/bin/lib/issues/record.js';
 
 const TIER_FACET_KEYS = ['risk', 'size'];
 

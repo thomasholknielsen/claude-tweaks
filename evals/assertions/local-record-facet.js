@@ -1,12 +1,12 @@
 // Reads a local-files work-record's frontmatter facets directly (via
-// bin/lib/issues/local-store.js's readRecord) and checks one facet's value.
+// plugin/bin/lib/issues/local-store.js's readRecord) and checks one facet's value.
 // Used for asserting /claude-tweaks:backlog refine's grant/withhold decisions, which
 // under work-backend: local-files are recorded as frontmatter but not acted
 // on by any headless consumer (see skills/_shared/work-record.md's
 // Permission matrix "Driver-conditional note") — so the only thing to check
 // is the record's own resulting facet state, not any downstream effect.
 import path from 'node:path';
-import { readRecord } from '../../bin/lib/issues/local-store.js';
+import { readRecord } from '../../plugin/bin/lib/issues/local-store.js';
 
 export function localRecordFacet(repoDir, { recordPath, facet, equals }) {
   const record = readRecord(path.join(repoDir, recordPath));
