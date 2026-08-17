@@ -92,8 +92,8 @@ Render the recommendation as the `## Next Actions` block below as plain markdown
 Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), options dynamically drawn from the priority order above:
 
 **`{the recommended command, fully qualified, with parameters}`** — {rationale} (recommended)
-{alternative command, fully qualified, with parameters} — {rationale}
-{optional second alternative command, fully qualified, with parameters} — {rationale}
+`{alternative command, fully qualified, with parameters}` — {rationale}
+`{optional second alternative command, fully qualified, with parameters}` — {rationale}
 
 ## Component-Skill Contract
 

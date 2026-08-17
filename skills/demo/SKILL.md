@@ -278,11 +278,11 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
 
 ## Next Actions
 
-Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
+Exactly one of these three outcome branches applies per invocation — render only that branch's line, bolded and suffixed `(recommended)` (docs/skill-authoring.md's Skill handoffs convention):
 
-**`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item; renders only when a `demo:changes-requested` follow-up was filed (recommended)
-`/claude-tweaks:help` — full pipeline status
-`/claude-tweaks:help` — lists every #N still awaiting sign-off (Stage 4.7); renders only when this record remains `demo:pending` after Skip
+- **A `demo:changes-requested` follow-up was filed this run** (Request-changes outcome): **`/claude-tweaks:backlog refine`** — the new gap record needs shaping/authorization like any other backlog item (recommended)
+- **No follow-up was filed, and this record remains `demo:pending` after Skip:** **`/claude-tweaks:help`** — lists every #N still awaiting sign-off (Stage 4.7) (recommended)
+- **Approved, or Skip resolved with nothing left pending:** **`/claude-tweaks:help`** — full pipeline status (recommended)
 
 ## Component-Skill Contract
 
