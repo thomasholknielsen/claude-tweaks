@@ -154,6 +154,10 @@ function withCwd(dir, fn) {
   try { return fn(); } finally { process.chdir(prev); }
 }
 
+function mkRunDir(name = 'run-1') {
+  return path.join(repoRoot, '.claude-tweaks', 'pipelines', name);
+}
+
 function cliDeps({ ghView, ghAvailable = true, remoteUrl = 'https://github.com/acme/w.git' } = {}) {
   const out = []; const err = []; const written = {};
   return {
@@ -178,7 +182,7 @@ test('materialize CLI: --help exits 0', () => {
 });
 
 test('materialize CLI: happy path writes {run-dir}/work/{n}-spec.md with the composed header', () => {
-  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'run-1');
+  const runDir = mkRunDir();
   const { deps, out, written } = cliDeps({ ghView: () => ghJson() });
   const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
   assert.equal(code, 0);
@@ -191,7 +195,7 @@ test('materialize CLI: happy path writes {run-dir}/work/{n}-spec.md with the com
 });
 
 test('materialize CLI: an unshaped record fails the gate (exit 1), pointing at /specify', () => {
-  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'run-1');
+  const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => ghJson({ body: 'no sections here' }) });
   const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
   assert.equal(code, 1);
@@ -199,7 +203,7 @@ test('materialize CLI: an unshaped record fails the gate (exit 1), pointing at /
 });
 
 test('materialize CLI: no ceremony label and no --ceremony override is a malformed invocation (exit 2)', () => {
-  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'run-1');
+  const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => ghJson({ labels: ['ready', 'risk:low'] }) });
   const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
   assert.equal(code, 2);
@@ -207,7 +211,7 @@ test('materialize CLI: no ceremony label and no --ceremony override is a malform
 });
 
 test('materialize CLI: --ceremony override is honored when the record carries no ceremony label', () => {
-  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'run-1');
+  const runDir = mkRunDir();
   const { deps, out, written } = cliDeps({ ghView: () => ghJson({ labels: ['ready'] }) });
   const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir, '--ceremony', 'fast-lane'], deps));
   assert.equal(code, 0);
@@ -217,7 +221,7 @@ test('materialize CLI: --ceremony override is honored when the record carries no
 });
 
 test('materialize CLI: an unresolvable issue number is a malformed invocation (exit 2)', () => {
-  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'run-1');
+  const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => { throw new Error('gh: issue not found'); } });
   const code = withCwd(repoRoot, () => cliRun(['999', '--run-dir', runDir], deps));
   assert.equal(code, 2);
@@ -225,7 +229,7 @@ test('materialize CLI: an unresolvable issue number is a malformed invocation (e
 });
 
 test('materialize CLI: --multi-record-slug writes under spec-{slug}/work/', () => {
-  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'run-parent');
+  const runDir = mkRunDir('run-parent');
   const { deps, out } = cliDeps({ ghView: () => ghJson() });
   const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir, '--multi-record-slug', '1'], deps));
   assert.equal(code, 0);
@@ -234,7 +238,7 @@ test('materialize CLI: --multi-record-slug writes under spec-{slug}/work/', () =
 });
 
 test('materialize CLI: gh absent exits 2', () => {
-  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'run-1');
+  const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => { throw new Error('must not call gh'); }, ghAvailable: false });
   const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
   assert.equal(code, 2);

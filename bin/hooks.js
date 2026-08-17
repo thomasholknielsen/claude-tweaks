@@ -23,6 +23,10 @@ function loadModule(event) {
   try { return require('./lib/hooks/' + event); } catch { return null; }
 }
 
+function isDirectory(p) {
+  try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}
+
 // Resolves an explicit `--run <path>` argument, validating it's a real
 // directory, or falls back to ctxLib.resolveRunDir when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
@@ -48,7 +52,7 @@ function resolveRunArg(args, cwd, env) {
   // `cwd`, but the anchoring check below must honor the parameter it's
   // actually given, not assume the two are always the same value.
   const resolved = candidate ? path.resolve(cwd, candidate) : null;
-  const isRealDir = resolved ? (() => { try { return fs.statSync(resolved).isDirectory(); } catch { return false; } })() : false;
+  const isRealDir = resolved ? isDirectory(resolved) : false;
   if (isRealDir) {
     // #790/[IL-127]: a real directory is not enough — it must also resolve
     // under the main checkout, never a worktree-relative shadow copy. Mirrors
