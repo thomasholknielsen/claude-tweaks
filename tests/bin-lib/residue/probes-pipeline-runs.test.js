@@ -3,7 +3,9 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { execFileSync } = require('node:child_process');
 const { probePipelineRuns } = require('../../../bin/lib/residue/probes/pipeline-runs');
+const { archiveRunDir } = require('../../../bin/lib/reconcile/archive-merged');
 
 function makeFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'residue-pipeline-runs-'));
@@ -62,4 +64,27 @@ test('no .claude-tweaks/pipelines directory at all does not run', () => {
   const { ran, findings } = probePipelineRuns({ cwd: root });
   assert.strictEqual(ran, true);
   assert.deepStrictEqual(findings, []);
+});
+
+test('the flagged remedy is mechanically applicable: archiveRunDir moves a flagged dir under archive/', () => {
+  const root = makeFixture();
+  execFileSync('git', ['-C', root, 'init', '-q']);
+  execFileSync('git', ['-C', root, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', root, 'config', 'user.name', 'Test']);
+  execFileSync('git', ['-C', root, 'commit', '--allow-empty', '-q', '-m', 'init']);
+
+  const dir = writeRun(root, '2026-01-01T000000-spec-9', { status: 'clean' });
+
+  const before = probePipelineRuns({ cwd: root });
+  assert.strictEqual(before.findings.length, 1, 'the fixture must be flagged before remediation');
+
+  const result = archiveRunDir(root, dir);
+  assert.strictEqual(result.ok, true, `archiveRunDir failed: ${result.reason}`);
+
+  const archivedPath = path.join(root, '.claude-tweaks', 'pipelines', 'archive', '2026-01-01T000000-spec-9');
+  assert.strictEqual(fs.existsSync(archivedPath), true, 'the run dir must sit under archive/ after remediation');
+  assert.strictEqual(fs.existsSync(dir), false, 'the original (un-archived) path must no longer exist');
+
+  const after = probePipelineRuns({ cwd: root });
+  assert.deepStrictEqual(after.findings, [], 'the archived dir must no longer be flagged');
 });
