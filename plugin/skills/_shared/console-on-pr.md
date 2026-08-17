@@ -1,7 +1,7 @@
 # Console on PR — render the Review Console as a PR comment with a checkbox answer protocol
 
 Canonical for `integration-model: pr-first` (`_shared/integration-model.md`) runs: renders
-`wrap-up/review-console.md`'s and `flow/multispec-review-console.md`'s console content — same
+`wrap-up/review-console-interactive.md`'s and `flow/multispec-review-console.md`'s console content — same
 sections, same rows, same data, per `console-template.md` / the multi-spec console's own template
 — as **one PR comment** with a GitHub-native task-list checkbox per item, instead of the chat-based
 `AskUserQuestion` gate. Any later session, not just the one that built the run, can read the
@@ -11,7 +11,7 @@ runs never reach this file — they keep the session-only `AskUserQuestion` cons
 
 ## When this runs
 
-Immediately in place of "Present the console" (`review-console.md`) / "Present the consolidated
+Immediately in place of "Present the console" (`review-console-interactive.md`) / "Present the consolidated
 console" (`multispec-review-console.md`)'s own `AskUserQuestion` gate, when **both**:
 
 1. `run-state.json` carries a `pr` object (`_shared/pr-run-comments.md`'s gate).

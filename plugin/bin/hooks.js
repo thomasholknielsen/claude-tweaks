@@ -15,6 +15,7 @@ const ctxLib = require('./lib/hooks/context');
 const siblingSessions = require('./lib/hooks/sibling-sessions');
 const specStatusLib = require('./lib/flow/manifest');
 const resumeFreshness = require('./lib/hooks/resume-freshness');
+const wtDetect = require('./lib/hooks/worktree-detect');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -39,6 +40,10 @@ function flagVal(args, name) {
   return i === -1 ? null : args[i + 1];
 }
 
+function isDirectory(p) {
+  try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}
+
 // Resolves an explicit `--run <path>` argument, validating it's a real
 // directory, or falls back to ctxLib.resolveRunDir when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
@@ -59,10 +64,40 @@ function resolveRunArg(args, cwd, env) {
   // An explicit --run must resolve to a real directory — falling back to
   // resolveRunDir's "newest non-terminal run" scan on a bad path would
   // silently record against the WRONG run, defeating the reason --run
-  // exists at all.
-  const isRealDir = candidate ? (() => { try { return fs.statSync(candidate).isDirectory(); } catch { return false; } })() : false;
+  // exists at all. Resolved once, against the `cwd` PARAMETER (not
+  // process.cwd()) — every current caller happens to pass process.cwd() as
+  // `cwd`, but the anchoring check below must honor the parameter it's
+  // actually given, not assume the two are always the same value.
+  const resolved = candidate ? path.resolve(cwd, candidate) : null;
+  const isRealDir = resolved ? isDirectory(resolved) : false;
   if (isRealDir) {
-    return { runDir: candidate, invalidRunArg: null, rest, explicit: true };
+    // #790/[IL-127]: a real directory is not enough — it must also resolve
+    // under the main checkout, never a worktree-relative shadow copy. Mirrors
+    // run-dir-resolve.js's identical adoption-time check for PIPELINE_RUN_DIR.
+    const mainRoot = wtDetect.mainCheckoutRoot(cwd);
+    if (!mainRoot) {
+      // Distinct from the anchoring-rejection case below: mainCheckoutRoot()
+      // returning null means no git repo could be determined at all (not a
+      // repo, an unreadable ancestor, an unparseable .git file) — a
+      // different failure than "exists, but resolves outside a KNOWN main
+      // checkout". Mislabeling it as a worktree-shadow rejection would send
+      // a reader hunting for the wrong problem.
+      return {
+        runDir: null,
+        invalidRunArg: `${candidate} (could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read)`,
+        rest,
+        explicit: true,
+      };
+    }
+    if (!wtDetect.isAnchoredUnderRoot(resolved, mainRoot)) {
+      return {
+        runDir: null,
+        invalidRunArg: `${candidate} (exists, but not anchored under the main checkout at ${mainRoot} — refusing a worktree-relative shadow run dir; see resolve-run-dir)`,
+        rest,
+        explicit: true,
+      };
+    }
+    return { runDir: resolved, invalidRunArg: null, rest, explicit: true };
   }
   return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };
 }
@@ -77,7 +112,7 @@ async function main(argv) {
     const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     const worktreeArg = rest[0];
     if (invalidRunArg) {
-      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — worktree not recorded\n`);
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — worktree not recorded\n`);
     } else if (runDir && worktreeArg) {
       // Stamp the owning session so E1 can scope enforcement to it. Absent env
       // var: omit the key rather than write null — an env-less re-record must
@@ -146,7 +181,7 @@ async function main(argv) {
     const urlArg = rest[1];
     const number = Number(numberArg);
     if (invalidRunArg) {
-      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — PR not recorded\n`);
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — PR not recorded\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — PR not recorded\n');
     } else if (!numberArg || !Number.isInteger(number) || number <= 0 || !urlArg) {
@@ -175,7 +210,7 @@ async function main(argv) {
     const phaseArg = flagVal(rest, '--phase');
     const nowArg = flagVal(rest, '--now'); // test-only clock override; real callers omit it
     if (invalidRunArg) {
-      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — spec status not recorded\n`);
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — spec status not recorded\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — spec status not recorded\n');
     } else if (!specArg || !statusArg || !phaseArg) {
@@ -197,7 +232,7 @@ async function main(argv) {
   if (cmd === 'close-run') {
     const { runDir, invalidRunArg, explicit } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     if (invalidRunArg) {
-      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — run not closed\n`);
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);
     } else if (runDir) {
       const prev = ctxLib.readRunState(runDir);
       const me = process.env.CLAUDE_CODE_SESSION_ID;
@@ -257,7 +292,7 @@ async function main(argv) {
     // (skills/_shared/run-resume-freshness.md).
     const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     if (invalidRunArg) {
-      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — resume freshness not checked\n`);
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — resume freshness not checked\n`);
       return 0;
     }
     if (!runDir) {

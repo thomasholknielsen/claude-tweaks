@@ -12,7 +12,7 @@ files:
 
 **Persona:** claude-tweaks maintainer (or the Claude session that just merged a pr-first run) whose PR landed on `main` minutes before — or minutes after — a sibling session's version bump, and who needs to know whether the work already shipped under a number that never wrote it up.
 **Goal:** Get a one-line, mechanically-derived answer to "where did this merge land relative to the version history?" — and, when a shipped version's CHANGELOG entry doesn't name the merged records, have the `### also carried in this build` backfill drafted and parked where the next session will find it, without anyone editing `CHANGELOG.md` inline.
-**Entry point:** A confirmed pr-first merge (`gh pr view --json mergeCommit`), inside `_shared/pr-first-merge.md` Step 4 — or a terminal at the repo root, running the subcommand by hand against any merge sha.
+**Entry point:** A confirmed pr-first merge (`gh pr view --json mergeCommit`), inside `_shared/pr-first-merge-post-merge.md` Step 4 — or a terminal at the repo root, running the subcommand by hand against any merge sha.
 **Success state:** The closing report shows a `**Release status:**` line quoting one of the fixed forms verbatim; on the backfill form a `**Backfill:**` line points at the staged file and the PR's `release-status` comment; `CHANGELOG.md` is untouched by the pipeline. The maintainer knows in one glance whether a bump is still pending or a backfill PR is owed.
 
 ## Steps

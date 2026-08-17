@@ -26,6 +26,10 @@ function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
 
 function runDirWithManifest(specs) {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-specstatus-'));
+  // #790: --run must resolve under a real git checkout (see bin/hooks.js's
+  // resolveRunArg anchoring check) — every runHook() call below passes
+  // { cwd: run } so the spawned process's cwd resolves this same checkout.
+  execFileSync('git', ['-C', project, 'init', '-q']);
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-16T210742-spec-1-2');
   fs.mkdirSync(run, { recursive: true });
   const lines = ['multispec:', '  parent: x/', '  specs:'];
@@ -38,7 +42,7 @@ function runDirWithManifest(specs) {
 
 test('spec-status running: prints exactly the banner and writes status=running to manifest.yml, in one call', () => {
   const run = runDirWithManifest([{ id: 157, status: 'pending' }, { id: 159, status: 'pending' }]);
-  const r = runHook(['spec-status', '--run', run, '--spec', '159', '--status', 'running', '--phase', 'build']);
+  const r = runHook(['spec-status', '--run', run, '--spec', '159', '--status', 'running', '--phase', 'build'], { cwd: run });
   assert.equal(r.code, 0);
   assert.equal(r.stdout, '## Flow: Running build (2/2) — spec #159\n');
   const manifest = readManifest(run);
@@ -48,8 +52,8 @@ test('spec-status running: prints exactly the banner and writes status=running t
 
 test('spec-status complete: prints the banner AND the wrap-up-exit summary line, and writes status=complete', () => {
   const run = runDirWithManifest([{ id: 159, status: 'pending' }]);
-  runHook(['spec-status', '--run', run, '--spec', '159', '--status', 'running', '--phase', 'build', '--now', '2026-05-16T14:00:00.000Z']);
-  const r = runHook(['spec-status', '--run', run, '--spec', '159', '--status', 'complete', '--phase', 'wrap-up', '--now', '2026-05-16T14:12:34.000Z']);
+  runHook(['spec-status', '--run', run, '--spec', '159', '--status', 'running', '--phase', 'build', '--now', '2026-05-16T14:00:00.000Z'], { cwd: run });
+  const r = runHook(['spec-status', '--run', run, '--spec', '159', '--status', 'complete', '--phase', 'wrap-up', '--now', '2026-05-16T14:12:34.000Z'], { cwd: run });
   assert.equal(r.code, 0);
   assert.equal(r.stdout, '## Flow: Running wrap-up (1/1) — spec #159\nspec #159: complete — deferred (12m34s)\n');
   assert.equal(readManifest(run).multispec.specs[0].status, 'complete');
@@ -57,8 +61,8 @@ test('spec-status complete: prints the banner AND the wrap-up-exit summary line,
 
 test('spec-status failed: also prints the summary line', () => {
   const run = runDirWithManifest([{ id: 42, status: 'pending' }]);
-  runHook(['spec-status', '--run', run, '--spec', '42', '--status', 'running', '--phase', 'test', '--now', '2026-01-01T00:00:00.000Z']);
-  const r = runHook(['spec-status', '--run', run, '--spec', '42', '--status', 'failed', '--phase', 'test', '--now', '2026-01-01T00:03:00.000Z']);
+  runHook(['spec-status', '--run', run, '--spec', '42', '--status', 'running', '--phase', 'test', '--now', '2026-01-01T00:00:00.000Z'], { cwd: run });
+  const r = runHook(['spec-status', '--run', run, '--spec', '42', '--status', 'failed', '--phase', 'test', '--now', '2026-01-01T00:03:00.000Z'], { cwd: run });
   assert.match(r.stdout, /^## Flow: Running test \(1\/1\) — spec #42\n/);
   assert.match(r.stdout, /spec #42: failed — deferred \(3m00s\)\n$/);
 });
@@ -66,23 +70,24 @@ test('spec-status failed: also prints the summary line', () => {
 test('a phase transition without the banner is not reachable through spec-status: every failure path prints no banner and writes nothing', () => {
   // Missing manifest entirely.
   const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-specstatus-bare-'));
-  const rMissing = runHook(['spec-status', '--run', bareDir, '--spec', '1', '--status', 'running', '--phase', 'build']);
+  execFileSync('git', ['-C', bareDir, 'init', '-q']); // #790: --run must resolve under a real git checkout
+  const rMissing = runHook(['spec-status', '--run', bareDir, '--spec', '1', '--status', 'running', '--phase', 'build'], { cwd: bareDir });
   assert.equal(rMissing.code, 0);
   assert.doesNotMatch(rMissing.stdout, /Flow: Running/);
 
   // Unknown spec id.
   const run = runDirWithManifest([{ id: 42, status: 'pending' }]);
-  const rUnknown = runHook(['spec-status', '--run', run, '--spec', '999', '--status', 'running', '--phase', 'build']);
+  const rUnknown = runHook(['spec-status', '--run', run, '--spec', '999', '--status', 'running', '--phase', 'build'], { cwd: run });
   assert.doesNotMatch(rUnknown.stdout, /Flow: Running/);
   assert.equal(readManifest(run).multispec.specs[0].status, 'pending', 'no write on an unknown spec id');
 
   // Invalid status value.
-  const rBadStatus = runHook(['spec-status', '--run', run, '--spec', '42', '--status', 'bogus', '--phase', 'build']);
+  const rBadStatus = runHook(['spec-status', '--run', run, '--spec', '42', '--status', 'bogus', '--phase', 'build'], { cwd: run });
   assert.doesNotMatch(rBadStatus.stdout, /Flow: Running/);
   assert.equal(readManifest(run).multispec.specs[0].status, 'pending', 'no write on an invalid status');
 
   // Missing required flags.
-  const rNoFlags = runHook(['spec-status', '--run', run]);
+  const rNoFlags = runHook(['spec-status', '--run', run], { cwd: run });
   assert.match(rNoFlags.stdout, /usage: spec-status/);
   assert.doesNotMatch(rNoFlags.stdout, /Flow: Running/);
 });
@@ -92,7 +97,7 @@ test('spec-status with a non-existent --run path fails loudly instead of falling
   const bogus = path.join(path.dirname(run), 'does-not-exist');
   const result = runHook(['spec-status', '--run', bogus, '--spec', '1', '--status', 'running', '--phase', 'build']);
   assert.equal(result.code, 0);
-  assert.match(result.stdout, /--run path not found/);
+  assert.match(result.stdout, /--run path rejected/);
 });
 
 test('spec-status without a resolvable run dir exits 0 and prints a not-recorded notice', () => {

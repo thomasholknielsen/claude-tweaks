@@ -13,6 +13,7 @@ const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const EXEC = read('plugin', 'skills', '_shared', 'console-execution.md');
 const REVIEW_CONSOLE = read('plugin', 'skills', 'wrap-up', 'review-console.md');
+const REVIEW_CONSOLE_INTERACTIVE = read('plugin', 'skills', 'wrap-up', 'review-console-interactive.md');
 const MULTISPEC_CONSOLE = read('plugin', 'skills', 'flow', 'multispec-review-console.md');
 const DISPATCH_SKILL = read('plugin', 'skills', 'dispatch', 'SKILL.md');
 const SCAN_PROCEDURES = read('plugin', 'skills', 'tidy', 'scan-procedures.md');
@@ -88,9 +89,9 @@ test('the ctx.ownedRun exemption is stated as sanctioned, not accidental', () =>
 // --- Wiring into review-console.md / multispec-review-console.md ---
 
 test('review-console.md\'s Console-on-PR section: live sessions ask via AskUserQuestion, headless reports pending-review', () => {
-  const section = REVIEW_CONSOLE.slice(
-    REVIEW_CONSOLE.indexOf('## Console-on-PR'),
-    REVIEW_CONSOLE.indexOf('## Present the console'),
+  const section = REVIEW_CONSOLE_INTERACTIVE.slice(
+    REVIEW_CONSOLE_INTERACTIVE.indexOf('## Console-on-PR'),
+    REVIEW_CONSOLE_INTERACTIVE.indexOf('## Present the console'),
   );
   assert.match(section, /A live session also asks via `AskUserQuestion`/);
   assert.match(section, /_shared\/console-execution\.md/);
