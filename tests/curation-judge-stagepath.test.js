@@ -75,40 +75,15 @@ test('multispec-batch-curation.md cites the sweep at its registry pass', () => {
 
 // ---- Live probe: the documented sweep relocates a stray shadow file and leaves work/ alone ----
 test('probe: the documented sweep relocates a staged file written to the worktree shadow and never touches work/', (t) => {
-  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'stagepath-probe-')));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const git = (cwd, ...args) => {
-    const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 30_000, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } });
-    assert.equal(r.status, 0, r.stderr);
-    return r;
-  };
-  const main = path.join(root, 'main');
-  fs.mkdirSync(main);
-  git(main, 'init', '-q');
-  git(main, 'config', 'user.email', 'probe@example.invalid');
-  git(main, 'config', 'user.name', 'probe');
-  fs.writeFileSync(path.join(main, 'a.txt'), 'a\n');
-  git(main, 'add', 'a.txt');
-  git(main, 'commit', '-q', '-m', 'base');
-  const wt = path.join(root, 'wt');
-  git(main, 'worktree', 'add', '-q', wt, '-b', 'probe');
-
-  const runRel = '.claude-tweaks/pipelines/2026-01-01T000000-spec-1/spec-1';
-  const runDir = path.join(main, runRel);
-  fs.mkdirSync(path.join(runDir, 'staged'), { recursive: true });
-  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# log\n');
+  const { wt, runDir, shadow } = buildFixture(t);
   // A judge that resolved the run dir relatively from inside the worktree — the incident shape.
-  const shadow = path.join(wt, runRel);
   fs.mkdirSync(path.join(shadow, 'staged'), { recursive: true });
   fs.mkdirSync(path.join(shadow, 'work'), { recursive: true });
   fs.writeFileSync(path.join(shadow, 'staged', 'wrap-up-skill-1.md'), 'proposal\n');
   fs.writeFileSync(path.join(shadow, 'decisions.md'), '# Auto-Decision Log — x\n\n## /wrap-up\n- STAGED stray line\n');
   fs.writeFileSync(path.join(shadow, 'work', '1-spec.md'), 'materialized — must stay\n');
 
-  const r = spawnSync('bash', ['-c', SWEEP_SNIPPET], {
-    cwd: wt, encoding: 'utf8', timeout: 30_000,
-    env: { ...process.env, PIPELINE_RUN_DIR: runDir, WORKTREE: wt },
-  });
+  const r = sweep(wt, { ...process.env, PIPELINE_RUN_DIR: runDir, WORKTREE: wt });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /relocated: wrap-up-skill-1\.md/);
   assert.match(r.stdout, /relocated: decisions\.md/);
