@@ -27,7 +27,7 @@ test('deps.collect returns an array of strings and prints nothing', () => {
   for (const m of msgs) assert.strictEqual(typeof m, 'string');
 });
 
-test('stale runs are reported in additionalContext, capped at 3, newest first', () => {
+test('stale runs are reported in additionalContext, capped at 3, newest first', async () => {
   const project = tmpProject();
   // Four non-clean runs (more than MAX_REPORTED=3) so the cap is actually exercised —
   // with only 2 non-clean candidates, listRunDirsWithState's own clean-status filter
@@ -38,7 +38,7 @@ test('stale runs are reported in additionalContext, capped at 3, newest first', 
   mkRun(project, '2026-07-03T090000-spec-3', { status: 'interrupted' });
   mkRun(project, '2026-07-04T090000-spec-4', { status: 'active' });
   mkRun(project, '2026-06-30T090000-spec-0', { status: 'clean' });
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   const ctx = out.json.hookSpecificOutput.additionalContext;
   assert.strictEqual(out.json.hookSpecificOutput.hookEventName, 'SessionStart');
   assert.match(ctx, /unfinished pipeline run/i);
@@ -51,28 +51,28 @@ test('stale runs are reported in additionalContext, capped at 3, newest first', 
   assert.ok(ctx.indexOf('spec-3') < ctx.indexOf('spec-2'), 'newest-first: spec-3 before spec-2');
 });
 
-test('#410: a stale run carrying a recorded pr URL includes it in the reported line; one without does not', () => {
+test('#410: a stale run carrying a recorded pr URL includes it in the reported line; one without does not', async () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'active', pr: { number: 42, url: 'https://github.com/o/r/pull/42' } });
   mkRun(project, '2026-07-02T090000-spec-2', { status: 'interrupted' });
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   const ctx = out.json.hookSpecificOutput.additionalContext;
   assert.match(ctx, /spec-1 \(status: active\) — PR https:\/\/github\.com\/o\/r\/pull\/42/);
   assert.match(ctx, /spec-2 \(status: interrupted\)\n/, 'a run with no recorded pr must not gain a PR suffix');
 });
 
-test('close-run hint substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the literal placeholder', () => {
+test('close-run hint substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the literal placeholder', async () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
   const orig = process.env.CLAUDE_PLUGIN_ROOT;
 
   try {
     delete process.env.CLAUDE_PLUGIN_ROOT;
-    const withoutEnv = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    const withoutEnv = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
     assert.match(withoutEnv.json.hookSpecificOutput.additionalContext, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js/);
 
     process.env.CLAUDE_PLUGIN_ROOT = '/opt/claude-tweaks';
-    const withEnv = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    const withEnv = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
     assert.match(withEnv.json.hookSpecificOutput.additionalContext, /\/opt\/claude-tweaks\/bin\/hooks\.js/);
   } finally {
     if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
@@ -80,10 +80,10 @@ test('close-run hint substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the lit
   }
 });
 
-test('no stale runs and no deps warnings -> no json output', () => {
+test('no stale runs and no deps warnings -> no json output', async () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'clean' });
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   if (out.json) {
     // On machines missing agent-browser, deps warnings alone may produce output — accept both, but stale-run text must be absent.
     assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /unfinished pipeline run/i);
@@ -102,17 +102,17 @@ function withPolicy(repo, content) {
   fs.writeFileSync(path.join(repo, '.claude-tweaks', 'policy.yml'), content);
 }
 
-test('worktree-always nudge appears when policy is on and session is not yet isolated', () => {
+test('worktree-always nudge appears when policy is on and session is not yet isolated', async () => {
   const project = gitProject();
   withPolicy(project, 'worktree-always: true\n');
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always/);
   assert.match(out.json.hookSpecificOutput.additionalContext, /using-git-worktrees/);
 });
 
-test('worktree-always nudge is absent when policy is off', () => {
+test('worktree-always nudge is absent when policy is off', async () => {
   const project = gitProject();
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /worktree-always/);
   else assert.deepStrictEqual(out, {});
 });
@@ -124,7 +124,7 @@ function git(args, cwd) {
 // #408 AC1: a session starting in a checkout strictly behind origin gets its
 // integration branch fast-forwarded before additionalContext renders, with a
 // one-line reconcile summary when anything changed.
-test('SessionStart fast-forwards a behind-and-clean integration branch via reconcile(), and reports it in additionalContext (#408 AC1)', () => {
+test('SessionStart fast-forwards a behind-and-clean integration branch via reconcile(), and reports it in additionalContext (#408 AC1)', async () => {
   const originDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-origin-'));
   git(['init', '-q', '--bare', '--initial-branch=main'], originDir);
 
@@ -162,7 +162,7 @@ test('SessionStart fast-forwards a behind-and-clean integration branch via recon
   git(['push', '-q', 'origin', 'main'], seedDir);
 
   const before = git(['rev-parse', 'HEAD'], mainDir).trim();
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
   const after = git(['rev-parse', 'HEAD'], mainDir).trim();
 
   assert.notStrictEqual(before, after, 'the integration branch must be fast-forwarded during SessionStart');
@@ -171,7 +171,7 @@ test('SessionStart fast-forwards a behind-and-clean integration branch via recon
   assert.match(out.json.hookSpecificOutput.additionalContext, /reconciled.*fast-forwarded/i);
 });
 
-test('#413: a run carrying an unresolved console.json never crashes SessionStart, and produces no answered-console message when gh cannot resolve the PR', () => {
+test('#413: a run carrying an unresolved console.json never crashes SessionStart, and produces no answered-console message when gh cannot resolve the PR', async () => {
   // No live PR/gh mocking convention exists in this suite (console-execute.js
   // is gh-CLI-only) — this proves the wiring is safe under exactly the
   // network-failure/gh-absent skip path every other reconcile check already
@@ -190,13 +190,13 @@ test('#413: a run carrying an unresolved console.json never crashes SessionStart
     resolved: false, commentIds: ['IC_fake'], prNumber: 999999, items: [],
   }));
 
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   if (out.json) {
     assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /answered console\(s\) awaiting execution/);
   }
 });
 
-test('#561: a redTip finding from reconcile() renders as its own additionalContext line', () => {
+test('#561: a redTip finding from reconcile() renders as its own additionalContext line', async () => {
   const project = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-redtip-')));
   execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: project });
   execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: project });
@@ -226,7 +226,7 @@ test('#561: a redTip finding from reconcile() renders as its own additionalConte
   delete require.cache[require.resolve('../bin/lib/hooks/session-start')];
   try {
     const freshSessionStart = require('../bin/lib/hooks/session-start');
-    const out = freshSessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    const out = await freshSessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
     assert.ok(out.json, 'a redTip finding must render additionalContext');
     assert.match(out.json.hookSpecificOutput.additionalContext, /CI is red on main tip at 0123456 — ci\/tests/);
   } finally {
@@ -240,14 +240,14 @@ test('#561: a redTip finding from reconcile() renders as its own additionalConte
   }
 });
 
-test('#561: no redTip finding produces no red-tip line (AC5 — green tip)', () => {
+test('#561: no redTip finding produces no red-tip line (AC5 — green tip)', async () => {
   const project = gitProject();
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /CI is red on/);
   else assert.deepStrictEqual(out, {});
 });
 
-test('worktree-always nudge is absent when the session is already inside a linked worktree', () => {
+test('worktree-always nudge is absent when the session is already inside a linked worktree', async () => {
   const project = gitProject();
   execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-m', 'init', '-q']);
   withPolicy(project, 'worktree-always: true\n');
@@ -256,7 +256,7 @@ test('worktree-always nudge is absent when the session is already inside a linke
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-wt-'));
   const wt = path.join(parent, 'wt');
   execFileSync('git', ['-C', project, 'worktree', 'add', '-q', wt, '-b', 'wt-branch']);
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: fs.realpathSync(wt) });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: fs.realpathSync(wt) });
   // The verdict banner fires unconditionally whenever a policy file exists — including
   // inside a linked worktree — so `additionalContext` legitimately contains the substring
   // `worktree-always` (from the verdict line itself). Only the *nudge* is suppressed by
@@ -269,43 +269,43 @@ test('worktree-always nudge is absent when the session is already inside a linke
 // IL-133 verdict-banner coverage: policy.resolveWorktreeAlways drives the banner text
 // directly, so these pin the exact literal line for each alias-resolution outcome.
 
-test('verdict banner: old key only (worktree.always) resolves ON with matched key worktree.always', () => {
+test('verdict banner: old key only (worktree.always) resolves ON with matched key worktree.always', async () => {
   const project = gitProject();
   withPolicy(project, 'worktree.always: true\n');
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: ON \(matched key: worktree\.always\)/);
 });
 
-test('verdict banner: new key only (worktree-always) resolves ON with matched key worktree-always', () => {
+test('verdict banner: new key only (worktree-always) resolves ON with matched key worktree-always', async () => {
   const project = gitProject();
   withPolicy(project, 'worktree-always: true\n');
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: ON \(matched key: worktree-always\)/);
 });
 
-test('verdict banner: both keys present — new key wins over old', () => {
+test('verdict banner: both keys present — new key wins over old', async () => {
   const project = gitProject();
   withPolicy(project, 'worktree.always: true\nworktree-always: true\n');
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: ON \(matched key: worktree-always\)/);
   assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /matched key: worktree\.always/);
 });
 
-test('verdict banner: policy.yml exists but neither key is present — OFF (no key)', () => {
+test('verdict banner: policy.yml exists but neither key is present — OFF (no key)', async () => {
   const project = gitProject();
   withPolicy(project, 'integration-branch: main\n');
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: OFF \(no key\)/);
 });
 
-test('verdict banner: no policy.yml anywhere in the ancestor chain — no verdict line at all', () => {
+test('verdict banner: no policy.yml anywhere in the ancestor chain — no verdict line at all', async () => {
   const project = gitProject();
-  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /worktree-always:/);
   else assert.deepStrictEqual(out, {});
 });
 
-test('verdict banner: a throw from policy.resolveWorktreeAlways is swallowed — no verdict line, hook does not throw', () => {
+test('verdict banner: a throw from policy.resolveWorktreeAlways is swallowed — no verdict line, hook does not throw', async () => {
   // readPolicyFile/parseFlatLines already fail safe for garbled *content* (a
   // directory at .claude-tweaks/policy.yml resolves to `{}` via the internal
   // try/catch in readPolicyFile, which reads as OFF/no-key, not a throw) — so a
@@ -322,8 +322,8 @@ test('verdict banner: a throw from policy.resolveWorktreeAlways is swallowed —
   policyMod.resolveWorktreeAlways = () => { throw new Error('simulated malformed policy state'); };
   try {
     let out;
-    assert.doesNotThrow(() => {
-      out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    await assert.doesNotReject(async () => {
+      out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
     });
     if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /worktree-always:/);
     else assert.deepStrictEqual(out, {});

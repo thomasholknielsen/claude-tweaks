@@ -50,7 +50,7 @@ function resolveRunArg(args, cwd, env) {
   return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };
 }
 
-function main(argv) {
+async function main(argv) {
   const cmd = argv[2];
   if (cmd === 'record-worktree') {
     // --run <path> pins the target run dir explicitly, mirroring close-run
@@ -302,7 +302,7 @@ function main(argv) {
     const opts = { dryRun: args.includes('--dry-run'), cwd: process.cwd() };
     let out;
     try {
-      out = require('./lib/reconcile').reconcile(opts);
+      out = await require('./lib/reconcile').reconcile(opts);
     } catch {
       out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
     }
@@ -335,15 +335,13 @@ function main(argv) {
   const runDir = ctxLib.resolveRunDir(cwd, process.env);
   const runState = runDir ? ctxLib.readRunState(runDir) : null;
   const ownedRun = ctxLib.resolveRun(cwd, process.env, input.session_id);
-  const out = mod.run({ input, runDir, runState, ownedRun, cwd }) || {};
+  const out = (await mod.run({ input, runDir, runState, ownedRun, cwd })) || {};
   if (out.json) fs.writeSync(1, JSON.stringify(out.json));
   return typeof out.exit === 'number' ? out.exit : 0;
 }
 
 if (require.main === module) {
-  let code = 0;
-  try { code = main(process.argv); } catch { code = 0; }
-  process.exit(code);
+  main(process.argv).then((code) => process.exit(code)).catch(() => process.exit(0));
 }
 
 module.exports = { main };

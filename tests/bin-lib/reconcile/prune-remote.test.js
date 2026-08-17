@@ -203,7 +203,7 @@ test("index: ALL_CHECKS includes 'remote-prune'; dispatch sits between 'archive-
   assert.ok(iBranches > -1 && iRemote > iBranches && iReap > iRemote, 'dispatch order: archive-branches < remote-prune < reap');
 });
 
-test('index: pr-first repo with a working remote actually reaches the remote-prune dispatch; requesting a different check leaves remoteBranches null', () => {
+test('index: pr-first repo with a working remote actually reaches the remote-prune dispatch; requesting a different check leaves remoteBranches null', async () => {
   // A no-remote fixture never reaches the dispatch at all (it short-circuits
   // at the earlier `if (!integration)` guard) — that would pass even with
   // the dispatch block deleted, so it doesn't discriminate. This fixture has
@@ -219,9 +219,9 @@ test('index: pr-first repo with a working remote actually reaches the remote-pru
     'integration-model: pr-first\nintegration-branch: main\n',
   );
 
-  const withDispatch = reconcile({ cwd: dir, checks: ['remote-prune'] });
+  const withDispatch = await reconcile({ cwd: dir, checks: ['remote-prune'] });
   assert.ok(Array.isArray(withDispatch.remoteBranches), 'remote-prune requested under pr-first must set remoteBranches to an array, not stay null');
 
-  const withoutDispatch = reconcile({ cwd: dir, checks: ['mirror'] });
+  const withoutDispatch = await reconcile({ cwd: dir, checks: ['mirror'] });
   assert.strictEqual(withoutDispatch.remoteBranches, null, 'remote-prune not requested must leave remoteBranches null');
 });

@@ -212,11 +212,11 @@ test("index: ALL_CHECKS includes 'archive-branches'; dispatch sits between 'arch
   assert.ok(iArchive > -1 && iBranches > iArchive && iReap > iBranches, 'dispatch order: archive < archive-branches < reap');
 });
 
-test('index: no-remote repo never dispatches archive-branches; result.branches stays null', () => {
+test('index: no-remote repo never dispatches archive-branches; result.branches stays null', async () => {
   const dir = makeRepo();
   // no origin remote -> resolveIntegrationBranch fails -> skipped no-remote; that
   // still proves archive-branches never dispatches outside pr-first. Assert the
   // result shape carries the branches slot untouched.
-  const r = reconcile({ cwd: dir, checks: ['archive-branches'] });
+  const r = await reconcile({ cwd: dir, checks: ['archive-branches'] });
   assert.strictEqual(r.branches, null);
 });

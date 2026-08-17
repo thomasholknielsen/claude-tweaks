@@ -35,7 +35,7 @@ const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-
 // agent session's MCP tools), so a gh-absent environment reports that reason
 // per-check rather than attempting an MCP fallback (see
 // `_shared/integration-model.md`).
-function reconcile(opts = {}) {
+async function reconcile(opts = {}) {
   const dryRun = !!opts.dryRun;
   const checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
   const cwd = opts.cwd || process.cwd();

@@ -412,7 +412,7 @@ test('isWorktreeLocked: a path not registered in git worktree list at all is not
 
 // --- reconcile() orchestrator: offline degradation and model gating ---
 
-test('reconcile: local-merge project falls back to the legacy ancestry reap, skips mirror/release/archive (AC4-adjacent)', () => {
+test('reconcile: local-merge project falls back to the legacy ancestry reap, skips mirror/release/archive (AC4-adjacent)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-lm-'));
   git(['init', '-q', '--initial-branch=main'], dir);
   git(['config', 'user.email', 'test@example.com'], dir);
@@ -430,38 +430,38 @@ test('reconcile: local-merge project falls back to the legacy ancestry reap, ski
     'integration-model: local-merge\nintegration-branch: main\n',
   );
 
-  const r = reconcile({ cwd: dir });
+  const r = await reconcile({ cwd: dir });
   assert.strictEqual(r.mirror, null);
   assert.deepStrictEqual(r.worktrees, []); // legacy reap ran, found zero worktrees to consider
   assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
 });
 
-test('reconcile: local-merge with no resolvable integration branch at all resolves no-remote, never crashes', () => {
+test('reconcile: local-merge with no resolvable integration branch at all resolves no-remote, never crashes', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-lm-noib-'));
   git(['init', '-q'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: local-merge\n');
-  const r = reconcile({ cwd: dir });
+  const r = await reconcile({ cwd: dir });
   assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-remote' }]);
 });
 
-test('reconcile: no network / no remote resolves to no-remote, never crashes (AC4)', () => {
+test('reconcile: no network / no remote resolves to no-remote, never crashes (AC4)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-noremote-'));
   git(['init', '-q'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
 
-  const r = reconcile({ cwd: dir });
+  const r = await reconcile({ cwd: dir });
   assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-remote' }]);
 });
 
-test('reconcile: outside any repo resolves to no-repo, never crashes', () => {
+test('reconcile: outside any repo resolves to no-repo, never crashes', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-norepo-'));
-  const r = reconcile({ cwd: dir });
+  const r = await reconcile({ cwd: dir });
   assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-repo' }]);
 });
 
-test('reconcile: checks filter excludes reap -> local-merge project runs nothing at all', () => {
+test('reconcile: checks filter excludes reap -> local-merge project runs nothing at all', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-checks-'));
   git(['init', '-q', '--initial-branch=main'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
@@ -470,7 +470,7 @@ test('reconcile: checks filter excludes reap -> local-merge project runs nothing
     'integration-model: local-merge\nintegration-branch: main\n',
   );
 
-  const r = reconcile({ cwd: dir, checks: ['mirror'] });
+  const r = await reconcile({ cwd: dir, checks: ['mirror'] });
   // 'mirror' was requested but has no local-merge equivalent — nothing runs.
   assert.strictEqual(r.worktrees, null);
   assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
@@ -535,4 +535,14 @@ test('reconcile verb: --dry-run is accepted and never mutates on a no-remote fix
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.stdout);
   assert.deepStrictEqual(parsed.skipped, [{ check: 'all', reason: 'no-remote' }]);
+});
+
+test('reconcile(): returns a thenable (async contract) even when every check stays synchronous internally', async () => {
+  const { originDir, mainDir } = pairedFixture();
+  git(['remote', 'set-url', 'origin', 'https://example.invalid/nope.git'], mainDir); // no gh reachable, exercised as local-merge below is enough
+  const p = reconcile({ cwd: mainDir, checks: ['mirror'] });
+  assert.equal(typeof p.then, 'function', 'reconcile() must return a Promise');
+  const r = await p;
+  assert.equal(typeof r, 'object');
+  void originDir;
 });

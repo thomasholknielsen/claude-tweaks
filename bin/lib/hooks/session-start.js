@@ -13,7 +13,7 @@ const { reconcile } = require('../reconcile');
 
 const MAX_REPORTED = 3;
 
-function run(ctx) {
+async function run(ctx) {
   const parts = [];
   try { parts.push(...deps.collect()); } catch { /* best-effort */ }
   try {
@@ -75,7 +75,7 @@ function run(ctx) {
     // here). Under local-merge, the module falls back to the same
     // ancestry-based reap this block always ran, so a project that has not
     // opted into pr-first sees no behavior change.
-    const result = reconcile({ cwd: ctx.cwd });
+    const result = await reconcile({ cwd: ctx.cwd });
     const reaped = (result.worktrees || []).filter((w) => w.action === 'reaped').map((w) => w.path);
     const skippedWorktrees = (result.worktrees || []).filter((w) => w.action === 'skipped');
 
