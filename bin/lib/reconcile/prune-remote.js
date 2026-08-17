@@ -13,16 +13,18 @@
 // branch attached to a live worktree is silently out of scope (same
 // inScope guard).
 //
-// The check FETCHES AND PRUNES origin first, before it enumerates anything:
-// the cherry-equivalence evidence is computed against local
-// `refs/remotes/origin/*` snapshots, but the deletion acts on origin's LIVE
-// ref and git offers no --force-with-lease for `push --delete`. Without the
-// refresh, a branch another clone has pushed to since our last fetch still
-// reads merged here, and the delete destroys commits this checkout never
-// saw. A fetch failure therefore skips the WHOLE check (`fetch-failed`) —
-// fail closed, never delete on stale evidence. The `--prune` half also
-// drops tracking refs for branches already gone on origin, so those stop
-// being re-examined (and re-`gh`-queried) on every run.
+// The check FETCHES AND PRUNES origin first, before it enumerates anything
+// (unless `skipFetch` says a caller already did — reconcile()'s shared
+// fetch, shared-fetch.js, #820 D2): the cherry-equivalence evidence is
+// computed against local `refs/remotes/origin/*` snapshots, but the
+// deletion acts on origin's LIVE ref and git offers no --force-with-lease
+// for `push --delete`. Without the refresh, a branch another clone has
+// pushed to since our last fetch still reads merged here, and the delete
+// destroys commits this checkout never saw. A fetch failure therefore skips
+// the WHOLE check (`fetch-failed`) — fail closed, never delete on stale
+// evidence. The `--prune` half also drops tracking refs for branches
+// already gone on origin, so those stop being re-examined (and
+// re-`gh`-queried) on every run.
 // Pure decision function with I/O at the edges, matching the family.
 'use strict';
 
@@ -49,18 +51,20 @@ function decideRemotePrune({ branch, cherryEquivalent, prState }) {
   return { action: 'delete', reason: 'merged-pr-cherry-equivalent' };
 }
 
-function pruneRemote({ cwd, integration, dryRun, resolvePr } = {}) {
+function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch } = {}) {
   const root = cwd || process.cwd();
   const resolve = resolvePr || resolvePrState;
   const entries = [];
 
   // First, before any ref is read: every verdict below is computed from
   // refs/remotes/origin/*, so refreshing them is a precondition of the check,
-  // not a step of it. Plain runGit call — no explicit timeoutMs, which would
-  // shadow the CT_HOOKS_GIT_TIMEOUT_MS escape hatch the rest of the family
-  // relies on under test-machine load.
-  const fetched = runGit(['fetch', '--prune', 'origin'], root);
-  if (fetched.failure) return { entries, failure: 'fetch-failed' };
+  // not a step of it. skipFetch lets a caller that already ran the identical
+  // `git fetch --prune origin` this pass (reconcile()'s shared fetch,
+  // shared-fetch.js, #820 D2) skip the redundant round trip.
+  if (!skipFetch) {
+    const fetched = runGit(['fetch', '--prune', 'origin'], root);
+    if (fetched.failure) return { entries, failure: 'fetch-failed' };
+  }
 
   const wtList = runGit(['worktree', 'list', '--porcelain'], root);
   if (wtList.failure) return { entries, failure: 'git-failure' };

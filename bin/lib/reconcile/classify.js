@@ -1,7 +1,9 @@
 // bin/lib/reconcile/classify.js — mirror-branch classification against
-// origin, under the pr-first integration model. Always fetches first: git
-// status/branch comparisons carry no freshness information before a fetch
-// (see this module's Gotchas in the design record for #407).
+// origin, under the pr-first integration model. Fetches first by default:
+// git status/branch comparisons carry no freshness information before a
+// fetch (see this module's Gotchas in the design record for #407) — unless
+// opts.skipFetch says the caller already refreshed origin/* this pass via
+// reconcile()'s shared fetch (#820 D2).
 'use strict';
 const { runGit } = require('../hooks/git-exec');
 
@@ -18,13 +20,18 @@ const FETCH_TIMEOUT_MS = 5000;
 // The working tree is checked BEFORE the fetch — a dirty tree makes any
 // merge unsafe regardless of what the fetch would report, and skipping an
 // unnecessary fetch keeps the dirty-tree case cheap.
-function classifyMirror(repoRoot, integration) {
+//
+// opts.skipFetch: trust the caller already refreshed origin/* this pass
+// (reconcile()'s shared fetch, #820 D2) instead of fetching again here.
+function classifyMirror(repoRoot, integration, opts = {}) {
   const status = runGit(['status', '--porcelain'], repoRoot);
   if (status.failure) return { state: null, failure: status.failure };
   if (status.stdout !== '') return { state: 'dirty', failure: null };
 
-  const fetch = runGit(['fetch', 'origin', integration], repoRoot, { timeoutMs: FETCH_TIMEOUT_MS });
-  if (fetch.failure) return { state: null, failure: fetch.failure };
+  if (!opts.skipFetch) {
+    const fetch = runGit(['fetch', 'origin', integration], repoRoot, { timeoutMs: FETCH_TIMEOUT_MS });
+    if (fetch.failure) return { state: null, failure: fetch.failure };
+  }
 
   // Left count = commits only on the local branch (ahead); right count =
   // commits only on origin's copy (behind) — see `git rev-list`'s

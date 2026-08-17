@@ -175,6 +175,21 @@ test('pruneRemote: origin/HEAD symbolic ref is never a candidate, alongside a re
   assert.match(git(dir, 'symbolic-ref', 'refs/remotes/origin/HEAD'), /refs\/remotes\/origin\/main/); // origin/HEAD survives untouched
 });
 
+// skipFetch trusts the caller already refreshed origin/* this pass
+// (reconcile()'s shared fetch, #820 D2) — pointing origin at an invalid URL
+// proves no second fetch is attempted: if pruneRemote still fetched despite
+// skipFetch, this would surface as `fetch-failed` instead of a real result.
+test('pruneRemote: skipFetch=true never calls fetch, trusts already-fetched refs', () => {
+  const dir = makeRepoWithOrigin();
+  const originUrl = git(dir, 'remote', 'get-url', 'origin').trim();
+  git(dir, 'fetch', '--prune', 'origin'); // caller already fetched, simulating the shared-fetch path
+  git(dir, 'remote', 'set-url', 'origin', 'https://example.invalid/nope.git');
+
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  assert.strictEqual(r.failure, null);
+  void originUrl;
+});
+
 test('pruneRemote: branch attached to a live worktree is silently out of scope', () => {
   const dir = makeRepoWithOrigin();
   git(dir, 'checkout', '-b', 'build/wt');
@@ -198,7 +213,12 @@ test("index: ALL_CHECKS includes 'remote-prune'; dispatch sits between 'archive-
   assert.ok(ALL_CHECKS.includes('remote-prune'));
   const src = fs.readFileSync(path.join(__dirname, '../../../bin/lib/reconcile/index.js'), 'utf8');
   const iBranches = src.indexOf("checks.includes('archive-branches')");
-  const iRemote = src.indexOf("checks.includes('remote-prune')");
+  // Search from iBranches: the shared-fetch gate above the mirror dispatch
+  // (#820 D2) also tests `checks.includes('remote-prune')` — as part of
+  // deciding whether to run the one shared fetch at all — so the literal
+  // string now appears earlier in the file too. The actual dispatch block is
+  // the occurrence after archive-branches.
+  const iRemote = src.indexOf("checks.includes('remote-prune')", iBranches);
   const iReap = src.indexOf("checks.includes('reap')", iBranches);
   assert.ok(iBranches > -1 && iRemote > iBranches && iReap > iRemote, 'dispatch order: archive-branches < remote-prune < reap');
 });

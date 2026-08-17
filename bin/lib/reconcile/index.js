@@ -19,6 +19,7 @@ const { archiveMerged } = require('./archive-merged');
 const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
+const { sharedFetch } = require('./shared-fetch');
 
 // Execution order (mirror, red-tip, console, release, archive,
 // archive-branches, remote-prune, reap) is significant — see the ordering
@@ -112,17 +113,37 @@ async function reconcile(opts = {}) {
   }
 
   if (overBudget(DISPATCH_ORDER.slice(0))) return result;
-  if (checks.includes('mirror')) {
-    result.mirror = mirrorFastForward(root, integration);
+  // One shared `git fetch --prune origin` for whichever of mirror/red-tip/
+  // remote-prune are requested — mirror (via classify.js) and remote-prune
+  // previously each ran their own separate fetch, two full round trips to
+  // the same remote per pass (#820, D2). `sharedFetchOk` gates all three
+  // dispatch blocks below: red-tip is included even though it triggers no
+  // fetch itself, because it reads the ref this fetch (formerly mirror's
+  // own) just refreshed — see the ordering comment on red-tip's dispatch
+  // below. A failed fetch is recorded once here rather than once per check.
+  let sharedFetchOk = true;
+  if (checks.includes('mirror') || checks.includes('remote-prune')) {
+    const fetched = sharedFetch(root);
+    if (fetched.failure) {
+      sharedFetchOk = false;
+      const affected = ['mirror', 'red-tip', 'remote-prune'].filter((c) => checks.includes(c));
+      if (affected.length) result.skipped.push({ check: affected.join(','), reason: 'fetch-failed' });
+    }
+  }
+  if (checks.includes('mirror') && sharedFetchOk) {
+    result.mirror = mirrorFastForward(root, integration, { skipFetch: true });
   }
 
   // Detection only — never mutates repo/run state. Reads origin/{integration}
-  // via the local ref mirror's own fetch above just refreshed — deliberately
-  // no fetch of its own (#561). Placed immediately after mirror for that
-  // reason; unconditional under pr-first, no local-merge equivalent (the
-  // model !== 'pr-first' early-return above already exits before this line).
+  // via the shared fetch above (formerly mirror-ff.js's own fetch) —
+  // deliberately no fetch of its own (#561). Placed immediately after mirror
+  // for that reason; unconditional under pr-first, no local-merge equivalent
+  // (the model !== 'pr-first' early-return above already exits before this
+  // line). Gated on `sharedFetchOk` too: a failed shared fetch leaves
+  // origin/{integration} exactly as stale as a failed mirror fetch used to,
+  // so red-tip has nothing fresh to read either.
   if (overBudget(DISPATCH_ORDER.slice(1))) return result;
-  if (checks.includes('red-tip')) {
+  if (checks.includes('red-tip') && sharedFetchOk) {
     result.redTip = redTipCheck(root, integration, {
       onSkip: (reason) => result.skipped.push({ check: 'red-tip', reason }),
     });
@@ -193,8 +214,8 @@ async function reconcile(opts = {}) {
   // the worktree-attachment guard must read worktrees reap has not yet
   // removed, so this too runs before reap (which stays last — see above).
   if (overBudget(DISPATCH_ORDER.slice(6))) return result;
-  if (checks.includes('remote-prune')) {
-    const r = pruneRemote({ cwd: root, integration, dryRun });
+  if (checks.includes('remote-prune') && sharedFetchOk) {
+    const r = pruneRemote({ cwd: root, integration, dryRun, skipFetch: true });
     if (r.failure) {
       result.skipped.push({ check: 'remote-prune', reason: r.failure });
     } else {

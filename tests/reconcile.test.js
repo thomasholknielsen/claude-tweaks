@@ -107,6 +107,19 @@ test('classifyMirror: dirty when the working tree has uncommitted changes, befor
   assert.strictEqual(r.state, 'dirty');
 });
 
+test('classifyMirror: skipFetch=true never calls fetch, trusts already-fetched refs', () => {
+  const { originDir, mainDir } = pairedFixture();
+  git(['fetch', 'origin'], mainDir); // caller already fetched, simulating the shared-fetch path
+  // Point origin at an invalid URL so a *second* fetch attempt would fail —
+  // if classifyMirror still fetched despite skipFetch, this would surface as
+  // a non-null failure instead of the 'current' state proven by the fetch above.
+  git(['remote', 'set-url', 'origin', 'https://example.invalid/nope.git'], mainDir);
+  const result = classifyMirror(mainDir, 'main', { skipFetch: true });
+  assert.equal(result.state, 'current');
+  assert.equal(result.failure, null);
+  void originDir;
+});
+
 test('mirrorFastForward: fast-forwards when strictly behind and clean (AC1)', () => {
   const { seedDir, mainDir } = pairedFixture();
   fs.writeFileSync(path.join(seedDir, 'b.txt'), 'two\n');
@@ -601,4 +614,65 @@ test('reconcile(): an exhausted wall-clock budget skips every remaining check in
     budgetMod.createBudget = original;
     preflight.ghHealthCheck = originalHealth;
   }
+});
+
+// --- shared fetch (#820 D2): mirror and remote-prune merge into one fetch ---
+
+test('reconcile(): mirror and remote-prune share one fetch, not two (D2)', async () => {
+  const { mainDir } = pairedFixture();
+  // Same forcing as the preflight/budget tests above: pairedFixture()'s
+  // origin is a bare local repo, not a real GitHub remote. Committed (not
+  // left as an untracked file) — unlike the preflight/budget tests, THIS
+  // test needs classifyMirror to actually reach its fetch call (not bail
+  // out early on `state: 'dirty'`), so `git status --porcelain` in mainDir
+  // must read clean.
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  // NOT counted via a `gitExec.runGit = stub` swap: classify.js,
+  // prune-remote.js, and shared-fetch.js each do
+  // `const { runGit } = require('../hooks/git-exec')` once at module load,
+  // which copies the function VALUE into a local const at that instant.
+  // Reassigning `gitExec.runGit` afterward only changes what a fresh
+  // `require('../hooks/git-exec').runGit` property lookup returns — every
+  // already-bound local `runGit` inside those three modules keeps pointing
+  // at the original function, so a stub swap silently never fires and the
+  // count would read 0 (or pass by accident), not discriminate the merge.
+  // (Verified empirically with a throwaway destructure/mutate/call repro:
+  // the destructured binding never observed the module.exports reassignment.)
+  // Counting at the process-spawn boundary instead — a `git` executable
+  // placed first on PATH — needs no assumption about any module's import
+  // style and observes every real `git fetch` invocation.
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-gitwrap-'));
+  const logFile = path.join(wrapperDir, 'fetch-calls.log');
+  fs.writeFileSync(logFile, '');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const wrapperPath = path.join(wrapperDir, 'git');
+  // git-exec.js always calls execFileSync('git', ['-C', cwd, ...args]) — the
+  // real subcommand (fetch, status, rev-list, ...) is always positional $3.
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/bin/sh\nif [ "$3" = "fetch" ]; then\n  echo x >> "${logFile}"\nfi\nexec "${realGit}" "$@"\n`,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  let r;
+  try {
+    r = await reconcile({ cwd: mainDir, checks: ['mirror', 'remote-prune'] });
+  } finally {
+    process.env.PATH = originalPath;
+    preflight.ghHealthCheck = originalHealth;
+  }
+
+  assert.deepEqual(r.skipped, [], `expected no skipped entries, saw ${JSON.stringify(r.skipped)}`);
+  const fetchCalls = fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).length;
+  assert.equal(fetchCalls, 1, `expected exactly one fetch, saw ${fetchCalls}`);
 });
