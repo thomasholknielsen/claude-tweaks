@@ -1,6 +1,6 @@
 ---
 name: demo
-description: Use for a human verdict on one built thing: this conversation's unrecorded work, or a specific `#N` record. Distinct from /test and /review. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall, closing commit.
+description: Use for a human verdict on one built thing at a time: this conversation's unrecorded work, a specific `#N` record, or a `#N,#M` list taken one item at a time. Distinct from /test and /review. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall, closing commit.
 argument-hint: "[#N[,#M...]]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
@@ -51,14 +51,18 @@ Not for: discovering what's outstanding across the backlog (`/claude-tweaks:help
 `$ARGUMENTS` — *(none)* resolves this session's own unrecorded work via session-recall (Step 1);
 `#N` resolves that single record's Verification Brief, falling back — when no `demo:pending`
 label exists on it — first to the record's closing commit in git history, then to session-recall
-scoped to that `#N` (Step 1); `#N[,#M...]` — a comma-separated list of record refs, no spaces —
-is an explicit human-supplied batch: each ref runs the `#N` path in list order,
+scoped to that `#N` (Step 1); `#N[,#M...]` — a comma-separated list of record refs, no spaces
+(a space after a comma is tolerated and trimmed) — is an explicit human-supplied batch: each ref
+runs the `#N` path in list order,
 Step 1 → Step 2 → Step 3 to completion before the next ref begins, so a batch aborted part-way
 has already applied every verdict given so far and lost nothing. One verdict question per item —
 never a combined verdict, never cross-item merging, never a Task fan-out.
 A batch is the human's own list — never a sweep: `/demo` still never scans the backlog for what
 to include, and the no-argument session-recall path cannot be combined with refs. Never sweeps
 the backlog — `/claude-tweaks:help` (Stage 4.7) is where the full outstanding list lives.
+The Interaction style directive's multi-item batch table does not apply to a batch here — a
+verdict is the human judgment being collected, not a recommendation to confirm, so each item
+gets its own verdict question.
 
 ## Step 1: Resolve the one item
 
@@ -207,7 +211,7 @@ live-or-manual sub-choice — in place of the Show-first walkthrough above; read
 
 If, anywhere in this walkthrough, the human asks for something beyond confirming this record's
 existing behavior — a new feature, a change beyond what Prepare/Validate needed to make the
-environment checkable — stop once (the first time this happens in this `/claude-tweaks:demo` session) before doing it. Call
+environment checkable — stop once per item (the first time this happens for the record being demoed — a `#N,#M` batch resets the once-per-item stop for each ref) before doing it. Call
 `AskUserQuestion` with `question`: `"That's new scope beyond what's being demoed here. Want me to
 capture it as a backlog item now and come back to your sign-off decision, or build it now as its
 own thing outside /claude-tweaks:demo?"`, `header`: `"Scope fork"`, `multiSelect`: `false`:
