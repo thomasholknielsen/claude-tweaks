@@ -19,6 +19,10 @@ test('specify SKILL.md documents the #A-#B/#A–#B range form and its expansion 
   const src = readFlat('skills/specify/SKILL.md');
   assert.ok(src.includes('**Range form (`#A-#B`/`#A–#B` — shaping-mode-only).**'), 'Range form paragraph marker missing from SKILL.md');
   assert.ok(src.includes('expands to the equivalent comma-joined list'), 'range-to-comma-list expansion rule missing from SKILL.md');
+  // The leading backtick here closes `A`'s code span from the prose ("`A`
+  // must be less than or equal to `B`") -- the substring starts mid-span by
+  // design, not a typo, since assert.ok(includes(...)) only needs a
+  // contiguous slice, not a self-balanced one.
   assert.ok(src.includes('A` must be less than or equal to `B`'), 'A <= B validation rule missing from SKILL.md');
 });
 
@@ -29,14 +33,24 @@ test('specify SKILL.md wires range expansion into the batch-branch resolution bu
   assert.ok(src.includes('a loop never a fan-out (no Task dispatch, one record at a time)'), 'pre-existing sequential-per-element rule was disturbed');
 });
 
+test('specify SKILL.md caps the range form at 25 expanded elements with a hard-error message', () => {
+  const src = readFlat('skills/specify/SKILL.md');
+  assert.ok(src.includes('ranges are capped at 25'), 'range expansion cap (25 elements) hard-error message missing from SKILL.md');
+});
+
 test('shaping-mode.md documents mandatory read-back verification after each record write', () => {
   const src = readFlat('skills/specify/shaping-mode.md');
   assert.ok(src.includes('### Read-back verification'), 'Read-back verification subsection missing from shaping-mode.md');
   assert.ok(src.includes('re-fetch the record fresh'), 'read-back re-fetch rule missing');
   assert.ok(src.includes('does **not** roll back the write or stop the batch'), 'read-back failure-isolation rule missing');
+  // Ordering language: the read-back for record k must complete before record k+1 starts.
+  assert.ok(src.includes('before moving to the next record in the batch'), 'read-back per-record ordering language missing');
   for (const token of ['`ready` is present', 'five spec-shaped sections', 'No unresolved placeholder marker']) {
     assert.ok(src.includes(token), `read-back assertion "${token}" missing`);
   }
   // The pre-existing outcome vocabulary this task must not disturb:
   assert.ok(src.includes('no `skipped` outcome'), 'pre-existing stop-all rationale for the missing skipped outcome was disturbed');
+  // The `failed` outcome prefix (a write OR read-back failure) referenced by
+  // Actions Performed's opening sentence:
+  assert.ok(src.includes('or whose read-back verification (above) failed'), 'Actions Performed write-failure sentence missing its read-back-failure extension');
 });
