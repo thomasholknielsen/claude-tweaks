@@ -30,7 +30,7 @@ test("the manifest's current version has a CHANGELOG entry", () => {
   const documented = parseChangelogVersions(changelog).map((e) => e.version);
   assert.ok(
     documented.includes(manifestVersion),
-    `.claude-plugin/plugin.json is at ${manifestVersion} but CHANGELOG.md has no "## v${manifestVersion} — ..." entry. ` +
+    `plugin/.claude-plugin/plugin.json is at ${manifestVersion} but CHANGELOG.md has no "## v${manifestVersion} — ..." entry. ` +
       `Add one in the same commit as the bump — see CLAUDE.md's "Releasing (two repos)".`,
   );
 });
@@ -113,7 +113,7 @@ test("the manifest's current version is in the shipped-versions record", () => {
   const recorded = new Set(recordedVersions(REPO_ROOT));
   assert.ok(
     recorded.has(manifestVersion),
-    `.claude-plugin/plugin.json is at ${manifestVersion} but ${RECORD_PATH} has no line for it. ` +
+    `plugin/.claude-plugin/plugin.json is at ${manifestVersion} but ${RECORD_PATH} has no line for it. ` +
       `Append "${manifestVersion}\t<YYYY-MM-DD>\trelease" in the same commit as the bump — ` +
       `see CLAUDE.md's "Releasing (two repos)". This is the step that keeps the record from ` +
       'drifting back into something that has to be inferred.',

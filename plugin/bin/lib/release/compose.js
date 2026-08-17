@@ -1,7 +1,10 @@
 'use strict';
 const { compareVersions, parseChangelogVersions, findHeadingDefects } = require('../changelog.js');
+const { MANIFEST_PATH } = require('../manifest-path.js');
 
-const RELEASE_FILES = ['.claude-plugin/plugin.json', 'CHANGELOG.md', 'docs/shipped-versions.tsv'];
+// The manifest moved under `plugin/` with the payload (#418); CHANGELOG.md and the
+// shipped-versions record are repo-level documents and stayed at the root.
+const RELEASE_FILES = [MANIFEST_PATH, 'CHANGELOG.md', 'docs/shipped-versions.tsv'];
 
 function nextVersion(current, part) {
   const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(current).trim());

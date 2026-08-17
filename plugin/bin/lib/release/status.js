@@ -1,11 +1,13 @@
 'use strict';
 const { parseChangelogVersions } = require('../changelog.js');
+const { MANIFEST_PATH: MANIFEST, MANIFEST_PATHS, readManifestAtRef } = require('../manifest-path.js');
 
-const MANIFEST = '.claude-plugin/plugin.json';
 const CHANGELOG = 'CHANGELOG.md';
 
+// Every read below is at a historical commit, so both sides of the #418 payload
+// move are in scope — see bin/lib/manifest-path.js.
 function manifestVersionAt(deps, spec) {
-  return JSON.parse(deps.git(['show', `${spec}:${MANIFEST}`])).version;
+  return JSON.parse(readManifestAtRef((p) => deps.git(['show', `${spec}:${p}`])).text).version;
 }
 
 // Defensive check for non-CLI callers of releaseStatus — the CLI (bin/release.js
@@ -25,7 +27,7 @@ function* iterBumpCommits(deps, ref) {
   // `git log` for it would otherwise read as "not yet in a release," which is a different
   // claim than "this isn't a plugin repo."
   try {
-    deps.git(['cat-file', '-e', `${ref}:${MANIFEST}`]);
+    readManifestAtRef((p) => deps.git(['cat-file', '-e', `${ref}:${p}`]));
   } catch (err) {
     // `fatal: path '...' does not exist in '<ref>'` is a genuinely missing manifest — the
     // condition this function documents. Anything else (e.g. `fatal: invalid object name
@@ -35,7 +37,9 @@ function* iterBumpCommits(deps, ref) {
     }
     throw new Error(`could not resolve ${ref}: ${err.message}`);
   }
-  const shas = deps.git(['log', '--format=%H', '--topo-order', ref, '--', MANIFEST]).split('\n').map((s) => s.trim()).filter(Boolean);
+  // Both spellings as pathspecs: a history spanning the #418 move has bump commits
+  // on each side of it, and a single-path log silently drops one side's releases.
+  const shas = deps.git(['log', '--format=%H', '--topo-order', ref, '--', ...MANIFEST_PATHS]).split('\n').map((s) => s.trim()).filter(Boolean);
   for (const sha of shas) {
     let version;
     try {

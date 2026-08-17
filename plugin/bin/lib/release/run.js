@@ -24,7 +24,7 @@ function runRelease(deps, { part, summary, date, dryRun, log }) {
     log(`[dry-run] would bump ${manifestPath} to v${version}`);
     log(`[dry-run] would stub CHANGELOG heading "## v${version} — ${summary}"`);
     log(`[dry-run] would append "${version}\t${date}\trelease" to ${shippedPath}`);
-    log('[dry-run] would commit the trio, verify ancestry, push origin main, and mirror the marketplace');
+    log('[dry-run] would commit the trio, verify ancestry, push origin main, and re-pin the marketplace at the release commit');
     return { version, pushed: false, mirrored: false };
   }
 
@@ -39,6 +39,12 @@ function runRelease(deps, { part, summary, date, dryRun, log }) {
     throw new Error(`staged set is not exactly the release trio: ${staged.join(', ')}`);
   }
   deps.git(['commit', '-m', `Release v${version} — ${summary}`]);
+  // The marketplace pins the payload subdirectory at a commit, so the mirror needs
+  // the release commit's sha — read after the commit lands, never before, or the
+  // pin names the previous release. Reading it here rather than after the push is
+  // deliberate: the push moves no local ref, so both points name the same commit,
+  // and this keeps the value available even if the ancestry check aborts below.
+  const releaseSha = deps.git(['rev-parse', 'HEAD']).trim();
 
   deps.git(['fetch', 'origin', 'main']);
   try {
@@ -54,7 +60,7 @@ function runRelease(deps, { part, summary, date, dryRun, log }) {
   const description = JSON.parse(newManifest).description;
   let changed;
   try {
-    ({ changed } = mirrorRelease(deps, { version, description, dryRun: false }));
+    ({ changed } = mirrorRelease(deps, { version, description, sha: releaseSha, dryRun: false }));
   } catch (err) {
     throw new Error(`v${version} is pushed and released; only the marketplace mirror failed: ${err.message}\n` +
       'Do NOT re-run the full release (it would bump a second time) — retry just the mirror once the cause is fixed.');

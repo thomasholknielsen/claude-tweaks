@@ -182,18 +182,21 @@ function checkDesignDocWrite(ctx) {
 // This nudge is the cheap half. It fires after the fact and can be ignored, so
 // it complements rather than replaces the gate — the gate is what makes an
 // omission fail. Fires unconditionally whenever a
-// commit touches `.claude-plugin/plugin.json` at all, without trying to
+// commit touches the plugin manifest at all, without trying to
 // parse whether the change was actually a version bump (same "cheap false
 // positive, no smart detection" precedent checkClosingKeyword and
 // checkDesignDocWrite set above) — plugin.json changes for any other reason
 // are rare enough that a false-positive reminder costs nothing.
 //
 // Scoped to this specific project via the committed file's own `name` field
-// rather than the path alone: `.claude-plugin/plugin.json` is the standard
-// manifest path for ANY Claude Code plugin repo, so an unscoped check would
+// rather than the path alone: a `.claude-plugin/plugin.json` is the standard
+// manifest for ANY Claude Code plugin repo, so an unscoped check would
 // misfire with an irrelevant release-follow-up reminder in a completely
 // unrelated plugin repo that happens to have this plugin active.
-const PLUGIN_MANIFEST_PATH = '.claude-plugin/plugin.json';
+//
+// Both manifest spellings are in play: #418 moved this payload under `plugin/`,
+// and the parent-commit comparison below reaches back across that boundary.
+const { MANIFEST_PATHS, readManifestAtRef } = require('../manifest-path');
 const { RECORD_PATH: SHIPPED_RECORD_PATH } = require('../shipped-record');
 
 // Release-bypass check (#307). `bin/lib/release/compose.js` is the only
@@ -214,8 +217,11 @@ function checkPluginVersionBump(recentByDir) {
       if (commit.ts === null || Math.abs(Date.now() / 1000 - commit.ts) > COMMIT_FRESHNESS_WINDOW_SECONDS) continue;
       if (!commit.hash) continue;
       const { stdout: changedFiles } = runGit(['diff-tree', '--no-commit-id', '--name-only', '-r', commit.hash], dir);
-      if (changedFiles === null || !changedFiles.split('\n').includes(PLUGIN_MANIFEST_PATH)) continue;
-      const { stdout: manifestAtCommit } = runGit(['show', `${commit.hash}:${PLUGIN_MANIFEST_PATH}`], dir);
+      if (changedFiles === null) continue;
+      const changedPaths = changedFiles.split('\n');
+      const touchedPath = MANIFEST_PATHS.find((p) => changedPaths.includes(p));
+      if (!touchedPath) continue;
+      const { stdout: manifestAtCommit } = runGit(['show', `${commit.hash}:${touchedPath}`], dir);
       if (manifestAtCommit === null) continue;
       let manifest;
       try {
@@ -256,7 +262,12 @@ function checkPluginVersionBump(recentByDir) {
         const { stdout: parentsRaw } = runGit(['show', '-s', '--format=%P', commit.hash], dir);
         const parentHashes = parentsRaw === null ? [] : parentsRaw.trim().split(/\s+/).filter(Boolean);
         if (parentHashes.length <= 1) {
-          const { stdout: parentManifestRaw } = runGit(['show', `${commit.hash}^:${PLUGIN_MANIFEST_PATH}`], dir);
+          // Both spellings: on the cutover commit itself the parent still carries
+          // the manifest at the old path, and reading only the new one there would
+          // fail open on exactly the commit most likely to be hand-edited.
+          const { text: parentManifestRaw } = readManifestAtRef(
+            (p) => runGit(['show', `${commit.hash}^:${p}`], dir).stdout,
+          );
           let parentVersion = null;
           if (parentManifestRaw !== null) {
             try {
@@ -270,13 +281,18 @@ function checkPluginVersionBump(recentByDir) {
         }
       }
 
-      // Unverifiable from here — it lives in a separate repository.
-      outstanding.push("mirror the version into claude-tweaks-marketplace's marketplace.json (plugins[].version)");
+      // Unverifiable from here — it lives in a separate repository. Since #418 the
+      // catalog entry is a git-subdir source pinned by commit sha and carries no
+      // `version` field at all, so the step is a re-pin, not a version copy.
+      outstanding.push(
+        "re-pin claude-tweaks-marketplace's marketplace.json at this release commit " +
+        '(plugins[].source.sha — the entry carries no version field)',
+      );
 
       return {
         json: {
           systemMessage:
-            `claude-tweaks: this commit touched ${PLUGIN_MANIFEST_PATH}${version ? ` (now ${version})` : ''}. ` +
+            `claude-tweaks: this commit touched ${touchedPath}${version ? ` (now ${version})` : ''}. ` +
             `Outstanding from CLAUDE.md's "Releasing (two repos)": ${outstanding.join('; ')}. ` +
             'The first two belong in this commit — amend rather than following up, or the suite goes red.',
         },

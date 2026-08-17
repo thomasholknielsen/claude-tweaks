@@ -1,6 +1,7 @@
 'use strict';
 const { compareVersions } = require('../changelog.js');
 const { nextVersion } = require('./compose.js');
+const { readManifestAtRef } = require('../manifest-path.js');
 
 const VERSION_IN_TEXT = /\bv?(\d+\.\d+\.\d+)\b/g;
 
@@ -8,9 +9,15 @@ function manifestVersion(text) {
   return JSON.parse(text).version;
 }
 
+// Every read here targets an arbitrary ref — origin/main, local main, or a sibling
+// worktree's branch — any of which can predate the plugin/ payload move (#418).
+function manifestVersionAtRef(deps, ref) {
+  return manifestVersion(readManifestAtRef((p) => deps.git(['show', `${ref}:${p}`])).text);
+}
+
 function collectClaims(deps) {
-  const originMain = manifestVersion(deps.git(['show', 'origin/main:.claude-plugin/plugin.json']));
-  const localMain = manifestVersion(deps.git(['show', 'main:.claude-plugin/plugin.json']));
+  const originMain = manifestVersionAtRef(deps, 'origin/main');
+  const localMain = manifestVersionAtRef(deps, 'main');
 
   const worktreeBranches = [];
   const porcelain = deps.git(['worktree', 'list', '--porcelain']);
@@ -19,7 +26,7 @@ function collectClaims(deps) {
     if (!m || m[1] === 'main') continue;
     let version;
     try {
-      version = manifestVersion(deps.git(['show', `${m[1]}:.claude-plugin/plugin.json`]));
+      version = manifestVersionAtRef(deps, m[1]);
     } catch (err) {
       // Only a genuinely absent manifest is "not a claim" — any other failure
       // (git error, malformed manifest JSON) aborts rather than silently weakening the check.

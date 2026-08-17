@@ -2,11 +2,14 @@
 
 // Reconstruct which plugin versions actually shipped, from git.
 //
-// "Shipped" means: a value the `version` field in .claude-plugin/plugin.json
-// held at the tip of the release branch. The marketplace `source` is an
-// unpinned git URL, so an install tracks that branch's HEAD — every distinct
-// value the tip reported is a build someone could be running, and is therefore
-// a build the changelog owes an entry.
+// "Shipped" means: a value the `version` field in the plugin manifest held at
+// the tip of the release branch. Every distinct value the tip reported is a
+// build someone could be running, and is therefore a build the changelog owes
+// an entry.
+//
+// The manifest's path is not constant across this history: #418 moved the
+// payload under `plugin/`, so older commits carry it at the repo root. Both
+// spellings are read per commit — see ./manifest-path.js.
 //
 // Walking `git log --first-parent -- <manifest>` instead would be wrong in a
 // way that is easy to miss: it reports the bump commit sitting on a side
@@ -26,7 +29,8 @@
 
 const { execFileSync, spawnSync } = require('node:child_process');
 
-const MANIFEST_PATH = '.claude-plugin/plugin.json';
+const { MANIFEST_PATH, MANIFEST_PATHS } = require('./manifest-path.js');
+
 const REF_PREFERENCE = ['origin/main', 'main', 'HEAD'];
 
 function git(repoRoot, args) {
@@ -83,36 +87,47 @@ function shippedVersionRuns(repoRoot, ref) {
   });
   if (commits.length === 0) return [];
 
+  // One spec per (commit, manifest spelling) pair, in MANIFEST_PATHS order. A
+  // commit resolves at exactly one of them — the other reads back as `missing`.
   const batch = spawnSync('git', ['cat-file', '--batch'], {
     cwd: repoRoot,
-    input: commits.map((c) => `${c.hash}:${MANIFEST_PATH}`).join('\n') + '\n',
+    input: commits.flatMap((c) => MANIFEST_PATHS.map((p) => `${c.hash}:${p}`)).join('\n') + '\n',
     maxBuffer: 512 * 1024 * 1024,
   });
   if (batch.status !== 0) throw new Error(`git cat-file --batch failed: ${batch.stderr}`);
 
   // Batch stream framing: "<sha> <type> <size>\n<payload>\n", or "<spec> missing\n"
-  // for a commit predating the manifest.
+  // for a commit predating the manifest (or carrying it at the other spelling).
   const buf = batch.stdout;
-  const versions = [];
+  const perSpec = [];
   let off = 0;
-  for (let i = 0; i < commits.length; i++) {
+  for (let i = 0; i < commits.length * MANIFEST_PATHS.length; i++) {
     const nl = buf.indexOf(0x0a, off);
     if (nl === -1) break;
     const header = buf.slice(off, nl).toString('utf8');
     off = nl + 1;
     if (header.endsWith(' missing')) {
-      versions.push(null);
+      perSpec.push(null);
       continue;
     }
     const size = Number(header.split(' ')[2]);
     const payload = buf.slice(off, off + size).toString('utf8');
     off += size + 1;
     try {
-      versions.push(JSON.parse(payload).version || null);
+      perSpec.push(JSON.parse(payload).version || null);
     } catch {
-      versions.push(null);
+      perSpec.push(null);
     }
   }
+  // First spelling that resolved wins; a truncated stream leaves `undefined`,
+  // which collapses to null the same way an absent manifest does.
+  const versions = commits.map((_, i) => {
+    for (let k = 0; k < MANIFEST_PATHS.length; k++) {
+      const v = perSpec[i * MANIFEST_PATHS.length + k];
+      if (v) return v;
+    }
+    return null;
+  });
 
   const ordered = commits.map((c, i) => ({ ...c, version: versions[i] })).reverse();
   const runs = [];
