@@ -19,9 +19,9 @@ Every consumer supplies exactly these four inputs when following this file:
    `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" {profile}` (append `--run-dir
    "$PIPELINE_RUN_DIR"` when the consumer has one; append `--unattended` only when genuinely
    headless, resolved from session state).
-4. **Watermark consumer key** — a short string (e.g. `feedback`, `reflect`) passed as `{ consumer }`
-   to every `bin/lib/transcript-judge/watermark.js` call. Known consumers today: `feedback`,
-   `reflect`. Pick a new, disjoint key for a third consumer — collision avoidance is the caller's
+4. **Watermark consumer key** — a short string passed as `{ consumer }` to every
+   `bin/lib/transcript-judge/watermark.js` call; today's keys are the ones named on the Consumers
+   line above. Pick a new, disjoint key for a third consumer — collision avoidance is the caller's
    responsibility.
 
 A consumer may also supply a **watermark payload** shape beyond `bytesAtDispatch`/`evaluatedAt`

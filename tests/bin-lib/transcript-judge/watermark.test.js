@@ -127,33 +127,29 @@ test('readWatermark/writeWatermark: consumer round-trip is isolated per consumer
 // ---- byteOffsetToLine -------------------------------------------------------
 // Fixture: 'aaa\nbbb\nccc\n' — 12 bytes, newlines at byte indices 3, 7, 11.
 const FIXTURE = 'aaa\nbbb\nccc\n';
+const readFixture = () => Buffer.from(FIXTURE, 'utf8');
 
 test('byteOffsetToLine: offset 0 -> line 1', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 0, { readFile }), 1);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 0, { readFile: readFixture }), 1);
 });
 
 test('byteOffsetToLine: offset mid-line -> the line containing that byte', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
   // byte 5 is inside "bbb" (line 2), after the first newline at byte 3.
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 5, { readFile }), 2);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 5, { readFile: readFixture }), 2);
 });
 
 test('byteOffsetToLine: offset exactly on a newline byte -> still the line it terminates', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
   // byte 3 IS the first newline; it has not yet been consumed by the slice.
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 3, { readFile }), 1);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 3, { readFile: readFixture }), 1);
 });
 
 test('byteOffsetToLine: offset one past a newline -> the next line', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
   // byte 4 is the first byte of "bbb" (line 2), right after the newline at byte 3.
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 4, { readFile }), 2);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 4, { readFile: readFixture }), 2);
 });
 
 test('byteOffsetToLine: offset past EOF -> one past the last complete line, no throw', () => {
-  const readFile = () => Buffer.from(FIXTURE, 'utf8');
-  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 1000, { readFile }), 4);
+  assert.equal(watermark.byteOffsetToLine('/fake/t.jsonl', 1000, { readFile: readFixture }), 4);
 });
 
 test('byteOffsetToLine: readFile returning a plain string (not a Buffer) still works', () => {

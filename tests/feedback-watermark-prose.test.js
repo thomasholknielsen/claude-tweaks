@@ -32,6 +32,17 @@ const GITIGNORE = read('.gitignore');
 const STEP04 = read('plugin', 'skills', 'init', 'bootstrap', 'step-04-gitignore-suggestions.md');
 const PLUGIN_STRUCTURE = read('docs', 'plugin-structure.md');
 
+// step-04's fenced ```gitignore suggestion block. Both gitignore tests below
+// need it, and both need the same "the block exists and is closed" guard —
+// asserting that here keeps the guard from drifting between them.
+function gitignoreSuggestionBlock() {
+  const fenceStart = STEP04.indexOf('```gitignore');
+  assert.ok(fenceStart >= 0, 'fenced gitignore block must exist');
+  const fenceEnd = STEP04.indexOf('```', fenceStart + 3);
+  assert.ok(fenceEnd > fenceStart, 'fenced gitignore block must be closed');
+  return STEP04.slice(fenceStart, fenceEnd);
+}
+
 // --- 1. session-evaluation.md cites the shared transcript-judge contract, doesn't restate it ---
 
 test('session-evaluation.md cites _shared/transcript-judge.md for the moved dispatch mechanics', () => {
@@ -102,12 +113,7 @@ test('.gitignore contains the literal line .claude-tweaks/feedback/', () => {
 });
 
 test("step-04-gitignore-suggestions.md's fenced suggestion block contains the generalized per-consumer watermark line", () => {
-  const fenceStart = STEP04.indexOf('```gitignore');
-  assert.ok(fenceStart >= 0, 'fenced gitignore block must exist');
-  const fenceEnd = STEP04.indexOf('```', fenceStart + 3);
-  assert.ok(fenceEnd > fenceStart, 'fenced gitignore block must be closed');
-  const block = STEP04.slice(fenceStart, fenceEnd);
-  assert.match(block, /^\.claude-tweaks\/\*\/watermarks\/\*\.json$/m);
+  assert.match(gitignoreSuggestionBlock(), /^\.claude-tweaks\/\*\/watermarks\/\*\.json$/m);
 });
 
 // #856 deliberately makes these two lines diverge: root .gitignore keeps the
@@ -117,10 +123,7 @@ test("step-04-gitignore-suggestions.md's fenced suggestion block contains the ge
 // longer holds — this test pins the divergence itself, not a coincidence.
 test('.gitignore and step-04 intentionally diverge post-#856 (feedback-specific vs generalized)', () => {
   const gitignoreLine = GITIGNORE.split('\n').find((l) => l.includes('.claude-tweaks/feedback'));
-  const fenceStart = STEP04.indexOf('```gitignore');
-  const fenceEnd = STEP04.indexOf('```', fenceStart + 3);
-  const block = STEP04.slice(fenceStart, fenceEnd);
-  const stepLine = block.split('\n').find((l) => l.includes('watermarks'));
+  const stepLine = gitignoreSuggestionBlock().split('\n').find((l) => l.includes('watermarks'));
   assert.strictEqual(gitignoreLine, '.claude-tweaks/feedback/');
   assert.strictEqual(stepLine, '.claude-tweaks/*/watermarks/*.json');
   assert.notStrictEqual(gitignoreLine, stepLine);

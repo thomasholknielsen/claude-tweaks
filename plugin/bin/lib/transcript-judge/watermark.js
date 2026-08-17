@@ -19,21 +19,19 @@
 // wrong layer — the consumer's own prose is responsible for catching a
 // writeWatermark throw and reporting it without aborting the evaluation.
 //
-// Known consumers (see plugin/skills/_shared/transcript-judge.md's
-// "Consumer parameterization"): `feedback` (the default — byte-identical to
-// the pre-#856 path) and `reflect` (added by sibling spec #857).
+// Consumer keys are enumerated once, in plugin/skills/_shared/
+// transcript-judge.md's "Consumer parameterization" — never restated here.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 
 // Pure string derivation — no fs access needed. Strips the transcript's
-// directory and a trailing `.jsonl` extension, keeping the session-id
-// form, and places the watermark under a per-consumer subdirectory so two
-// consumers judging the same transcript never collide. `consumer` defaults
-// to `feedback` — the only consumer before #856, so the default-consumer
-// path is byte-identical to what every existing on-disk watermark already
-// used.
+// directory and a trailing `.jsonl` extension, keeping the session-id form,
+// and places the watermark under a per-consumer subdirectory. `consumer`
+// defaults to `feedback` — the only consumer before #856, so the
+// default-consumer path is byte-identical to what every existing on-disk
+// watermark already used.
 function watermarkPath(transcriptPath, { consumer = 'feedback' } = {}) {
   const base = path.basename(transcriptPath, '.jsonl');
   return path.join('.claude-tweaks', consumer, 'watermarks', `${base}.json`);
