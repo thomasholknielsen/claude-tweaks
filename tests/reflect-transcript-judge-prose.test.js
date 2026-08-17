@@ -24,6 +24,18 @@ const LIGHT_MODE = read('plugin', 'skills', 'reflect', 'light-mode.md');
 const HINDSIGHT_MODE = read('plugin', 'skills', 'reflect', 'hindsight-mode.md');
 const WRAP_UP = read('plugin', 'skills', 'wrap-up', 'SKILL.md');
 
+// Every mode file, and the subset whose findings can also come from the
+// dispatched singleton (hindsight mode is inline-only — see section 7).
+const MODE_FILES = [
+  ['full-mode.md', FULL_MODE],
+  ['light-mode.md', LIGHT_MODE],
+  ['hindsight-mode.md', HINDSIGHT_MODE],
+];
+const DISPATCHING_MODE_FILES = [
+  ['full-mode.md', FULL_MODE],
+  ['light-mode.md', LIGHT_MODE],
+];
+
 // --- 1. Step 2 cites _shared/transcript-judge.md with consumer key reflect ---
 
 test('reflect SKILL.md Step 2 cites _shared/transcript-judge.md', () => {
@@ -54,7 +66,7 @@ test('reflect SKILL.md documents bytesAtDispatch captured before dispatch and wr
   assert.match(SKILL, /The write itself executes \*\*after\*\* Step 3 routing completes/);
 });
 
-test('reflect SKILL.md documents the watermark write is gated on DONE\\/DONE_WITH_CONCERNS only', () => {
+test('reflect SKILL.md documents the watermark write is gated on DONE/DONE_WITH_CONCERNS only', () => {
   assert.match(SKILL, /gated on that captured status being `DONE`\/`DONE_WITH_CONCERNS`/);
 });
 
@@ -110,7 +122,7 @@ test('reflect SKILL.md: transcript-judge integration paragraphs are scoped to th
 
 // --- 6. Each mode file requires the two lines and states the no-manufacture norm ---
 
-for (const [name, content] of [['full-mode.md', FULL_MODE], ['light-mode.md', LIGHT_MODE], ['hindsight-mode.md', HINDSIGHT_MODE]]) {
+for (const [name, content] of MODE_FILES) {
   test(`${name} requires an Evidence: line and a Cost this session: line on every finding`, () => {
     assert.match(content, /an `Evidence:` line and a `Cost this session:` line/);
     assert.match(content, /`unclear` is valid — retries, hand-work, a reverted decision/);
@@ -125,9 +137,9 @@ for (const [name, content] of [['full-mode.md', FULL_MODE], ['light-mode.md', LI
 // --- 7. Evidence format is path-specific: inline vs dispatched ---
 
 test('full-mode.md and light-mode.md define both the inline and dispatched Evidence formats', () => {
-  for (const content of [FULL_MODE, LIGHT_MODE]) {
-    assert.match(content, /\*\*Inline path\*\*.*Never a transcript byte offset/s);
-    assert.match(content, /\*\*Dispatched path\*\*.*_shared\/transcript-judge\.md/s);
+  for (const [name, content] of DISPATCHING_MODE_FILES) {
+    assert.match(content, /\*\*Inline path\*\*.*Never a transcript byte offset/s, `${name}: no inline Evidence format`);
+    assert.match(content, /\*\*Dispatched path\*\*.*_shared\/transcript-judge\.md/s, `${name}: no dispatched Evidence format`);
   }
 });
 
@@ -155,7 +167,7 @@ test('no mode file requires Measurement: inside a finding template — it stays 
   // across the whole file (not line-by-line) so a `{...}` payload spanning
   // no newline is caught regardless of surrounding prose.
   const templateFieldWithoutContrast = /\*\*Measurement:\*\*\s*\{[^}]*\}(?![^\n]*feedback-only)/;
-  for (const [name, content] of [['full-mode.md', FULL_MODE], ['light-mode.md', LIGHT_MODE], ['hindsight-mode.md', HINDSIGHT_MODE]]) {
+  for (const [name, content] of MODE_FILES) {
     assert.doesNotMatch(
       content,
       templateFieldWithoutContrast,
