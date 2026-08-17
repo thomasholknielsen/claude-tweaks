@@ -8,14 +8,21 @@ test('createBudget: not exceeded immediately after creation', () => {
   assert.equal(b.exceeded(), false);
 });
 
-test('createBudget: exceeded once the deadline has passed', async () => {
-  const b = createBudget(1);
-  await new Promise((r) => setTimeout(r, 5));
+test('createBudget: exceeded once the deadline has passed', () => {
+  let now = 1000;
+  const b = createBudget(1, () => now);
+  now += 5;
   assert.equal(b.exceeded(), true);
 });
 
-test('createBudget: remainingMs never goes negative', async () => {
-  const b = createBudget(1);
-  await new Promise((r) => setTimeout(r, 5));
+test('createBudget: remainingMs never goes negative', () => {
+  let now = 1000;
+  const b = createBudget(1, () => now);
+  now += 5;
   assert.equal(b.remainingMs(), 0);
+});
+
+test('createBudget: nowFn defaults to Date.now when omitted', () => {
+  const b = createBudget(1000);
+  assert.equal(b.exceeded(), false);
 });

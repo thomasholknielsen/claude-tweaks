@@ -7,11 +7,15 @@
 
 const DEFAULT_BUDGET_MS = 18000;
 
-function createBudget(ms = DEFAULT_BUDGET_MS) {
-  const deadline = Date.now() + ms;
+// nowFn is injectable — no Date.now() call baked into exceeded()/remainingMs()
+// themselves — matching cache.js's isFresh() purity convention for this same
+// feature (#820 review): a test can pass a fake clock instead of sleeping on
+// a real one to observe a deadline pass.
+function createBudget(ms = DEFAULT_BUDGET_MS, nowFn = Date.now) {
+  const deadline = nowFn() + ms;
   return {
-    exceeded: () => Date.now() >= deadline,
-    remainingMs: () => Math.max(0, deadline - Date.now()),
+    exceeded: () => nowFn() >= deadline,
+    remainingMs: () => Math.max(0, deadline - nowFn()),
   };
 }
 
