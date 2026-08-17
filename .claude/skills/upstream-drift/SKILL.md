@@ -104,7 +104,7 @@ Under `--json`, emit the findings array from `judge-procedure.md` step 8 instead
 
 ## Next Actions
 
-Render as plain markdown, one paste-ready command per line. Order by context: lead with the file-the-findings line when any finding is `severity: high`; lead with the take-the-upgrade line when the drift table is empty and the capability table is not. Bold the leading command and suffix its annotation `(recommended)`.
+Render as plain markdown, one paste-ready command per line. Order by context: lead with the file-the-findings line when any finding is `severity: high`; lead with the take-the-upgrade line when the drift table is empty and the capability table is not; otherwise lead with the first line as listed below. Bold the leading command and suffix its annotation `(recommended)` — exactly one line carries the recommendation on every path.
 
 `/claude-tweaks:capture` — capture the capability findings as backlog records; drift findings can instead ride `tools/upstream-drift/run.js`, which emits deduplicated `by:upstream-drift` issue payloads on stdout for the caller to file
 `/claude-tweaks:capture 'upgrade {dep.name} to {latest-tag} and re-pin tools/upstream-drift/manifest.yml'` — record the upgrade itself as work

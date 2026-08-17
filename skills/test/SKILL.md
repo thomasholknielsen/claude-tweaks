@@ -176,7 +176,7 @@ When a pipeline run directory exists, apply the `/claude-tweaks:test` row from t
 
 **Auto-fix flow:** make the changes, re-run the failed checks. On re-verification pass, log `AUTO {time} — Step 3: auto-fixed {N} {type} failures. Reversibility: high; commit: {hash}.` and proceed. On re-verification fail or new issues, downgrade to STAGED and surface at Review Console.
 
-**Stage flow:** write the proposed fix to `staged/test-fix-{n}.patch` and log `STAGED {time} — Step 3: {N} {type} failures staged for review. Stage path: staged/test-fix-{n}.patch.`. The test gate fails until the user resolves at the Review Console.
+**Stage flow:** write the proposed fix to `staged/test-fix-{n}.patch` per `_shared/staged-patch.md` — a `Target:` / `Invariant:` / `Finding:` / `Staged-at:` preamble followed by the diff, validated with `git apply --check` from the worktree before logging (a failing check is handled per that file's Staging-time gate and surfaced here) — and log `STAGED {time} — Step 3: {N} {type} failures staged for review. Stage path: staged/test-fix-{n}.patch.`. The test gate fails until the user resolves at the Review Console, which applies the diff or, when later phases moved the target, re-derives the edit from `Invariant:`.
 
 ### Interactive mode
 
@@ -219,8 +219,8 @@ Pick the row matching the mode just completed:
 
 **On any pass outcome** (the first row), the "plain code review" and "code + visual review" rows are not two separate situations — they're two alternative commands for the same outcome. Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), bolding whichever matches the current run's actual signal and suffixing it `(recommended)` — UI files changed AND browser available → the full-review line; otherwise → the plain-review line:
 
-`/claude-tweaks:review {spec}` — code review quality gate
-`/claude-tweaks:review {spec} full` — code + visual review
+`/claude-tweaks:review {spec}` — code review quality gate (when no UI change or no browser)
+`/claude-tweaks:review {spec} full` — code + visual review (when UI changed and a browser is available)
 
 **The other two rows are not a user choice** — "Verification failed" and "QA failed" are single deterministic next steps. Leave them as plain prose instructions in the table above; they do not render as markdown command lines.
 
