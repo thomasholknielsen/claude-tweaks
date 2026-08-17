@@ -236,12 +236,11 @@ function runAmend(args) {
     process.exit(1);
   }
 
-  const cwd = process.cwd();
-  const telemetryPath = args.dryRun ? null : resolveTelemetryPath(cwd);
-  if (telemetryPath) fs.mkdirSync(path.dirname(telemetryPath), { recursive: true });
-
+  // Unlike record, amend never appends telemetry (amendResult ignores
+  // telemetryPath — see its own doc comment in engine-record.js), so there is
+  // no telemetry directory to resolve or create here.
   try {
-    amendResult({ runDir: args.runDir, payload, now: new Date(), telemetryPath });
+    amendResult({ runDir: args.runDir, payload, now: new Date() });
   } catch (e) {
     process.stderr.write(`wrap-up-engine.js amend: ${e.message}\n`);
     process.exit(1);
