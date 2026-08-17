@@ -185,19 +185,19 @@ test('the contract states the single-assistant-message fan-out rule exactly once
   );
 });
 
-const FAN_OUT_SITES = {
-  'skills/specify/red-team.md': "the contract's batching unit (one message per sub-issue trio; a fast-lane sub-issue's single Skeptical Reviewer joins the next message)",
-  'skills/browse/SKILL.md': null,
-  'skills/dispatch/SKILL.md': null,
-  'skills/help/status-scan.md': null,
-  'skills/init/SKILL.md': null,
-  'skills/review/step3-lens-dispatch.md': null,
-  'skills/test/qa-prompts.md': null,
-  'skills/tidy/SKILL.md': null,
-  'skills/visual-review/page-mode.md': null,
-};
+const FAN_OUT_SITES = [
+  'skills/specify/red-team.md',
+  'skills/browse/SKILL.md',
+  'skills/dispatch/SKILL.md',
+  'skills/help/status-scan.md',
+  'skills/init/SKILL.md',
+  'skills/review/step3-lens-dispatch.md',
+  'skills/test/qa-prompts.md',
+  'skills/tidy/SKILL.md',
+  'skills/visual-review/page-mode.md',
+];
 
-for (const relPath of Object.keys(FAN_OUT_SITES)) {
+for (const relPath of FAN_OUT_SITES) {
   test(`${relPath}: cites the contract's fan-out section (#649)`, () => {
     const text = fs.readFileSync(path.join(ROOT, ...relPath.split('/')), 'utf8');
     assert.match(
