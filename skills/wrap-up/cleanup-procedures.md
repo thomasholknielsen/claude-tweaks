@@ -278,10 +278,10 @@ stop before attempting any release.
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" "$ISSUE" --run "$PIPELINE_RUN_DIR" \
-     --reason "$REASON" ${LINK:+--link "$LINK"} --remove-in-progress [--remove-grants]
+     --reason "$REASON" ${LINK:+--link "$LINK"} --remove-in-progress ${REMOVE_GRANTS:+--remove-grants} --section "/wrap-up"
    ```
 
-   (`--remove-grants` per step 6's rule.) The CLI wraps `gh` only — in a `gh`-absent environment
+   (set `REMOVE_GRANTS=1` per step 6's rule.) The CLI wraps `gh` only — in a `gh`-absent environment
    run the same read-classify-write over the MCP tools per `_shared/github-write-transport.md`;
    the MCP path stays the documented fallback rather than a second mode of the CLI.
 5. Exit `0` = released. Exit `3` = a 404/409/422 from the blob write — the claim was already released
