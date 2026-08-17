@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { runRelease } = require('./lib/release/run.js');
-const { releaseStatus, formatStatusLine, formatBackfillSection, CHANGELOG } = require('./lib/release/status.js');
+const { releaseStatus, formatStatusLine, formatBackfillSection, isBadRefValue, CHANGELOG } = require('./lib/release/status.js');
 const { appendShippedVersion } = require('./lib/shipped-record.js');
 
 const USAGE = `Usage: node bin/release.js <minor|patch> "<summary>" [--dry-run]
@@ -23,12 +23,6 @@ fails to name. Prints one human line ("not yet in a release — bump pending" /
 result with --json, or the "### also carried in this build" subsection text
 with --backfill (empty when nothing is missing). Never calls gh; never guesses
 record numbers. Exit 0 on any resolved status, 2 on usage, 1 on a git failure.`;
-
-// A value that's empty/undefined (missing/trailing flag) or starts with `-` (would be parsed
-// by git as an option rather than a ref/sha) is never a legitimate --merge or --ref value.
-function isBadRefValue(v) {
-  return v === undefined || v === '' || v.startsWith('-');
-}
 
 function parseStatusArgs(args) {
   const opts = { ref: 'HEAD', json: false, backfill: false, merge: null, records: null };

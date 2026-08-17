@@ -164,5 +164,5 @@ function formatBackfillSection(result, { merge } = {}) {
 
 module.exports = {
   iterBumpCommits, findBumpCommits, carryingBump, changelogCoverage, releaseStatus,
-  formatStatusLine, formatBackfillSection, MANIFEST, CHANGELOG,
+  formatStatusLine, formatBackfillSection, isBadRefValue, MANIFEST, CHANGELOG,
 };
