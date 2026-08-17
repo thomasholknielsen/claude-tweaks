@@ -161,3 +161,44 @@ test('blastRadiusSummary returns all-zero summary for an empty file list', () =>
     sensitiveFilesTouched: [],
   });
 });
+
+// --- #727: '**' must cross path segments; '*' must not ---
+
+test('a "skills/**" sensitive path matches nested files several segments deep', () => {
+  const files = [
+    { path: 'skills/backlog/overview-mode.md', additions: 1, deletions: 0 },
+    { path: 'bin/lib/issues/record.js', additions: 1, deletions: 0 },
+  ];
+  const result = classifyDiffFiles(files, ['skills/**', 'bin/**']);
+  assert.strictEqual(result[0].isSensitive, true, 'skills/** must cross the backlog/ segment');
+  assert.strictEqual(result[1].isSensitive, true, 'bin/** must cross lib/issues/');
+});
+
+test('a trailing "/**" also matches the bare parent path itself', () => {
+  const result = classifyDiffFiles([{ path: 'skills', additions: 1, deletions: 0 }], ['skills/**']);
+  assert.strictEqual(result[0].isSensitive, true);
+});
+
+test('"bin/lib/hooks/**" matches arbitrarily deep descendants', () => {
+  const result = classifyDiffFiles([{ path: 'bin/lib/hooks/deep/x.js', additions: 1, deletions: 0 }], ['bin/lib/hooks/**']);
+  assert.strictEqual(result[0].isSensitive, true);
+});
+
+test('"src/**/*.test.js" matches nested tests at any depth, including zero intermediate segments', () => {
+  const nested = classifyDiffFiles([{ path: 'src/a/b/widget.test.js', additions: 1, deletions: 0 }], ['src/**/*.test.js']);
+  const flat = classifyDiffFiles([{ path: 'src/widget.test.js', additions: 1, deletions: 0 }], ['src/**/*.test.js']);
+  assert.strictEqual(nested[0].isSensitive, true);
+  assert.strictEqual(flat[0].isSensitive, true);
+});
+
+test('the merge-sensitive-paths shape "src/auth/**" trips on a nested file while "src/auth/*" still does not', () => {
+  const doubled = classifyDiffFiles([{ path: 'src/auth/session/token.ts', additions: 1, deletions: 0 }], ['src/auth/**']);
+  const single = classifyDiffFiles([{ path: 'src/auth/session/token.ts', additions: 1, deletions: 0 }], ['src/auth/*']);
+  assert.strictEqual(doubled[0].isSensitive, true, 'src/auth/** must cross the session/ segment');
+  assert.strictEqual(single[0].isSensitive, false, 'single * must stay segment-bound');
+});
+
+test('single "*" still does not cross a path segment', () => {
+  const result = classifyDiffFiles([{ path: 'skills/backlog/overview-mode.md', additions: 1, deletions: 0 }], ['skills/*']);
+  assert.strictEqual(result[0].isSensitive, false);
+});

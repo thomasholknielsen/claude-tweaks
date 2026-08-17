@@ -12,7 +12,8 @@ const { execFileSync } = require('child_process');
 const { runGit } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { readRunState } = require('../hooks/context');
-const { classifyClaimBlob, releasePayload, CLAIMS_BRANCH } = require('../issues/claims');
+const { classifyClaimBlob, releasePayload } = require('../issues/claims');
+const claimStore = require('../issues/claim-store');
 const { resolvePrState } = require('./pr-state');
 const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
 
@@ -80,21 +81,27 @@ function repoSlugOf(repoRoot) {
   return m ? m[1] : null;
 }
 
+// Both delegate to claim-store.js's one contents-API implementation.
+// This module's own `ghApi` never sets `status` (unlike claim-store's
+// `defaultGhApi`), so `readClaimBlob`'s `absent: true` branch never fires
+// here — every failure still surfaces as `gh-absent`/`network-failure`
+// exactly as before this extraction (a 404 mid-iteration is a race with
+// another release pass, indistinguishable from any other read failure, and
+// was never distinguished here pre-extraction either).
 function listClaims(repoSlug) {
-  const r = ghApi([`repos/${repoSlug}/contents/claims?ref=${CLAIMS_BRANCH}`, '-q', '.[].name']);
-  if (r.failure) return { names: [], failure: r.failure };
-  return { names: r.stdout.split('\n').map((s) => s.trim()).filter(Boolean), failure: null };
+  return claimStore.listClaimNames(ghApi, repoSlug);
+}
+
+// claim-store.js keys on the issue number, not the blob filename. Callers
+// pre-filter `name` on this same regex before calling — see releaseMerged's
+// loop below — so the match is always non-null here.
+function issueNumberOf(name) {
+  return Number(/^issue-(\d+)\.json$/.exec(name)[1]);
 }
 
 function readClaim(repoSlug, name) {
-  const r = ghApi([`repos/${repoSlug}/contents/claims/${name}?ref=${CLAIMS_BRANCH}`, '-q', '{content: (.content | @base64d), sha: .sha}']);
-  if (r.failure) return { content: null, sha: null, failure: r.failure };
-  try {
-    const parsed = JSON.parse(r.stdout);
-    return { content: parsed.content, sha: parsed.sha, failure: null };
-  } catch {
-    return { content: null, sha: null, failure: 'network-failure' };
-  }
+  const r = claimStore.readClaimBlob(ghApi, repoSlug, issueNumberOf(name));
+  return { content: r.content, sha: r.sha, failure: r.failure };
 }
 
 // Issue-state lookup — same ghApi pattern (5s timeout). Unknown/errored

@@ -7,7 +7,7 @@ argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup|trust] [--b
 
 # Backlog — Refine Labels and Understand the Queue
 
-Two modes over the same open work-record backlog: `refine` ensures every record carries the right `priority:*`/`**Related:**`/grant labels (a write sweep, human-confirmed); `overview` renders a distribution picture and recommends what to build next (read-only). Sits outside the main brainstorm-to-build chain, feeding judgment and authorization into it rather than gating it:
+Three modes over the same open work-record backlog: `refine` ensures every record carries the right `priority:*`/`**Related:**`/grant labels (a write sweep, human-confirmed); `overview` renders a distribution picture and recommends what to build next (read-only); `grant` is the headless machine-grant sweep (`work-backend: github-issues` only, opt-in). Sits outside the main brainstorm-to-build chain, feeding judgment and authorization into it rather than gating it:
 
 ```
 capture / code-health / harness-health / journey-health / docs-health   (file records)
@@ -74,7 +74,7 @@ Read `refine-mode.md` in this skill's directory for the full `refine` procedure,
 
 **After `overview`:** The rendered recommendation is never a static tag on one line — it is computed fresh each run and MUST be attached to exactly the line whose action matches the report's closing `Next:` line (Step 4's two-channel contract — the close-out block carries this-session moves only, never other-terminal command lists), resolving through the three-level precedence (needs-you first, then executable Dispatch entry, then fallback ladder): whichever line that resolves to renders first, bolded, with `(recommended)`, ahead of the lines below in their listed order. Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-`{the top item's launcher — /claude-tweaks:specify #N or /claude-tweaks:challenge --lens=1 #N}` — the one move only the human can make — omit this line when `needsYou` is empty
+`{the top item's launcher — /claude-tweaks:specify #N or /claude-tweaks:challenge #N}` — the one move only the human can make — omit this line when `needsYou` is empty
 `/claude-tweaks:flow {top-ranked executable Dispatch entry's refs, comma-joined}` — run the report's top Dispatch terminal in this session — omit when the Dispatch block contains no executable entry
 `/claude-tweaks:backlog refine` — apply the priority/Related/grant suggestions this overview surfaced — omit when nothing surfaced needs refining
 `/claude-tweaks:specify #{n}` — shape the single highest-priority backlog record this run surfaced — omit when the run surfaced no unshaped backlog record to shape (the `#{n}` placeholder must always resolve to a real record)

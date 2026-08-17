@@ -258,9 +258,10 @@ test('funnelBuckets: every open record lands in exactly one bucket and sizes sum
     rec(6, { stage: 'ready' }),                                                               // shaped
     rec(7, { priority: 'high' }),                                                             // scored
     rec(8),                                                                                   // captured
+    rec(9, { isParentIssue: true, risk: 'low', size: 'medium' }),                             // parents
   ];
   const b = funnelBuckets(records);
-  const all = [...b.captured, ...b.scored, ...b.shaped, ...b.granted, ...b.dispatchable, ...b.inFlight, ...b.parked, ...b.notPlanned];
+  const all = [...b.captured, ...b.scored, ...b.shaped, ...b.granted, ...b.dispatchable, ...b.inFlight, ...b.parked, ...b.notPlanned, ...b.parents];
   assert.equal(all.length, records.length);
   assert.equal(new Set(all.map((r) => r.number)).size, records.length);
   assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
@@ -271,14 +272,51 @@ test('funnelBuckets: every open record lands in exactly one bucket and sizes sum
   assert.deepEqual(b.shaped.map((r) => r.number), [6]);
   assert.deepEqual(b.scored.map((r) => r.number), [7]);
   assert.deepEqual(b.captured.map((r) => r.number), [8]);
+  assert.deepEqual(b.parents.map((r) => r.number), [9]);
 });
 
 test('funnelBuckets: empty input yields empty buckets and overlay', () => {
   const b = funnelBuckets([]);
-  for (const key of ['captured', 'scored', 'shaped', 'granted', 'dispatchable', 'inFlight', 'parked', 'notPlanned']) {
+  for (const key of ['captured', 'scored', 'shaped', 'granted', 'dispatchable', 'inFlight', 'parked', 'notPlanned', 'parents']) {
     assert.deepEqual(b[key], []);
   }
   assert.deepEqual(b.needsYou, []);
+});
+
+test('funnelBuckets: a parent record with risk/size labels lands in parents, not scored or captured', () => {
+  const b = funnelBuckets([
+    rec(1, { isParentIssue: true, risk: 'low', size: 'medium' }),
+    rec(2, { isParentIssue: true }),
+  ]);
+  assert.deepEqual(b.parents.map((r) => r.number), [1, 2]);
+  assert.deepEqual(b.scored, []);
+  assert.deepEqual(b.captured, []);
+});
+
+test('funnelBuckets: a parent record is never shaped, granted, or dispatchable even if stage is ready', () => {
+  const b = funnelBuckets([
+    rec(1, { isParentIssue: true, stage: 'ready' }),
+    rec(2, { isParentIssue: true, stage: 'ready', grants: { build: true, merge: false } }),
+  ]);
+  assert.deepEqual(b.parents.map((r) => r.number), [1, 2]);
+  assert.deepEqual(b.shaped, []);
+  assert.deepEqual(b.dispatchable, []);
+  assert.deepEqual(b.granted, []);
+});
+
+test('funnelBuckets: the three buckets above parents still outrank isParentIssue', () => {
+  // parents sits fourth in the if-chain: existing precedence is unchanged, so a
+  // parent that is also in-flight, parked, or not-planned keeps that bucket.
+  const cases = [
+    ['inFlight', { bot: { inProgress: true, blocked: false } }],
+    ['parked', { stage: 'parked' }],
+    ['notPlanned', { notPlanned: true }],
+  ];
+  for (const [bucket, facetOverrides] of cases) {
+    const b = funnelBuckets([rec(1, { isParentIssue: true, ...facetOverrides })]);
+    assert.deepEqual(b[bucket].map((r) => r.number), [1], `parent record should land in ${bucket}`);
+    assert.deepEqual(b.parents, [], `parents should stay empty for the ${bucket} case`);
+  }
 });
 
 // Adjacent-precedence pins (spec Deliverables): bot-state outranks stage labels;

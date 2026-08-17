@@ -14,6 +14,7 @@ const path = require('path');
 const ctxLib = require('./lib/hooks/context');
 const siblingSessions = require('./lib/hooks/sibling-sessions');
 const specStatusLib = require('./lib/flow/manifest');
+const resumeFreshness = require('./lib/hooks/resume-freshness');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -241,6 +242,30 @@ function main(argv) {
     }
     return 0;
   }
+  if (cmd === 'check-resume-freshness') {
+    // Read-only: never writes run-state.json. Skills call this immediately
+    // before any of the three resume paths' safe-to-resume ruling
+    // (skills/_shared/run-resume-freshness.md).
+    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — resume freshness not checked\n`);
+      return 0;
+    }
+    if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — resume freshness not checked\n');
+      return 0;
+    }
+    const result = resumeFreshness.checkResumeFreshness(runDir, {
+      sessionId: process.env.CLAUDE_CODE_SESSION_ID,
+    });
+    const runId = path.basename(runDir);
+    if (result.safe) {
+      process.stdout.write(`claude-tweaks: resume freshness OK for ${runId} (${result.verdict})\n`);
+    } else {
+      process.stdout.write(`claude-tweaks: resume freshness BLOCKED for ${runId} — run appears actively owned (${result.reason})\n`);
+    }
+    return 0;
+  }
   if (cmd === 'check-sibling-sessions') {
     // [IL-107]: before claiming a record, enumerate live worktrees and their
     // lock-owning pids, not just branches/claims/labels — those are the
@@ -292,7 +317,11 @@ function main(argv) {
   // Two views of the same runs, because enforcement and bookkeeping want
   // different things (#62).
   //
-  // `runDir`/`runState` stay UNFILTERED — the newest non-terminal run. E1's
+  // `runDir`/`runState` stay owner-UNFILTERED — the newest non-terminal run
+  // regardless of who owns it (the one exception: unadopted mints — bare
+  // mkdir'd dirs with neither run-state.json nor decisions.md — are skipped
+  // by resolveRun's fallback since #721, so a mint can no longer shadow an
+  // older adopted run and accidentally suppress E1's bystander warning). E1's
   // working-directory gate is about this checkout, not about who owns the run:
   // its whole foreign-session branch exists to warn a bystander that the
   // checkout belongs to somebody else's worktree, which it can only do by

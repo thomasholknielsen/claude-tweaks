@@ -160,7 +160,7 @@ This is the bookend "begin stop" that locks in policy for the rest of the pipeli
 
 Export that directory — created or adopted — as `PIPELINE_RUN_DIR` so every downstream skill resolves this same run per `_shared/pipeline-run-dir.md`; a multi-spec run exports the per-spec `spec-{N}/` subdirectory instead of the parent (see `multi-spec.md`).
 
-For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory.
+For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory. Read `manifesto.md` only after Step 2.8 passes — a run stopped at pre-flight never consumes it (#724).
 
 ### Step 4: Run Pipeline
 
@@ -219,7 +219,7 @@ When multiple record references are provided (e.g., `#42,#45,#48`), flow runs ea
 
 **Bookend architecture for multi-spec (v4.6.3+):** in `auto` or `hybrid` mode, per-spec Wrap-Up Review Consoles are **deferred** — `/flow` sets `MULTISPEC_REVIEW_DEFER=1` when invoking each spec's `/wrap-up`. After all specs complete (or `keep-going` finishes the run), `/flow` runs **one consolidated Review Console** that reads every per-spec `decisions.md` + `staged/` and surfaces all approvals in one batch. This preserves the bookend promise (Manifesto at start, one Review Console at end) regardless of N. See `multispec-review-console.md`.
 
-For the full validation rules, dependency-ordering procedure, conflict-detection logic, `keep-going` semantics, run directory layout (per-spec sub-namespacing under one parent dir), environment variables passed to each per-spec invocation, and consolidated Multi-Spec Summary template, read `multi-spec.md` in this skill's directory.
+For the full validation rules, dependency-ordering procedure, conflict-detection logic, run directory layout (per-spec sub-namespacing under one parent dir), environment variables passed to each per-spec invocation, and `keep-going` semantics, read `multi-spec.md`; the consolidated Multi-Spec Summary template lives in `multispec-summary.md`.
 
 ---
 

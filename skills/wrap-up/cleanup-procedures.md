@@ -226,6 +226,10 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    occupy and that `git worktree list --porcelain` shows unlocked, `git worktree remove {path}`
    is fine.
 5. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
+6. If the branch was merged (the same condition step 5 just checked), also delete the
+   remote branch — run `_shared/pr-first-merge.md`'s `## Step 5: Delete the remote
+   branch` against `{branch}`. Skip silently if the branch was kept for an open PR
+   (step 5's own condition) or if no remote tracking ref exists for it.
 
 If no worktree exists for this spec, skip this section silently.
 

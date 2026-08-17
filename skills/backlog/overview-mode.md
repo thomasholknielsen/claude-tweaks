@@ -2,9 +2,11 @@
 
 Entirely mechanical — no per-record LLM reads, so it scales to the full fetched set cheaply. Renders a funnel decision surface over the open queue and recommends what to build next; the `critical`/`risk-value`/`cleanup`/`trust` lenses are one explicit argument away.
 
-**Failure-only narration:** interstitial status lines render only when a check fails or degrades (truncation warning hit, fetch fallback taken, trust fetch skipped) — never to announce that a step ran or passed. A clean step is silent; its output speaks through the report itself.
+**Narration allowance:** exactly one opening status line at the start of the run, plus a line whenever a check fails or degrades (truncation warning hit, fetch fallback taken, trust fetch skipped) — nothing else. No per-step "running"/"passed" line; each step below restates this allowance in one clause.
 
 ## Step 1: Fetch
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md`, same as `refine-mode.md`'s priority/Related fetch (`{tmp-records-file}` = `/tmp/backlog-overview-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-overview-faceted.json`) — reading through the session-scoped record snapshot, shared with `/capture`/`/specify`/`/help`/`/tidy`/`/visualize` and, within this run, with `refine-mode.md`'s own fetch below. Step 3's recommendation pass needs every candidate's `body` (for `rankNextToBuild`'s internal `parseDependencies` call) — the snapshot's union field set always carries `body`, no `{EXTRA_FIELDS}` request needed, so every candidate's unblocks-count computes correctly rather than silently reading 0 and quietly corrupting the bare-mode recommendation's tie-break order. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way (port the retired `/claude-tweaks:review-backlog` skill's old Step 1 unsynced fold-in verbatim):
 
@@ -34,6 +36,8 @@ This last script reads `/tmp/backlog-overview-faceted.json`'s github-only conten
 
 ## Step 1.5: Trust table (read-only)
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 *(Omit this entire step under `work-backend: local-files` — see `_shared/trust-table.md`'s
 framing note; `demo:approved`/`demo:changes-requested` are a `github-issues` concept and there is
 nothing to fetch.)*
@@ -57,6 +61,8 @@ The verdict vocabulary is read verbatim from `bin/lib/issues/trust.js`'s row ver
 The full table render moves to the trust lens (Step 2).
 
 ## Step 2: Route by lens
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 **Native blocked-by pre-attach (bare mode only, `work-links: native` repos only — refs #563).** Before the funnel-computation script below runs, resolve native `blockedBy` links for the **ready+granted subset only** (`bl.readyGrantedSubset(all)`, `bin/lib/issues/backlog.js`) — the only records whose `granted`/`dispatchable` split this header renders. This is deliberately narrower than Step 3's own buildable subset (`dispatchable` ∪ `granted`, computed only after this script runs) — see that function's own comment for why the two are not interchangeable.
 
@@ -119,13 +125,18 @@ column. The header replaces the summary counts too — do not re-add a prose cou
 it; the header *is* the counts. The branch line below the header is a lane annotation, not a
 seventh stage column.
 
-Then at most **two annotation lines total**:
+Then at most **three annotation lines total**:
 
 - The trust consequence line from Step 1.5, when any applicable cell verdict requires it (all
   non-clean cells collapsed into that single semicolon-separated line — the per-cell phrasing never
   multiplies lines). Nothing when clean.
 - `parked {N} · not-planned {M} → /claude-tweaks:tidy owns these` — rendered from
   `.funnel.parked.length` / `.funnel.notPlanned.length`, only when either count is non-zero.
+- `parents {N} → close-out via /claude-tweaks:wrap-up's verification brief or /claude-tweaks:demo, not /claude-tweaks:specify` —
+  rendered from `.funnel.parents.length`, only when non-zero. A decomposition parent is never
+  `ready` and is not agent-sized work (`_shared/work-record.md`'s Decomposition rules); the
+  close-out path it points at is `wrap-up/verification-brief.md` (backstopped by
+  `/claude-tweaks:tidy`'s `Open parent gate` action) or `/claude-tweaks:demo`'s parent-close branch.
 
 Every record appears exactly once across the header's populations (`funnelBuckets` is mutually
 exclusive by construction) — never re-list a record in a second stage or an extra summary — the
@@ -133,6 +144,8 @@ exclusive by construction) — never re-list a record in a second stage or an ex
 counted twice by design.
 
 ## Step 3 (bare only): Recommend what to build next
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 Restricted to the buildable subset — `funnelBuckets` output `dispatchable` ∪ `granted` (Step 2's
 `.funnel` view) — one predicate, owned by `funnelBuckets`, so the header's counts and this
@@ -170,6 +183,8 @@ node -e "
 Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role. At precedence level 1 (non-empty `needsYou`, see the Needs-you section's Precedence below), the report's closing `Next:` line and the Next Actions block's recommended line deliberately name the needs-you item instead — this callout stays the build-candidate recommendation regardless, since the two answer different questions (what to build vs. what needs a human decision first).
 
 ## Step 4: Batch emitter (bare mode)
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 Bare mode only — lens runs end at their own table (Step 2) and never reach this step.
 
@@ -344,14 +359,12 @@ Rendered **last before Next Actions**, only when `funnelBuckets`' `needsYou` is 
 
 One line per record with an interactive launcher, fully qualified:
 - `kind: 'definition'` → `/claude-tweaks:specify #{N}` with a `#`-comment naming the label, waiting-age, and what deciding it releases (e.g. `# needs:definition — waiting {age}; deciding releases {n} records`, or `# needs:definition — waiting {age}; deciding releases nothing tracked` when the count is zero or was skipped — the fallback rule from the Ordering + inputs paragraph above, never a literal `undefined` or `{k}`)
-- `kind: 'unjustified'` → `/claude-tweaks:challenge --lens=1 #{N}` (Lens 1, Surface Hidden Assumptions — the human's evidence pass; that mode's own Next Actions route to `/claude-tweaks:specify #{N}`, which re-runs `framing-check` and clears the label on an `open` verdict) with a `#`-comment naming the one-line call (e.g. `# solution:unjustified — one-line evidence-or-accept-risk call; re-run /claude-tweaks:specify #{N} to clear`)
+- `kind: 'unjustified'` → `/claude-tweaks:challenge #{N}` (the evidence-or-accept-risk mode — reads the record's `## Gotchas` assumptions, runs a bounded in-repo evidence search, and offers supply-evidence / accept-risk / leave in one call; either resolving choice clears the label) with a `#`-comment naming the one-line call (e.g. `# solution:unjustified — one-line evidence-or-accept-risk call`)
 - `unsynced: true` needs-you records never render a `#{N}` launcher (local-namespace ids) — they render one `#`-comment naming the sync gap and pointing at `/claude-tweaks:tidy`, still counted in the branch-line total.
 
 **Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch). Primary sort is priority (high first), then age (oldest first), ties by id — matching the emitter's own convention. Releases-count is an **advisory annotation** on each row, not a sort key — it is computed directly, never sourced from `transitiveUnblocksCount` (that Map is keyed by emitter-candidate id only, and a needs-you record structurally never appears as one of those keys, so a lookup against it can never resolve for this lane; the helper remains the emitter's own chain-payout tool, unchanged in Step 4). The direct computation: one `node -e` pass importing `blockersOf` from `ranking.js`, run over the full faceted set at `/tmp/backlog-overview-faceted.json` (the carrier — the whole open set, not the emitter's filtered candidate subset) — count how many OPEN records in that set resolve the needs-you record's id via `blockersOf`. When that count is zero, or the computation was skipped, render `deciding releases nothing tracked` in place of a number — never a literal `undefined` or a dangling placeholder. This priority-then-age ordering deliberately deviates from the original spec's releases-first ordering: releases is demoted to an advisory annotation, never the sort key, because the count is partial by construction (needs-you records get no blocker attachment and their dependents are mostly outside the buildable set) — the deviation is flagged here in the text, not left implicit in run artifacts alone.
 
 **Cap + pointer:** at most 3 rows named; beyond that, one pointer line: `{M} more human-owed records → /claude-tweaks:backlog attention (when available)` — advisory until that mode ships (#471's decomposition), count always shown. Interim-launcher honesty note, citing #471: until #471's redirect gate ships, `/claude-tweaks:specify #{N}` on a `needs:definition` record still lands in ordinary shaping mode — acceptable interim (the human is present either way); this caveat is removed by #471's own landing.
-
-The `kind: 'unjustified'` launcher carries no interim caveat: `/challenge` has no bare-`#{N}` mode, so the lane emits the `--lens=1 #{N}` form it accepts today (an input `/claude-tweaks:challenge` already resolves the same way `/claude-tweaks:capture` resolves a `#{n}` reference) rather than a command that fails at invocation. A dedicated evidence-or-accept-risk mode for `/challenge`, if ever wanted, is a separate record and would swap the form here.
 
 Needs you stays the last **rendered** section of the report body — the section below is
 document-level, not a continuation of this lane.

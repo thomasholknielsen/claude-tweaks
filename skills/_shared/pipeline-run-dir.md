@@ -122,6 +122,8 @@ fi
 [ -d "$RUN_DIR" ] || RUN_DIR=""  # empty = fall back to interactive mode
 ```
 
+**ISO-timestamp rule** (load-bearing — mixed timezones flip newest-first ordering): every run-directory `{ISO-timestamp}` is `YYYY-MM-DDTHHMMSS` in **UTC** — always `date -u +%Y-%m-%dT%H%M%S`, never a local-time `date`. Two concurrent sessions minting in different zones otherwise produce stamps that sort in the wrong order, and the hook fallback resolver attributes events to whichever sorts newest. Mint sites (`flow/claim-targets.md` Step 2.8, `flow/manifesto.md` Path conventions, `dispatch/SKILL.md` Step 4) cite this rule rather than restating the format.
+
 **SPEC_SLUG conventions** (load-bearing — short numeric slugs would collide with timestamps without a prefix):
 - Spec runs: pass `SPEC_SLUG="spec-42"` (with `spec-` prefix) — matches dirs like `2026-05-15T143207-spec-42` without colliding with timestamp digits.
 - Multi-spec runs: pass `SPEC_SLUG="spec-42-45-48"` (single prefix, dash-joined IDs).

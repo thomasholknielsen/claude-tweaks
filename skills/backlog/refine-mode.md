@@ -4,6 +4,8 @@ The comprehensive "ensure every issue has the right labels" sweep: `priority:*`/
 
 ## Step 1: Fetch
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line, per `overview-mode.md`'s convention this file shares.)*
+
 Resolve the `autonomy` ceiling and `trust-revert-window-days` once, before any fetch below — the
 same canonical read the Trust signal section further down and Step 3.6's born-ready check both
 need, so resolving it here means neither has to run its own `resolve-policy.js` call:
@@ -90,6 +92,10 @@ node -e "
 
 Under `work-backend: local-files`, the grant fetch above never ran (Preflight skips it), so `/tmp/backlog-refine-ready-faceted.json` doesn't exist; `readyRows` defaults to `[]` and the compute block still produces every priority-path field (`missingPriority`, `missingRiskSize`, `prioritySlice`) from `allRows` — the grant lanes (`fresh`/`blocked`/`inProgress`/`grantSlice`) are simply empty.
 
+**Decomposition parents are in the priority population, deliberately.** `refineWorklist`'s `missingPriority` and `missingRiskSize` are computed over `allRows` with no `facets.isParentIssue` filter, so an open decomposition parent reaches the Priority lane like any other unlabelled record. This is the one place `refine` and `overview` treat parents differently: `funnelBuckets` routes parents to their own mutually-exclusive `parents` bucket (`overview-mode.md`'s third annotation line), keeping them out of `captured`/`scored` and therefore out of the Score and Shape paste blocks — a parent is never `ready` and never scored (`_shared/work-record.md`'s Decomposition rules: "Only sub-issue records get `ready` (+ scoring)"). Priority is not scoring: a parent legitimately carries a `priority:*` tier to rank the decomposition as a whole, so it stays in this lane. What must NOT happen here is a risk/size ask or a `flag back (needs scoring)` recommendation against a parent — those are sub-issue-only, and `missingRiskSize` counting parents is a count artifact, not a work item. Never emit a `/claude-tweaks:specify #{N}` grooming command for a parent from any lane; its close-out path is `wrap-up/verification-brief.md`'s Parent-Gate Procedure (backstopped by `/claude-tweaks:tidy`'s `Open parent gate`) or `/claude-tweaks:demo`.
+
+(If the intended behavior is instead that parents leave the Priority lane entirely, that is a code change to `refineWorklist` and belongs in its own work record rather than in this note.)
+
 When `--budget <n>` was passed (see `SKILL.md`'s Input), set `PRIORITY_BUDGET=<n> GRANT_BUDGET=<n>` in the **same Bash invocation** as the compute block above (e.g. `PRIORITY_BUDGET=<n> GRANT_BUDGET=<n> node -e "..."`) — shell environment does not survive between separate Bash calls, so exporting them in an earlier call and relying on the compute block's later call to inherit them silently resolves both to the `|| 40` default instead. Omitted, both are unset and the block's own `|| 40` defaults apply — Step 2's priority/Related synthesis pass and Step 3's grant-check pass stay independently budgeted, exactly as before.
 
 When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the fetch script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the compute block above resolves the split three ways: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `grant-mode.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
@@ -97,6 +103,8 @@ When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIG
 **These are two separate fetches, not one.** The priority/Related fetch is unfiltered (needs the whole backlog); the grant fetch is server-side filtered to `--label ready` (preserves today's exact starvation-avoidance guarantee — an unfiltered pull risks pushing older `ready`-labeled issues out of a shared result window on a large backlog). Both route through the same `backlog-fetch-limit` config key and truncation-warning pattern, just as two independent invocations of it.
 
 ## Step 2: Priority/Related synthesis (bounded)
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 Over the **missing-priority** population — records carrying no `priority:*` label at all, the
 population Step 1's compute block actually keys on via `refineWorklist`'s `missingPriority` (refs
@@ -116,6 +124,8 @@ Read every selected body in one pass and produce:
 If `.prioritySlice.remaining > 0`, state it plainly in the report: "`{remaining}` more records missing priority exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them.
 
 ## Step 3: Grant-check (bounded, `work-backend: github-issues` only)
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
 Bound the grant-check LLM pass independently of Step 2's budget. Read `.grantSlice.selected` and
 `.grantSlice.remaining` (already bounded to `--budget`, default 40, by Step 1's compute block) and
@@ -233,6 +243,8 @@ the ceiling does change is described in Step 3.6.
 
 ## Step 3.5: Body-shape re-verification (before granting)
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 For every record the grant-check pass recommends **granting** (not flag-back/blocked rows) — fetch the body and re-verify spec shape immediately before writing any label, using the same cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check` already fetched and cached the body at `/tmp/assess-grant-{n}.json`; reuse it instead of a second API round-trip).
 
 ```bash
@@ -262,6 +274,8 @@ Report every downgrade to the user before proceeding — a silent downgrade woul
 
 ## Step 3.6: Ceiling-authorized born-ready (`autonomy: trusted`+)
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 The ceiling's only effect inside this skill is on **which records reach the worklist at all**, not
 on what is recommended for them once here. At `trusted` or higher, a record `/claude-tweaks:capture`
 filed while `producer:capture` carried a `clean` verdict arrives with `ready` already applied by
@@ -281,6 +295,8 @@ born-`ready` by this path and this step does nothing.
 
 ## Step 4: Decision lanes
 
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+
 One lane per record, precedence: Re-authorize → Grant → Flag-back → Priority → Dependency repair →
 Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its priority/Related
 suggestion as an annotation line under its row — a suggestion is never silently dropped.
@@ -291,6 +307,8 @@ count-summary line, the Needs-you lane, the ceiling/skip-case footers, the closi
 rule, and the confirm gate (`<!-- refine-confirm-gate -->`).
 
 ## Step 5: Apply
+
+*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line; the closing summary below is the report, not narration.)*
 
 **Priority/Related rows:** For every record the priority decision resolved to apply:
 
@@ -364,7 +382,10 @@ gh issue edit "$ISSUE" --remove-label ready
 gh issue comment "$ISSUE" --body-file /tmp/backlog-refine-flagback-${ISSUE}.md
 ```
 
-Log every action to this run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md`):
+Check each write's own result before logging it — a non-zero exit from any `gh`/`writeRecord` call
+above is a failure, not a success, regardless of which lane produced it. Log every action to this
+run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md`) via the matching
+template below, success or failure:
 
 ```
 AUTO {time} — Backlog refine: set priority:{tier} on #{n}.
@@ -372,7 +393,74 @@ AUTO {time} — Backlog refine: updated **Related:** on #{n} to reference #{m}.
 AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, size:{sizeTier}). Rationale: {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
+FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
 ```
+
+The closing summary below counts these lines by type — a `FAILED` line is the only source for both
+the tally's `failed` count and the per-failure lines; a write with no matching `AUTO`/`FAILED` line
+was never attempted, so it counts toward neither.
+
+**Closing summary (required, rendered as assistant text — never delegated to tool output; a
+shell print of the tally does not satisfy this):** after the apply pass above completes, render
+a closing block from the same per-write outcomes already logged to `decisions.md` above — no
+second bookkeeping channel:
+
+1. **Per-type tally line** — one count per write type applied this run, with `failed` always
+   present, even at zero:
+
+   ```
+   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 0 failed
+   ```
+
+2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry
+   command on its own line (this repo's report-line convention: no inline/same-line comments).
+   The retry command reproduces that write type's own Step 5 mechanics above, not a generic
+   `gh issue edit --add-label`:
+
+   ```
+   #123 — priority write failed: {error}
+   gh issue edit 123 --add-label priority:high
+   ```
+
+   (shown assuming the removal already landed and only the add failed — see the swap-safety
+   caveat immediately below before pasting this literally)
+
+   For a priority write, re-derive the conditional swap from the failure point: re-read the
+   record's current `priority:*` label state, and emit the add-only form only when no prior-tier
+   label remains. Add-only is safe when the removal already landed and the add is what failed;
+   after a failure *before* any removal it leaves two contradictory `priority:*` labels — exactly
+   what the **Priority/Related rows** swap above exists to prevent. Grant rows (up to four chained
+   `gh` calls) and Related/Flag-back rows (a `--body-file` edit) retry as the single failed call
+   from that row's own mechanics above, not the whole row.
+
+3. **The run-directory path, absolute** — never relative (a bare relative
+   `.claude-tweaks/pipelines/` path silently shadows the main-checkout copy when run from a
+   worktree):
+
+   ```
+   Audit trail: /abs/path/to/.claude-tweaks/pipelines/{run-id}/decisions.md
+   ```
+
+A fully clean run still renders `0 failed` explicitly and omits the per-failure lines — the
+tally line's `0 failed` is the only signal a clean run needs.
+
+**Close the run dir.** After the closing summary above renders, close this run's standalone run
+directory so resume/reconcile paths can classify it as terminal instead of `status: unknown`:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run <absolute-run-dir>
+```
+
+Always pass an explicit `--run <absolute-run-dir>` — the run directory itself: the closing summary's
+audit-trail line above names the `decisions.md` *file* inside it, so strip the trailing
+`/decisions.md` to get the directory `close-run` requires (it rejects a file path outright).
+Omitting `--run` falls back to the newest non-terminal run dir under the
+project's `.claude-tweaks/pipelines/`, which can belong to a different, still-active session, and
+closing that one would silently disarm that session's own worktree enforcement. `close-run`
+creates `run-state.json` when the run dir never had one — every refine standalone run — and stamps
+it `status: clean`, so no separate direct write is needed. A "no recorded wrap-up invocation"
+warning line is expected here and not an error; refine runs standalone and never invokes
+`/claude-tweaks:wrap-up`.
 
 ## Concurrency
 
