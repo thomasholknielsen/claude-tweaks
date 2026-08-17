@@ -23,10 +23,17 @@ function probePipelineRuns({ cwd } = {}) {
   let entries;
   try {
     entries = fs.readdirSync(base, { withFileTypes: true });
-  } catch {
-    // No .claude-tweaks/pipelines/ at all is a normal, clean state (a repo
-    // that has never run a claude-tweaks pipeline) — not a probe failure.
-    return { ran: true, reason: null, findings: [] };
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      // No .claude-tweaks/pipelines/ at all is a normal, clean state (a repo
+      // that has never run a claude-tweaks pipeline) — not a probe failure.
+      return { ran: true, reason: null, findings: [] };
+    }
+    // Any other readdirSync failure (EACCES, EIO, ...) is a genuine probe
+    // failure, not "nothing to report" — match the sibling probes'
+    // ran: false / reason contract (probeRelease, probeBranches, probeSuite)
+    // instead of silently reporting a clean sweep.
+    return { ran: false, reason: `could not read .claude-tweaks/pipelines/ (${err.code || err.message})`, findings: [] };
   }
 
   const findings = [];

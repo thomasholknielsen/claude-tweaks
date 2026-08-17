@@ -58,11 +58,23 @@ test('the archive/ directory itself is never reported', () => {
   assert.deepStrictEqual(findings, []);
 });
 
-test('no .claude-tweaks/pipelines directory at all does not run', () => {
+test('no .claude-tweaks/pipelines directory at all is a clean run with no findings', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'residue-pipeline-runs-empty-'));
   fs.mkdirSync(path.join(root, '.git'));
   const { ran, findings } = probePipelineRuns({ cwd: root });
   assert.strictEqual(ran, true);
+  assert.deepStrictEqual(findings, []);
+});
+
+test('a genuine readdir failure (not ENOENT) reports ran: false, not a clean sweep', () => {
+  const root = makeFixture();
+  // Replace the pipelines dir with a file so readdirSync fails with ENOTDIR
+  // (not ENOENT) — the same "real error, not absence" shape as EACCES/EIO.
+  fs.rmSync(path.join(root, '.claude-tweaks', 'pipelines'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'pipelines'), 'not a directory');
+  const { ran, reason, findings } = probePipelineRuns({ cwd: root });
+  assert.strictEqual(ran, false);
+  assert.match(reason, /could not read \.claude-tweaks\/pipelines/);
   assert.deepStrictEqual(findings, []);
 });
 
