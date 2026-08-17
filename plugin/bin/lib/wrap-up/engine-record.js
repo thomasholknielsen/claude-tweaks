@@ -21,6 +21,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { FORBIDDEN_VOCABULARY } = require('./engine-render');
+
 const STATE_FILE = 'engine-state.json';
 const DECISIONS_FILE = 'decisions.md';
 
@@ -86,13 +88,25 @@ function hasAppliedFinding(findings) {
   return (findings || []).some((f) => f.action === 'applied');
 }
 
-function buildScannedLine({ isoTime: time, target, gate, gateReason, read, gapDetection, result, findings }) {
+// Shared by buildScannedLine and buildAmendedLine — same line shape, distinct
+// leading verb. See materialize.md-adjacent decisions.md convention: a
+// corrected row gets a trailing AMENDED line after its original SCANNED line,
+// never a mutated-in-place SCANNED line.
+function buildResultLine(verb, { isoTime: time, target, gate, gateReason, read, gapDetection, result, findings }) {
   const n = read ? read.length : 0;
   const paths = formatReadPaths(read);
   const gapText = gapDetection === 'run' ? 'run' : 'not run';
   const resultText = formatResultText(result, findings);
   const reversibility = hasAppliedFinding(findings) ? 'high (separate commit)' : 'N/A';
-  return `SCANNED ${time} — ${target}: gate ${gate} (${gateReason}); read ${n} (${paths}); gap detection: ${gapText}. Result: ${resultText}. Reversibility: ${reversibility}.`;
+  return `${verb} ${time} — ${target}: gate ${gate} (${gateReason}); read ${n} (${paths}); gap detection: ${gapText}. Result: ${resultText}. Reversibility: ${reversibility}.`;
+}
+
+function buildScannedLine(args) {
+  return buildResultLine('SCANNED', args);
+}
+
+function buildAmendedLine(args) {
+  return buildResultLine('AMENDED', args);
 }
 
 // ---- telemetry -----------------------------------------------------------
@@ -159,6 +173,38 @@ function validatePayload(payload) {
     });
   } else if (payload.findings !== undefined && !Array.isArray(payload.findings)) {
     throw new Error(`recordResult: payload.findings must be an array (rowId '${payload.rowId}')`);
+  }
+
+  checkForbiddenVocabulary(payload);
+}
+
+// Record-time pre-flight for the same FORBIDDEN_VOCABULARY list
+// engine-render.js checks at render time (imported, never redefined, so the
+// two checks can't drift apart). Runs over the payload's own free-text
+// fields — payload.detail and every payload.findings[].summary — before the
+// row is ever written to engine-state.json or appended to decisions.md.
+// engine-render.js's own check stays in place as defense-in-depth; this is
+// an earlier check, not a replacement.
+function checkForbiddenVocabulary(payload) {
+  const candidates = [];
+  if (typeof payload.detail === 'string') {
+    candidates.push({ field: 'detail', value: payload.detail });
+  }
+  if (Array.isArray(payload.findings)) {
+    payload.findings.forEach((finding, index) => {
+      if (finding && typeof finding.summary === 'string') {
+        candidates.push({ field: `findings[${index}].summary`, value: finding.summary });
+      }
+    });
+  }
+  for (const { field, value } of candidates) {
+    for (const pattern of FORBIDDEN_VOCABULARY) {
+      if (pattern.test(value)) {
+        throw new Error(
+          `recordResult: payload.${field} matched forbidden vocabulary pattern ${pattern} (rowId '${payload.rowId}')`
+        );
+      }
+    }
   }
 }
 
@@ -262,4 +308,57 @@ function recordResult({ runDir, payload, now, dryRun, telemetryPath }) {
   return stored;
 }
 
-module.exports = { initState, recordResult };
+// Corrects an already-recorded row without hand-editing engine-state.json.
+// Mirrors recordResult but: (a) requires the row to already exist in
+// state.results instead of rejecting when it does; (b) skips the
+// already-recorded throw; (c) appends an AMENDED decisions.md line instead
+// of a second SCANNED line; (d) never re-appends telemetry — the original
+// recordResult call already counted this rowId once.
+function amendResult({ runDir, payload, now, telemetryPath }) {
+  validatePayload(payload);
+
+  const state = readEngineState(runDir);
+  const rows = worklistRows(state.worklist);
+  const row = rows.find((r) => r.id === payload.rowId);
+
+  if (!row) {
+    throw new Error(`amendResult: unknown rowId '${payload.rowId}' (not in the worklist)`);
+  }
+  if (!state.results[payload.rowId]) {
+    throw new Error(`amendResult: row '${payload.rowId}' has not been recorded yet — nothing to amend`);
+  }
+
+  validateDispositionForRow(payload, row);
+
+  const findings = Array.isArray(payload.findings) ? payload.findings : [];
+  const read = Array.isArray(payload.read) ? payload.read : [];
+
+  // IL-01: same fresh-object discipline as recordResult — never `{ ...payload }`.
+  const stored = {
+    rowId: payload.rowId,
+    target: row.target,
+    result: payload.result,
+    detail: payload.detail,
+    findings,
+    read,
+    gapDetection: payload.gapDetection,
+  };
+
+  const time = isoTime(now);
+  const line = buildAmendedLine({
+    isoTime: time, target: row.target, gate: row.gate, gateReason: row.gateReason,
+    read, gapDetection: payload.gapDetection, result: payload.result, findings,
+  });
+  appendDecisionLine(runDir, line);
+
+  // Deliberately no appendTelemetry call — see the function comment above.
+  // telemetryPath is accepted for signature symmetry with recordResult but
+  // intentionally unused.
+
+  state.results[payload.rowId] = stored;
+  writeEngineState(runDir, state);
+
+  return stored;
+}
+
+module.exports = { initState, recordResult, amendResult };

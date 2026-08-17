@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // bin/wrap-up-engine.js — CLI wiring the wrap-up curation engine modules
-// (facts.js, engine-plan.js, engine-record.js, engine-render.js) into three
+// (facts.js, engine-plan.js, engine-record.js, engine-render.js) into four
 // verbs: `plan` (gather facts, build the worklist, initialize engine state),
-// `record` (validate and store one judgment payload), `render` (produce the
-// Phase 2 phase-trace table or the Review Console's engine-fed sections).
+// `record` (validate and store one judgment payload), `amend` (validate and
+// correct an already-recorded row, appending an AMENDED decisions.md line
+// instead of hand-editing engine-state.json), `render` (produce the Phase 2
+// phase-trace table or the Review Console's engine-fed sections).
 //
 // Exit codes: 0 for success (including a `render --strict` completeness
 // failure is the one deliberate exception — see below); 1 when the
@@ -26,12 +28,13 @@ const wtDetect = require('./lib/hooks/worktree-detect');
 
 const { gatherFacts } = require('./lib/wrap-up/facts');
 const { buildWorklist } = require('./lib/wrap-up/engine-plan');
-const { initState, recordResult } = require('./lib/wrap-up/engine-record');
+const { initState, recordResult, amendResult } = require('./lib/wrap-up/engine-record');
 const { renderTrace, renderConsoleSections, renderConsoleSectionsMulti, strictCheck } = require('./lib/wrap-up/engine-render');
 
 const USAGE = [
   'usage: wrap-up-engine.js plan --run-dir <dir> --base <sha> [--ceremony <profile>] [--skill-budget n] [--doc-budget n] [--signals <json>] [--dry-run]',
   '       wrap-up-engine.js record --run-dir <dir> [--dry-run]   (payload JSON on stdin)',
+  '       wrap-up-engine.js amend --run-dir <dir>   (payload JSON on stdin — corrects an already-recorded row)',
   '       wrap-up-engine.js render --run-dir <dir> [--strict] [--section trace|console] [--start-at n]',
   '       wrap-up-engine.js render --section console --spec-state <id>=<path> [--spec-state <id>=<path> ...] [--start-at n] [--strict]   (no --run-dir)',
   '',
@@ -212,6 +215,42 @@ function runRecord(args) {
   process.stdout.write(`${decisionLines[decisionLines.length - 1]}\n`);
 }
 
+function runAmend(args) {
+  if (!args.runDir) usageExit();
+
+  // Same precondition as record: a run dir with no engine-state.json means
+  // plan never ran — malformed invocation, exit 2.
+  if (!fs.existsSync(path.join(args.runDir, 'engine-state.json'))) {
+    process.stderr.write(`wrap-up-engine.js amend: no engine-state.json in ${args.runDir} — run plan first\n`);
+    process.exit(2);
+  }
+
+  const raw = readStdin();
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch (e) {
+    // Invocation shape (--run-dir) was fine; the payload wasn't. exit 1, not
+    // 2 — the model retries with a fixed payload rather than re-reading usage.
+    process.stderr.write(`wrap-up-engine.js amend: stdin is not valid JSON: ${e.message}\n`);
+    process.exit(1);
+  }
+
+  const cwd = process.cwd();
+  const telemetryPath = args.dryRun ? null : resolveTelemetryPath(cwd);
+  if (telemetryPath) fs.mkdirSync(path.dirname(telemetryPath), { recursive: true });
+
+  try {
+    amendResult({ runDir: args.runDir, payload, now: new Date(), telemetryPath });
+  } catch (e) {
+    process.stderr.write(`wrap-up-engine.js amend: ${e.message}\n`);
+    process.exit(1);
+  }
+
+  const decisionLines = fs.readFileSync(path.join(args.runDir, 'decisions.md'), 'utf8').trim().split('\n');
+  process.stdout.write(`${decisionLines[decisionLines.length - 1]}\n`);
+}
+
 function runRender(args) {
   const section = args.section || 'trace';
   if (section !== 'trace' && section !== 'console') {
@@ -321,6 +360,7 @@ function main() {
 
   if (verb === 'plan') { runPlan(args); return; }
   if (verb === 'record') { runRecord(args); return; }
+  if (verb === 'amend') { runAmend(args); return; }
   if (verb === 'render') { runRender(args); return; }
 
   usageExit();

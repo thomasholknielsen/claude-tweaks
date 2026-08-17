@@ -228,6 +228,85 @@ test('record rejects a payload that fails engine-record validation with exit 1',
   assert.match(r.stderr, /result/);
 });
 
+test('record rejects a payload.detail matching FORBIDDEN_VOCABULARY with exit 1', () => {
+  const runDir = planFreshRunDir();
+  const payload = JSON.stringify({
+    version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'flagged via domain-overlap',
+  });
+  const r = run(['record', '--run-dir', runDir, '--dry-run'], { input: payload });
+  assert.strictEqual(r.status, 1);
+  assert.match(r.stderr, /forbidden vocabulary/);
+});
+
+// ---- amend --------------------------------------------------------------
+
+test('amend corrects a previously-recorded row, appends an AMENDED line, prints it, and exits 0', () => {
+  const runDir = planFreshRunDir();
+
+  const originalPayload = JSON.stringify({
+    version: 1, rowId: 'skills', result: 'clean',
+    read: [{ path: '.claude/skills/s1.md', mode: 'full' }],
+    findings: [], gapDetection: 'run', detail: 'original detail',
+  });
+  const recorded = run(['record', '--run-dir', runDir, '--dry-run'], { input: originalPayload });
+  assert.strictEqual(recorded.status, 0, recorded.stderr);
+
+  const before = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8').trim().split('\n').length;
+
+  const amendPayload = JSON.stringify({
+    version: 1, rowId: 'skills', result: 'clean',
+    read: [{ path: '.claude/skills/s1.md', mode: 'full' }],
+    findings: [], gapDetection: 'run', detail: 'corrected detail',
+  });
+  const r = run(['amend', '--run-dir', runDir, '--dry-run'], { input: amendPayload });
+  assert.strictEqual(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^AMENDED .* — Skills: gate open/);
+
+  const after = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8').trim().split('\n');
+  assert.strictEqual(after.length, before + 1);
+
+  const state = readState(runDir);
+  assert.strictEqual(state.results.skills.detail, 'corrected detail');
+});
+
+test('amend against a row that was never recorded exits 1, naming the row', () => {
+  const runDir = planFreshRunDir();
+  const payload = JSON.stringify({ version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' });
+  const r = run(['amend', '--run-dir', runDir, '--dry-run'], { input: payload });
+  assert.strictEqual(r.status, 1);
+  assert.match(r.stderr, /skills/);
+});
+
+test('amend without --run-dir exits 2', () => {
+  const payload = JSON.stringify({ version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' });
+  const r = run(['amend'], { input: payload });
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /usage: wrap-up-engine\.js/);
+});
+
+test('amend against a run dir with no engine-state.json exits 2, naming engine-state.json', () => {
+  const runDir = makeRunDir(); // never plan'd — no engine-state.json
+  const payload = JSON.stringify({ version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' });
+  const r = run(['amend', '--run-dir', runDir, '--dry-run'], { input: payload });
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /engine-state\.json/);
+  assert.strictEqual(r.stdout, '');
+});
+
+test('amend re-runs FORBIDDEN_VOCABULARY validation and exits 1 on a match', () => {
+  const runDir = planFreshRunDir();
+  const originalPayload = JSON.stringify({ version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' });
+  const recorded = run(['record', '--run-dir', runDir, '--dry-run'], { input: originalPayload });
+  assert.strictEqual(recorded.status, 0, recorded.stderr);
+
+  const badAmendPayload = JSON.stringify({
+    version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'flagged via domain-overlap',
+  });
+  const r = run(['amend', '--run-dir', runDir, '--dry-run'], { input: badAmendPayload });
+  assert.strictEqual(r.status, 1);
+  assert.match(r.stderr, /forbidden vocabulary/);
+});
+
 // ---- render -----------------------------------------------------------
 
 test('render --section trace contains the pinned header row', () => {
