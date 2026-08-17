@@ -168,14 +168,14 @@ toward the grant.
    lives in `_shared/label-bootstrap.md`'s `LABELS_JSON` (`["needs:definition", "Undecided idea —
    must go through /specify's brainstorm redirect before reaching ready"]`).
 
-2. Build the payload via `recordPayload` and create the issue:
+2. Build the payload via `recordPayload` and create the issue. Both temp files below key off `$CLAUDE_CODE_SESSION_ID` (the same session identity `_shared/issue-claims.md` stamps on a claim) rather than a fixed name — a concurrent `/capture` invocation against the same checkout gets its own path, never this session's:
 
    ```bash
    node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
      const p=recordPayload({title:process.argv[1], body:process.argv[2], type:process.argv[3], origin:'capture'});
-     require('fs').writeFileSync('/tmp/capture-payload.json', JSON.stringify(p))" "$TITLE" "$BODY" "$TYPE"
+     require('fs').writeFileSync('/tmp/capture-' + (process.env.CLAUDE_CODE_SESSION_ID||'') + '-payload.json', JSON.stringify(p))" "$TITLE" "$BODY" "$TYPE"
 
-   node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/capture-payload.json','utf8')).body)" > /tmp/capture-body.md
+   node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/capture-' + (process.env.CLAUDE_CODE_SESSION_ID||'') + '-payload.json','utf8')).body)" > "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md"
    ```
 
    **Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `$TYPE` via GitHub's native Issue Type; `work-types: labels` adds the matching `type:$TYPE` label instead (the pairs live in `record.js`'s `TYPE_LABELS`):
@@ -184,14 +184,14 @@ toward the grant.
    # work-types: native
    gh issue create \
      --title "$TITLE" \
-     --body-file /tmp/capture-body.md \
+     --body-file "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md" \
      --type "$TYPE" \
      --label by:capture
 
    # work-types: labels
    gh issue create \
      --title "$TITLE" \
-     --body-file /tmp/capture-body.md \
+     --body-file "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md" \
      --label by:capture \
      --label "type:$TYPE"
    ```
@@ -201,10 +201,12 @@ toward the grant.
 
    Immediately after the `gh issue create` call succeeds, invalidate the session-scoped record
    snapshot (`_shared/record-queue-fetch.md`) — this filing changed what a `--state all` pull
-   would return, so the next consumer must re-fetch rather than read the pre-filing snapshot:
+   would return, so the next consumer must re-fetch rather than read the pre-filing snapshot — and
+   remove this step's own temp files, now that `gh issue create` has read them:
 
    ```bash
    node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+   rm -f "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-payload.json" "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md"
    ```
 
 3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
