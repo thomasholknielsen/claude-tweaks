@@ -1,9 +1,10 @@
 # Worktree Setup — Shared Procedures
 
-Canonical home for the two staleness-protection procedures every worktree-creation call site
-needs: catching a freshly created worktree up with the integration branch (unconditional), and
-warning the owner of the *current* branch before creating one, when that branch may itself be
-behind the integration branch. Consolidates what were two byte-identical copies
+Canonical home for the three staleness-protection procedures every worktree-creation call site
+needs: fast-forwarding the main checkout's own integration-branch ref before creating anything
+(cheap, best-effort), catching a freshly created worktree up with the integration branch
+(unconditional), and warning the owner of the *current* branch before creating one, when that
+branch may itself be behind the integration branch. Consolidates what were two byte-identical copies
 (`skills/flow/validation.md` Step 2.5, `skills/build/worktree-setup.md` Step 1) — see CLAUDE.md's
 `[IL-32]`. `skills/_shared/scratch-worktree.md` Section 3 cites the Post-creation catch-up section
 below instead of carrying its own copy. For the harness's separate worktree-session Bash guard (what commands fail in a worktree session, and why), see `skills/_shared/scratch-worktree.md`'s "## 7. Shell constraint".
@@ -24,6 +25,26 @@ Using either section's resolution for the other's purpose reintroduces a bug: th
 rank shadows a tracked branch's real `@{upstream}` (false-positive divergence warnings on
 ordinary feature branches), while the narrower policy-then-upstream resolution has no fallback
 for a branch that was never pushed and carries no upstream at all.
+
+## Pre-creation reconcile
+
+Before any worktree-creation call (`EnterWorktree` or `git worktree add`), fast-forward the
+*main checkout's* local `{integration-branch}` to origin's tip:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile
+```
+
+This is the cheap common-case optimization: it makes the Post-creation catch-up below a no-op
+in the ordinary case, since a freshly cut worktree branch then starts at a tip that's already
+current. It does not replace that catch-up, and is never a substitute for it — reconcile only
+advances the *main checkout's* own `{integration-branch}` ref, and never touches a worktree's
+branch. A worktree cut before reconcile ran, or cut concurrently by a sibling session that
+advances `origin` afterward, can still start stale — the Post-creation catch-up stays the
+unconditional backstop regardless of whether this step ran, or ran successfully. Never `git
+checkout` or `git pull` in the shared checkout to accomplish this fast-forward — `reconcile`'s
+mirror-ff is the sanctioned, worktree-safe mechanism (it never merges, runs strict
+`--ff-only`, and needs no worktree guard).
 
 ## Post-creation catch-up
 
