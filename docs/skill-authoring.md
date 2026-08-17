@@ -20,6 +20,8 @@ Skills do **not** carry a Relationship to Other Skills table. That convention wa
 
 **Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in CLAUDE.md's `## Don'ts`.
 
+A sub-file may carry a **tighter per-file pin** than that ceiling when a step reads it on a hot path: `skills/flow/manifesto.md` and `skills/flow/multi-spec.md` are each pinned under 20480 bytes by `tests/run-dir-timestamp-utc.test.js` (#724), and both currently sit within a few hundred bytes of it. Check `wc -c` and the pinning test before adding to a file that has a budget of its own — 40 KB is the default ceiling, not the only one in force.
+
 ## Inline `_shared` contract vs a new component skill
 
 When a new capability needs a canonical, citable procedure, choose between two shapes:
