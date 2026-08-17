@@ -40,7 +40,7 @@ files:
 
 ## Example render
 
-An example of the post-#685 shape for a sweep with 3 auto-applied cleanups, no staged items, 16 Yours records across four groups, and six clean scans (fictional records). The 16 Yours records fit in 37 lines; the whole report is 58, so this render ships as a digest with this full form in `report.md`:
+An example of the post-#695 shape for a sweep with 3 auto-applied cleanups, no staged items, 16 Yours records across four groups, and six clean scans (fictional records). The 16 Yours records fit in 28 lines; the whole report is 49, so this render ships as a digest with this full form in `report.md`:
 
 ````markdown
 ## Tidy Report — 2026-08-16
@@ -61,23 +61,14 @@ deleted      #601  Terminal track for design-wrapper — plan file       commit 
    #661  Dispatch two-call gate: settle before teardown                  ready, missing risk/size
    #663  Help dashboard trust table render                               ready, missing risk/size
    #670  Capture born-ready chain: --chained shaping                     ready, missing risk/size
-   /claude-tweaks:specify #640
-   /claude-tweaks:specify #652
-   /claude-tweaks:specify #655
-   /claude-tweaks:specify #661
-   /claude-tweaks:specify #663
-   /claude-tweaks:specify #670
+   /claude-tweaks:specify #640,#652,#655,#661,#663,#670
 /claude-tweaks:demo (5)
    #598  Merge verification policy key                                   closed, no acceptance
    #599  Reference card argument-hint pin                                closed, no acceptance
    #608  Specify native sub_issues linking                               closed, no acceptance
    #610  Specify native blocked_by linking                               closed, no acceptance
    #647  permittedGrants per-grant reasons                               closed, no acceptance
-   /claude-tweaks:demo #598
-   /claude-tweaks:demo #599
-   /claude-tweaks:demo #608
-   /claude-tweaks:demo #610
-   /claude-tweaks:demo #647
+   /claude-tweaks:demo #598,#599,#608,#610,#647
 git (2)
    #617  Design exhaust deferral gate                                    PR closed unmerged, wt kept
    #620  Revive needs-definition sweep                                   PR closed unmerged, wt kept
