@@ -1,6 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-14T213317-dispatch-standalone",
-  "reason": "failed: worktree-attach",
-  "releasedAt": "2026-08-14T21:43:33.547Z"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:32:08.388Z"
 }
