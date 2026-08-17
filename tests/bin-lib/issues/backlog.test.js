@@ -315,6 +315,18 @@ test('funnelBuckets: bot:in-progress still outranks isParentIssue (existing prec
   assert.deepEqual(b.parents, []);
 });
 
+test('funnelBuckets: parked still outranks isParentIssue', () => {
+  const b = funnelBuckets([rec(1, { isParentIssue: true, stage: 'parked' })]);
+  assert.deepEqual(b.parked.map((r) => r.number), [1]);
+  assert.deepEqual(b.parents, []);
+});
+
+test('funnelBuckets: notPlanned still outranks isParentIssue', () => {
+  const b = funnelBuckets([rec(1, { isParentIssue: true, notPlanned: true })]);
+  assert.deepEqual(b.notPlanned.map((r) => r.number), [1]);
+  assert.deepEqual(b.parents, []);
+});
+
 // Adjacent-precedence pins (spec Deliverables): bot-state outranks stage labels;
 // granted outranks dispatchable.
 test('funnelBuckets precedence: bot:in-progress + parked resolves to inFlight', () => {

@@ -175,7 +175,12 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // (refs #563). NOT the same as Step 3's buildable subset (dispatchable ∪
 // granted) — this runs BEFORE funnelBuckets has produced those buckets, so
 // "granted" here is computed independently of the in-set-blockers split
-// that native resolution is meant to correct.
+// that native resolution is meant to correct. This filter doesn't exclude
+// `isParentIssue` records, so a hypothetical ready+granted parent would
+// still land here even though funnelBuckets routes it to `parents`, not
+// `granted`/`dispatchable` (in practice `isParentIssue` records are never
+// `ready` — `_shared/work-record.md`'s Decomposition rules — so this remains
+// the buildable candidate set on any conforming repo).
 function readyGrantedSubset(records) {
   return records.filter((r) => r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
 }
@@ -203,7 +208,7 @@ function funnelBuckets(records) {
     else if (f.priority || f.risk || f.size) buckets.scored.push(r);
     else buckets.captured.push(r);
   }
-  // needsYou is an OVERLAY, never a ninth stage: every record above keeps its
+  // needsYou is an OVERLAY, never a tenth stage: every record above keeps its
   // one primary bucket (exclusivity and sum-to-total invariants untouched).
   // Both needs-facets are LIVE on both drivers (record.js for github-issues,
   // local-store.js for local-files): needsDefinition since the needs:definition

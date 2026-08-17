@@ -126,7 +126,7 @@ Then at most **three annotation lines total**:
   multiplies lines). Nothing when clean.
 - `parked {N} · not-planned {M} → /claude-tweaks:tidy owns these` — rendered from
   `.funnel.parked.length` / `.funnel.notPlanned.length`, only when either count is non-zero.
-- `parents {N} → close-out via /claude-tweaks:wrap-up's verification brief / /claude-tweaks:demo, not /claude-tweaks:specify` —
+- `parents {N} → close-out via /claude-tweaks:wrap-up's verification brief or /claude-tweaks:demo, not /claude-tweaks:specify` —
   rendered from `.funnel.parents.length`, only when non-zero. A decomposition parent is never
   `ready` and is not agent-sized work (`_shared/work-record.md`'s Decomposition rules) — its
   close-out is the parent-gate path (`wrap-up/verification-brief.md`, backstopped by
