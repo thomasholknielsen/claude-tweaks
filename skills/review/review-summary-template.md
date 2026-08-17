@@ -68,11 +68,23 @@ Possible QA statuses (the four canonical values from qa-reporting.md's Status de
 
 | File | Source | Severity | Category | Finding | Suggestion |
 |------|--------|----------|----------|---------|------------|
-| {file} | {critique/audit} | {info/warning/error} | {category} | {message} | {suggestion if present} |
+| {file} | {critique/audit/finish-review/critic:{provider}} | {info/warning/error} | {category} | {message} | {suggestion if present} |
+
+{`critic:{provider}` rows are `target: "code"` findings only — a `decisions` finding never renders in this table; it renders under the Decisions sub-heading below (standalone) or is staged for the Review Console (pipeline).}
 
 > Findings are advisory — they inform the verdict but were not auto-applied. To action them inline, route through Step 3 Routing's resolution flow with category `Design Quality`. The Phase 1 design wrapper is read-only by design — code-modifying behavior ships in Phase 2's polish phase.
 
-(or, when skipped: "Design Quality skipped — {skip reason from wrapper}.")
+#### Decisions
+
+{Include only when the wrapper returned `target: "decisions"` findings that were **not** staged (`decisions_staged` absent — standalone review). Omit this sub-heading entirely when there are none, or when they were staged for the Review Console.}
+
+These challenge the project's DESIGN.md, not the diff — the wrapper never edits DESIGN.md; act on the remedy or decline.
+
+| Provider | File | Severity | Finding | Remedy |
+|----------|------|----------|---------|--------|
+| {provider} | {DESIGN.md or .impeccable/design.json} | {info/warning/error} | {message} | {`/claude-tweaks:design-wrapper explore` for `wrapper`; `/impeccable:impeccable document` for any critic} |
+
+(or, when the wrapper skipped entirely — this whole section, Decisions sub-heading included: "Design Quality skipped — {skip reason from wrapper}.")
 
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}
@@ -103,7 +115,7 @@ Generate from: git log since review start, findings with status `fixed`, ledger 
 
 ### Next Actions
 
-The signal-to-option lookup tables below stay as-is — the assistant's own resolution logic for picking which options apply this run, never itself shown to the user or converted into an `AskUserQuestion` option. Only one branch (PASS or BLOCKED) is ever resolved per actual review run.
+The signal-to-option lookup tables below stay as-is — the assistant's own resolution logic for picking which lines apply this run, never itself shown to the user. Only one branch (PASS or BLOCKED) is ever resolved per actual review run.
 
 **When PASS:**
 
@@ -113,9 +125,10 @@ The signal-to-option lookup tables below stay as-is — the assistant's own reso
 | Visual not done + journeys affected + browser | `/claude-tweaks:visual-review journey:{name}` — walk affected journey before wrapping up |
 | Visual not done + UI changed + browser | `/claude-tweaks:visual-review {url}` — visual pass before wrapping up |
 
-Once resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`:
-- Option 1 (always) — `label`: `"Wrap up (Recommended)"`, `description`: `"/claude-tweaks:wrap-up {N} — capture learnings and clean up"`
-- Option 2 (when visual not done + journeys affected/UI changed + browser available) — `label`: `"Visual review"`, `description`: `"/claude-tweaks:visual-review journey:{name} — walk affected journey before wrapping up"` (or the `{url}` variant when journeys aren't affected but UI changed)
+Once resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
+
+**`/claude-tweaks:wrap-up {N}`** — capture learnings and clean up (recommended)
+`/claude-tweaks:visual-review journey:{name}` — walk affected journey before wrapping up (when visual not done + journeys affected + browser available; or the `{url}` variant when journeys aren't affected but UI changed)
 
 **When BLOCKED:**
 
@@ -124,7 +137,8 @@ Once resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header
 | Always | `/claude-tweaks:build {N}` — fix gaps listed above |
 | Test failures | `/claude-tweaks:test` — re-verify after fixes |
 
-Once resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`:
-- Option 1 (always) — `label`: `"Fix gaps (Recommended)"`, `description`: `"/claude-tweaks:build {N} — fix gaps listed above"`
-- Option 2 (when test failures present) — `label`: `"Re-verify"`, `description`: `"/claude-tweaks:test — re-verify after fixes"`
+Once resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
+
+**`/claude-tweaks:build {N}`** — fix gaps listed above (recommended)
+`/claude-tweaks:test` — re-verify after fixes (when test failures present)
 ```

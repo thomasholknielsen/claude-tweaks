@@ -3,7 +3,7 @@ name: flow
 description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a work record without stopping between steps. Accepts record references (#N) only — design docs must be decomposed via /claude-tweaks:specify first.
 argument-hint: "<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [step1,step2,step3]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Flow — Automated Pipeline
@@ -147,7 +147,7 @@ Any hard fail, rejection, or claim contest stops the pipeline before the Config 
 
 **Adopt-if-set, before creating:** a `PIPELINE_RUN_DIR` set on entry, naming an existing anchored directory that already carries `config.yml`, is adopted as-is (nothing created or re-initialized, levers read from that file). A set, existing, anchored directory that is still **empty** (no `config.yml` — a run dir `/claude-tweaks:dispatch` Step 4 minted before claiming) is adopted by identity and initialized in place, exactly as a from-scratch run would be. Set-but-missing, unanchored, or unset creates fresh as below. Branch: `steps-and-gates.md`'s **Adopting an inherited run directory**.
 
-This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
+This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification, design-critique) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
 
 | Mode | Manifesto behavior |
 |------|-------------------|
@@ -167,7 +167,7 @@ For the complete Manifesto content (presentation template, recommendation defaul
 For each step in order:
 
 1. **Announce** the step: `## Flow: Running {step} ({N}/{total})`
-2. **Execute** the full skill as documented in its own SKILL.md. For the `build` step in record mode: compose, write, and commit the materialized file now (`materialize.md`'s Composing the file + When this runs) — `{run-dir}/work/{n}-spec.md` per record, committed **inside the run's worktree**, which is created first (`materialize.md`'s worktree-first ordering; the reverse order is denied under `worktree.always`) — then invoke `/claude-tweaks:build #{n}[,#{m}...]`, which reads that file as its spec (and, when `/build` is invoked standalone with no `/flow` parent, performs this same materialize step itself instead of relying on it being pre-done).
+2. **Execute** the full skill as documented in its own SKILL.md. For the `build` step in record mode: compose, write, and commit the materialized file now (`materialize.md`'s Composing the file + When this runs) — `{run-dir}/work/{n}-spec.md` per record, committed **inside the run's worktree**, which is created first (`materialize.md`'s worktree-first ordering; the reverse order is denied under `worktree-always`) — then invoke `/claude-tweaks:build #{n}[,#{m}...]`, which reads that file as its spec (and, when `/build` is invoked standalone with no `/flow` parent, performs this same materialize step itself instead of relying on it being pre-done).
 3. **Check the gate** — if the step fails its gate, stop the pipeline
 4. **Pass context forward** — each step's output feeds into the next:
    - Step 2.5 → `build` receives `MERGE_CHECK_PASSED=true UPSTREAM_SHA={sha}` when Step 2.5 ran (worktree strategy + `branch-divergence-check: true` — see `validation.md`'s "Memo stamp" note). `build/worktree-setup.md`'s own pre-flight check consults this and skips its otherwise-duplicate fetch-and-compare when the stamped upstream sha still matches. Absent (standalone `/build`, `current-branch` mode, or `branch-divergence-check: false`) → `/build` runs its own check, fail-open.
@@ -231,7 +231,7 @@ For the terminal-example syntax for true parallel execution, mode-selection guid
 
 ## Next Actions
 
-Next Actions in `/claude-tweaks:flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical `AskUserQuestion` call on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
+Next Actions in `/claude-tweaks:flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical markdown close-out block on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
 
 ## Component-Skill Contract
 

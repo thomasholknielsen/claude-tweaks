@@ -50,7 +50,7 @@ function pluginRoot() {
 // checkout, by design — that anchoring is what stops a worktree ever holding
 // the only copy of a run's audit trail, and what makes automatic worktree
 // reaping safe. Without this exemption the gate denies every one of those
-// writes on every worktree.always project, and the audit trail is lost at the
+// writes on every worktree-always project, and the audit trail is lost at the
 // source rather than at teardown.
 //
 // The pipelines exemption's ORIGINAL justification (#138) was different:
@@ -69,8 +69,8 @@ function toPosix(p) {
   return p.split(path.sep).join('/');
 }
 
-// The single machine-readable statement of what the worktree.always gate
-// covers. `skills/_shared/policy-schema.md`'s `worktree.always` row is its
+// The single machine-readable statement of what the worktree-always gate
+// covers. `skills/_shared/policy-schema.md`'s `worktree-always` row is its
 // prose counterpart, and tests/hooks-gate-coverage.test.js asserts the two
 // agree — so widening this constant fails a test until that row is updated.
 // Every other skill file cites that row rather than restating the list.
@@ -88,7 +88,7 @@ const GATE_COVERAGE = Object.freeze({
   bashWriteShapes: WRITE_SHAPES,
   // These have their own prose-binding block — skills/_shared/policy-schema.md's
   // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins
-  // the two) — deliberately separate from the worktree.always block above,
+  // the two) — deliberately separate from the worktree-always block above,
   // so widening either gate never requires touching the other's prose.
   teardownTools: Object.freeze(['ExitWorktree']),
   teardownGitCommands: Object.freeze(['worktree remove']),
@@ -317,7 +317,7 @@ function teardownTargets(ctx) {
 // checkWorktreeRequired below): a foreign-owned hit is collected here and the
 // loop CONTINUES rather than returning — an early return on the warn path
 // used to short-circuit runInner entirely, so a compound `git worktree
-// remove <foreign-wt> && git commit -m x` skipped the worktree.always check
+// remove <foreign-wt> && git commit -m x` skipped the worktree-always check
 // on the trailing commit (whole-branch review IMPORTANT 3). Only a genuine
 // deny still returns early — a deny is the one outcome where evaluating
 // anything further is pointless (the call is blocked).
@@ -372,7 +372,7 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
 // worktree-required policy gate: unlike E1 below, this needs no pipeline run
 // state at all — it fires on the first Edit/Write/NotebookEdit/commit of a
 // session, before any skill has ever run, whenever the target repo has opted
-// into `worktree.always: true` in its .claude-tweaks/policy.yml.
+// into `worktree-always: true` in its .claude-tweaks/policy.yml.
 //
 // `precomputedGitTargets` (Bash calls only) lets run() share the one
 // gitTargets() parse of the command with its own later E1 loop instead of
@@ -516,9 +516,9 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       `claude-tweaks: this project requires an isolated worktree for ` +
       `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
       `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
-      `see _shared/policy-schema.md's worktree.always coverage block; exempt: ` +
+      `see _shared/policy-schema.md's worktree-always coverage block; exempt: ` +
       `${GATE_COVERAGE.exemptions.paths.join(', ')} and an allowlisted (${GATE_COVERAGE.exemptions.commit}) commit) ` +
-      `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
+      `(policy: worktree-always in .claude-tweaks/policy.yml). You're currently working in ` +
       `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
       `then follow \`_shared/worktree-setup.md\`'s post-creation catch-up before any other action, ` +
       `then retry this edit inside the new worktree.`,
@@ -624,13 +624,13 @@ function run(ctx) {
     // Deliberately says the check could not RUN, not that a policy was
     // skipped. Reaching here means findPolicyFile found a policy.yml
     // somewhere up the ancestor chain, which is not the same as
-    // worktree.always being on for this repo — that check needs a repoRoot
+    // worktree-always being on for this repo — that check needs a repoRoot
     // we never obtained. Claiming "the gate was not applied" would assert a
     // policy applied that may not exist.
     notes.push(
       `claude-tweaks: could not determine the git repo status of `
       + `${indeterminateTargets.join(', ')} (git did not answer — timeout under load, refused fork, or missing git). `
-      + `The worktree.always check could not run for ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'}, so `
+      + `The worktree-always check could not run for ${indeterminateTargets.length > 1 ? 'these paths' : 'this path'}, so `
       + `${indeterminateTargets.length > 1 ? 'they were' : 'it was'} allowed rather than denied, per the never-break-a-session rule. `
       + `If this project requires an isolated worktree, verify manually.`,
     );

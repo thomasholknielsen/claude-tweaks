@@ -102,24 +102,7 @@ The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 a
 
 ### Phase 1 — Exhaust fixes (agent, silent)
 
-For each item with status `open`, attempt to fix it now. **The default is fix; defer is the exception.** An item qualifies for fix-now if **all** of these hold:
-
-- Change is localized — typically ≤5 files, no spans across unrelated systems
-- Fix does not require functionality not yet built in this pipeline
-- Fix does not require user product/design decisions
-- Fix does not require external state (third-party data, prod traffic, approvals)
-- Fix does not materially expand pipeline scope (does not trigger long rebuilds, does not break >10 unrelated tests)
-
-If the item qualifies, fix it, commit it, update status to `fixed` with the commit hash. Do this BEFORE presenting anything to the user.
-
-**Bad reasons to skip a fix** (do NOT use these to keep an item open):
-
-- *"Out of scope of this plan / spec"* — if the file is in this build's diff, it is in scope
-- *"Following plan verbatim"* — when plan code conflicts with `.claude/rules/` or CLAUDE.md don'ts, fix the violation; the plan was written before review-time context
-- *"A future plan (P2/P3/...) might want X"* — speculative; only defer for *known* downstream needs
-- *"Bundle of small items"* — items get classified individually, never as a group
-- *"Premature without consumer signal"* — clear bugs and convention violations get fixed now
-- *"Plan-prescribed routing"* — if the plan said "X moves to P6," that's plan documentation, not a ledger event; remove the item entirely instead of deferring
+For each item with status `open`, attempt to fix it now. **The default is fix; defer is the exception.** Whether an item qualifies for fix-now, and which reasons for skipping a fix are never legitimate, are defined once in `_shared/deferral-gate.md` (its Fix-now criteria and Bad reasons to skip a fix sections) — apply that gate here exactly as written there. If the item qualifies, fix it, commit it, update status to `fixed` with the commit hash. Do this BEFORE presenting anything to the user.
 
 ---
 
@@ -133,11 +116,11 @@ building the table below, check each remaining `open` item's Phase 1 blocker rea
 `bin/lib/issues/autonomy.js`'s `clearsFloor(blockerReason)`. For every item where it
 returns `true`: auto-select `Route to a record → Keep (backlog)` — the only disposition this
 capability ever authorizes from this drill; never `Fix anyway`, `Accept`, `Drop`, or `Defer →
-parked` — compose the staged-proposal body exactly as Phase 3's `Keep` branch below already does,
+parked` — compose the staged-proposal body exactly as Phase 3's `Keep` branch below already does (the staged header's `Defer-reason:` value is the reason that cleared the floor: the structured value itself when the check read one, else the structured twin of the matching regex group per `_shared/deferral-gate.md`'s floor-mapping table),
 update ledger status to `deferred` (note `→ backlog`), and log:
 
 ```
-AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog (blocker: {category}). Reversibility: high.
+AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog (defer-reason: {value}) — landing: born-ready. Reversibility: high.
 ```
 
 **Standalone run (no pipeline run directory resolves — see `_shared/pipeline-run-dir.md`):**
@@ -174,7 +157,7 @@ the record proposal exactly as Phase 3's `Keep` branch does, update status to `d
 short description to render a row from:
 
 ```
-AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog as {ref} (blocker: {category}) — "{one-line description}". Reversibility: high.
+AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog as {ref} (defer-reason: {value}) — landing: born-ready — "{one-line description}". Reversibility: high.
 ```
 
 At `supervised`/`trusted` (this capability locked), and for any item whose blocker reason still
@@ -191,7 +174,7 @@ full table once, upfront — it is not re-rendered per item as the drill below p
 
 | # | Phase | Item | Why not fixed now |
 |---|-------|------|-------------------|
-| {N} | {phase} | {description} | {specific blocker — must be one of the legitimate-defer reasons} |
+| {N} | {phase} | {description} | {specific blocker — one of `_shared/deferral-gate.md`'s `Defer-reason:` values} |
 ```
 
 Immediately below the table, before starting the drill, tell the user once: *"No item here has a safe default, so each gets its own question below — but if several should get the same treatment, say so in your answer to the first one (e.g. via 'Other') and I'll apply it to the rest."* This is the only place the hint appears — it is not repeated per item, and it is plain text, not a presented button (see Guardrail below).
@@ -238,9 +221,9 @@ None of Step 1/2a/2b's options carries `(Recommended)` — every remaining item 
 For each item, apply the user-chosen disposition. **Each new work record (`parked` or `backlog`) requires the user's explicit choice for that specific item — never bulk-write without their per-item input.** Creating the record itself is a second, separate approval from the per-item disposition choice (`_shared/auto-mode-card.md`'s work-record-creation row) — `Defer`, `Keep`, and `Acknowledge` therefore **stage a record proposal**, never create the record directly, mirroring `wrap-up/leftover-routing.md`'s Auto mode behavior:
 
 - `Fix anyway` → return to Phase 1 for that item, fix, commit, mark `fixed`
-- `Defer` → stage a record proposal at `{run-dir}/staged/ledger-record-{slug}.md` (`Title:`/`Type:`/`Labels:` header + body, same shape as `leftover-{slug}.md` — see `wrap-up/leftover-routing.md` step 3): `parked`, a `Trigger:` line from the user-stated trigger, an `Origin: ledger resolve gate` line, and affected files. Update ledger status to `deferred`. Resolves on per-item approval at the Wrap-Up (or Flow) Review Console's Queue writes section, which runs in every mode. The console creates the record (`gh issue create` under `work-backend: github-issues`, or `local-store.js`'s `writeRecord` under `work-backend: local-files`)
-- `Keep` → same staging shape, backlog (no `Trigger:` line, no stage label), `Origin: ledger resolve gate` line, and short context. Update ledger status to `deferred` (with note `→ backlog` in Resolution column). Same two-surface resolution as `Defer` above
-- **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used. When `bookkeepingPermissions(ceiling).ledgerNarrowing === true`, apply Phase 2's narrowing check inline here too (no wrap-up runs on this path, so there is no Review Console to centralize the auto-file decision through).
+- `Defer` → stage a record proposal at `{run-dir}/staged/ledger-record-{slug}.md` (`Title:`/`Type:`/`Labels:`/`Defer-reason:` header + body, same staging shape as `leftover-{slug}.md` — see `wrap-up/leftover-routing.md` step 3). The body is composed via `specShapedBody` exactly as `leftover-routing.md` step 1 does, mapped from the ledger's own evidence: `header` = `'Trigger: {user-stated trigger}'`; `currentState` = the ledger item's evidence and affected files; `deliverables` = the fix as stated; `acceptanceCriteria` = the item's own verification (a test name, a grep, an observable behavior); `filedBy: 'ledger resolve gate'`; `provenance: { origin: 'ledger resolve gate', deferReason }` (the item's vocabulary value, per `_shared/deferral-gate.md`); footer `_Filed by \`ledger resolve gate\` via specShapedBody._`. Labels: scored (`risk:*`/`size:*` per `_shared/work-record.md`'s Scoring axis) + `parked` — spec-shaped and scored but not `ready`. An item whose own text names an open choice takes the `openQuestion` path (`needs:definition`, no `ready`, no scoring) — the escape hatch is not withheld from any branch. Update ledger status to `deferred`. Resolves at the Review Console's Queue writes section (which creates the record); log line carries `— landing: parked (defer-reason: {value})`
+- `Keep` → same composition, backlog landing: no `Trigger:` header, `ready: true` + scoring (born-ready per `_shared/work-record.md`'s born-shaped `/wrap-up` row), `Origin: ledger resolve gate`. Update ledger status to `deferred` (note `→ backlog`). Same two-surface resolution as `Defer` above; log line carries `— landing: born-ready (defer-reason: {value})`
+- **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used, composing via `specShapedBody` exactly as the branches above — an item whose own text names an open choice still takes the `openQuestion` path and files `needs:definition` (a label with no `recordPayload` parameter — append it at the create call) — with the reason **required**: a direct create without a valid `Defer-reason:` in the composed body is the same hard-gate violation `wrap-up/refused-proposals.md` refuses at the console (`_shared/deferral-gate.md`, "staged in a run directory or created directly"). When `bookkeepingPermissions(ceiling).ledgerNarrowing === true`, apply Phase 2's narrowing check inline here too (no wrap-up runs on this path, so there is no Review Console to centralize the auto-file decision through).
 - `Accept` → record the user's stated reason in Resolution column. Update status to `accepted`
-- `Acknowledge` (ops items only) → **stages a record proposal**, same shape as `Keep` above (backlog, no `Trigger:` line), but `Origin: ledger resolve gate (acknowledged)` and `Type: task` — an ops item is action still outstanding, just not something the agent can perform, so unlike `Accept`/`Drop` it must not disappear once the ledger file is deleted at cleanup. Update ledger status to `acknowledged` (unchanged from before — this only adds the staged proposal, it doesn't rename the status). Same two-surface resolution as `Defer`/`Keep`.
+- `Acknowledge` (ops items only) → **stages a record proposal**, composed via `specShapedBody` with the born-ready label shape (`risk:*`, `size:*`, `ready`), scored per `_shared/work-record.md`'s Scoring axis, `Type: task`, `filedBy: 'ledger resolve gate'`, `provenance: { origin: 'ledger resolve gate (acknowledged)', deferReason: 'blocked-external' }`; footer `_Filed by \`ledger resolve gate\` via specShapedBody._` — `deliverables` = the human action ("do X in the dashboard"), `acceptanceCriteria` = the observable outcome; there is no separate Manual Steps section (`/build` Step 2.5 triages the deliverable at execution time). An ops action that itself names an open choice takes the `openQuestion` path like any other item. An ops item is action still outstanding, just not something the agent can perform, so unlike `Accept`/`Drop` it must not disappear once the ledger file is deleted at cleanup. Update ledger status to `acknowledged`. Same two-surface resolution as `Defer`/`Keep`; log line carries `— landing: born-ready (defer-reason: blocked-external)`
 - `Drop` → mark as `accepted` with reason "dropped per user — no longer relevant"

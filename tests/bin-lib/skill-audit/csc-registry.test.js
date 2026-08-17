@@ -14,12 +14,15 @@
 // point never read as a component by another skill; `ledger` documents its
 // own exemption in-file (`## Invocation Model`): every caller reads it as a
 // knowledge dependency, never through the Skill tool, so there is no
-// `$PIPELINE_RUN_DIR` to key on. Six more carry a CSC section
+// `$PIPELINE_RUN_DIR` to key on. Seven more carry a CSC section
 // that deliberately doesn't mention `$PIPELINE_RUN_DIR` -- two are always a
 // component (no direct-invocation case to disambiguate: assess-agent-
-// autonomy, flow), four are never a component (standalone-only, documented
-// with near-identical "no `PIPELINE_RUN_DIR` signal" phrasing: browse, demo,
-// help, tidy). PIPELINE_RUN_DIR_EXEMPT re-derives each exemption's
+// autonomy, flow), five are never a component (standalone-only or
+// machine-invoked-only, documented with near-identical "no
+// `PIPELINE_RUN_DIR` signal" phrasing: browse, demo, help, routine-kickoff,
+// tidy -- routine-kickoff's caller is a routine kernel's closing line, not a
+// pipeline skill, so the same absence-of-signal reasoning applies).
+// PIPELINE_RUN_DIR_EXEMPT re-derives each exemption's
 // justification from the file itself, mirroring house-structure.test.js's
 // NO_NEXT_ACTIONS pattern -- if the justifying phrase disappears, the
 // exemption stops being honored and the skill falls back to requiring
@@ -50,6 +53,7 @@ const PIPELINE_RUN_DIR_EXEMPT = {
   browse: /no `PIPELINE_RUN_DIR` signal/,
   demo: /no `PIPELINE_RUN_DIR` signal/,
   help: /no `PIPELINE_RUN_DIR` signal/,
+  'routine-kickoff': /no `PIPELINE_RUN_DIR` signal/,
   tidy: /no `PIPELINE_RUN_DIR` signal/,
 };
 

@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS,
+  recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS, DEFER_REASONS,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
 } = require('../../../bin/lib/issues/record');
@@ -126,22 +126,31 @@ test('recordPayload emits labels in order: by:*, risk:*, size:*, ceremony:*, rea
   assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'ready', 'priority:high']);
 });
 
-test('recordPayload emits framing:baked when framing is truthy', () => {
-  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true });
-  assert.ok(result.labels.includes('framing:baked'));
+test('recordPayload emits solution:unjustified when solutionUnjustified is truthy', () => {
+  const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', solutionUnjustified: true, ready: true });
+  assert.ok(result.labels.includes('solution:unjustified'));
+  assert.ok(!result.labels.includes('framing:baked'), 'emit side is new-spelling-only');
 });
 
-test('recordPayload emits no framing:baked label when framing is omitted', () => {
+test('recordPayload emits no solution:unjustified label when solutionUnjustified is omitted', () => {
   const result = recordPayload({ title: 't', body: 'b', type: 'task', risk: 'low', size: 'low', ceremony: 'standard', ready: true });
+  assert.ok(!result.labels.includes('solution:unjustified'));
   assert.ok(!result.labels.includes('framing:baked'));
 });
 
-test('recordPayload places framing:baked between ceremony:* and ready in the emitted array', () => {
+test('recordPayload places solution:unjustified between ceremony:* and ready in the emitted array', () => {
   const result = recordPayload({
     title: 't', body: 'b', type: 'task', origin: 'capture',
-    risk: 'low', size: 'low', ceremony: 'standard', framing: true, ready: true, priority: 'high',
+    risk: 'low', size: 'low', ceremony: 'standard', solutionUnjustified: true, ready: true, priority: 'high',
   });
-  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'framing:baked', 'ready', 'priority:high']);
+  assert.deepStrictEqual(result.labels, ['by:capture', 'risk:low', 'size:low', 'ceremony:standard', 'solution:unjustified', 'ready', 'priority:high']);
+});
+
+test('recordPayload throws on the pre-rename framing parameter, naming the field (mirrors the effort rejection)', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'b', type: 'task', framing: true }),
+    /framing/,
+  );
 });
 
 // The classification -> scoring-axis fold the health issue-payload builders read:
@@ -208,7 +217,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
-    origin: 'capture', risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null, stage: 'parked',
+    origin: 'capture', risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null, isParentIssue: false, notPlanned: false,
   });
@@ -234,7 +243,7 @@ test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', (
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
-    origin: null, risk: null, size: null, ceremony: null, framing: false, needsDefinition: false, priority: null, stage: 'backlog',
+    origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     acceptance: null, isParentIssue: false, notPlanned: false,
   });
@@ -354,15 +363,22 @@ test('parseRecordFacets: ceremony defaults to null when the label is absent', ()
   assert.strictEqual(parseRecordFacets([]).ceremony, null);
 });
 
-// AC — framing axis (challenge framing-check, presence-only label)
+// AC 2 (record #677) — solution:unjustified axis (challenge framing-check, presence-only label;
+// renamed from framing:baked — the old label stays readable forever, [IL-85]-style)
 
-test('parseRecordFacets: framing:baked sets facets.framing to true', () => {
-  assert.strictEqual(parseRecordFacets(['framing:baked']).framing, true);
+test('parseRecordFacets: solution:unjustified sets facets.solutionUnjustified to true', () => {
+  assert.strictEqual(parseRecordFacets(['solution:unjustified']).solutionUnjustified, true);
 });
 
-test('parseRecordFacets: framing defaults to false when framing:baked is absent', () => {
-  assert.strictEqual(parseRecordFacets([]).framing, false);
-  assert.strictEqual(parseRecordFacets(['ready', 'risk:low']).framing, false);
+test('parseRecordFacets: legacy framing:baked label also sets facets.solutionUnjustified to true (permanent read-side fallback)', () => {
+  assert.strictEqual(parseRecordFacets(['framing:baked']).solutionUnjustified, true);
+});
+
+test('parseRecordFacets: solutionUnjustified defaults to false and there is no framing key', () => {
+  const facets = parseRecordFacets(['ready', 'risk:low']);
+  assert.strictEqual(facets.solutionUnjustified, false);
+  assert.strictEqual(parseRecordFacets([]).solutionUnjustified, false);
+  assert.ok(!('framing' in facets), 'the pre-rename facets.framing key must be gone');
 });
 
 // AC 2 (record #472) — needs:definition axis (presence-only label, /capture + /feedback)
@@ -555,4 +571,132 @@ test('parseRecordFacets sets isParentIssue from the legacy family:parent label',
 test('parseRecordFacets defaults isParentIssue to false', () => {
   assert.strictEqual(parseRecordFacets([]).isParentIssue, false);
   assert.strictEqual(parseRecordFacets([{ name: 'ready' }]).isParentIssue, false);
+});
+
+// --- Defer-reason vocabulary (_shared/deferral-gate.md, #620) ---
+
+test('DEFER_REASONS is the frozen six-value closed vocabulary, in contract order', () => {
+  assert.deepStrictEqual([...DEFER_REASONS], [
+    'tangential', 'needs-human-decision', 'pre-existing-outside-diff',
+    'genuinely-larger', 'blocked-external', 'blocked-dependency',
+  ]);
+  assert.ok(Object.isFrozen(DEFER_REASONS));
+});
+
+test('recordPayload: an unknown deferReason throws naming the field', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'b', type: 'task', deferReason: 'minor' }),
+    /deferReason/,
+  );
+});
+
+test('recordPayload: a valid deferReason renders as the first body line for a body starting at ## Current State', () => {
+  const p = recordPayload({ title: 't', body: '## Current State\nx', type: 'task', deferReason: 'tangential' });
+  assert.ok(p.body.startsWith('Defer-reason: tangential\n\n## Current State\nx'));
+});
+
+test('recordPayload: a valid deferReason renders as the first body line ahead of pre-heading prose', () => {
+  const p = recordPayload({ title: 't', body: 'Intro paragraph.\n\n## Current State\nx', type: 'task', deferReason: 'tangential' });
+  assert.ok(p.body.startsWith('Defer-reason: tangential\n\nIntro paragraph.'));
+});
+
+test('recordPayload: a body already carrying a matching Defer-reason: line is left unchanged (exactly one line)', () => {
+  const body = 'Defer-reason: tangential\n\n## Current State\nx';
+  const p = recordPayload({ title: 't', body, type: 'task', deferReason: 'tangential' });
+  assert.strictEqual(p.body, body);
+  assert.strictEqual((p.body.match(/^Defer-reason: /gm) || []).length, 1);
+});
+
+test('recordPayload: a body carrying a mismatching Defer-reason: line throws', () => {
+  assert.throws(
+    () => recordPayload({ title: 't', body: 'Defer-reason: genuinely-larger\n\n## Current State\nx', type: 'task', deferReason: 'tangential' }),
+    /Defer-reason/,
+  );
+});
+
+test('recordPayload: a body-carried Defer-reason: line with trailing whitespace still suppresses insertion', () => {
+  const body = 'Defer-reason: tangential \n\n## Current State\nx';
+  const p = recordPayload({ title: 't', body, type: 'task', deferReason: 'tangential' });
+  assert.strictEqual((p.body.match(/^Defer-reason: /gm) || []).length, 1);
+});
+
+test('recordPayload: omitting deferReason leaves the body byte-identical and adds no label', () => {
+  const body = 'Intro.\n\n## Current State\nx';
+  const p = recordPayload({ title: 't', body, type: 'task' });
+  assert.strictEqual(p.body, body);
+  assert.deepStrictEqual(p.labels, []);
+});
+
+test('recordPayload: deferReason never becomes a label and leaves label order unchanged', () => {
+  const p = recordPayload({ title: 't', body: 'b', type: 'task', origin: 'capture', risk: 'low', ready: true, deferReason: 'blocked-external' });
+  assert.deepStrictEqual(p.labels, ['by:capture', 'risk:low', 'ready']);
+});
+
+test('recordPayload: deferReason and fingerprint compose — reason first line, fingerprint marker last', () => {
+  const p = recordPayload({ title: 't', body: 'b', type: 'task', deferReason: 'tangential', fingerprint: 'fp-1' });
+  assert.ok(p.body.startsWith('Defer-reason: tangential\n\nb'));
+  assert.ok(p.body.endsWith('<!-- work-fingerprint: fp-1 -->'));
+});
+
+// --- specShapedBody provenance / footer / openQuestion (#623) ---
+
+const BASE = { currentState: 'c', deliverables: 'd', filedBy: 'x' };
+
+test('specShapedBody: no new args is byte-identical to the pre-change composition (health parity)', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a' });
+  assert.strictEqual(body, [
+    'H', '## Current State', 'c', '## Deliverables', 'd', '## Acceptance Criteria', 'a',
+    '_Filed by `x`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+  ].join('\n\n'));
+});
+
+test('specShapedBody: provenance origin renders between header and Current State', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', provenance: { origin: 'wrap-up leftover from #42' } });
+  assert.ok(body.startsWith('H\n\nOrigin: wrap-up leftover from #42\n\n## Current State'));
+});
+
+test('specShapedBody: provenance deferReason renders after origin, validated against DEFER_REASONS', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', provenance: { origin: 'o', deferReason: 'tangential' } });
+  assert.ok(body.includes('Origin: o\n\nDefer-reason: tangential\n\n## Current State'));
+  assert.throws(
+    () => specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', provenance: { deferReason: 'minor' } }),
+    /deferReason/,
+  );
+});
+
+test('specShapedBody: deferReason alone renders with no Origin line and no stray blanks', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', provenance: { deferReason: 'genuinely-larger' } });
+  assert.ok(body.startsWith('H\n\nDefer-reason: genuinely-larger\n\n## Current State'));
+  assert.ok(!body.includes('Origin:'));
+});
+
+test('specShapedBody: custom footer replaces the default; null omits it entirely', () => {
+  const custom = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', footer: '_Filed by `wrap-up leftover routing` via specShapedBody._' });
+  assert.ok(custom.endsWith('via specShapedBody._'));
+  assert.ok(!custom.includes('wontfix'));
+  const none = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', footer: null });
+  assert.ok(none.endsWith('\n\na'));
+});
+
+test('specShapedBody: openQuestion renders in place of Acceptance Criteria; empty header renders nothing', () => {
+  const body = specShapedBody({ header: '', ...BASE, openQuestion: 'which store?', footer: null });
+  assert.ok(body.startsWith('## Current State'));
+  assert.ok(body.includes('## Open Question\n\nwhich store?'));
+  assert.ok(!body.includes('## Acceptance Criteria'));
+});
+
+test('specShapedBody: acceptanceCriteria and openQuestion are mutually exclusive — both or neither throws', () => {
+  assert.throws(() => specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', openQuestion: 'q' }), /exactly one/);
+  assert.throws(() => specShapedBody({ header: 'H', ...BASE }), /exactly one/);
+});
+
+test('specShapedBody: the required sections still throw when empty, naming the section', () => {
+  assert.throws(() => specShapedBody({ header: 'H', currentState: '', deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'x' }), /currentState/);
+  assert.throws(() => specShapedBody({ header: 'H', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a' }), /filedBy/);
+  assert.throws(() => specShapedBody({ header: 'H', currentState: 'c', deliverables: 'd', openQuestion: '' , filedBy: 'x'}), /exactly one|openQuestion/);
+});
+
+test('specShapedBody: header plus Trigger line renders first, before provenance', () => {
+  const body = specShapedBody({ header: 'Trigger: after #42 lands', ...BASE, acceptanceCriteria: 'a', provenance: { origin: 'wrap-up leftover from #42', deferReason: 'tangential' }, footer: '_Filed by `wrap-up leftover routing` via specShapedBody._' });
+  assert.ok(body.startsWith('Trigger: after #42 lands\n\nOrigin: wrap-up leftover from #42\n\nDefer-reason: tangential\n\n## Current State'));
 });

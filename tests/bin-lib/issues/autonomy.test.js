@@ -74,7 +74,7 @@ test('a kind this module does not recognize is denied, not permitted', () => {
 });
 
 test('a human-filed class earns nothing, however clean and however high the ceiling', () => {
-  // Born-ready authorizes an AGENT's filing to skip /claude-tweaks:specify. A
+  // Born-ready authorizes an AGENT's filing to skip the human shaping round-trip. A
   // human-filed class has no agent filing to authorize, so its verdict — however
   // good — is evidence about the wrong thing. This is not hypothetical: on this
   // repo `human:human` is the largest provenance by a wide margin and the first
@@ -178,6 +178,59 @@ test('the second opt-in cannot raise a lower ceiling', () => {
     const result = permittedGrants({ ceiling, row: cleanRow, grantOriginationEnabled: true });
     assert.equal(result.bornAuthorized, false, ceiling);
   }
+});
+
+test('per-grant reasons: reason is non-empty exactly when that grant is withheld', () => {
+  const cases = [
+    permittedGrants({ ceiling: 'trusted', row: cleanRow }),
+    permittedGrants({ ceiling: 'unattended', row: cleanRow }),
+    permittedGrants({ ceiling: 'unattended', row: cleanRow, grantOriginationEnabled: true }),
+    permittedGrants({ ceiling: 'supervised', row: cleanRow }),
+    permittedGrants({ ceiling: 'trusted', row: null }),
+  ];
+  for (const result of cases) {
+    for (const name of ['bornReady', 'bornAuthorized']) {
+      const g = result.grants[name];
+      if (g.granted) {
+        assert.equal(g.reason, '', `${name} granted must carry an empty reason`);
+      } else {
+        assert.ok(g.reason.length > 0, `${name} withheld must carry a non-empty reason`);
+      }
+    }
+  }
+});
+
+test('a granted bornReady never carries the withheld grant\'s opt-in denial', () => {
+  const result = permittedGrants({ ceiling: 'unattended', row: cleanRow });
+  assert.equal(result.grants.bornReady.granted, true);
+  assert.equal(result.grants.bornReady.reason, '');
+  assert.equal(result.grants.bornAuthorized.granted, false);
+  assert.match(result.grants.bornAuthorized.reason, /opt-in/i);
+  // The flat compat key keeps its historical single-string behavior unchanged.
+  assert.match(result.reason, /opt-in/i);
+});
+
+test('flat compat keys mirror grants.*.granted across every branch', () => {
+  const cases = [
+    permittedGrants({ ceiling: 'supervised', row: cleanRow }),
+    permittedGrants({ ceiling: 'trusted', row: cleanRow }),
+    permittedGrants({ ceiling: 'unattended', row: cleanRow }),
+    permittedGrants({ ceiling: 'unattended', row: cleanRow, grantOriginationEnabled: true }),
+    permittedGrants({ ceiling: 'trusted', row: { ...cleanRow, kind: 'human' } }),
+    permittedGrants(null),
+  ];
+  for (const result of cases) {
+    assert.equal(result.bornReady, result.grants.bornReady.granted);
+    assert.equal(result.bornAuthorized, result.grants.bornAuthorized.granted);
+  }
+});
+
+test('a denial applies the same reason to both grants', () => {
+  const result = permittedGrants({ ceiling: 'supervised', row: cleanRow });
+  assert.equal(result.grants.bornReady.granted, false);
+  assert.equal(result.grants.bornAuthorized.granted, false);
+  assert.equal(result.grants.bornReady.reason, result.reason);
+  assert.equal(result.grants.bornAuthorized.reason, result.reason);
 });
 
 // clearsFloor -- moved verbatim from the retired unattended-tier.test.js.
@@ -377,4 +430,44 @@ test('reverting bookkeepingPermissions\' new-key tier thresholds fails the trust
     };
   };
   assert.notDeepEqual(wronglyGated('trusted'), bookkeepingPermissions('trusted'));
+});
+
+// --- structured Defer-reason: path (_shared/deferral-gate.md floor mapping, #620) ---
+
+test('clearsFloor: the four floor-clearing structured Defer-reason values return true', () => {
+  for (const r of ['needs-human-decision', 'genuinely-larger', 'blocked-external', 'blocked-dependency']) {
+    assert.strictEqual(clearsFloor(r), true, r);
+  }
+});
+
+test('clearsFloor: tangential and pre-existing-outside-diff do not clear the floor', () => {
+  assert.strictEqual(clearsFloor('tangential'), false);
+  assert.strictEqual(clearsFloor('pre-existing-outside-diff'), false);
+});
+
+test('clearsFloor: the documented verdict vector for the whole vocabulary, in contract order', () => {
+  const vocab = ['tangential', 'needs-human-decision', 'pre-existing-outside-diff', 'genuinely-larger', 'blocked-external', 'blocked-dependency'];
+  assert.deepStrictEqual(vocab.map(clearsFloor), [false, true, false, true, true, true]);
+});
+
+test('clearsFloor: a free-prose reason still resolves via the regex path', () => {
+  assert.strictEqual(clearsFloor('requires a product decision from the owner'), true);
+  assert.strictEqual(clearsFloor('Not sure if this is even still relevant'), false);
+});
+
+test('clearsFloor: a free-prose reason that merely contains a vocabulary word takes the regex path, not the structured one', () => {
+  // "tangential" is a structured false, but the surrounding prose names external state -> regex true.
+  assert.strictEqual(clearsFloor('tangential to the diff and blocked on external state'), true);
+  // exact-match only: whitespace or case variants are not structured values.
+  assert.strictEqual(clearsFloor(' blocked-external '), false);
+  assert.strictEqual(clearsFloor('Blocked-External'), false);
+});
+
+test('clearsFloor: an unknown string returns false', () => {
+  assert.strictEqual(clearsFloor('minor'), false);
+});
+
+test('autonomy.js source carries the regex fallback removal condition verbatim', () => {
+  const src = require('fs').readFileSync(require.resolve('../../../bin/lib/issues/autonomy.js'), 'utf8');
+  assert.ok(src.includes('Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.'));
 });

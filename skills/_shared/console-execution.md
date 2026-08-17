@@ -54,7 +54,7 @@ have been consumed by a different path already). Hash mismatch → unexecutable-
 something the human never actually saw ticked). Neither case blocks the rest of the console;
 report and move on.
 
-**Worktree-needing items** (a file edit under `worktree.always`): use the run's own still-assigned
+**Worktree-needing items** (a file edit under `worktree-always`): use the run's own still-assigned
 worktree (`run-state.json.worktree`). A reaped worktree with a pending console is the rare case the
 reconciler's merged-only reap rule already makes unlikely (`bin/lib/reconcile/reap-merged.js`) —
 when it happens anyway, surface it rather than executing: there is nowhere to apply the edit.

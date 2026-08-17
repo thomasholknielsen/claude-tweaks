@@ -25,7 +25,7 @@ Build an inventory of what's currently configured before scanning the codebase:
 - Last meaningful edit: {git log for CLAUDE.md — when, what changed}
 
 ### policy.yml
-- `project.maturity`: {value, or "not set" if the key is absent}
+- `project-maturity`: {value, or "not set" if the key is absent}
 - Recognized keys present: {count}
 - Recognized keys still in CLAUDE.md: {migratableKeys count from the Config Home Drift check below, or "none"}
 - Retired keys still in policy.yml: {renamedKeys count from the Renamed key drift check below, or "none"}
@@ -291,7 +291,7 @@ Phase 1u.6's preliminary drift count.
 Unlike Contract Drift and Work-Record Backend Drift, this is not a separate
 staged offer requiring its own approval — Phase 3's existing Project
 Classification gate already IS the approval step for whatever maturity value
-gets written (see `phase-3-classification.md`'s "Writing project.maturity to
+gets written (see `phase-3-classification.md`'s "Writing project-maturity to
 policy.yml"), whether or not that value has changed since the last run. What
 this check adds is *visibility*: when the value read into the Phase 1u
 inventory (`### policy.yml` above) differs from what Phase 3 goes on to
@@ -305,7 +305,7 @@ longer an open surface by the time this comparison is computable.
 
 | Signal | Detection | Surfacing |
 |---|---|---|
-| The `project.maturity` value read into the Phase 1u inventory differs from the classification Phase 3 goes on to confirm | Compare the Phase 1u inventory's stored value against Phase 3's freshly confirmed classification, once Phase 3 completes | Note the change in Phase 9's Actions Performed Classification row (see `SKILL.md`'s Phase 9 Actions Performed table); the write itself happens via Phase 3's existing confirmation gate, not a separate approval here |
+| The `project-maturity` value read into the Phase 1u inventory differs from the classification Phase 3 goes on to confirm | Compare the Phase 1u inventory's stored value against Phase 3's freshly confirmed classification, once Phase 3 completes | Note the change in Phase 9's Actions Performed Classification row (see `SKILL.md`'s Phase 9 Actions Performed table); the write itself happens via Phase 3's existing confirmation gate, not a separate approval here |
 
 ### Routine Drift
 

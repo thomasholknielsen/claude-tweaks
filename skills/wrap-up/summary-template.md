@@ -131,15 +131,23 @@ never as a percentage.
 #### Routed to backlog
 
 Render in every mode whenever `ledgerRouteRemainder` (`unattended` only)
-auto-routed at least one item — parsed from `_shared/ledger-format.md`'s Resolve Gate Phase 2
-`AUTO … auto-routed to backlog as {ref} (blocker: {category}) — "{description}"`
+auto-routed at least one item, OR this run filed at least one record (N > 0), OR
+refused at least one proposal (M > 0). Table rows come only from route-remainder's own log lines — parsed from `_shared/ledger-format.md`'s Resolve Gate Phase 2
+`AUTO … auto-routed to backlog as {ref} (defer-reason: {value}) — "{description}"`
 log lines, one row per line:
 
-| Record | Description | Blocker |
+| Record | Description | Defer-reason |
 |---|---|---|
-| #{ref} | {one-line description} | {category} |
+| #{ref} | {one-line description} | {value} |
 
-Omit this section entirely when nothing was routed this way — this is
+Below the table (or alone when the table is omitted), render a trailing
+`{N} record(s) filed by this run` line whenever N > 0 (every record this run
+created — console approvals, auto-files, and route-remainder together), and a
+`{M} proposal(s) refused — no defer reason` line whenever M > 0 (from
+`REFUSED` entries in `decisions.md` — `wrap-up/refused-proposals.md`). A run
+that files six records reads as a signal.
+
+Omit this section entirely only when nothing was routed this way AND N = 0 AND M = 0 — this is
 `ledgerRouteRemainder`'s own report row, distinct from `ledgerNarrowing`'s
 routed items (which the Phase 3 Ledger gate row above already accounts for
 under its normal disposition reporting) and from Queue writes at the Review

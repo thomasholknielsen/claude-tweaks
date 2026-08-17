@@ -4,16 +4,16 @@ Canonical procedure for provisioning a throwaway, write-legal checkout once a fe
 worktree is already gone. Consumed by `/wrap-up`'s `residue-sweep.md` (the `remedy: auto`
 branch — an auto-fixable residue finding whose fix needs an `Edit`/`Write`/`commit`/`push`),
 by `/tidy` (record-creation writes under `work-backend: local-files`, and the Step 7
-mutations described under `worktree.always: true`), and by `/init` (`SKILL.md`'s Phase 9
+mutations described under `worktree-always: true`), and by `/init` (`SKILL.md`'s Phase 9
 "Isolated Write Step" and `worktree-policy-finalization.md`) — the last with a trigger that
 differs from the other two, see "1. When to provision" below.
 
 **Why this exists.** Once a feature worktree is torn down, `/wrap-up` and `/tidy` are back in
-the main checkout. On a project with `worktree.always: true` set
+the main checkout. On a project with `worktree-always: true` set
 (`.claude-tweaks/policy.yml`), the PreToolUse gate denies some of the writes those two steps
 may still need to make from there — any write whose target isn't already inside a linked git
 worktree. Exactly what counts as a covered write is stated once, canonically, in
-`skills/_shared/policy-schema.md`'s `worktree.always` coverage block. This file cites that
+`skills/_shared/policy-schema.md`'s `worktree-always` coverage block. This file cites that
 block rather than restating it, per CLAUDE.md's own rule against duplicating it (`[IL-93]`:
 five files once restated an earlier, narrower version of that list, and all five went stale
 the next time the gate widened without a matching prose sweep). Check that block, not this
@@ -45,14 +45,14 @@ whose remedy is `remedy: auto` **and** whose fix needs a write the coverage bloc
 covers. Two remedy shapes never qualify, because both are already legal straight from the main
 checkout: removing a worktree (`git worktree remove` / `ExitWorktree`) and deleting a local
 branch (`git branch -d`). A run that finds no such finding must never create a worktree —
-nothing below is unconditional for these two callers, and a project with no `worktree.always`
+nothing below is unconditional for these two callers, and a project with no `worktree-always`
 policy at all never needs this procedure for them in the first place, since every write is
 already legal there.
 
 `/init` is the one exception to "only on demand." It provisions **unconditionally** for its
-own Phase 9 writes (and the deferred `worktree.always` write), regardless of whether
-`worktree.always` is set at all. The goal there is broader than gate compliance — the same
-concurrent-session collision protection `worktree.always` exists to provide, applied to
+own Phase 9 writes (and the deferred `worktree-always` write), regardless of whether
+`worktree-always` is set at all. The goal there is broader than gate compliance — the same
+concurrent-session collision protection `worktree-always` exists to provide, applied to
 `/init`'s own output even on a project that hasn't opted into the policy — see `SKILL.md`'s
 Phase 9 "Isolated Write Step" for the full rationale. Sections 2-7 below apply identically
 once `/init` decides to provision (Section 4's one-commit deviation aside — see its own note);
@@ -109,7 +109,7 @@ paste the literal value into this command. Shell state does not survive between 
 calls in this worktree (see Shell constraint, below), so it cannot be carried in a variable
 across calls. This updates the local `{integration-branch}` ref directly, from inside the
 worktree, with no checkout of that branch required — and the write is legal here regardless of
-`worktree.always`, since the gate never denies a write whose target is already inside a linked
+`worktree-always`, since the gate never denies a write whose target is already inside a linked
 worktree.
 
 It is refused when `{integration-branch}` is checked out elsewhere (typically the main

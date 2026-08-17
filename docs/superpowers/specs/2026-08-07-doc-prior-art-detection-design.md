@@ -181,17 +181,18 @@ under `docs/guides/` or `docs/how-to/`, and whether its files are named
 
 ## The record
 
-Flat dotted enum keys, matching the existing `harness-health.scoped-rule-budget` precedent
-for dotted names and the `execution.always` precedent for an enum with **no default** —
-unset is a meaningful third state:
+Flat kebab-case enum keys, matching `harness-health-scoped-rule-budget` and the naming
+convention in `skills/_shared/policy-key-naming.md` (no dots) and the
+`execution.always` precedent for an enum with **no default** — unset is a meaningful third
+state:
 
 ```js
-{ key: 'doc-convention.adr', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.journey', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.howto', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.reference', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.explanation', type: 'enum', values: ['plugin', 'project'] },
-{ key: 'doc-convention.tutorial', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-adr', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-journey', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-howto', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-reference', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-explanation', type: 'enum', values: ['plugin', 'project'] },
+{ key: 'doc-convention-tutorial', type: 'enum', values: ['plugin', 'project'] },
 ```
 
 | Value | Meaning |
@@ -213,9 +214,9 @@ Documentation updates for D2 — as an enriched row, not a new section:
   found (16)  : ADR-016-slack-integration-strategy.md
   project skill: .claude/skills/architecture-decision/SKILL.md
 
-  1  Conform forward   — new files use plugin form        → doc-convention.adr: plugin
+  1  Conform forward   — new files use plugin form        → doc-convention-adr: plugin
   2  Migrate           — rename all 16 + fix REGISTRY refs
-  3  Keep project form — record exception, stop asking    → doc-convention.adr: project
+  3  Keep project form — record exception, stop asking    → doc-convention-adr: project
 ```
 
 Nothing is written until answered.
@@ -225,7 +226,7 @@ Nothing is written until answered.
 Two phases, each independently shippable and testable.
 
 **Phase 1 — the contract and its first consumer (closes #187).**
-`_shared/prior-art-detection.md`, the genre declarations, `doc-convention.adr`, wrap-up
+`_shared/prior-art-detection.md`, the genre declarations, `doc-convention-adr`, wrap-up
 Step 6.2 detection, the Console row, the migration procedure, and de-asserting
 `decision-records.md`. Ships a working conflict mechanism for the genre where the problem is
 live.
@@ -248,7 +249,7 @@ with. Depends on Phase 1's contract existing; nothing in Phase 1 depends on it.
 | `wrap-up/execution-and-verification.md` | Write the resolved path; migration procedure |
 | `wrap-up/review-console.md` | Conflict-row rendering |
 | `wrap-up/SKILL.md` | Step 6 gate line |
-| `_shared/policy-schema.md`, `bin/lib/policy-schema.js` | `doc-convention.*` |
+| `_shared/policy-schema.md`, `bin/lib/policy-schema.js` | `doc-convention-*` |
 | `tests/policy-schema.test.js` | Key coverage |
 | `docs/skill-graph.md` | Edges for the new `_shared` contract |
 | `docs/decisions/0013-*.md` | This decision, in our own form |

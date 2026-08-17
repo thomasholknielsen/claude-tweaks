@@ -170,6 +170,16 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
 // the lens views. Deliberate, not drift: the funnel tracks "has triage
 // started?" while the lenses need "is there enough signal to rank on?".
 // needsYou is an overlay, not a bucket — see the overlay loop's comment.
+// records[] -> the ready+granted subset only — the exact candidate set
+// overview-mode.md Step 2's native blockedBy pre-attach fetch must target
+// (refs #563). NOT the same as Step 3's buildable subset (dispatchable ∪
+// granted) — this runs BEFORE funnelBuckets has produced those buckets, so
+// "granted" here is computed independently of the in-set-blockers split
+// that native resolution is meant to correct.
+function readyGrantedSubset(records) {
+  return records.filter((r) => r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+}
+
 function funnelBuckets(records) {
   const buckets = {
     captured: [], scored: [], shaped: [], granted: [],
@@ -194,14 +204,11 @@ function funnelBuckets(records) {
   }
   // needsYou is an OVERLAY, never a ninth stage: every record above keeps its
   // one primary bucket (exclusivity and sum-to-total invariants untouched).
-  // needsDefinition is LIVE — both drivers (record.js for github-issues,
-  // local-store.js for local-files) parse it since the needs:definition
-  // taxonomy shipped. solutionUnjustified is still the EXPECTED post-#471
-  // name (#471's framing:baked rename) — it does not exist on this repo yet,
-  // so that half of the list stays empty (dormant) until #471 lands; if #471
-  // ships a different key, this comment and the #471-citing tests are the
-  // reconciliation tripwire. A record carrying both facets yields one
-  // entry with kind 'definition' — the hard gate dominates. needs:definition
+  // Both needs-facets are LIVE on both drivers (record.js for github-issues,
+  // local-store.js for local-files): needsDefinition since the needs:definition
+  // taxonomy shipped, solutionUnjustified since record #677 renamed
+  // framing:baked -> solution:unjustified. A record carrying both facets yields
+  // one entry with kind 'definition' — the hard gate dominates. needs:definition
   // exclusion from the Shape paste block happens at RENDER, never here.
   const needsYou = [];
   for (const r of records) {
@@ -219,6 +226,39 @@ function funnelBuckets(records) {
   return buckets;
 }
 
+// ({ allRows, readyRows, priorityBudget, grantBudget }) -> the refine sweep's
+// mechanical prelude in one pass. allRows = the merged faceted open set;
+// readyRows = the grant fetch's rows, already origin-filtered by the caller —
+// defaults to [] for work-backend: local-files, where the grant fetch never
+// runs (Preflight skips it), so fresh/blocked/inProgress and grantSlice.selected
+// all come back empty while missingPriority/missingRiskSize/prioritySlice still
+// compute from allRows. prioritySlice keys on missingPriority — the population
+// Step 2's sweep actually stamps (refs #460); grantSlice keys on fresh, unchanged.
+function refineWorklist({ allRows, readyRows = [], priorityBudget, grantBudget }) {
+  const worklist = readyRows.filter((r) => !r.facets.grants.build && !r.facets.grants.merge);
+  const blocked = worklist.filter((r) => r.facets.bot.blocked);
+  const inProgress = worklist.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
+  const fresh = worklist.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress);
+  const missingPriority = allRows.filter((r) => r.facets.priority == null);
+  const missingRiskSize = allRows.filter((r) => !(r.facets.risk && r.facets.size));
+  return {
+    fresh,
+    blocked,
+    inProgress,
+    missingPriority,
+    missingRiskSize,
+    prioritySlice: selectBudgetSlice(missingPriority, priorityBudget),
+    grantSlice: selectBudgetSlice(fresh, grantBudget),
+    counts: {
+      fresh: fresh.length,
+      blocked: blocked.length,
+      inProgress: inProgress.length,
+      missingPriority: missingPriority.length,
+      missingRiskSize: missingRiskSize.length,
+    },
+  };
+}
+
 module.exports = {
   splitScoredUnscored,
   filterCritical,
@@ -228,4 +268,6 @@ module.exports = {
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
   funnelBuckets,
+  readyGrantedSubset,
+  refineWorklist,
 };

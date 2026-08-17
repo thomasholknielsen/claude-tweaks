@@ -3,7 +3,7 @@ name: backlog
 description: Use for backlog labels (refine), a next-build pick (overview), or headless grants (github-issues). Keywords - backlog, triage, authorize, grant, auto:build, auto:merge, priority, related, distribution, recommend, next, unattended, headless, autonomy ceiling.
 argument-hint: "[refine|overview|grant] [critical|risk-value|cleanup|trust] [--budget <n>] [--origin <origin>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Backlog — Refine Labels and Understand the Queue
 
@@ -46,6 +46,7 @@ Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:sp
 - `critical` / `risk-value` / `cleanup` / `trust` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine` and `grant` — report the conflict and stop rather than silently ignoring it.
 - `--budget <n>` → caps LLM-bound processing in `refine` (the priority/Related synthesis pass and the grant-check pass, independently, default 40 each) and in `grant` (the grant-check pass over gate-1-3-cleared candidates, default 40, same as refine's own grant-check budget); caps table row rendering in `overview` (default 20).
 - `--origin <origin>` → filters `refine`'s grant-sweep worklist by `facets.origin` (`code-health|harness-health|journey-health|docs-health|capture|human`, where `human` selects records with no `by:*` label). No effect on `overview` or `grant` (`grant` mode's own origin gate already excludes every `human`-origin record unconditionally — see Grant semantics in `_shared/work-record.md`) or on `refine`'s priority/Related sweep.
+- `--trust` → boolean presence flag, `refine` mode only — forces the trust-table fetch (and its Trust evidence rendering) at any ceiling; without it, `refine` fetches trust only when the `autonomy` ceiling resolves `trusted` or higher.
 
 ## Preflight
 
@@ -65,28 +66,29 @@ Read `refine-mode.md` in this skill's directory for the full `refine` procedure,
 
 ## Next Actions
 
-**After `refine`:** call `AskUserQuestion`:
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Dispatch what I just granted (Recommended)"`, `description`: `"/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to, e.g. #201,#202,#205} — skips re-selection, claims and builds them directly"` — omit this option entirely if nothing was granted this run
-- Option 2 — `label`: `"Dispatch just the next one"`, `description`: `"/claude-tweaks:dispatch next — claim and build the single highest-priority authorized record"`
-- Option 3 — `label`: `"Refine again"`, `description`: `"/claude-tweaks:backlog refine — review anything still left needing labels"`
+**After `refine`:** render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-**After `overview`:** The menu's `(Recommended)` label is never a static tag on one option — it is computed fresh each run and MUST be attached to exactly the option whose action matches the report's closing `Next:` line (Step 4's two-channel contract — the menu carries this-session moves only, never other-terminal command lists), resolving through the three-level precedence (needs-you first, then executable Dispatch entry, then fallback ladder). (Known gap: at the fallback ladder's grant rung and the `backlog is empty` terminal case, no dedicated menu option exists yet — tracked as a follow-up record; the options below don't change until that lands.) Call `AskUserQuestion`:
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Decide the top Needs-you item"`, `description`: `"{the top item's launcher — /claude-tweaks:specify #N or /claude-tweaks:challenge #N} — the one move only the human can make"` — omit when `needsYou` is empty
-- Option 2 — `label`: `"Dispatch the top chain here"`, `description`: `"/claude-tweaks:flow {top-ranked executable Dispatch entry's refs, comma-joined} — run the report's top Dispatch terminal in this session"` — omit when the Dispatch block contains no executable entry
-- Option 3 — `label`: `"Refine the labels"`, `description`: `"/claude-tweaks:backlog refine — apply the priority/Related/grant suggestions this overview surfaced"` — omit when nothing surfaced needs refining
-- Option 4 — `label`: `"Shape the top priority record"`, `description`: `"/claude-tweaks:specify #{n} — shape the single highest-priority backlog record this run surfaced"`
-- Option 5 (only after a named-lens run) — `label`: `"Try the {other-lens} lens"`, `description`: `"/claude-tweaks:backlog overview {other-mode} — {one-line description of that mode}"`, naming exactly one of the named lenses not yet run this session.
+**`/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to, e.g. #201,#202,#205}`** — skips re-selection, claims and builds them directly (recommended) — omit this line entirely if nothing was granted this run
+**`/claude-tweaks:dispatch next`** — claim and build the single highest-priority authorized record (recommended) — bold and suffix `(recommended)` only when the dispatch line above is omitted
+`/claude-tweaks:backlog refine` — review anything still left needing labels
 
-If situational filtering leaves only one option (a bare run with no needs-you, whose Dispatch block contains no executable entry, that surfaced nothing needing refinement, and is this session's first lens run leaves Option 4 alone), state or execute it directly instead of calling `AskUserQuestion` — per this project's own convention, a lone option isn't a decision. The same rule applies to the `refine` block above.
+**After `overview`:** The rendered recommendation is never a static tag on one line — it is computed fresh each run and MUST be attached to exactly the line whose action matches the report's closing `Next:` line (Step 4's two-channel contract — the close-out block carries this-session moves only, never other-terminal command lists), resolving through the three-level precedence (needs-you first, then executable Dispatch entry, then fallback ladder): whichever line that resolves to renders first, bolded, with `(recommended)`, ahead of the lines below in their listed order. Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-**After `grant`:** render only when a human is present to answer — mirrors `/claude-tweaks:dispatch`'s own `next` form rule (`dispatch/SKILL.md`'s Next Actions) exactly, since `grant` mode is the same headless-unit shape: a human typed `/claude-tweaks:backlog grant` directly, or a prior skill invoked it on a human's behalf → render; a scheduled Routine fired it → never render (nobody is present to answer, and an unanswered question at the end of a headless run is noise — the durable trace is the label state, the audit comments, and `decisions.md`, per `_shared/pipeline-run-dir.md`'s standalone-auto allowlist). When rendering, call `AskUserQuestion`:
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Dispatch what was just granted (Recommended)"`, `description`: `"/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to} — skips re-selection, claims and builds them directly"` — omit entirely if nothing was granted this run
-- Option 2 — `label`: `"Run grant again"`, `description`: `"/claude-tweaks:backlog grant — sweep anything still eligible since this run's --budget cap or new ready records"`
+`{the top item's launcher — /claude-tweaks:specify #N or /claude-tweaks:challenge --lens=1 #N}` — the one move only the human can make — omit this line when `needsYou` is empty
+`/claude-tweaks:flow {top-ranked executable Dispatch entry's refs, comma-joined}` — run the report's top Dispatch terminal in this session — omit when the Dispatch block contains no executable entry
+`/claude-tweaks:backlog refine` — apply the priority/Related/grant suggestions this overview surfaced — omit when nothing surfaced needs refining
+`/claude-tweaks:specify #{n}` — shape the single highest-priority backlog record this run surfaced — omit when the run surfaced no unshaped backlog record to shape (the `#{n}` placeholder must always resolve to a real record)
+`/claude-tweaks:backlog grant` — machine-grant sweep over the whole ready queue: applies auto:build (+auto:merge where its own checks clear) to every ready-but-ungranted record whose gate chain clears, headless, no per-record confirmation, capped by --budget — omit when the fallback ladder's grant rung isn't what the report's `Next:` line names. The annotation states the sweep's real scope deliberately — `grant` has no single-record form, so a line promising to grant only "the top record" would misstate what running it authorizes
+`/claude-tweaks:backlog overview {other-mode}` — {one-line description of that mode} — only after a named-lens run, naming exactly one of the named lenses not yet run this session
 
-No "set up a routine" option yet — `skills/backlog/routine-template.yml` doesn't exist (the companion sub-issue blocked on this one ships it; see this record's Non-Goals). Once it lands, add the analogous option here the same way `dispatch/SKILL.md`'s Next Actions offers `/claude-tweaks:routine create dispatch`.
+When situational filtering leaves **zero** lines, or the report's closing `Next:` line reads `backlog is empty` (even when the named-lens line could technically still render — the terminal takes precedence over it), restate the report's own closing `Next:` line as the terminal statement instead of rendering a markdown block. Restate, never substitute a fresh claim: the report's `Next:` line — not this block's line count — owns the queue-state verdict, and the two can diverge (an all-in-flight queue also filters every line out, but its backlog is anything but empty; whatever the report's line says there is what this block mirrors).
+
+**After `grant`:** render only when a human is present to answer — mirrors `/claude-tweaks:dispatch`'s own `next` form rule (`dispatch/SKILL.md`'s Next Actions) exactly, since `grant` mode is the same headless-unit shape: a human typed `/claude-tweaks:backlog grant` directly, or a prior skill invoked it on a human's behalf → render; a scheduled Routine fired it → never render (nobody is present to answer, and an unanswered question at the end of a headless run is noise — the durable trace is the label state, the audit comments, and `decisions.md`, per `_shared/pipeline-run-dir.md`'s standalone-auto allowlist). When rendering, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
+
+**`/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to}`** — skips re-selection, claims and builds them directly (recommended) — omit this line entirely if nothing was granted this run
+**`/claude-tweaks:backlog grant`** — sweep anything still eligible since this run's --budget cap or new ready records (recommended) — bold and suffix `(recommended)` only when the dispatch line above is omitted
+
+No "set up a routine" line yet — `skills/backlog/routine-template.yml` doesn't exist (the companion sub-issue blocked on this one ships it; see this record's Non-Goals). Once it lands, add the analogous line here the same way `dispatch/SKILL.md`'s Next Actions offers `/claude-tweaks:routine create dispatch`.
 
 ## Component-Skill Contract
 
@@ -100,7 +102,7 @@ No "set up a routine" option yet — `skills/backlog/routine-template.yml` doesn
 | Granting from `grant` mode on any record whose gate chain hasn't fully cleared, or on a human-filed record regardless of other keys | `bin/lib/issues/grant-gate.js`'s chain is exhaustive and ordered; a human-filed record (no `by:*`) is refused unconditionally — see `grant-mode.md` |
 | Skipping or bulk-bypassing the batch-confirm in `refine` mode | The human action is the load-bearing security signature — never skip it, even for an all-recommended batch |
 | Adding any `bot:*` label from this skill | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer — this skill only *strips* `bot:blocked` on re-grant |
-| Reading every unscored record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Data Flow section |
+| Reading every candidate record's body in one unbounded pass, ignoring `--budget` | Defeats the bounded-synthesis design — see `refine-mode.md`'s Steps 1-3 |
 | Fixing (rather than surfacing) `unsynced: true` local fallback records' sync state | `/claude-tweaks:tidy`'s job (Shape 3) — this skill tags them and in `refine` may apply `priority:*` via the local-files fallback, never mirroring to GitHub |
 | Claiming or building a record from this skill | Out of scope — `/claude-tweaks:dispatch`'s job |
 | Deriving a grant, priority bump, or "next step" from `overview` mode's Trust Table | Read-only reporting — `overview` writes nothing, and the `autonomy` ceiling's one effect on this skill is which records arrive born-`ready` (`refine-mode.md` Step 3.6), never what a verdict recommends for one already here |

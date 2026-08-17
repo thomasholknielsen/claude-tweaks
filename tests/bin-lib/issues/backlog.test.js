@@ -10,6 +10,7 @@ const {
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
   funnelBuckets,
+  readyGrantedSubset,
 } = require('../../../bin/lib/issues/backlog');
 const { parseRecordFacets } = require('../../../bin/lib/issues/record');
 
@@ -228,16 +229,15 @@ test('a pre-rename effort:* label reaches both gates through the parser permanen
 // --- funnelBuckets (record #513) ---
 
 // Minimal faceted-record builder for funnelBuckets cases. Mirrors
-// sharedFacetDefaults()'s shape — keys funnelBuckets reads are explicit,
-// except the two needs-facets (needsDefinition, solutionUnjustified), which
-// are deliberately absent from these defaults: their dormancy (see the
-// needsYou overlay's header comment) means a fixture that wants one must
-// opt in via facetOverrides rather than inherit a stamped-false default.
+// sharedFacetDefaults()'s shape — keys funnelBuckets reads are explicit;
+// solutionUnjustified defaults false here exactly as the shared shape does
+// (live since record #677's rename). needsDefinition is deliberately absent
+// from these defaults: a fixture that wants it opts in via facetOverrides.
 function rec(number, facetOverrides = {}, extra = {}) {
   return {
     number,
     facets: {
-      origin: null, risk: null, size: null, ceremony: null, framing: false,
+      origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false,
       priority: null, stage: 'backlog',
       grants: { build: false, merge: false },
       bot: { inProgress: false, blocked: false },
@@ -394,9 +394,8 @@ test('funnelBuckets: needs:definition record joins needsYou AND keeps its primar
   assert.deepEqual(b.shaped.map((r) => r.number), [2]);
 });
 
-// Reads the expected post-#471-rename key (solutionUnjustified) — reconciliation
-// marker: if #471 ships a different key this test's fixture goes stale loudly.
-test('funnelBuckets: solutionUnjustified facet (expected #471 key) joins needsYou as kind unjustified', () => {
+// solutionUnjustified is the live facet key both drivers set (record #677 rename).
+test('funnelBuckets: solutionUnjustified facet joins needsYou as kind unjustified', () => {
   const b = funnelBuckets([rec(1, { solutionUnjustified: true, priority: 'low' })]);
   assert.deepEqual(b.needsYou, [{ id: 1, kind: 'unjustified' }]);
   assert.deepEqual(b.scored.map((r) => r.number), [1]);
@@ -422,4 +421,44 @@ test('funnelBuckets: notPlanned record with solutionUnjustified does NOT appear 
   const b = funnelBuckets([rec(1, { notPlanned: true, solutionUnjustified: true })]);
   assert.deepEqual(b.needsYou, []);
   assert.deepEqual(b.notPlanned.map((r) => r.number), [1]);
+});
+
+test('readyGrantedSubset: returns only ready+granted records, in input order', () => {
+  const records = [
+    rec(1, { stage: 'ready', grants: { build: true, merge: false } }),   // included (build grant)
+    rec(2, { stage: 'ready', grants: { build: false, merge: true } }),   // included (merge grant)
+    rec(3, { stage: 'ready', grants: { build: false, merge: false } }),  // excluded (ready, not granted)
+    rec(4, { stage: 'backlog', grants: { build: true, merge: true } }),  // excluded (not ready)
+    rec(5, { stage: 'parked', grants: { build: true, merge: true } }),   // excluded (not ready)
+  ];
+  const subset = readyGrantedSubset(records);
+  assert.deepEqual(subset.map((r) => r.number), [1, 2]);
+});
+
+test('readyGrantedSubset: empty input yields empty output', () => {
+  assert.deepEqual(readyGrantedSubset([]), []);
+});
+
+test('funnelBuckets: a record with native-attached top-level blockedBy lands in granted (Step 2 pre-attach target behavior)', () => {
+  // Simulates what overview-mode.md Step 2's native pre-attach fetch produces: a
+  // ready+granted record whose only blocker link is native (no body text, no
+  // facets.blockedBy) gets its blocker attached as top-level r.blockedBy.
+  const records = [
+    rec(10, { stage: 'ready', grants: { build: true, merge: false } }, { body: 'no dependency prose here', blockedBy: [11] }),
+    rec(11, { stage: 'ready', grants: { build: false, merge: true } }),
+  ];
+  const b = funnelBuckets(records);
+  assert.deepEqual(b.granted.map((r) => r.number), [10]);
+  assert.deepEqual(b.dispatchable.map((r) => r.number), [11]);
+});
+
+test('funnelBuckets: same native-blocked record with no pre-attach (probe-failure no-op) still lands in dispatchable, not a crash', () => {
+  // Simulates the degrade path: probe/fetch failure means Step 2 attaches
+  // nothing, so the record falls through to the existing behavior unchanged.
+  const records = [
+    rec(10, { stage: 'ready', grants: { build: true, merge: false } }, { body: 'no dependency prose here' }),
+    rec(11, { stage: 'ready', grants: { build: false, merge: true } }),
+  ];
+  const b = funnelBuckets(records);
+  assert.deepEqual(b.dispatchable.map((r) => r.number).sort(), [10, 11]);
 });

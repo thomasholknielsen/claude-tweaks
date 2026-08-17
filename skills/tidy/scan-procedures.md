@@ -255,7 +255,7 @@ run directory on disk — this includes the human-gate skills' runs (`/claude-tw
 standalone-auto firings, `/claude-tweaks:init`, and `/claude-tweaks:capture` (the full
 standalone-auto allowlist per `_shared/pipeline-run-dir.md`'s step 4 — all five skills use the
 identical `{ISO-timestamp}-{skill-name}-standalone` naming, and the glob below has no
-skill-name filter, so it matches all of them equally). A `worktree.always`-blocked or otherwise
+skill-name filter, so it matches all of them equally). A `worktree-always`-blocked or otherwise
 silently-skipped log write leaves no trace anywhere except an empty file:
 
 ```bash

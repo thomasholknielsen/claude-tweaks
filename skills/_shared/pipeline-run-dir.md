@@ -47,7 +47,7 @@ Two consequences, both load-bearing:
 - **`work/{n}-spec.md` is the exception** and stays inside the worktree. It is git-tracked
   and must be committed onto the feature branch; it reaches the main checkout by merge.
 
-The `worktree.always` PreToolUse gate permits writes to this path from anywhere — see the
+The `worktree-always` PreToolUse gate permits writes to this path from anywhere — see the
 one exemption in `_shared/policy-schema.md`. That exemption is file-write-only, so a
 `git commit` issued from the main checkout is still denied.
 

@@ -3,7 +3,7 @@ name: review
 description: Use when a build is complete and you need analytical judgment on code quality, correctness, and simplicity before wrapping up. Gates on /claude-tweaks:test passing. The quality gate between implementation and lifecycle cleanup.
 argument-hint: "[<spec-number>|<file-path>...|visual <url-or-description>|journey:<name>|discover] [full] [low|medium|high|xhigh|max]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Review — Analytical Judgment Gate
@@ -138,41 +138,12 @@ After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger
 
 ## Step 1.6: Cross-Spec Promise Check (parent-linked records only)
 
-Skip entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware Step Selection" above).
-Otherwise, skip silently when this record has no resolvable parent, or its parent has no
-`## Cross-Spec Promises` section (`_shared/work-record.md`) — most records. This step never blocks
-the review; it only updates the parent record and, when relevant, notes something in the Step 7
-summary.
+**Skip entirely** under `ceremony-profile: fast-lane`, or silently when this record has no
+resolvable parent or its parent has no `## Cross-Spec Promises` section — most records. This step
+never blocks the review.
 
-**Resolve the parent**, per `work-backend`: `local-files` — `facets.parent` (kept for
-completeness; per `specify/SKILL.md`'s seeding step, only `work-backend: github-issues`
-decompositions ever get a `## Cross-Spec Promises` section, so a `local-files` parent's promises
-section is always absent);
-`github-issues` — per `work-links`: `native` — query the sub-issue relationship from this record's
-own side; `body-text` — read the `Parent: #N` line from this record's own body, written at
-decomposition time (`spec-template.md`). No parent resolvable (a record human-filed or
-`/claude-tweaks:capture`d directly, not produced by a `/claude-tweaks:specify` decomposition) → skip this step entirely.
-
-**If the parent has a `## Cross-Spec Promises` section:**
-
-1. **Check whether an `open` row names this record as Owner.** If so, this review's own diff
-   (Step 2, once available — or the same change scope Step 1 already used for the deliverables
-   check) is exactly the evidence needed: judge whether it satisfies the stated promise.
-   - Satisfied → update the row's Status to `SATISFIED (commit {short-sha})` via `gh issue edit
-     $PARENT_NUM --body-file`, and post a comment: `gh issue comment $PARENT_NUM --body "F{n}
-     satisfied by #{this-record}: {one-line why}."`
-   - Not yet satisfied → leave the row `open`, post a comment explaining what's still missing.
-     Never edit another sub-issue's body from here — only the parent's promises section and comments.
-2. **Check whether this record's own work reveals a new forward assumption on another sibling**
-   not yet tracked (the same kind of gap the spec 13-23 build's whole-branch review caught
-   mid-flight, not anticipated at decomposition time). If so: add a row to the parent's table, post
-   a seeding comment, and — when the assumption concerns a still-open sibling — add the
-   corresponding `Blocked by #N: {assumption}` line to this record's own body (a normal body edit,
-   same as any other review-driven change to the record under review).
-
-Both writes are additive to the parent's body/comments only — never touch a sibling sub-issue's body
-from this step, and never block the review's own PASS/BLOCKED verdict on anything found here — the
-register is deliberately not a hard gate anywhere.
+For the parent resolution, promise-table update flow, and forward-assumption tracking procedure,
+read `cross-spec-promise-check.md` in this skill's directory.
 
 ## Step 2: Identify What Changed
 
@@ -355,7 +326,7 @@ Pass the spec number (or paths) used for this review run. The wrapper resolves c
 
 | Wrapper return | Review behavior |
 |----------------|-----------------|
-| `{result: "advisory", findings: [...], score_trend?: {...}}` | Include findings in the summary as a "Design Quality" section (see Step 7's template). When `score_trend` is present, the section also renders a Design/Audit Health trend line above the findings table (current score vs. the last captured score, per `review-summary-template.md`). Findings are advisory — they inform the verdict, but no auto-fixes. |
+| `{result: "advisory", findings: [...], score_trend?: {...}}` | Include findings in the summary as a "Design Quality" section (see Step 7's template). When `score_trend` is present, the section also renders a Design/Audit Health trend line above the findings table (current score vs. the last captured score, per `review-summary-template.md`). Findings are advisory — they inform the verdict, but no auto-fixes. A `decisions_staged` field (present when the wrapper staged `target: "decisions"` findings to `{run-dir}/staged/design-decision-*.md`) means those findings await the Review Console — render them under the section's **Decisions** sub-heading only when the field is absent (nothing was staged — standalone review, or no `decisions` findings this run). |
 | `{skipped: ...}` | Omit the "Design Quality" section from the summary. Note the skip reason in the summary footer. |
 | `{deferred: ...}` (should not happen for `review` mode) | Treat as skip and omit the section. |
 

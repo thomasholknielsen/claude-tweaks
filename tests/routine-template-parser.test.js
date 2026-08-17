@@ -7,6 +7,15 @@ const os = require('node:os');
 const path = require('node:path');
 const { parseRoutineTemplate, listRoutineRecords } = require('../bin/lib/routine-template-parser.js');
 
+// Deliberate: several fixtures below use `prompt: >` as the folded-scalar key
+// under test. The parser is field-name-agnostic, so this is historical input —
+// it exercises generic YAML fold-parsing mechanics (and, in the branch-key
+// fixtures, the pre-#529 template shape those tests were written against) —
+// not a claim that shipped templates still carry a `prompt` field. Templates
+// carry `kickoff` since #529; retargeting these fixtures to `notes: >` would
+// test the same parser paths and lose the historical-shape context, so they
+// stay as `prompt` (#530 sweep).
+
 test('parseRoutineTemplate parses a one-level nested map (key: value children)', () => {
   const result = parseRoutineTemplate('default_schedule:\n  cron_expression: "0 3 * * *"\n  description: "off-peak"\n');
   assert.deepStrictEqual(result.default_schedule, {

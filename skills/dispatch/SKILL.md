@@ -3,7 +3,7 @@ name: dispatch
 description: "Use to select and dispatch authorized GitHub records to /flow — the queue consumer between human gate and executor. Bare, next, or #N direct. Keywords - dispatch, queue, claim, auto:build, auto:merge, bot:in-progress, bot:blocked, autonomous build, routine."
 argument-hint: "[next|#N[,#M...]] [--batch-size <n>] [--priority high|medium|low]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Dispatch — the Queue Consumer
 
@@ -87,7 +87,7 @@ Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run
 
 ### Step 2: Pull the authorized queue and group by file overlap
 
-First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — converges the main checkout toward origin (`bin/lib/reconcile`, #407) so the queue pull below reads already-current state instead of racing a stale mirror. Dispatch runs from a worktree under `worktree.always`; the verb still converges the *main checkout's* mirror regardless (`mainCheckoutRoot` resolution), the same as `session-start.js`'s own in-process call. Log the JSON result to this firing's `decisions.md`. When the result's `console.ready` array is non-empty, follow `_shared/console-execution.md` for each entry before continuing to the queue pull — an answered console is real, actionable work this firing is well-positioned to pick up.
+First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — converges the main checkout toward origin (`bin/lib/reconcile`, #407) so the queue pull below reads already-current state instead of racing a stale mirror. Dispatch runs from a worktree under `worktree-always`; the verb still converges the *main checkout's* mirror regardless (`mainCheckoutRoot` resolution), the same as `session-start.js`'s own in-process call. Log the JSON result to this firing's `decisions.md`. When the result's `console.ready` array is non-empty, follow `_shared/console-execution.md` for each entry before continuing to the queue pull — an answered console is real, actionable work this firing is well-positioned to pick up.
 
 Common to all four selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
@@ -234,8 +234,8 @@ These rows mirror `_shared/work-record-config.md`'s canonical key table (which e
 | Flag | Default | Meaning |
 |---|---|---|
 | `dispatch-retry-ceiling` | `3` | Consecutive failures before a dispatched record gets `bot:blocked` and stops auto-retrying. |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff. |
-| `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
+| `auto-merge-max-lines` | `40` | Auto-merge blast-radius guideline (lines) — a weighted input to the `merge-check` verdict, not a hard cutoff. |
+| `auto-merge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-batch-size` | `3` | Maximum groups (bundles or singleton records) one firing processes sequentially, in the order Step 3's selection establishes; remaining groups stay unclaimed in the queue for a later firing to select. |
 | `dispatch-pick-max-concurrent` (deprecated alias) | — | Deprecated alias for `dispatch-batch-size` — the resolver applies its value and tags the envelope `"renamed-from"`; when present, surface one warn-tier notice per invocation (the resolver never writes stderr). Removal condition: read `deprecated-aliases.md` in this skill's directory. |
 
@@ -253,12 +253,11 @@ These rows mirror `_shared/work-record-config.md`'s canonical key table (which e
 
 ## Next Actions
 
-Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` / `#N,#M,...` render this block when a human typed the command directly or a prior skill (e.g. `/claude-tweaks:backlog refine`'s Next Actions) invoked it on a human's behalf, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise):
+Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` / `#N,#M,...` render this block when a human typed the command directly or a prior skill (e.g. `/claude-tweaks:backlog refine`'s Next Actions) invoked it on a human's behalf, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise). When rendering, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Dispatch again (Recommended)"`, `description`: `"/claude-tweaks:dispatch — pick from what's left in the authorized queue"`
-- Option 2 — `label`: `"Set up the dispatch routine"`, `description`: `"/claude-tweaks:routine create dispatch — schedule 'dispatch next' as a recurring headless routine"`
-- Option 3 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — see the authorized-queue size and bot:blocked records"`
+**`/claude-tweaks:dispatch`** — pick from what's left in the authorized queue (recommended)
+`/claude-tweaks:routine create dispatch` — schedule 'dispatch next' as a recurring headless routine
+`/claude-tweaks:help` — see the authorized-queue size and bot:blocked records
 
 ## Component-Skill Contract
 

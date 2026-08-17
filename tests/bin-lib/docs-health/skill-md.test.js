@@ -122,9 +122,12 @@ test('states the born-ready rule explicitly', () => {
   assert.ok(read().includes('born-`ready`'), 'missing an explicit born-ready statement');
 });
 
-test('routine-template.yml exists and points at /claude-tweaks:docs-health', () => {
+// Since #529 the template carries no prompt text: the live prompt is assembled from
+// the kernel in _shared/routine-template-schema.md, and the template's only invocation
+// surface is its `kickoff` value (spliced into the kernel's routine-kickoff closing line).
+test('routine-template.yml exists and its kickoff targets docs-health', () => {
   const templatePath = path.join(path.dirname(SKILL), 'routine-template.yml');
   assert.ok(fs.existsSync(templatePath));
   const content = fs.readFileSync(templatePath, 'utf8');
-  assert.ok(content.includes('/claude-tweaks:docs-health'));
+  assert.match(content, /^kickoff: docs-health\b/m);
 });

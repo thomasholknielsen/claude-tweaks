@@ -3,7 +3,7 @@ name: capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
 argument-hint: '<idea text> [--route=brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task] [--needs-definition|--no-needs-definition]'
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Capture — Quickly note an idea for later specification
@@ -32,6 +32,9 @@ Lifecycle: `/claude-tweaks:init` → **`/claude-tweaks:capture`** → `/superpow
 | `--title="..."` | Override the auto-derived title. |
 | `--type=bug` / `--type=feature` / `--type=task` | Override the keyword-guessed Type outright — skips Guessing the Type below. Useful for auto-mode/headless capture calls (a Routine, or a scripted call from another skill's Next Action) where there is no next message to send a free-text correction in, and for any calling skill that already knows the correct type. |
 | `--needs-definition` / `--no-needs-definition` | Override the content-judged Definition call outright — skips Judging Definition below. Same auto/headless rationale as `--type=`: forces the flag either way with no free-text turn to correct it. |
+| `--defer-reason=<value>` | One of `DEFER_REASONS` (`bin/lib/issues/record.js`; vocabulary in `_shared/deferral-gate.md`). **Required** when the filing is a deferral — the body carries an `Origin:` line, `--origin=` was supplied, or any `--source` was given (a producer's Capture route); missing then → stop and report, file nothing. Optional otherwise. A `Defer-reason: {value}` line already inside the idea text counts as supplied (validated the same way). See the Shaped-body branch below. This includes health-skill triage captures passing `--source` — `tangential` is the usual fit. |
+| `--risk=<low\|medium\|high>` / `--size=<low\|medium\|high>` | Shaped-body branch only: override the self-judged scoring — same auto/headless rationale as `--type=`. Ignored on the stub branch (a fresh capture is never scored). |
+| `--origin="<text>"` | Shaped-body branch only: an `Origin:` provenance line for the composed body (producers' Capture routes pass their own). Its presence makes the filing a deferral (see `--defer-reason=`). |
 
 When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
@@ -39,7 +42,7 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
 | Step | What |
 |------|------|
-| 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below. |
+| 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below; a spec-shaped `$BODY` takes the Shaped-body branch (files scored + `ready`, skips the cap and the chain); under the born-ready condition, chains `/claude-tweaks:specify #{n} --chained` immediately after the record exists — see Backend Selection. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
 | 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: local-files` captures always have something to commit — the new record file, or, under route `absorb:N`, the edited/deleted target record file. `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record — its `absorb:N` route edits the target issue via `gh` CLI only (see Route execution below), so no local file is touched. |
 
@@ -49,19 +52,24 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 `$TITLE`/`$BODY`/`$TYPE` below are the same fields Entry Format and Adding an Entry (further down) have always asked for: `$BODY` is the `**Related:**`/`Context:`/`Scope:` block assembled per Entry Format; `$TYPE` is the guessed-then-confirmed Type from Adding an Entry.
 
-Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with the single ceiling-gated exception below.
+Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh **stub** capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with two exceptions below: the ceiling-gated chained shaping, and the Shaped-body branch's scored, born-`ready` filing (its own section below).
 
 **One exception, off by default.** Under `autonomy: trusted` or higher, and only when the
-`producer:capture` class carries a `clean` trust verdict, a fresh capture files with `ready`
-already applied — see `_shared/autonomy-ceiling.md`. At `supervised`, the default and the state of
-any repo that has not opted in, this never fires and the paragraph above holds unchanged.
+`producer:capture` class carries a `clean` trust verdict, a fresh capture is chained straight into
+`/claude-tweaks:specify` shaping immediately after filing (`Skill(skill: "claude-tweaks:specify",
+args: "#{n} --chained")` — headless, no Next Actions), so the record lands spec-shaped, scored,
+and `ready` under specify's own authority — able to pass `/claude-tweaks:backlog refine` Step
+3.5's spec-shape gate, which a bare `ready` stamp on a 5-line stub never could (#575). See
+`_shared/autonomy-ceiling.md`. At `supervised`, the default and the state of any repo that has not
+opted in, this never fires and the paragraph above holds unchanged. A filing that took the
+Shaped-body branch (below) never chains either — there is nothing left to shape.
 
 **Skip entirely when this filing carries `needs:definition`** (`$NEEDS_DEFINITION` is `true` —
 see Judging Definition below). A record naming a genuine open choice cannot be born-ready by
 construction: `ready` means agent-sized and unambiguous, and an undecided record is neither. Skip
 before the `gh issue list`/git-log round-trip below, not just its conclusion — spending that
 round-trip on a record that structurally cannot be born-ready is wasted work, not just a display
-bug. File without `ready` and proceed straight to Backend Selection's filing step.
+bug. File plain (no chain) and proceed straight to Backend Selection's filing step.
 
 Resolve it as a **single decision, before filing**, and only under `work-backend: github-issues`
 (the trust table reads `demo:*` labels, which do not exist on the `local-files` driver). Resolve
@@ -72,24 +80,40 @@ this block entirely rather than fetching anything.
 
 Substitute the second line's literal value (the resolved `trust-revert-window-days`) for
 `{resolved-window}` below. If the `gh` call, the `git log`
-call, or the node block fails for any reason, file without `ready`: this path fails toward the
-default, never toward the grant (unchanged from before this sub-issue). `{resolved-window}` reaches the
+call, or the node block fails for any reason, skip the chain — the record stays a plain capture:
+this path fails toward the default, never toward the grant (unchanged from before this sub-issue). `{resolved-window}` reaches the
 script as a `process.argv` arg after `--`, never spliced into the JS source — a value containing a
 quote character would otherwise break out of the string literal, the same reason
 `code-health/focus-mode.md`'s F1 block passes its own values that way.
 
+Read through the session-scoped record snapshot (`_shared/record-queue-fetch.md`) instead of a
+bare fetch — `comments` carries each record's own comment bodies (the negative-evidence marker
+path, #268, reads `<!-- trust-negative-evidence: ... -->` back from here; the node block below
+spreads `...i` so it reaches `trustRows` unchanged), and the snapshot's union field set already
+carries it:
+
 ```bash
-# `comments` carries each record's own comment bodies — the negative-evidence
-# marker path (#268) reads `<!-- trust-negative-evidence: ... -->` back from
-# here; the node block below spreads `...i` so it reaches trustRows unchanged.
-gh issue list --state all --json number,labels,body,state,stateReason,closedAt,comments --limit 1000 > /tmp/capture-trust-records.json
+{Session-scoped record snapshot's read-fresh-or-fetch block, with {tmp-records-file} =
+ /tmp/capture-trust-records.json}
 ```
 
 Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting
-its value for `{integration-branch}` below:
+its value for `{integration-branch}` below. The git-log dump follows the same session-scoped
+freshness rule as the record snapshot (`_shared/record-queue-fetch.md`'s Session-scoped record
+snapshot section) — reuse `/tmp/ct-gitlog-{session-id}.txt`
+(`record-snapshot.js`'s `gitLogPath($CLAUDE_CODE_SESSION_ID)`) when fresh, else regenerate it:
 
 ```bash
-git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/capture-trust-git-log.txt
+GITLOG=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').gitLogPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
+if [ -n "$GITLOG" ] && node -e "
+  const { isFresh } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js');
+  process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
+" "$GITLOG" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
+  cp "$GITLOG" /tmp/capture-trust-git-log.txt
+else
+  git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/capture-trust-git-log.txt
+  [ -n "$GITLOG" ] && cp /tmp/capture-trust-git-log.txt "$GITLOG"
+fi
 ```
 
 ```bash
@@ -108,17 +132,26 @@ node -e "
   // with different evidence.
   const row = trustRows(issues, gitLog, Date.now(), policy).find((r) => r.key === 'producer:capture|elevated');
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
-  const { bornReady, reason } = permittedGrants({ ceiling, row });
-  console.log(JSON.stringify({ bornReady, reason, verdict: row ? row.verdict : 'no-cell' }));
+  const permitted = permittedGrants({ ceiling, row });
+  // Fallback to the flat keys: repo-HEAD skill text can run against an older
+  // installed build's autonomy.js (no grants key yet). Remove with #647's
+  // transitional twin (see bin/lib/issues/autonomy.js module header).
+  const g = (permitted.grants || {}).bornReady || { granted: permitted.bornReady, reason: permitted.reason };
+  console.log(JSON.stringify({ bornReady: g.granted, reason: g.reason, verdict: row ? row.verdict : 'no-cell' }));
 " -- "{resolved-window}"
 ```
 
-Add `ready` to the label set below **only** when `bornReady` is `true`, and log one
-`decisions.md` line in `_shared/autonomy-ceiling.md`'s Logging shape when you do. Never infer the
-answer from the policy value alone — the class verdict is half the condition, and on a repo with
-no acceptance evidence `bornReady` is `false` at every ceiling. If the `gh` call or the node block
-fails for any reason, file without `ready`: this path fails toward the default, never toward the
-grant.
+Never add `ready` to the label set below — a capture files plain at every ceiling. When
+`bornReady` is `true`, complete the filing first, then invoke
+`Skill(skill: "claude-tweaks:specify", args: "#{n} --chained")` in the same turn — shaping mode
+composes the spec-shaped body around the stub (preserved as its `## Original request`), stamps
+scoring and `ready` in its single compose-then-write-once call, and renders no interactive prompt
+— and log one `decisions.md` line in `_shared/autonomy-ceiling.md`'s Logging shape (the
+filed-then-shaped form). Never infer the answer from the policy value alone — the class verdict is
+half the condition, and on a repo with no acceptance evidence `bornReady` is `false` at every
+ceiling. If the `gh` call, the `git log` call, the node block, or the chained shaping itself fails
+for any reason, the record simply stays a plain capture: this path fails toward the default, never
+toward the grant.
 
 **When `work-backend: github-issues`:**
 
@@ -166,6 +199,14 @@ grant.
    Append `--label needs:definition` to whichever `gh issue create` call above ran, when
    `$NEEDS_DEFINITION` is `true`.
 
+   Immediately after the `gh issue create` call succeeds, invalidate the session-scoped record
+   snapshot (`_shared/record-queue-fetch.md`) — this filing changed what a `--state all` pull
+   would return, so the next consumer must re-fetch rather than read the pre-filing snapshot:
+
+   ```bash
+   node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+   ```
+
 3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
 
    Tell the user issue creation failed and the record landed locally instead (path printed by the script), `unsynced: true`. No further marker is needed beyond that facet — `/claude-tweaks:tidy`'s record scan surfaces `unsynced` local records as Sync findings, reconciling them onto GitHub on a later pass.
@@ -197,6 +238,20 @@ Add `needsDefinition: true` to the `facets` object literal above, parallel to `t
 
 `{slug}` is derived from the title by `local-store.js`'s `deriveSlug(title, existingSlugs)` — lowercase, collapse runs of non-alphanumeric characters to a single `-`, trim leading/trailing `-`, truncate to 60 characters, dedupe against `existingSlugs` with a numeric suffix (`-2`, `-3`, ...). One deterministic implementation, not a hand-executed algorithm — see `bin/lib/issues/local-store.js` and its tests in `tests/bin-lib/issues/local-store.test.js`. `createRecord('specs', { slug, ... })` allocates the numeric `{id}` prefix atomically as part of the same call — do not call `allocateId` separately when creating a brand-new record.
 
+## Shaped-body branch
+
+**Detection is by what is supplied, never by who invoked.** Split `$BODY` on line-anchored `## ` headings. The body is **shaped** when it contains `## Current State`, `## Deliverables`, and exactly one of `## Acceptance Criteria` / `## Open Question`, each followed by non-empty content, and none of the three placeholder markers `_shared/work-record.md`'s Spec-shaped body section names appears anywhere. Anything before the first heading becomes `header` (e.g. a `Trigger:` line the caller supplied) — EXCEPT an `Origin:` line and a `Defer-reason:` line, each lifted out of `header` into `provenance` (`origin` / `deferReason`) so the composer renders each exactly once; when both a body-carried `Origin:` line and `--origin=` are supplied, the body's line wins and the flag is ignored with a one-line note. A body that has the headings but fails the check falls through to the stub branch below with one line saying why. The deferral check below runs regardless of which branch is taken — it keys on content and `--source`, not on shape, so an unshaped `--source` filing without a valid reason also stops. A human who pastes a shaped body takes this branch too; a human typing a short idea still gets the 5-line stub and today's behavior.
+
+On match, skip Entry Format's stub assembly and its 5-line cap, and run this precedence:
+
+1. **Judging Definition first — and it wins.** `needs:definition` (judged, or `--needs-definition`, or an `## Open Question` section present) → compose via `specShapedBody` with `openQuestion`, `filedBy: 'capture'`, footer `_Filed by \`capture\` via specShapedBody._`, and file with `needs:definition`, no `ready`, no scoring (an undecided record is never born-ready). `--defer-reason=` is **not** required here — a needs-you record is not a deferral; when supplied it is still rendered via `provenance.deferReason`.
+2. **The deferral check.** The filing is a deferral when the body carries an `Origin:` line, `--origin=` was supplied (both content signals — either way the composed body carries provenance), **or** any `--source` value was given — the rule keys on "any `--source`", not named producers. A deferral with no `--defer-reason=` and no `Defer-reason:` line in the text → **stop and report the missing reason; file nothing** (the same hard gate `wrap-up/refused-proposals.md` enforces at the console). This check is evaluated before branch selection — a supplied `--defer-reason=` is never silently dropped on the stub path (a stub deferral's validated value is passed to `recordPayload({deferReason})`, which inserts the body line). This is the one deliberate content-keyed exception where invoker identity enters (`--source` as the headless-caller equivalent of the `Origin:` content signal), named as such.
+3. **Score and file born-ready.** Judge `risk`/`size` per `_shared/work-record.md`'s Scoring axis (or take `--risk=`/`--size=` overrides), compose via `specShapedBody({ header, currentState, deliverables, acceptanceCriteria, filedBy: 'capture', provenance: { origin: <the lifted line's value (the text after `Origin: `), else the `--origin=` text, else omitted>, deferReason }, footer: '_Filed by `capture` via specShapedBody._' })`, and file via Backend Selection's existing filing step with `recordPayload({ …, origin: 'capture', risk, size, ready: true, deferReason })` — `ready` regardless of the autonomy ceiling.
+
+**Decision (recorded, not an omission):** `ready` on this branch follows from the born-ready rule's own reasoning — a `specShapedBody`-composed, scored body is structurally what health skills file, and they are `ready` by construction — not from a trust verdict; the human gate stays the grant at `refine`, and the trust ledger's `producer:capture` class grades outcomes post-hoc. Self-judged scoring is likewise deliberately unconditional (the same judgment `/specify` shaping mode makes).
+
+**Skips on this branch:** the `gh issue list`/git-log trust fetch and #575's chain-into-`/claude-tweaks:specify` step never run — the record is already the shape that chain exists to produce. Presentation line: `Added: '{title}' (Type: {t}, Definition: clear, shaped — risk:{r} size:{s}, ready)`.
+
 ## Entry Format
 
 Both drivers share the same body shape — this is `$BODY` in Backend Selection above:
@@ -215,7 +270,7 @@ Scope: Rough sense of what it might involve (can be vague)
 
 ### Hard cap: ~5 lines per entry
 
-If it takes more than 5 lines to describe, it's past the raw-capture stage — run `/superpowers:brainstorming` on it instead. Applies to both drivers.
+If it takes more than 5 lines to describe, it's past the raw-capture stage — run `/superpowers:brainstorming` on it instead. Applies to both drivers. The cap governs the stub branch only — a supplied shaped body (see Shaped-body branch above) is exempt by design.
 
 ## Adding an Entry
 
@@ -240,7 +295,7 @@ as `$NEEDS_DEFINITION` — no judgment, and the presentation line below renders 
 clause (the human already decided). Otherwise, judge from the idea's content in this same turn:
 does it name a genuine open choice with no tradeoff made yet — two or more viable directions,
 no stated preference — or does it read as a single clear ask? This is a content call, not a
-structural heuristic: resist scoring it by length or keyword match, the same way `framing:baked`'s
+structural heuristic: resist scoring it by length or keyword match, the same way `solution:unjustified`'s
 judgment is a content call rather than a mechanical check. `$NEEDS_DEFINITION` is `true` only when
 the idea genuinely names an undecided choice; default `false` (clear) otherwise. When `true`, form
 a one-line rationale naming the open choice — this becomes `$DEFINITION_RATIONALE`, surfaced in
@@ -321,12 +376,11 @@ Periodically (or when the backlog gets long), use `/claude-tweaks:tidy` to batch
 
 ## Next Actions
 
-When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user, call `AskUserQuestion`:
+When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Capture another idea (Recommended)"`, `description`: `"/claude-tweaks:capture {next idea} — capture another idea while you're in brainstorming flow"`
-- Option 2 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review and triage backlog records (promote, absorb, or drop stale items)"`
-- Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify {ref} — promote this record straight to a spec ({ref} is '#{n}' under work-backend: github-issues, or the record id under work-backend: local-files)"`
+**`/claude-tweaks:capture {next idea}`** — capture another idea while you're in brainstorming flow (recommended)
+`/claude-tweaks:tidy` — review and triage backlog records (promote, absorb, or drop stale items)
+`/claude-tweaks:specify {ref}` — promote this record straight to a spec ({ref} is `#{n}` under `work-backend: github-issues`, or the record id under `work-backend: local-files`); omit this line when the born-ready chain already shaped the record earlier this turn — there is nothing left to promote
 
 ## Component-Skill Contract
 
@@ -341,7 +395,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | Pattern | Why It Fails |
 |---------|-------------|
 | Capturing an idea that already has a spec | Duplicates intent across two files — annotate the spec so it stays the source of truth |
-| Writing a full spec as a backlog record | Backlog records are for half-formed ideas; a full spec belongs in `specs/` where `/build` and `/flow` can act on it |
+| A *human brain-dump* growing past 5 lines to dodge the cap | Half-formed thinking that needs length needs `/superpowers:brainstorming`, not a longer stub. A supplied spec-shaped body is different — that is the Shaped-body branch's intended input, filed born-ready |
 | Never reviewing the backlog | Without periodic `/claude-tweaks:tidy` triage the backlog becomes a graveyard and ideas lose context |
 | Adding implementation details to a backlog record | A record captures *what* and *why* — *how* is brainstorming + spec territory and shifts faster than the idea |
 | Skipping `/superpowers:brainstorming` and jumping straight to specs | Specs encode unchallenged premises without the assumptions and constraints brainstorming surfaces |

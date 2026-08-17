@@ -18,7 +18,7 @@ Gather from this work's surfaces — the same three that produced the `adrCandid
 
 ## Step 3: Resolve the path before proposing it
 
-**Resolve the path before proposing it.** Read `doc-convention.adr` via the canonical read path (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" doc-convention.adr` — `_shared/policy-schema.md`) and branch on the JSON envelope: `source: "policy"` means the key is set, so use the recorded `value` and skip detection entirely; `source: "default"` means it is unset (the key has no schema default), so read `_shared/existing-convention-detection.md` and run its procedure for the `adr` genre against `docs/decisions/` and that genre's declared aliases. The result is a resolved path plus one of three outcomes: `plugin`, `project`, or `conflict`.
+**Resolve the path before proposing it.** Read `doc-convention-adr` via the canonical read path (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" doc-convention-adr` — `_shared/policy-schema.md`) and branch on the JSON envelope: `source: "policy"` means the key is set, so use the recorded `value` and skip detection entirely; `source: "default"` means it is unset (the key has no schema default), so read `_shared/existing-convention-detection.md` and run its procedure for the `adr` genre against `docs/decisions/` and that genre's declared aliases. The result is a resolved path plus one of three outcomes: `plugin`, `project`, or `conflict`.
 
 ## Step 4: Propose
 

@@ -6,21 +6,27 @@ matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (neve
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
 `backlog/refine-mode.md` (Step 3.6), `backlog/grant-mode.md` (the machine-originated grant path —
 the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
-(Step 6.5's negative-evidence persist point — see Revocation below), and — for the
-bookkeeping capabilities this file also documents — `_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
+(Step 6.5's negative-evidence persist point — see Revocation below), `flow/manifesto.md` and
+`review/step3-routing.md` (the review-auto-apply-ceiling ceiling-conditional default's two
+computation sites — see that section below), `bin/lib/policy-schema.js`
+(the `housekeeping-auto-merge` derived default — unset resolves `true` at `trusted`/`unattended`,
+#580), and — for the bookkeeping capabilities this file also documents —
+`_shared/ledger-format.md`'s Resolve Gate section (Phase 2 narrowing,
 route remainder), `wrap-up/review-console.md` (queue-write auto-file, console auto-resolve),
 `wrap-up/nothing-left-behind.md` (ops-ack auto-acknowledge), and `_shared/console-execution.md`
 (the reconciler-side `consoleAutoResolve` caller — a second, later trigger point for the same
 capability `wrap-up/review-console.md`'s own short-circuit uses from the live-session side).
 
-**Exactly one actor acts on the born-`ready` tier today: `/claude-tweaks:capture`.** That sentence
-is about the born-`ready` tier only — it is not a statement about everything the ceiling
-authorizes. The in-run initiative budget rides the same `trusted` value with a different actor set
-and a different gate entirely (`_shared/initiative-budget.md`). The other
-residue producers — `/claude-tweaks:wrap-up` leftovers, `/claude-tweaks:reflect` routing,
-`/claude-tweaks:demo` follow-ups, all of which resolve to `side-effect:*` classes — keep the
-`Never` columns their own permission-matrix rows state, whatever this lever is set to. Widening it
-to one of them means editing that actor's row deliberately. `/claude-tweaks:backlog refine`
+**Exactly one actor acts on the ceiling-gated born-`ready` tier today: `/claude-tweaks:capture`.**
+That sentence is about this lever's trust-gated tier only — it is not a statement about everything
+the ceiling authorizes, and not the only road to born-`ready`: since #623, `/claude-tweaks:wrap-up`,
+`/claude-tweaks:reflect`, `/claude-tweaks:review`, `/claude-tweaks:visual-review`, and (on its Shaped-body branch, #625) `/claude-tweaks:capture` file born-ready **by construction**
+(`specShapedBody` composition — see `_shared/work-record.md`'s born-shaped rows), ceiling-independent
+the same way health-skill filings are. The in-run initiative budget rides the same `trusted` value
+with a different actor set and a different gate entirely (`_shared/initiative-budget.md`).
+`/claude-tweaks:demo` follow-ups keep the `Never` column their own permission-matrix row states,
+whatever this lever is set to; widening born-`ready` to a further actor means editing that actor's
+row deliberately. `/claude-tweaks:backlog refine`
 consumes the ceiling but grants nothing from it: it renders an advisory column and inherits
 whichever records arrived born-`ready`.
 
@@ -85,7 +91,7 @@ their actual build history.
 | Ceiling | Unlocks — only for classes that have earned it |
 |---|---|
 | `supervised` | Nothing. Trust is recorded and displayed, never acted on. **The default**, and the state of any repo that has not opted in. |
-| `trusted` | Three things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — skips `/claude-tweaks:specify`, never the human grant gate. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. **(c)** Two bookkeeping capabilities — `ledgerNarrowing` and `queueWriteAutoFile` (see Bookkeeping capabilities below). |
+| `trusted` | Four things. **(a)** Born-`ready` for agent-filed work whose provenance class carries a `clean` verdict — the filing chains straight into `/claude-tweaks:specify --chained` shaping (headless), skipping the *human* shaping round-trip but never the shaping itself and never the human grant gate; the capture turn pays the shaping cost, only at this ceiling with a `clean` verdict. Today that means `/claude-tweaks:capture` and no other actor. **(b)** The in-run initiative budget — up to three capped **pointer repairs** per run, applied instead of staged (`_shared/initiative-budget.md`). Unlike (a), this one is **not** trust-gated; see below. **(c)** Two bookkeeping capabilities — `ledgerNarrowing` and `queueWriteAutoFile` (see Bookkeeping capabilities below). **(d)** The `housekeeping-auto-merge` derived default — while that key is unset, `/claude-tweaks:tidy`'s own green, marker-stamped Step-7 housekeeping PRs may arm `--auto` instead of staging for a human (`_shared/policy-schema.md`'s lever row; code twin `bin/lib/policy-schema.js`'s `deriveHousekeepingAutoMerge`, #580). Ceiling-only like (c), not trust-gated, and **not** one of the `bookkeepingPermissions` capabilities; an explicit `housekeeping-auto-merge` value in `policy.yml` wins over the derivation in both directions. |
 | `unattended` | Everything `trusted` allows, plus the `unattended`-only rows of the Bookkeeping capabilities table below (`opsAckAutoAcknowledge`, `consoleAutoResolve`, `ledgerRouteRemainder`) and machine-originated `auto:build`. **The `auto:build` half is shut behind its own opt-in** — see below. |
 
 ## Bookkeeping capabilities
@@ -96,9 +102,9 @@ The narrow, opt-in, logged, fully reversible bookkeeping behaviors in the table 
 | Capability | Unlocked at | What it does |
 |---|---|---|
 | `ledgerNarrowing` | `trusted`+ | `_shared/ledger-format.md`'s Resolve Gate Phase 2 skips the per-item drill for an item whose Phase 1 blocker reason clears the floor (below), auto-selecting `Route to a record -> Keep (backlog)` only. Never `Fix anyway`, `Accept`, `Drop`, or `Defer -> parked` from this drill specifically. |
-| `queueWriteAutoFile` | `trusted`+ | `wrap-up/review-console.md` creates a proposed record (from the above, from leftover routing, or from `/reflect`'s tangential-idea routing) directly, instead of waiting for a live per-item approval at the Review Console. |
+| `queueWriteAutoFile` | `trusted`+ | `wrap-up/review-console.md` creates a proposed record (from the above, from leftover routing, or from `/reflect`'s tangential-idea routing) directly, instead of waiting for a live per-item approval at the Review Console. Since #623, an auto-filed exhaust proposal is spec-shaped and born-ready **by construction** (`specShapedBody` composition, `_shared/work-record.md`'s born-shaped rows), so `refine-mode.md` Step 3.5's spec-shape gate never flags it back — prevented by construction rather than by chaining `/specify`. |
 | `opsAckAutoAcknowledge` | `unattended` only | `wrap-up/nothing-left-behind.md`, wrap-up's Phase 3 ledger gate — auto-acknowledges every ops item instead of presenting the acknowledgment drill. Held to the higher tier deliberately: this is the one bookkeeping capability that skips acknowledging a post-merge infrastructure follow-up, not just a reversible ledger/queue item. |
-| `consoleAutoResolve` | `unattended` only | The Review Console resolves every section (batch table, `M#`, `Q#`, `U#`) per its own defaults with zero `AskUserQuestion` calls, rendering as an informational report instead of a prompt. Two sanctioned callers: `wrap-up/review-console.md`'s own short-circuit (before a console ever renders), and `_shared/console-execution.md`'s reconciler-side executor (for a console already rendered on a PR, when the ceiling is raised or reconciled under a higher tier afterward). |
+| `consoleAutoResolve` | `unattended` only | Zero-click, never zero-render: the Review Console resolves every section (batch table, `M#`, `Q#`, `U#`) per its own defaults with zero `AskUserQuestion` calls, but the FULL console — every table, every row — still renders in the terminal output, with each row pre-stamped `AUTO-RESOLVED` in place of a live decision. Skipping the prompt is not license to skip the render; a silent short-circuit that emits only a summary/prose recap, with none of the console's own rows, is the defect this capability's contract explicitly forbids. Two sanctioned callers: `wrap-up/review-console.md`'s own short-circuit (before a console ever renders), and `_shared/console-execution.md`'s reconciler-side executor (for a console already rendered on a PR, when the ceiling is raised or reconciled under a higher tier afterward). |
 | `ledgerRouteRemainder` | `unattended` only | Extends `ledgerNarrowing` — a ledger item whose blocker reason misses the four-category floor also auto-routes to `Route to a record -> Keep (backlog)` (never `Fix anyway`/`Accept`/`Drop`). |
 
 None of the bookkeeping capabilities touch `Fix anyway`/`Accept`/`Drop` dispositions, HARD-GATEs, `BLOCKED`/`STOP`
@@ -128,17 +134,20 @@ disposition (`backlog` or `parked`) its own existing `leftover-default` auto-mod
 decided — this capability only changes whether *creating* that record needs a click, never which
 disposition auto-mode policy already picked.
 
-### Review-severity-floor ceiling-conditional default
+### Review-auto-apply-ceiling ceiling-conditional default
 
-At the `unattended` ceiling, `review-severity-floor`'s skill default is `medium` instead of the
+At the `unattended` ceiling, `review-auto-apply-ceiling`'s skill default is `medium` instead of the
 project-wide `low` (see `_shared/policy-schema.md`'s lever row). An explicit CLI arg, run config, or
 project-policy value still wins under the standard precedence chain (`_shared/auto-mode-contract.md`)
 — the ceiling only moves the *default*, it never overrides a stated choice.
 
-This paragraph documents an intended future behavior, not a code change landed by this sub-issue: no
-file this sub-issue touches reads the ceiling to compute this default. The actual read/default site
-is `skills/review/step3-routing.md` (not `skills/review/SKILL.md`, which never mentions this lever) —
-wiring the ceiling into that resolution is a later sub-issue's scope.
+Two sites read the ceiling to compute this default, and they must stay in lockstep (refs #566):
+`skills/flow/manifesto.md`'s Recommendation-defaults row computes it into every piped run's
+`config.yml` (which resolves as `source: run-config` downstream), and
+`skills/review/step3-routing.md`'s `source: default` branch computes it for a run directory whose
+`config.yml` never set the lever (not `skills/review/SKILL.md`, which never mentions this lever). A
+flat value at either site silently defeats the other — the manifesto row's own rationale spells out
+the failure shape.
 
 ## Ceiling, not level
 
@@ -206,6 +215,23 @@ one `git revert`. Those caps are the gate. **Do not "fix" this by adding a trust
 requirement** — no cell would ever satisfy it, since an unfiled repair generates no record and
 therefore no verdict, and the budget would ship permanently inert.
 
+### Reading the result
+
+`permittedGrants` returns one `{ granted, reason }` object per grant, under `grants.bornReady` and
+`grants.bornAuthorized` — read those, never the flat top-level `bornReady` / `bornAuthorized` /
+`reason` keys beside them. The flat `reason` is a single string covering both decisions, so a
+*granted* `bornReady` could carry the withheld `bornAuthorized`'s denial text; the per-grant pair is
+what fixes that (refs #647). A granted decision's `reason` is the empty string — render nothing
+rather than a placeholder.
+
+The flat keys stay on as a dated transitional twin, because a skill's `node -e` block loads
+`$CLAUDE_PLUGIN_ROOT`'s modules — the *installed* build — while the skill text around it is the
+checkout's, so repo-HEAD prose can meet an older `autonomy.js` that has no `grants` key yet. That is
+why `capture/SKILL.md` and `backlog/refine-mode.md` each guard the read with a
+`(permitted.grants || {})` fallback. Removal condition: delete the flat keys, and those fallbacks
+with them, at the first release on or after **2026-11-16** — `bin/lib/issues/autonomy.js`'s module
+header carries the same condition.
+
 ## Why born-authorized is gated separately
 
 `trusted`'s born-`ready` and `unattended`'s born-authorized differ in kind, not degree.
@@ -250,8 +276,8 @@ AUTO {time} — {what}. Reason: {policy-source}. Reversibility: high.
 Examples:
 
 ```
-AUTO 15:04:22 — Filed #212 born-ready (class producer:code-health/low, verdict clean, ceiling trusted). Reversibility: high.
-AUTO 15:06:03 — Ledger Phase 2: item #3 auto-routed to backlog (blocker: product decision). Reversibility: high.
+AUTO 15:04:22 — Filed #212 and chained /claude-tweaks:specify --chained shaping — born-ready (class producer:capture/elevated, verdict clean, ceiling trusted). Reversibility: high.
+AUTO 15:06:03 — Ledger Phase 2: item #3 auto-routed to backlog (defer-reason: needs-human-decision). Reversibility: high.
 AUTO 15:06:04 — Queue write: created record "Add OAuth refresh edge case" (parked, trigger: /auth provider docs land). Reversibility: high.
 AUTO 15:06:05 — Ops acknowledgment: 2 items auto-acknowledged, staged for filing. Reversibility: high.
 ```

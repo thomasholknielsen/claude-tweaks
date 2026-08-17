@@ -493,6 +493,22 @@ test('reconcile: reap dispatches strictly after release and archive in source or
   assert.ok(archiveIdx < reapIdx, 'archive must dispatch before reap');
 });
 
+test('reconcile: ALL_CHECKS includes red-tip immediately after mirror', () => {
+  const { ALL_CHECKS } = require('../bin/lib/reconcile');
+  const mirrorIdx = ALL_CHECKS.indexOf('mirror');
+  assert.strictEqual(ALL_CHECKS[mirrorIdx + 1], 'red-tip', 'red-tip must be the entry immediately after mirror');
+});
+
+test('reconcile: red-tip dispatches immediately after mirror in source order (load-bearing — reads the ref mirror-ff just fetched)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
+  const mirrorIdx = src.indexOf("checks.includes('mirror')");
+  const redTipIdx = src.indexOf("checks.includes('red-tip')");
+  const consoleIdx = src.indexOf("checks.includes('console')");
+  assert.ok(mirrorIdx > 0 && redTipIdx > 0 && consoleIdx > 0);
+  assert.ok(mirrorIdx < redTipIdx, 'mirror must dispatch before red-tip');
+  assert.ok(redTipIdx < consoleIdx, 'red-tip must dispatch before console');
+});
+
 // --- hooks.js verb: garbage-stdin invariant + JSON shape (AC5) ---
 
 test('reconcile verb: garbage stdin still exits 0 and prints valid JSON', () => {

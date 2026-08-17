@@ -30,7 +30,7 @@ Take the **first** source that yields a branch name; once one does, the rest are
    gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || git remote show origin | sed -n '/HEAD branch/s/.*: //p'
    ```
 
-   - **Discard the current branch when it isn't a real one.** If the two `git rev-parse` paths differ, this session is inside a linked worktree, so `git branch --show-current` is a throwaway isolation branch that will not exist later — never propose it. Fall through to the GitHub default alone and say so wherever the choice is surfaced. Same worktree detection `[IL-61]` requires, for the same reason: under `worktree.always` the obvious git question answers about the worktree, not the project.
+   - **Discard the current branch when it isn't a real one.** If the two `git rev-parse` paths differ, this session is inside a linked worktree, so `git branch --show-current` is a throwaway isolation branch that will not exist later — never propose it. Fall through to the GitHub default alone and say so wherever the choice is surfaced. Same worktree detection `[IL-61]` requires, for the same reason: under `worktree-always` the obvious git question answers about the worktree, not the project.
    - Both resolve and **match** → use it.
    - Both resolve and **differ** → do not assume silently. Propose the **current** branch where a human will see it, keeping both values in hand; where no human will (`--defaults`, a headless firing), fall back to the **GitHub default** and print the mismatch without stopping. Never silently pin a branch nobody confirmed.
    - Only one resolves → use that one.

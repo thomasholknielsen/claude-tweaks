@@ -3,7 +3,7 @@ name: ledger
 description: Use when you need to create, update, query, or resolve open items in a pipeline ledger file, or standalone for ledger inspection. A knowledge dependency read by build/test/review/wrap-up/flow, never invoked via the Skill tool.
 argument-hint: "[resolve [<feature-name>]|<feature-name>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Ledger — Open Items Tracking
@@ -142,11 +142,11 @@ Only delete when the resolve gate has passed — all items must have terminal st
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- Option 1 — `label`: `"Wrap up (Recommended)"`, `description`: `"/claude-tweaks:wrap-up {spec} — wrap up the current work once all items are resolved"`
-- Option 2 — `label`: `"Re-run resolve gate"`, `description`: `"/claude-tweaks:ledger resolve — re-run the nothing-left-behind gate if items remain open"`
-- Option 3 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — check overall pipeline status"`
+**`/claude-tweaks:wrap-up {spec}`** — wrap up the current work once all items are resolved (recommended)
+`/claude-tweaks:ledger resolve` — re-run the nothing-left-behind gate if items remain open
+`/claude-tweaks:help` — check overall pipeline status
 
 ## Invocation Model
 

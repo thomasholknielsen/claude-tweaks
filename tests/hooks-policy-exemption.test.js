@@ -1,5 +1,5 @@
 // tests/hooks-policy-exemption.test.js — behavioral suite for spec #537's two
-// worktree.always exemptions: a file-tool write whose fully-resolved real
+// worktree-always exemptions: a file-tool write whose fully-resolved real
 // path IS the repo's own .claude-tweaks/policy.yml, and an allowlisted
 // `git commit` whose staged set is provably nothing but that one file.
 //
@@ -64,21 +64,21 @@ function assertDenied(out) {
 
 test('Edit to .claude-tweaks/policy.yml (abs) in a main checkout is allowed', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const out = pre.run({ input: editInput(path.join(repo, '.claude-tweaks', 'policy.yml')), runDir: null, runState: null, cwd: repo });
   assertAllowed(out);
 });
 
 test('Edit to .claude-tweaks/policy.yml.bak stays denied', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const out = pre.run({ input: editInput(path.join(repo, '.claude-tweaks', 'policy.yml.bak')), runDir: null, runState: null, cwd: repo });
   assertDenied(out);
 });
 
 test('Edit to CLAUDE.md stays denied (spec AC 3)', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   fs.writeFileSync(path.join(repo, 'CLAUDE.md'), '# x\n');
   const out = pre.run({ input: editInput(path.join(repo, 'CLAUDE.md')), runDir: null, runState: null, cwd: repo });
   assertDenied(out);
@@ -86,7 +86,7 @@ test('Edit to CLAUDE.md stays denied (spec AC 3)', () => {
 
 test('a symlink ALIAS to policy.yml resolves to allowed', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const link = path.join(repo, 'link.yml');
   fs.symlinkSync(path.join(repo, '.claude-tweaks', 'policy.yml'), link);
   const out = pre.run({ input: editInput(link), runDir: null, runState: null, cwd: repo });
@@ -95,13 +95,13 @@ test('a symlink ALIAS to policy.yml resolves to allowed', () => {
 
 test('policy.yml SWAPPED for a symlink escaping elsewhere resolves to denied', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   // Content matches so isWorktreeAlwaysOn still reads true through the
   // symlink — the only thing under test here is isPolicyFile's leaf-symlink
   // handling, not an accidental policy-off side effect from the swap.
   const elsewhereDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-polexempt-else-'));
   const elsewhere = path.join(elsewhereDir, 'elsewhere.yml');
-  fs.writeFileSync(elsewhere, 'worktree.always: true\n');
+  fs.writeFileSync(elsewhere, 'worktree-always: true\n');
   fs.unlinkSync(path.join(repo, '.claude-tweaks', 'policy.yml'));
   fs.symlinkSync(elsewhere, path.join(repo, '.claude-tweaks', 'policy.yml'));
   const out = pre.run({ input: editInput(path.join(repo, '.claude-tweaks', 'policy.yml')), runDir: null, runState: null, cwd: repo });
@@ -112,7 +112,7 @@ test('policy.yml SWAPPED for a symlink escaping elsewhere resolves to denied', (
 
 test('git commit -m x with only policy.yml staged is allowed', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
   const out = pre.run({ input: bashInput('git commit -m x', repo), runDir: null, runState: null, cwd: repo });
   assertAllowed(out);
@@ -120,7 +120,7 @@ test('git commit -m x with only policy.yml staged is allowed', () => {
 
 test('the same command with a second staged file is denied', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   fs.writeFileSync(path.join(repo, 'other.txt'), 'y\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml', 'other.txt']);
   const out = pre.run({ input: bashInput('git commit -m x', repo), runDir: null, runState: null, cwd: repo });
@@ -134,7 +134,7 @@ test('a staged rename of policy.yml is not an allowlisted commit (isPolicyOnlyCo
   // policy.yml at all post-rename — a confound unrelated to what this case
   // tests (the staged-set proof itself).
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
   execFileSync('git', ['-C', repo, 'commit', '-m', 'add policy', '-q']);
   execFileSync('git', ['-C', repo, 'mv', '.claude-tweaks/policy.yml', '.claude-tweaks/other.yml']);
@@ -146,14 +146,14 @@ test('commit shapes that must stay denied: -a, --amend, compound, -C', () => {
   // exercised through the full pre.run() gate here: git-command.js's own
   // command-word parser only recognizes a segment as a git invocation when
   // its first token is literally 'git' — an env-var prefix or a path to git
-  // already produces no target at all (bypassing the WHOLE worktree.always
+  // already produces no target at all (bypassing the WHOLE worktree-always
   // gate, commit action included), which is a pre-existing gap in that
   // parser predating #537, not something the allowlist could close even in
   // principle (POLICY_COMMIT_ALLOWLIST itself correctly rejects both — see
   // the regex unit test above). Denying is asserted at the allowlist level;
   // closing the parser gap is out of #537's scope — tracked as #590.
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
   const commands = [
     'git commit -a -m x',
@@ -175,7 +175,7 @@ test('a Bash WRITE SHAPE (tee/cp) targeting policy.yml stays denied — the exem
   // keying the policy.yml exemption on that same flag let `tee` through
   // (review finding). It keys on fileTool now — this test discriminates.
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   const abs = path.join(repo, '.claude-tweaks', 'policy.yml');
   assertDenied(pre.run({ input: bashInput('tee ' + abs, repo), runDir: null, runState: null, cwd: repo }));
   assertDenied(pre.run({ input: bashInput('cp /tmp/x ' + abs, repo), runDir: null, runState: null, cwd: repo }));
@@ -190,10 +190,10 @@ test('a staged rename INTO policy.yml is denied even though --name-only would sh
   // arbitrary tracked content land in the enforcement file (review finding).
   // --name-status renders it R100<TAB>old<TAB>new and the status letter rejects.
   const repo = gitRepoWithCommit();
-  fs.writeFileSync(path.join(repo, 'payload.yml'), 'worktree.always: false\n');
+  fs.writeFileSync(path.join(repo, 'payload.yml'), 'worktree-always: false\n');
   execFileSync('git', ['-C', repo, 'add', 'payload.yml']);
   execFileSync('git', ['-C', repo, 'commit', '-m', 'payload', '-q']);
-  withPolicy(repo, 'worktree.always: true\n'); // on disk only, never committed
+  withPolicy(repo, 'worktree-always: true\n'); // on disk only, never committed
   execFileSync('git', ['-C', repo, 'mv', '-f', 'payload.yml', '.claude-tweaks/policy.yml']);
   const nameOnly = execFileSync('git', ['-C', repo, 'diff', '--cached', '--name-only'], { encoding: 'utf8' }).trim();
   assert.strictEqual(nameOnly, '.claude-tweaks/policy.yml', 'precondition: --name-only really does collapse the rename to one line');
@@ -269,7 +269,7 @@ test('isPolicyOnlyCommit fails closed on non-string / garbage input without thro
 
 test('every case above returns an object shape from pre.run (spot re-check across allow/deny)', () => {
   const repo = gitRepoWithCommit();
-  withPolicy(repo, 'worktree.always: true\n');
+  withPolicy(repo, 'worktree-always: true\n');
   execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
   const cases = [
     { input: editInput(path.join(repo, '.claude-tweaks', 'policy.yml')), cwd: repo },

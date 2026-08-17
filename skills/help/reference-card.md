@@ -7,14 +7,14 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | Command | What it does | Takes |
 |---------|-------------|-------|
 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs\|github-remote\|issue-form\|design-integration\|diagram-suggestions\|shadcn-integration\|cloud-parity\|routines\|branch-tracking\|work-backend\|autonomy\|emil-skills\|integration-model]` |
-| `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task]` |
+| `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task] [--needs-definition\|--no-needs-definition]` |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
-| `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready sub-issue records | `<#N\|record-id\|design-doc-path\|topic\|backlog-title> [phase-N] [--surface <web\|mobile\|desktop\|backend\|infra>] [--granularity <fine\|standard\|coarse>]` |
-| `/claude-tweaks:build` | Implement a work record, spec, or design doc | `[#<n>\|<spec>\|<design-doc-path>\|<topic>] [subagent\|batched] [auto] [worktree\|current-branch] [tier=<fast\|standard\|capable\|frontier>] [ops=confirm]` |
-| `/claude-tweaks:stories` | Generate or update QA story YAML files (journey-aware) | `[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [pages=<n>] [refine=false] [negative=false] [journey=<name>] [migrate]` |
+| `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready sub-issue records | `<#N[,#M...]\|record-id[,id...]\|design-doc-path\|topic\|backlog-title> [phase-N] [--surface <web\|mobile\|desktop\|backend\|infra\|terminal>] [--granularity <fine\|standard\|coarse>] [--chained]` |
+| `/claude-tweaks:build` | Implement a work record, spec, or design doc | `[#<n>\|<design-doc-path>\|<topic>] [subagent\|batched] [auto] [worktree\|current-branch] [tier=<fast\|standard\|capable\|frontier>] [ops=confirm]` |
+| `/claude-tweaks:stories` | Generate or update QA story YAML files (journey-aware) | `[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [pages=<n>] [refine=false] [negative=false] [journey=<name>]` |
 | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA stories | `[types\|lint\|unit\|integration\|e2e\|affected\|qa\|all\|skip-qa\|<path>] [tag=<tag>] [story=<name>] [retry=<path>] [journey=<name>] [dir=<path>] [priority=<level>] [max_parallel=N] [timeout=<ms>] [headless]` |
 | `/claude-tweaks:review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in `/claude-tweaks:flow`). Gates on `/claude-tweaks:test`. | `[<spec-number>\|<file-path>...\|visual <url-or-description>\|journey:<name>\|discover] [full] [low\|medium\|high\|xhigh\|max]` |
-| `/claude-tweaks:wrap-up` | Reflect, capture learnings, clean up | `[#N\|<spec>\|<context>\|resume] [--dry-run] [--skill-budget <n>]` |
+| `/claude-tweaks:wrap-up` | Reflect, capture learnings, clean up | `[#N\|<spec>\|<context>\|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>]` |
 
 ## Component (standalone or called by lifecycle skills)
 
@@ -26,30 +26,31 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:deepen` | Architectural depth pass — finds shallow modules, proposes deepening/collapsing ranked by leverage | `[<file-or-dir>...\|<spec-number>] [--kind deepen\|collapse]` |
 | `/claude-tweaks:journeys` | Create/update user journey documentation | `[<spec-number>\|<file-path>...\|--journey <name>]` |
 | `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, discovery | `[<url>\|journey:<name>\|discover [--budget <n>]\|--mode=recommendation] [--source <parent-skill>]` |
-| `/claude-tweaks:design-wrapper` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `doctor`, `reset-recommendations`, `live` | `<shape\|pre-build\|test\|review\|polish\|survey\|doctor\|reset-recommendations\|live> [target] [--screenshots <paths>] [--source <parent-skill>] [--dry-run] [--limit <n>]` |
+| `/claude-tweaks:design-wrapper` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `doctor`, `reset-recommendations`, `live` | `<shape\|pre-build\|test\|review\|polish\|survey\|doctor\|reset-recommendations\|live\|explore> [target] [<surface-topic>] [--screenshots <paths>] [--source <parent-skill>] [--description <text>] [--dry-run] [--limit <n>] [--scope <identity\|layout>]` |
 | `/claude-tweaks:visualize` | Themed diagram generation — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid, or a live diagram of this project's own open work-record queue | `<architecture\|flowchart\|sequence\|state\|er\|timeline\|swimlane\|quadrant\|nested\|tree\|org-chart\|layers\|venn\|pyramid\|record-graph> [topic] [--source <caller>] [--ephemeral]` |
-| `/claude-tweaks:assess-agent-autonomy` | Inline judgment helper — grant-check informs `/claude-tweaks:backlog refine`'s recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs specify's per-record ceremony depth (flow falls back to it only for records that never went through specify). Never invoked directly by a human. | `<grant-check\|merge-check\|failure-check\|ceremony-check> [#<n>] [--base <ref>]` |
-| `/claude-tweaks:feedback` | Route a learning upstream to the claude-tweaks plugin — defect or gap. | `[<learning text>] [--kind=defect\|gap] [--dry-run]` |
+| `/claude-tweaks:assess-agent-autonomy` | Inline judgment helper — grant-check informs `/claude-tweaks:backlog refine`'s recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs specify's per-record ceremony depth (flow falls back to it only for records that never went through specify). Never invoked directly by a human. | `<grant-check\|merge-check\|failure-check\|ceremony-check> [#{n}] [--base <ref>]` |
+| `/claude-tweaks:feedback` | Route a learning upstream to the claude-tweaks plugin — defect or gap. | `[<learning text>] [--kind=defect\|gap] [--dry-run] [--queue] [--pre-confirmed]` |
 
 ## Utility
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
 | `/claude-tweaks:help` | Dashboard: commands + status (incl. current PR, installed plugin version) + recommendations | `[status\|commands\|policy\|<topic>] [--budget <n>]` |
-| `/claude-tweaks:help policy` | Grouped policy-config review with audit issues, notable defaults, and validated apply | — |
+| `/claude-tweaks:help policy` | Grouped policy-config review with audit issues, notable defaults, and validated apply | `[status\|commands\|policy\|<topic>] [--budget <n>]` |
 | `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health/harness-health/journey-health/docs-health issues) | `[--scope=<name>[,<name>...]] [--dry-run]` |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects records itself | `<#n>[,#m,#o]\|<spec>[,spec...] [worktree\|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto\|interactive\|hybrid\|confirm] [keep-going] [step1,step2,step3]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects records itself | `<#n>[,#m,#o] [worktree\|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto\|interactive\|hybrid\|confirm] [keep-going] [step1,step2,step3]` |
 | `/claude-tweaks:backlog` | Three modes over the open backlog: `refine` ensures every record has the right priority/Related/grant labels (a write sweep, human-confirmed); `overview` renders a distribution picture and recommends what to build next (read-only); `grant` is the headless machine-grant unit behind the `unattended` autonomy ceiling (`github-issues` only, off by default). | `[refine\|overview\|grant] [critical\|risk-value\|cleanup\|trust] [--budget <n>] [--origin <origin>]` |
 | `/claude-tweaks:dispatch` | The queue consumer — selects an authorized record's whole file-overlap group, mints its run directory, and hands it to `/flow` (which claims it via an atomic blob lock at its Step 2.8); settles on success/failure | `[next\|#N[,#M...]] [--batch-size <n>] [--priority high\|medium\|low]` |
-| `/claude-tweaks:browse` | Unified browser automation (utility) | `[<url>\|<task description>] [--session <name> ...] [set viewport <wxh>\|set device "<name>"] [backend=chrome ...] [--quick]` |
+| `/claude-tweaks:browse` | Unified browser automation (utility) | `[<url>\|<task description>] [--session <name> ...] [set viewport <wxh>\|set device \"<name>\"] [backend=chrome ...] [--quick]` |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | `[resolve [<feature-name>]\|<feature-name>]` |
 | `/claude-tweaks:research` | Deep web research with citation-audited reports — 4 runtime modes from quick to ultradeep. `verify` mode grounds a design's assumptions before `/superpowers:brainstorming`; the bare-topic form stays a no-fixed-position utility. | `verify [brief-path\|#N] \| <topic> [--mode=quick\|standard\|deep\|ultradeep] [--engine=auto\|inline] [--output=<path>]` |
 | `/claude-tweaks:code-health` | LLM-as-judge recurring sweep — applies criteria holistically to a directory slice, deduplicates against open GitHub issues, files pre-specs as GitHub issues. Scheduled Routine. Never edits code. | `[--area <path>] [focus=<vertical>] [--budget <n>] [--min-risk low\|medium\|high] [--dry-run] [--root <dir>]` |
-| `/claude-tweaks:routine` | Instantiate a skill's routine template (e.g. code-health's) into a live cloud Routine via `RemoteTrigger` — template-driven, resolves project/account values with minimal prompts | `<create\|update\|status> <skill>\|--all [--dry-run] [--defaults] [--environment <id>] [--refresh-environment]` |
+| `/claude-tweaks:routine` | Instantiate a skill's routine template (e.g. code-health's) into a live cloud Routine via `RemoteTrigger` — template-driven, resolves project/account values with minimal prompts. `fleet on\|status\|off` provisions/aggregates/pauses the whole self-maintaining fleet in one action instead of one skill at a time | `<create\|update\|status> <skill>\|--all\|<fleet on\|status\|off> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]` |
 | `/claude-tweaks:harness-health` | Recurring health check auditing `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init`/`/wrap-up`. Scheduled Routine. Never edits anything — always files a GitHub issue. | `[--target <id>] [--kind skill\|rule\|claude-md\|design-artifact\|memory] [--memory-dir <path>] [--budget <n>] [--min-confidence low\|med\|high] [--force-gap-scan] [--dry-run] [--root <dir>]` |
 | `/claude-tweaks:journey-health` | Recurring health check auditing `docs/journeys/*.md` for drift and journey-story coverage gaps (light tier); an interactive-only deep tier actually runs a journey's QA stories or walks it live. Scheduled Routine (light tier only). Never edits anything — always files a GitHub issue. | `[--target <journey-name>] [--budget <n>] [--deep] [--dry-run] [--root <dir>] [--min-confidence <low\|med\|high>]` |
 | `/claude-tweaks:docs-health` | Recurring health check auditing `docs/**` for Diátaxis genre-drift, depth-mismatch, findability, and factual staleness, with dual-persona misleading-risk tagging. Scheduled Routine. Never edits anything — always files a GitHub issue. | `[--target <id>] [--dir <path>] [--budget <n>] [--min-confidence low\|med\|high] [--dry-run] [--root <dir>]` |
-| `/claude-tweaks:demo` | Resolves one built thing per invocation — this session's own unrecorded work, or a specific `#N` record — briefs you on it and captures a human verdict, approve or request changes; discovery of what's outstanding is `/claude-tweaks:help`'s job | `[#N]` |
+| `/claude-tweaks:demo` | Resolves one built thing per ref — this session's own unrecorded work (bare), a specific `#N` record, or a `#N,#M` list taken one item at a time — briefs you on it and captures a human verdict, approve or request changes; discovery of what's outstanding is `/claude-tweaks:help`'s job | `[#N[,#M...]]` |
+| `/claude-tweaks:routine-kickoff` | Machine-invoked by routine kernels (firing-lifecycle wrapper); not for direct human use | `<skill> [args...]` |
 
 ## Recommended Companion Tools
 
@@ -118,6 +119,7 @@ or standalone:
 ```
 /claude-tweaks:init
 /claude-tweaks:visual-review discover
+/claude-tweaks:routine fleet status                   → what did my codebase do to itself this week
 ```
 
 ## Artifact Lifecycle
@@ -150,7 +152,7 @@ Under `integration-model: pr-first` (`_shared/integration-model.md`, GitHub-back
 
 | Stop | Where | What |
 |---|---|---|
-| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
+| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification, design-critique) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
 | **Wrap-Up Review Console** | `/wrap-up` Phase 4 | One consolidated batch: auto-applied items + pending-review items + skill updates + config changes. Hit "1. Approve all" or override. |
 
 **Mid-flow:** skills look up policy from `.claude-tweaks/pipelines/{run-id}/config.yml` — read via `bin/resolve-policy.js`, `_shared/policy-schema.md`'s Canonical read path — and log every auto-decision to `decisions.md`. Skills MUST NOT invent new mid-flow stops in auto.

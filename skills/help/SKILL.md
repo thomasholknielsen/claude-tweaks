@@ -3,7 +3,7 @@ name: help
 description: Use when you need a quick reference for available commands, want to see workflow status, or need a recommendation for what to do next.
 argument-hint: "[status|commands|policy|<topic>] [--budget <n>]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Help — Quick Reference + Workflow Dashboard
@@ -85,15 +85,15 @@ Row order in the Ready-to-Build table comes from the shared `bin/lib/issues/rank
 
 ### Present Recommendation
 
-Render the recommendation as the `## Next Actions` block below via one `AskUserQuestion` call — `{recommended command}` becomes option 1, labeled with a short name suffixed `(Recommended)`, with 1-3 alternatives drawn from the priority order.
+Render the recommendation as the `## Next Actions` block below as plain markdown — `{recommended command}` renders first, bolded, with `(recommended)`, with 1-3 alternatives drawn from the priority order.
 
 ## Next Actions
 
-Call `AskUserQuestion`:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), options dynamically drawn from the priority order above:
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: short name of the recommended command suffixed `(Recommended)`, `description`: the full command with parameters + rationale
-- Option 2 (and optional option 3) — same shape, for each alternative drawn from the priority order
+**`{the recommended command, fully qualified, with parameters}`** — {rationale} (recommended)
+`{alternative command, fully qualified, with parameters}` — {rationale}
+`{optional second alternative command, fully qualified, with parameters}` — {rationale}
 
 ## Component-Skill Contract
 

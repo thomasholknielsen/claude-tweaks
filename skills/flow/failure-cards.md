@@ -26,11 +26,18 @@ gh issue comment "$ISSUE" --body "Blocked at {gate}: {one-line reason}. Run {run
 Compute `{expiry}` from this run's claim comment (`claimedAt` + `ttlHours`).
 
 Posting is automatic (a reversible network write) and each post logs to `decisions.md`.
-Release remains offered-only — see below. When claims are held, append this as an
-additional `AskUserQuestion` option to whichever template's Next Actions call applies
-— not as a separate freestanding numbered item:
-
-- `label`: `"Release claims"`, `description`: `"Release held claims if you will not resume (reason failed: {gate}): read claims/issue-{issue}.json on claims-registry for its current sha, then overwrite it with the release tombstone (per _shared/issue-claims.md, 'The lock' → Release), after the ownership check (_shared/issue-claims.md, 'Release triggers') + release comment, then best-effort gh issue edit \"$ISSUE\" --remove-label bot:in-progress (every release removes the cosmetic claim mirror, regardless of outcome) — otherwise they expire after the TTL (72h default). Grants (auto:build/auto:merge) are untouched by a failed-gate release — see issue-claims.md's Release triggers table; grant removal is scoped to a merged:/pr-opened: outcome only, so the record stays eligible for a future dispatch retry."`
+Release remains offered-only — see below. When claims are held, the release decision
+renders as a separate `AskUserQuestion` call in whichever template's Next Actions
+section applies (see below) — never folded into the navigation command block. Releasing
+means: read claims/issue-{issue}.json on claims-registry for its current sha, then
+overwrite it with the release tombstone (per _shared/issue-claims.md, 'The lock' →
+Release), after the ownership check (_shared/issue-claims.md, 'Release triggers') +
+release comment, then best-effort `gh issue edit "$ISSUE" --remove-label bot:in-progress`
+(every release removes the cosmetic claim mirror, regardless of outcome) — otherwise
+they expire after the TTL (72h default). Grants (auto:build/auto:merge) are untouched by
+a failed-gate release — see issue-claims.md's Release triggers table; grant removal is
+scoped to a merged:/pr-opened: outcome only, so the record stays eligible for a future
+dispatch retry.
 
 ## Generic gate failure
 
@@ -65,15 +72,15 @@ additional `AskUserQuestion` option to whichever template's Next Actions call ap
 
 ### Next Actions
 
-Close the template's fence above, then call `AskUserQuestion` with the applicable options as unfenced prose:
+Close the template's fence above, then render the applicable lines as plain markdown (docs/skill-authoring.md's Skill handoffs convention), unfenced prose:
 
-- `question`: `"How do you want to proceed?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Resume (Recommended)"`, `description`: `"/claude-tweaks:flow {spec} {failed-step} — resume from {failed step}"`
-- Option 2 — `label`: `"Run manually"`, `description`: `"/claude-tweaks:{step} {spec} — run {failed step} manually for more control"`
-- Option 3 (if test failed) — `label`: `"Re-verify"`, `description`: `"/claude-tweaks:test — re-verify after fixes"`
-- Option 4 (if issue claims are held) — the claims-release option described above
+**`/claude-tweaks:flow {spec} {failed-step}`** — resume from {failed step} (recommended)
+`/claude-tweaks:{step} {spec}` — run {failed step} manually for more control
+`/claude-tweaks:test` — re-verify after fixes — when test failed
 
-A re-verify failure after polish (the "polish broke verification" shape) never reaches this template — per the routing table above, it always routes to the "Polish broke verification" template below, which owns the dedicated `git diff` / `git revert` conversion for that shape. That branch is dropped here rather than duplicated. With it dropped, the realistic maximum for this call is base 2 + "if test failed" (1) + claims-release (1) = 4 options, exactly at `AskUserQuestion`'s 4-option cap — never assemble a 5th.
+When issue claims are held, additionally call `AskUserQuestion` (single decision — release the claim(s) or keep them held; the skill executes the release itself; kept-vs-released changes what other dispatchers may do, which is why this is a decision that blocks the skill from finishing (docs/skill-authoring.md's Skill handoffs convention), not navigation).
+
+A re-verify failure after polish (the "polish broke verification" shape) never reaches this template — per the routing table above, it always routes to the "Polish broke verification" template below, which owns the dedicated `git diff` / `git revert` conversion for that shape. That branch is dropped here rather than duplicated.
 
 ## Polish broke verification
 
@@ -101,11 +108,12 @@ Use this specific shape (instead of the generic template above) when the re-veri
 
 ### Next Actions
 
-Close the template's fence above, then call `AskUserQuestion` with the options in the same order, option 1 labeled `(Recommended)`, as unfenced prose:
+Close the template's fence above, then render the lines in the same order below as plain markdown (docs/skill-authoring.md's Skill handoffs convention), unfenced prose:
 
-- `question`: `"How do you want to proceed?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Inspect diff (Recommended)"`, `description`: `"git diff {polish-commit-range} — inspect the polish modifications that broke verification"`
-- Option 2 — `label`: `"Revert + resume"`, `description`: `"git revert {polish-commit} then /claude-tweaks:flow {spec} no-polish wrap-up — revert the polish commit and resume without polish"`
-- Option 3 — `label`: `"Fix manually"`, `description`: `"Fix the verification failure manually, then resume: /claude-tweaks:flow {spec} polish"`
+**`git diff {polish-commit-range}`** — inspect the polish modifications that broke verification (recommended)
+`git revert {polish-commit}` then `/claude-tweaks:flow {spec} no-polish wrap-up` — revert the polish commit and resume without polish
+Fix the verification failure manually, then resume: `/claude-tweaks:flow {spec} polish`
+
+When issue claims are held, additionally call `AskUserQuestion` (single decision — release the claim(s) or keep them held; the skill executes the release itself; kept-vs-released changes what other dispatchers may do, which is why this is a decision that blocks the skill from finishing (docs/skill-authoring.md's Skill handoffs convention), not navigation).
 
 > The re-verify cycle cap is 1 per flow run. Resuming with `/claude-tweaks:flow {spec} polish` starts a fresh cycle.

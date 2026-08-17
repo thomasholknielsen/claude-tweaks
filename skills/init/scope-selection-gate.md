@@ -4,7 +4,7 @@ Loaded by `/claude-tweaks:init` once Phase 0 completes and the gate is actually 
 i.e. `$ARGUMENTS` named no goal-based Phase scope and no Enhancement filter token. The skip
 conditions and the `auto`-exemption note stay in `SKILL.md`; everything needed to render the gate
 and act on the answer is here. Section names referenced below (Phases at a Glance, Input,
-Finalizing the worktree.always Decision) are sections of `SKILL.md`.
+Finalizing the worktree-always Decision) are sections of `SKILL.md`.
 
 ## The prompt and its four options
 
@@ -25,11 +25,11 @@ Call `AskUserQuestion` (see "Phases at a Glance" above for the full table):
 - Option 2 — `label`: `"Skip Phase {next phase}"`, `description`: `"Move to Phase {phase after next}"`
 - Option 3 — `label`: `"Done"`, `description`: `"Stop here"`
 
-If the user selects this template's "Done" and Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
+If the user selects this template's "Done" and Step 6 queued a `worktree-always` decision, write it now — see "Finalizing the worktree-always Decision" above.
 
 **Option 3 (Essentials):** Runs phases 2, 3, 5 only — the same phase set as the `config` goal-based Phase scope (see "Input" above; Phase 0 always runs first regardless of scope, so the two are equivalent). Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest running `/init config` directly next time to skip this gate).
 
-**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later. If Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
+**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later. If Step 6 queued a `worktree-always` decision, write it now — see "Finalizing the worktree-always Decision" above.
 
 ## Phase dependencies
 

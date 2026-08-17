@@ -49,7 +49,7 @@ function addWorktree(root) {
 
 // Same shape as tests/hooks-pre-tool-use.test.js's own withPolicy — used by
 // the IMPORTANT-3 compound-command test below, which needs a repo that has
-// OPTED IN to worktree.always so checkWorktreeRequired has something to deny.
+// OPTED IN to worktree-always so checkWorktreeRequired has something to deny.
 function withPolicy(repo, content) {
   fs.mkdirSync(path.join(repo, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.claude-tweaks', 'policy.yml'), content);
@@ -382,10 +382,10 @@ test('AC5: an unowned run with a payload carrying no session_id is denied', () =
 // IMPORTANT 3 (whole-branch review): the foreign-owner WARN path must not
 // short-circuit runInner — previously, `git worktree remove <foreign-wt> &&
 // git commit -m x` returned on the warn and never reached the trailing
-// commit, silently bypassing worktree.always for it (measured).
-test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktree.always, with the foreign-teardown warning attached', () => {
+// commit, silently bypassing worktree-always for it (measured).
+test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktree-always, with the foreign-teardown warning attached', () => {
   const root = fixtureRoot();
-  withPolicy(root, 'worktree.always: true\n');
+  withPolicy(root, 'worktree-always: true\n');
   const foreignWt = addWorktree(root);
   makeRun(root); // empty run dir for record-worktree to claim
   const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
@@ -400,14 +400,14 @@ test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktr
   assert.strictEqual(r.code, 0);
   const out = JSON.parse(r.stdout);
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny',
-    'the trailing `git commit` in the main checkout must still be denied by worktree.always');
-  assert.match(out.hookSpecificOutput.permissionDecisionReason, /worktree\.always/);
+    'the trailing `git commit` in the main checkout must still be denied by worktree-always');
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /worktree-always/);
   assert.ok(out.systemMessage && out.systemMessage.includes('recorded by a different session'),
     'the foreign-teardown warning must still be attached, proving the teardown gate did not silently swallow it');
 });
 
 // The other half: a LONE foreign-owned teardown (no compound command, no
-// worktree.always policy) still allows + warns — the warn behavior itself is
+// worktree-always policy) still allows + warns — the warn behavior itself is
 // unchanged, only the short-circuit is fixed.
 test('IMPORTANT 3: a lone foreign-owned `git worktree remove` (no compound command) still allows and warns', () => {
   const root = fixtureRoot();

@@ -42,12 +42,12 @@ Run these mechanical checks first and treat their output as **evidence a later j
 2. **Quantified convention-drift check** (all kinds). For each documented convention, grep how many current files match it versus how many comparable files don't: `grep -rl "<pattern-signature>" <domain-dir> | wc -l`. A convention followed by a small minority (e.g. 2 of 15) is quantified evidence — cite the ratio.
 3. **Rule glob-resolution check** (`rule` only). Expand the rule's `paths:` frontmatter glob against the filesystem: `find "{root}" -path "<glob>" 2>&1`. Zero matches is strong mechanical evidence the rule's domain no longer exists — a high-confidence `drift` finding proposing an updated glob or retiring the rule.
 4. **Tiered line-budget check** (`rule` and `claude-md`). Budget scales with how unconditionally the file loads, not with what kind it is:
-   - **Always-loaded tier** — CLAUDE.md, and any rule whose `paths:` frontmatter is absent or empty (such a rule loads every session identically to CLAUDE.md). Budget: the resolved `harness-health.always-loaded-budget` value.
-   - **Scoped tier** — any rule with a non-empty `paths:` list. Budget: the resolved `harness-health.scoped-rule-budget` value.
+   - **Always-loaded tier** — CLAUDE.md, and any rule whose `paths:` frontmatter is absent or empty (such a rule loads every session identically to CLAUDE.md). Budget: the resolved `harness-health-always-loaded-budget` value.
+   - **Scoped tier** — any rule with a non-empty `paths:` list. Budget: the resolved `harness-health-scoped-rule-budget` value.
 
    ```bash
    wc -l "{target.path}"
-   cd "{root}" && node "{plugin-root}/bin/resolve-policy.js" harness-health.always-loaded-budget harness-health.scoped-rule-budget
+   cd "{root}" && node "{plugin-root}/bin/resolve-policy.js" harness-health-always-loaded-budget harness-health-scoped-rule-budget
    ```
 
    Classify the tier, resolve the budget, compare. Over budget is mechanical, high-confidence evidence for a `template-conformance` finding — content belongs in a skill instead (always-loaded tier), or needs tightening/splitting (scoped tier).

@@ -12,6 +12,7 @@ const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { resolveIntegrationBranch, reapWorktrees: legacyReapWorktrees } = require('../hooks/worktree-reap');
 const { resolveIntegrationModel } = require('../policy-schema');
 const { mirrorFastForward } = require('./mirror-ff');
+const { redTipCheck } = require('./red-tip');
 const { reapMerged } = require('./reap-merged');
 const { releaseMerged } = require('./release-merged');
 const { archiveMerged } = require('./archive-merged');
@@ -19,12 +20,14 @@ const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
 
-// Execution order (mirror, console, release, archive, archive-branches,
-// remote-prune, reap) is significant — see the ordering comment above the
-// release/archive/archive-branches/reap dispatch below. This array is the
-// requested-subset default only; it is never iterated to determine dispatch
-// order.
-const ALL_CHECKS = ['mirror', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'];
+// Execution order (mirror, red-tip, console, release, archive,
+// archive-branches, remote-prune, reap) is significant — see the ordering
+// comment above the release/archive/archive-branches/reap dispatch below.
+// red-tip runs immediately after mirror specifically so it reads the ref
+// mirror-ff.js's own fetch just refreshed, rather than fetching a second
+// time (#561). This array is the requested-subset default only; it is never
+// iterated to determine dispatch order.
+const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'];
 
 // opts: { dryRun?: boolean, checks?: string[], cwd?: string }
 // -> { mirror, worktrees, claims, runs, branches, console, skipped }
@@ -36,7 +39,7 @@ function reconcile(opts = {}) {
   const dryRun = !!opts.dryRun;
   const checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
   const cwd = opts.cwd || process.cwd();
-  const result = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [] };
+  const result = { mirror: null, redTip: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [] };
 
   const root = mainCheckoutRoot(cwd);
   if (!root) {
@@ -76,6 +79,17 @@ function reconcile(opts = {}) {
 
   if (checks.includes('mirror')) {
     result.mirror = mirrorFastForward(root, integration);
+  }
+
+  // Detection only — never mutates repo/run state. Reads origin/{integration}
+  // via the local ref mirror's own fetch above just refreshed — deliberately
+  // no fetch of its own (#561). Placed immediately after mirror for that
+  // reason; unconditional under pr-first, no local-merge equivalent (the
+  // model !== 'pr-first' early-return above already exits before this line).
+  if (checks.includes('red-tip')) {
+    result.redTip = redTipCheck(root, integration, {
+      onSkip: (reason) => result.skipped.push({ check: 'red-tip', reason }),
+    });
   }
 
   // Detection only — never mutates repo/run state, so its position relative

@@ -6,6 +6,17 @@
 // it grants nothing on its own. Callers apply the labels.
 // Was docs/superpowers/specs/2026-08-07-earned-autonomy-tier-design.md, Phase
 // 3 — deleted (bdb2f4f6): all 4 phases shipped, v6.50.0-6.59.0.
+//
+// Expand-contract (refs #647): permittedGrants' flat top-level
+// `bornReady`/`bornAuthorized`/`reason` keys are a transitional twin of the
+// per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` shape — the
+// flat single `reason` could pair a granted bornReady with the other grant's
+// denial text, which is the bug the per-grant shape fixes. Removal condition:
+// delete the flat keys at the first release on or after 2026-11-16 (ship date + 3 months, policy-deprecations.md's dated-backstop shape), re-running `grep -rn "permittedGrants" skills/ bin/` first to confirm every consumer still reads `grants.*`.
+
+// record.js requires only ./facet-shape; this import is one-directional by
+// contract (autonomy -> record, never record -> autonomy) so the two never cycle.
+const { DEFER_REASONS } = require('./record');
 
 // Ordered least to most permissive. Index comparison is the tier test, so the
 // order is load-bearing, not cosmetic.
@@ -57,7 +68,15 @@ function atLeast(ceiling, minimum) {
   return CEILINGS.indexOf(ceiling) >= CEILINGS.indexOf(minimum);
 }
 
-const DENY = (reason) => ({ bornReady: false, bornAuthorized: false, reason });
+const DENY = (reason) => ({
+  bornReady: false,
+  bornAuthorized: false,
+  reason,
+  grants: {
+    bornReady: { granted: false, reason },
+    bornAuthorized: { granted: false, reason },
+  },
+});
 
 // `row` is one of trustRows()'s rows. `grantOriginationEnabled` is the separate,
 // explicit opt-in described below — never inferred from the ceiling.
@@ -82,7 +101,7 @@ function permittedGrants(input) {
   }
 
   // At `trusted`, a class that has earned it may file spec-shaped work directly
-  // as `ready`. That skips /claude-tweaks:specify, not the grant: `ready` asserts
+  // as `ready`. That skips the human shaping round-trip, not the grant: `ready` asserts
   // shape, and _shared/work-record.md's human gate at /claude-tweaks:backlog
   // refine still stands between `ready` and any autonomous build. Agent-filed
   // classes only — see AGENT_FILED_KINDS.
@@ -104,25 +123,66 @@ function permittedGrants(input) {
   // stays behind its own opt-in until that invariant is deliberately amended, and
   // reaching the top tier is never by itself that amendment.
   if (!atLeast(tier, 'unattended')) {
-    return { bornReady, bornAuthorized: false, reason: `class is clean and the ceiling is ${tier}` };
-  }
-  if (grantOriginationEnabled !== true) {
+    const reason = `class is clean and the ceiling is ${tier}`;
     return {
       bornReady,
       bornAuthorized: false,
-      reason: 'ceiling is unattended, but machine-originated grants need their own explicit opt-in',
+      reason,
+      grants: {
+        bornReady: { granted: bornReady, reason: '' },
+        bornAuthorized: { granted: false, reason },
+      },
     };
   }
-  return { bornReady, bornAuthorized: true, reason: 'class is clean, ceiling is unattended, grant origination opted in' };
+  if (grantOriginationEnabled !== true) {
+    const reason = 'ceiling is unattended, but machine-originated grants need their own explicit opt-in';
+    return {
+      bornReady,
+      bornAuthorized: false,
+      reason,
+      grants: {
+        bornReady: { granted: bornReady, reason: '' },
+        bornAuthorized: { granted: false, reason },
+      },
+    };
+  }
+  return {
+    bornReady,
+    bornAuthorized: true,
+    reason: 'class is clean, ceiling is unattended, grant origination opted in',
+    grants: {
+      bornReady: { granted: bornReady, reason: '' },
+      bornAuthorized: { granted: true, reason: '' },
+    },
+  };
 }
 
 // Floor-check predicate for the autonomy ceiling's ledger-narrowing bookkeeping
-// capability. Decides whether a ledger item's Phase 1 "why not fixed now"
-// blocker reason is one of the four categories ledger/resolve-gate.md's Phase 1
-// already requires as legitimate -- the only categories bookkeeping narrowing is
-// allowed to auto-route without asking. Moved verbatim from the retired
-// unattended-tier.js -- same regex patterns, same logic, no behavior change.
+// capability. Decides whether an item's "why not fixed now" reason is one of the
+// categories skills/_shared/deferral-gate.md's floor mapping marks as clearing
+// the floor -- the only categories bookkeeping narrowing is allowed to auto-route
+// without asking. Two paths: a structured Defer-reason: value (exact member of
+// DEFER_REASONS) resolves from the mapping table below; anything else falls back
+// to the regex categories that predate the vocabulary, moved verbatim from the
+// retired unattended-tier.js -- same patterns, same logic, no behavior change.
 // Was docs/superpowers/specs/2026-07-16-unattended-tier-design.md — deleted (652a97c4).
+//
+// Removal condition for the regex fallback (stated in the same words in
+// skills/_shared/deferral-gate.md's "Removal condition" section):
+// Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.
+
+// Structured verdicts, per deferral-gate.md's floor mapping: blocked-external <->
+// the external-state group, needs-human-decision <-> the product/design group,
+// blocked-dependency <-> not-yet-built, genuinely-larger <-> scope expansion +
+// UNRELATED_TESTS_RE; tangential and pre-existing-outside-diff map to no group.
+const STRUCTURED_FLOOR = Object.freeze({
+  'tangential': false,
+  'needs-human-decision': true,
+  'pre-existing-outside-diff': false,
+  'genuinely-larger': true,
+  'blocked-external': true,
+  'blocked-dependency': true,
+});
 
 const CATEGORY_PATTERNS = [
   // External state: third-party data, prod traffic, approvals
@@ -152,6 +212,10 @@ const UNRELATED_TESTS_RE = /breaks? (more than )?(\d+) unrelated tests/i;
 
 function clearsFloor(blockerReason) {
   if (typeof blockerReason !== 'string' || blockerReason.trim() === '') return false;
+  // Structured path first: an exact vocabulary member never reaches the regexes,
+  // so a free-prose reason that merely contains a vocabulary word still takes
+  // the regex path below.
+  if (DEFER_REASONS.includes(blockerReason)) return STRUCTURED_FLOOR[blockerReason] === true;
   if (CATEGORY_PATTERNS.some((re) => re.test(blockerReason))) return true;
   const testsMatch = UNRELATED_TESTS_RE.exec(blockerReason);
   if (!testsMatch) return false;

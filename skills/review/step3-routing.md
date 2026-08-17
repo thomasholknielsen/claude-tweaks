@@ -48,7 +48,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 
 - Findings table merged from lenses 3a-3i, plus open QA ledger entries with phase `test/qa`.
 - Pipeline run directory (when in auto/hybrid mode).
-- `review-severity-floor` value from `config.yml` (default `low`).
+- `review-auto-apply-ceiling`, resolved per the Auto mode section below (resolver `--run` overlay; ceiling-conditional default when nothing is set).
 - The resolved `review-effort` tier from `/claude-tweaks:review`'s Step 2.5.
 
 **`unconfirmed` findings can originate from several sources**, and all render identically in this table with `(low-confidence)` appended — the caller does not distinguish them:
@@ -72,19 +72,21 @@ Unresolved QA ledger entries (status `open`, phase `test/qa`) are included in th
 
 ## Auto mode (severity-based routing)
 
-When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `review-severity-floor` from `config.yml` (default `low`). When no explicit value was set (no CLI arg, no Manifesto override, no project policy), the default is ceiling-conditional: `medium` when the resolved `autonomy` ceiling is `unattended`, `low` otherwise — see `_shared/autonomy-ceiling.md` for the rationale; this is a skill-default shift, not a new capability, so an explicit value at any level still wins.
+When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), resolve `review-auto-apply-ceiling` — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" review-auto-apply-ceiling` (JSON envelope, not `--values`, because the next sentence needs `source`). When the envelope's `source` is `default` (no CLI arg, no Manifesto override, no project policy — nothing set at run or policy level), the effective default is ceiling-conditional: `medium` when the resolved `autonomy` ceiling is `unattended`, `low` otherwise — see `_shared/autonomy-ceiling.md` for the rationale; this is a skill-default shift, not a new capability, so an explicit value at any level still wins. A piped `/flow` run never reaches this `source: default` branch for this lever — the Manifesto computes the same ceiling-conditional value into `config.yml` (`flow/manifesto.md`'s Recommendation-defaults row), which resolves as `source: run-config` here, already ceiling-correct. What this branch remains for is a run directory whose `config.yml` never set the lever — e.g. a `/build`-parented review resolving a standalone-materialization run dir, which carries `decisions.md`/`staged/` but no Manifesto-written `config.yml` (`_shared/pipeline-run-dir.md`); a standalone `/review` with no run directory never executes this resolution at all (`_shared/policy-schema.md`'s lever row: no standalone direct-read site exists).
 
 Per the `/review` Step 3 Routing row in `_shared/auto-mode-contract.md`, severity routes to: low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT (rare; security/correctness hard-fails the bookend). Append every entry to `decisions.md` under the `## /review` heading.
 
-| Severity | Default action under `review-severity-floor: low` | Log entry |
+| Severity | Default action under `review-auto-apply-ceiling: low` | Log entry |
 |---|---|---|
 | **Critical** | Stage as patch + `KEPT-PROMPT` — surface inline ALSO. Critical findings always interrupt. | `KEPT-PROMPT {time} — Step 3 Routing: critical finding {category} at {file:line}. Surfaced inline. Reversibility: high.` |
 | **High** | Stage as patch in `staged/review-{n}.patch`. Surface at Review Console. | `STAGED {time} — Step 3 Routing: high-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch. Reversibility: high.` |
 | **Medium** | Stage as patch in `staged/review-{n}.patch`. Surface at Review Console. | `STAGED {time} — Step 3 Routing: medium-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch. Reversibility: high.` |
 | **Low** | Auto-apply the fix. Commit. | `AUTO {time} — Step 3 Routing: applied low-severity {category} fix at {file:line}. Reversibility: high; commit: {hash}.` |
 
-When `review-severity-floor: medium`: auto-apply Low AND Medium; stage High; prompt Critical.
-When `review-severity-floor: none`: stage everything; never auto-apply.
+When `review-auto-apply-ceiling: medium`: auto-apply Low AND Medium; stage High; prompt Critical.
+When `review-auto-apply-ceiling: none`: stage everything; never auto-apply.
+
+**Staging a patch — validate first, describe the invariant.** Every `staged/review-{n}.patch` written by the rows above follows `_shared/staged-patch.md`: the file opens with a `Target:` / `Invariant:` / `Finding:` / `Staged-at:` preamble (the target file plus the one-sentence property the fix establishes — the durable intent) followed by the unified diff, and is validated with `git apply --check` from the worktree **before** the `STAGED` log entry is written. A failing check is handled per that file's Staging-time gate and surfaces here, at staging time — never first at the console. This matters because `/simplify`, polish, and later fix waves legitimately move the target lines between now and the console; the console applies the diff when it still fits and otherwise re-derives the edit from `Invariant:` (that file's Console apply with description fallback), so a stale diff is expected, not an error.
 
 After routing, append all findings to the ledger as usual (status `open` for staged, `fixed` for auto-applied). The Review Console at `/wrap-up`'s Phase 4 surfaces staged items for batch approval.
 
@@ -123,17 +125,21 @@ If "Override specific items" is chosen, the follow-up is ordinary free-text chat
 
 **When "Fix now" isn't possible**, route to the right destination:
 
-- **Defer** (new work record, `parked`) — the fix is understood but it's bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin spec, and affected files, then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`).
-- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → `/superpowers:brainstorming` pipeline.
+- **Defer** (new work record — born-ready, or `parked` on a concrete wake condition) — the fix is understood but it's bigger and not relevant to the current work. Compose the body via `specShapedBody` (finding + evidence → Current State, citing the origin spec as `refs #{n}`; the fix → Deliverables; the review lens's own check → Acceptance Criteria; `filedBy: 'review'`; `provenance: { origin: 'spec #{n} review ({lens})', deferReason }` — the reason chosen by the mapping below; footer `_Filed by \`review\` via specShapedBody._`), then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`) — with `recordPayload({ …, risk, size, ready: true })` scored per the Scoring axis (born-ready per `_shared/work-record.md`'s `/review` row), or `header: 'Trigger: {wake condition}'` + `parked: true` instead of `ready` when the reason is `blocked-dependency`/`blocked-external` with a concrete wake condition. A finding whose verification cannot be honestly stated (its own text names an open choice or missing evidence) uses the composer's `openQuestion` variant and files `needs:definition` (a label with no `recordPayload` parameter — append it at the create call) with no `ready` and no scoring, per `_shared/work-record.md`'s `/review` row; a finding naming an open product choice routes to Capture instead (`tangential` captures).
+- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → `/superpowers:brainstorming` pipeline. Invoke `/claude-tweaks:capture` with the shaped body and `--defer-reason={value} --source review` (capture's Shaped-body branch — `capture/SKILL.md`), plus `--needs-definition` when the finding names an open choice.
 
-**Deferral gate:** An item may only be deferred if it meets ALL of these:
+**Deferral gate:** `_shared/deferral-gate.md` is the gate — run its fix-now criteria before any Defer or Capture, and never skip a fix for one of its bad reasons (its list includes "minor / not load-bearing" — severity floors decide what blocks, not what gets fixed). A finding that fails fix-now carries exactly one `Defer-reason:` from that file's vocabulary, chosen by this mapping (one line of justification recorded in `decisions.md` alongside the routing decision):
 
-- Pre-existing (not introduced by this build), OR requires design discussion that can't be resolved in the current session
-- Has a clear trigger documented for when to revisit
+- a defect in a file the diff does not touch → `pre-existing-outside-diff`
+- a fix needing a product/design call → `needs-human-decision`
+- a fix that expands scope past the fix-now criteria → `genuinely-larger`
+- a fix waiting on unbuilt functionality → `blocked-dependency`
+- a fix waiting on external state → `blocked-external`
+- a new capability the finding suggests → `tangential` (Capture, not Defer)
 
-Items introduced by this build that are fixable now must be fixed now — even if the fix is imperfect, closing the gap is better than deferring.
+A finding that fails fix-now with **no** valid reason stays `open` — in an interactive review it goes to the human drill; in `auto` it becomes an `open` ledger item for wrap-up's Phase 2 drill — it is never filed as a record; it resolves at the human drill (interactive) or wrap-up's ledger resolve gate (auto).
 
-If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, and verify fixes didn't introduce new findings.
+If any findings are "Fix now", make the changes, re-verify per `_shared/deferral-gate.md`'s Re-verification rule (`/claude-tweaks:test`), and verify fixes didn't introduce new findings.
 
 ## Parallel fix dispatch (3+ independent fixes)
 
@@ -155,7 +161,7 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 >
 > The dispatcher inspects the bullets for cross-file conflicts before re-running `/claude-tweaks:test`.
 
-**Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for `parked` routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
+**Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for Defer routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
 ## Routing bias
 

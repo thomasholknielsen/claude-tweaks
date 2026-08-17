@@ -6,7 +6,7 @@ Entirely mechanical — no per-record LLM reads, so it scales to the full fetche
 
 ## Step 1: Fetch
 
-Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md`, same as `refine-mode.md`'s priority/Related fetch (`{tmp-records-file}` = `/tmp/backlog-overview-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-overview-faceted.json`, `{EXTRA_FIELDS}` = `,body`). Step 3's recommendation pass needs every candidate's `body` (for `rankNextToBuild`'s internal `parseDependencies` call) — without `,body` here, the `github-issues` fetch would silently omit bodies rather than error, and every candidate's unblocks-count would silently compute as 0, quietly corrupting the bare-mode recommendation's tie-break order rather than crashing. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way (port the retired `/claude-tweaks:review-backlog` skill's old Step 1 unsynced fold-in verbatim):
+Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md`, same as `refine-mode.md`'s priority/Related fetch (`{tmp-records-file}` = `/tmp/backlog-overview-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-overview-faceted.json`) — reading through the session-scoped record snapshot, shared with `/capture`/`/specify`/`/help`/`/tidy`/`/visualize` and, within this run, with `refine-mode.md`'s own fetch below. Step 3's recommendation pass needs every candidate's `body` (for `rankNextToBuild`'s internal `parseDependencies` call) — the snapshot's union field set always carries `body`, no `{EXTRA_FIELDS}` request needed, so every candidate's unblocks-count computes correctly rather than silently reading 0 and quietly corrupting the bare-mode recommendation's tie-break order. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way (port the retired `/claude-tweaks:review-backlog` skill's old Step 1 unsynced fold-in verbatim):
 
 ```bash
 node -e "
@@ -57,6 +57,14 @@ The verdict vocabulary is read verbatim from `bin/lib/issues/trust.js`'s row ver
 The full table render moves to the trust lens (Step 2).
 
 ## Step 2: Route by lens
+
+**Native blocked-by pre-attach (bare mode only, `work-links: native` repos only — refs #563).** Before the funnel-computation script below runs, resolve native `blockedBy` links for the **ready+granted subset only** (`bl.readyGrantedSubset(all)`, `bin/lib/issues/backlog.js`) — the only records whose `granted`/`dispatchable` split this header renders. This is deliberately narrower than Step 3's own buildable subset (`dispatchable` ∪ `granted`, computed only after this script runs) — see that function's own comment for why the two are not interchangeable.
+
+Resolve `work-links` (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links`); skip this subsection entirely on `work-links: body-text` or `work-backend: local-files` repos — `blockersOf`'s existing facets/body-text fallback stands unchanged for them, exactly as it does today.
+
+On `work-links: native`: check field availability via `capabilities-probe.js`'s `probeCapabilities({owner, repo}).dependencies` first. On probe failure or unavailability, skip the fetch entirely (no-op) — funnel computation proceeds below with `r.blockedBy` unset for every candidate, with one failure-only narration line noting the probe was unavailable (matching Step 3's own probe-failure narration below), never a hard stop. On probe success, fetch every `readyGrantedSubset` candidate's blocked-by set as one aliased GraphQL query using `buildNativeDependencyQuery` (`bin/lib/issues/record.js`), chunked at 50 aliases per request (the same chunking Step 3 already uses; a chunk that fails outright is scoped to its own aliases only — the never-coerce rule below applies per alias regardless of which chunk it came from, so one failed chunk never discards another chunk's already-resolved data), then for each candidate whose alias resolved, set `r.blockedBy = nodes.filter(open).map(number)` using `hasOpenNativeBlocker`-equivalent open-state filtering (`record.js`) — a candidate whose alias is missing or errored inside an otherwise-successful batch gets **nothing attached** (never coerced to `[]`), the same never-coerce rule Step 3 already documents. On whole-fetch failure, no-op the same as probe failure, with the same one-line narration. Any of these degrade paths renders the header's fallback behavior correctly — no hard stop, per this file's failure-only narration convention (one line whenever the probe is unavailable, the whole fetch fails, or at least one alias inside an otherwise-successful batch failed, naming the affected ids where applicable).
+
+The funnel-computation script below then reads `all` with these `r.blockedBy` values already attached — `funnelBuckets`'s existing `blockersOf` precedence (top-level `r.blockedBy` first) buckets a now-attached record into `granted` instead of `dispatchable` with no further change.
 
 ```bash
 node -e "
@@ -128,12 +136,11 @@ counted twice by design.
 
 Restricted to the buildable subset — `funnelBuckets` output `dispatchable` ∪ `granted` (Step 2's
 `.funnel` view) — one predicate, owned by `funnelBuckets`, so the header's counts and this
-recommendation's population can never drift apart. One limitation on that guarantee: the funnel
-header's own `granted`/`dispatchable` split (Step 2) resolves blockers from body-text/`facets`
-data only — native `blockedBy` attachment happens here, in Step 3 — so on a `work-links: native`
-repo a natively-blocked record can still render `dispatchable` in the header even though this
-step's native fetch would resolve it as blocked. Header-level native resolution is deliberately
-out of this record's scope (captured as a follow-up record). For each candidate, compute the three inputs `ranking.js`'s `rankNextToBuild` needs but doesn't compute itself:
+recommendation's population can never drift apart. Step 2's own native `blockedBy` pre-attach
+(above, refs #563) now covers the ready+granted subset this header renders, so the header and this
+step's recommendation read the same blocker data for the population both touch — this step's own
+fetch below still runs independently over its own (differently-scoped) buildable candidate set,
+since the two subsets are not identical (see Step 2's pre-attach note for why). For each candidate, compute the three inputs `ranking.js`'s `rankNextToBuild` needs but doesn't compute itself:
 
 - `keyFiles` — extract the `### Key Files` subsection from the body, the same extraction `/help`'s Conflict detection sub-section already performs.
 - `hasPlan` — `true` if `docs/superpowers/plans/` contains a file whose name references this record's id/slug (a simple filename-pattern check, not a content read).
@@ -160,7 +167,7 @@ node -e "
 - **Headline-replacement rule:** when detection fires, the flagged candidates get no mechanical recommendation. Either (a) the output cites explicit dependency evidence it holds — native links on other candidates, the flagged records' own prose — as a **corrected** "Recommended next" with the citation inline, in which case the corrected pick IS the headline and the raw ranker pick demotes to a one-line footnote (never render a recommendation the same output retracts); or (b) when no such evidence resolves an order, the output states plainly that ranking is unreliable for the flagged set and points at `/claude-tweaks:backlog refine`'s dependency repair.
 - A worked example tracing the observed #418/#419/#420 failure: three records wired `#420 blocked-by #419 blocked-by #418` in the native graph, bodies carrying only prose mentions ("Hard prerequisites, wired as Blocked by links: …"). Pre-#514: bodies parse as zero-dependency, `rankNextToBuild` recommends #420 (the chain's *last* record) first. Post-#514: the native fetch attaches `#420→blockedBy:[419]`, `#419→blockedBy:[418]`, `#418→blockedBy:[]`; `computeUnblocksCount` then yields `418→1, 419→1, 420→0`, so #420 — the record the old path recommended first — drops to last, while #418 and #419 tie at 1. That residual tie (including the fact that a blocked candidate is not demoted by ranking — #419 is itself blocked by #418, yet ties with it) is left to the batch-emitter sub-issue's chain-aware ordering. Had the fetch failed instead, `findUnresolvedDependencyProse` flags all three (prose mention, empty resolution) and case (b) replaces the headline with the unreliable-ranking statement.
 
-Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role. At precedence level 1 (non-empty `needsYou`, see the Needs-you section's Precedence below), the report's closing `Next:` line and the menu's `(Recommended)` option deliberately name the needs-you item instead — this callout stays the build-candidate recommendation regardless, since the two answer different questions (what to build vs. what needs a human decision first).
+Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role. At precedence level 1 (non-empty `needsYou`, see the Needs-you section's Precedence below), the report's closing `Next:` line and the Next Actions block's recommended line deliberately name the needs-you item instead — this callout stays the build-candidate recommendation regardless, since the two answer different questions (what to build vs. what needs a human decision first).
 
 ## Step 4: Batch emitter (bare mode)
 
@@ -214,7 +221,7 @@ chains-first-then-independents grouping.
 
 ```
 ── Score the rest ──
-# {captured-count} unscored records
+# {captured-count} records missing risk/size
 /claude-tweaks:backlog refine
 ```
 
@@ -227,7 +234,7 @@ chains-first-then-independents grouping.
 # #{N} excluded — needs:definition: yours to decide (see Needs you below)
 ```
 
-The exclusion line is one line per matching record — absent entirely when none match. `needs:definition` is LIVE (both drivers parse `facets.needsDefinition` since upstream's v6.85.0 taxonomy landed), so this line renders on any repo carrying matching records; it is not gated on the unjustified-annotation line below, which remains dormant on its own schedule (see below). It attaches immediately above the Shape block's command lines and applies in ANY paste block a matching record appears in.
+The exclusion line is one line per matching record — absent entirely when none match. `needs:definition` is LIVE (both drivers parse `facets.needsDefinition` since upstream's v6.85.0 taxonomy landed), so this line renders on any repo carrying matching records; it is independent of the unjustified-annotation line below (both are live; see below). It attaches immediately above the Shape block's command lines and applies in ANY paste block a matching record appears in.
 
 ```
 ── Dispatch now ──
@@ -240,7 +247,7 @@ The exclusion line is one line per matching record — absent entirely when none
 /claude-tweaks:flow #A,#B
 ```
 
-The unjustified-annotation line is likewise one line per matching record, absent entirely when none match — today that is every repo, since `solutionUnjustified` remains dormant pending #471's `framing:baked` → `solution:unjustified` rename (the exclusion line above is independently live for `needs:definition`, unaffected by this line's dormancy) — it attaches immediately above the command line it annotates, and applies in ANY paste block a matching record appears in (a `solutionUnjustified` record keeps its primary funnel bucket, so it can surface in Shape or Dispatch alike).
+The unjustified-annotation line is likewise one line per matching record, absent entirely when none match — `solutionUnjustified` is live on both drivers since #677 renamed `framing:baked` → `solution:unjustified` (the exclusion line above is independently live for `needs:definition`) — it attaches immediately above the command line it annotates, and applies in ANY paste block a matching record appears in (a `solutionUnjustified` record keeps its primary funnel bucket, so it can surface in Shape or Dispatch alike).
 
 Prose rules: the Score line's count is comment-only (`refine` has no count flag); Shape lines are
 priority-ordered, one record per terminal; a chain emits as **one** multi-ref
@@ -337,14 +344,14 @@ Rendered **last before Next Actions**, only when `funnelBuckets`' `needsYou` is 
 
 One line per record with an interactive launcher, fully qualified:
 - `kind: 'definition'` → `/claude-tweaks:specify #{N}` with a `#`-comment naming the label, waiting-age, and what deciding it releases (e.g. `# needs:definition — waiting {age}; deciding releases {n} records`, or `# needs:definition — waiting {age}; deciding releases nothing tracked` when the count is zero or was skipped — the fallback rule from the Ordering + inputs paragraph above, never a literal `undefined` or `{k}`)
-- `kind: 'unjustified'` → `/claude-tweaks:challenge #{N}` with a `#`-comment naming the one-line call (e.g. `# solution:unjustified — one-line evidence-or-accept-risk call`)
+- `kind: 'unjustified'` → `/claude-tweaks:challenge --lens=1 #{N}` (Lens 1, Surface Hidden Assumptions — the human's evidence pass; that mode's own Next Actions route to `/claude-tweaks:specify #{N}`, which re-runs `framing-check` and clears the label on an `open` verdict) with a `#`-comment naming the one-line call (e.g. `# solution:unjustified — one-line evidence-or-accept-risk call; re-run /claude-tweaks:specify #{N} to clear`)
 - `unsynced: true` needs-you records never render a `#{N}` launcher (local-namespace ids) — they render one `#`-comment naming the sync gap and pointing at `/claude-tweaks:tidy`, still counted in the branch-line total.
 
 **Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch). Primary sort is priority (high first), then age (oldest first), ties by id — matching the emitter's own convention. Releases-count is an **advisory annotation** on each row, not a sort key — it is computed directly, never sourced from `transitiveUnblocksCount` (that Map is keyed by emitter-candidate id only, and a needs-you record structurally never appears as one of those keys, so a lookup against it can never resolve for this lane; the helper remains the emitter's own chain-payout tool, unchanged in Step 4). The direct computation: one `node -e` pass importing `blockersOf` from `ranking.js`, run over the full faceted set at `/tmp/backlog-overview-faceted.json` (the carrier — the whole open set, not the emitter's filtered candidate subset) — count how many OPEN records in that set resolve the needs-you record's id via `blockersOf`. When that count is zero, or the computation was skipped, render `deciding releases nothing tracked` in place of a number — never a literal `undefined` or a dangling placeholder. This priority-then-age ordering deliberately deviates from the original spec's releases-first ordering: releases is demoted to an advisory annotation, never the sort key, because the count is partial by construction (needs-you records get no blocker attachment and their dependents are mostly outside the buildable set) — the deviation is flagged here in the text, not left implicit in run artifacts alone.
 
 **Cap + pointer:** at most 3 rows named; beyond that, one pointer line: `{M} more human-owed records → /claude-tweaks:backlog attention (when available)` — advisory until that mode ships (#471's decomposition), count always shown. Interim-launcher honesty note, citing #471: until #471's redirect gate ships, `/claude-tweaks:specify #{N}` on a `needs:definition` record still lands in ordinary shaping mode — acceptable interim (the human is present either way); this caveat is removed by #471's own landing.
 
-The same interim caveat covers the `kind: 'unjustified'` launcher: the bare-ref `/claude-tweaks:challenge #{N}` form arrives with #471's challenge changes — today the skill accepts only `framing-check` (/specify-invoked) or `--lens=<n> <target>`, neither of which is a bare `#{N}` ref. This half of the lane is dormant until #471's facet exists, so the line cannot render before the form becomes valid — #471's landing removes this caveat too.
+The `kind: 'unjustified'` launcher carries no interim caveat: `/challenge` has no bare-`#{N}` mode, so the lane emits the `--lens=1 #{N}` form it accepts today (an input `/claude-tweaks:challenge` already resolves the same way `/claude-tweaks:capture` resolves a `#{n}` reference) rather than a command that fails at invocation. A dedicated evidence-or-accept-risk mode for `/challenge`, if ever wanted, is a separate record and would swap the form here.
 
 Needs you stays the last **rendered** section of the report body — the section below is
 document-level, not a continuation of this lane.
@@ -352,9 +359,9 @@ document-level, not a continuation of this lane.
 ### Two-channel contract and the Next: line
 
 **Two-channel contract + `Next:` line:** paste blocks carry agent-executable/unattended commands
-only; the `AskUserQuestion` menu carries this-session moves only (run refine here, open a lens,
-dispatch the top chain here) and is never the delivery channel for other-terminal command lists —
-terminal-command lists inside `AskUserQuestion` options are forbidden. The report body ends with a
+only; the Next Actions close-out block carries this-session moves only (run refine here, open a
+lens, dispatch the top chain here) and is never the delivery channel for other-terminal command
+lists — terminal-command lists inside the close-out block are forbidden. The report body ends with a
 single `Next:` line: one sentence naming the top-ranked action, always exactly one.
 
 **Precedence (3-level):**
@@ -362,4 +369,4 @@ single `Next:` line: one sentence naming the top-ranked action, always exactly o
 2. Otherwise → the top-ranked **executable** Dispatch entry — comment-only entries (out-of-set-blocked, cyclic, unsynced, flagged, overlap-excluded) are skipped when determining it (promise F2).
 3. When the Dispatch block contains **no executable entry** (empty, or comment-only entries throughout) → the existing fallback ladder (grant → specify → refine, ties by id; `Next: backlog is empty` terminal case).
 
-The menu's `(Recommended)` option MUST match the `Next:` line at every precedence level — unchanged rule, now with a well-defined referent at each level.
+The close-out block's recommended line MUST match the `Next:` line at every precedence level — unchanged rule, now with a well-defined referent at each level.

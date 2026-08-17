@@ -6,7 +6,7 @@ These pre-steps capture design context (`shape`), an optional accepted visual di
 
 ## Step 2.5a: Frontend detection
 
-**`--surface` override.** When `--surface <value>` was passed on the command line (SKILL.md's Input section), skip the sniff below entirely — use the given value directly as `Surface:` for every record this run produces. Still continue to Step 2.5b/2.5c when the given value is a frontend surface (`web`/`mobile`/`desktop`); skip them, as the no-signal case below does, when it's `backend`/`infra`.
+**`--surface` override.** When `--surface <value>` was passed on the command line (SKILL.md's Input section), skip the sniff below entirely — use the given value directly as `Surface:` for every record this run produces. Still continue to Step 2.5b/2.5c when the given value is a frontend surface (`web`/`mobile`/`desktop`); skip them, as the no-signal case below does, when it's `backend`/`infra`/`terminal` (terminal still writes `Surface: terminal` — the skip is of the web-only pre-steps, not of the declaration).
 
 Sniff the input for frontend signals using the same rules as `/claude-tweaks:design-wrapper`'s Layer 3 — the design doc's contents in decomposition mode, the record's own title/body in shaping mode:
 
@@ -104,7 +104,9 @@ On option 1:
 
 Sets the `Design-intent:` body-metadata line that Phase 3's `polish` mode will read for intent-driven dispatch.
 
-**Auto mode:** read `design-intent` from `config.yml`. Apply per the Manifesto value:
+**`--chained` (shaping mode's headless component invocation — see `SKILL.md`'s Input bullet and Component-Skill Contract):** never ask. Write `Design-intent: none` and skip both branches below entirely — the auto-mode policy resolve and the interactive fallback alike; the flag outranks both, run dir or no run dir. Log per `_shared/auto-decision-log.md` when a run directory resolves (`AUTO {time} — Step 2.5c: design-intent=none (--chained headless default). Reversibility: high.`), otherwise note it in the returned output only.
+
+**Auto mode:** resolve `design-intent` — `DESIGN_INTENT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" design-intent)`. Apply per the resolved value:
 
 - Value is one of `bold` / `quiet` / `minimal` / `delightful` / `onboarding` → write the `Design-intent:` body-metadata line directly. Log:
   ```

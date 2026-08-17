@@ -84,9 +84,9 @@ An `[adr-convention]` row renders inside this section but carries its own three-
      found (16)   : ADR-016-slack-integration-strategy.md
      project skill: .claude/skills/architecture-decision/SKILL.md
 
-     1  Conform forward   — new files use the plugin's form   -> doc-convention.adr: plugin
+     1  Conform forward   — new files use the plugin's form   -> doc-convention-adr: plugin
      2  Migrate           — rename all 16, fix REGISTRY rows and inbound links
-     3  Keep project form — resolve from this repo             -> doc-convention.adr: project
+     3  Keep project form — resolve from this repo             -> doc-convention-adr: project
 ```
 
 Omit the `project skill` line when detection found none. "Approve all" leaves this row unanswered and blocks every `[adr]` row from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
@@ -142,6 +142,15 @@ picked up without editing this file.
 | Q1 | record (parked — trigger: /auth provider docs land) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Phase 3 leftover routing, `staged/leftover-add-oauth-refresh-edge-case.md` |
 | Q2 | record (backlog) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
 
+#### Refused — no defer reason (no default — never resolved by Approve all or `consoleAutoResolve`)
+
+Renders only when non-empty (`refused-proposals.md`). Rows reuse the item's own `Q#` — no sequence of their own:
+
+| # | Proposal | Staged path | Defer-reason |
+|---|---|---|---|
+| Q2 | "Track retry metrics dashboard" | `staged/reflect-staged-2.md` | `bogus` (invalid) |
+| Q3 | "Clean up the retry helper loop" | `staged/leftover-retry-cleanup.md` | absent |
+
 #### Memory updates (Approve all applies the default; Override drills each item)
 
 Render this section only when the Memory curation row staged a memory-file proposal (`staged/wrap-up-memory-*.md`); omit it entirely otherwise.
@@ -166,7 +175,7 @@ terminal decision.
 
 | U# | Kind | Component | Summary | Patch |
 |---|---|---|---|---|
-| U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree.always | `staged/wrap-up-upstream-1.md` |
+| U1 | defect | /claude-tweaks:dispatch | Parallel dispatch leaves one agent without a worktree under worktree-always | `staged/wrap-up-upstream-1.md` |
 
 > Filing publishes privately-derived content to a public repository. The body shown is already
 > scrubbed; a checked item files it via `/claude-tweaks:feedback --pre-confirmed`.

@@ -3,7 +3,7 @@ name: build
 description: Use when implementing a work record or design doc end-to-end. Accepts a record reference (#N) for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
 argument-hint: "[#<n>|<design-doc-path>|<topic>] [subagent|batched] [auto] [worktree|current-branch] [tier=<fast|standard|capable|frontier>] [ops=confirm]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Build — Implement a spec end-to-end with worktree, plan audit, and lifecycle tracking
@@ -37,7 +37,7 @@ The axes below are orthogonal and combine freely. Default is `subagent` + `workt
 | **Git** | `worktree` (isolated branch) / `current-branch` (direct commits) | `worktree` |
 | **Auto** | `auto` keyword — applies `.claude-tweaks/policy.yml` / fallback defaults, skips confirmation prompts, routes deviations per `_shared/auto-mode-contract.md` | off |
 
-When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis has only one value: `current-branch` is not offered and is rejected if passed explicitly — the mechanical PreToolUse gate would deny any edit outside a worktree regardless (see `_shared/git-discipline.md`).
+When `.claude-tweaks/policy.yml` sets `worktree-always: true`, the Git axis has only one value: `current-branch` is not offered and is rejected if passed explicitly — the mechanical PreToolUse gate would deny any edit outside a worktree regardless (see `_shared/git-discipline.md`).
 
 When `.claude-tweaks/policy.yml` sets `execution-strategy: subagent-only` (or `batched-only`), the Execution axis has only one value — the `-only` suffix is the lock: the other strategy is not offered and is rejected if passed explicitly. Plain `subagent`/`batched` set an overridable default, not a lock. Unlike the Git axis, there is no mechanical backstop for the lock (see `_shared/git-discipline.md`).
 
@@ -67,7 +67,7 @@ Spec/record mode? ──yes──→ [Spec Steps 1, 2, 2.5 (Manual Steps classif
 
 ### Spec Step 1: Resolve, Materialize, and Assess
 
-Materialize the record into a spec-shaped build file via `skills/flow/materialize.md`: resolve the record, run the materialization hard gate (an unshaped body stops the build with "run `/claude-tweaks:specify #{n}` first"), compose the pinned header, and write + commit `{run-dir}/work/{n}-spec.md`. **Ordering — worktree first:** in `worktree` mode, run Common Step 1 to create the worktree from current HEAD, then perform this resolve/materialize/commit as the branch's first commit inside it, before proceeding to Spec Step 2. In `current-branch` mode there is no worktree, so write and commit on the current branch directly. Do not materialize on the pre-worktree branch and then branch from it — that order is denied outright under `worktree.always: true` and buys nothing under any other policy. See materialize.md's "When this runs" for the rationale; this step does not restate it. When a parent `/claude-tweaks:flow` already materialized the file for this run (`$PIPELINE_RUN_DIR` set and `{run-dir}/work/{n}-spec.md` already exists), read it in place instead of re-fetching or re-composing — see materialize.md's "When this runs." **Immediately after the materialize commit, in `worktree` mode only:** run `build/worktree-setup.md` Step 6 — opens the run's draft PR under `integration-model: pr-first` (`_shared/integration-model.md`, procedure in `_shared/pr-early-run-lifecycle.md`); a no-op under `local-merge`. **Non-skippable, regardless of what Spec Step 2's implementation assessment turns out to find:** Common Step 1's worktree-assignment stamping (`worktree-setup.md` Step 4.5, `record-worktree`) and this Step 6 draft-PR call both run before any judgment about whether further code changes are needed — never treat "the acceptance criteria already look satisfied" as license to jump past either. A record found already-satisfied still needs its own PR and its own worktree stamp: the reconciler's automatic worktree-reap and run-dir archival (`bin/hooks.js reconcile`) key off that stamp, and skipping it silently strands the run's cleanup on whoever dispatched it (`docs/incident-log.md`'s `[IL-131]`). Once materialized (and the draft PR opened, when applicable), read the file in full and proceed to Spec Step 2; the shape gate already replaces the prerequisite check this step used to run.
+Materialize the record into a spec-shaped build file via `skills/flow/materialize.md`: resolve the record, run the materialization hard gate (an unshaped body stops the build with "run `/claude-tweaks:specify #{n}` first"), compose the pinned header, and write + commit `{run-dir}/work/{n}-spec.md`. **Ordering — worktree first:** in `worktree` mode, run Common Step 1 to create the worktree from current HEAD, then perform this resolve/materialize/commit as the branch's first commit inside it, before proceeding to Spec Step 2. In `current-branch` mode there is no worktree, so write and commit on the current branch directly. Do not materialize on the pre-worktree branch and then branch from it — that order is denied outright under `worktree-always: true` and buys nothing under any other policy. See materialize.md's "When this runs" for the rationale; this step does not restate it. When a parent `/claude-tweaks:flow` already materialized the file for this run (`$PIPELINE_RUN_DIR` set and `{run-dir}/work/{n}-spec.md` already exists), read it in place instead of re-fetching or re-composing — see materialize.md's "When this runs." **Immediately after the materialize commit, in `worktree` mode only:** run `build/worktree-setup.md` Step 6 — opens the run's draft PR under `integration-model: pr-first` (`_shared/integration-model.md`, procedure in `_shared/pr-early-run-lifecycle.md`); a no-op under `local-merge`. **Non-skippable, regardless of what Spec Step 2's implementation assessment turns out to find:** Common Step 1's worktree-assignment stamping (`worktree-setup.md` Step 4.5, `record-worktree`) and this Step 6 draft-PR call both run before any judgment about whether further code changes are needed — never treat "the acceptance criteria already look satisfied" as license to jump past either. A record found already-satisfied still needs its own PR and its own worktree stamp: the reconciler's automatic worktree-reap and run-dir archival (`bin/hooks.js reconcile`) key off that stamp, and skipping it silently strands the run's cleanup on whoever dispatched it (`docs/incident-log.md`'s `[IL-131]`). Once materialized (and the draft PR opened, when applicable), read the file in full and proceed to Spec Step 2; the shape gate already replaces the prerequisite check this step used to run.
 
 ### Spec Step 2: Check for Existing Plan
 
@@ -120,6 +120,8 @@ The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
 **Blocking-verification-downgrade check:** when a plan task exists specifically to verify a live/external contract (a real API response, a real hook payload, a real third-party behavior) before implementing against it, and that task gets scoped down during authoring to something that doesn't touch live data (a re-read of documentation, a type declaration, a spec citation) — flag it explicitly rather than letting the downgrade pass silently. The two are not equivalent: a task-level review that only compares the plan text against the implemented code has nothing to catch here, since both sides agree with the (possibly wrong) documented contract. Name the downgrade in the plan or the ledger so it reads as a stated risk, not an invisible one. (Same check applies in Design Step 3 below.)
 
 **Deictic-reference re-resolution check:** when a plan task instructs a text reorder — moving a paragraph relative to other text that cross-references it — re-resolve every deictic reference ("above", "below", "the following", "the preceding") in both the moved text and the text it moves past, and write the task's `replacing:`/`with:` blocks with the post-move direction already applied. A self-contradictory pair (one clause saying "above" and another "below" about the same paragraph) reads as correct inside each task's own diff, so a task-level review comparing plan text against implemented code has nothing to catch — only a whole-file read resolves the direction. Re-check the deictics as part of the reorder edit itself; a later fix round that corrects the ordering will not correct them, because the reorder is right in isolation. (Same check applies in Design Step 3 below.)
+
+**Verbatim-command run-once check:** when a plan task's replacement text dictates a runnable command verbatim (`gh api`, a GraphQL query, `jq`, `curl`), run that command once against the live target in a read-only form before dispatching, and record the output in the plan; a command with no safe read-only form is flagged in the plan as unverified. Transcription plus a task review cannot catch a command that cannot execute — both sides agree with the (possibly wrong) authored text — and when the same plan also dictates the test, TDD is circular: red→green proves agreement with the plan, not with reality. Two shipped `gh api` flag defects in one session (#608's `-f` placeholder fix inverted into #610's `-F` coercion bug, pinned by its own plan-authored test) are the incident behind this check. (Same check applies in Design Step 3 below.)
 
 **Degrade-clause convention check:** before a plan task writes a new "when X is unavailable, do Y" clause into a skill or `_shared/` contract, grep `skills/_shared/` for the same unavailability condition (`gh absent`, `no MCP fallback`, `MCP transport`, and the like) and cite whatever established convention already covers it, inline, rather than restating the behaviour uncited. An uncited degrade clause reads to a reviewer as a fresh, unsupported exception to the file's general transport policy, and the review cycle spent adjudicating that is pure waste — the convention already existed. (Same check applies in Design Step 3 below.)
 
@@ -206,7 +208,7 @@ This sequential-dispatch precondition is a *distinct* bound from the actual **co
 
 **batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.
 
-**Maturity-scaled test discipline (both strategies, all modes):** resolve `project.maturity` once per build — `MATURITY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values project.maturity)`. The resolver's schema default is `greenfield`, and a value outside the four-item enum also resolves to `greenfield` — either way, add nothing. Fold one additional instruction into whichever execution skill was invoked above:
+**Maturity-scaled test discipline (both strategies, all modes):** resolve `project-maturity` once per build — `MATURITY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values project-maturity)`. The resolver's schema default is `greenfield`, and a value outside the four-item enum also resolves to `greenfield` — either way, add nothing. Fold one additional instruction into whichever execution skill was invoked above:
 
 | Maturity | Added instruction |
 |---|---|
@@ -295,7 +297,7 @@ After successful build, read `handoff-template.md` in this skill's directory and
 
 **worktree** (default): Before any work begins, `/superpowers:using-git-worktrees` creates an isolated workspace on a feature branch. All commits land in the worktree. At handoff, `/superpowers:finishing-a-development-branch` handles merge, PR, or discard — do NOT auto-merge or auto-PR.
 
-**current-branch**: Commit directly on the current branch. No isolation. Unavailable when `.claude-tweaks/policy.yml` sets `worktree.always: true` — the mechanical PreToolUse gate denies edits outside a worktree regardless of what this lever says.
+**current-branch**: Commit directly on the current branch. No isolation. Unavailable when `.claude-tweaks/policy.yml` sets `worktree-always: true` — the mechanical PreToolUse gate denies edits outside a worktree regardless of what this lever says.
 
 ## Git Rules
 
@@ -312,7 +314,7 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 
 ## Next Actions
 
-Generate 2-4 options based on context. The signal-to-option lookup table below stays as-is — it's the assistant's own logic for picking which options apply to the current build's signals, never itself shown to the user or converted into an `AskUserQuestion` option:
+Generate 2-4 lines based on context. The signal-to-option lookup table below stays as-is — it's the assistant's own logic for picking which lines apply to the current build's signals, never itself shown to the user:
 
 | Signal | Option |
 |--------|--------|
@@ -321,11 +323,12 @@ Generate 2-4 options based on context. The signal-to-option lookup table below s
 | QA stories exist (`stories/*.yaml` or `stories/*.yml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
 | Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch **(Recommended in worktree mode)** |
 
-Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), one line per applicable signal, bolding whichever line is recommended and suffixing it `(recommended)` — normally the review line, chosen per the browser-availability signal above (do not collapse the two branches into always-`full`: UI changed AND a browser is available → the full-review line; otherwise → the plain-review line); in worktree mode, the finish-branch line takes the recommended slot instead:
 
-- Option 1 — switches on the browser-availability signal exactly as the table above (do not collapse the two branches into always-`full`): when UI changed AND a browser is available, `label`: `"Code + visual review"`, `description`: `"/claude-tweaks:review {N} full — code + visual review"`; otherwise `label`: `"Code review"`, `description`: `"/claude-tweaks:review {N} — code review"`. Suffixed `(Recommended)` unless worktree mode makes option 3 the recommendation instead.
-- Option 2 — `label`: `"QA validation"`, `description`: `"/claude-tweaks:test qa — validate {X} QA stories before review"`
-- Option 3 — `label`: `"Finish branch"`, `description`: `"/superpowers:finishing-a-development-branch — merge, PR, or discard the feature branch"`, suffixed `(Recommended)` when in worktree mode instead of option 1
+`/claude-tweaks:review {N} full` — code + visual review (when UI changed and a browser is available)
+`/claude-tweaks:review {N}` — code review (when no UI change or no browser)
+`/claude-tweaks:test qa` — validate {X} QA stories before review (when QA stories exist)
+`/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (when in worktree mode)
 
 ## Component-Skill Contract
 

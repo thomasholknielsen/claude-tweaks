@@ -1,6 +1,6 @@
 // tests/hooks-gate-coverage.test.js
 //
-// Binds the worktree.always gate's actual coverage to the prose that documents
+// Binds the worktree-always gate's actual coverage to the prose that documents
 // it. The gate was widened twice on 2026-07-20 (push in c8f929e1, cp/mv/tee in
 // cab6142b) and neither commit swept the prose; four skill files went on
 // describing the pre-widening gate, two of them prescribing procedures the

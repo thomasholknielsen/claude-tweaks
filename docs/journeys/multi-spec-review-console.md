@@ -1,7 +1,10 @@
 ---
 files:
   - skills/flow/multispec-review-console.md
+  - skills/flow/multispec-batch-curation.md
   - skills/wrap-up/cleanup-procedures.md
+  - skills/_shared/staged-patch.md
+  - skills/wrap-up/curation-engine.md
   - bin/wrap-up-engine.js
 ---
 
@@ -19,7 +22,7 @@ files:
 - **Action:** Read through the named batch sections in order — Auto-applied, Pending review, Low-confidence findings (if any spec's `/review` surfaced an unreproduced finding), Contested findings (if any spec had a cross-lens debate that didn't converge), then the five engine-fed sections (Skill/Documentation/Journey/Configuration updates, Reference repairs — inserted verbatim from `wrap-up-engine.js render --spec-state`), then Cleanup actions, Issue closures, Translated briefs, and the Queue writes / Memory updates / Upstream feedback sections.
 - **Should feel:** Like reading one coherent report, not five specs' worth of disconnected logs stitched together — every row is `Spec`-tagged so it's traceable back to its origin without losing the batch view.
 - **Should understand:** A row's number is part of one global sequence spanning every batch section (no restart between sections) — the numbers in the next step's override instructions refer to this sequence, not a per-section one. `Q#`/`M#`/`U#` sit outside that global sequence but are still part of the same terminal decision (see Step 3).
-- **Red flags:** A row missing its `Spec` column; a section present in some spec's `decisions.md`/`staged/` but absent from the rendered table (the console's own Hard requirement forbids silently dropping any item); the five engine-fed sections showing a different table shape than a plain `| # | Spec | Target | Change | Disposition |` (that would mean the engine's output was hand-expanded instead of inserted verbatim).
+- **Red flags:** A row missing its `Spec` column; a section present in some spec's `decisions.md`/`staged/` but absent from the rendered table (the console's own Hard requirement forbids silently dropping any item); the five engine-fed sections showing a different table shape than a plain `| # | Spec | Target | Change | Disposition |` (that would mean the engine's output was hand-expanded instead of inserted verbatim); a staged proposal reported as dangling or missing when its judge wrote it into the worktree's shadow of the run dir — the batch pass's post-fan-out shadow sweep (`skills/wrap-up/curation-engine.md` §4, scoped per parent and per `spec-{N}/` run dir by `skills/flow/multispec-batch-curation.md`) should have relocated it and logged a `Shadow sweep:` line, so a dangling report means the sweep did not run.
 
 ### 2. Check the Cleanup actions rows before approving — terminal
 - **URL:** the "Cleanup actions" section of the same rendered console.
@@ -32,8 +35,8 @@ files:
 - **URL:** the "How do you want to handle the Multi-Spec Review Console items?" prompt.
 - **Action:** Choose Approve all, Override specific items (reply with `#`s to skip/modify/revert in the next message — free-text, not the tool's `Other` field), or Stop and re-engage.
 - **Should feel:** Like one decision, not five — Approve all resolves the batch sections *and* every `Q#`/`M#`/`U#` proposal to its own stated default (`Apply` for `Q#`/`M#`, declined for `U#`) in the same click, with zero further prompts.
-- **Should understand:** If the branch-finish row is skipped or reverted under Override, every per-spec claim-release/grant-removal/label-cleanup row auto-skips too (rendered "skipped — depends on branch-finish") rather than running against an outcome that never happened. Choosing Override is what still drills `Q#`/`M#`/`U#` individually (see Step 4) — Approve all never reaches that drill.
-- **Red flags:** Approve all silently skipping a `Q#`/`M#`/`U#` row instead of resolving it to its stated default; a `U#` row ever resolving to filed under a human-answered Approve all (that's the `unattended`-only `consoleAutoResolve` exception, not this path).
+- **Should understand:** If the branch-finish row is skipped or reverted under Override, every per-spec claim-release/grant-removal/label-cleanup row auto-skips too (rendered "skipped — depends on branch-finish") rather than running against an outcome that never happened. Choosing Override is what still drills `Q#`/`M#`/`U#` individually (see Step 4) — Approve all never reaches that drill. Approving also applies every spec's staged review patches against the cumulative branch state per `skills/_shared/staged-patch.md`: a patch that still fits is `git apply`'d; one that went stale because a later spec, `/simplify`, or a fix wave moved its target is *expected* and is re-derived from the artifact's `Target:`/`Invariant:` preamble instead of erroring out — the log line names which path applied and what moved since `Staged-at:`.
+- **Red flags:** Approve all silently skipping a `Q#`/`M#`/`U#` row instead of resolving it to its stated default; the console stopping on `git apply` "patch does not apply" / "No valid patches in input" for a staged review patch instead of falling back to its `Invariant:` (a malformed patch should have been rejected by `git apply --check` at staging time, never first seen here); a stale patch silently dropped with no "Not applied" footer row; a `U#` row ever resolving to filed under a human-answered Approve all (that's the `unattended`-only `consoleAutoResolve` exception, not this path).
 
 ### 4. Override: drill individual Queue writes / Memory updates / Upstream feedback — `AskUserQuestion`, one call per item
 - **URL:** reached only after choosing Override in Step 3; one `AskUserQuestion` per `Q#`/`M#` row, issued individually, or one chunked `multiSelect` call per group of up to 4 `U#` rows.
@@ -45,4 +48,6 @@ files:
 ## Origin
 - Created during build of #287 ("Multi-spec console: engine-fed sections + prose parity") — the console existed before this build but had no journey coverage; #287 gave it its first Low-confidence findings/Contested findings sections and made Cleanup actions visible/overridable, both of which this journey documents as current behavior.
 - Updated during build of #350 ("Review Console: fold M#/Q#/U# into Approve all and add the consoleAutoResolve path") — Steps 3-4 rewritten: Q#/M#/U# now resolve under the terminal Approve all / Override / Stop decision (their own stated default under Approve all; per-item drill only under Override), replacing the old always-separate-prompt behavior.
-- Related specs: #286 (Engine: multi-spec console section merging — the CLI call Step 1 references), #287, #350
+- Updated during build of #674 ("Review Console staged patches: validate at staging time and stage a normalization description, not a literal diff") — Step 3's "Should understand"/"Red flags" now cover the staged-patch apply path: `git apply --check` at staging, `Target:`/`Invariant:` preamble, description fallback for stale diffs at the console.
+- Updated during build of #675 ("Curation-engine judges must verify their staged file landed at the anchored stagePath") — Step 1's red flags now name the dangling-staged-file symptom the post-fan-out shadow sweep exists to prevent.
+- Related specs: #286 (Engine: multi-spec console section merging — the CLI call Step 1 references), #287, #350, #674, #675

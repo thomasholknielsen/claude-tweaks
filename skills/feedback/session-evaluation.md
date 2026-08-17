@@ -33,10 +33,14 @@ work was evaluated.
 
 Exactly one Task agent per invocation.
 
-**Model:** resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" frontier
---unattended` (no `--run-dir` — one judge dispatch per invocation, the contract's
-standalone-invocation cap for this skill's Frontier singleton, enforced by this skill rather than
-a run-dir tally). Degradation to Capable on a missed precondition is the resolver's own job,
+**Model:** resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" frontier` (no
+`--run-dir` — a standalone `/feedback` has no run dir, so `frontierUsed` is 0 and the resolver's
+cap branch passes; one judge dispatch per invocation is the contract's standalone-invocation cap
+for this skill's Frontier singleton, enforced by this skill rather than a run-dir tally). Append
+`--unattended` only when this invocation is genuinely headless — a scheduled Routine or a
+`claude -p` run — resolved from session state, never a literal in skill text: the resolver reads
+that flag as "no human is present" and unconditionally degrades Frontier on it.
+Degradation to Capable on a missed precondition is the resolver's own job,
 logged in its `source` — never re-enumerated here. The cap counts evaluations, not retries: a
 `NEEDS_CONTEXT` or `BLOCKED` return may be re-dispatched once with the missing context supplied;
 a second failure degrades to the self-assessment path below rather than dispatching again.

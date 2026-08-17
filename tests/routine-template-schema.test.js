@@ -43,25 +43,33 @@ for (const templatePath of findTemplates()) {
       'routine_name must be a lowercase hyphenated slug (it becomes both a live routine name and a filename)'
     );
 
-    assert.equal(typeof tpl.prompt, 'string');
-    assert.match(
-      tpl.prompt.trim(),
-      /\/claude-tweaks:[a-z-]+(\s+\S.*)?$/,
-      'prompt must be self-contained and end with a /claude-tweaks:<skill> kickoff command (the standard preamble in routine-template-schema.md precedes it)'
-    );
-
-    // The preamble's target branch is substituted at instantiation by
-    // /claude-tweaks:routine (CREATE Step 5.5). A template authored without the
-    // placeholder silently reverts to resolving the repo's GitHub default branch
-    // on every firing — the #132 bug, which is invisible in a diff review.
+    // Since #529 a template carries no prompt text at all: the live prompt is
+    // assembled at instantiation from the kernel in _shared/routine-template-schema.md
+    // plus this one `kickoff` value. A template that still froze the kernel into
+    // itself would be un-updatable without re-provisioning every routine.
     assert.equal(
-      tpl.prompt.split('{{TARGET_BRANCH}}').length - 1,
-      1,
-      'prompt must contain the standard preamble\'s {{TARGET_BRANCH}} placeholder exactly once — substitution is a single replacement'
+      tpl.prompt,
+      undefined,
+      'templates no longer carry a prompt field — the kernel is assembled at instantiation (#529)'
+    );
+    assert.equal(typeof tpl.kickoff, 'string', 'kickoff is required');
+    const kickoffFirst = tpl.kickoff.trim().split(/\s+/)[0];
+    assert.equal(
+      kickoffFirst,
+      skillName,
+      `kickoff's first token must equal the owning skill directory (got '${kickoffFirst}')`
     );
     assert.ok(
-      !/\{\{(?!TARGET_BRANCH\}\})/.test(tpl.prompt),
-      'the preamble defines exactly one placeholder; any other {{...}} would reach a live routine unsubstituted'
+      !tpl.kickoff.includes('\n'),
+      'kickoff is a single line — the whitespace-token grammar has no multi-line form'
+    );
+    assert.ok(
+      !/\bBefore anything else\b/.test(text),
+      'no template may contain kernel text'
+    );
+    assert.ok(
+      !text.includes('{{TARGET_BRANCH}}'),
+      'no template may contain the kernel placeholder'
     );
 
     // `branch` is a legal template field (a vendored, single-project template may
@@ -107,49 +115,49 @@ for (const templatePath of findTemplates()) {
   });
 }
 
-// The standard preamble is written once in routine-template-schema.md and copied verbatim
-// into every template's `prompt`. Nothing but this test notices when one copy is edited and
-// the others aren't — and a preamble paragraph that reaches five of six routines is worse
-// than one that reaches none, because the gap is invisible from any single file.
-function canonicalPreamble() {
+// The kernel replaces the per-template preamble copies: one canonical block in
+// _shared/routine-template-schema.md, assembled per firing. Nothing but these two
+// tests notices when the block loses a part or its version line goes missing —
+// and a kernel missing its branch-sync paragraph reaches every routine at once.
+test('the schema declares an integer kernel_version adjacent to the kernel block', () => {
   const schema = fs.readFileSync(path.join(SKILLS_DIR, '_shared', 'routine-template-schema.md'), 'utf8');
-  const section = schema.split('## Standard prompt preamble')[1];
-  assert.ok(section, 'routine-template-schema.md must carry a "## Standard prompt preamble" section');
-  const block = section.split('```')[1];
-  assert.ok(block, 'the preamble section must carry a fenced block holding the canonical text');
-  // Normalise to how a YAML folded scalar renders it: each paragraph joined onto one line,
-  // blank lines between paragraphs kept, and the template-specific kickoff line dropped.
-  return block
-    .trim()
-    .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.replace(/\s*\n\s*/g, ' ').trim())
-    .filter((paragraph) => !paragraph.startsWith('Then: '))
-    .join('\n\n');
-}
+  const m = schema.match(/^kernel_version: (\d+)$/m);
+  assert.ok(m, 'kernel_version literal line missing');
+  assert.ok(Number(m[1]) >= 1);
+});
 
-for (const templatePath of findTemplates()) {
-  const skillName = path.basename(path.dirname(templatePath));
+test('the kernel block carries its four parts in order', () => {
+  const schema = fs.readFileSync(path.join(SKILLS_DIR, '_shared', 'routine-template-schema.md'), 'utf8');
+  const section = schema.split('## Standard prompt kernel')[1];
+  assert.ok(section, 'schema must carry a "## Standard prompt kernel" section');
+  const rawBlock = section.split('```')[1];
+  assert.ok(rawBlock, 'the kernel section must carry a fenced block');
+  // The kernel is hard-wrapped prose, so a pinned phrase can straddle a line break
+  // (the resolved-build format string does). Match against a whitespace-collapsed
+  // copy: this pin is about which parts are present and in what order, never about
+  // where the block happens to wrap.
+  const block = rawBlock.replace(/\s+/g, ' ');
+  const posBranch = block.indexOf('git merge --ff-only');
+  const posLadder = block.indexOf('cache-scan-highest-of-N');
+  // The empty-cache self-heal is the [IL-117] mitigation: without an anchor here,
+  // deleting the whole paragraph would leave this test green while its name still
+  // promised four parts.
+  const posSelfHeal = block.indexOf('bash scripts/claude-cloud-setup.sh');
+  const posFallback = block.indexOf('follow its instructions directly as written');
+  const posClosing = block.indexOf('Then: /claude-tweaks:routine-kickoff {kickoff}');
+  assert.ok(
+    posBranch > -1 && posLadder > posBranch && posSelfHeal > posLadder && posFallback > posSelfHeal && posClosing > posFallback,
+    `kernel parts out of order: branch-sync@${posBranch} ladder@${posLadder} self-heal@${posSelfHeal} fallback@${posFallback} closing@${posClosing}`);
+  assert.ok(block.includes('{{TARGET_BRANCH}}'));
+  assert.ok(block.includes('If it has diverged rather than just fallen behind, stop'));
+  assert.ok(block.includes('claude-tweaks v{version} @ {path} (resolved via:'));
+});
 
-  test(`${skillName}/routine-template.yml opens with the canonical standard preamble`, () => {
-    const tpl = parseRoutineTemplate(fs.readFileSync(templatePath, 'utf8'));
-    const kickoffAt = tpl.prompt.lastIndexOf('Then: ');
-    assert.ok(kickoffAt > 0, 'prompt must carry a "Then: " kickoff line after the preamble');
-    assert.equal(
-      tpl.prompt.slice(0, kickoffAt).trim(),
-      canonicalPreamble(),
-      `${skillName}'s preamble has drifted from the canonical block in _shared/routine-template-schema.md — ` +
-        'edit the schema and every skills/*/routine-template.yml together, never one alone'
-    );
-  });
-}
-
-// AC4: the parameterless (as-shipped) template's kickoff line must stay
+// AC4: the parameterless (as-shipped) template's kickoff must stay
 // byte-identical — no `focus=` argument — so today's generalist routine
-// keeps firing exactly as it does now once the `focus` field exists in the
-// schema. This is a narrower, more precise pin than re-snapshotting the
-// whole ~4 KB preamble (already covered by the canonical-preamble test
-// above): what actually varies with focus's presence/absence is the
-// kickoff line's argument, nothing else.
+// keeps firing exactly as it does now while the `focus` field exists in the
+// schema. What actually varies with focus's presence/absence is the kickoff
+// value's argument, nothing else.
 test('code-health/routine-template.yml: parameterless template has no focus field and its kickoff carries no focus= argument (AC4/IL-115 regression pin)', () => {
   const templatePath = path.join(SKILLS_DIR, 'code-health', 'routine-template.yml');
   const tpl = parseRoutineTemplate(fs.readFileSync(templatePath, 'utf8'));
@@ -158,11 +166,9 @@ test('code-health/routine-template.yml: parameterless template has no focus fiel
     undefined,
     'the shipped generalist template must not set focus — presence would change which routine this template instantiates',
   );
-  const kickoffAt = tpl.prompt.lastIndexOf('Then: ');
-  const kickoffLine = tpl.prompt.slice(kickoffAt).trim();
   assert.equal(
-    kickoffLine,
-    'Then: /claude-tweaks:code-health',
+    tpl.kickoff,
+    'code-health',
     "the parameterless template's kickoff must stay exactly this — no focus= suffix",
   );
 });

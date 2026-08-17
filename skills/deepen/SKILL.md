@@ -3,7 +3,7 @@ name: deepen
 description: Use for an architectural-depth pass on recently changed code — finds shallow modules and proposes deepening or collapsing them, ranked by leverage. Standalone, or surfaced by /review and /reflect.
 argument-hint: "[<file-or-dir>...|<spec-number>] [--kind deepen|collapse]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Deepen — Architectural Depth Pass
@@ -164,12 +164,11 @@ If no changes were made: "No depth changes — abstractions reviewed are earning
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), call `AskUserQuestion`:
+When invoked directly (not by a parent skill), render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
-- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Verify refactor (Recommended)"`, `description`: `"/claude-tweaks:test — verify the refactor end-to-end"`
-- Option 2 — `label`: `"Re-review architecture"`, `description`: `"/claude-tweaks:review {spec} — re-review the changed architecture"`
-- Option 3 — `label`: `"Line-level cleanup"`, `description`: `"/claude-tweaks:simplify — line-level cleanup on the refactored files"`
+**`/claude-tweaks:test`** — verify the refactor end-to-end (recommended)
+`/claude-tweaks:review {spec}` — re-review the changed architecture
+`/claude-tweaks:simplify` — line-level cleanup on the refactored files
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.
 

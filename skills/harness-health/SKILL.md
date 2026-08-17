@@ -4,7 +4,7 @@ description: Use to check whether skills, rules, CLAUDE.md match codebase, templ
 argument-hint: "[--target <id>] [--kind skill|rule|claude-md|design-artifact|memory] [--memory-dir <path>] [--budget <n>] [--min-confidence low|med|high] [--force-gap-scan] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Harness Health — Keep Skills, Rules, and CLAUDE.md Honest
 
@@ -159,11 +159,11 @@ Report-only, matching `/code-health` — every finding files as a `by:harness-he
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). Bold the `/claude-tweaks:routine create harness-health` line and suffix it `(recommended)` once a first standalone run confirms the output looks right; before that, render all three lines unranked in the order below.
 
-- Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create harness-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
-- Option 2 — `label`: `"Audit one target"`, `description`: `"/claude-tweaks:harness-health --target <name> --kind <skill|rule|claude-md|design-artifact> — audit one specific target right now"`
-- Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed harness-health issues into a backlog-hygiene pass"`
+**`/claude-tweaks:routine create harness-health`** — schedule this as a recurring Routine (recommended once a first standalone run confirms the output looks right)
+`/claude-tweaks:harness-health --target <name> --kind <skill|rule|claude-md|design-artifact>` — audit one specific target right now
+`/claude-tweaks:tidy` — fold any filed harness-health issues into a backlog-hygiene pass
 
 ## Component-Skill Contract
 

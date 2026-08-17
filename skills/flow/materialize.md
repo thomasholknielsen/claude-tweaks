@@ -46,7 +46,7 @@ ceremony: {fast-lane|standard}      # always present — see ceremony-check mode
 grants: [build, merge]             # as held at materialization time; may be [build] or []
 fingerprint: {fp}                  # omitted when none
 blocked-by: [n1, n2]               # omitted when none — see Populating the header
-surface: {web|mobile|desktop|backend|infra}
+surface: {web|mobile|desktop|backend|infra|terminal}
 design-intent: {value}             # omitted for backend/infra
 design-seed: {opaque token}        # omitted unless the body already carries Design-seed:
 parked-at-shaping: true            # omitted unless the record was parked when shaped
@@ -93,7 +93,7 @@ Every field except `surface`/`design-intent`/`design-seed` (next section) and `b
 `/specify`'s Metadata block (`spec-template.md`) writes plain body-metadata lines at the very top of every shaped record body:
 
 ```
-Surface: {web | mobile | desktop | backend | infra}
+Surface: {web | mobile | desktop | backend | infra | terminal}
 Design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 Design-seed: {opaque token — never written by /specify; see below}
 ```
@@ -139,11 +139,11 @@ The multi-record case reuses `multi-spec.md`'s `spec-{N}/` per-spec subdirectory
 
 **Composing, writing, and committing the file needs a resolved `$PIPELINE_RUN_DIR` (`_shared/pipeline-run-dir.md`) and a checkout the write can land in.** The underlying constraint is real: a worktree branches from a commit, so anything merely left uncommitted in the tree it branched from does not travel with it. The remedy is to **create the worktree first, then scaffold the run dir and materialize inside it** — the file is written and committed on the feature branch, where it is already in the right place.
 
-Do **not** write and commit the file on the current (pre-worktree) branch and then branch from that updated HEAD. That ordering is unexecutable on any project with `worktree.always: true`: the write lands in the main checkout, which the policy gate denies — `Write` first, and the `git commit` after it (see `_shared/policy-schema.md`'s `worktree.always` coverage block). There is no pipeline-bookkeeping exemption that covers it, because the run dir's *committed* half is ordinary tracked content on a branch, not the gitignored state the gate exempts. Worktree-first has no such problem and is correct under either policy, so it is the single documented order rather than a conditional one.
+Do **not** write and commit the file on the current (pre-worktree) branch and then branch from that updated HEAD. That ordering is unexecutable on any project with `worktree-always: true`: the write lands in the main checkout, which the policy gate denies — `Write` first, and the `git commit` after it (see `_shared/policy-schema.md`'s `worktree-always` coverage block). There is no pipeline-bookkeeping exemption that covers it, because the run dir's *committed* half is ordinary tracked content on a branch, not the gitignored state the gate exempts. Worktree-first has no such problem and is correct under either policy, so it is the single documented order rather than a conditional one.
 
 Sequence, in `worktree` mode (the default): create the worktree (`/build`'s Common Step 1, or `/flow`'s own up-front shared-worktree creation for a multi-record run). `{run-dir}` itself is never scaffolded inside the worktree — it is anchored at `$RUN_ROOT` per `_shared/pipeline-run-dir.md`'s Anchoring section (already created there by `/flow`'s own Step 3 Manifesto in the common case, or resolved via that file's Resolution order otherwise). Only `work/` is created — inside the worktree, at the matching relative path under the worktree's own filesystem location — then compose the file and commit it there as the branch's first commit.
 
-In `current-branch` mode there is no worktree to order against — compose, write, and commit on the current branch directly. `worktree.always: true` and `current-branch` are mutually exclusive by construction, so this path never meets the gate.
+In `current-branch` mode there is no worktree to order against — compose, write, and commit on the current branch directly. `worktree-always: true` and `current-branch` are mutually exclusive by construction, so this path never meets the gate.
 
 Consumers that state this ordering: `build/SKILL.md` Common Step 1, `flow/SKILL.md` Step 4.2, and `flow/multi-spec.md`'s shared-worktree pre-flight. They cite this section rather than restating the rationale; if the order ever changes again, it changes here and those three citations follow.
 

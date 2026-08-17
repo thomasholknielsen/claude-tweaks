@@ -8,13 +8,17 @@ const os = require('node:os');
 const STATUSLINE = path.join(__dirname, '..', 'bin', 'claude-tweaks-statusline.js');
 const sl = require('../bin/claude-tweaks-statusline.js');
 
-function runStatusline(input, env = {}) {
+// Hermetic: a throwaway $HOME, and the running session's own CLAUDE_CONFIG_DIR
+// dropped so the acct segment sees only what `seedHome` put in that HOME.
+function runStatusline(input, env = {}, seedHome = () => {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sl-'));
+  const { CLAUDE_CONFIG_DIR: _ignored, ...baseEnv } = process.env;
   try {
+    seedHome(home);
     return execFileSync('node', [STATUSLINE], {
       input: JSON.stringify(input),
       encoding: 'utf8',
-      env: { ...process.env, HOME: home, ...env },
+      env: { ...baseEnv, HOME: home, ...env },
     });
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
@@ -202,26 +206,130 @@ test('renderProject: resolves a linked worktree to the main project name', () =>
   }
 });
 
+// Fixture: a fake $HOME with a default `~/.claude/` config dir and, optionally,
+// `~/.claude.json` (rootJson) and/or `~/.claude/.claude.json` (dotClaudeJson).
+// Caller removes the returned home.
+function makeAccountHome({ rootJson, dotClaudeJson } = {}) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sl-home-'));
+  fs.mkdirSync(path.join(home, '.claude', 'projects', 'foo'), { recursive: true });
+  if (rootJson !== undefined) fs.writeFileSync(path.join(home, '.claude.json'), JSON.stringify(rootJson));
+  if (dotClaudeJson !== undefined) {
+    fs.writeFileSync(path.join(home, '.claude', '.claude.json'), JSON.stringify(dotClaudeJson));
+  }
+  return home;
+}
+
+function defaultTranscript(home) {
+  return path.join(home, '.claude', 'projects', 'foo', 's.jsonl');
+}
+
 test('renderAccount: extracts slug from a .claude-accounts transcript_path', () => {
   assert.strictEqual(
-    sl.renderAccount({ transcript_path: '/Users/x/.claude-accounts/personal-gmail/projects/foo/session.jsonl' }),
+    sl.renderAccount(
+      { transcript_path: '/Users/x/.claude-accounts/personal-gmail/projects/foo/session.jsonl' },
+      { env: {}, home: '/Users/x' },
+    ),
     'acct: personal-gmail',
   );
 });
 
 test('renderAccount: matches a Windows-style backslash path', () => {
   assert.strictEqual(
-    sl.renderAccount({ transcript_path: 'C:\\Users\\x\\.claude-accounts\\work\\projects\\foo\\session.jsonl' }),
+    sl.renderAccount(
+      { transcript_path: 'C:\\Users\\x\\.claude-accounts\\work\\projects\\foo\\session.jsonl' },
+      { env: {}, home: 'C:\\Users\\x' },
+    ),
     'acct: work',
   );
 });
 
-test('renderAccount returns null on a single-account layout (no .claude-accounts segment)', () => {
-  assert.strictEqual(sl.renderAccount({ transcript_path: '/Users/x/.claude/projects/foo/session.jsonl' }), null);
+test('renderAccount: any non-default config dir is labeled by its basename, not only .claude-accounts', () => {
+  assert.strictEqual(
+    sl.renderAccount(
+      { transcript_path: '/Users/x/cfg/work-acct/projects/foo/session.jsonl' },
+      { env: {}, home: '/Users/x' },
+    ),
+    'acct: work-acct',
+  );
 });
 
-test('renderAccount returns null when transcript_path is missing', () => {
-  assert.strictEqual(sl.renderAccount({}), null);
+test('renderAccount: CLAUDE_CONFIG_DIR wins over transcript_path for the config dir', () => {
+  assert.strictEqual(
+    sl.renderAccount(
+      { transcript_path: '/Users/x/.claude/projects/foo/session.jsonl' },
+      { env: { CLAUDE_CONFIG_DIR: '/Users/x/.claude-accounts/memenu' }, home: '/Users/x' },
+    ),
+    'acct: memenu',
+  );
+});
+
+test('renderAccount: default config dir (~/.claude) is labeled by the logged-in email from ~/.claude.json', () => {
+  const home = makeAccountHome({ rootJson: { oauthAccount: { emailAddress: 'a@outlook.com' } } });
+  try {
+    assert.strictEqual(
+      sl.renderAccount({ transcript_path: defaultTranscript(home) }, { env: {}, home }),
+      'acct: a@outlook.com',
+    );
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('renderAccount: default config dir skips a ~/.claude/.claude.json stub without oauthAccount', () => {
+  // Observed on a real machine: ~/.claude/.claude.json exists without oauthAccount while
+  // ~/.claude.json holds the identity — the lookup must not stop at the stub.
+  const home = makeAccountHome({
+    rootJson: { oauthAccount: { emailAddress: 'a@outlook.com' } },
+    dotClaudeJson: { someOtherKey: true },
+  });
+  try {
+    assert.strictEqual(
+      sl.renderAccount({ transcript_path: defaultTranscript(home) }, { env: {}, home }),
+      'acct: a@outlook.com',
+    );
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('renderAccount: missing transcript_path and no CLAUDE_CONFIG_DIR resolves to the default dir', () => {
+  const home = makeAccountHome({ rootJson: { oauthAccount: { emailAddress: 'a@outlook.com' } } });
+  try {
+    assert.strictEqual(sl.renderAccount({}, { env: {}, home }), 'acct: a@outlook.com');
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('renderAccount: a transcript_path not shaped <dir>/projects/<slug>/<id>.jsonl falls back to the default dir', () => {
+  const home = makeAccountHome({ rootJson: { oauthAccount: { emailAddress: 'a@outlook.com' } } });
+  try {
+    assert.strictEqual(
+      sl.renderAccount({ transcript_path: '/some/odd/place/session.jsonl' }, { env: {}, home }),
+      'acct: a@outlook.com',
+    );
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('renderAccount returns null on the default config dir with no identity file (API-key / unauthenticated)', () => {
+  const home = makeAccountHome();
+  try {
+    assert.strictEqual(sl.renderAccount({ transcript_path: defaultTranscript(home) }, { env: {}, home }), null);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('renderAccount returns null when ~/.claude.json is unparseable', () => {
+  const home = makeAccountHome();
+  fs.writeFileSync(path.join(home, '.claude.json'), '{not json');
+  try {
+    assert.strictEqual(sl.renderAccount({}, { env: {}, home }), null);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test('renderContext: uses used_percentage when provided', () => {
@@ -596,6 +704,19 @@ test('end-to-end: transcript_path under .claude-accounts renders the acct segmen
     { NO_COLOR: '1' },
   );
   assert.ok(out.endsWith('acct: personal-gmail'), `expected acct segment at end: ${out}`);
+});
+
+test('end-to-end: default ~/.claude layout renders the acct segment from ~/.claude.json', () => {
+  const out = runStatusline(
+    { model: { display_name: 'Sonnet 5' }, transcript_path: '/Users/x/.claude/projects/foo/s.jsonl' },
+    { NO_COLOR: '1' },
+    (home) =>
+      fs.writeFileSync(
+        path.join(home, '.claude.json'),
+        JSON.stringify({ oauthAccount: { emailAddress: 'a@outlook.com' } }),
+      ),
+  );
+  assert.ok(out.endsWith('acct: a@outlook.com'), `expected acct segment at end: ${out}`);
 });
 
 test('end-to-end: NO_COLOR strips ANSI codes even at high context', () => {

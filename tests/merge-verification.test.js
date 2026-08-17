@@ -189,35 +189,6 @@ test('the ladder never derives wait', () => {
   for (const deps of combos) assert.notEqual(mv.deriveMergeVerification('/x', deps), 'wait');
 });
 
-test('resolveMergeVerification: explicit valid policy value wins outright — no derivation lookups run', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-mv-explicit-'));
-  tempDirs.push(dir);
-  fs.mkdirSync(path.join(dir, '.claude-tweaks'));
-  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'merge-verification: wait\n');
-  const im = neverCalled('integration-model lookup');
-  const wf = neverCalled('workflow reader');
-  const ib = neverCalled('integration-branch lookup');
-  const db = neverCalled('default-branch lookup');
-  const value = mv.resolveMergeVerification(dir, {
-    integrationModel: im, readWorkflows: wf, integrationBranch: ib, defaultBranch: db,
-  });
-  assert.equal(value, 'wait');
-  assert.equal(im.calls, 0, 'integration-model lookup must not be consulted');
-  assert.equal(wf.calls, 0, 'workflow reader must not be consulted');
-  assert.equal(ib.calls, 0, 'integration-branch lookup must not be consulted');
-  assert.equal(db.calls, 0, 'default-branch lookup must not be consulted');
-});
-
-test('resolveMergeVerification: absent or invalid policy value falls through to the ladder', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-mv-derive-'));
-  tempDirs.push(dir);
-  const deps = { integrationModel: () => 'pr-first', readWorkflows: prCi, integrationBranch: () => 'main', defaultBranch: () => 'main' };
-  assert.equal(mv.resolveMergeVerification(dir, deps), 'merge-when-green', 'absent -> derived');
-  fs.mkdirSync(path.join(dir, '.claude-tweaks'));
-  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'merge-verification: sideways\n');
-  assert.equal(mv.resolveMergeVerification(dir, deps), 'merge-when-green', 'invalid -> derived, not null');
-});
-
 // --- CLI (bin/resolve-policy.js) ---
 
 // A fixture repo with one commit, an origin/HEAD symref (what a clone records,

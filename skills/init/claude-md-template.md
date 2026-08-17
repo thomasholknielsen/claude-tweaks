@@ -147,7 +147,7 @@ These apply regardless of project maturity:
 - **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
 - **Assume zero cost.** Decide as if implementation is free. Never choose an inferior design because the better one "isn't worth the effort."
 - **Assume zero time.** Decide as if implementation is instant. Never choose a shortcut because the proper approach "takes too long."
-- **No implicit deferrals.** When something needs doing, either do it now or explicitly file a backlog work record (via `/claude-tweaks:capture`) with scope and context. Never silently skip work or leave TODO comments without a corresponding backlog record.
+- **No implicit deferrals.** When something needs doing, either do it now or explicitly file a backlog work record via `/claude-tweaks:capture` — with a spec-shaped body (Current State / Deliverables / Acceptance Criteria) and a `Defer-reason:` from `_shared/deferral-gate.md` when an agent holds the context; a stub is for a human typing an idea. Never silently skip work or leave TODO comments without a corresponding backlog record.
 
 ### Maturity-dependent principles (adapt to classification)
 
@@ -194,7 +194,7 @@ Two rules of thumb:
 
 - **How to work here, not what's missing** — every entry should help someone working in the codebase right now. Improvements belong in the backlog.
 - **Observed, not aspirational** — document what the codebase actually does, not what it should do
-- **Under 150 lines (default; override via `harness-health.always-loaded-budget` in `.claude-tweaks/policy.yml`)** — if it doesn't fit, it belongs in a skill or rule
+- **Under 150 lines (default; override via `harness-health-always-loaded-budget` in `.claude-tweaks/policy.yml`)** — if it doesn't fit, it belongs in a skill or rule
 - **Commands must work** — verify scripts exist before listing them
 - **Don'ts are guardrails, not wishes** — they describe existing patterns that should not be violated, never infrastructure that doesn't exist yet
 - **Philosophy adapts to maturity** — the same principle stated differently for greenfield vs established projects prevents both reckless breaking changes and unnecessary conservatism

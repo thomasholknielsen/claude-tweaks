@@ -35,7 +35,7 @@ test('policy-source value resolves with source: "policy"', () => {
 });
 
 test('known-but-unset key resolves to the schema default with source: "default" and NO invalid flag', () => {
-  const result = resolvePolicyKeys(['autonomy'], { policyRaw: 'worktree.always: true\n' });
+  const result = resolvePolicyKeys(['autonomy'], { policyRaw: 'worktree-always: true\n' });
   assert.deepStrictEqual(result.autonomy, { value: 'supervised', source: 'default' });
   assert.ok(!('invalid' in result.autonomy), 'source: "default" alone means known-but-unset — invalid must be absent');
 });
@@ -140,10 +140,17 @@ test('unknown key yields an error entry while its sibling still resolves', () =>
   assert.deepStrictEqual(result.autonomy, { value: 'trusted', source: 'policy' });
 });
 
-test('boolean coercion: worktree.always: true resolves to native boolean true', () => {
-  const result = resolvePolicyKeys(['worktree.always'], { policyRaw: 'worktree.always: true\n' });
-  assert.strictEqual(result['worktree.always'].value, true);
-  assert.strictEqual(result['worktree.always'].source, 'policy');
+test('boolean coercion: worktree-always: true resolves to native boolean true', () => {
+  const result = resolvePolicyKeys(['worktree-always'], { policyRaw: 'worktree-always: true\n' });
+  assert.strictEqual(result['worktree-always'].value, true);
+  assert.strictEqual(result['worktree-always'].source, 'policy');
+});
+
+test('boolean coercion through the #602 alias: a worktree.always line resolves worktree-always to native boolean true with renamed-from', () => {
+  const result = resolvePolicyKeys(['worktree-always'], { policyRaw: 'worktree.always: true\n' });
+  assert.strictEqual(result['worktree-always'].value, true);
+  assert.strictEqual(result['worktree-always'].source, 'policy');
+  assert.strictEqual(result['worktree-always']['renamed-from'], 'worktree.always');
 });
 
 test('a key with no schema default, absent everywhere, resolves to value: null, source: "default"', () => {
@@ -236,4 +243,71 @@ test('a retired key\'s line is inert: deleted from the source\'s flat view, no r
   });
   assert.deepStrictEqual(result.autonomy, { value: 'trusted', source: 'policy' });
   assert.deepStrictEqual(result['branch-divergence-check'], { value: true, source: 'default' }, 'a retired line contributes no value and no renamed-from tag to any canonical key');
+});
+
+test('design-critique resolves to the schema default auto with source: "default" when unset (#595)', () => {
+  const result = resolvePolicyKeys(['design-critique'], { policyRaw: null, runConfigRaw: null });
+  assert.deepStrictEqual(result['design-critique'], { value: 'auto', source: 'default' });
+  const set = resolvePolicyKeys(['design-critique'], { policyRaw: 'design-critique: full\n' });
+  assert.deepStrictEqual(set['design-critique'], { value: 'full', source: 'policy' });
+});
+
+// --- housekeeping-auto-merge autonomy-derived default (#580) ---
+// The key is requested ALONE in every case below: the derivation must
+// internally resolve autonomy from the same sources, never rely on
+// autonomy appearing in requestedKeys (the per-key loop shares no state).
+
+test('AC 1: unset + autonomy supervised (or unset) derives false', () => {
+  const unsetBoth = resolvePolicyKeys(['housekeeping-auto-merge'], { policyRaw: null });
+  assert.deepStrictEqual(unsetBoth['housekeeping-auto-merge'], { value: false, source: 'default' });
+  const supervised = resolvePolicyKeys(['housekeeping-auto-merge'], { policyRaw: 'autonomy: supervised\n' });
+  assert.deepStrictEqual(supervised['housekeeping-auto-merge'], { value: false, source: 'default' });
+});
+
+test('AC 2: unset + autonomy trusted derives true', () => {
+  const result = resolvePolicyKeys(['housekeeping-auto-merge'], { policyRaw: 'autonomy: trusted\n' });
+  assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: true, source: 'default' });
+});
+
+test('AC 3+4: unset + autonomy unattended derives true, with the key requested alone', () => {
+  const requested = ['housekeeping-auto-merge'];
+  assert.ok(!requested.includes('autonomy'), 'invariant: autonomy must not be in requestedKeys');
+  const result = resolvePolicyKeys(requested, { policyRaw: 'autonomy: unattended\n' });
+  assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: true, source: 'default' });
+});
+
+test('AC 5: explicit false at unattended wins with a non-default source', () => {
+  const result = resolvePolicyKeys(['housekeeping-auto-merge'], {
+    policyRaw: 'housekeeping-auto-merge: false\nautonomy: unattended\n',
+  });
+  assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: false, source: 'policy' });
+});
+
+test('AC 6: explicit true at supervised wins with a non-default source', () => {
+  const result = resolvePolicyKeys(['housekeeping-auto-merge'], {
+    policyRaw: 'housekeeping-auto-merge: true\nautonomy: supervised\n',
+  });
+  assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: true, source: 'policy' });
+});
+
+test('AC 7: set-but-invalid keeps invalid: true and falls back to the derived value', () => {
+  const result = resolvePolicyKeys(['housekeeping-auto-merge'], {
+    policyRaw: 'housekeeping-auto-merge: maybe\nautonomy: unattended\n',
+  });
+  assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: true, source: 'default', invalid: true });
+});
+
+test('run-config explicit value beats a policy autonomy derivation', () => {
+  const result = resolvePolicyKeys(['housekeeping-auto-merge'], {
+    policyRaw: 'autonomy: unattended\n',
+    runConfigRaw: 'housekeeping-auto-merge: false\n',
+  });
+  assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: false, source: 'run-config' });
+});
+
+test('an invalid autonomy value feeding the derivation falls back to supervised, deriving false', () => {
+  const result = resolvePolicyKeys(['housekeeping-auto-merge'], {
+    policyRaw: 'autonomy: banana\n',
+  });
+  assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: false, source: 'default' });
 });

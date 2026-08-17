@@ -3,7 +3,7 @@ name: feedback
 description: Use when a learning belongs upstream in the claude-tweaks plugin rather than this project — a skill that behaves wrongly (defect) or has no opinion where it should (gap). Files a GitHub issue against claude-tweaks after an explicit scrub and confirmation.
 argument-hint: "[<learning text>] [--kind=defect|gap] [--dry-run] [--queue] [--pre-confirmed]"
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 
 # Feedback — Route a learning upstream to the claude-tweaks plugin
@@ -123,7 +123,7 @@ current behavior does not support it.
 Also judge Definition: does this learning name a genuine open choice with no
 tradeoff made yet — two or more viable directions, no stated preference — or a
 single clear ask? This is a content call made in this same turn, not a
-structural heuristic (the same posture `framing:baked`'s judgment takes).
+structural heuristic (the same posture `solution:unjustified`'s judgment takes).
 `Needed` only when the learning genuinely names an undecided choice; default
 `Clear` otherwise. When `Needed`, form a one-line rationale naming the open
 choice — this and the verdict feed Step 5's draft.
@@ -242,9 +242,11 @@ and including invocations that began inside a pipeline.
 — as **one** Task agent per invocation: the main thread hands it the drafted body from Step 5 and
 this step's removal criteria verbatim, and the agent returns the scrubbed body plus a one-line note
 of what it removed (or "nothing to remove"). Resolve the model via `node
-"${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable --unattended` (no `--run-dir` — `/feedback`
+"${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable` (no `--run-dir` — `/feedback`
 is typically invoked standalone with no run directory; one scrub dispatch per invocation,
-enforced here by this skill rather than by a run-dir tally). Record #221 originally granted
+enforced here by this skill rather than by a run-dir tally; append `--unattended` only when the
+invocation is genuinely headless — a scheduled Routine or a `claude -p` run — resolved from
+session state, never a hard-coded literal). Record #221 originally granted
 this scrub the skill's one Frontier singleton slot; this skill's Frontier singleton slot now
 belongs to the session-evaluation judge
 (`session-evaluation.md`, Step 0) instead, knowingly superseding #221's scrub entry — the scrub's
@@ -358,8 +360,11 @@ Nothing further is needed.
 
 ## Next Actions
 
-Render one `AskUserQuestion` with options drawn from context: continue the
-parent workflow, file a second related learning, or open the created issue.
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), lines drawn from context — include only the lines that apply:
+
+**{the parent workflow's next command, fully qualified, e.g. `/claude-tweaks:wrap-up {spec}`}** — continue the parent workflow (recommended)
+`/claude-tweaks:feedback {second learning}` — file another related learning while it's fresh
+`gh issue view {created issue URL} --web` — open the filed issue for reading or follow-up
 
 ## Component-Skill Contract
 

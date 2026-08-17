@@ -4,7 +4,7 @@ description: Use to check whether docs/journeys/*.md still back reliable e2e tes
 argument-hint: "[--target <journey-name>] [--budget <n>] [--deep] [--dry-run] [--root <dir>] [--min-confidence <low|med|high>]"
 allowed-tools: Read, Grep, Glob, Bash, Skill, Write, AskUserQuestion
 ---
-> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. End with `## Next Actions` via `AskUserQuestion`, not a navigation menu.
+> **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
 # Journey Health — Keep Journeys Honest for Agent E2E Testing
 
@@ -280,11 +280,11 @@ Report-only, matching `/code-health` and `/harness-health` — every finding fil
 
 ## Next Actions
 
-Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). Bold the `/claude-tweaks:routine create journey-health` line and suffix it `(recommended)` once a first standalone run confirms the output looks right; before that, render all three lines unranked in the order below.
 
-- Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create journey-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
-- Option 2 — `label`: `"Audit one journey"`, `description`: `"/claude-tweaks:journey-health --target <name> — audit one specific journey right now"`
-- Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed journey-health issues into a backlog-hygiene pass"`
+**`/claude-tweaks:routine create journey-health`** — schedule this as a recurring Routine (recommended once a first standalone run confirms the output looks right)
+`/claude-tweaks:journey-health --target <name>` — audit one specific journey right now
+`/claude-tweaks:tidy` — fold any filed journey-health issues into a backlog-hygiene pass
 
 ## Component-Skill Contract
 

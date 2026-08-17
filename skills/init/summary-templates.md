@@ -166,8 +166,8 @@ After writing files, surface what was created. Generate the table from the actua
 | Cloud parity | Declared {N} plugin(s) in .claude/settings.json#enabledPlugins; wrote scripts/claude-cloud-setup.sh; wrote CLAUDE.md's Cloud parity section | Step 14 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 15 |
 | Routine re-sync | Re-synced {M} drifted routine(s) to their current templates: `{list}` (Update Mode only) | Update Mode |
-| Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
-| Classification | Confirmed maturity `{value}` (written to `.claude-tweaks/policy.yml` as `project.maturity`), doc tier `{N}` | Phase 3 |
+| Worktree policy | Set `worktree-always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
+| Classification | Confirmed maturity `{value}` (written to `.claude-tweaks/policy.yml` as `project-maturity`), doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
 | Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
 | Rules | Created {N} path-scoped rules in `.claude/rules/` | Phase 7 |
