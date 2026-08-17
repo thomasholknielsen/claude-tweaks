@@ -9,6 +9,7 @@
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { MANIFEST_PATHS } = require('./lib/manifest-path');
 const { resolveScope } = require('./lib/residue/scope');
 const { hasTestScript } = require('./lib/residue/detect-test-script');
 const { probeWorktrees } = require('./lib/residue/probes/worktrees');
@@ -49,6 +50,21 @@ function runner(cwd) {
   };
 }
 
+// Both spellings of this repo's own manifest, new path first (#418's payload
+// cutover moved it under `plugin/`). Reading only one spelling makes
+// probeRelease's `manifest.name === 'claude-tweaks'` guard trip forever and
+// report "not applicable" in the single repo the release triple exists for.
+// An absent — or unparseable — manifest stays normal: every other project this
+// CLI runs in has none.
+function readProjectManifest(cwd) {
+  for (const manifestPath of MANIFEST_PATHS) {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(cwd, manifestPath), 'utf8'));
+    } catch { /* try the next spelling */ }
+  }
+  return null;
+}
+
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (!opts.base) {
@@ -60,10 +76,7 @@ function main() {
   const git = (args) => run(['git', ...args]);
   const scope = resolveScope({ base: opts.base, run: git });
 
-  let manifest = null;
-  try {
-    manifest = JSON.parse(fs.readFileSync(path.join(cwd, '.claude-plugin', 'plugin.json'), 'utf8'));
-  } catch { /* absent manifest is normal outside this plugin */ }
+  const manifest = readProjectManifest(cwd);
 
   const suiteRun = () => {
     try {
@@ -112,4 +125,6 @@ function main() {
   }
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { readProjectManifest };

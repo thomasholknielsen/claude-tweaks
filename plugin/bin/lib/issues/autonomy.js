@@ -12,7 +12,7 @@
 // per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` shape — the
 // flat single `reason` could pair a granted bornReady with the other grant's
 // denial text, which is the bug the per-grant shape fixes. Removal condition:
-// delete the flat keys at the first release on or after 2026-11-16 (ship date + 3 months, policy-deprecations.md's dated-backstop shape), re-running `grep -rn "permittedGrants" skills/ bin/` first to confirm every consumer still reads `grants.*`.
+// delete the flat keys at the first release on or after 2026-11-16 (ship date + 3 months, policy-deprecations.md's dated-backstop shape), re-running `grep -rn "permittedGrants" plugin/skills/ plugin/bin/` first to confirm every consumer still reads `grants.*`.
 
 // record.js requires only ./facet-shape; this import is one-directional by
 // contract (autonomy -> record, never record -> autonomy) so the two never cycle.

@@ -276,7 +276,7 @@ function checkPluginVersionBump(recentByDir) {
             } catch { /* unparseable parent manifest -> no comparison, fail open */ }
           }
           if (parentVersion !== null && parentVersion !== version && !RELEASE_COMMIT_MESSAGE_RE.test(commit.message)) {
-            outstanding.push('`bin/release.js` appears to have been bypassed for this version change');
+            outstanding.push('`plugin/bin/release.js` appears to have been bypassed for this version change');
           }
         }
       }

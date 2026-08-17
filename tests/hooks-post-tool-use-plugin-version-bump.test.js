@@ -101,7 +101,7 @@ test('flags a bypassed bump whose parent manifest is still at the pre-cutover pa
   execFileSync('git', ['-C', dir, 'add', '-A'], { env: gitEnv() });
   execFileSync('git', ['-C', dir, 'commit', '-q', '-m', 'Bump version by hand while moving the payload'], { env: gitEnv() });
   const msg = runPostToolUse(fs.realpathSync(dir)).json.systemMessage;
-  assert.match(msg, /`bin\/release\.js` appears to have been bypassed/);
+  assert.match(msg, /`plugin\/bin\/release\.js` appears to have been bypassed/);
 });
 
 // Same repo shape, but the release's same-commit obligations can be satisfied
@@ -217,7 +217,7 @@ function gitRepoWithVersionSequence({ v1, v2, message2 }) {
 test('flags a version change whose commit message does not match the release shape', () => {
   const repo = gitRepoWithVersionSequence({ v1: '1.0.0', v2: '1.1.0', message2: 'Bump version by hand' });
   const msg = runPostToolUse(repo).json.systemMessage;
-  assert.match(msg, /`bin\/release\.js` appears to have been bypassed/);
+  assert.match(msg, /`plugin\/bin\/release\.js` appears to have been bypassed/);
 });
 
 test('does not flag a version change whose commit message matches the release shape', () => {

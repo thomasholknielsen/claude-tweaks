@@ -7,8 +7,8 @@ const { runRelease } = require('./lib/release/run.js');
 const { releaseStatus, formatStatusLine, formatBackfillSection, isBadRefValue, CHANGELOG } = require('./lib/release/status.js');
 const { appendShippedVersion } = require('./lib/shipped-record.js');
 
-const USAGE = `Usage: node bin/release.js <minor|patch> "<summary>" [--dry-run]
-       node bin/release.js status --merge <sha> --records <n>[,<m>...] [--ref <ref>] [--json] [--backfill]
+const USAGE = `Usage: node plugin/bin/release.js <minor|patch> "<summary>" [--dry-run]
+       node plugin/bin/release.js status --merge <sha> --records <n>[,<m>...] [--ref <ref>] [--json] [--backfill]
 
 Performs a complete release from a clean main: collision pre-check, manifest
 bump, CHANGELOG stub, shipped-versions.tsv append (one commit), push, and
