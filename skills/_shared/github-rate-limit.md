@@ -36,9 +36,9 @@ transient rows is the plain-403 row, by construction, not a default-to-retry.
   `_shared/issue-claims.md`'s Section E keeps its existing retry-once-then-TTL outcome
   unchanged; this file only supplies the recognition step feeding into that retry).
 - A total wall-clock bound of ~5 minutes for the whole retry sequence. When honoring
-  `Retry-After` (or the sum of prior waits) would exceed the bound, skip the remaining
-  retries and degrade immediately per the caller's own outcome — never poll open-endedly
-  (the anti-pattern named by record-418's background poller).
+  `Retry-After` (or the bucket's `reset` time, or the sum of prior waits) would exceed the
+  bound, skip the remaining retries and degrade immediately per the caller's own outcome —
+  never poll open-endedly (the anti-pattern named by record-418's background poller).
 - Recognition, classification, and backoff are mode-agnostic. Only the logging step is bound
   to a pipeline run: with an active `$PIPELINE_RUN_DIR`, log one `decisions.md` line naming
   the classified signature (`_shared/auto-decision-log.md`'s entry schema), then apply the
