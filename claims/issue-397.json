@@ -1,6 +1,6 @@
 {
   "released": true,
-  "runId": "2026-08-14T213409-dispatch-standalone",
-  "reason": "abandoned: spec 397",
-  "releasedAt": "2026-08-14T21:58:35.142Z"
+  "runId": "2026-08-17T152950-tidy-standalone",
+  "reason": "swept: issue closed",
+  "releasedAt": "2026-08-17T15:32:13.423Z"
 }
