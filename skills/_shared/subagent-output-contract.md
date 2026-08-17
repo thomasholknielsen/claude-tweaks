@@ -28,6 +28,8 @@ A dispatched agent is a clean room. Don't pass the conversation. Pass exactly:
 
 Do NOT pass: prior messages, the user's original phrasing, your own findings so far, or "background context for completeness." Each of those compounds across N agents.
 
+**`subagent_type: "fork"` is prohibited for a clean-room fan-out dispatch.** A fork inherits the dispatcher's full conversation context by construction — the exact inverse of the clean-room discipline above. Use a fresh (non-fork) agent type for every fan-out dispatch this contract governs; fork is for continuing a single prior agent with its own memory intact (see the Agent tool's own guidance), never for parallel dispatch. See "Session-inherit protection" below for the related, narrower model-override exemption this restriction is not.
+
 When in doubt, give less context. If the agent comes back with `NEEDS_CONTEXT`, give it more on the re-dispatch.
 
 **A file allowlist inherits the staleness of whatever it was derived from.** When the scope comes from an issue body, a design doc, or any other snapshot, the real work site may sit outside it — the four health-sweep skills file issues whose file lists are routinely wrong in both directions (a named file that isn't really affected, and an unnamed one that is). Say so in the dispatch: the agent must locate constructs by content rather than by the source's line numbers, and report an out-of-allowlist site under `DONE_WITH_CONCERNS` instead of silently scoping around it or editing outside its list. That report is cheap; a fix applied to the wrong file because the right one wasn't listed is not.

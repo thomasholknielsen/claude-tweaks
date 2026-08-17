@@ -117,6 +117,26 @@ function extractKeyFilesSection(body) {
   return files;
 }
 
+// issue: { labels } shaped like `gh api .../issues/{n}` output. True when
+// extractKeyFiles reads this issue via the `### Key Files` fallthrough branch
+// below (a /specify-produced sub-issue, a /capture record, or a hand-filed
+// one) rather than one of the four health-sweep origin headers — i.e. when an
+// empty extractKeyFiles([]) result for this issue is actually meaningful (the
+// record was supposed to carry a `### Key Files` subsection and doesn't) as
+// opposed to expected-and-correct (a health-sweep record's own header shape
+// legitimately has no such section, or a harness-health new-skill candidate
+// that explicitly returns [] regardless). Callers that want to warn on an
+// empty extraction — multi-spec.md's Cross-spec conflict detection,
+// dispatch's queue-pull-script.md, help/status-scan.md's Conflict detection —
+// gate the warning on this, so the four health-sweep origins never trip it.
+function expectsKeyFilesSection(issue) {
+  const names = normalizeLabelNames(issue && issue.labels);
+  return !hasOrigin(names, 'code-health')
+    && !hasOrigin(names, 'harness-health')
+    && !hasOrigin(names, 'journey-health')
+    && !hasOrigin(names, 'docs-health');
+}
+
 // issue: { body, labels } shaped like `gh api .../issues/{n}` output.
 // Returns string[] of file paths, [] when nothing is extractable.
 function extractKeyFiles(issue) {
@@ -200,4 +220,4 @@ function selectGroupsForExplicitList(requestedNumbers, groups) {
   return { selectedGroups, notFound };
 }
 
-module.exports = { groupByFileOverlap, extractKeyFiles, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin };
+module.exports = { groupByFileOverlap, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin };
