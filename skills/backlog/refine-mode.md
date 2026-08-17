@@ -310,7 +310,7 @@ rule, and the confirm gate (`<!-- refine-confirm-gate -->`).
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line; the closing summary below is the report, not narration.)*
 
-**Pre-write reverify (every write below).** Row confirmation happened at Step 4's `AskUserQuestion` render, which may have sat unanswered for hours — long enough for a concurrent session to grant, claim, or flag back the same record. Immediately before writing any row below (priority/related, grant, flag-back — never dependency-repair, which wires a `blocked-by` link rather than reading a grant/`ready` gate and is not this same race), re-fetch that record's live labels (`gh issue view $ISSUE --json labels -q '.labels[].name'`) and compare against the row's own premise — the facets already captured at Step 1's fetch (`{tmp-faceted-file}`), not re-derived. A grant row whose live labels lost `ready`, or a flag-back row whose live labels gained `risk:*`/`size:*`/`auto:build`/`bot:in-progress` since Step 1, has had its premise invalidated by a concurrent write: drop it from this write, log a `SKIPPED` line to `decisions.md` (per the template below) — the closing summary already renders from these lines, no second channel — and do not call any of the `gh edit`/`writeRecord` calls below for that row. A priority/related row has no grant/`ready` gate to invalidate — re-fetch and compare its current `priority:*`/`**Related:**` state the same way, skipping only when the record already matches what would be written (a genuine no-op) or when a concurrent write already set a different value (log and skip rather than overwrite a fresher decision).
+**Pre-write reverify (every write below).** Row confirmation happened at Step 4's `AskUserQuestion` render, which may have sat unanswered for hours — long enough for a concurrent session to grant, claim, or flag back the same record. Immediately before writing any row below (priority/related, grant, flag-back — never dependency-repair, which wires a `blocked-by` link and isn't this same race), re-fetch that record's live labels (`gh issue view "$ISSUE" --json labels -q '.labels[].name'`) and compare against the row's own premise — the facets already captured at Step 1's fetch (`{tmp-faceted-file}`, not re-derived), projected as: `ready` ↔ `facets.stage === 'ready'`, `auto:build` ↔ `facets.grants.build`, `bot:in-progress` ↔ `facets.bot.inProgress`. A grant row whose live labels lost `ready`, or a flag-back row whose live labels gained `risk:*`/`size:*`/`auto:build`/`bot:in-progress` since Step 1, has had its premise invalidated by a concurrent write: drop it from this write, log an `AUTO … skipped …` line (per the template below), and skip the `gh edit`/`writeRecord` calls below for that row. A priority/related row has no grant/`ready` gate to invalidate — re-fetch and compare its current `priority:*`/`**Related:**` state the same way, skipping only on a genuine no-op or when a concurrent write already set a different value (log and skip rather than overwrite a fresher decision).
 
 Local-files driver: the equivalent re-read is `readRecord(path).facets` immediately before `writeRecord` — same skip-on-mismatch rule, since a concurrent session's edit to the tracked file is exactly the same class of stale-premise race as a concurrent GitHub label write.
 
@@ -391,7 +391,7 @@ gh issue comment "$ISSUE" --body-file /tmp/backlog-refine-flagback-${ISSUE}.md
 Check each write's own result before logging it — a non-zero exit from any `gh`/`writeRecord` call
 above is a failure, not a success, regardless of which lane produced it. Log every action to this
 run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md`) via the matching
-template below, success or failure:
+template below, success, failure, or skipped-before-write:
 
 ```
 AUTO {time} — Backlog refine: set priority:{tier} on #{n}.
@@ -400,11 +400,11 @@ AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: repaired dependency on #{n} — {wired native blocked-by referencing #{m} | appended Blocked by #{m} line}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
-SKIPPED {time} — Backlog refine: #{n} — premise changed since confirmation ({what changed}); dropped without writing.
+AUTO {time} — Backlog refine: skipped #{n} — premise changed since confirmation ({what changed}); dropped without writing.
 FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
 ```
 
-The closing summary below counts these lines by type — a `FAILED` line is the source for the tally's `failed` count and the per-failure lines; a `SKIPPED` line (from the pre-write reverify above) is the source for the tally's `skipped` count and its own per-skip lines; a write with no matching `AUTO`/`FAILED`/`SKIPPED` line was never attempted, so it counts toward none of them.
+The closing summary below counts these lines by type — a `FAILED` line is the source for the tally's `failed` count and the per-failure lines; an `AUTO … skipped …` line (from the pre-write reverify above) is the source for the tally's `skipped` count and its own per-skip lines; a write with no matching `AUTO`/`FAILED` line was never attempted, so it counts toward none of them.
 
 **Closing summary (required, rendered as assistant text — never delegated to tool output; a
 shell print of the tally does not satisfy this):** after the apply pass above completes, render
@@ -453,8 +453,8 @@ second bookkeeping channel:
    Audit trail: /abs/path/to/.claude-tweaks/pipelines/{run-id}/decisions.md
    ```
 
-A fully clean run still renders `0 failed` explicitly and omits the per-failure lines — the
-tally line's `0 failed` is the only signal a clean run needs.
+A fully clean run still renders `0 failed` explicitly (and `0 skipped` alongside it), omitting
+both the per-failure and per-skip lines — that's the only signal a clean run needs.
 
 **Close the run dir.** After the closing summary above renders, close this run's standalone run
 directory so resume/reconcile paths can classify it as terminal instead of `status: unknown`:
@@ -481,4 +481,4 @@ warning line is expected here and not an error; refine runs standalone and never
 
 ## Concurrency
 
-Two humans running `/claude-tweaks:backlog refine` at the same time is safe by construction — every label add is idempotent, so two overlapping grants on the same record just repeat the same write. The one sharp edge is a genuine race between a grant and a flag-back landing on the *same* record in the same window: last-writer-wins on GitHub's own label state. This is acceptable, not engineered around — it is a narrow, self-correcting window (the next `/claude-tweaks:backlog refine` run reads whatever state won and proceeds from there), not worth a lock.
+Two humans running `/claude-tweaks:backlog refine` at the same time is safe by construction — every label add is idempotent, so two overlapping grants just repeat the same write. The hours-wide confirm-gate-to-apply window that let a concurrent grant/claim get clobbered by a stale confirmation is now closed by Step 5's pre-write reverify above, not merely accepted. What remains accepted is narrower: the sub-second gap between the reverify's own `gh issue view` read and the `gh edit`/`comment` write that follows for that row — GitHub's label/comment APIs have no conditional-write (ETag/if-match) primitive to close it, so last-writer-wins there is a small, accepted residual, not an oversight.
