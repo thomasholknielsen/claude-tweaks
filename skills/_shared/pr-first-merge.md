@@ -210,6 +210,8 @@ merge (capture (a)), so the confirmation itself carries the choice: wait for gre
 
 ## Step 3: Attempt auto-merge, degrading on specific failure signatures
 
+**Creation-time caller:** `tidy/SKILL.md`'s Step 7.5 `pr-first` branch invokes only this step's initial `gh pr merge --auto` call at PR-creation time, with the degrade chain below replaced by leave-unarmed + report — see that step's own text for the full routing.
+
 ```bash
 gh pr merge {pr-number} --repo {owner}/{repo} --auto --merge \
   -t "[{tag}] {one-line summary}" \
