@@ -63,16 +63,15 @@ test('record-worktree writes run-state, prints a confirmation line, and close-ru
 test('close-run on a run dir with no pre-existing run-state.json creates one and stamps it clean (#743 — refine standalone runs, which never call record-worktree)', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const statePath = path.join(run, 'run-state.json');
   // No record-worktree call, no prior writeRunState — mirrors a backlog refine
   // standalone run dir today: decisions.md gets written, run-state.json never does.
-  assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false,
+  assert.strictEqual(fs.existsSync(statePath), false,
     'precondition: run dir must start with no run-state.json at all');
-  const result = runHook(['close-run', '--run', run], { cwd: project });
-  assert.strictEqual(result.code, 0);
-  assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), true,
+  assert.strictEqual(runHook(['close-run', '--run', run], { cwd: project }).code, 0);
+  assert.strictEqual(fs.existsSync(statePath), true,
     'close-run must create run-state.json when the run dir never had one — the premise refine-mode.md Step 5 now relies on');
-  const state = readRunState(run);
-  assert.strictEqual(state.status, 'clean');
+  assert.strictEqual(readRunState(run).status, 'clean');
 });
 
 test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {

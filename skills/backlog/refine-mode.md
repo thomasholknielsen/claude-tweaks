@@ -439,14 +439,14 @@ directory so resume/reconcile paths can classify it as terminal instead of `stat
 node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run <absolute-run-dir>
 ```
 
-Always pass the explicit `--run <absolute-run-dir>` — the same path named in the closing
-summary's audit-trail line above. Never omit it: the implicit fallback resolves to the newest
-non-terminal run dir in the whole plugin, which can belong to a different, still-active session —
+Always pass an explicit `--run <absolute-run-dir>` — the same path named in the closing summary's
+audit-trail line above. Omitting it falls back to the newest non-terminal run dir under the
+project's `.claude-tweaks/pipelines/`, which can belong to a different, still-active session, and
 closing that one would silently disarm that session's own worktree enforcement. `close-run`
-creates `run-state.json` when the run dir never had one (every refine standalone run, until this
-change) and stamps it `status: clean` — no separate direct write. A "no recorded wrap-up
-invocation" warning line is expected here and not an error; refine runs standalone and never
-invokes `/claude-tweaks:wrap-up`.
+creates `run-state.json` when the run dir never had one — every refine standalone run — and stamps
+it `status: clean`, so no separate direct write is needed. A "no recorded wrap-up invocation"
+warning line is expected here and not an error; refine runs standalone and never invokes
+`/claude-tweaks:wrap-up`.
 
 ## Concurrency
 
