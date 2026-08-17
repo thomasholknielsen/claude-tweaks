@@ -91,6 +91,50 @@ test('stance applies after cliOverride, not before', () => {
   assert.strictEqual(cliEffort.source, 'stance');
 });
 
+test('a failed model is skipped — resolution steps down to the next viable tier', () => {
+  const r = resolve('frontier', { failedModels: new Set(['fable']) });
+  assert.strictEqual(r.model, 'opus');
+  assert.strictEqual(r.effort, 'high');
+  assert.strictEqual(r.source, 'degraded:session-failure');
+});
+
+test('session-failure check runs after frontier gates — a cap-degraded capable that is also failed steps down again', () => {
+  // The frontier gate alone (no failedModels) would degrade this to opus —
+  // confirm that baseline first, so the next assertion is proven to be
+  // session-failure avoidance catching a model the frontier gate itself
+  // produced, not some other stage.
+  const baseline = resolve('frontier', { frontierUsed: 3 });
+  assert.strictEqual(baseline.model, 'opus');
+  assert.strictEqual(baseline.source, 'degraded:cap');
+  const r = resolve('frontier', { frontierUsed: 3, failedModels: new Set(['opus']) });
+  assert.strictEqual(r.model, 'sonnet');
+  assert.strictEqual(r.source, 'degraded:session-failure');
+});
+
+test('a failed model with every tier below it also failed floors at fast, never throws', () => {
+  const r = resolve('frontier', { failedModels: new Set(['fable', 'opus', 'sonnet']) });
+  assert.strictEqual(r.model, 'haiku');
+  assert.strictEqual(r.source, 'degraded:session-failure');
+});
+
+test('a model not in failedModels is unaffected — no source claimed', () => {
+  const r = resolve('standard', { failedModels: new Set(['fable']) });
+  assert.strictEqual(r.model, 'sonnet');
+  assert.strictEqual(r.source, 'default');
+});
+
+test('an absent failedModels option behaves exactly as before (byte-identical to omitting it)', () => {
+  assert.deepStrictEqual(resolve('frontier', {}), resolve('frontier', { failedModels: new Set() }));
+});
+
+test('session-failure avoidance runs after cliOverride and stance too', () => {
+  const r = resolve('standard', {
+    cliOverride: { model: 'opus' }, failedModels: new Set(['opus']),
+  });
+  assert.strictEqual(r.model, 'sonnet');
+  assert.strictEqual(r.source, 'degraded:session-failure');
+});
+
 test('an empty row claims no source at either stage', () => {
   assert.strictEqual(
     resolve('standard', { policy: { 'model-profiles': { standard: {} } } }).source, 'default');
