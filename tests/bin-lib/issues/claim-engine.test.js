@@ -270,6 +270,36 @@ test('claimGroup: default (no keep-going) — one contested target releases ever
   assert.equal(writes.length, 2);
 });
 
+test('claimGroup: abort-path cleanup release itself failing keeps the target in claimed, not falsely released', () => {
+  const holder = { runId: 'run-OTHER', sessionId: 's', claimedAt: new Date(T0).toISOString(), ttlHours: 72, host: 'h' };
+  let issue1Written = null;
+  let putCount = 0;
+  const runner = (args) => {
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT') && joined.includes('claims/issue-1.json')) {
+      putCount += 1;
+      if (putCount === 1) {
+        // the original claim write succeeds
+        const contentB64 = args.find((a) => a.startsWith('content=')).slice('content='.length);
+        issue1Written = Buffer.from(contentB64, 'base64').toString('utf8');
+        return '{}';
+      }
+      // the cleanup release write itself fails (e.g. a transient API error)
+      throw http(500, 'Internal Server Error');
+    }
+    if (joined.startsWith('api --method PUT')) return '{}';
+    if (joined.includes('contents/claims/issue-1.json')) {
+      if (issue1Written === null) throw http(404); // absent -> claimable
+      return JSON.stringify({ content: issue1Written, sha: 'sha-1-written' });
+    }
+    if (joined.includes('contents/claims/issue-2.json')) return JSON.stringify({ content: JSON.stringify(holder), sha: 'x' }); // live -> contested
+    return '{}';
+  };
+  const result = claimGroup({ owner: 'a', repo: 'b', issueNumbers: [1, 2], runId: 'run-2', sessionId: 's', host: 'h', now: T0 + 1000, runner, keepGoing: false });
+  assert.deepEqual(result.claimed, [1], 'the cleanup release failed — this run still holds issue 1, must not be reported as free');
+  assert.deepEqual(result.released, [], 'a failed cleanup write must never be reported as released');
+});
+
 test('claimGroup: keep-going — a contested target is skipped, the rest of the group still claims', () => {
   const holder = { runId: 'run-OTHER', sessionId: 's', claimedAt: new Date(T0).toISOString(), ttlHours: 72, host: 'h' };
   const runner = (args) => {

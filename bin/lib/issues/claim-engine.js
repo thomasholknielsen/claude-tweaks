@@ -206,13 +206,20 @@ function claimGroup({ owner, repo, issueNumbers, runId, sessionId, host, now, ru
   }
   const aborted = !keepGoing && (contested.length > 0 || errored.length > 0);
   const released = [];
+  const stillClaimed = [];
   if (aborted) {
     for (const issueNumber of claimed) {
-      releaseOne({ owner, repo, issueNumber, runId, reason: 'never-started: file-overlap group partial claim', now, runner });
-      released.push(issueNumber);
+      const releaseResult = releaseOne({ owner, repo, issueNumber, runId, reason: 'never-started: file-overlap group partial claim', now, runner });
+      // Only report a target as released if the cleanup write actually
+      // succeeded — the exact silent-failure shape this module exists to
+      // close off. A failed cleanup release still holds this run's own
+      // lock; reporting it as released anyway would strand the claim for
+      // the reclaim TTL while every caller believed the group was free.
+      if (releaseResult.outcome === 'released') released.push(issueNumber);
+      else stillClaimed.push(issueNumber);
     }
   }
-  return { claimed: aborted ? [] : claimed, contested, errored, released };
+  return { claimed: aborted ? stillClaimed : claimed, contested, errored, released };
 }
 
 module.exports = {
