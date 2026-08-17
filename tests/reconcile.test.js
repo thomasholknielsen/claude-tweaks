@@ -735,3 +735,47 @@ test('reconcile(): a real (non-short-circuited) pass stamps lastRunAt for the ne
   const after = cache.readCache(mainDir);
   assert.ok(after.lastRunAt >= before, 'lastRunAt must be stamped after a real pass');
 });
+
+// AC1: reconcile() degrades within ~2s via the preflight when GitHub is
+// unreachable, instead of accumulating every check's own 5-10s timeout.
+test('AC1: a preflight failure resolves in well under the old per-check-timeout sum', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  const preflight = require('../bin/lib/reconcile/preflight');
+  const original = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
+  const start = Date.now();
+  try {
+    await reconcile({ cwd: mainDir, checks: ['mirror', 'release', 'remote-prune', 'console'] });
+  } finally {
+    preflight.ghHealthCheck = original;
+  }
+  const elapsed = Date.now() - start;
+  assert.ok(elapsed < 2500, `preflight-gated failure took ${elapsed}ms, expected well under 2.5s`);
+});
+
+// AC2: total wall-clock time is bounded by the explicit budget regardless
+// of how much stale state exists.
+test('AC2: an exhausted budget bounds total reconcile() time regardless of remaining check count', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+
+  // Must clear the preflight gate before the budget guard is even reached
+  const preflight = require('../bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const budgetMod = require('../bin/lib/reconcile/budget');
+  const original = budgetMod.createBudget;
+  budgetMod.createBudget = () => ({ exceeded: () => true, remainingMs: () => 0 });
+  const start = Date.now();
+  try {
+    await reconcile({ cwd: mainDir, checks: require('../bin/lib/reconcile').ALL_CHECKS });
+  } finally {
+    budgetMod.createBudget = original;
+    preflight.ghHealthCheck = originalHealth;
+  }
+  assert.ok(Date.now() - start < 1000, 'a pre-exhausted budget must skip every check near-instantly');
+});
