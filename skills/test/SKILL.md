@@ -219,8 +219,8 @@ Pick the row matching the mode just completed:
 
 **On any pass outcome** (the first row), the "plain code review" and "code + visual review" rows are not two separate situations — they're two alternative commands for the same outcome. Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), bolding whichever matches the current run's actual signal and suffixing it `(recommended)` — UI files changed AND browser available → the full-review line; otherwise → the plain-review line:
 
-`/claude-tweaks:review {spec}` — code review quality gate
-`/claude-tweaks:review {spec} full` — code + visual review
+`/claude-tweaks:review {spec}` — code review quality gate (when no UI change or no browser)
+`/claude-tweaks:review {spec} full` — code + visual review (when UI changed and a browser is available)
 
 **The other two rows are not a user choice** — "Verification failed" and "QA failed" are single deterministic next steps. Leave them as plain prose instructions in the table above; they do not render as markdown command lines.
 

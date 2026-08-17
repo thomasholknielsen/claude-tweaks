@@ -39,7 +39,7 @@ gh label list --search "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" -
   | grep -qx "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" && SKIP_BOOTSTRAP=true || SKIP_BOOTSTRAP=false
 ```
 
-`{LABEL_BOOTSTRAP_VERSION}` is the literal integer below — **current value: `2`**. Bump it (and
+`{LABEL_BOOTSTRAP_VERSION}` is the literal integer below — **current value: `3`**. Bump it (and
 this literal) whenever a label is added to or removed from the canonical `LABELS_JSON` array
 below. A marker stamped under the old version no longer matches the search after a bump, so the
 next consumer's Preflight falls through to the full loop, re-establishes the set (including
@@ -104,7 +104,7 @@ one-time provision-now offer, which uses this list whole):
   ["wontfix",           "Closed as not-planned; health skills will not re-file findings with this fingerprint"],
   ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
   ["parent-issue",      "Structure: parent issue — carries the acceptance gate for its sub-issues"],
-  ["framing:baked",     "Framing: this record names a solution that was never traded off"],
+  ["solution:unjustified",   "Solution: named without being traded off against alternatives — add evidence or accept the risk"],
   ["needs:definition",  "Undecided idea — must go through /specify's brainstorm redirect before reaching ready"],
   ["priority:high",     "Priority: dispatch picks this band first"],
   ["priority:medium",   "Priority: dispatch picks after priority:high"],
