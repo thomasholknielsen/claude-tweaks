@@ -63,6 +63,8 @@ Before writing this run's own report, scan `.claude-tweaks/pipelines/` for two k
 - **Standalone runs** (name matches `*-standalone`) whose ISO-timestamp prefix is more than 30 days old — compacted on age alone, same as always.
 - **Abandoned non-standalone runs** — a `/flow`-orchestrated run directory (no `-standalone` suffix) whose ISO-timestamp prefix is more than 30 days old AND whose `run-state.json` status is not `active` (`interrupted`, or the file is missing/unreadable). This covers a run that stopped at an interactive HARD-GATE and was never resumed or wrapped up — it never reaches `/wrap-up`'s successful-closure archival, so without this rule it would sit on disk indefinitely with no cleanup path. The `status` check (absent from the standalone rule, which compacts on age alone) exists so a genuinely long-running, still-`active` pipeline is never swept purely for being old.
 
+These two rules cover `interrupted`/unreadable runs specifically, on a 30-day clock — they are not the only place a stale run dir gets caught. A run whose `run-state.json` reached `status: clean` without ever being archived surfaces immediately, with no age wait, via `bin/residue.js`'s `pipeline-run` finding (`bin/lib/residue/probes/pipeline-runs.js`), which every `/wrap-up`'s residue sweep and every `/tidy` Step 4.5 pass already reads.
+
 For each matched directory:
 
 1. Read its `decisions.md`.

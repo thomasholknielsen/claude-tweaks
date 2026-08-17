@@ -40,3 +40,12 @@ test('validateFinding accepts a well-formed finding', () => {
 test('KINDS and REMEDIES are frozen', () => {
   assert.ok(Object.isFrozen(KINDS) && Object.isFrozen(REMEDIES));
 });
+
+test('pipeline-run is a valid finding kind', () => {
+  assert.ok(KINDS.includes('pipeline-run'));
+  const finding = makeFinding({
+    kind: 'pipeline-run', scope: 'blast-radius', subject: '.claude-tweaks/pipelines/2026-01-01T000000-spec-1',
+    remedy: 'auto', evidence: 'run-state.json status: clean, not under archive/',
+  });
+  assert.deepStrictEqual(validateFinding(finding), []);
+});
