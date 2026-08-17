@@ -45,10 +45,10 @@ files:
 
 ### 5. Read the closing Next Actions block — terminal
 - **URL:** the final turn of the run, rendered after the console's decisions (and cleanup) resolve; no command to run.
-- **Action:** Read the plain-markdown `## Next Actions` block that closes the run — the bold first line is the actual next command for this run's outcome, paste-ready and fully qualified.
+- **Action:** Read the plain-markdown `Next Actions` block that closes the run — the bold first line is the actual next command for this run's outcome, paste-ready and fully qualified. A `/flow` run renders it as the Pipeline Summary's (or failure card's) own `### Next Actions` subsection; a standalone skill close-out uses top-level `## Next Actions` (docs/skill-authoring.md's Skill handoffs convention). Either heading level is correct here.
 - **Should feel:** Never left composing the next command by hand — the run's last words tell you exactly what to run next, even when every approval above auto-resolved.
 - **Should understand:** This block is a navigation affordance, not another approval gate — it renders in every mode including `unattended` (`consoleAutoResolve` never silences it, per `_shared/auto-mode-contract.md`'s not-silenced list). The one separate prompt that can legitimately appear alongside a failure card is `flow/failure-cards.md`'s claims-release decision — never folded into this block.
-- **Red flags:** The run ending in bare prose with no `## Next Actions` block (a rendering omission the contract now names); the block rendered as an `AskUserQuestion` menu instead of plain markdown.
+- **Red flags:** The run ending in bare prose with no `Next Actions` block at all (a rendering omission the contract now names); the block rendered as an `AskUserQuestion` menu instead of plain markdown.
 
 ## Origin
 - Created during build of #287 ("Multi-spec console: engine-fed sections + prose parity") — the console existed before this build but had no journey coverage; #287 gave it its first Low-confidence findings/Contested findings sections and made Cleanup actions visible/overridable, both of which this journey documents as current behavior.
