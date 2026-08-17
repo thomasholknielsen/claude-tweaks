@@ -40,6 +40,8 @@ const LABELS = {
   BOT_IN_PROGRESS: 'bot:in-progress',
   BOT_BLOCKED: 'bot:blocked',
   WONTFIX: 'wontfix',
+  SOLUTION_UNJUSTIFIED: 'solution:unjustified',
+  // Read-side legacy fallback — PERMANENT cross-project support (other repos' records keep framing:baked labels, pre-rename); removable only at a major version that drops pre-rename repo support. [IL-85] Never emitted.
   FRAMING_BAKED: 'framing:baked',
   NEEDS_DEFINITION: 'needs:definition',
   DEMO_PENDING: 'demo:pending',
@@ -136,15 +138,16 @@ function fencedBlock(text) {
   return `${fence}\n${text}\n${fence}`;
 }
 
-// { title, body, type, origin?, risk?, size?, ceremony?, framing?, ready?, parked?, priority?, fingerprint?, deferReason? }
+// { title, body, type, origin?, risk?, size?, ceremony?, solutionUnjustified?, ready?, parked?, priority?, fingerprint?, deferReason? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
 // The emit side is size-only: `effort` is accepted only to throw on it (below) —
 // a caller composing a payload inline from pre-rename facets fails loud instead
 // of silently dropping the scoring label. No code path here writes an effort:*
 // label. The read side's effort:* fallback (parseRecordFacets below) is
-// deliberately one-directional.
-function recordPayload({ title, body, type, origin, risk, size, ceremony, framing, ready, parked, priority, fingerprint, effort, deferReason } = {}) {
+// deliberately one-directional. `framing` is rejected the same way — the
+// pre-rename name of `solutionUnjustified` (#677).
+function recordPayload({ title, body, type, origin, risk, size, ceremony, solutionUnjustified, ready, parked, priority, fingerprint, effort, framing, deferReason } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -155,6 +158,10 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, framin
 
   if (effort !== undefined) {
     throw new Error('recordPayload has no effort parameter — the record facet is size (#217); effort means reasoning depth');
+  }
+
+  if (framing !== undefined) {
+    throw new Error('recordPayload has no framing parameter — the facet is solutionUnjustified (#677); framing:baked was renamed solution:unjustified');
   }
 
   if (ready && parked) {
@@ -180,7 +187,7 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, framin
     }
   }
 
-  // Deterministic emission order: by:*, risk:*, size:*, ceremony:*, framing:baked, ready, parked, priority:*.
+  // Deterministic emission order: by:*, risk:*, size:*, ceremony:*, solution:unjustified, ready, parked, priority:*.
   const labels = [];
 
   if (origin !== undefined) {
@@ -199,7 +206,7 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, framin
     oneOf('ceremony', ceremony, CEREMONY_TIERS);
     labels.push(`ceremony:${ceremony}`);
   }
-  if (framing) labels.push(LABELS.FRAMING_BAKED);
+  if (solutionUnjustified) labels.push(LABELS.SOLUTION_UNJUSTIFIED);
   if (ready) labels.push(LABELS.READY);
   if (parked) labels.push(LABELS.PARKED);
   if (priority !== undefined) {
@@ -293,8 +300,9 @@ function parseRecordFacets(labels) {
       facets.acceptance = 'changes-requested';
       continue;
     }
-    if (name === LABELS.FRAMING_BAKED) {
-      facets.framing = true;
+    // solution:unjustified — or its pre-rename spelling framing:baked (permanent read-side fallback, [IL-85]).
+    if (name === LABELS.SOLUTION_UNJUSTIFIED || name === LABELS.FRAMING_BAKED) {
+      facets.solutionUnjustified = true;
       continue;
     }
     if (name === LABELS.NEEDS_DEFINITION) {

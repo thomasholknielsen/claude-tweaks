@@ -116,11 +116,10 @@ If `docs/REGISTRY.md` exists, Step 3 resolved to `docs/diagrams/{slug}.html` (th
 
 ## Next Actions
 
-After generating, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
+After generating, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). This block only renders standalone (see the Component-Skill Contract below), so there is no calling flow to return to — the lines are the diagram itself and the next diagram:
 
-`/claude-tweaks:visualize <type> <topic>` — generate another diagram (recommended if more signals matched)
-Continue the calling flow — return to wherever this was invoked from (journey commit, spec summary, review findings)
-{path} — open to view the generated diagram (when persisted)
+**`/claude-tweaks:visualize <type> <topic>`** — generate another diagram, when more signals matched (recommended)
+`open {path}` — view the generated diagram (when persisted)
 
 ## Component-Skill Contract
 

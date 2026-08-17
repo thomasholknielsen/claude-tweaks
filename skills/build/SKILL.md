@@ -325,8 +325,8 @@ Generate 2-4 lines based on context. The signal-to-option lookup table below sta
 
 Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), one line per applicable signal, bolding whichever line is recommended and suffixing it `(recommended)` — normally the review line, chosen per the browser-availability signal above (do not collapse the two branches into always-`full`: UI changed AND a browser is available → the full-review line; otherwise → the plain-review line); in worktree mode, the finish-branch line takes the recommended slot instead:
 
-`/claude-tweaks:review {N} full` — code + visual review
-`/claude-tweaks:review {N}` — code review
+`/claude-tweaks:review {N} full` — code + visual review (when UI changed and a browser is available)
+`/claude-tweaks:review {N}` — code review (when no UI change or no browser)
 `/claude-tweaks:test qa` — validate {X} QA stories before review (when QA stories exist)
 `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (when in worktree mode)
 

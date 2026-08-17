@@ -286,7 +286,7 @@ Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its
 suggestion as an annotation line under its row — a suggestion is never silently dropped.
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
-and paste-block templates, the consequence-line trust and framing annotation templates, the
+and paste-block templates, the consequence-line trust and `solution:unjustified` annotation templates, the
 count-summary line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line
 rule, and the confirm gate (`<!-- refine-confirm-gate -->`).
 

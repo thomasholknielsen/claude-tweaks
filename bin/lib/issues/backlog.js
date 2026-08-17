@@ -204,14 +204,11 @@ function funnelBuckets(records) {
   }
   // needsYou is an OVERLAY, never a ninth stage: every record above keeps its
   // one primary bucket (exclusivity and sum-to-total invariants untouched).
-  // needsDefinition is LIVE — both drivers (record.js for github-issues,
-  // local-store.js for local-files) parse it since the needs:definition
-  // taxonomy shipped. solutionUnjustified is still the EXPECTED post-#471
-  // name (#471's framing:baked rename) — it does not exist on this repo yet,
-  // so that half of the list stays empty (dormant) until #471 lands; if #471
-  // ships a different key, this comment and the #471-citing tests are the
-  // reconciliation tripwire. A record carrying both facets yields one
-  // entry with kind 'definition' — the hard gate dominates. needs:definition
+  // Both needs-facets are LIVE on both drivers (record.js for github-issues,
+  // local-store.js for local-files): needsDefinition since the needs:definition
+  // taxonomy shipped, solutionUnjustified since record #677 renamed
+  // framing:baked -> solution:unjustified. A record carrying both facets yields
+  // one entry with kind 'definition' — the hard gate dominates. needs:definition
   // exclusion from the Shape paste block happens at RENDER, never here.
   const needsYou = [];
   for (const r of records) {
