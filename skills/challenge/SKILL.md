@@ -1,7 +1,7 @@
 ---
 name: challenge
 description: Use when /specify needs a solution-baked verdict on a record, or the evidence-or-accept-risk call on a solution:unjustified record, or to stress-test a framing via a lens. Keywords - framing, debias, solution-baked, assumptions, evidence, lens, reframe.
-argument-hint: "framing-check | #<n> | --lens=<n[,n...]> <#n|topic|problem statement>"
+argument-hint: "framing-check [#<n>] | #<n> | --lens=<n[,n...]> <#n|topic|problem statement>"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -21,15 +21,15 @@ Not for: producing a standalone document, dispatching subagents, or gating anyth
 
 ## Input
 
-`$ARGUMENTS` is the literal `framing-check`, a bare record reference (`#42`), or `--lens=<n[,n...]>` followed by a work record reference (`#42`), a topic, or a problem statement.
+`$ARGUMENTS` is the literal `framing-check` (optionally followed by `#{n}`), a bare record reference (`#42`), or `--lens=<n[,n...]>` followed by a work record reference (`#42`), a topic, or a problem statement.
 
-The three forms are mutually exclusive. `framing-check` takes no further arguments — its input is the record body the caller already holds in memory. A bare record reference with no `--lens=` prefix selects the evidence-or-accept-risk mode below.
+The three forms are mutually exclusive, distinguished by the leading token: a literal `framing-check` prefix always selects that mode, a bare `#{n}` with no such prefix selects the evidence-or-accept-risk mode below. `framing-check`'s own input is the record body the caller already holds in memory — the optional trailing `#{n}` carries no fetch, it exists only for attribution (see Mode: framing-check below), mirroring `/claude-tweaks:assess-agent-autonomy`'s `ceremony-check #{n}` convention (`assess-agent-autonomy/SKILL.md`'s Input section).
 
 For --lens and the bare record-reference form, resolve the target the same way `/claude-tweaks:capture` does (see its Backend Selection): a `#{n}` reference fetches via `gh issue view {n} --json title,body,labels` under `work-backend: github-issues` (the bare form needs `labels`; `--lens` ignores them), or, under `work-backend: local-files`, glob `specs/{n}-*.md` for the matching file, then `readRecord(path)` (`bin/lib/issues/local-store.js`). A topic or problem statement is used as given.
 
 ## Mode: framing-check
 
-**Called from:** `/claude-tweaks:specify`'s two record-creation paths — `shaping-mode.md`'s single-record path and `record-creation.md`'s per-sub-issue loop — immediately alongside the existing `ceremony-check` invocation. Every record, every run, no pre-filtering.
+**Called from:** `/claude-tweaks:specify`'s two record-creation paths — `shaping-mode.md`'s single-record path and `record-creation.md`'s per-sub-issue loop — immediately alongside the existing `ceremony-check` invocation. Every record, every run, no pre-filtering — one `framing-check #{n}` invocation per record (bare `framing-check`, no trailing `#{n}`, only in `record-creation.md`'s per-sub-issue loop, which has no issue number yet at that point in the procedure — the identical pre-numbering exception `ceremony-check` already documents). The optional `#{n}` carries no fetch and changes no judgment — it exists solely so a rendered verdict can be tied back to the invocation that produced it in a multi-record run's transcript.
 
 Invoked inline via the `Skill` tool, not as a Task-agent dispatch. The caller already holds the body; a subagent would only pay to re-derive it.
 

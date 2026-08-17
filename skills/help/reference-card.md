@@ -20,7 +20,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
-| `/claude-tweaks:challenge` | Framing verdict for `/specify` (component mode), or a named debiasing lens on demand (human-invoked); bare `#N` = evidence-or-accept-risk call on a `solution:unjustified` record | `framing-check \| #<n> \| --lens=<n[,n...]> <#n\|topic\|problem statement>` |
+| `/claude-tweaks:challenge` | Framing verdict for `/specify` (component mode), or a named debiasing lens on demand (human-invoked); bare `#N` = evidence-or-accept-risk call on a `solution:unjustified` record | `framing-check [#<n>] \| #<n> \| --lens=<n[,n...]> <#n\|topic\|problem statement>` |
 | `/claude-tweaks:reflect` | Structured evaluation: hindsight, surprises, near-misses | `[hindsight\|full\|light] [<spec-number>\|<file-path>...]` |
 | `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | `[<file-or-dir>...\|#N\|<spec-number>]` |
 | `/claude-tweaks:deepen` | Architectural depth pass — finds shallow modules, proposes deepening/collapsing ranked by leverage | `[<file-or-dir>...\|<spec-number>] [--kind deepen\|collapse]` |
