@@ -746,12 +746,16 @@ test('AC1: a preflight failure resolves in well under the old per-check-timeout 
   const original = preflight.ghHealthCheck;
   preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
   const start = Date.now();
+  let r;
   try {
-    await reconcile({ cwd: mainDir, checks: ['mirror', 'release', 'remote-prune', 'console'] });
+    r = await reconcile({ cwd: mainDir, checks: ['mirror', 'release', 'remote-prune', 'console'] });
   } finally {
     preflight.ghHealthCheck = original;
   }
   const elapsed = Date.now() - start;
+  // Functional assertion: preflight gate produces exactly the expected skip entry
+  assert.deepEqual(r.skipped, [{ check: 'mirror,release,remote-prune,console', reason: 'preflight-github-unreachable' }]);
+  // Secondary timing assertion: the preflight-gated failure resolves quickly
   assert.ok(elapsed < 2500, `preflight-gated failure took ${elapsed}ms, expected well under 2.5s`);
 });
 
