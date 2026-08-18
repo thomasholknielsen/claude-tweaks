@@ -270,7 +270,7 @@ Auto-recovered {N} locator(s) in {M} story file(s). Story YAML files have been u
 
 ## Phase 5.5: Ledger Integration
 
-After reporting, write findings and observations to the open items ledger (see `/claude-tweaks:ledger`) with phase `test/qa`. Findings from failures get status `open`. Observations from PASS_WITH_CAVEATS get status `observation`.
+After reporting, write findings and observations to the open items ledger (format and entry rules: `_shared/ledger-format.md`) with phase `test/qa`. Findings from failures get status `open`. Observations from PASS_WITH_CAVEATS get status `observation`.
 
 27. **Write finding entries:** For each item in the `findings[]` array (from the report) **except** `ux-issue` category findings (skip those — they are the same caveats already written separately by item 28, and item 28's `observation` status is their canonical ledger entry), add an item to the ledger with phase `test/qa`, the finding description (including `[story: {story_id}, category: {category}, trace: {trace path or "none"}]`), severity from the finding, and status `open`. These represent failures that must be resolved before the pipeline completes.
 
