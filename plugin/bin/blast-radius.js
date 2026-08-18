@@ -19,10 +19,20 @@
 const fs = require('fs');
 const { computeBlastRadius, BlastRadiusError } = require('./lib/blast-radius-cli.js');
 
+const USAGE = 'usage: blast-radius.js (--base <ref> | --integration-branch <branch>) [--run <dir>]';
+
 function fail(msg) {
   const firstLine = String(msg).split('\n')[0];
   process.stderr.write(`blast-radius: ${firstLine}\n`);
   process.exit(1);
+}
+
+function isDirectory(dirPath) {
+  try {
+    return fs.statSync(dirPath).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function main(argv) {
@@ -32,22 +42,16 @@ function main(argv) {
     const arg = args.shift();
     const value = args.shift();
     if (value === undefined) return fail(`${arg} requires a value`);
-    if (arg === '--base') opts.base = value;
-    else if (arg === '--integration-branch') opts.integrationBranch = value;
-    else if (arg === '--run') opts.runDir = value;
-    else return fail(`unknown argument: ${arg}\nusage: blast-radius.js (--base <ref> | --integration-branch <branch>) [--run <dir>]`);
-  }
-  if (!opts.base && !opts.integrationBranch) {
-    return fail('usage: blast-radius.js (--base <ref> | --integration-branch <branch>) [--run <dir>]');
-  }
-  if (opts.runDir !== undefined) {
-    let isDirectory = false;
-    try {
-      isDirectory = fs.statSync(opts.runDir).isDirectory();
-    } catch {}
-    if (!isDirectory) {
-      return fail(`--run dir does not exist or is not a directory: ${opts.runDir}`);
+    switch (arg) {
+      case '--base': opts.base = value; break;
+      case '--integration-branch': opts.integrationBranch = value; break;
+      case '--run': opts.runDir = value; break;
+      default: return fail(`unknown argument: ${arg}\n${USAGE}`);
     }
+  }
+  if (!opts.base && !opts.integrationBranch) return fail(USAGE);
+  if (opts.runDir !== undefined && !isDirectory(opts.runDir)) {
+    return fail(`--run dir does not exist or is not a directory: ${opts.runDir}`);
   }
   let result;
   try {

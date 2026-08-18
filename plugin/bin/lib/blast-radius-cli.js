@@ -71,7 +71,7 @@ function resolveConfig({ git, readFile, runDir }) {
     ['merge-sensitive-paths', 'auto-merge-max-lines', 'auto-merge-max-files'],
     { policyRaw, runConfigRaw }
   );
-  const rawPaths = resolved['merge-sensitive-paths'] && resolved['merge-sensitive-paths'].value;
+  const rawPaths = resolved['merge-sensitive-paths'].value;
   const mergeSensitivePaths = Array.isArray(rawPaths)
     ? rawPaths
     : String(rawPaths || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -80,6 +80,27 @@ function resolveConfig({ git, readFile, runDir }) {
     autoMergeMaxLines: Number(resolved['auto-merge-max-lines'].value),
     autoMergeMaxFiles: Number(resolved['auto-merge-max-files'].value),
   };
+}
+
+// A caller-supplied --base is verified as a commit rather than trusted; otherwise
+// the base is derived from the integration branch. --end-of-options keeps a ref
+// beginning with "-" from being read as a git flag. Either path throws rather than
+// returning an unusable base — an empty one would diff as a zero-file radius.
+function resolveMergeBase(git, { base, integrationBranch }) {
+  if (base) {
+    try {
+      return git(['rev-parse', '--verify', '--end-of-options', `${base}^{commit}`]).trim();
+    } catch (err) {
+      throw new BlastRadiusError(`--base "${base}" does not resolve to a commit: ${err.message}`);
+    }
+  }
+  try {
+    return git(['merge-base', '--end-of-options', integrationBranch, 'HEAD']).trim();
+  } catch (err) {
+    throw new BlastRadiusError(
+      `could not resolve merge base of "${integrationBranch}" and HEAD: ${err.message}`
+    );
+  }
 }
 
 function computeBlastRadius(opts = {}, deps = {}) {
@@ -91,22 +112,7 @@ function computeBlastRadius(opts = {}, deps = {}) {
     throw new BlastRadiusError('one of --base or --integration-branch is required');
   }
 
-  let mergeBase;
-  if (base) {
-    try {
-      mergeBase = git(['rev-parse', '--verify', '--end-of-options', `${base}^{commit}`]).trim();
-    } catch (err) {
-      throw new BlastRadiusError(`--base "${base}" does not resolve to a commit: ${err.message}`);
-    }
-  } else {
-    try {
-      mergeBase = git(['merge-base', '--end-of-options', integrationBranch, 'HEAD']).trim();
-    } catch (err) {
-      throw new BlastRadiusError(
-        `could not resolve merge base of "${integrationBranch}" and HEAD: ${err.message}`
-      );
-    }
-  }
+  const mergeBase = resolveMergeBase(git, { base, integrationBranch });
   if (!mergeBase) {
     throw new BlastRadiusError('merge-base resolution returned an empty value');
   }
