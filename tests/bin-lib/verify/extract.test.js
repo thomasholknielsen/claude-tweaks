@@ -105,6 +105,10 @@ test('summary with no parseable numbers yields null', () => {
   assert.strictEqual(parseCounts('FAIL src/b.test.js\nno numbers here', 'summary'), null);
 });
 
+test('summary line with only a failed count (no passed count) yields null, never a guessed pass=0', () => {
+  assert.strictEqual(parseCounts('FAIL src/b.test.js\nTests: 3 failed', 'summary'), null);
+});
+
 test('generic family never yields counts', () => {
   assert.strictEqual(parseCounts('# tests 3\n# pass 3\n# fail 0', 'generic'), null);
 });
