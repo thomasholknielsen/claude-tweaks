@@ -159,3 +159,20 @@ test('check output lands in its own {name}.log under logDir (AC2 capture half)',
   assert.strictEqual(results[0].logPath, path.join(logDir, 'tests.log'));
   assert.strictEqual(fs.readFileSync(results[0].logPath, 'utf8'), 'hello from the check\n');
 });
+
+test('a write-stream failure (unwritable logDir) records a failed check with spawnError, never a crash', async () => {
+  // manual: true means the fake child never closes on its own — the only way
+  // this promise can resolve is via the write-stream's 'error' event. If that
+  // handler is missing/broken, this test hangs instead of racing to a false
+  // pass against the fake spawn's close event.
+  const { spawnImpl } = makeFakeSpawn({ t: { manual: true } });
+  // logDir itself doesn't exist (and its parent isn't created either), so
+  // fs.createWriteStream emits 'error' (ENOENT) rather than opening the file.
+  const logDir = path.join(tmpLogDir(), 'does-not-exist', 'nested');
+  const results = await runChecks({
+    cmds: [{ name: 'tests', command: 't' }], logDir, spawnImpl,
+  });
+  assert.strictEqual(results[0].exitCode, null);
+  assert.strictEqual(typeof results[0].spawnError, 'string');
+  assert.ok(results[0].spawnError.length > 0);
+});

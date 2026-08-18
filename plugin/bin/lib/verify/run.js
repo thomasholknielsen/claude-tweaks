@@ -24,6 +24,14 @@ function runOne({ name, command, logDir, spawnImpl, now }) {
       settled = true;
       stream.end(() => resolve(result));
     };
+    // A write-stream failure (missing logDir, disk full, ...) is the same
+    // failure class as a spawn error: record it, never let it crash the run
+    // as an unhandled 'error' event.
+    stream.on('error', (err) => finish({
+      name, command, exitCode: null,
+      spawnError: String((err && err.message) || err),
+      durationMs: now() - started, logPath,
+    }));
     let child;
     try {
       child = spawnImpl(command, { shell: true });
