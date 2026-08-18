@@ -1,48 +1,6 @@
 # Review — Step 3 Routing (Code Review Findings)
 
-Loaded by `/claude-tweaks:review` Step 3 after lenses 3a-3i have produced findings. Contains the full routing rules — severity-based auto routing, the interactive batch table, recommendation rules, deferral gate, and parallel-fix dispatch contract. Lazy-loaded only when findings actually exist (skip the load entirely when all lenses returned "No findings.").
-
-## Per-lens Calibration + Output template (dispatch contract)
-
-The CALIBRATION filter and severity scale below are the canonical copy from `_shared/criteria-review-quality.md`, reproduced here because dispatched agents cannot read sibling files. Keep them byte-identical to the fragment.
-
-The Calibration and Output template MUST be reproduced byte-identical in every dispatched per-lens reviewer agent's prompt. Do NOT adapt, summarize, or paraphrase — the cross-lens reproduction logic in Step 3.5 depends on every agent applying the same filter.
-
-```markdown
-CALIBRATION (required):
-Only flag issues where:
-- the user will hit a bug, broken state, or unsafe behavior
-- the code will fail under realistic load, edge cases, or future maintenance
-- a project convention is violated in a way that compounds (not isolated stylistic choices)
-
-Do NOT flag:
-- alternate naming you'd prefer ("`fetchUser` would read better as `getUser`")
-- formatting, whitespace, or import ordering quibbles
-- "could be DRYer" without a concrete second caller that proves the duplication is real
-- hypothetical edge cases the spec didn't require ("what if the input is a 4GB string?")
-- missing comments on self-explanatory code
-
-When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.
-
-OUTPUT FORMAT (required):
-First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED — nothing before it, not even a lead-in sentence.
-WRONG: "Based on my review, DONE" — narration before the status word still violates this.
-Then return ONLY a markdown table, no preamble:
-
-| Severity | Path:Line | Finding | Evidence |
-|---|---|---|---|
-| critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
-| medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
-
-Severity scale: critical / high / medium / low / info
-If no findings: return literal text "No findings."
-Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
-Do not add narration, headers, or summaries before or after the table.
-```
-
-Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table below — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation.
-
-**Pass diff scope, not diff text.** When composing each prompt, give the agent the base/branch refs (or the own-work file set when `/claude-tweaks:review` Step 2's Merge-Provenance Check found merge commits) and let it run its own `git diff`. Do not paste diff content into the prompt: `/claude-tweaks:review` Step 2 deliberately keeps only `--stat`/`--name-only` in the main thread, and inlining the diff into N lens prompts would pull the full diff back into main-thread context to compose them.
+Loaded by `/claude-tweaks:review` Step 3 after lenses 3a-3i have produced findings. Contains the full routing rules — severity-based auto routing, the interactive batch table, recommendation rules, deferral gate, and parallel-fix dispatch contract. Lazy-loaded only when findings actually exist (skip the load entirely when all lenses returned "No findings.") — the canonical per-lens dispatch template that used to force a pre-dispatch load of this file now lives in `step3-lens-dispatch.md`'s "Per-lens Calibration + Output template" section, which is where the CALIBRATION-block byte-identity with `_shared/criteria-review-quality.md` is pinned.
 
 ## Inputs
 
@@ -53,7 +11,8 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 
 **`unconfirmed` findings can originate from several sources**, and all render identically in this table with `(low-confidence)` appended — the caller does not distinguish them:
 
-- No reproduction agreement (Step 3) — a lens's finding surfaced by only one of its two reproduction agents. **Direct-verification override:** this specific source can still resolve to `confirmed` — see `step3-lens-dispatch.md`'s "Direct-verification override" — when the reviewing agent independently reads the actual conflicting source text (not the agent report) and confirms the finding; that override is additional to reproduction-pair agreement, not a substitute for it, and does not apply to any of the other `unconfirmed` sources below.
+- No reproduction agreement (Step 3) — a lens's finding surfaced by only one of its two reproduction agents. **Direct-verification override:** this specific source can still resolve to `confirmed` — see `step3-lens-dispatch.md`'s "Direct-verification override" — when the reviewing agent independently reads the actual conflicting source text (not the agent report) and confirms the finding; that override is additional to reproduction-pair agreement, not a substitute for it, and does not apply to any of the other `unconfirmed` sources below except the low-tier single-read source, where it is the designed confirmation path.
+- Low-tier single-read (Step 3, `review-effort: low` only) — the tier dispatches one agent per lens instead of a reproduction pair (`step3-lens-dispatch.md`'s "Low-tier single-read dispatch"), so every finding starts `unconfirmed`; the Direct-verification override is the only path to `confirmed` for this source.
 - Cross-lens debate converged negative (Step 3.5) — both judges disagreed.
 - A `confirmed` finding downgraded by the Per-Candidate Refutation Pass (Step 3.5, `xhigh`/`max` only) — the finding survived reproduction (and possibly debate) but a later falsification agent refuted it.
 - Gap-sweep, single-source by design (Step 3.6, `xhigh`/`max` only) — a fresh-eyes finding with no reproduction partner, by design (pairing it against a second identical fresh-eyes agent would defeat its purpose).
@@ -159,7 +118,7 @@ If any findings are "Fix now", make the changes, re-verify per `_shared/deferral
 > If no changes made: return literal text 'No changes.'
 > ```
 >
-> The dispatcher inspects the bullets for cross-file conflicts before re-running `/claude-tweaks:test`.
+> **Post-dispatch diff audit (mandatory).** After all fix agents return and before re-running `/claude-tweaks:test`, run `git diff --stat` (plus `git status --porcelain` for untracked additions) and verify every file each agent claimed to change actually appears with real hunks. A detailed, specific fix narrative with zero corresponding diff is an observed failure mode — never accept an agent's bullets as evidence of the edit. An agent whose claimed changes are absent from the diff is treated as failed: its findings stay `open`, and the fix is re-applied inline in the main thread (never by re-trusting a second narrative). Only after the audit passes does the dispatcher inspect the bullets for cross-file conflicts and re-run `/claude-tweaks:test`.
 
 **Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for Defer routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
