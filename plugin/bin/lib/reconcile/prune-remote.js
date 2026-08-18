@@ -28,10 +28,30 @@
 // Pure decision function with I/O at the edges, matching the family.
 'use strict';
 
-const { runGit } = require('../hooks/git-exec');
+const { execFileSync } = require('child_process');
+const { runGit, DEFAULT_TIMEOUT_MS } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { inScope, isCherryEquivalent } = require('./archive-branches');
 const { resolvePrState } = require('./pr-state');
+
+// -> true (ref exists), false (provably gone — `ls-remote --exit-code`
+// exits 2), or null (indeterminate: network/timeout/any other failure).
+// Deliberately NOT runGit — runGit's failure classification collapses every
+// non-zero exit to one `git-error` kind and discards stderr/exit status
+// (git-exec.js's own stdio: [.., .., 'ignore']), which can't tell "ref not
+// found" (exit 2, the one case that should read as success below) apart
+// from "ls-remote itself failed" (any other exit — must never be read as
+// success, or a real failure gets misreported as a completed delete).
+function defaultRefExists(root, branch, timeoutMs) {
+  try {
+    execFileSync('git', ['-C', root, 'ls-remote', '--exit-code', 'origin', `refs/heads/${branch}`], {
+      stdio: 'ignore', timeout: timeoutMs,
+    });
+    return true;
+  } catch (e) {
+    return e && e.status === 2 ? false : null;
+  }
+}
 
 // One remote branch's evidence -> what to do. Pure — no I/O.
 //   { action: 'delete' | 'skip', reason }
@@ -51,9 +71,10 @@ function decideRemotePrune({ branch, cherryEquivalent, prState }) {
   return { action: 'delete', reason: 'merged-pr-cherry-equivalent' };
 }
 
-function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch } = {}) {
+function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch, refExists } = {}) {
   const root = cwd || process.cwd();
   const resolve = resolvePr || resolvePrState;
+  const checkRefExists = refExists || ((r, b) => defaultRefExists(r, b, DEFAULT_TIMEOUT_MS));
   const entries = [];
 
   // First, before any ref is read: every verdict below is computed from
@@ -114,11 +135,22 @@ function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch } = {}) {
   // deletion this pass would otherwise have made.
   for (const { branch, reason } of toDelete) {
     const del = runGit(['push', 'origin', '--delete', branch], root);
-    entries.push(del.failure
-      ? { name: branch, kind: 'remote-branch', action: 'skip', reason: 'delete-failed' }
-      : { name: branch, kind: 'remote-branch', action: 'delete', reason });
+    if (!del.failure) {
+      entries.push({ name: branch, kind: 'remote-branch', action: 'delete', reason });
+      continue;
+    }
+    // The individual push can fail because THIS branch was already deleted
+    // (by the batch push above despite its overall nonzero exit, or by a
+    // concurrent reconcile pass) — check before reporting delete-failed, so
+    // an already-gone branch isn't misreported as a failure (review
+    // finding). Only a provable "ref not found" (checkRefExists === false)
+    // counts as success; an indeterminate check (null) stays delete-failed —
+    // fail toward the existing, safer classification on any ambiguity.
+    entries.push(checkRefExists(root, branch) === false
+      ? { name: branch, kind: 'remote-branch', action: 'delete', reason }
+      : { name: branch, kind: 'remote-branch', action: 'skip', reason: 'delete-failed' });
   }
   return { entries, failure: null };
 }
 
-module.exports = { decideRemotePrune, pruneRemote };
+module.exports = { decideRemotePrune, pruneRemote, defaultRefExists };

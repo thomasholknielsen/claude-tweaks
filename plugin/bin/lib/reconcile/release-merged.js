@@ -76,11 +76,12 @@ function shouldSkipClaimRead(entry, cachedSha) {
   return entry.sha === cachedSha;
 }
 
-// Shared by ghApi and ghApiAsync below — both catch blocks classified a
-// caught exec error identically (ENOENT = no `gh` binary, anything else =
-// network-failure); one classifier instead of two copies that could drift.
+// Shared by ghApi and ghApiAsync below — delegates to claim-store.js's
+// classifyGhApiError (already imported below as `claimStore`) rather than a
+// third copy of the same ENOENT-vs-everything-else classification pr-state.js
+// and preflight.js also needed (review finding: 5 near-identical copies).
 function classifyGhExecError(e) {
-  return e && e.code === 'ENOENT' ? 'gh-absent' : 'network-failure';
+  return claimStore.classifyGhApiError(e).failure === 'gh-absent' ? 'gh-absent' : 'network-failure';
 }
 
 function ghApi(args) {

@@ -10,8 +10,16 @@
 'use strict';
 const { execFileSync, execFile } = require('child_process');
 const { promisify } = require('util');
+const { classifyGhApiError } = require('../issues/claim-store');
 
 const execFileAsync = promisify(execFile);
+
+// Shared with claim-store.js/preflight.js/release-merged.js rather than a
+// fourth/fifth copy of the same ENOENT-vs-everything-else classification
+// (review finding: 5 near-identical copies drifting independently).
+function classifyExecError(e) {
+  return classifyGhApiError(e).failure === 'gh-absent' ? 'gh-absent' : 'network-failure';
+}
 
 const FETCH_TIMEOUT_MS = 5000;
 const PR_LIST_ARGS = ['pr', 'list', '--state', 'all', '--json', 'number,state,mergedAt,updatedAt'];
@@ -43,8 +51,7 @@ function resolvePrState(repoRoot, branch) {
       { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: FETCH_TIMEOUT_MS },
     );
   } catch (e) {
-    if (e && e.code === 'ENOENT') return 'gh-absent';
-    return 'network-failure';
+    return classifyExecError(e);
   }
   let prs;
   try {
@@ -72,8 +79,7 @@ async function resolvePrStateAsync(repoRoot, branch) {
     );
     stdout = r.stdout;
   } catch (e) {
-    if (e && e.code === 'ENOENT') return 'gh-absent';
-    return 'network-failure';
+    return classifyExecError(e);
   }
   let prs;
   try {
