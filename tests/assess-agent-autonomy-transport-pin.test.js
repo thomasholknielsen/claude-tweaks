@@ -10,10 +10,18 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SKILL_MD = path.join(__dirname, '..', 'plugin/skills/assess-agent-autonomy/SKILL.md');
+const SKILL_DIR = path.join(__dirname, '..', 'plugin/skills/assess-agent-autonomy');
+
+// The two modes whose Step 1 gather fetches from GitHub, and so must carry the
+// MCP fallback and both no-content short-circuits.
+const FETCHING_MODES = ['grant-check', 'failure-check'];
+
+function readSkillFile(name) {
+  return fs.readFileSync(path.join(SKILL_DIR, name), 'utf8');
+}
 
 test('SKILL.md Error Handling names both could-not-gather and gathered-but-inconclusive cases', () => {
-  const source = fs.readFileSync(SKILL_MD, 'utf8');
+  const source = readSkillFile('SKILL.md');
   assert.ok(source.includes('could-not-gather'), 'expected the literal case name "could-not-gather" in SKILL.md');
   assert.ok(
     source.includes('gathered-but-inconclusive'),
@@ -22,44 +30,30 @@ test('SKILL.md Error Handling names both could-not-gather and gathered-but-incon
 });
 
 test('SKILL.md Anti-Patterns table pins the content-judgment-rationale rule', () => {
-  const source = fs.readFileSync(SKILL_MD, 'utf8');
+  const source = readSkillFile('SKILL.md');
   assert.ok(
     source.includes('content-judgment'),
     'expected an Anti-Patterns row naming the content-judgment rationale hazard in SKILL.md'
   );
 });
 
-const GRANT_CHECK_MD = path.join(__dirname, '..', 'plugin/skills/assess-agent-autonomy/grant-check.md');
-const FAILURE_CHECK_MD = path.join(__dirname, '..', 'plugin/skills/assess-agent-autonomy/failure-check.md');
-
-test('grant-check.md Step 1 references the issue_read MCP mapping and the could-not-gather case', () => {
-  const source = fs.readFileSync(GRANT_CHECK_MD, 'utf8');
-  assert.ok(source.includes('issue_read'), 'expected grant-check.md to cite the issue_read MCP mapping');
-  assert.ok(
-    source.includes('could-not-gather'),
-    'expected grant-check.md to reference the could-not-gather case by name'
-  );
-});
-
-test('failure-check.md Step 1 references the issue_read MCP mapping and the could-not-gather case', () => {
-  const source = fs.readFileSync(FAILURE_CHECK_MD, 'utf8');
-  assert.ok(source.includes('issue_read'), 'expected failure-check.md to cite the issue_read MCP mapping');
-  assert.ok(
-    source.includes('could-not-gather'),
-    'expected failure-check.md to reference the could-not-gather case by name'
-  );
-});
+for (const mode of FETCHING_MODES) {
+  test(`${mode}.md Step 1 references the issue_read MCP mapping and the could-not-gather case`, () => {
+    const source = readSkillFile(`${mode}.md`);
+    assert.ok(source.includes('issue_read'), `expected ${mode}.md to cite the issue_read MCP mapping`);
+    assert.ok(
+      source.includes('could-not-gather'),
+      `expected ${mode}.md to reference the could-not-gather case by name`
+    );
+  });
+}
 
 test('grant-check.md and failure-check.md both cover the fetch-error scenario', () => {
-  const grantSource = fs.readFileSync(GRANT_CHECK_MD, 'utf8');
-  const failureSource = fs.readFileSync(FAILURE_CHECK_MD, 'utf8');
   const fetchErrorPhrase = 'Or the fetch itself fails';
-  assert.ok(
-    grantSource.includes(fetchErrorPhrase),
-    `expected grant-check.md to cover the fetch-error scenario with phrase "${fetchErrorPhrase}"`
-  );
-  assert.ok(
-    failureSource.includes(fetchErrorPhrase),
-    `expected failure-check.md to cover the fetch-error scenario with phrase "${fetchErrorPhrase}"`
-  );
+  for (const mode of FETCHING_MODES) {
+    assert.ok(
+      readSkillFile(`${mode}.md`).includes(fetchErrorPhrase),
+      `expected ${mode}.md to cover the fetch-error scenario with phrase "${fetchErrorPhrase}"`
+    );
+  }
 });

@@ -26,7 +26,11 @@ of this step consumes the same comment-body-string shape regardless of transport
 failure verbatim, e.g. "gh unavailable, no MCP transport resolved — could not fetch prior
 attempt comments"}`, and skip the rest of this mode's procedure.
 
-**Or the fetch itself fails** (the gh or MCP `issue_read` call was attempted but errored — network failure, 404, timeout, rate limit, auth expiry): same `could-not-gather` case — stop here and render Step 3 directly: `CLASSIFICATION: correctness` / `NOTIFY_NOW: false` / `RATIONALE: {name the specific fetch failure verbatim, e.g. "gh api call failed: {error message}" or "MCP issue_read call failed: {error message}"}`, and skip the rest of this mode's procedure.
+**Or the fetch itself fails** (the gh or MCP `issue_read` call was attempted but errored —
+network failure, 404, timeout, rate limit, auth expiry): same `could-not-gather` case — stop here
+and render Step 3 directly: `CLASSIFICATION: correctness` / `NOTIFY_NOW: false` / `RATIONALE:
+{name the specific fetch failure verbatim, e.g. "gh api call failed: {error message}" or "MCP
+issue_read call failed: {error message}"}`, and skip the rest of this mode's procedure.
 
 Read the actual failure output from the gate that failed (test output, review findings, error
 logs) — already in the calling agent's context from the run that just failed.
