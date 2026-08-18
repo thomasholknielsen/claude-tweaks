@@ -1,6 +1,6 @@
 # Lens 3i: Documentation Freshness — /claude-tweaks:review Step 3
 
-Read from `SKILL.md`'s Step 3 only when `docs/REGISTRY.md` exists and the diff is not
+Read from `code-mode-steps.md`'s Step 3 only when `docs/REGISTRY.md` exists and the diff is not
 docs-only. Everything this lens and its `3i-diagram` sub-lens emit is informational — it
 never blocks the review. The registry scan below is the lens itself; `3i-diagram` is its sub-lens
 and is gated separately.
