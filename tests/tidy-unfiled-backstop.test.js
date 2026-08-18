@@ -10,13 +10,14 @@ const path = require('node:path');
 
 const SCAN = path.join(__dirname, '..', 'plugin', 'skills', 'tidy', 'scan-procedures.md');
 const BACKSTOPS = path.join(__dirname, '..', 'plugin', 'skills', 'tidy', 'issue-claims-backstops.md');
+const FEEDBACK = path.join(__dirname, '..', 'plugin', 'skills', 'feedback', 'SKILL.md');
+const GRAPH = path.join(__dirname, '..', 'docs', 'skill-graph.md');
+
+const BACKSTOP_HEADING = '### Backstop: preserved but unfiled upstream feedback drafts';
 
 test('issue-claims-backstops.md carries the unfiled-drafts backstop', () => {
   const text = fs.readFileSync(BACKSTOPS, 'utf8');
-  assert.ok(
-    text.includes('### Backstop: preserved but unfiled upstream feedback drafts'),
-    'backstop subsection heading missing',
-  );
+  assert.ok(text.includes(BACKSTOP_HEADING), 'backstop subsection heading missing');
   assert.ok(
     text.includes('find .claude-tweaks/pipelines -path "*/staged/upstream-unfiled-*.md"'),
     'find enumeration command missing or does not match the live+archived glob shape',
@@ -50,17 +51,12 @@ test('scan-procedures.md routes [unfiled] to Yours, no mutation staged', () => {
 
 test('the backstop cites --pre-confirmed as illegitimate for its own command', () => {
   const text = fs.readFileSync(BACKSTOPS, 'utf8');
-  const section = text.slice(
-    text.indexOf('### Backstop: preserved but unfiled upstream feedback drafts'),
-  );
+  const section = text.slice(text.indexOf(BACKSTOP_HEADING));
   assert.ok(
     !section.includes('--pre-confirmed'),
     'the re-file command in this scan must never carry --pre-confirmed (console-callers-only)',
   );
 });
-
-const FEEDBACK = path.join(__dirname, '..', 'plugin', 'skills', 'feedback', 'SKILL.md');
-const GRAPH = path.join(__dirname, '..', 'docs', 'skill-graph.md');
 
 test('feedback/SKILL.md Step 1 names a preserved-draft path as a valid gather source', () => {
   const text = fs.readFileSync(FEEDBACK, 'utf8');
