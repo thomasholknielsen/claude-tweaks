@@ -334,6 +334,63 @@ test('archiveRunDir: the old run dir is removed once empty — a later iterRunDi
   assert.deepStrictEqual([...iterRunDirsWithState(root)], []);
 });
 
+test('archiveRunDir: enumeration archives files the fixed list never named (engine-state.json, extra.txt)', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir, runId } = runDirFixture();
+  fs.writeFileSync(path.join(runDir, 'engine-state.json'), '{}');
+  fs.writeFileSync(path.join(runDir, 'extra.txt'), 'hello\n');
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, true);
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(path.join(archiveDir, 'engine-state.json')));
+  assert.ok(fs.existsSync(path.join(archiveDir, 'extra.txt')));
+  assert.ok(!fs.existsSync(runDir));
+});
+
+test('archiveRunDir: a run dir with no work/ still archives cleanly', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir, runId } = runDirFixture();
+  fs.rmSync(path.join(runDir, 'work'), { recursive: true, force: true });
+  git(['add', '-u'], root);
+  git(['commit', '-q', '-m', 'remove work for fixture'], root);
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, true);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(path.join(archiveDir, 'config.yml')));
+});
+
+test('archiveRunDir: re-running over a partially-archived dir is idempotent', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir, runId } = runDirFixture();
+
+  const first = archiveRunDir(root, runDir);
+  assert.strictEqual(first.ok, true);
+  // runDir is gone after a clean archival — re-run against the same (now
+  // nonexistent) path exercises the fs.existsSync guards' no-op behavior.
+  const second = archiveRunDir(root, runDir);
+  assert.strictEqual(second.ok, true);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(path.join(archiveDir, 'config.yml')));
+});
+
+test('archiveRunDir: a git-tracked non-work file in the run dir refuses with reason tracked-entry', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir } = runDirFixture();
+  fs.writeFileSync(path.join(runDir, 'tracked-stray.md'), 'oops\n');
+  git(['add', path.relative(root, path.join(runDir, 'tracked-stray.md'))], root);
+  git(['commit', '-q', '-m', 'accidentally track a stray file'], root);
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'tracked-entry');
+  // Refusal is total — nothing else got moved either.
+  assert.ok(fs.existsSync(path.join(runDir, 'config.yml')));
+  assert.ok(fs.existsSync(path.join(runDir, 'tracked-stray.md')));
+});
+
 // --- isOrphanedMint / archiveOrphanedMint: dispatch-minted dirs that never got adopted by flow ---
 
 function bareRepoRoot() {

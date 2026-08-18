@@ -111,13 +111,30 @@ function archiveRunDir(root, runDir) {
     if (commit.failure) return { ok: false, reason: 'commit-failed' };
   }
 
-  for (const name of ['config.yml', 'decisions.md', 'events.jsonl', 'manifest.yml', 'console.json', 'run-state.json', 'staged']) {
-    const src = path.join(runDir, name);
-    if (!fs.existsSync(src)) continue;
-    try {
-      fs.renameSync(src, path.join(archiveDir, name));
-    } catch {
-      return { ok: false, reason: 'move-failed' };
+  // Tracked-entry guard: a git-tracked file in the run dir outside work/
+  // would otherwise be silently fs.renameSync'd (moved, not `git mv`'d) —
+  // the tracked blob would still point at the OLD path, corrupting history.
+  // #593 documents this class. work/ itself is already git-mv'd above.
+  if (fs.existsSync(runDir)) {
+    const lsFiles = runGit(['ls-files', runDir], root);
+    if (lsFiles.failure) return { ok: false, reason: 'ls-files-failed' };
+    const trackedOutsideWork = (lsFiles.stdout || '')
+      .split('\n')
+      .filter(Boolean)
+      .map((p) => path.relative(runDir, path.join(root, p)))
+      .filter((rel) => rel && !rel.startsWith('work' + path.sep) && rel !== 'work');
+    if (trackedOutsideWork.length > 0) {
+      return { ok: false, reason: 'tracked-entry' };
+    }
+
+    for (const name of fs.readdirSync(runDir).filter((n) => n !== 'work')) {
+      const src = path.join(runDir, name);
+      if (!fs.existsSync(src)) continue;
+      try {
+        fs.renameSync(src, path.join(archiveDir, name));
+      } catch {
+        return { ok: false, reason: 'move-failed' };
+      }
     }
   }
 
