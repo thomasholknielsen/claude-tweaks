@@ -210,6 +210,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/harness-health` | Same subject check as `/code-health` — plugin-owned findings route to `/feedback` rather than to the project's tracker. |
 | `/journey-health` | Same subject check — routes to `/feedback`. |
 | `/docs-health` | Same subject check — routes to `/feedback`. |
+| `/tidy` | `/tidy`'s backstop scan (`scan-procedures.md`, Step 4.7) enumerates preserved-but-unfiled `staged/upstream-unfiled-*.md` drafts and hands each to the human as a paste-ready `/claude-tweaks:feedback re-file the preserved draft at {abs path}` command — report-only, `/tidy` never re-files or deletes. |
 | `_shared/learning-routing.md` | This skill is the contract's D5 writer — Steps 2-3 read the classifier directly to confirm a learning is D5 and to re-run it from rule 4 on self-reference collapse. |
 | `_shared/feedback-objectives.md` | The maintainer-objective rubric the bare-invocation session evaluation judges against — the judge dispatch (session-evaluation.md) inlines its body verbatim; the rubric file is the canonical enumeration of the objective set. |
 | `_shared/transcript-judge.md` | Step "session-evaluation" dispatch mechanics (transcript resolution, judge dispatch, slicing, degradation, watermark protocol) cite this shared harness instead of restating it — consumer key `feedback`. |

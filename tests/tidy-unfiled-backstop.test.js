@@ -58,3 +58,24 @@ test('the backstop cites --pre-confirmed as illegitimate for its own command', (
     'the re-file command in this scan must never carry --pre-confirmed (console-callers-only)',
   );
 });
+
+const FEEDBACK = path.join(__dirname, '..', 'plugin', 'skills', 'feedback', 'SKILL.md');
+const GRAPH = path.join(__dirname, '..', 'docs', 'skill-graph.md');
+
+test('feedback/SKILL.md Step 1 names a preserved-draft path as a valid gather source', () => {
+  const text = fs.readFileSync(FEEDBACK, 'utf8');
+  const step1 = text.slice(text.indexOf('### Step 1: Gather'), text.indexOf('### Step 2: Classify the kind'));
+  assert.ok(
+    step1.includes('preserved') && step1.includes('draft'),
+    'Step 1 must state that a free-text preserved-draft path is read and used as the gathered content',
+  );
+});
+
+test('skill-graph.md documents the tidy -> feedback unfiled-drafts edge', () => {
+  const text = fs.readFileSync(GRAPH, 'utf8');
+  const feedbackSection = text.slice(text.indexOf('## feedback'), text.indexOf('## flow'));
+  assert.ok(
+    /`\/tidy`.*unfiled/s.test(feedbackSection) || feedbackSection.includes('upstream-unfiled'),
+    'skill-graph.md ## feedback section must document the /tidy backstop-scan edge',
+  );
+});
