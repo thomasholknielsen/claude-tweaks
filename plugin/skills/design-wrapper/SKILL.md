@@ -98,71 +98,27 @@ Layer 0 **gates nothing** — it has no veto and no skip power of its own, and a
 
 Read `impeccable-plugin.md` for the resolution procedure, the output shape, and the trust rules. Do not restate any of them here.
 
-**Layer 1 — Kill-switch (CLAUDE.md flag):**
+**Layers 1-3 + track resolution — computed by `plugin/bin/design-detect.js` (deterministic, #885):**
 
-Read the project's CLAUDE.md and look for a `design-integration` field (typically under a `## Design integration` section). Values:
+What used to be three model-executed decision tables (the CLAUDE.md kill-switch, the `Surface:` body-metadata check, and the web/native/terminal track table) plus the file-extension sniff fallback is now one deterministic CLI call. Invoke it and trust its output — do not re-derive any of these tables by reading CLAUDE.md or the record body yourself:
 
-| Value | Behavior |
-|-------|----------|
-| `enabled` | Proceed to Layer 2 |
-| `plugin-only` | Proceed to Layer 2 (LLM modes work; CLI mode falls through to availability check) |
-| `disabled` | Return `{skipped: "design integration disabled"}` immediately |
-| *(missing)* | Treat as `disabled` — return `{skipped: "design integration not configured (run /claude-tweaks:init to enable)"}` |
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/design-detect.js" --mode <mode> \
+  [--surface <value>] [--files <f1,f2,...>] [--signals <path-to-gatherSignals()-json|->]
+```
 
-**Layer 2 — Body-metadata lines (via the materialized header — spec 20; if spec input present):**
+- `--mode` — the wrapper mode dispatching (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`, `doctor`, `explore`, `reset-recommendations`). Each mode's Layer 2/Layer 3 applicability (incl. `doctor`/`explore`'s structural inapplicability) is baked into the CLI — see the mode-specific notes above for *why*, not *how to recompute it*.
+- `--surface` — the record's `Surface:` body-metadata value (already lifted into the materialized header — spec 20), when the mode received a spec. Omit when no spec input exists.
+- `--files` — the mode's target list, or the resolved `git diff` set, comma-joined.
+- `--signals` — path to Layer 0's `gatherSignals()` JSON (or `-` for stdin); omit when Layer 0 degraded (absent, off-pin, execution failure) — the CLI treats a missing/malformed `setup.platform` as `null`, same as today's fall-through.
 
-When the mode received a spec number or path, read the record's `Surface:` body-metadata line (lifted into the materialized header — spec 20). Values:
+Output is one JSON object: `{decision: "proceed" | "skip", track?, reason?, platform?, inferred?, surface_track_override?}`. `reason` strings are the exact wire vocabulary every caller already matches on (`"design integration disabled"`, `"design integration not configured (run /claude-tweaks:init to enable)"`, `"non-frontend spec (surface declared)"`, `"non-frontend (sniff)"`, `"native surface — CLI detector is web-only"`, `"native surface — live mode is web-only"`) — unchanged from before this extraction, byte-for-byte.
 
-| Value | Behavior |
-|-------|----------|
-| `web`, `mobile`, `desktop` | Continue to track resolution (legacy `frontend` reads as `web`) |
-| `backend`, `infra` | Return `{skipped: "non-frontend spec (surface declared)"}` |
-| `terminal` | Continue to track resolution (declared-only — Layer 3 never implies it) |
-| *(missing)* | Continue to track resolution |
+**`surface_track_override` is emitted by the CLI, never judged in prose.** When present, it names both `platform` and `surface` and which won (`setup.platform` wins except on the `terminal` row, where `Surface:` wins). Logging the disagreement to the run's `decisions.md` (`_shared/auto-decision-log.md`) stays the caller's job — the CLI has no run-dir concept and never writes to one.
 
-`/specify` writes `Surface:` (a body-metadata line, lifted into the materialized header — spec 20) on every new sub-issue record. Pre-v4.5 specs lack the field; absent values are normal and are handled by track resolution and Layer 3 below.
+When the track resolves `terminal`, read `terminal-routing.md` — every terminal-track outcome (honest Impeccable skips, `pre-build`'s principles-only load) lives there. When the track resolves `native`, read `native-routing.md` in this skill's directory for the reference mapping and dispatch rule — a web-track run never needs either file. `test` and `live` never dispatch on the native track (upstream's own constraint — `reference/routing.md`: *"`live` and the bundled `detect.mjs` are web-only"*); every other mode dispatches on the native track with `platform` named.
 
-**Track resolution — web or native (between Layers 2 and 3; runs for every mode):**
-
-Layers 1-3 answer *whether* to dispatch; this answers *which track*. It is **one decision** — nothing below selects the web path before this table has run, so there is no earlier return for a native exemption to be bolted after (`[IL-83]`). Two inputs: Layer 0's `setup.platform`, and the record's `Surface:` line (absent whenever the mode received no spec). `setup.platform` is `null` whenever Layer 0 degraded at all, so the table is reachable with **no Impeccable installed and no `PRODUCT.md` present** — the case it mainly exists to serve.
-
-| `setup.platform` | `Surface:` | Track | Platform named to upstream |
-|---|---|---|---|
-| `web` | any | web | — |
-| `ios` / `android` / `adaptive` | any | **native** | that value |
-| `null` | `web`, `desktop`, *(missing)* | web | — |
-| `null` | `mobile` | **native** | `adaptive`, **inferred** |
-| any | `terminal` | **terminal** | — (wins over the platform-first rows above — see the disagreement rule below) |
-
-`setup.platform`'s value domain is closed to those four values plus `null` by `extractPlatform`'s own implementation (see `impeccable-plugin.md`), and Layer 2 has already returned a skip for `backend` / `infra`, so every reachable combination has a row. There is no "otherwise" case to write. `null` + `mobile` infers `adaptive` because upstream has no unnamed-native track; `desktop` takes the web path because upstream's enum has no desktop value. Both are reasoned resolutions rather than placeholders — the arguments are in `native-routing.md`.
-
-**Disagreement is recorded, never silent.** When `setup.platform` is non-null and `Surface:` implies the other track — `platform: web` against an explicit `Surface: mobile` is the case that matters — `setup.platform` wins per the table, and the return carries `surface_track_override` naming both values and which won. A stale or wrong `PRODUCT.md` must not quietly overrule a record's own declaration without leaving a trace. When `$PIPELINE_RUN_DIR` is set, write the same one-liner to the run's `decisions.md` per `_shared/auto-decision-log.md`. On the `terminal` row `Surface:` wins — `setup.platform` describes Impeccable's rendered-product platform, whose value domain has no terminal value; a non-null `platform` against `Surface: terminal` is still recorded in `surface_track_override` and `decisions.md`, with `Surface:` named as the winner.
-
-When the track resolves `terminal`, read `terminal-routing.md` — every terminal-track outcome (honest Impeccable skips, `pre-build`'s principles-only load) lives there.
-
-**Two modes are web-only and skip on the native track.** The constraint is upstream's own, stated in its `reference/routing.md`: *"`live` and the bundled `detect.mjs` are web-only."*
-
-| Mode | Native-track outcome |
-|---|---|
-| `test` | `{skipped: "native surface — CLI detector is web-only"}`, never `pass` — see `modes/test.md` |
-| `live` | Skipped — see `modes/live.md` |
-
-Every other mode dispatches on the native track with the platform named, after reading that platform's own upstream reference. **When the track resolves native, read `native-routing.md` in this skill's directory** — the reference mapping, the dispatch rule, and the reasoning behind the table's two inferred rows all live there, and a web-track run never needs any of it.
-
-**Layer 3 — File-extension sniff (fallback):**
-
-Inspect the files in the mode's target list (or the resolved `git diff` set). If any file matches a frontend trigger extension or path pattern, treat as frontend. If zero files match, return `{skipped: "non-frontend (sniff)"}`.
-
-For the trigger extensions and path patterns, read `frontend-detection.md` in this skill's directory.
-
-Layer 3's trigger table is web-only by construction — no native extension appears in it, so a SwiftUI or Compose diff matches nothing there. On the native track it is therefore a fallback only, and only when nothing was declared:
-
-| Track | `Surface:` | Layer 3 |
-|---|---|---|
-| web | any | Runs, exactly as it always has |
-| native | declared | **Skipped** — a web-only sniff cannot rule on native code, and running it would return `non-frontend (sniff)` on exactly the records native routing exists to serve |
-| native | *(missing)* | Runs. A match admits; zero matches skips as today, so a native project's backend-only diff is not widened onto the design path |
-| terminal | declared | **Skipped** — declared-only; no terminal trigger exists in the sniff table by design |
+The trigger extensions and path patterns Layer 3 sniffs against, and the full decision-table reference (every row, worked examples, edge cases) for anyone auditing the CLI's behavior rather than just calling it, live in `frontend-detection.md` in this skill's directory — the CLI's `plugin/bin/lib/design-detect/index.js` is the executable twin of that file, the same pairing `bin/lib/merge-verification.js` has with `_shared/policy-schema.md`'s coverage block.
 
 ### Step 2: Availability check
 
