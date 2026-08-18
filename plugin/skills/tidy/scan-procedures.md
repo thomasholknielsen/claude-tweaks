@@ -277,6 +277,42 @@ way.
 
 → Collect each as: `[claim] {run-dir} — clean standalone run, empty decisions.md — possible skipped audit-log write (manual review)`
 
+### Backstop: preserved but unfiled upstream feedback drafts
+
+`/claude-tweaks:feedback`'s Step 8 preserves a draft as `staged/upstream-unfiled-{N}.md` when
+filing fails — deliberately outside the `staged/wrap-up-upstream-*.md` glob the consoles
+re-enumerate, so a resume never re-files it, and there is no automatic retry. Enumerate every
+surviving preserved draft, live and archived, `find`-only (run dirs are gitignored):
+
+```bash
+cd "{RUN_ROOT}" && find .claude-tweaks/pipelines -path "*/staged/upstream-unfiled-*.md" 2>/dev/null
+```
+
+For each match:
+
+- **Run id** — the path segment naming the run directory (one level under `pipelines/archive/`
+  for an archived run, directly under `pipelines/` for a live one).
+- **Title** — the file's first `**Summary:**` line (the field `feedback/SKILL.md` Step 5's draft
+  template guarantees on every drafted body); when absent, `{filename} (run {run id})`.
+- **Age** — parse the run id's leading `{ISO-timestamp}-{slug}` prefix and report elapsed time;
+  `age unknown` when the run id doesn't parse as one.
+- **Live-run check** — a path under `pipelines/archive/` is archived, no further check needed.
+  Otherwise read that run's `run-state.json`: a `status` in `run-integrity.js`'s `NON_TERMINAL`
+  set (`active`, `interrupted`) means the run is still live.
+
+A live, non-terminal run's draft gets the annotation "run still live — leave unless abandoned"
+in place of the two action options below — the race with an active session is accepted, since
+every action here is a human paste and nothing destructive runs automatically. Every other match
+(archived, or live-but-terminal) gets two paste-ready commands, each on its own line:
+
+    /claude-tweaks:feedback re-file the preserved draft at {abs path}
+    rm '{abs path}'
+
+No matches at all: report "0 unfiled upstream drafts" explicitly — a scan that ran and found
+nothing is a different fact from a scan that never ran.
+
+→ Collect each as: `[unfiled] {title} (run {run id}, {age}) — {abs path} — re-file or discard (see options above)` — or, for a live non-terminal run, `[unfiled] {title} (run {run id}, {age}) — {abs path} — run still live, leave unless abandoned`
+
 ## Step 4.8: Audit GitHub PRs and Issues
 
 **Not re-pointed at `bin/residue.js`.** That CLI's `kind: pr` probe (`probeForge`) is a raw
@@ -408,7 +444,7 @@ Patterns and health observations are informational — they surface systemic iss
 | Collection prefix | Renders in Step 6 report | Notes |
 |---|---|---|
 | `[backlog]`, `[parked]`, `[unsynced]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[pr]`, `[gh-issue]`, `[parent-gate]`, `[claim]` | **Approve ({N})** (or **Applied automatically** when the tier auto-applied it) | Each row gets a pre-filled recommendation carrying its exact executable action. Some of these tags also emit non-mutating outcomes on individual findings — `[backlog]`/`[parked]`/`[plan]` Keep rows land in **Clean:** instead; `[backlog]`/`[parked]` Promote and `[doc]`'s "Run `/claude-tweaks:specify`" outcome land in **Yours ({N})**; `[pr]` awaiting-review and unarmed-ungranted outcomes land in **Yours ({N})**; `[claim]` Release and both missed-restoration backstops (`parked` / `bot:in-progress`) are staged, executable actions here, but `[claim]` Manual review outcomes (unreadable/unparseable blobs, empty-`decisions.md` backstop) land in **Yours ({N})** and Keep (live claim, issue open) lands in **Clean:** — the destination follows the actual routing outcome (`step-6-auto.md`'s Bucket mapping), never the tag alone. |
-| `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[acceptance-gap]`, `[sizing]` | **Yours ({N})** | Auto (no-op, always surfaced) at every aggressiveness tier — no mutation exists to stage; each finding carries its own paste-ready command. |
+| `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[acceptance-gap]`, `[sizing]`, `[unfiled]` | **Yours ({N})** | Auto (no-op, always surfaced) at every aggressiveness tier — no mutation exists to stage; each finding carries its own paste-ready command. |
 | `[pattern]` | **Yours ({N})** | Informational; presented as items in Yours. |
 | `[doctor]` | **Yours ({N})** | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** **Approve ({N})**, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
 | `[calibration]` | **Yours ({N})** | Report-only, surface-or-suppress, never applied — matches `[doctor]`'s semantics. No action drill. |
