@@ -1,19 +1,41 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces `/tmp/dispatch-groups.json`, the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next.
 
 ```bash
-gh issue list --label auto:build --state open --json number,title,body,labels,createdAt --limit 500 > /tmp/dispatch-queue-raw.json
-QUEUE_RAW_COUNT=$(node -e "console.log(require('/tmp/dispatch-queue-raw.json').length)")
+eval "$(node -e "
+  const { sessionTmpPath } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = {
+    DISPATCH_QUEUE_RAW: 'dispatch-queue-raw.json',
+    DISPATCH_OPEN_NUMBERS: 'dispatch-open-numbers.json',
+    DISPATCH_ELIGIBLE_PRE_DEP: 'dispatch-eligible-pre-dep.json',
+    DISPATCH_UNRESOLVED_DEPS: 'dispatch-unresolved-deps.json',
+    DISPATCH_VERIFIED_OPEN_DEPS: 'dispatch-verified-open-deps.txt',
+    DISPATCH_ELIGIBLE: 'dispatch-eligible.json',
+    DISPATCH_NATIVE_DEPS: 'dispatch-native-deps.json',
+    DISPATCH_NATIVE_QUERY: 'dispatch-native-query.graphql',
+    DISPATCH_NATIVE_DEPS_TMP: 'dispatch-native-deps.tmp.json',
+    DISPATCH_NATIVE_DEPS_ERR: 'dispatch-native-deps.err',
+    DISPATCH_GROUPS: 'dispatch-groups.json',
+  };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
+
+gh issue list --label auto:build --state open --json number,title,body,labels,createdAt --limit 500 > "$DISPATCH_QUEUE_RAW"
+QUEUE_RAW_COUNT=$(node -e "console.log(require(process.argv[1]).length)" "$DISPATCH_QUEUE_RAW")
 if [ "$QUEUE_RAW_COUNT" -ge 500 ]; then
   echo "Warning: the auto:build queue pull returned exactly the --limit cap (500) — this repo may have more open auto:build records than fetched. gh issue list returns newest-first, so any records beyond the cap are the OLDEST same-priority ones, exactly what next's own oldest-first tie-break (Step 3) exists to surface first. Consider raising the cap, or filing this as a signal to re-triage the queue down." >&2
 fi
-gh issue list --state open --json number --limit 200 > /tmp/dispatch-open-numbers.json
+gh issue list --state open --json number --limit 200 > "$DISPATCH_OPEN_NUMBERS"
 WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
 node -e "
   const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const issues = require('/tmp/dispatch-queue-raw.json');
-  const openNumbers = new Set(require('/tmp/dispatch-open-numbers.json').map((i) => i.number));
+  const issues = require(process.argv[1]);
+  const openNumbers = new Set(require(process.argv[2]).map((i) => i.number));
   const eligiblePreDep = issues
     .map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))
     .filter((i) => i.facets.grants.build && !i.facets.bot.inProgress && !i.facets.bot.blocked);
@@ -22,51 +44,51 @@ node -e "
   // fetched 200', not 'closed'. Collect those as unresolved for a targeted live check below
   // rather than treating the absence as proof the blocker is closed.
   const unresolved = [...new Set(eligiblePreDep.flatMap((i) => parseDependencies(i.body)).filter((dep) => !openNumbers.has(dep)))];
-  require('fs').writeFileSync('/tmp/dispatch-eligible-pre-dep.json', JSON.stringify(eligiblePreDep));
-  require('fs').writeFileSync('/tmp/dispatch-unresolved-deps.json', JSON.stringify(unresolved));
-"
-: > /tmp/dispatch-verified-open-deps.txt
-for DEP in $(node -e "console.log(require('/tmp/dispatch-unresolved-deps.json').join(' '))"); do
+  require('fs').writeFileSync(process.argv[3], JSON.stringify(eligiblePreDep));
+  require('fs').writeFileSync(process.argv[4], JSON.stringify(unresolved));
+" "$DISPATCH_QUEUE_RAW" "$DISPATCH_OPEN_NUMBERS" "$DISPATCH_ELIGIBLE_PRE_DEP" "$DISPATCH_UNRESOLVED_DEPS"
+: > "$DISPATCH_VERIFIED_OPEN_DEPS"
+for DEP in $(node -e "console.log(require(process.argv[1]).join(' '))" "$DISPATCH_UNRESOLVED_DEPS"); do
   STATE=$(gh issue view "$DEP" --json state -q .state 2>/dev/null)
-  if [ "$STATE" = "OPEN" ]; then echo "$DEP" >> /tmp/dispatch-verified-open-deps.txt; fi
+  if [ "$STATE" = "OPEN" ]; then echo "$DEP" >> "$DISPATCH_VERIFIED_OPEN_DEPS"; fi
 done
 node -e "
   const fs = require('fs');
   const { parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const eligiblePreDep = require('/tmp/dispatch-eligible-pre-dep.json');
-  const openNumbers = new Set(require('/tmp/dispatch-open-numbers.json').map((i) => i.number));
-  const verifiedOpen = fs.existsSync('/tmp/dispatch-verified-open-deps.txt')
-    ? fs.readFileSync('/tmp/dispatch-verified-open-deps.txt', 'utf8').trim().split('\n').filter(Boolean).map(Number)
+  const eligiblePreDep = require(process.argv[1]);
+  const openNumbers = new Set(require(process.argv[2]).map((i) => i.number));
+  const verifiedOpen = fs.existsSync(process.argv[3])
+    ? fs.readFileSync(process.argv[3], 'utf8').trim().split('\n').filter(Boolean).map(Number)
     : [];
   for (const dep of verifiedOpen) openNumbers.add(dep);
   const eligible = eligiblePreDep.filter((i) => !parseDependencies(i.body).some((dep) => openNumbers.has(dep)));
-  fs.writeFileSync('/tmp/dispatch-eligible.json', JSON.stringify(eligible));
-"
-echo '{"data":{"repository":{}}}' > /tmp/dispatch-native-deps.json
+  fs.writeFileSync(process.argv[4], JSON.stringify(eligible));
+" "$DISPATCH_ELIGIBLE_PRE_DEP" "$DISPATCH_OPEN_NUMBERS" "$DISPATCH_VERIFIED_OPEN_DEPS" "$DISPATCH_ELIGIBLE"
+echo '{"data":{"repository":{}}}' > "$DISPATCH_NATIVE_DEPS"
 if [ "$WORK_LINKS" = "native" ]; then
-  rm -f /tmp/dispatch-native-query.graphql
+  rm -f "$DISPATCH_NATIVE_QUERY"
   node -e "
     const { buildNativeDependencyQuery } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-    const eligible = require('/tmp/dispatch-eligible.json');
+    const eligible = require(process.argv[1]);
     const query = buildNativeDependencyQuery(eligible.map((i) => i.number));
-    if (query) require('fs').writeFileSync('/tmp/dispatch-native-query.graphql', query);
-  "
-  if [ -s /tmp/dispatch-native-query.graphql ]; then
+    if (query) require('fs').writeFileSync(process.argv[2], query);
+  " "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_QUERY"
+  if [ -s "$DISPATCH_NATIVE_QUERY" ]; then
     OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
-    if gh api graphql -f query="$(cat /tmp/dispatch-native-query.graphql)" \
+    if gh api graphql -f query="$(cat "$DISPATCH_NATIVE_QUERY")" \
       -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
-      > /tmp/dispatch-native-deps.tmp.json 2>/tmp/dispatch-native-deps.err; then
-      mv /tmp/dispatch-native-deps.tmp.json /tmp/dispatch-native-deps.json
+      > "$DISPATCH_NATIVE_DEPS_TMP" 2>"$DISPATCH_NATIVE_DEPS_ERR"; then
+      mv "$DISPATCH_NATIVE_DEPS_TMP" "$DISPATCH_NATIVE_DEPS"
     else
-      echo "Warning: native dependency query failed — falling back to no native filtering this run: $(cat /tmp/dispatch-native-deps.err)" >&2
+      echo "Warning: native dependency query failed — falling back to no native filtering this run: $(cat "$DISPATCH_NATIVE_DEPS_ERR")" >&2
     fi
   fi
 fi
 node -e "
   const { hasOpenNativeBlocker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
-  const eligible = require('/tmp/dispatch-eligible.json');
-  const repoData = require('/tmp/dispatch-native-deps.json').data.repository;
+  const eligible = require(process.argv[1]);
+  const repoData = require(process.argv[2]).data.repository;
   const finalEligible = eligible.filter((i) => !hasOpenNativeBlocker(repoData['i' + i.number]));
   const items = finalEligible.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
   const byId = new Map(finalEligible.map((i) => [i.number, i]));
@@ -77,7 +99,7 @@ node -e "
   }
   const groups = groupByFileOverlap(items).map((ids) => ids.map((id) => byId.get(id)));
   console.log(JSON.stringify(groups));
-" > /tmp/dispatch-groups.json
+" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" > "$DISPATCH_GROUPS"
 ```
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
