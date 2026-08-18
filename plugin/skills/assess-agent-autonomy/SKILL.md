@@ -120,4 +120,4 @@ short-circuit, `merge-check` — the single-record version of dispatch's same ga
 | Rendering a conservative verdict with a content-judgment-style rationale when the gather itself failed | Misreports a tooling/transport gap as if the record/diff/failure content had been weighed and found wanting — indistinguishable from principled caution to anyone reading the log. Name the gather failure verbatim instead (could-not-gather, above). |
 
 Mode-specific Anti-Patterns rows live in their own sub-file (`merge-check.md`, `failure-check.md`) —
-these three are the ones that hold across every mode.
+these four are the ones that hold across every mode.

@@ -11,10 +11,12 @@ chain (gate 4), once per candidate whose ceiling/opt-in/trust/origin gates alrea
 gh issue view "$N" --json body,labels -q '{body: .body, labels: [.labels[].name]}' > /tmp/assess-grant-${N}.json
 ```
 
-**MCP path** (`gh` unavailable, an MCP transport resolved per the caller's own transport
-contract — e.g. `dispatch/mcp-transport.md`): use the confirmed `issue_read` (get mode) mapping
-from `_shared/github-write-transport.md` in place of the `gh issue view` call above — the rest
-of this step consumes the same `{body, labels}` shape regardless of transport.
+**MCP path** (`gh` unavailable, and the calling context has its own resolved MCP transport — e.g.
+a caller like `dispatch/mcp-transport.md`'s contract; `grant-check`'s current callers, `/claude-tweaks:backlog
+refine`/`grant`, do not yet have an equivalent, so this branch is not reachable from them today): use
+the confirmed `issue_read` (get mode) mapping from `_shared/github-write-transport.md` in place of
+the `gh issue view` call above — the rest of this step consumes the same `{body, labels}` shape
+regardless of transport.
 
 **Neither available** (no `gh`, no MCP transport resolved): stop here — this is the
 `could-not-gather` case (`SKILL.md`'s Error Handling). Render Step 3 directly:
