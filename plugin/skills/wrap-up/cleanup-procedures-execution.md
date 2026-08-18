@@ -33,17 +33,8 @@ If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
 2. Verify the Review Console ran and applied/dismissed all staged items.
 3. **Mark the run terminal, if not already closed by Section C's step 3.6** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). Idempotent: re-running it on an already-clean run (the worktree-strategy case, where Section C's step 3.6 closed it first) is a harmless no-op. E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
-4. **Move the `work/` subdirectory** to `.claude-tweaks/pipelines/archive/{run-id}/work/` — the materialized record files (`materialize.md`'s "committed as audit trail, never gitignored" contract) are git-tracked, unlike the rest of the run directory: move it with `git mv` (mandatory — the archive path itself is gitignored, so a plain `mv` + `git add` is rejected and the tracked files would register as deletions; `git mv` preserves the tracked rename regardless of the ignore rule).
-5. **Gitignored content** (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`):
-   already in the main checkout — run directories are anchored there at creation
-   (`_shared/pipeline-run-dir.md`, Anchoring), and for a run that predates anchoring,
-   Section C step 3.5's transitional guard has already copied it there and re-pointed
-   `$RUN_DIR`. Either way `$RUN_DIR` names a main-checkout path by the time this step
-   runs. Move them into the archive path with a plain `mv`, same destination as
-   `work/`'s but without `git mv` since they were never tracked. This is identical for
-   worktree-strategy and `current-branch` runs; the two-branch split it replaces existed
-   only because the worktree strategy used to hold the sole copy.
-6. Skipped staged items remain in the archive; they are NOT silently dropped.
+4. **Archive the run directory** — `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" archive-run --run "$RUN_DIR"`. This archives the tracked `work/` directory and moves every other entry (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`, and anything else the run directory holds — the verb enumerates rather than assuming a fixed list) in one call. The verb refuses a non-terminal run (`active`/`interrupted`) — step 3's `close-run` call above is what makes this refusal unreachable in practice here, not a redundant check.
+5. Skipped staged items remain in the archive; they are NOT silently dropped.
 
 Do NOT delete the run directory outright — the auto-decision log is project history (for the user's calibration of project policy), not pipeline state.
 

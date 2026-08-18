@@ -83,3 +83,17 @@ test('archive-run: never prints a moved: line for a name absent from the fixture
   assert.doesNotMatch(result.stdout, /moved: console\.json/);
   assert.doesNotMatch(result.stdout, /moved: staged/);
 });
+
+test('cleanup-procedures-execution.md Section B invokes archive-run instead of a hand-run recipe', () => {
+  const text = fs.readFileSync(
+    path.join(__dirname, '..', 'plugin', 'skills', 'wrap-up', 'cleanup-procedures-execution.md'),
+    'utf8',
+  );
+  const bStart = text.indexOf('## B.');
+  const cStart = text.indexOf('## C.');
+  assert.ok(bStart !== -1 && cStart !== -1, 'Section B/C headings must exist');
+  const sectionB = text.slice(bStart, cStart);
+  assert.ok(sectionB.includes('hooks.js" archive-run'), 'Section B must invoke the archive-run verb');
+  assert.ok(!/\bgit mv\b/.test(sectionB), 'Section B must not hand-run git mv anymore');
+  assert.ok(!/\bmv\s+"\$RUN_DIR"/.test(sectionB), 'Section B must not hand-run a raw mv on $RUN_DIR anymore');
+});
