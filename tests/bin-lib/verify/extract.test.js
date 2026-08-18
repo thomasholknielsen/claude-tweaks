@@ -120,6 +120,13 @@ test('a green jest line with a skip does not fabricate a fail count from the ski
   );
 });
 
+test('an unrecognized numeric-word phrase on the summary line blocks derivation rather than fabricating a count (security)', () => {
+  assert.strictEqual(
+    parseCounts('Tests:       1 failed, 1 warning, 10 total', 'summary'),
+    null,
+  );
+});
+
 test('a summary line with passed but no failed and no total still yields null (nothing to derive from)', () => {
   assert.strictEqual(parseCounts('Tests: 5 passed', 'summary'), null);
 });

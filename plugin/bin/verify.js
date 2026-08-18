@@ -42,6 +42,7 @@ function statusOf(check) {
 }
 
 async function main() {
+  process.stdout.on('error', (err) => { if (err.code !== 'EPIPE') throw err; });
   let parsed;
   try {
     parsed = parseArgs(process.argv.slice(2));

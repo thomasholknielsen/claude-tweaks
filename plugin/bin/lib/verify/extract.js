@@ -76,13 +76,17 @@ function parseCounts(text, family) {
     const total = num(line.match(/(\d+) total/));
     if (failed === null && passed === null) return null;
     if (total !== null) {
-      const accounted = [...line.matchAll(/(\d+) ([a-z]+)/gi)]
-        .filter((m) => m[2].toLowerCase() !== 'total')
-        .reduce((s, m) => s + Number(m[1]), 0);
-      const missing = total - accounted;
-      if (missing >= 0) {
-        if (failed === null) failed = missing;
-        else if (passed === null) passed = missing;
+      const KNOWN_CATEGORIES = ['failed', 'passed', 'skipped', 'pending', 'todo'];
+      const pairs = [...line.matchAll(/(\d+) ([a-z]+)/gi)]
+        .filter((m) => m[2].toLowerCase() !== 'total');
+      const hasUnknownCategory = pairs.some((m) => !KNOWN_CATEGORIES.includes(m[2].toLowerCase()));
+      if (!hasUnknownCategory) {
+        const accounted = pairs.reduce((s, m) => s + Number(m[1]), 0);
+        const missing = total - accounted;
+        if (missing >= 0) {
+          if (failed === null) failed = missing;
+          else if (passed === null) passed = missing;
+        }
       }
     }
     if (failed === null || passed === null) return null;

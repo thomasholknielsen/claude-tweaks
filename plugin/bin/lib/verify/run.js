@@ -27,21 +27,24 @@ function runOne({ name, command, logDir, spawnImpl, now }) {
     // A write-stream failure (missing logDir, disk full, ...), a spawn-time
     // throw, and a child 'error' event are the same failure class: record
     // them, never let one crash the run as an unhandled 'error' event.
-    const finishError = (err) => finish({
-      name, command, exitCode: null,
-      spawnError: String((err && err.message) || err),
-      durationMs: now() - started, logPath,
-    });
-    stream.on('error', finishError);
     let child;
+    const finishError = (err) => {
+      if (child) child.kill();
+      finish({
+        name, command, exitCode: null,
+        spawnError: String((err && err.message) || err),
+        durationMs: now() - started, logPath,
+      });
+    };
+    stream.on('error', finishError);
     try {
       child = spawnImpl(command, { shell: true });
     } catch (err) {
       finishError(err);
       return;
     }
-    if (child.stdout) child.stdout.pipe(stream, { end: false });
-    if (child.stderr) child.stderr.pipe(stream, { end: false });
+    if (child.stdout) { child.stdout.on('error', finishError); child.stdout.pipe(stream, { end: false }); }
+    if (child.stderr) { child.stderr.on('error', finishError); child.stderr.pipe(stream, { end: false }); }
     child.on('error', finishError);
     child.on('close', (code) => finish({
       name, command, exitCode: code, durationMs: now() - started, logPath,

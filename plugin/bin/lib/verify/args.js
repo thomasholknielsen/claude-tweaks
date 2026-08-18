@@ -25,6 +25,9 @@ function parseArgs(argv) {
       if (eq === -1) throw new UsageError(`--cmd value must be <name>=<command>, got: ${value}`);
       if (eq === 0) throw new UsageError(`--cmd value has an empty name: ${value}`);
       const name = value.slice(0, eq);
+      if (!/^[A-Za-z0-9_-]+$/.test(name)) {
+        throw new UsageError(`--cmd name must match [A-Za-z0-9_-]+, got: ${name}`);
+      }
       const command = value.slice(eq + 1);
       if (command === '') throw new UsageError(`--cmd ${name} has an empty command`);
       if (cmds.some((c) => c.name === name)) throw new UsageError(`duplicate --cmd name: ${name}`);

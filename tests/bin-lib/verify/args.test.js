@@ -65,6 +65,12 @@ test('duplicate --cmd name throws UsageError', () => {
     () => parseArgs(['--cmd', 'tests=a', '--cmd', 'tests=b']), UsageError);
 });
 
+test('a --cmd name with path-traversal or path-separator characters throws UsageError (security)', () => {
+  assert.throws(() => parseArgs(['--cmd', '../../etc/passwd=echo hi']), UsageError);
+  assert.throws(() => parseArgs(['--cmd', 'a/b=echo hi']), UsageError);
+  assert.throws(() => parseArgs(['--cmd', 'a\\b=echo hi']), UsageError);
+});
+
 test('USAGE names every flag', () => {
   for (const flag of ['--cmd', '--json', '--log-dir']) {
     assert.ok(USAGE.includes(flag), `USAGE missing ${flag}`);

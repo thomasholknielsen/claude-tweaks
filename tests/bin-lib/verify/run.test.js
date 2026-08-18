@@ -24,6 +24,7 @@ function makeFakeSpawn(script) {
     const child = new EventEmitter();
     child.stdout = new PassThrough();
     child.stderr = new PassThrough();
+    child.kill = () => { child.killed = true; };
     children[command] = child;
     const plan = script[command] || { exit: 0 };
     if (plan.throw) throw new Error(plan.throw);
@@ -175,4 +176,30 @@ test('a write-stream failure (unwritable logDir) records a failed check with spa
   assert.strictEqual(results[0].exitCode, null);
   assert.strictEqual(typeof results[0].spawnError, 'string');
   assert.ok(results[0].spawnError.length > 0);
+});
+
+test('a child.stdout stream error records a failed check without crashing the process (security)', async () => {
+  const logDir = tmpLogDir();
+  function spawnImpl() {
+    const child = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = () => { child.killed = true; };
+    setImmediate(() => child.stdout.emit('error', new Error('stream broke')));
+    return child;
+  }
+  const results = await runChecks({
+    cmds: [{ name: 'tests', command: 't' }], logDir, spawnImpl,
+  });
+  assert.strictEqual(results[0].exitCode, null);
+  assert.ok(results[0].spawnError.includes('stream broke'));
+});
+
+test('a write-stream failure kills the already-spawned child instead of leaving it orphaned (security)', async () => {
+  const { spawnImpl, children } = makeFakeSpawn({ t: { manual: true } });
+  const logDir = path.join(tmpLogDir(), 'does-not-exist', 'nested');
+  await runChecks({
+    cmds: [{ name: 'tests', command: 't' }], logDir, spawnImpl,
+  });
+  assert.strictEqual(children.t.killed, true);
 });
