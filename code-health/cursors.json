@@ -50,5 +50,9 @@
   "bin/lib/harness-health": {
     "lastSweptMs": 1786936488770,
     "lastHash": "2196625ae066d9d9839fd78dad2a685b3f25d28b"
+  },
+  "docs": {
+    "lastSweptMs": 1787022800313,
+    "lastHash": "2ad9507e9c4df2831eba0d62141bfbbf4b07ff3e"
   }
 }
