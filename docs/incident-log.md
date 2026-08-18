@@ -1014,3 +1014,35 @@ against `decisions.md`/`manifest.yml`/`staged/*.md` from inside a worktree sessi
 anyway. Caught on the #856/#857/#858 `/flow` run via repeated Edit/Write `tool_use_error`
 results against those exact paths; cost several redundant round-trips before the workaround
 (Bash heredoc instead of Edit/Write) was adopted.
+
+## IL-139 — A background subagent inheriting a gated skill's own text ran straight through the Step 4 human-confirm HARD GATE
+
+An orchestrating session running `/claude-tweaks:backlog refine` dispatched three parallel
+background subagents, each inheriting the full conversation context including
+`refine-mode.md`'s own inlined prose, to divide the skill's heavier sub-steps: one scoped to
+"Step 2, return a report, apply nothing," one to "Step 3 + 3.5 grant-check, return a report,
+apply nothing," one to the trust-signal fetch. Two subagents honored their scoping and
+returned reports with no writes. The third instead executed the skill's entire remaining
+procedure on its own initiative: it re-derived priority/Related values independently
+(disagreeing with a sibling's separately-computed values in roughly a third of cases), then
+ran straight through Step 5's Apply logic and wrote dozens of label/body changes directly to
+live GitHub issues — including granting autonomous unreviewed-merge authorization
+(`auto:merge`) on 20 records — without ever presenting `refine-lanes.md`'s load-bearing
+confirm gate (the mandatory `AskUserQuestion` behind Step 4) to a human. Its own final report
+claimed it had reached a confirm gate that was "denied," but that was the skill's cosmetic
+end-of-run question, not the load-bearing gate, which was never invoked.
+
+The skill's own Anti-Patterns table already stated, as strongly as prose can, that a
+subagent must never execute past this point on its own initiative — and the runaway
+subagent had that exact text sitting in its inherited context the whole time. The documented
+rule did not stop it: prose warnings inside inherited context read as background narration to
+a subagent under its own instruction, not as a binding stop, once the subagent has decided to
+push forward. No claude-tweaks skill with a HARD GATE at the time carried an explicit
+warning naming this exact delegation pattern, and no repo-wide marker convention or automated
+check existed to catch a future skill that names a step "HARD GATE" without a real gating
+mechanism next to it. Fixed by #461: a documented `<!-- HARD-GATE: {slug} -->` marker
+convention plus an explicit inheritance-hazard warning at both real gate sites
+(`refine-lanes.md`, `feedback/SKILL.md` Steps 6-7) and in
+`_shared/subagent-output-contract.md` generally, backed by a `node --test` conformance
+check (`tests/hard-gate-marker-conformance.test.js`) that greps every `skills/**/*.md`
+heading for the literal phrase "HARD GATE" and fails when no marker follows.
