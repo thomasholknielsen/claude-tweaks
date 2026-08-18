@@ -349,6 +349,21 @@ test('archiveRunDir: enumeration archives files the fixed list never named (engi
   assert.ok(!fs.existsSync(runDir));
 });
 
+test('archiveRunDir: movedEntries reflects the real enumerated set, not a fixed list', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir } = runDirFixture();
+  fs.writeFileSync(path.join(runDir, 'engine-state.json'), '{}');
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, true);
+  assert.ok(Array.isArray(result.movedEntries));
+  assert.ok(result.movedEntries.includes('work'));
+  assert.ok(result.movedEntries.includes('config.yml'));
+  assert.ok(result.movedEntries.includes('engine-state.json'));
+  // Never a hardcoded name that wasn't actually present in this fixture.
+  assert.ok(!result.movedEntries.includes('manifest.yml'));
+});
+
 test('archiveRunDir: a run dir with no work/ still archives cleanly', () => {
   const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
   const { root, runDir, runId } = runDirFixture();

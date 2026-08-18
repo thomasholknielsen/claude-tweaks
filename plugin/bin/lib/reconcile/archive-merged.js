@@ -99,6 +99,13 @@ function archiveRunDir(root, runDir) {
     return { ok: false, reason: 'mkdir-failed' };
   }
 
+  // Collects the actual set of entries this call moves, in move order — so
+  // a caller reporting what happened (e.g. hooks.js archive-run's "moved:"
+  // lines) reads it from here rather than re-deriving or hardcoding its own
+  // guess at the run dir's shape, which is the exact fixed-list drift this
+  // function's own enumeration swap (above) exists to eliminate.
+  const movedEntries = [];
+
   const workSrc = path.join(runDir, 'work');
   if (fs.existsSync(workSrc)) {
     const mv = runGit(['mv', workSrc, path.join(archiveDir, 'work')], root);
@@ -109,6 +116,7 @@ function archiveRunDir(root, runDir) {
     // would otherwise sit in the shared main checkout's index indefinitely.
     const commit = runGit(['commit', '-m', `[reconcile] archive run ${runId}`], root);
     if (commit.failure) return { ok: false, reason: 'commit-failed' };
+    movedEntries.push('work');
   }
 
   // Tracked-entry guard: a git-tracked file in the run dir outside work/
@@ -135,6 +143,7 @@ function archiveRunDir(root, runDir) {
       } catch {
         return { ok: false, reason: 'move-failed' };
       }
+      movedEntries.push(name);
     }
   }
 
@@ -154,7 +163,7 @@ function archiveRunDir(root, runDir) {
     /* best-effort — non-empty for an unexpected reason, or already gone */
   }
 
-  return { ok: true };
+  return { ok: true, movedEntries };
 }
 
 function archiveMerged({ cwd, dryRun = false } = {}) {
