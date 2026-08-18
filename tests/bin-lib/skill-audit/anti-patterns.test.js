@@ -522,5 +522,13 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   the parser on the merged working tree (actual 376), not by adding 3 to
   //   373 — the arithmetic agreeing here is a check, not the evidence
   //   (`[IL-99]`).
-  assert.strictEqual(total, 376);
+  //
+  //   376 -> 377, #889 (assess-agent-autonomy transport-aware gathers). One
+  //   row ADDED to skills/assess-agent-autonomy/SKILL.md's Anti-Patterns
+  //   table ("Rendering a conservative verdict with a content-judgment-style
+  //   rationale when the gather itself failed"). Verified:
+  //   `git diff ee665fb8...HEAD -- 'plugin/skills/*/SKILL.md' | grep -E
+  //   '^[-+]\|'` returns exactly this one `+` line, no `-` lines, no other
+  //   file affected.
+  assert.strictEqual(total, 377);
 });
