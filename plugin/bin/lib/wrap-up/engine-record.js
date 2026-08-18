@@ -262,4 +262,4 @@ function recordResult({ runDir, payload, now, dryRun, telemetryPath }) {
   return stored;
 }
 
-module.exports = { initState, recordResult };
+module.exports = { initState, recordResult, appendTelemetry };
