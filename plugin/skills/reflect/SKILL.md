@@ -46,7 +46,7 @@ Step back from implementation and evaluate what was built through structured len
 2. **Scope** — spec number, file paths, or omitted:
    - Spec number (e.g., `42`) → scope to files changed for that spec
    - File paths → scope to those files
-   - No scope → use `git diff` against the base branch or recent commits
+   - No scope → resolve the file set per `_shared/scope-resolution.md`'s deterministic fallback ladder, then read those files' diffs
 
 ```
 /claude-tweaks:reflect                     → full mode, scope from git diff

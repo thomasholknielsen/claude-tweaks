@@ -10,7 +10,7 @@ git log --first-parent --no-merges {base}..{branch} --name-only --pretty=format:
 git diff {base}...{branch} --name-only                                           # full diff files
 ```
 
-`{base}`/`{branch}` reuse whatever base-branch resolution the rest of this step already uses (the base branch, or the recent-commits fallback from Input resolution rule 7) — no new base-resolution logic needed.
+`{base}`/`{branch}` reuse whatever base-branch resolution the rest of this step already uses (the base branch, or the fallback ladder from Input resolution rule 7 — `_shared/scope-resolution.md`) — no new base-resolution logic needed.
 
 - **Merge commits detected** — diff the "own-work files" list above against the full diff's file list. `--first-parent --no-merges` walks only the branch's own sequential commit chain, skipping content that entered solely through a merge commit's second parent — so files present in the full diff but absent from this list arrived via merge from `{base}`, not this branch's own work. Report them separately ("arrived via merge from {base}, not this branch's own work"), stating the count of files/lines excluded and why, feeding Step 7's summary. Do not fold them silently into "what changed."
 - The **own-work scope** (not the raw `git diff` scope) is what feeds the change analysis below, and what Step 3's lens dispatch and Step 3.5's debate dispatch review — merged-in-only content is excluded from review scope by default.
