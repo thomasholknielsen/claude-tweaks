@@ -86,6 +86,62 @@ The marker's *absence* on a record means "no correctness/ambiguous failure since
 never "no failures ever" — records built before this sub-issue landed carry no marker regardless of
 their actual build history.
 
+## Revocation: the global merge-lane circuit breaker (#311)
+
+A **second, independent, additive** layer over the class-scoped revocation above — not a
+replacement for it. A class reading `clean` says nothing about whether this repo-wide breaker is
+tripped, and a tripped breaker says nothing about any individual class's own trust cell; both can
+be true, false, or any combination at once. Where the section above pins one *class* below `clean`,
+this one gates *origination of new `auto:merge` grants, repo-wide*, regardless of class.
+
+**Trip sources.** Any one of three signals, discovered against a record `/claude-tweaks:backlog
+grant`'s headless machine-grant unit (`skills/backlog/grant-mode.md`) itself granted `auto:merge`
+to, trips the breaker:
+
+- a closing commit later discovered reverted (reusing `trust.js`'s shipped
+  `discoverClosingCommits`/`isClosingCommitReverted` — the same detector the class-scoped mechanism
+  above uses, not a second implementation of the same git-log parsing);
+- the record reopened after having been observed closed;
+- the record carries `demo:changes-requested`.
+
+**Machine-granted scope is load-bearing.** Only records the machine-grant unit itself granted
+`auto:merge` to are ever watched (`merge-lane/watched.json`, seeded exclusively at that grant —
+`bin/lib/issues/merge-lane-breaker.js`'s `writeWatched`, invoked from `grant-mode.md`'s Step 4). A
+human adding `auto:merge` via `/claude-tweaks:backlog refine` and later having it reverted is a
+real, already-handled event — the class-scoped mechanism above — but it never touches this
+repo-wide breaker: conflating the two would let one human's own merge decision retroactively shut
+off machine-granting for every other class.
+
+**`auto:build` origination is never affected.** The breaker gates `evaluateGrantGate`'s `autoMerge`
+output only (`bin/lib/issues/grant-gate.js`'s `policy.mergeLaneBreakerTripped`) — `grant` (the
+`auto:build` decision) is computed and returned exactly as gates 1-5 already decided, tripped or
+not. A record whose gate chain otherwise fully clears while the breaker is tripped still gets
+`auto:build`; it simply never gets `auto:merge` from this path until reset.
+
+**Fail-closed when unreadable, but only for that firing.** Durable state lives on the same
+`health-state` git branch the four health skills already use
+(`bin/lib/health-core/durable-state.js`'s extracted `createNamespacedState` primitive), under its
+own `merge-lane/` namespace. `readBreakerState`'s read distinguishes "branch/file genuinely never
+written" (empty defaults, `tripped: false`) from any other read failure (network/auth/timeout),
+which resolves `tripped: true` for *that firing's* grant decisions only — it does not persist a
+durable trip write. A transient read glitch self-corrects on the next firing rather than requiring
+a human reset for a problem that was never real.
+
+**Reset is reachable only from `refine` mode's interactive confirmation.** There is exactly one
+write path that ever clears a trip: `/claude-tweaks:backlog refine`'s grant sub-stage, at its
+start, best-effort-reads the breaker and — only when tripped — surfaces one `AskUserQuestion`
+("Leave tripped (Recommended)" / "Reset — I've reviewed the cause") before its own grant-sweep
+proceeds. Neither `grant-mode.md`'s Step 0.5 (the whole-run sweep that trips it) nor its Phase A-C
+per-record loop ever writes `tripped: false` anywhere in their own procedure — a machine can trip
+the breaker, but only a human, explicitly, can reset it.
+
+**Scope boundary.** This breaker gates origination of *new* `auto:merge` grants only. It does not
+retroactively strip `auto:merge` from records already granted before a trip fired — those stay
+covered by `/claude-tweaks:dispatch`'s independent merge-time `merge-check` re-verification (the
+two-layer design from #269, referenced above) and by the class-scoped revocation mechanism if their
+own class is implicated. Whether a trip should *also* revoke already-granted-but-not-yet-merged
+records is an open question left for a future record if operational evidence shows the gap matters.
+
 ## What it authorizes
 
 | Ceiling | Unlocks — only for classes that have earned it |

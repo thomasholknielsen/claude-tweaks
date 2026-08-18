@@ -47,6 +47,67 @@ AUTO {time} — Backlog grant: ceiling gate not satisfied (ceiling={CEILING}, op
 This is not an error and not a HARD-GATE — it's the expected steady state for any project that
 hasn't deliberately opted into both keys. Do not proceed to Step 1.
 
+## Step 0.5: Merge-lane circuit breaker sweep (whole-run, after Step 0, before Step 1)
+
+A second, independent, additive floor over the per-record gate chain (#311) — checked once per
+firing, the same "whole-run fact, not a per-record one" shape Step 0's ceiling gate already is.
+Reads `merge-lane/watched.json` — the set of records this mode itself machine-granted
+`auto:merge` to (Step 4's seed write below is the only write path that adds an entry) — and
+classifies each against fresh evidence, tripping `merge-lane/breaker.json` repo-wide the moment
+any one of them looks bad. Independent from, not a replacement for, `trust.js`'s per-class
+revocation (#268) — a class can read `clean` while this breaker is tripped, and vice versa.
+
+```bash
+node -e "
+  const { readWatched } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+  console.log(JSON.stringify(readWatched(process.cwd())));
+" > /tmp/backlog-grant-watched.json
+```
+
+An empty `{}` means nothing to sweep — skip straight to Step 1. Otherwise, for every
+`{number}` key in the watched map:
+
+1. Fetch its current state fresh: `gh issue view {number} --json state,closedAt,labels`.
+2. Reuse this run's already-fetched integration-branch git log (`_shared/trust-table.md`'s Fetch
+   section — the same log Step 2's trust-row build pulls; do not fetch it a second time here) and
+   the resolved `trust-revert-window-days` policy value (`resolve-policy.js --values
+   trust-revert-window-days`, same resolver pattern Step 0/Step 2 already use elsewhere in this
+   mode).
+3. Classify:
+
+   ```bash
+   node -e "
+     const { classifyWatchedRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+     // entry = { number, grantedAt, lastKnownState: watched[number].lastKnownState, state, closedAt, labels }
+     // gitLog: [{ sha, message }] from the already-fetched integration-branch log
+     const result = classifyWatchedRecord(entry, gitLog, Date.now(), windowDays);
+     console.log(JSON.stringify(result));
+   "
+   ```
+
+4. Apply the result:
+   - `{ action: 'trip', reason }` — CAS-write `merge-lane/breaker.json` via
+     `writeBreakerState(root, (b) => ({ ...b, tripped: true, trippedAt: new Date().toISOString(), trippedBy: { record: number, reason } }))`.
+     Log one `decisions.md` AUTO entry (format below). Leave the record's own `watched.json` entry
+     in place — a repeat classification on a later firing is harmless, since the write is
+     idempotent once already tripped.
+   - `{ action: 'prune' }` — remove the entry from `watched.json` via `writeWatched` (resolved-good:
+     closed, unreverted, past the revert window).
+   - `{ action: 'update', newState }` — write the entry's `lastKnownState: newState` back via
+     `writeWatched`, leaving the entry in place (still-pending — nothing to report).
+
+**This firing's own remaining Phase A-C candidate loop must read the freshly-tripped state, not a
+stale in-memory copy from before this step ran.** Phase C's `mergeLaneBreakerTripped` read (Step 2
+below) always calls `readBreakerState` fresh, after this step has finished — do not resolve the
+breaker once at the top of the run and thread a cached value through; a bad merge discovered
+mid-sweep must block that same firing's own remaining grants, not only the next one.
+
+`decisions.md` entry for a trip:
+
+```
+AUTO {time} — Backlog grant: merge-lane circuit breaker TRIPPED by #{n} (reason: {revert|reopened|demo:changes-requested}) — auto:merge origination halted repo-wide until an explicit reset via /claude-tweaks:backlog refine.
+```
+
 ## Step 1: Fetch candidates (`work-backend: github-issues` only)
 
 Reuses `refine-mode.md`'s own grant-fetch shape and `dispatch/SKILL.md`'s pagination posture
@@ -160,12 +221,16 @@ MERGE_SENSITIVE_PATHS=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '1p')   # line 1:
 FLEET_DAILY_GRANT_CAP=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '2p')   # line 2: fleet-daily-grant-cap (empty = unset/uncapped)
 node -e "
   const { evaluateGrantGate } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-gate.js');
+  const { readBreakerState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
   // ... same record/policy/trustVerdicts as Phase A, plus:
   const keyFiles = /* parsed from the record body's '### Key Files' list, one path per bullet */;
   const sensitivePaths = /* MERGE_SENSITIVE_PATHS from the resolver call above, split on ',' */;
+  // Read fresh, per candidate — Step 0.5 may have tripped it mid-run; a cached
+  // pre-Step-0.5 value must never be reused (see Step 0.5's own note on this).
+  const mergeLaneBreakerTripped = readBreakerState(process.cwd()).tripped === true;
   const result = evaluateGrantGate({
     record: { number, labels, body, facets, keyFiles },
-    policy: { ceiling, grantOriginationEnabled, sensitivePaths, dailyGrantCap, grantsIssuedToday, riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR' },
+    policy: { ceiling, grantOriginationEnabled, sensitivePaths, dailyGrantCap, grantsIssuedToday, riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR', mergeLaneBreakerTripped },
     trustVerdicts,
     grantCheck: { clear, rationale },
   });
@@ -217,9 +282,18 @@ else
   gh issue edit "$ISSUE" --add-label auto:build
   if [ "$AUTO_MERGE" = "true" ]; then
     gh issue edit "$ISSUE" --add-label auto:merge
+    node -e "
+      const { writeWatched } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+      writeWatched(process.cwd(), (current) => ({ ...current, ['$ISSUE']: { grantedAt: new Date().toISOString() } }));
+    "
   fi
 fi
 ```
+
+The `writeWatched` call above is the **only** write path that adds a `merge-lane/watched.json`
+entry (#311's own Deliverables) — it fires exactly when `auto:merge` is actually granted (never on
+a `bot:blocked` re-authorization, which grants `auto:build` only), since a build-only grant has no
+merge for the breaker to ever need to watch.
 
 Post the audit comment (evidence snapshot — see the Audit format below), then log to
 `decisions.md`.

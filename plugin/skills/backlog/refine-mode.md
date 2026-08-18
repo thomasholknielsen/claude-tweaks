@@ -127,6 +127,12 @@ If `.prioritySlice.remaining > 0`, state it plainly in the report: "`{remaining}
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
+### Merge-lane circuit breaker reset offer (at this sub-stage's start)
+
+Read `merge-lane-reset.md` in this skill's directory and follow it, before the grant-sweep below
+runs — a best-effort breaker read (#311) and, only when tripped, the one `AskUserQuestion` that is
+the sole path back to a clear breaker.
+
 Bound the grant-check LLM pass independently of Step 2's budget. Read `.grantSlice.selected` and
 `.grantSlice.remaining` (already bounded to `--budget`, default 40, by Step 1's compute block) and
 `.blocked` from `/tmp/backlog-refine-worklist.json` — no separate script runs here. Below, `selected`
@@ -173,73 +179,8 @@ states that plainly in the report — not repeated here.
 
 ### Trust signal (advisory, `github-issues` only)
 
-Gate on the `{resolved-ceiling}` value Step 1 already resolved: fetch and render this run's trust
-table only when `{resolved-ceiling}` is `trusted` or higher, **or** `--trust` was passed (see
-`SKILL.md`'s Input). Below `trusted` with no `--trust`, skip everything else in this section —
-`_shared/trust-table.md`'s Fetch section, including its per-parent branches and its `git log`
-read, never runs this session — Trust evidence is omitted from the report for this run, and Step
-4's footer renders the skip wording given there instead of the ceiling-description wording. On this
-skip path, delete or ignore any pre-existing `/tmp/backlog-refine-trust.json` left over from an
-earlier run in the same environment (`rm -f /tmp/backlog-refine-trust.json`, or simply never read
-it) — this run must never render a stale trust table left behind by a prior `--trust` invocation.
-
-When fetching: run `_shared/trust-table.md`'s Fetch section in full (including its
-`backlog-fetch-limit` resolution, its `work-links` resolution — which decides which of the two
-parent-issue branches to run — and its truncation warning), then look up each worklist record's
-class. `{resolved-ceiling}` and `{resolved-window}` below are the literal values Step 1 already
-resolved — do not re-run `resolve-policy.js` here, and do not `export` them in an earlier Bash call
-and read `process.env` here: shell environment does not survive between Bash calls and never
-reaches a subagent, so that expansion always resolves empty and this block would report
-`supervised` on a repo configured for `trusted`. It is the same hazard, and the same fix, as the
-`backlog-fetch-limit` substitution in the Fetch section this step already cites. The failure is
-quiet and in the safe direction, which is exactly why it needs stating: nothing errors, the console
-simply renders a false claim about live policy.
-
-This trust block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section above — it must never shell its own separate `git log` call, or its verdicts could silently disagree with the trust table this same run just rendered from the identical underlying evidence.
-`{resolved-window}` reaches the script as a `process.argv` arg after `--`, never spliced into the
-JS source — a value containing a quote character would otherwise break out of the string literal,
-the same reason `code-health/focus-mode.md`'s F1 block passes its own values that way.
-
-```bash
-node -e "
-  const fs = require('fs');
-  const root = process.env.CLAUDE_PLUGIN_ROOT;
-  const { trustRows, riskBand, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
-  const { resolveProvenance } = require(root + '/bin/lib/issues/provenance.js');
-  const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
-  const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
-  const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
-  const policy = { 'trust-revert-window-days': process.argv[1] };
-  const rows = new Map(trustRows(issues, gitLog, Date.now(), policy).map((r) => [r.key, r]));
-  const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
-  const out = {};
-  for (const issue of issues.filter((i) => i.state === 'OPEN')) {
-    const { kind, source } = resolveProvenance({ labels: issue.labels, body: issue.body });
-    const row = rows.get(kind + ':' + source + '|' + riskBand(issue.labels));
-    const permitted = permittedGrants({ ceiling, row });
-    // Fallback to the flat keys: repo-HEAD skill text can run against an older
-    // installed build's autonomy.js (no grants key yet). Remove with #647's
-    // transitional twin (see bin/lib/issues/autonomy.js module header).
-    const gBornReady = (permitted.grants || {}).bornReady || { granted: permitted.bornReady, reason: permitted.reason };
-    out[issue.number] = {
-      ceiling,
-      provenance: row ? row.provenance : kind + ':' + source,
-      band: riskBand(issue.labels),
-      verdict: row ? row.verdict : 'no-cell',
-      coverage: row ? row.coverage : null,
-      bornReady: gBornReady.granted,
-      reason: gBornReady.reason,
-    };
-  }
-  console.log(JSON.stringify(out));
-" -- "{resolved-window}" > /tmp/backlog-refine-trust.json
-```
-
-**This signal never changes what the gate recommends.** `/claude-tweaks:assess-agent-autonomy`'s
-`grant-check` remains the sole source of the Recommended column — it reads *this record's* content,
-where trust describes *this record's class*, and a class verdict is not evidence about a specific
-record's shape. Trust rides along as context for the human making the batch decision. The one thing
-the ceiling does change is described in Step 3.6.
+Read `trust-signal.md` in this skill's directory and follow it — the ceiling-gated trust-table
+fetch/render this sub-stage advises with, and how it never changes what the gate recommends.
 
 ## Step 3.5: Body-shape re-verification (before granting)
 
