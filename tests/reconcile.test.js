@@ -406,6 +406,23 @@ test('archiveRunDir: a git-tracked non-work file in the run dir refuses with rea
   assert.ok(fs.existsSync(path.join(runDir, 'tracked-stray.md')));
 });
 
+test('archiveRunDir: an unreadable run dir returns reason readdir-failed instead of throwing', () => {
+  // Review finding #902: a TOCTOU between the existsSync guard and the
+  // readdirSync enumeration (dir deleted/permission-changed in between)
+  // must not crash the caller — hooks.js's archive-run verb has no
+  // try/catch of its own around this call.
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir } = runDirFixture();
+  fs.chmodSync(runDir, 0o000);
+  try {
+    const result = archiveRunDir(root, runDir);
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'readdir-failed');
+  } finally {
+    fs.chmodSync(runDir, 0o755);
+  }
+});
+
 // --- isOrphanedMint / archiveOrphanedMint: dispatch-minted dirs that never got adopted by flow ---
 
 function bareRepoRoot() {

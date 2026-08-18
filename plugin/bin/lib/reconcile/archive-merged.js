@@ -135,7 +135,18 @@ function archiveRunDir(root, runDir) {
       return { ok: false, reason: 'tracked-entry' };
     }
 
-    for (const name of fs.readdirSync(runDir).filter((n) => n !== 'work')) {
+    // TOCTOU: runDir could be deleted between the fs.existsSync(runDir) guard
+    // above and this read (review finding #902) — readdirSync would
+    // otherwise throw uncaught, propagating past every caller's own
+    // {ok, reason} contract (hooks.js's archive-run verb has no catch of
+    // its own around this call).
+    let entries;
+    try {
+      entries = fs.readdirSync(runDir);
+    } catch {
+      return { ok: false, reason: 'readdir-failed' };
+    }
+    for (const name of entries.filter((n) => n !== 'work')) {
       const src = path.join(runDir, name);
       if (!fs.existsSync(src)) continue;
       try {
