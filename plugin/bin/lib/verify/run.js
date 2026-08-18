@@ -24,32 +24,25 @@ function runOne({ name, command, logDir, spawnImpl, now }) {
       settled = true;
       stream.end(() => resolve(result));
     };
-    // A write-stream failure (missing logDir, disk full, ...) is the same
-    // failure class as a spawn error: record it, never let it crash the run
-    // as an unhandled 'error' event.
-    stream.on('error', (err) => finish({
+    // A write-stream failure (missing logDir, disk full, ...), a spawn-time
+    // throw, and a child 'error' event are the same failure class: record
+    // them, never let one crash the run as an unhandled 'error' event.
+    const finishError = (err) => finish({
       name, command, exitCode: null,
       spawnError: String((err && err.message) || err),
       durationMs: now() - started, logPath,
-    }));
+    });
+    stream.on('error', finishError);
     let child;
     try {
       child = spawnImpl(command, { shell: true });
     } catch (err) {
-      finish({
-        name, command, exitCode: null,
-        spawnError: String((err && err.message) || err),
-        durationMs: now() - started, logPath,
-      });
+      finishError(err);
       return;
     }
     if (child.stdout) child.stdout.pipe(stream, { end: false });
     if (child.stderr) child.stderr.pipe(stream, { end: false });
-    child.on('error', (err) => finish({
-      name, command, exitCode: null,
-      spawnError: String((err && err.message) || err),
-      durationMs: now() - started, logPath,
-    }));
+    child.on('error', finishError);
     child.on('close', (code) => finish({
       name, command, exitCode: code, durationMs: now() - started, logPath,
     }));
@@ -60,35 +53,36 @@ function failed(result) {
   return result.exitCode !== 0; // spawnError results carry exitCode null -> failed
 }
 
+// Runs c unless skip is true, in which case it records a fail-fast skip
+// without spawning. `anyFailed || failed(r)` short-circuits on a skip result
+// (anyFailed is already true whenever skip is true), so anyFailed stays
+// accurate either way.
+async function runOrSkip(c, ctx, skip) {
+  if (skip) return { name: c.name, command: c.command, skipped: 'fail-fast' };
+  return runOne({ ...c, ...ctx });
+}
+
 // cmds: [{name, command}] in argv order. Returns results in stage order:
 // stage 1 (types/lint, argv order), tests, then unknown names in argv order.
 async function runChecks({ cmds, logDir, spawnImpl = require('child_process').spawn, now = Date.now }) {
+  const ctx = { logDir, spawnImpl, now };
   const results = [];
   const stage1 = cmds.filter((c) => STAGE1.includes(c.name));
   const testsCmd = cmds.find((c) => c.name === 'tests') || null;
   const unknown = cmds.filter((c) => !STAGE1.includes(c.name) && c.name !== 'tests');
 
-  const stage1Results = await Promise.all(
-    stage1.map((c) => runOne({ ...c, logDir, spawnImpl, now })));
+  const stage1Results = await Promise.all(stage1.map((c) => runOne({ ...c, ...ctx })));
   results.push(...stage1Results);
   let anyFailed = stage1Results.some(failed);
 
   if (testsCmd !== null) {
-    if (anyFailed) {
-      results.push({ name: 'tests', command: testsCmd.command, skipped: 'fail-fast' });
-    } else {
-      const r = await runOne({ ...testsCmd, logDir, spawnImpl, now });
-      results.push(r);
-      anyFailed = anyFailed || failed(r);
-    }
+    const r = await runOrSkip(testsCmd, ctx, anyFailed);
+    results.push(r);
+    anyFailed = anyFailed || failed(r);
   }
 
   for (const c of unknown) {
-    if (anyFailed) {
-      results.push({ name: c.name, command: c.command, skipped: 'fail-fast' });
-      continue;
-    }
-    const r = await runOne({ ...c, logDir, spawnImpl, now });
+    const r = await runOrSkip(c, ctx, anyFailed);
     results.push(r);
     anyFailed = anyFailed || failed(r);
   }
