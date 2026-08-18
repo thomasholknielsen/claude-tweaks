@@ -2,3 +2,4 @@
 
 | # | Phase | Item | Status | Resolution |
 |---|-------|------|--------|------------|
+| 1 | test | `npm test` shows 9 pre-existing failures unrelated to this build's diff: 3 in `tests/impeccable-plugin-contract.test.js` (installed Impeccable 4.1.1 vs pinned 4.0.2 — environment mismatch), 2 in `tests/hooks-dispatcher.test.js` (permission-denial simulations that don't fail under root), 2 in `tests/hooks-session-start.test.js` + 1 in `tests/console-execute.test.js` + 1 in `tests/bin-lib/reconcile/prune-remote.test.js` (live-remote/reconcile-cache timing). This build touched only `plugin/skills/build/plan-audit.md` and `plugin/skills/build/SKILL.md`; none of the 9 failing tests reference those files or Common Step 1.5/Check A/B/C content. | accepted | Reproduced in isolation (`node --test` per file, same failures both in the full suite and standalone) both before and unrelated to this diff — baseline environmental failures, not introduced by this build. |
