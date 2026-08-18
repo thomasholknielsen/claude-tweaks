@@ -15,7 +15,12 @@ const { execFileSync } = require('child_process');
 const { classifyDiffFiles, blastRadiusSummary } = require('./issues/blast-radius.js');
 const { resolvePolicyKeys } = require('./policy-schema.js');
 
-class BlastRadiusError extends Error {}
+class BlastRadiusError extends Error {
+  constructor(...args) {
+    super(...args);
+    this.name = 'BlastRadiusError';
+  }
+}
 
 function defaultGit(args) {
   return execFileSync('git', args, { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
