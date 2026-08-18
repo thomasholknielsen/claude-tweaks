@@ -148,4 +148,4 @@ function checkRunIntegrity(runDir) {
   }
 }
 
-module.exports = { checkRunIntegrity };
+module.exports = { checkRunIntegrity, NON_TERMINAL };
