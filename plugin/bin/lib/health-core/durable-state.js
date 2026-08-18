@@ -22,6 +22,18 @@ const { execFileSync } = require('child_process');
 // — deleted (70849915) — for why: these are plain Git Data API primitives
 // with no GitHub-specific semantics, unlike an actual GitHub write (issue
 // create/comment/etc).
+//
+// createNamespacedState (below) is the extracted, generic namespace-scoped
+// read/write primitive — git plumbing + the CAS retry loop, parameterized
+// over an explicit { key, file, default, serialize? } list instead of the
+// four health skills' fixed cursors/retryQueue/runs(/remembered)(/declined)
+// shape. createDurableState is now a thin wrapper over it: same public
+// signature, same returned shape, byte-identical behavior for every
+// existing caller (see this file's own test suite). #311's
+// bin/lib/issues/merge-lane-breaker.js is the second consumer — its
+// breaker.json/watched.json pair does not fit the health skills' fixed
+// schema, so it calls createNamespacedState directly rather than going
+// through createDurableState.
 
 const HEALTH_STATE_BRANCH = 'health-state';
 const MAX_RUN_HISTORY = 90;
@@ -50,8 +62,8 @@ function defaultSleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function statePath(skillName, file) {
-  return `${skillName}/${file}`;
+function statePath(namespace, file) {
+  return `${namespace}/${file}`;
 }
 
 // Keep the newest maxCount records by runAt, dropping the oldest.
@@ -99,9 +111,27 @@ function defaultRun(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', timeout: DEFAULT_RUN_TIMEOUT_MS, ...opts });
 }
 
-function createDurableState(skillName, {
-  run = defaultRun, sleep = defaultSleep, includeRemembered = false, includeDeclined = false,
-} = {}) {
+// namespace: the top-level path segment under the health-state branch's root
+// tree (a skill name for the four health skills; a feature namespace like
+// 'merge-lane' for any other caller).
+// fileSpecs: [{ key, file, default, serialize? }] — key is the property name
+// on the read/write value object; file is the bare filename under
+// `{namespace}/`; default is what a missing/unreadable file resolves to;
+// serialize is an optional (value) -> string override (defaults to
+// `JSON.stringify(value, null, 2)`) for a field like the health skills'
+// `runs` that needs pruning applied at write time.
+//
+// Returns { readState, writeState, readStateWithMeta }. readState/writeState
+// match createDurableState's own shape (a flat value object keyed by each
+// spec's `key`) so createDurableState can wrap this directly.
+// readStateWithMeta additionally exposes fetchOk/missingRef/error so a
+// caller needing fail-closed semantics on a genuine (non-missing-ref) fetch
+// failure — merge-lane-breaker.js's Fail-closed read requirement — can react
+// to that distinction; readState itself always degrades to defaults, same as
+// before this extraction.
+function createNamespacedState(namespace, fileSpecs, { run = defaultRun, sleep = defaultSleep } = {}) {
+  const specs = Array.isArray(fileSpecs) ? fileSpecs : [];
+
   function showFile(root, relPath, fallback) {
     try {
       const out = run('git', ['-C', root, 'show', `origin/${HEALTH_STATE_BRANCH}:${relPath}`]);
@@ -132,54 +162,52 @@ function createDurableState(skillName, {
     }
   }
 
-  // Read the per-skill files at whatever branch tip the caller already
-  // fetched, WITHOUT triggering another network fetch. Shared by the public
-  // readState below (which fetches first, for standalone callers) and by
-  // writeState's own CAS loop (which already fetched once per attempt). The
-  // loop must never call the fetch-then-read path a second time: a redundant
-  // fetch transiently failing would make that path silently degrade to empty
+  // Read every fileSpec at whatever branch tip the caller already fetched,
+  // WITHOUT triggering another network fetch. Shared by readStateWithMeta
+  // below (which fetches first, for standalone callers) and by writeState's
+  // own CAS loop (which already fetched once per attempt). The loop must
+  // never call the fetch-then-read path a second time: a redundant fetch
+  // transiently failing would make that path silently degrade to empty
   // defaults and hand the mutator bogus near-empty state, durably
-  // overwriting the branch's real cursors/retry-queue/run-history even
-  // though the push's fast-forward check has no way to catch a bad-but-valid
-  // write like that.
+  // overwriting the branch's real content even though the push's
+  // fast-forward check has no way to catch a bad-but-valid write like that.
   function readFilesAtFetchedTip(root) {
-    const state = {
-      cursors: showFile(root, statePath(skillName, 'cursors.json'), {}),
-      retryQueue: showFile(root, statePath(skillName, 'retry-queue.json'), []),
-      runs: showFile(root, statePath(skillName, 'runs.json'), []),
-    };
-    if (includeRemembered) state.remembered = showFile(root, statePath(skillName, 'remembered.json'), {});
-    if (includeDeclined) state.declined = showFile(root, statePath(skillName, 'declined.json'), {});
-    return state;
+    const values = {};
+    for (const spec of specs) {
+      values[spec.key] = showFile(root, statePath(namespace, spec.file), spec.default);
+    }
+    return values;
+  }
+
+  // { values, fetchOk, missingRef, error } — the meta-carrying read. `values`
+  // always resolves to something usable (defaults on any fetch failure);
+  // `fetchOk`/`missingRef`/`error` let a caller distinguish "branch/file
+  // genuinely never written" (fetchOk:false, missingRef:true) from any other
+  // read failure (fetchOk:false, missingRef:false, error set) — network/auth/
+  // timeout — which a fail-closed caller treats differently from a first run.
+  function readStateWithMeta(root) {
+    try {
+      run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
+    } catch (err) {
+      const missingRef = /couldn't find remote ref/i.test(String(err.message));
+      const values = {};
+      for (const spec of specs) values[spec.key] = spec.default;
+      return { values, fetchOk: false, missingRef, error: err };
+    }
+    return { values: readFilesAtFetchedTip(root), fetchOk: true, missingRef: false, error: null };
   }
 
   // Reads never throw: a missing branch/file degrades to the empty default,
   // matching cache.js's existing "corrupt/missing JSON -> {}" convention.
-  // `remembered`/`declined` are only ever present when this skill opted in
-  // via includeRemembered/includeDeclined — a skill that didn't must never
-  // see the key at all, so a skill that never opted in can't accidentally
-  // pick up a spurious file (see buildFiles below, which gates on the same
-  // flags).
   function readState(root) {
-    try {
-      run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
-    } catch (err) {
+    const meta = readStateWithMeta(root);
+    if (!meta.fetchOk && !meta.missingRef) {
       // Distinguish a genuine first run (the branch simply doesn't exist yet)
       // from a real fetch failure (network/auth/timeout) — both degrade to
-      // the same empty defaults, but only the latter is worth a trace. Every
-      // caller of readState (cmdNextSlice/cmdNextTarget/cmdStatus/
-      // cmdChurnReport across all 4 engines) consumes the return value
-      // directly with no failure signal of its own, so this is the only
-      // place a maintainer could see the difference.
-      if (!/couldn't find remote ref/i.test(String(err.message))) {
-        process.stderr.write(`health-state: fetch failed, treating as empty state: ${err.message}\n`);
-      }
-      const empty = { cursors: {}, retryQueue: [], runs: [] };
-      if (includeRemembered) empty.remembered = {};
-      if (includeDeclined) empty.declined = {};
-      return empty;
+      // the same defaults, but only the latter is worth a trace.
+      process.stderr.write(`health-state: fetch failed, treating as empty state: ${meta.error.message}\n`);
     }
-    return readFilesAtFetchedTip(root);
+    return meta.values;
   }
 
   // ─── git-native tree/commit primitives ───────────────────────────────────
@@ -193,7 +221,7 @@ function createDurableState(skillName, {
   // <type> SP <sha> TAB <name>") into a Map keyed by name, so callers can
   // splice in new entries without disturbing ones they don't touch. Returns
   // an empty Map for a falsy/EMPTY_TREE_SHA treeSha or any sha git can't
-  // resolve (a not-yet-existing subtree on this skill's very first write).
+  // resolve (a not-yet-existing subtree on this namespace's very first write).
   function readTreeEntries(root, treeSha) {
     const entries = new Map();
     if (!treeSha || treeSha === EMPTY_TREE_SHA) return entries;
@@ -224,7 +252,7 @@ function createDurableState(skillName, {
   // to `git mktree`'s expected stdin format and returns the new tree sha.
   // Sort order: plain lexicographic-by-name is sufficient here because this
   // branch's actual layout never mixes blob and tree entries at the same
-  // tree level (root = one tree entry per skill directory; each skill's own
+  // tree level (root = one tree entry per namespace; each namespace's own
   // subtree = only blob entries, no nesting) — git's tree-sort
   // trailing-slash-for-directories nuance never applies to this data shape.
   function writeTree(root, entries) {
@@ -256,48 +284,32 @@ function createDurableState(skillName, {
   }
 
   function buildFiles(next) {
-    const files = [
-      { path: statePath(skillName, 'cursors.json'), content: JSON.stringify(next.cursors, null, 2) },
-      { path: statePath(skillName, 'retry-queue.json'), content: JSON.stringify(next.retryQueue, null, 2) },
-      { path: statePath(skillName, 'runs.json'), content: JSON.stringify(pruneRuns(next.runs), null, 2) },
-    ];
-    // Gated on the skill-level includeRemembered flag, NOT on truthiness of
-    // next.remembered — an empty {} is truthy, so inferring from data shape
-    // would write a spurious remembered.json for every skill (harness-health,
-    // journey-health included) the first time any mutator merely spreads
-    // ...current without deleting the key. includeRemembered is decided once,
-    // at createDurableState call time, precisely to rule that out.
-    if (includeRemembered) {
-      files.push({ path: statePath(skillName, 'remembered.json'), content: JSON.stringify(next.remembered || {}, null, 2) });
-    }
-    // Same truthy-{}-is-not-enough reasoning as includeRemembered above:
-    // gated on the skill-level flag, decided once at createDurableState call
-    // time, not on runtime shape of next.declined.
-    if (includeDeclined) {
-      files.push({ path: statePath(skillName, 'declined.json'), content: JSON.stringify(next.declined || {}, null, 2) });
-    }
-    return files;
+    return specs.map((spec) => {
+      const value = next[spec.key] !== undefined ? next[spec.key] : spec.default;
+      const serialize = spec.serialize || ((v) => JSON.stringify(v, null, 2));
+      return { path: statePath(namespace, spec.file), content: serialize(value) };
+    });
   }
 
-  // Merges buildFiles' output into the skill's existing subtree (preserving
-  // any file this write doesn't touch — e.g. a stale remembered.json left
-  // over from a prior includeRemembered period), then splices the result
-  // into the branch's root tree (adding this skill's entry if it's the
-  // skill's first-ever write, replacing it otherwise). Returns the new root
-  // tree sha.
+  // Merges buildFiles' output into this namespace's existing subtree
+  // (preserving any file this write doesn't touch — e.g. a stale file left
+  // over from a prior opt-in period), then splices the result into the
+  // branch's root tree (adding this namespace's entry if it's the
+  // namespace's first-ever write, replacing it otherwise). Returns the new
+  // root tree sha.
   function buildRootTree(root, baseTreeSha, files) {
     const rootEntries = readTreeEntries(root, baseTreeSha);
-    const existingSkillEntry = rootEntries.get(skillName);
-    const skillEntries = readTreeEntries(root, existingSkillEntry ? existingSkillEntry.sha : null);
+    const existingNamespaceEntry = rootEntries.get(namespace);
+    const namespaceEntries = readTreeEntries(root, existingNamespaceEntry ? existingNamespaceEntry.sha : null);
     for (const file of files) {
-      // file.path is "{skillName}/{name}" (see statePath) — strip the
-      // skill-name prefix to get the bare filename this subtree uses as its
+      // file.path is "{namespace}/{name}" (see statePath) — strip the
+      // namespace prefix to get the bare filename this subtree uses as its
       // own entry key.
-      const name = file.path.slice(skillName.length + 1);
-      skillEntries.set(name, { mode: '100644', type: 'blob', sha: writeBlob(root, file.content) });
+      const name = file.path.slice(namespace.length + 1);
+      namespaceEntries.set(name, { mode: '100644', type: 'blob', sha: writeBlob(root, file.content) });
     }
-    const newSkillTreeSha = writeTree(root, skillEntries);
-    rootEntries.set(skillName, { mode: '040000', type: 'tree', sha: newSkillTreeSha });
+    const newNamespaceTreeSha = writeTree(root, namespaceEntries);
+    rootEntries.set(namespace, { mode: '040000', type: 'tree', sha: newNamespaceTreeSha });
     return writeTree(root, rootEntries);
   }
 
@@ -309,7 +321,7 @@ function createDurableState(skillName, {
         try {
           run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
         } catch {
-          // Branch doesn't exist yet (this skill's first-ever write) or a
+          // Branch doesn't exist yet (this namespace's first-ever write) or a
           // transient fetch failure — either way, fall through and attempt
           // the write below. A genuinely first-ever branch legitimately has
           // nothing to fetch; a transient failure self-corrects on retry (a
@@ -322,7 +334,7 @@ function createDurableState(skillName, {
         const next = mutatorFn(current);
         const files = buildFiles(next);
         const rootTreeSha = buildRootTree(root, baseTreeSha, files);
-        commitSha = writeCommit(root, rootTreeSha, parentSha, `health-state: ${skillName} update`);
+        commitSha = writeCommit(root, rootTreeSha, parentSha, `health-state: ${namespace} update`);
         pushRef(root, commitSha);
         return { ok: true };
       } catch (err) {
@@ -350,6 +362,35 @@ function createDurableState(skillName, {
     return { ok: false, error: lastError && lastError.message };
   }
 
+  return { readState, writeState, readStateWithMeta };
+}
+
+// Thin wrapper over createNamespacedState, fixing the four health skills'
+// cursors/retryQueue/runs(/remembered)(/declined) shape — see the header
+// comment above for why the generic primitive lives separately.
+function createDurableState(skillName, {
+  run = defaultRun, sleep = defaultSleep, includeRemembered = false, includeDeclined = false,
+} = {}) {
+  const fileSpecs = [
+    { key: 'cursors', file: 'cursors.json', default: {} },
+    { key: 'retryQueue', file: 'retry-queue.json', default: [] },
+    // Pruning happens at write time (mirrors the pre-extraction behavior:
+    // `JSON.stringify(pruneRuns(next.runs), null, 2)`), not at read time —
+    // a read returns exactly what's on the branch tip.
+    { key: 'runs', file: 'runs.json', default: [], serialize: (v) => JSON.stringify(pruneRuns(Array.isArray(v) ? v : []), null, 2) },
+  ];
+  // Gated on the skill-level includeRemembered/includeDeclined flags, NOT on
+  // runtime truthiness of a mutator's returned value — an empty {} is truthy,
+  // so inferring from data shape would write a spurious remembered.json/
+  // declined.json for a skill that never opted in the first time any mutator
+  // merely spreads ...current without deleting the key. Deciding this once,
+  // at createDurableState call time, rules that out — and, symmetrically, a
+  // skill that never opts in must never see the key in a read result at all
+  // (readState above only ever populates keys present in fileSpecs).
+  if (includeRemembered) fileSpecs.push({ key: 'remembered', file: 'remembered.json', default: {} });
+  if (includeDeclined) fileSpecs.push({ key: 'declined', file: 'declined.json', default: {} });
+
+  const { readState, writeState } = createNamespacedState(skillName, fileSpecs, { run, sleep });
   return { readState, writeState };
 }
 
@@ -365,5 +406,6 @@ module.exports = {
   shouldEscalate,
   casBackoffMs,
   createDurableState,
+  createNamespacedState,
   defaultSleep,
 };
