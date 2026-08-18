@@ -60,7 +60,7 @@ test('a >1MB emitter leaves runner stdout <= 64KB while the log holds everything
   const logDir = tmpDir();
   const { code, stdout } = await runCli([
     '--log-dir', logDir,
-    '--cmd', 'tests=node -e "process.stdout.write(Buffer.alloc(1500000, 120)); process.exit(1)"']);
+    '--cmd', 'tests=node -e "process.stdout.write(Buffer.alloc(1500000, 120), () => process.exit(1))"']);
   assert.notStrictEqual(code, 0);
   assert.ok(Buffer.byteLength(stdout) <= 64 * 1024,
     `runner stdout was ${Buffer.byteLength(stdout)} bytes`);
