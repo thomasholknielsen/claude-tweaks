@@ -62,19 +62,22 @@ test('/simplify references the simplification criteria fragment', () => {
 });
 
 test('/review references the review-quality criteria fragment', () => {
-  const skill = readSkill('review');
-  const routing = readSkill('review', 'step3-routing.md');
-  assert.match(skill + routing, /criteria-review-quality\.md/);
+  const steps = readSkill('review', 'code-mode-steps.md');
+  const dispatch = readSkill('review', 'step3-lens-dispatch.md');
+  assert.match(steps + dispatch, /criteria-review-quality\.md/);
 });
 
-test('review-quality CALIBRATION block stays byte-identical between fragment and step3-routing', () => {
+test('review-quality CALIBRATION block stays byte-identical between fragment and step3-lens-dispatch', () => {
+  // The canonical dispatch template moved from step3-routing.md to step3-lens-dispatch.md
+  // (#887) so step3-routing's findings-conditional lazy-load actually holds — the byte-identity
+  // pin follows the template to its new home.
   const frag = readShared('criteria-review-quality.md');
-  const routing = readSkill('review', 'step3-routing.md');
+  const routing = readSkill('review', 'step3-lens-dispatch.md');
 
   // Both must contain the load-bearing filter line verbatim (belt-and-suspenders existence checks).
   const anchor = 'When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.';
   assert.ok(frag.includes(anchor), 'fragment contains the calibration anchor line');
-  assert.ok(routing.includes(anchor), 'step3-routing contains the calibration anchor line');
+  assert.ok(routing.includes(anchor), 'step3-lens-dispatch contains the calibration anchor line');
 
   // Extract the full CALIBRATION block from a file's content.
   // Returns the substring starting at "Only flag issues where:" and ending at the "drop it." sentence (inclusive).
@@ -90,5 +93,5 @@ test('review-quality CALIBRATION block stays byte-identical between fragment and
 
   const fromFragment = extractCalibrationBlock(frag);
   const fromRouting = extractCalibrationBlock(routing);
-  assert.strictEqual(fromFragment, fromRouting, 'CALIBRATION block must be byte-identical in fragment and step3-routing');
+  assert.strictEqual(fromFragment, fromRouting, 'CALIBRATION block must be byte-identical in fragment and step3-lens-dispatch');
 });

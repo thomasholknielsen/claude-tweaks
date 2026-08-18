@@ -8,6 +8,7 @@ import { toolCount } from './tool-count.js';
 import { commitCount } from './commit-count.js';
 import { commitMessagesAllowed } from './commit-messages-allowed.js';
 import { findingsInclude } from './findings-include.js';
+import { resultContains } from './result-contains.js';
 import { findingsExcludeFalsePositive } from './findings-exclude-false-positive.js';
 import { localRecordFacet } from './local-record-facet.js';
 import { absolutePathExists } from './absolute-path-exists.js';
@@ -32,6 +33,7 @@ const ASSERTIONS = {
   'commit-count': (ctx, params) => commitCount(ctx.repoDir, params),
   'commit-messages-allowed': (ctx, params) => commitMessagesAllowed(ctx.repoDir, params),
   'findings-include': (ctx, params) => findingsInclude(ctx.resultText, params),
+  'result-contains': (ctx, params) => resultContains(ctx.resultText, params),
   'findings-exclude-false-positive': (ctx, params) => findingsExcludeFalsePositive(ctx.resultText, params),
   'local-record-facet': (ctx, params) => localRecordFacet(ctx.repoDir, params),
   'absolute-path-exists': (ctx, params) => absolutePathExists(ctx, params),

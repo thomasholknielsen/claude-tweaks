@@ -52,7 +52,7 @@ Enabled by default; opt out with the `no-deepen` flag (or `depth-survey: off` in
 Depth refactors are low-reversibility and their core loop is interactive (the two-stage interface conversation). `/flow` is hands-off. So in a pipeline run, `/flow` invokes **only the analysis half** of `/deepen`:
 
 - **What runs automatically:** module mapping, the deletion test, leverage ranking — all read-only (Steps 1-3 of `/deepen`, the auto path from its Component-Skill Contract).
-- **What never runs in flow:** the interface-design conversation (Step 4) and any code change (Step 5). `/flow` does not apply, stage-to-apply, or auto-approve a depth refactor. Ever.
+- **What never runs in flow:** the interface-design conversation (Step 4) and any code change (Step 5). `/flow` never applies or auto-approves a depth refactor. Staging is the one nuance: `/deepen`'s own auto path may stage a validated `deepen-collapse-{n}.patch` for a narrow collapse candidate (its Step 3 Auto mode, per `_shared/staged-patch.md`) — a proposal for the Review Console, never applied in-run, and excluded from unattended zero-click apply by that contract's Unattended floor.
 
 The output is a recommendation, identical in spirit to Creative Opportunities: "here is what's shallow and worth deepening — run `/claude-tweaks:deepen` yourself when you want to act on it."
 

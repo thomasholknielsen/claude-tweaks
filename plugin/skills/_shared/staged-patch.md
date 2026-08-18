@@ -4,8 +4,9 @@ Canonical contract for every code-fix proposal that a pipeline phase stages unde
 `.claude-tweaks/pipelines/{run-id}/staged/` as a `.patch` for the Review Console to apply
 later. Stated once here; the staging sites (`review/step3-routing.md`'s Auto-mode routing table,
 `test/SKILL.md`'s Step 3 stage flow, `_shared/multi-agent-coordination.md`'s reproduction
-staging) and the console apply steps (`wrap-up/review-console.md` "On approval",
-`flow/multispec-review-console.md` "On approval") cite this file rather than restating it.
+staging, `deepen/SKILL.md`'s auto-mode collapse staging) and the console apply steps
+(`wrap-up/review-console.md` "On approval", `flow/multispec-review-console.md` "On approval")
+cite this file rather than restating it.
 
 ## Why
 
@@ -105,7 +106,10 @@ order the console lists them:
      re-derivation is never auto-applied at all. Only the fast path (a reviewed diff that still
      applies) executes unattended; a stale diff routes to step 4 (left `open`, surfaced) unless the
      invariant already holds. A re-derived edit is LLM-authored code nobody reviewed — the reviewed
-     artifact was the diff bytes, and those no longer fit.
+     artifact was the diff bytes, and those no longer fit. A `staged/deepen-collapse-{n}.patch`
+     (an architecture collapse staged by `/deepen`) additionally never executes unattended even on
+     the fast path — depth refactors require an attended console; route it to step 4 (left `open`,
+     surfaced) instead.
    - If the invariant **already holds** in the current tree (a later phase fixed the same thing),
      make no edit and log `AUTO {time} — Review Console apply: staged/{slug}-{n}.patch already satisfied by {commit or phase}; dropped. Reversibility: n/a (no edit).`
    - A `.patch` missing either `Target:` or `Invariant:` (no preamble at all — staged by an older

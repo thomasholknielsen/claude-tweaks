@@ -523,16 +523,27 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   373 — the arithmetic agreeing here is a check, not the evidence
   //   (`[IL-99]`).
   //
-  //   376 -> 378, /stories maintainer-objective fixes (agent-browser drift +
-  //   Target Environment Guard). Two rows ADDED to stories/SKILL.md's
-  //   Anti-Patterns table ("Running an action-less `find` as an existence
-  //   probe", "Generating negative stories against a non-local target without
-  //   acknowledgment"); three rows reworded in place with no count change (two
-  //   in stories/SKILL.md, one in visual-review/SKILL.md — trace
-  //   record-then-stop model). Verified: `git diff origin/main...HEAD --
-  //   'plugin/skills/*/SKILL.md' | grep -E '^[-+]\|'` returns exactly those
-  //   two net `+` rows plus the three reword pairs. Measured by RUNNING the
-  //   parser on this tree (actual 378), not by adding 2 to 376 — the
-  //   arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
-  assert.strictEqual(total, 378);
+  //   376 -> 379, deepen decline-memory + collapse fast lane. Three rows ADDED
+  //   to skills/deepen/SKILL.md's Anti-Patterns table ("Staging a deepen-kind
+  //   candidate as a `.patch` in `auto` mode", "Suppressing a previously
+  //   declined candidate", "Walking collapse candidates through the
+  //   per-candidate design conversation"). Verified: `git diff -- 'plugin/
+  //   skills/*/SKILL.md' | grep -E '^[-+]\|'` returns exactly these three `+`
+  //   lines and no `-` lines (simplify/SKILL.md's edit in the same change is
+  //   an Input-section numbered-list item, not a table row). Measured by
+  //   RUNNING the parser on the working tree (actual 379), not by adding 3 to
+  //   376 (`[IL-99]`).
+  //
+  //   379 -> 381, /stories maintainer-objective fixes (agent-browser drift +
+  //   Target Environment Guard) merged with origin/main (deepen's +3 above —
+  //   both sides moved this pin from 376 independently). Own-branch side: two
+  //   rows ADDED to stories/SKILL.md's Anti-Patterns table ("Running an
+  //   action-less `find` as an existence probe", "Generating negative stories
+  //   against a non-local target without acknowledgment"); three rows reworded
+  //   in place with no count change (two in stories/SKILL.md, one in
+  //   visual-review/SKILL.md — trace record-then-stop model). Measured by
+  //   RUNNING the parser on the merged working tree (actual 381), not by
+  //   adding 2 to 379 — the arithmetic agreeing here is a check, not the
+  //   evidence (`[IL-99]`).
+  assert.strictEqual(total, 381);
 });

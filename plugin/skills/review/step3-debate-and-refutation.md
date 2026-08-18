@@ -1,6 +1,6 @@
 # Review — Step 3.5/3.6: Cross-Lens Debate, Per-Candidate Refutation, and Gap-Sweep
 
-Loaded by `/claude-tweaks:review` after Step 3's per-lens reproduction completes. Contains the full procedure for the three effort-gated findings-quality mechanisms: Cross-Lens Debate and the Per-Candidate Refutation Pass (Step 3.5), and Gap-Sweep / Completeness Critic (Step 3.6). Lazy-loaded only when the resolved `review-effort` tier (Step 2.5) is `high` or above — at `low`/`medium`, SKILL.md's own gate skips straight to Step 3 Routing without reading this file at all.
+Loaded by `/claude-tweaks:review` after Step 3's per-lens reproduction completes. Contains the full procedure for the three effort-gated findings-quality mechanisms: Cross-Lens Debate and the Per-Candidate Refutation Pass (Step 3.5), and Gap-Sweep / Completeness Critic (Step 3.6). Lazy-loaded only when the resolved `review-effort` tier (Step 2.5) is `high` or above — at `low`/`medium`, code-mode-steps.md's own gate skips straight to Step 3 Routing without reading this file at all.
 
 ## Step 3.5: Cross-Lens Debate & Per-Candidate Refutation
 
@@ -12,11 +12,9 @@ Two independent findings-quality mechanisms live in this step, each gated at its
 
 After per-lens reproduction completes, scan for contradictions across lenses before routing. Two lenses that both flagged the same region with mismatched severity get exactly one debate round to converge or escalate to `contested`. A silent lens — one that reviewed the region but produced no finding there at all — cannot enter this mechanism: `detectCrossLensOverlap` below only pairs findings that exist in *both* lenses' arrays, so the asymmetric "one flagged, the other did not" case has no data to pair against and is never dispatched (see step 5's skip condition).
 
-1. **Detect overlap.** Collect each lens's `confirmed` and `unconfirmed` findings into one `{lensName: [findings...]}` object, write it to a temp file, and call `detectCrossLensOverlap`:
+1. **Detect overlap.** Collect each lens's `confirmed` and `unconfirmed` findings into one `{lensName: [findings...]}` object, write it to `{ctx-dir}/findings-by-lens.json` (the scratch dir minted by Step 3's `build-review-context.js` call — never a fixed shared `/tmp` name, which collides across concurrent review sessions), and call:
    ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
-     console.log(JSON.stringify(c.detectCrossLensOverlap(require(process.argv[1]))))" \
-     /tmp/findings-by-lens.json
+   node "${CLAUDE_PLUGIN_ROOT}/bin/review-coordination.js" detect-overlap {ctx-dir}/findings-by-lens.json
    ```
    It returns pairs `{lensA, lensB, findingA, findingB}` for findings on the same `path` within ±5 lines from *different* lenses.
 
@@ -40,8 +38,7 @@ After per-lens reproduction completes, scan for contradictions across lenses bef
 
 4. **Resolve.** Apply `resolveDebate`:
    ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
-     console.log(c.resolveDebate(process.argv[1], process.argv[2]))" "$VERDICT_A" "$VERDICT_B"
+   node "${CLAUDE_PLUGIN_ROOT}/bin/review-coordination.js" resolve-debate {verdictA} {verdictB}
    ```
    - Both `agree` → finding upgraded to `confirmed`. Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged positive after 1 round. Reversibility: high.`
    - Both `disagree` → finding downgraded to `unconfirmed` (lands in Low-confidence subsection). Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged negative after 1 round. Reversibility: high.`
@@ -103,8 +100,7 @@ This pass is the only place in the skill where an unbounded fan-out would meet t
 
    Otherwise, apply `resolveRefutation` to the parsed `Verdict:` value:
    ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
-     console.log(c.resolveRefutation(process.argv[1]))" "$VERDICT"
+   node "${CLAUDE_PLUGIN_ROOT}/bin/review-coordination.js" resolve-refutation {verdict}
    ```
    `resolveRefutation` itself also fails toward scrutiny on any unrecognized value — only the exact literal `not-refuted` keeps a finding `confirmed`; `refuted` and anything else downgrade to `unconfirmed`. This is defense in depth against a malformed verdict slipping past the explicit status check above, not a substitute for it.
    - `refuted` → finding downgraded to `unconfirmed` (lands in Low-confidence subsection). Write `AUTO {HH:MM:SS} — Refutation: {path}:{line} refuted — {one-line reasoning}. Downgraded to unconfirmed. Reversibility: high.`
@@ -127,7 +123,7 @@ Do NOT restate any of these. Find genuine gaps — real defects the above list d
 already cover. If you find nothing beyond what's already flagged, return "No findings."
 
 [... CALIBRATION + OUTPUT FORMAT block, byte-identical to the per-lens dispatch contract
-in step3-routing.md ...]
+in step3-lens-dispatch.md ...]
 
 [Use: Frontier — gap-sweep agent. Independent run; single dispatch, not a
 reproduction pair. Degrades per the resolver's preconditions (contract § Model Selection).]

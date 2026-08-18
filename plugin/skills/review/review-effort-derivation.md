@@ -1,9 +1,9 @@
 # Deriving `review-effort` — /claude-tweaks:review Step 2.5
 
-Read from `SKILL.md`'s Step 2.5 when no explicit effort token was passed. An explicit token
+Read from `code-mode-steps.md`'s Step 2.5 when no explicit effort token was passed. An explicit token
 (Input resolution rule 8) always wins and resolves the tier without this file. The ambiguity rule
 step 3 below cites as "below", and the line recording the resolved tier for Step 7's summary, both
-stay in `SKILL.md`'s Step 2.5, after its pointer to this file.
+stay in `code-mode-steps.md`'s Step 2.5, after its pointer to this file.
 
 Resolution order — stop at the first that applies:
 
@@ -11,13 +11,12 @@ Resolution order — stop at the first that applies:
 
 2. **Record risk/size labels.** Applies only when Input resolution resolved a spec/record number (rules 1-2) — file-path and no-argument reviews (rules 3, 7) have no record to read and go straight to step 3 below. Fetch the record's `risk:*`/`size:*` labels with a fresh, minimal read — independent of whether Step 1 ran (Step 1 is skipped under `ceremony-profile: fast-lane`, so this cannot assume a Step 1 fetch happened), per `work-backend`:
 
-   **`github-issues`:**
+   **`github-issues`:** First mint the review's scratch dir if Step 3 hasn't yet — `node "${CLAUDE_PLUGIN_ROOT}/bin/build-review-context.js" mint` (append `--run "$PIPELINE_RUN_DIR"` when a run directory exists); it prints `{dir}` once and the same `{ctx-dir}` is reused by Step 3's `build --dir {ctx-dir}` call. Never a fixed shared `/tmp` name — concurrent sessions reviewing the same record would clobber it. Then:
    ```bash
-   gh issue view {n} --json labels > /tmp/review-record-{n}.json
-   node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
-     const d=JSON.parse(require('fs').readFileSync('/tmp/review-record-{n}.json'));
-     const {risk, size}=parseRecordFacets(d.labels);
-     console.log(JSON.stringify({risk, size}))"
+   gh issue view {n} --json labels > {ctx-dir}/record-{n}.json
+   ```
+   ```bash
+   node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js'); const d=JSON.parse(require('fs').readFileSync(process.argv[1])); const {risk,size}=parseRecordFacets(d.labels); console.log(JSON.stringify({risk,size}))" "{ctx-dir}/record-{n}.json"
    ```
 
    **`local-files`:**
