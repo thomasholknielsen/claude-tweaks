@@ -159,3 +159,42 @@ test('merge-base resolving successfully to an empty string throws BlastRadiusErr
     BlastRadiusError
   );
 });
+
+// A policy-file read failure that ISN'T "the file doesn't exist" (permission
+// denied, is-a-directory, IO error) must fail loud rather than silently
+// degrade mergeSensitivePaths to [] — the same silent-approval hazard #888
+// exists to eliminate, one layer down in the policy read instead of the
+// merge-base resolution.
+test('a policy-file read error (not mere absence) fails loud as BlastRadiusError', () => {
+  const git = fakeGit({
+    'merge-base': () => `${SHA}\n`,
+    diff: () => '',
+    'rev-parse': () => '/repo\n',
+  });
+  const readFile = () => { throw new Error('EACCES: permission denied'); };
+  assert.throws(
+    () => computeBlastRadius({ integrationBranch: 'main' }, { git, readFile }),
+    BlastRadiusError
+  );
+});
+
+test('--base resolution passes --end-of-options before the ref (a ref starting with "-" cannot be read as a flag)', () => {
+  const git = fakeGit({
+    'rev-parse': (args) => (args.includes('--show-toplevel') ? '/repo\n' : `${SHA}\n`),
+    diff: () => '',
+  });
+  computeBlastRadius({ base: '-evil' }, { git, readFile: () => null });
+  const verifyCall = git.calls.find((c) => c[0] === 'rev-parse' && c.includes('--verify'));
+  assert.deepStrictEqual(verifyCall, ['rev-parse', '--verify', '--end-of-options', '-evil^{commit}']);
+});
+
+test('--integration-branch resolution passes --end-of-options before the branch name', () => {
+  const git = fakeGit({
+    'merge-base': () => `${SHA}\n`,
+    diff: () => '',
+    'rev-parse': () => '/repo\n',
+  });
+  computeBlastRadius({ integrationBranch: '-evil' }, { git, readFile: () => null });
+  const mergeBaseCall = git.calls.find((c) => c[0] === 'merge-base');
+  assert.deepStrictEqual(mergeBaseCall, ['merge-base', '--end-of-options', '-evil', 'HEAD']);
+});

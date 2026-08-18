@@ -5,8 +5,9 @@
 // (#888): merge-base resolution, `git diff --numstat` parsing, policy-config
 // resolution (merge-sensitive-paths / auto-merge-max-lines /
 // auto-merge-max-files), and classification via bin/lib/issues/blast-radius.js.
-// A thin shell over bin/lib/blast-radius-cli.js#computeBlastRadius — no logic
-// lives here. Zero runtime npm deps.
+// A thin shell over bin/lib/blast-radius-cli.js#computeBlastRadius — argv
+// parsing and --run path validation live here; the actual gather logic does
+// not. Zero runtime npm deps.
 //
 // Usage: blast-radius.js (--base <ref> | --integration-branch <branch>) [--run <dir>]
 // Success: exit 0, one JSON object {mergeBase, config, summary} on stdout.
@@ -19,7 +20,8 @@ const fs = require('fs');
 const { computeBlastRadius, BlastRadiusError } = require('./lib/blast-radius-cli.js');
 
 function fail(msg) {
-  process.stderr.write(`blast-radius: ${msg}\n`);
+  const firstLine = String(msg).split('\n')[0];
+  process.stderr.write(`blast-radius: ${firstLine}\n`);
   process.exit(1);
 }
 

@@ -29,8 +29,9 @@ function defaultGit(args) {
 function defaultReadFile(filePath) {
   try {
     return fs.readFileSync(filePath, 'utf8');
-  } catch {
-    return null;
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
   }
 }
 
@@ -58,8 +59,14 @@ function resolveConfig({ git, readFile, runDir }) {
   } catch {
     root = process.cwd();
   }
-  const policyRaw = readFile(path.join(root, '.claude-tweaks', 'policy.yml'));
-  const runConfigRaw = runDir ? readFile(path.join(runDir, 'config.yml')) : null;
+  let policyRaw;
+  let runConfigRaw;
+  try {
+    policyRaw = readFile(path.join(root, '.claude-tweaks', 'policy.yml'));
+    runConfigRaw = runDir ? readFile(path.join(runDir, 'config.yml')) : null;
+  } catch (err) {
+    throw new BlastRadiusError(`failed to read policy config: ${err.message}`);
+  }
   const resolved = resolvePolicyKeys(
     ['merge-sensitive-paths', 'auto-merge-max-lines', 'auto-merge-max-files'],
     { policyRaw, runConfigRaw }
@@ -87,13 +94,13 @@ function computeBlastRadius(opts = {}, deps = {}) {
   let mergeBase;
   if (base) {
     try {
-      mergeBase = git(['rev-parse', '--verify', `${base}^{commit}`]).trim();
+      mergeBase = git(['rev-parse', '--verify', '--end-of-options', `${base}^{commit}`]).trim();
     } catch (err) {
       throw new BlastRadiusError(`--base "${base}" does not resolve to a commit: ${err.message}`);
     }
   } else {
     try {
-      mergeBase = git(['merge-base', integrationBranch, 'HEAD']).trim();
+      mergeBase = git(['merge-base', '--end-of-options', integrationBranch, 'HEAD']).trim();
     } catch (err) {
       throw new BlastRadiusError(
         `could not resolve merge base of "${integrationBranch}" and HEAD: ${err.message}`
