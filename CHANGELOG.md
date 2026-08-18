@@ -43,6 +43,12 @@ Three conventions follow from how this repo works, and all are visible below:
 
 Review objective-audit batch — SKILL.md dispatcher split, dispatch-template lazy-load fix, collision-free scratch dirs, build-review-context + review-coordination CLIs, verify-pass stamp, low-tier single-read; design-detect.js extraction, /deepen objective fruits, scope-resolution ladder, ledger ops-triage contract.
 
+### also carried in this build
+
+Records #552 (merge `31850b64`) and #890 (merge `68bea79e`) reached `main` under v6.97.0 without
+a bump of their own — the release step that would have written them up never ran, so the build
+that first carried them is numbered for other work. Backfilled after the fact.
+
 ## v6.96.0 — Reconcile() latency reduction, fast-lane transcript-judge extraction, backlog trust-signal + merge-lane circuit breaker, and an 8-finding pre-release review-fix batch
 
 Reconcile() latency reduction, fast-lane transcript-judge extraction, backlog trust-signal + merge-lane circuit breaker, and an 8-finding pre-release review-fix batch.
