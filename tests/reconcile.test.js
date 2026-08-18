@@ -585,24 +585,61 @@ test('reconcile(): returns a thenable (async contract) even when every check sta
 
 // --- preflight (#820): one upfront gh-health check gates the whole set ---
 
+// Writes .claude-tweaks/policy.yml via `seedDir` (commit + push), then pulls
+// it into `mainDir` — so mainDir ends up both carrying the policy file AND
+// clean/current with origin (classifyMirror reports 'dirty' over 'current'
+// for ANY uncommitted change, tracked or not, which a direct writeFileSync
+// straight into mainDir's working tree would trigger and mask mirror's real
+// result under test).
+function writePolicyViaSeedAndPull(seedDir, mainDir, contents) {
+  fs.mkdirSync(path.join(seedDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, '.claude-tweaks', 'policy.yml'), contents);
+  git(['add', '.claude-tweaks'], seedDir);
+  git(['commit', '-q', '-m', 'policy'], seedDir);
+  git(['push', '-q', 'origin', 'main'], seedDir);
+  git(['pull', '-q', 'origin', 'main'], mainDir);
+}
+
 test('reconcile(): a failing GitHub-health preflight skips every requested check in one entry, never per-check timeouts (D1)', async () => {
-  const { mainDir } = pairedFixture();
+  const { seedDir, mainDir } = pairedFixture();
   // pairedFixture()'s origin is a bare local repo, not a GitHub remote, so
   // resolveIntegrationModel's forge-detection fallback would otherwise land
   // on local-merge (no gh-backed repo to detect) — force pr-first explicitly
   // so this test actually reaches the preflight, per the same pattern used
   // above at policy.yml: 'integration-model: pr-first\n'.
-  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
 
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const original = preflight.ghHealthCheck;
   preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
   try {
     const r = await reconcile({ cwd: mainDir, checks: ['mirror', 'release'] });
-    assert.equal(r.mirror, null);
+    // mirror is pure git (mirror-ff.js never shells to `gh`) and is
+    // deliberately excluded from the preflight gate — it still runs despite
+    // a failing GitHub-health check, and pairedFixture()'s mainDir is a
+    // fresh clone already current with origin (review finding: this gate
+    // previously skipped mirror too).
+    assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
     assert.equal(r.claims, null);
-    assert.deepEqual(r.skipped, [{ check: 'mirror,release', reason: 'preflight-github-unreachable' }]);
+    assert.deepEqual(r.skipped, [{ check: 'release', reason: 'preflight-github-unreachable' }]);
+  } finally {
+    preflight.ghHealthCheck = original;
+  }
+});
+
+test('reconcile(): checks: ["mirror"] alone never calls the GitHub-health preflight at all', async () => {
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const original = preflight.ghHealthCheck;
+  let called = false;
+  preflight.ghHealthCheck = () => { called = true; return { ok: false, reason: 'github-unreachable' }; };
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['mirror'] });
+    assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
+    assert.deepEqual(r.skipped, []);
+    assert.equal(called, false, 'a mirror-only request has no gh-dependent check, so preflight must never run');
   } finally {
     preflight.ghHealthCheck = original;
   }
@@ -887,9 +924,8 @@ test('reconcile(): a real (non-short-circuited) pass stamps lastRunAt for the ne
 // AC1: reconcile() degrades within ~2s via the preflight when GitHub is
 // unreachable, instead of accumulating every check's own 5-10s timeout.
 test('AC1: a preflight failure resolves in well under the old per-check-timeout sum', async () => {
-  const { mainDir } = pairedFixture();
-  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const original = preflight.ghHealthCheck;
   preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
@@ -901,8 +937,10 @@ test('AC1: a preflight failure resolves in well under the old per-check-timeout 
     preflight.ghHealthCheck = original;
   }
   const elapsed = Date.now() - start;
-  // Functional assertion: preflight gate produces exactly the expected skip entry
-  assert.deepEqual(r.skipped, [{ check: 'mirror,release,remote-prune,console', reason: 'preflight-github-unreachable' }]);
+  // Functional assertion: preflight gate produces exactly the expected skip
+  // entry — mirror is excluded (pure git, no `gh` dependency) and still runs.
+  assert.deepEqual(r.skipped, [{ check: 'release,remote-prune,console', reason: 'preflight-github-unreachable' }]);
+  assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
   // Secondary timing assertion: the preflight-gated failure resolves quickly
   assert.ok(elapsed < 2500, `preflight-gated failure took ${elapsed}ms, expected well under 2.5s`);
 });

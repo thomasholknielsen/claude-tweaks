@@ -82,11 +82,11 @@ function run(argv, deps = realDeps) {
       // be determined at all (not a repo, an unreadable ancestor, an
       // unparseable .git file) — misdiagnosing this as a worktree-shadow
       // rejection would send a reader hunting for the wrong problem.
-      deps.stderr(`materialize.js: could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read\n`);
+      deps.stderr(`materialize.js: ${wtDetect.unanchoredRunDirNoRepoMessage(cwd)}\n`);
       return 2;
     }
     if (!deps.isAnchored(path.resolve(cwd, opts.runDir), mainRoot)) {
-      deps.stderr(`materialize.js: --run-dir ${opts.runDir} resolves outside the main checkout (${mainRoot}) — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`);
+      deps.stderr(`materialize.js: ${wtDetect.unanchoredRunDirShadowMessage(opts.runDir, mainRoot)}\n`);
       return 2;
     }
   }

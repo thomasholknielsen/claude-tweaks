@@ -30,6 +30,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { defaultRefExists } = require('../../../plugin/bin/lib/reconcile/prune-remote');
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -290,6 +291,91 @@ test('pruneRemote: a failed batch push falls back to per-branch deletes, one bad
   const batchAttempted = pushLines.some((l) => /build\/b1/.test(l) && /build\/b2/.test(l));
   assert.equal(batchAttempted, true, `expected a batch attempt naming both branches, saw ${JSON.stringify(pushLines)}`);
   assert.equal(result.entries.filter((e) => e.action === 'delete').length, 2, 'per-branch fallback still deletes both');
+});
+
+// Review finding: the per-branch fallback's own push can fail because the
+// branch was ALREADY gone (deleted by the batch despite its own nonzero
+// exit, or by a concurrent reconcile pass) — that must read as a completed
+// delete, not delete-failed. build/b1 is deleted on origin out-of-band, by a
+// SECOND clone (deleting via `root`'s own git auto-prunes its local tracking
+// ref immediately, defeating the repro — a second clone's delete does not),
+// before pruneRemote ever runs; skipFetch: true means root's stale local
+// tracking ref still makes b1 look like a normal candidate, so only the
+// fallback push itself exposes that it's gone.
+test('pruneRemote: batch fails; a branch already deleted before the fallback push is reported delete, not delete-failed', () => {
+  const { root, integration } = buildTwoPrunableBranchesFixture();
+  const originUrl = git(root, 'remote', 'get-url', 'origin').trim();
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-clone3-'));
+  git(other, 'clone', originUrl, 'c');
+  git(path.join(other, 'c'), 'push', 'origin', '--delete', 'build/b1');
+  const wrapper = installPushWrapper(true); // batch push fails without touching origin; single-branch pushes hit real git
+  let result;
+  try {
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  } finally {
+    wrapper.restore();
+  }
+  const b1 = result.entries.find((e) => e.name === 'build/b1');
+  const b2 = result.entries.find((e) => e.name === 'build/b2');
+  assert.strictEqual(b1.action, 'delete', `already-gone branch must be reported delete, not misreported as ${b1.action}/${b1.reason}`);
+  assert.strictEqual(b2.action, 'delete', 'a genuinely present branch still deletes normally');
+});
+
+// A genuine, non-"already gone" per-branch failure — a wrapper that fails
+// EVERY push --delete naming build/b1 (batch and single-branch fallback
+// alike), never reaching real git for it — must still report delete-failed:
+// checkRefExists reporting the ref is still present (or indeterminate, on a
+// bad connection) must never be read as success.
+function installAlwaysFailWrapper(branchToFail) {
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-gitwrap2-'));
+  const logFile = path.join(wrapperDir, 'push-calls.log');
+  fs.writeFileSync(logFile, '');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const wrapperPath = path.join(wrapperDir, 'git');
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/bin/sh\n` +
+    `if [ "$3" = "push" ]; then\n` +
+    `  echo "$@" >> "${logFile}"\n` +
+    `  case " $* " in\n` +
+    `    *" ${branchToFail} "*) exit 1 ;;\n` +
+    `  esac\n` +
+    `fi\n` +
+    `exec "${realGit}" "$@"\n`,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  return { logFile, restore: () => { process.env.PATH = originalPath; } };
+}
+
+test('pruneRemote: a genuine per-branch delete failure still reports delete-failed', () => {
+  const { root, integration } = buildTwoPrunableBranchesFixture();
+  const wrapper = installAlwaysFailWrapper('build/b1');
+  let result;
+  try {
+    result = pruneRemote({
+      cwd: root, integration, skipFetch: true,
+      resolvePr: () => ({ number: 1, state: 'MERGED' }),
+      refExists: () => true, // both branches provably still exist on origin
+    });
+  } finally {
+    wrapper.restore();
+  }
+  assert.strictEqual(result.entries.find((e) => e.name === 'build/b1').action, 'skip');
+  assert.strictEqual(result.entries.find((e) => e.name === 'build/b1').reason, 'delete-failed');
+  assert.strictEqual(result.entries.find((e) => e.name === 'build/b2').action, 'delete');
+});
+
+test('defaultRefExists: true when the ref is present, false when git ls-remote --exit-code reports it missing (exit 2), null on any other failure', () => {
+  const dir = makeRepoWithOrigin();
+  assert.strictEqual(defaultRefExists(dir, 'main', 5000), true);
+  assert.strictEqual(defaultRefExists(dir, 'no-such-branch-at-all', 5000), false);
+  // An unreachable remote fails ls-remote itself (git exit 128, "fatal"), a
+  // different exit code from the ref-not-found case above (exit 2) — must
+  // read as indeterminate, never as "gone".
+  execFileSync('git', ['-C', dir, 'remote', 'set-url', 'origin', '/no/such/path/at/all'], { stdio: 'ignore' });
+  assert.strictEqual(defaultRefExists(dir, 'main', 5000), null);
 });
 
 const { reconcile, ALL_CHECKS } = require('../../../plugin/bin/lib/reconcile');

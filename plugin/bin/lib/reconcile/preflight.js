@@ -3,6 +3,7 @@
 // separately discovering the same outage via its own 5-10s timeout (#820).
 'use strict';
 const { execFileSync } = require('child_process');
+const { classifyGhApiError } = require('../issues/claim-store');
 
 const PREFLIGHT_TIMEOUT_MS = 2000;
 
@@ -20,8 +21,13 @@ function ghHealthCheck(opts = {}) {
     runner(['api', 'rate_limit', '-q', '.rate.remaining']);
     return { ok: true, reason: null };
   } catch (e) {
-    if (e && e.code === 'ENOENT') return { ok: false, reason: 'gh-absent' };
-    return { ok: false, reason: 'github-unreachable' };
+    // Classification (ENOENT vs everything else) is shared with claim-store.js
+    // and pr-state.js rather than reimplemented a third time here — only the
+    // REASON VOCABULARY differs (this check reports 'github-unreachable', not
+    // 'network-failure' — a different consumer, a different word for the same
+    // classification) (review finding: 5 near-identical copies).
+    const { failure } = classifyGhApiError(e);
+    return failure === 'gh-absent' ? { ok: false, reason: 'gh-absent' } : { ok: false, reason: 'github-unreachable' };
   }
 }
 

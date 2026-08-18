@@ -84,7 +84,7 @@ function resolveRunArg(args, cwd, env) {
       // a reader hunting for the wrong problem.
       return {
         runDir: null,
-        invalidRunArg: `${candidate} (could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read)`,
+        invalidRunArg: `${candidate} (${wtDetect.unanchoredRunDirNoRepoMessage(cwd)})`,
         rest,
         explicit: true,
       };
@@ -398,6 +398,19 @@ async function main(argv) {
       return 0;
     }
 
+    // Mutex — session-start.js's spawn-decision TTL gate is best-effort, not
+    // a lock, and can still let two sessions starting within the same short
+    // window each spawn a background pass (review finding). Only one
+    // process may actually run reconcile() at a time; a losing process does
+    // nothing, not even a status-file touch — the winner's write already
+    // covers this window and a losing process has nothing new to report.
+    const { acquireBackgroundLock, releaseBackgroundLock } = require('./lib/reconcile/background-lock');
+    const lock = acquireBackgroundLock(root);
+    if (!lock) {
+      process.stdout.write('claude-tweaks: reconcile-background complete (already running)\n');
+      return 0;
+    }
+
     let summary = {};
     try {
       const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS });
@@ -419,6 +432,8 @@ async function main(argv) {
       };
     } catch {
       summary = { failed: true };
+    } finally {
+      releaseBackgroundLock(lock);
     }
     try {
       fs.mkdirSync(path.dirname(statusPath), { recursive: true });
