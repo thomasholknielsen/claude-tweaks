@@ -1,0 +1,88 @@
+// tests/session-tmp-root-migration.test.js
+//
+// Pins #266's migration: the 4 named skill families (specify, dispatch,
+// backlog, assess-agent-autonomy) plus the two directly-chained backlog
+// files (attention-mode.md, trust-signal.md) discovered by reference during
+// the build, no longer hardcode an unscoped /tmp/{skill}-*.{json,md,txt}
+// path -- every one resolves through bin/lib/session-tmp.js's
+// sessionTmpPath, citing _shared/session-tmp-root.md.
+//
+// AC1's grep is repo-wide (`skills/`); this test scopes to the files this
+// record actually migrated -- the broader sweep across code-health,
+// docs-health, harness-health, journey-health, tidy, wrap-up, capture,
+// help, init, and the _shared/ scan-procedure files remains open, filed as
+// its own follow-up record (see the ledger for this run).
+
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const ROOT = path.join(__dirname, '..', 'plugin', 'skills');
+
+const MIGRATED_FILES = [
+  'specify/decomposition-mode.md',
+  'specify/record-creation.md',
+  'specify/shaping-mode.md',
+  'dispatch/queue-pull-script.md',
+  'dispatch/headless-self-report.md',
+  'dispatch/settle-and-merge.md',
+  'dispatch/SKILL.md',
+  'backlog/overview-mode.md',
+  'backlog/refine-mode.md',
+  'backlog/refine-lanes.md',
+  'backlog/grant-mode.md',
+  'backlog/attention-mode.md',
+  'backlog/trust-signal.md',
+  'assess-agent-autonomy/grant-check.md',
+];
+
+// Matches a literal, unscoped /tmp/{prefix}-*.{ext} path -- the shape this
+// record eliminates. Excludes the sanctioned os.tmpdir()-based degrade
+// fallback (no literal '/tmp/' substring appears there at all) and the
+// unrelated session-snapshot path (ct-records-{session-id}.json, already
+// session-scoped by construction, not this record's concern).
+const LITERAL_TMP_RE = /\/tmp\/(?!ct-)[a-z][a-z0-9-]*-[a-z0-9-]*\.(json|md|txt|graphql|err|jsonl)/;
+
+test('every migrated file cites _shared/session-tmp-root.md', () => {
+  for (const rel of MIGRATED_FILES) {
+    const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    assert.match(text, /session-tmp-root\.md/, `${rel} must cite _shared/session-tmp-root.md`);
+  }
+});
+
+// backlog/trust-signal.md still references two /tmp/trust-table-*.{json,txt} paths that
+// _shared/trust-table.md's Fetch section itself owns and writes (shared across many
+// consumers beyond backlog: /tidy, /visualize, /capture, ...) -- a deliberate scope
+// boundary for this record, not an oversight. Migrating trust-table.md is its own,
+// larger follow-up (filed in the ledger for this run) since it touches every one of
+// those consumers, not just backlog.
+const DEFERRED_SHARED_INFRA = new Set([
+  '/tmp/trust-table-records.json',
+  '/tmp/trust-table-git-log.txt',
+]);
+
+test('no migrated file retains a literal unscoped /tmp/{prefix}-*.{ext} path (deferred shared-infra paths excepted)', () => {
+  const offenders = [];
+  for (const rel of MIGRATED_FILES) {
+    const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    const m = text.match(LITERAL_TMP_RE);
+    if (m && !DEFERRED_SHARED_INFRA.has(m[0])) offenders.push(`${rel}: ${m[0]}`);
+  }
+  assert.deepEqual(offenders, [], 'migrated files must carry zero literal unscoped /tmp paths besides the deferred shared-infra exception');
+});
+
+test('_shared/session-tmp-root.md documents the degrade rule and the record-suffix composition rule', () => {
+  const text = fs.readFileSync(path.join(ROOT, '_shared', 'session-tmp-root.md'), 'utf8');
+  assert.match(text, /Degrade rule/, 'must document the no-session-id fallback');
+  assert.match(text, /Record-suffixed callers keep both suffixes/, 'must document combining session root with an existing record suffix');
+});
+
+test('bin/lib/session-tmp.js is a pure module (no gh/MCP/network calls)', () => {
+  const text = fs.readFileSync(
+    path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'session-tmp.js'),
+    'utf8',
+  );
+  assert.doesNotMatch(text, /execFileSync|execSync|spawn|fetch\(/, 'must stay pure filesystem helpers, no network/process calls');
+});

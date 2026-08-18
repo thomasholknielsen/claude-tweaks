@@ -8,31 +8,35 @@ Entirely mechanical — no per-record LLM reads, so it scales to the full fetche
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md`, same as `refine-mode.md`'s priority/Related fetch (`{tmp-records-file}` = `/tmp/backlog-overview-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-overview-faceted.json`) — reading through the session-scoped record snapshot, shared with `/capture`/`/specify`/`/help`/`/tidy`/`/visualize` and, within this run, with `refine-mode.md`'s own fetch below. Step 3's recommendation pass needs every candidate's `body` (for `rankNextToBuild`'s internal `parseDependencies` call) — the snapshot's union field set always carries `body`, no `{EXTRA_FIELDS}` request needed, so every candidate's unblocks-count computes correctly rather than silently reading 0 and quietly corrupting the bare-mode recommendation's tie-break order. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way (port the retired `/claude-tweaks:review-backlog` skill's old Step 1 unsynced fold-in verbatim):
+Every temp file this mode writes below resolves through `bin/lib/session-tmp.js`'s `sessionTmpPath`, per `_shared/session-tmp-root.md`'s session-scoped temp-root convention (cited once here, not restated per script).
+
+Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md`, same as `refine-mode.md`'s priority/Related fetch (`{tmp-records-file}` = `session-scoped backlog-overview-open.json`, `{tmp-faceted-file}` = `session-scoped backlog-overview-faceted.json`) — reading through the session-scoped record snapshot, shared with `/capture`/`/specify`/`/help`/`/tidy`/`/visualize` and, within this run, with `refine-mode.md`'s own fetch below. Step 3's recommendation pass needs every candidate's `body` (for `rankNextToBuild`'s internal `parseDependencies` call) — the snapshot's union field set always carries `body`, no `{EXTRA_FIELDS}` request needed, so every candidate's unblocks-count computes correctly rather than silently reading 0 and quietly corrupting the bare-mode recommendation's tie-break order. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way (port the retired `/claude-tweaks:review-backlog` skill's old Step 1 unsynced fold-in verbatim):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_UNSYNCED=backlog-overview-unsynced.json)"
 node -e "
   const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const records = queryRecords('specs', { unsynced: true });
   console.log(JSON.stringify(records));
-" > /tmp/backlog-overview-unsynced.json
+" > "$ST_BACKLOG_OVERVIEW_UNSYNCED"
 ```
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_UNSYNCED=backlog-overview-unsynced.json ST_BACKLOG_OVERVIEW_UNSYNCED_DATED=backlog-overview-unsynced-dated.json ST_BACKLOG_OVERVIEW_FACETED=backlog-overview-faceted.json)"
 node -e "
   const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
-  const records = require('/tmp/backlog-overview-unsynced.json');
+  const records = require('$ST_BACKLOG_OVERVIEW_UNSYNCED');
   console.log(JSON.stringify(deriveCreatedAtFromGit(records)));
-" > /tmp/backlog-overview-unsynced-dated.json
+" > "$ST_BACKLOG_OVERVIEW_UNSYNCED_DATED"
 node -e "
   const { mergeUnsyncedRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
-  const github = require('/tmp/backlog-overview-faceted.json');
-  const unsynced = require('/tmp/backlog-overview-unsynced-dated.json');
+  const github = require('$ST_BACKLOG_OVERVIEW_FACETED');
+  const unsynced = require('$ST_BACKLOG_OVERVIEW_UNSYNCED_DATED');
   console.log(JSON.stringify(mergeUnsyncedRecords(github, unsynced)));
-" > /tmp/backlog-overview-faceted.json
+" > "$ST_BACKLOG_OVERVIEW_FACETED"
 ```
 
-This last script reads `/tmp/backlog-overview-faceted.json`'s github-only content and overwrites the same path with the fully merged (github + unsynced) set — Step 2 below reads `/tmp/backlog-overview-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode's Apply step (writing `priority:*` via `writeRecord` when a record has no `$ISSUE`).
+This last script reads `session-scoped backlog-overview-faceted.json`'s github-only content and overwrites the same path with the fully merged (github + unsynced) set — Step 2 below reads `session-scoped backlog-overview-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode's Apply step (writing `priority:*` via `writeRecord` when a record has no `$ISSUE`).
 
 ## Step 1.5: Trust table (read-only)
 
@@ -77,9 +81,10 @@ On `work-links: native`: check field availability via `capabilities-probe.js`'s 
 The funnel-computation script below then reads `all` with these `r.blockedBy` values already attached — `funnelBuckets`'s existing `blockersOf` precedence (top-level `r.blockedBy` first) buckets a now-attached record into `granted` instead of `dispatchable` with no further change.
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_FACETED=backlog-overview-faceted.json ST_BACKLOG_OVERVIEW_VIEWS=backlog-overview-views.json)"
 node -e "
   const bl = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
-  const all = require('/tmp/backlog-overview-faceted.json');
+  const all = require('$ST_BACKLOG_OVERVIEW_FACETED');
   console.log(JSON.stringify({
     critical: bl.filterCritical(all),
     riskValue: bl.rankRiskValue(all),
@@ -87,7 +92,7 @@ node -e "
     split: bl.splitScoredUnscored(all),
     funnel: bl.funnelBuckets(all),
   }));
-" > /tmp/backlog-overview-views.json
+" > "$ST_BACKLOG_OVERVIEW_VIEWS"
 ```
 
 **`critical`** — render `.critical` as a table (`| # | Record | Priority | Age |`), capped at `--budget` rows (default 20) with an overflow note. Note the excluded unscored count from `.split.unscored.length` ("N unscored records not risk-assessed yet — run bare mode for a judgment pass"). Then stop — render Next Actions; lens runs never reach the batch emitter (Step 4 is bare-mode only).
@@ -193,16 +198,17 @@ since the two subsets are not identical (see Step 2's pre-attach note for why). 
   - **`unsynced: true` fallback records** (any driver): attach nothing, and their own `facets.blockedBy` is deliberately not consulted — those ids live in the local-record namespace and must never cross-match GitHub issue numbers in the merged set (parent #512 promise F1; `funnelBuckets` applies the same rule).
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_CANDIDATES=backlog-overview-candidates.json ST_BACKLOG_OVERVIEW_RANKED=backlog-overview-ranked.json)"
 node -e "
   const { rankNextToBuild, findUnresolvedDependencyProse } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
-  const candidates = require('/tmp/backlog-overview-candidates.json'); // [{id, facets, body, keyFiles, hasPlan, blockedBy?}]
+  const candidates = require('$ST_BACKLOG_OVERVIEW_CANDIDATES'); // [{id, facets, body, keyFiles, hasPlan, blockedBy?}]
   console.log(JSON.stringify({ ranked: rankNextToBuild(candidates), flags: findUnresolvedDependencyProse(candidates) }));
-" > /tmp/backlog-overview-ranked.json
+" > "$ST_BACKLOG_OVERVIEW_RANKED"
 ```
 
 ### Dependency-mismatch detection
 
-- Read the `flags` array from `/tmp/backlog-overview-ranked.json` (computed above, in the same pass as `ranked` — `findUnresolvedDependencyProse`, from `ranking.js`). On any hit, render a loud flag naming the affected ids with their `mention` lines, and **suppress every chain-shaped claim** about them ("unblocks N", dependency-order phrasing) — no corrected chain is drawn (chain rendering is the batch-emitter sub-issue).
+- Read the `flags` array from `session-scoped backlog-overview-ranked.json` (computed above, in the same pass as `ranked` — `findUnresolvedDependencyProse`, from `ranking.js`). On any hit, render a loud flag naming the affected ids with their `mention` lines, and **suppress every chain-shaped claim** about them ("unblocks N", dependency-order phrasing) — no corrected chain is drawn (chain rendering is the batch-emitter sub-issue).
 - The accepted limitation, verbatim: the check fires only on empty resolved blockers; a *partially* wired record (non-empty `blockedBy` missing some prose-mentioned id) is not flagged — prose mentions have no mechanical ground truth, so partial-coverage checking would guess.
 - **False-positive expectation:** the prose regex is deliberately broad (same-line intervening words allowed between "blocked by" and the `#N`), so non-dependency mentions can flag too — e.g. "blocked by the outage, see #12" is not a real dependency but still matches. The rendered `mention` line is exactly the human's evidence to dismiss a false positive at a glance; a false negative here would instead be the silent mis-ranking this detection exists to prevent, so the check accepts occasional over-flagging rather than risk under-flagging.
 - **Headline-replacement rule:** when detection fires, the flagged candidates get no mechanical recommendation. Either (a) the output cites explicit dependency evidence it holds — native links on other candidates, the flagged records' own prose — as a **corrected** "Recommended next" with the citation inline, in which case the corrected pick IS the headline and the raw ranker pick demotes to a one-line footnote (never render a recommendation the same output retracts); or (b) when no such evidence resolves an order, the output states plainly that ranking is unreliable for the flagged set and points at `/claude-tweaks:backlog refine`'s dependency repair.
@@ -234,11 +240,12 @@ out-of-set-blocked list (`outOfSetBlocked`) so the "Out-of-set-blocked granted r
 it directly instead of re-deriving membership ad hoc at render time:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_RANKED=backlog-overview-ranked.json ST_BACKLOG_OVERVIEW_CANDIDATES=backlog-overview-candidates.json ST_BACKLOG_OVERVIEW_EMITTER=backlog-overview-emitter.json)"
 node -e "
   const { buildChains, transitiveUnblocksCount, blockersOf } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
   const { groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
-  const flags = require('/tmp/backlog-overview-ranked.json').flags.map((f) => f.id);
-  const candidates = require('/tmp/backlog-overview-candidates.json').filter((c) => !flags.includes(c.id));
+  const flags = require('$ST_BACKLOG_OVERVIEW_RANKED').flags.map((f) => f.id);
+  const candidates = require('$ST_BACKLOG_OVERVIEW_CANDIDATES').filter((c) => !flags.includes(c.id));
   const candidateIds = new Set(candidates.map((c) => c.id));
   console.log(JSON.stringify({
     graph: buildChains(candidates),
@@ -246,7 +253,7 @@ node -e "
     overlapGroups: groupByFileOverlap(candidates.map((c) => ({ id: c.id, keyFiles: c.keyFiles || [] }))),
     outOfSetBlocked: candidates.filter((c) => blockersOf(c).some((b) => !candidateIds.has(b))).map((c) => c.id),
   }));
-" > /tmp/backlog-overview-emitter.json
+" > "$ST_BACKLOG_OVERVIEW_EMITTER"
 ```
 
 Note: `payout` keys are strings after `Object.fromEntries` (plain JS object keys are always
@@ -334,7 +341,7 @@ re-derive membership.
   blocks" must hold for any group size, not just the ≤3 case). Group membership is transitive —
   treat membership, not pairwise overlap, as the signal.
 - **(b) Claim exclusion** — the excluded population is `.funnel.inFlight` (Step 2's
-  `/tmp/backlog-overview-views.json` output — the records `funnelBuckets` already partitioned out
+  `session-scoped backlog-overview-views.json` output — the records `funnelBuckets` already partitioned out
   of the buildable subset by the `bot:in-progress` facet; claim blobs on the claims-registry
   branch are not read by this report). Each excluded record gets one `#`-comment reason (e.g.
   `# #472 skipped — bot:in-progress`), already counted in the funnel's `in flight` stage. The
@@ -390,7 +397,7 @@ One line per record with an interactive launcher, fully qualified:
 - `kind: 'unjustified'` → `/claude-tweaks:challenge #{N}` (the evidence-or-accept-risk mode — reads the record's `## Gotchas` assumptions, runs a bounded in-repo evidence search, and offers supply-evidence / accept-risk / leave in one call; either resolving choice clears the label) with a `#`-comment naming the one-line call (e.g. `# solution:unjustified — one-line evidence-or-accept-risk call`)
 - `unsynced: true` needs-you records never render a `#{N}` launcher (local-namespace ids) — they render one `#`-comment naming the sync gap and pointing at `/claude-tweaks:tidy`, still counted in the branch-line total.
 
-**Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch). Primary sort is priority (high first), then age (oldest first), ties by id — matching the emitter's own convention. Releases-count is an **advisory annotation** on each row, not a sort key — it is computed directly, never sourced from `transitiveUnblocksCount` (that Map is keyed by emitter-candidate id only, and a needs-you record structurally never appears as one of those keys, so a lookup against it can never resolve for this lane; the helper remains the emitter's own chain-payout tool, unchanged in Step 4). The direct computation: one `node -e` pass importing `blockersOf` from `ranking.js`, run over the full faceted set at `/tmp/backlog-overview-faceted.json` (the carrier — the whole open set, not the emitter's filtered candidate subset) — count how many OPEN records in that set resolve the needs-you record's id via `blockersOf`. When that count is zero, or the computation was skipped, render `deciding releases nothing tracked` in place of a number — never a literal `undefined` or a dangling placeholder. This priority-then-age ordering deliberately deviates from the original spec's releases-first ordering: releases is demoted to an advisory annotation, never the sort key, because the count is partial by construction (needs-you records get no blocker attachment and their dependents are mostly outside the buildable set) — the deviation is flagged here in the text, not left implicit in run artifacts alone.
+**Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch). Primary sort is priority (high first), then age (oldest first), ties by id — matching the emitter's own convention. Releases-count is an **advisory annotation** on each row, not a sort key — it is computed directly, never sourced from `transitiveUnblocksCount` (that Map is keyed by emitter-candidate id only, and a needs-you record structurally never appears as one of those keys, so a lookup against it can never resolve for this lane; the helper remains the emitter's own chain-payout tool, unchanged in Step 4). The direct computation: one `node -e` pass importing `blockersOf` from `ranking.js`, run over the full faceted set at `session-scoped backlog-overview-faceted.json` (the carrier — the whole open set, not the emitter's filtered candidate subset) — count how many OPEN records in that set resolve the needs-you record's id via `blockersOf`. When that count is zero, or the computation was skipped, render `deciding releases nothing tracked` in place of a number — never a literal `undefined` or a dangling placeholder. This priority-then-age ordering deliberately deviates from the original spec's releases-first ordering: releases is demoted to an advisory annotation, never the sort key, because the count is partial by construction (needs-you records get no blocker attachment and their dependents are mostly outside the buildable set) — the deviation is flagged here in the text, not left implicit in run artifacts alone.
 
 **Cap + pointer:** at most 3 rows named; beyond that, one pointer line: `{M} more human-owed records → /claude-tweaks:backlog attention (when available)` — advisory until that mode ships (#471's decomposition), count always shown. Interim-launcher honesty note, citing #471: until #471's redirect gate ships, `/claude-tweaks:specify #{N}` on a `needs:definition` record still lands in ordinary shaping mode — acceptable interim (the human is present either way); this caveat is removed by #471's own landing.
 

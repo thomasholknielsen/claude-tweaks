@@ -37,6 +37,8 @@ never-fresh degrade for the same condition.
 
 ## Usage (every consuming skill fills in `{filename}`)
 
+**Single path:**
+
 ```bash
 {tmp-var}=$(node -e "
   const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
@@ -45,6 +47,19 @@ never-fresh degrade for the same condition.
 ```
 
 The degrade fallback resolves the OS temp dir programmatically (`os.tmpdir()`) rather than hardcoding a `/tmp/` literal — behaviorally the same path on Linux, but it never re-introduces the exact unscoped-literal shape this convention exists to remove, and it degrades correctly on a non-Linux temp directory too.
+
+**Several paths in one fence** — `bin/session-tmp-resolve.js`, a thin CLI wrapper, is the
+byte-cheaper form once a script needs three or more (each inline `node -e` block above costs
+roughly 350 bytes; this form costs roughly 90 bytes total, which matters for a skill file already
+close to the 40 KB ceiling):
+
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" VAR1=file1.json VAR2=file2.md)"
+```
+
+Both forms resolve through the same `sessionTmpPath` and degrade identically; pick whichever
+reads better at the call site, and prefer the CLI form once a file is within a few hundred bytes
+of the ceiling (`wc -c` before committing).
 
 `{filename}` is the skill's own existing purpose-suffixed basename, unchanged from its current
 literal `/tmp/{filename}` form — e.g. `specify-parent-body.md`, `dispatch-groups.json`,

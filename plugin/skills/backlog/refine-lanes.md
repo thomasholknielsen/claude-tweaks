@@ -31,7 +31,7 @@ primary lane, never double-counted under Priority or Dependency-repair too.
 
 ## Re-authorize
 
-Population: `.blocked` from `/tmp/backlog-refine-worklist.json` — records that hit the retry
+Population: `.blocked` from `session-scoped backlog-refine-worklist.json` — records that hit the retry
 ceiling (`bot:blocked`), unaffected by Step 3's grant-check budget. Every row recommends the same
 fixed action regardless of content: a prior failure means the human's renewed judgment is the
 point, never a mechanical replay (Step 3).
@@ -91,7 +91,7 @@ skip-case footer below the lanes) — as the literal template:
   ↳ trust: {provenance} / {band} — {verdict}{, {coverage}% coverage}
 ```
 
-sourced from `/tmp/backlog-refine-trust.json`, the coverage clause appended only when `{verdict}`
+sourced from `session-scoped backlog-refine-trust.json`, the coverage clause appended only when `{verdict}`
 is `clean` or `mixed`. `{provenance}` is the row's full `kind:source` pair (`producer:capture`,
 `side-effect:wrap-up leftover`, `human:human`) and `{verdict}` is the literal module value
 (`clean`/`mixed`/`insufficient-evidence`) — do not shorten either, since a record's `by:*` label
@@ -100,7 +100,7 @@ and its resolved provenance must be readable as the same fact side by side.
 Two absences render differently and must not be conflated: "no cell yet" — the `no-cell` module
 value reworded for the reader, since `no-cell` beside real verdicts would read like a fourth
 verdict — when the record's class has closed no records, and "not fetched" when the record is
-missing from `/tmp/backlog-refine-trust.json` entirely. The second is reachable: Step 1's worklist
+missing from `session-scoped backlog-refine-trust.json` entirely. The second is reachable: Step 1's worklist
 is `--state open` while the trust fetch is `--state all` against the same `backlog-fetch-limit`, so
 a long history can push an old open record out of the trust fetch while it stays in the worklist.
 Silence there would read as "no evidence" when the truth is "not looked at."
@@ -232,7 +232,7 @@ its own per-record paste-ready form rather than a forced batch call (#844: batch
 ```bash
 ── Dependency repair ──
 # Terminal — #420 (work-links: body-text)
-gh issue edit 420 --body-file /tmp/backlog-refine-body-420.md
+gh issue edit 420 --body-file "$BACKLOG_REFINE_BODY"  # this run's session-scoped backlog-refine-body-420.md, per _shared/session-tmp-root.md
 ```
 
 A judgment-required repair — evidence too ambiguous for a mechanical wire (e.g. a cyclic or

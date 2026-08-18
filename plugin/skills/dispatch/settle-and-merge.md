@@ -89,7 +89,7 @@ trace of it.
 
 **MCP path** (`gh` unavailable, same live-as-of-Task-10 status as `dispatch/SKILL.md`'s Step 4): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md` in place of the `gh api` call above — `countFailedAttempts` and the rest of this step's logic consume the same comment-body-string shape regardless of transport.
 
-5. Compose the failure comment, using the `attemptNumber` and `ceilingHit` just computed — content unchanged regardless of routing below:
+5. Compose the failure comment, using the `attemptNumber` and `ceilingHit` just computed — content unchanged regardless of routing below. Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`; `ATTEMPT_INFO` re-derived here since a fresh bash invocation does not inherit step 4's shell variables — `sessionTmpPath` is idempotent per session+filename, so this resolves to the same path):
 
    ```bash
    # Negative-evidence persist point (#268): passing classification here (from
@@ -100,9 +100,6 @@ trace of it.
    # this marker back from the record's comments as known-bad evidence for the record's class
    # (see its "Operational outcome evidence" section and _shared/autonomy-ceiling.md's
    # Revocation section for the full semantics).
-   Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`; `ATTEMPT_INFO` re-derived here since a fresh bash invocation does not inherit step 4's shell variables — `sessionTmpPath` is idempotent per session+filename, so this resolves to the same path):
-
-   ```bash
    eval "$(node -e "
      const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
      const os = require('os'); const path = require('path');
