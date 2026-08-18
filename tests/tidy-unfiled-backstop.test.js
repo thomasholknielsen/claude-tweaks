@@ -9,9 +9,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const SCAN = path.join(__dirname, '..', 'plugin', 'skills', 'tidy', 'scan-procedures.md');
+const BACKSTOPS = path.join(__dirname, '..', 'plugin', 'skills', 'tidy', 'issue-claims-backstops.md');
 
-test('scan-procedures.md carries the unfiled-drafts backstop', () => {
-  const text = fs.readFileSync(SCAN, 'utf8');
+test('issue-claims-backstops.md carries the unfiled-drafts backstop', () => {
+  const text = fs.readFileSync(BACKSTOPS, 'utf8');
   assert.ok(
     text.includes('### Backstop: preserved but unfiled upstream feedback drafts'),
     'backstop subsection heading missing',
@@ -48,10 +49,9 @@ test('scan-procedures.md routes [unfiled] to Yours, no mutation staged', () => {
 });
 
 test('the backstop cites --pre-confirmed as illegitimate for its own command', () => {
-  const text = fs.readFileSync(SCAN, 'utf8');
+  const text = fs.readFileSync(BACKSTOPS, 'utf8');
   const section = text.slice(
     text.indexOf('### Backstop: preserved but unfiled upstream feedback drafts'),
-    text.indexOf('## Step 4.8'),
   );
   assert.ok(
     !section.includes('--pre-confirmed'),
