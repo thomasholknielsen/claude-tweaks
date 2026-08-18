@@ -2,6 +2,32 @@
 
 Present this summary after completing all review steps.
 
+## Compact form — clean PASS
+
+When **all** of the following hold, render the compact block below instead of the full template — a zero-findings review does not earn ten mostly-empty section headers:
+
+- Verdict is PASS
+- Zero findings in every category (code review, hindsight, visual, design quality, coverage, docs) and zero unresolved QA ledger entries
+- Zero tradeoffs accepted, zero autonomous actions performed (no fixes, no simplifier changes, no ledger resolutions)
+- No manual steps required
+
+```markdown
+## Review: {spec number or description} — PASS (clean)
+
+**Review effort:** {tier} ({derivation source, same format as the full template's Review effort line})
+**Status:** Spec compliance {met | skipped — fast-lane | n/a — no spec} · Tests pass · QA {status} · Findings 0 · Hindsight clean · Simplification none needed · Visual {status, one word} · Design Quality {skipped ({reason}) | 0 findings}
+
+### Key Learnings
+{1-3 insights, or "No key learnings — straightforward review."}
+
+### Next Actions
+{resolved exactly as the full template's PASS branch below}
+```
+
+The compact form never suppresses information, only empty scaffolding: if any section of the full template would carry real content (a finding, an action, a tradeoff, a manual step, a recommendation beyond one word), render the full template instead. The verdict comment on the PR (`code-mode-steps.md` Step 7) and the Key Learnings handoff to `/claude-tweaks:wrap-up` are unchanged either way.
+
+## Full template
+
 ```markdown
 ## Review: {spec number or description}
 

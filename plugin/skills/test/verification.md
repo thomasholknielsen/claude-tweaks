@@ -27,18 +27,20 @@ Run all checks. Order matters — fail fast:
 
 **Never let a check's raw output land in context** — this applies to every check, not just tests. Redirect each command to a log file, then report its exit code plus a bounded summary read back from that file. Measured in this repo, one `npm test` run is ~386 KB / ~8,950 lines (~96,000 tokens); what this step actually needs from it — did it pass, and if not what failed — fits in well under 1 KB.
 
-Write logs to `/tmp` (the same convention the rest of this plugin's skills use for scratch files). Run every check in this exact shape:
+Write logs to the checkout's own git dir — per-worktree unique and stable across Bash calls, so a later recovery read finds the same file and a concurrent session's run can never clobber it (fixed `/tmp/verify-*.log` names collide across parallel sessions and misattribute another run's failures). Run every check in this exact shape:
 
 ```bash
-LOG=/tmp/verify-test.log
+LOG="$(git rev-parse --git-dir)/claude-tweaks-verify-test.log"
 npm test > "$LOG" 2>&1; echo "exit=$?"; tail -30 "$LOG"; grep -E '^not ok|^# (tests|pass|fail)' "$LOG"
 ```
+
+(In the rare non-git directory, fall back to `/tmp/verify-{check}-{project-dirname}.log` — the collision risk returns but only where no git dir exists to anchor to.)
 
 Three rules make this shape correct:
 
 - `echo "exit=$?"` must be the **next** command after the check — any command in between clobbers `$?`. The `exit=` line is the only authoritative pass/fail signal.
 - The trailing `grep` exiting 1 because it matched nothing is **expected, and is not a check failure** — a clean `node --test` run has zero `not ok` lines. Judge the check by `exit=`, never by the grep's own status.
-- Use a distinct `$LOG` path per check (`/tmp/verify-typecheck.log`, `/tmp/verify-lint.log`, `/tmp/verify-test.log`). The type check and lint run concurrently per the parallel-execution directive above, and would otherwise overwrite each other's output.
+- Use a distinct `$LOG` path per check (`…/claude-tweaks-verify-typecheck.log`, `…/claude-tweaks-verify-lint.log`, `…/claude-tweaks-verify-test.log` — all under the same `$(git rev-parse --git-dir)` anchor). The type check and lint run concurrently per the parallel-execution directive above, and would otherwise overwrite each other's output.
 
 Substitute the project's own commands from Step 1. Type check and lint are adequately summarized by `tail -20 "$LOG"` alone. Test runners need a count line as well:
 
@@ -68,6 +70,22 @@ When running inside a `/claude-tweaks:flow` pipeline and the previous step alrea
 ### Pre-existing failures (multi-spec batches)
 
 In a multi-spec `/flow` run, `flow/multi-spec.md`'s pre-flight verify sweep runs this procedure once against the unmodified base, before spec 1's build begins, and records any failures to the parent run directory's ledger (phase `test`, status `open`). Before diagnosing a verification failure for an individual spec, check that ledger for an existing entry describing the same failure — if found, cite it (`Pre-existing — see ledger #{N}, batch pre-flight sweep`) instead of independently re-deriving the same root cause. Only diagnose failures not already covered by the sweep.
+
+## Step 2.5: Verification pass stamp
+
+When **all three checks pass** (types + lint + tests — the full procedure, regardless of which skill called it), record the pass before reporting:
+
+```bash
+git rev-parse HEAD > "$(git rev-parse --git-dir)/claude-tweaks-verify-pass"
+```
+
+One plain command, worktree-guard-safe; the stamp lives in the checkout's own git dir (per-worktree, never tracked, never shared across sessions). `/claude-tweaks:review` Step 1.5's standalone test gate compares it to the current `HEAD` — a matching sha means no commits landed since the last full verification pass, replacing the commit-archaeology that check previously required.
+
+Rules:
+
+- Write it **only** on a full three-check pass. A targeted or partial run (types-only, lint-only, a scoped test path) must not stamp, and a failing run must never stamp.
+- The stamp asserts verification only — QA story outcomes are tracked separately (the QA ledger), and consumers that care about QA consult that as they already do.
+- Consumers treat a missing, unreadable, or mismatched stamp as "no recent pass" and re-run — fail-open, mirroring the `VERIFICATION_SHA` mismatch rule in Skip-if-recent above. A stale stamp is never a reason to trust a skip.
 
 ## Step 3: Report
 
