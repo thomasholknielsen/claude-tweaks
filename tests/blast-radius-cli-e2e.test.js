@@ -70,3 +70,18 @@ test('e2e: --base pass-through uses the given commit', () => {
   assert.strictEqual(res.status, 0, res.stderr);
   assert.strictEqual(JSON.parse(res.stdout).mergeBase, baseSha);
 });
+
+// I-2 (#888 follow-up): a nonexistent --run dir must fail loud, not silently
+// degrade to "no run-config overlay" — matching resolve-policy.js's convention.
+test('e2e: nonexistent --run dir exits 1 with the bad-path message and NO stdout', () => {
+  const dir = makeFixtureRepo();
+  const badRunDir = path.join(dir, 'no-such-run-dir');
+  const res = spawnSync(
+    'node',
+    [CLI, '--integration-branch', 'main', '--run', badRunDir],
+    { cwd: dir, encoding: 'utf8' }
+  );
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /blast-radius: --run dir does not exist or is not a directory: /);
+  assert.strictEqual(res.stdout, '', 'a bad --run path must never print a summary');
+});

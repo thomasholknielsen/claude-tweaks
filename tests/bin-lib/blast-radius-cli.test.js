@@ -128,3 +128,34 @@ test('sensitive-path hit from resolved policy lands in sensitiveFilesTouched', (
   const out = computeBlastRadius({ integrationBranch: 'main' }, { git, readFile });
   assert.deepStrictEqual(out.summary.sensitiveFilesTouched, ['plugin/bin/hooks.js']);
 });
+
+// I-1 (#888 follow-up): --no-renames must be requested so a rename never
+// collapses into a composite "old => new" numstat path that evades the
+// sensitive-path floor. This test proves classification on already-split
+// (--no-renames-shaped) input — the old path fully deleted, the new path
+// fully added, as git reports a rename when rename detection is off.
+test('a plain rename (--no-renames-shaped numstat) still trips the sensitive-path floor on the old path', () => {
+  const git = fakeGit({
+    'merge-base': () => `${SHA}\n`,
+    diff: () => '0\t4\tplugin/bin/hooks.js\n4\t0\tplugin/bin/hooks2.js\n',
+    'rev-parse': () => '/repo\n',
+  });
+  const readFile = (p) => (p.endsWith('policy.yml') ? 'merge-sensitive-paths: plugin/bin/hooks.js\n' : null);
+  const out = computeBlastRadius({ integrationBranch: 'main' }, { git, readFile });
+  assert.deepStrictEqual(out.summary.sensitiveFilesTouched, ['plugin/bin/hooks.js']);
+});
+
+// I-3 (#888 follow-up): merge-base resolution can succeed (no thrown error)
+// yet return an empty/whitespace-only string — the exact original #888
+// hazard shape. The guard must still hard-fail rather than let an empty
+// base silently proceed to a 0-file diff.
+test('merge-base resolving successfully to an empty string throws BlastRadiusError', () => {
+  const git = fakeGit({
+    'merge-base': () => '\n',
+    'rev-parse': () => '/repo\n',
+  });
+  assert.throws(
+    () => computeBlastRadius({ integrationBranch: 'main' }, { git, readFile: () => null }),
+    BlastRadiusError
+  );
+});

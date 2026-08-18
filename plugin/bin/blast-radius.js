@@ -15,6 +15,7 @@
 // readable as a zero-file blast radius (the silent-approval hazard the
 // retired shell choreography in merge-check.md carried).
 'use strict';
+const fs = require('fs');
 const { computeBlastRadius, BlastRadiusError } = require('./lib/blast-radius-cli.js');
 
 function fail(msg) {
@@ -36,6 +37,15 @@ function main(argv) {
   }
   if (!opts.base && !opts.integrationBranch) {
     return fail('usage: blast-radius.js (--base <ref> | --integration-branch <branch>) [--run <dir>]');
+  }
+  if (opts.runDir !== undefined) {
+    let isDirectory = false;
+    try {
+      isDirectory = fs.statSync(opts.runDir).isDirectory();
+    } catch {}
+    if (!isDirectory) {
+      return fail(`--run dir does not exist or is not a directory: ${opts.runDir}`);
+    }
   }
   let result;
   try {

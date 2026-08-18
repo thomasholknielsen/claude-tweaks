@@ -106,7 +106,7 @@ function computeBlastRadius(opts = {}, deps = {}) {
 
   let diffRaw;
   try {
-    diffRaw = git(['diff', '--numstat', `${mergeBase}..HEAD`]);
+    diffRaw = git(['diff', '--no-renames', '--numstat', `${mergeBase}..HEAD`]);
   } catch (err) {
     throw new BlastRadiusError(`git diff --numstat failed: ${err.message}`);
   }
