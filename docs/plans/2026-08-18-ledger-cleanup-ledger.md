@@ -1,0 +1,6 @@
+# Open Items — Conversation: sync 6 stale pipeline ledgers + file backlog issue #879
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | wrap-up | Near-miss (systemic, chain-walked 3x): used a bare `git update-ref refs/heads/main origin/main` instead of this project's sanctioned `git merge --ff-only` mechanism (`plugin/bin/lib/reconcile/mirror-ff.js`) to fast-forward the shared main checkout, desyncing the working tree/index from the ref. Caught before any commit/push (proved `git diff --stat HEAD` matched exactly the known prior commit range), recovered via `git reset --hard HEAD`. Existing memory `shared-checkout-branch-volatility.md`'s phrase "prefer checkout-free ff ref updates" is ambiguous enough to have licensed this literal misreading. [route: D4] | open | — |
+| 2 | wrap-up | Skill-worthy/friction (terminal): `EnterWorktree({path})` re-entry (needed here to push from the worktree after merging in the main checkout) permanently drops this session's "owner" status for that worktree's auto-removal — `ExitWorktree(action:"remove")` then refuses with "not the owner." Tool description warns of this, but no memory names the interaction for the "push main from a worktree under worktree-always" recipe specifically. [route: D4] | open | — |
