@@ -5,8 +5,10 @@ against that file's own budget. That file keeps each `### Backstop: ...` heading
 pointing here, so an external reference naming one of the four by name still resolves in one hop.
 
 The dispatcher reads this file **whole** and inlines it into the Issue Claims agent's prompt,
-alongside the rest of Step 4.7's own section in `scan-procedures.md` — subagents cannot read
-sibling files, so everything that agent needs is either there or here.
+directly after the rest of Step 4.7's own section in `scan-procedures.md` (the primary claim
+listing) — subagents cannot read sibling files, so everything that agent needs is either there or
+here. That ordering is load-bearing: every "this step's own claim listing above" reference below
+means the claim listing in `scan-procedures.md`, inlined immediately before this file.
 
 The Working-directory discipline note at the top of `scan-procedures.md`'s Step 4.7 (the
 `{REPO_ROOT}` vs `{RUN_ROOT}` anchoring split) applies to every command below exactly as it does

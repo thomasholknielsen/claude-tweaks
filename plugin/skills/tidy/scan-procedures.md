@@ -210,8 +210,10 @@ four by name still resolves in one hop. The `[unfiled]` collection tag from the 
 still routes via this file's own Collection routing table below.
 
 The dispatcher inlines `issue-claims-backstops.md` **whole** into the Issue Claims agent's
-prompt, alongside this file's own Step 4.7 section above, the same way it inlines a section of
-this file into every other scan agent's.
+prompt, **after** this file's own Step 4.7 section above (the primary claim listing, "Backstops"
+heading included, ending here) — the same order the two files stood in before the split, which is
+what keeps `issue-claims-backstops.md`'s own "this step's own claim listing above" references
+literally true in the assembled prompt.
 
 ## Step 4.8: Audit GitHub PRs and Issues
 
