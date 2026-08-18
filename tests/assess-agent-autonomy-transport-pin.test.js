@@ -28,3 +28,24 @@ test('SKILL.md Anti-Patterns table pins the content-judgment-rationale rule', ()
     'expected an Anti-Patterns row naming the content-judgment rationale hazard in SKILL.md'
   );
 });
+
+const GRANT_CHECK_MD = path.join(__dirname, '..', 'plugin/skills/assess-agent-autonomy/grant-check.md');
+const FAILURE_CHECK_MD = path.join(__dirname, '..', 'plugin/skills/assess-agent-autonomy/failure-check.md');
+
+test('grant-check.md Step 1 references the issue_read MCP mapping and the could-not-gather case', () => {
+  const source = fs.readFileSync(GRANT_CHECK_MD, 'utf8');
+  assert.ok(source.includes('issue_read'), 'expected grant-check.md to cite the issue_read MCP mapping');
+  assert.ok(
+    source.includes('could-not-gather'),
+    'expected grant-check.md to reference the could-not-gather case by name'
+  );
+});
+
+test('failure-check.md Step 1 references the issue_read MCP mapping and the could-not-gather case', () => {
+  const source = fs.readFileSync(FAILURE_CHECK_MD, 'utf8');
+  assert.ok(source.includes('issue_read'), 'expected failure-check.md to cite the issue_read MCP mapping');
+  assert.ok(
+    source.includes('could-not-gather'),
+    'expected failure-check.md to reference the could-not-gather case by name'
+  );
+});

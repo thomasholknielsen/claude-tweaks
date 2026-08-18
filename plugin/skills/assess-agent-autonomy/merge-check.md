@@ -18,7 +18,7 @@ started from.
 
 - **Otherwise**, resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` and pass
   it as `--integration-branch`. If nothing resolves — no `origin` remote, no `gh` auth, an
-  offline or detached runner — stop here. This is the "inconclusive read" case `SKILL.md`'s Error
+  offline or detached runner — stop here. This is the `could-not-gather` case `SKILL.md`'s Error
   Handling already covers, not a hard crash. Render Step 3 directly: `VERDICT: needs-human` /
   `RATIONALE: {name the specific resolution failure, e.g. "could not resolve this project's
   integration branch"}`, and skip the rest of this mode's procedure.

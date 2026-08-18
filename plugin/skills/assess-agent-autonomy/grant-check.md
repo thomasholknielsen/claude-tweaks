@@ -11,6 +11,18 @@ chain (gate 4), once per candidate whose ceiling/opt-in/trust/origin gates alrea
 gh issue view "$N" --json body,labels -q '{body: .body, labels: [.labels[].name]}' > /tmp/assess-grant-${N}.json
 ```
 
+**MCP path** (`gh` unavailable, an MCP transport resolved per the caller's own transport
+contract — e.g. `dispatch/mcp-transport.md`): use the confirmed `issue_read` (get mode) mapping
+from `_shared/github-write-transport.md` in place of the `gh issue view` call above — the rest
+of this step consumes the same `{body, labels}` shape regardless of transport.
+
+**Neither available** (no `gh`, no MCP transport resolved): stop here — this is the
+`could-not-gather` case (`SKILL.md`'s Error Handling). Render Step 3 directly:
+`RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` / `RATIONALE: {name the specific gather
+failure verbatim, e.g. "gh unavailable, no MCP transport resolved — could not fetch record
+body"}`, and skip the rest of this mode's procedure — the same short-circuit shape
+`merge-check.md` Step 1 already uses for its own resolution failures.
+
 Read the record's full body (Current State / Deliverables / Acceptance Criteria) from the fetched
 JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present:
 

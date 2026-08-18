@@ -14,6 +14,18 @@ node -e "
 "
 ```
 
+**MCP path** (`gh` unavailable, an MCP transport resolved per the caller's own transport
+contract — e.g. `dispatch/mcp-transport.md`): use the confirmed `issue_read` (get_comments mode)
+mapping from `_shared/github-write-transport.md` in place of the `gh api` call above — the same
+mapping `dispatch/settle-and-merge.md` step 4 already cites for its own comment fetch. The rest
+of this step consumes the same comment-body-string shape regardless of transport.
+
+**Neither available** (no `gh`, no MCP transport resolved): stop here — this is the
+`could-not-gather` case (`SKILL.md`'s Error Handling). Render Step 3 directly:
+`CLASSIFICATION: correctness` / `NOTIFY_NOW: false` / `RATIONALE: {name the specific gather
+failure verbatim, e.g. "gh unavailable, no MCP transport resolved — could not fetch prior
+attempt comments"}`, and skip the rest of this mode's procedure.
+
 Read the actual failure output from the gate that failed (test output, review findings, error
 logs) — already in the calling agent's context from the run that just failed.
 
