@@ -31,5 +31,8 @@
   },
   "doc:decisions/0010-rules-and-their-evidence-live-in-separate-files": {
     "lastAuditedMs": 1786946954387
+  },
+  "doc:decisions/0011-skill-relationship-edges-live-outside-the-payload": {
+    "lastAuditedMs": 1787033111312
   }
 }
