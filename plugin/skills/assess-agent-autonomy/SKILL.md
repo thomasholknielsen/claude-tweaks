@@ -50,8 +50,9 @@ mode's own Step 1 ("Gather," in its sub-file) is the source of truth for how it'
 issue/PR comments via `gh api ".../issues/${N}/comments..."`, also a genuine fetch keyed on `#{n}`;
 `ceremony-check`'s primary call path (from `/specify`) issues no fetch at all — it reuses
 body/label data the caller already holds in memory, and its fallback path (from `/flow`) likewise
-reuses data `materialize.md` already fetched; `merge-check` uses `#{n}` only as a temp-file-name
-suffix for its own git-diff/config-derived gather — it never fetches the record itself.
+reuses data `materialize.md` already fetched; `merge-check` doesn't consume `#{n}` at all — its
+gather is a single `bin/blast-radius.js` call (git diff + config, see `merge-check.md` Step 1) —
+and it never fetches the record itself.
 
 `#{n}` is omitted only from `ceremony-check`'s primary call in `/specify`'s Step 3
 decomposition-mode per-sub-issue loop — the sub-issue has no issue number yet at that point in the
