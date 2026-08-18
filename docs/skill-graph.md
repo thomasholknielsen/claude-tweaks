@@ -133,6 +133,8 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/help` | `/help` references `/deepen` in the workflow diagram and reference card. |
 | `/wrap-up` | Hard-to-reverse interface trade-offs `/deepen` flags `[ADR-candidate]` in Step 4 are picked up by `/wrap-up`'s Decision records curation row and run through the ADR gate for possible ADR creation (see `_shared/decision-records.md`). |
 | `_shared/criteria-architecture-depth.md` | The shared depth criteria (leverage, deletion test, dependency classification, vocabulary) — single source of truth read by both `/deepen` and `/code-health`'s architecture-depth lens. |
+| `_shared/staged-patch.md` | Auto-mode collapse staging follows this contract — `staged/deepen-collapse-{n}.patch` for collapse candidates with ≤3 call sites (preamble, `git apply --check` gate, console fallback). Deepen-kind candidates are never staged as patches. |
+| `_shared/scope-resolution.md` | Step 1's no-argument scope resolves by this deterministic ladder — `/deepen` retired its restated copy; source filtering and deletion handling stay in Step 1. |
 
 ## demo
 
@@ -296,12 +298,13 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/test` | Validates QA stories derived from journeys; `journey={name}` filter runs only the QA stories tied to a single journey. |
 | `/wrap-up` | Wrap-up's Journeys curation row applies the same `_shared/journey-self-review.md` checks inline to journeys whose `files:` frontmatter overlaps the just-completed work's diff (see `journey-curation.md` in that skill's directory), and separately detects a persona-facing flow with zero journey coverage — the same reuse pattern its Skills row applies to `_shared/harness-health-analysis.md` and its Docs row applies to `_shared/criteria-docs-diataxis.md`. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. |
+| `_shared/scope-resolution.md` | Input's no-argument case resolves the file set by this deterministic ladder; journey mapping stays this skill's own. |
 
 ## ledger
 
 | Target | Relationship |
 |---|---|
-| `/deepen` | Does not write ledger items. Pipeline staging goes through the Auto-Mode Contract instead (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`), and `/flow` renders returned candidates directly as a Depth Opportunities block, never via the ledger. |
+| `/deepen` | Does not write ledger items. Pipeline staging goes through the Auto-Mode Contract instead (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`, plus `staged/deepen-collapse-{n}.patch` for narrow collapse candidates per `_shared/staged-patch.md`), and `/flow` renders returned candidates directly as a Depth Opportunities block, never via the ledger. |
 | `/tidy` | `/ledger` creates the per-feature ledger files at `docs/plans/*-ledger.md`, consumed by `/build`, `/test`, `/review`, `/wrap-up`, and `/flow` during a pipeline run, and deleted at `/wrap-up`'s Phase 4 execution step on successful completion. `/tidy` does not currently scan ledger files — no step in `tidy/scan-procedures.md` reads `docs/plans/*-ledger.md`, so a stale or orphaned ledger left by a pipeline that never reached wrap-up is not surfaced by a `/tidy` sweep today. Known gap. |
 
 ## reflect
@@ -315,6 +318,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `bin/resolve-profile.js` | Step 2's lens procedure dispatches as one `[Use: Frontier]` singleton Task agent when this run is standalone (component-invoked ⇒ no dispatch, per the Component-Skill Contract) — record #221. |
 | `_shared/transcript-judge.md` | Step 2's standalone singleton dispatch reads the transcript via this shared harness — consumer key `reflect` — record #857. Component-invoked path is unaffected (no dispatch, no transcript read). |
 | `bin/lib/hooks/pre-tool-use.js`, `bin/lib/hooks/post-tool-use.js`, and `bin/lib/hooks/subagent-stop.js` | The Friction lens (`full-mode.md`/`light-mode.md`) reads denial events (`wd-deny`, `gate-denial`) logged by the first, the `ask-user-question` event logged by the second, and the `contract-violation` event logged by the third as its input source. |
+| `_shared/scope-resolution.md` | The no-scope input case selects its file set by this deterministic ladder, then reads those files' diffs — content analysis stays reflect's own. |
 | `/capture` | Reflect's Capture recommendation routes a tangential insight to `/capture`, which files it as a fresh backlog work record — invoked with the shaped body and `--defer-reason={value} --source reflect` (capture's Shaped-body branch). |
 
 ## research
@@ -337,6 +341,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/wrap-up` | Runs after `/review` passes — reflection, cleanup, knowledge capture. Skill-routed entries from lens 3a (phase `review/skill`) and `/reflect` hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed wrap-up's Skills curation row. `/wrap-up`'s Phase 4 execution safety-net gate (`verification-brief.md`) reads this skill's `### Visual Review` summary status and, when it shows only `Recommended` (no browser walk ran), triggers `/visual-review` itself using the same Step 6 mode resolution — never a separate implementation. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The severity-routing table in "Step 3 Routing — Code Review Findings" implements the contract's reversibility/confidence/severity floors. |
 | `_shared/learning-routing.md` | Lens 3a records a `review/skill` ledger entry without classifying it — `/wrap-up`'s Skills curation row classifies it afterward through this contract, routing a claude-tweaks-skill finding to D5 rather than a project-skill update. |
+| `_shared/scope-resolution.md` | Input case 7's bare invocation resolves changed files by this deterministic ladder; mode selection (code vs full) stays review's own. |
 
 ## routine
 
@@ -374,6 +379,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/deepen` | Complementary, different altitude — `/simplify` cleans up *within* files (line-level complexity), `/deepen` restructures *across* module interfaces (depth/leverage). Run `/simplify` on the files `/deepen` restructured for line-level cleanup. |
 | `/design-wrapper` | `/simplify` runs before `polish` mode in `/flow` — different phases (simplify is in build, polish is post-review). Neither invokes the other; `distill` is intent-only, reserved for `polish`'s intent-driven dispatch, so the two don't double-strip the same content. |
 | `/help` | `/help` references `/simplify` in the workflow diagram and reference card. |
+| `_shared/scope-resolution.md` | Input's no-argument case resolves scope by this deterministic ladder — `/simplify` retired its restated copy; what gets simplified stays its own criteria. |
 
 ## specify
 

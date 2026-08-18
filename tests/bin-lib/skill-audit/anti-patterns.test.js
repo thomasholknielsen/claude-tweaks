@@ -522,5 +522,16 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   the parser on the merged working tree (actual 376), not by adding 3 to
   //   373 — the arithmetic agreeing here is a check, not the evidence
   //   (`[IL-99]`).
-  assert.strictEqual(total, 376);
+  //
+  //   376 -> 379, deepen decline-memory + collapse fast lane. Three rows ADDED
+  //   to skills/deepen/SKILL.md's Anti-Patterns table ("Staging a deepen-kind
+  //   candidate as a `.patch` in `auto` mode", "Suppressing a previously
+  //   declined candidate", "Walking collapse candidates through the
+  //   per-candidate design conversation"). Verified: `git diff -- 'plugin/
+  //   skills/*/SKILL.md' | grep -E '^[-+]\|'` returns exactly these three `+`
+  //   lines and no `-` lines (simplify/SKILL.md's edit in the same change is
+  //   an Input-section numbered-list item, not a table row). Measured by
+  //   RUNNING the parser on the working tree (actual 379), not by adding 3 to
+  //   376 (`[IL-99]`).
+  assert.strictEqual(total, 379);
 });
