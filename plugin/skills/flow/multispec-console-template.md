@@ -171,5 +171,5 @@ Status values:
 
 Populate this footer from `manifest.yml` — any spec with `status: failed`, `not-run`, or still `running` gets a row.
 
-Below each table, patch display follows `wrap-up/console-template.md`'s reversibility-tiered rule — full diff inline for `reversibility: low`/`med`, a one-line summary plus paste-ready view command for `high`, fail-open to the full patch when no reversibility is recorded.
+Below each table, patch display follows `wrap-up/console-template.md`'s reversibility-tiered rule verbatim — see that file's tiering section for the low/med/high cases and the fail-open default.
 ```
