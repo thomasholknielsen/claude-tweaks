@@ -113,6 +113,13 @@ test('a green summary line with total derives the missing failed=0, never nullin
   assert.deepStrictEqual(parseCounts('Tests: 5 passed, 5 total', 'summary'), { tests: 5, pass: 5, fail: 0 });
 });
 
+test('a green jest line with a skip does not fabricate a fail count from the skipped tests (I2 regression)', () => {
+  assert.deepStrictEqual(
+    parseCounts('Tests:       1 skipped, 4 passed, 5 total', 'summary'),
+    { tests: 5, pass: 4, fail: 0 },
+  );
+});
+
 test('a summary line with passed but no failed and no total still yields null (nothing to derive from)', () => {
   assert.strictEqual(parseCounts('Tests: 5 passed', 'summary'), null);
 });

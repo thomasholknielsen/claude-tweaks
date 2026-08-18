@@ -76,8 +76,14 @@ function parseCounts(text, family) {
     const total = num(line.match(/(\d+) total/));
     if (failed === null && passed === null) return null;
     if (total !== null) {
-      if (failed === null) failed = total - passed;
-      if (passed === null) passed = total - failed;
+      const accounted = [...line.matchAll(/(\d+) ([a-z]+)/gi)]
+        .filter((m) => m[2].toLowerCase() !== 'total')
+        .reduce((s, m) => s + Number(m[1]), 0);
+      const missing = total - accounted;
+      if (missing >= 0) {
+        if (failed === null) failed = missing;
+        else if (passed === null) passed = missing;
+      }
     }
     if (failed === null || passed === null) return null;
     return { tests: total === null ? passed + failed : total, pass: passed, fail: failed };
