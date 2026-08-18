@@ -73,7 +73,7 @@ and the diff spans every commit since the fork — which reads as an enormous ch
   change what agents infer; truth is not the test, behavior delta is.
 - **Weigh the summary's `implLines`/`implFiles` against the CLI-reported
   `auto-merge-max-lines`/`auto-merge-max-files` — but only once the diff is judged to carry behavior
-  change at all.** `blastRadiusSummary` reports whole-diff totals; there is no per-hunk breakdown
+  change at all.** The CLI's `summary` reports whole-diff totals; there is no per-hunk breakdown
   to weigh, which is why the judgment below is deliberately a binary on the whole diff rather than
   an attempt to size some behavior-carrying fraction of it. Size proxies review burden, not risk:
   a large diff in which every hunk is the same
