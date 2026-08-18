@@ -12,6 +12,7 @@ const MAX_LINE_CHARS = 500;
 
 const TAP_MARKERS = [/^not ok\b/m, /^ok \d/m, /^# tests\b/m];
 const SUMMARY_MARKERS = [/^FAIL /m, /^PASS /m, /^Tests:.*failed/m, /^=+ .*(passed|failed).*=+$/m];
+const KNOWN_SUMMARY_CATEGORIES = ['failed', 'passed', 'skipped', 'pending', 'todo'];
 
 function sniffFamily(text) {
   if (TAP_MARKERS.some((re) => re.test(text))) return 'tap';
@@ -76,10 +77,9 @@ function parseCounts(text, family) {
     const total = num(line.match(/(\d+) total/));
     if (failed === null && passed === null) return null;
     if (total !== null) {
-      const KNOWN_CATEGORIES = ['failed', 'passed', 'skipped', 'pending', 'todo'];
       const pairs = [...line.matchAll(/(\d+) ([a-z]+)/gi)]
         .filter((m) => m[2].toLowerCase() !== 'total');
-      const hasUnknownCategory = pairs.some((m) => !KNOWN_CATEGORIES.includes(m[2].toLowerCase()));
+      const hasUnknownCategory = pairs.some((m) => !KNOWN_SUMMARY_CATEGORIES.includes(m[2].toLowerCase()));
       if (!hasUnknownCategory) {
         const accounted = pairs.reduce((s, m) => s + Number(m[1]), 0);
         const missing = total - accounted;
