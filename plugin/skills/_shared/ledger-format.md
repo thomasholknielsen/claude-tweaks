@@ -28,6 +28,10 @@ The `{feature}` name matches the execution plan or spec topic. One ledger per pi
 
 Items are numbered sequentially starting at 1. New items always get the next available number. Numbers are never reused — if item 3 is resolved, the next item is still 4.
 
+### De-duplication on Append
+
+Before appending, check existing items for semantic duplicates. If an item with the same phase and a substantially similar description already exists, skip the add and note "Duplicate — matches item #{N}" in the writing skill's own output — never silently skip.
+
 ## Status Lifecycle
 
 ```
@@ -41,6 +45,8 @@ observation          (informational, non-blocking — e.g., QA caveats)
 **Terminal statuses:** `fixed`, `deferred`, `accepted`, `acknowledged`, `observation` — these items are resolved and will not block the pipeline.
 
 **Non-terminal status:** `open` — these items block pipeline completion.
+
+**Resolution-text requirements.** `open` moves only to a terminal status, and only with resolution text (`observation` excepted). Terminal statuses are final — a wrong fix gets a new item, never a reopen. Per status: `fixed` includes the commit hash or file reference; `deferred` includes origin, affected files, and the trigger for when to revisit; `accepted` includes the stated reason why this is acceptable.
 
 User-facing "Drop" choice in the resolve gate maps to status `accepted` with reason `dropped per user` (see this file's Resolve Gate section, Phase 3, for the full disposition table).
 
@@ -56,7 +62,7 @@ Skill     ::= "build" | "test" | "review" | "reflect" | "wrap-up" | "ops" | "flo
 Qualifier ::= "ops" | "skill" | "hindsight" | "qa"
 ```
 
-The qualifier adds specificity when a skill produces multiple finding types, but is optional. Downstream filters (Wrap-Up Review Console, `/tidy` cross-spec scans) parse the phase string by splitting on `/` — keep the format strict.
+The qualifier adds specificity when a skill produces multiple finding types, but is optional. Downstream filters (e.g. the Wrap-Up Review Console) parse the phase string by splitting on `/` — keep the format strict.
 
 | Phase | Source | Typical Items |
 |-------|--------|---------------|

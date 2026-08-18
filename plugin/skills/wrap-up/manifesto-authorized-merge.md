@@ -1,8 +1,8 @@
 # Manifesto-Authorized Merge — the `merge-authorization` lever's Auto-merge short-circuit branch
 
-Cited from `wrap-up/review-console.md`'s "Auto-merge short-circuit" section — read this file only
-when that section's applicability check reaches its `merge-authorization` branch (below); the
-existing `auto:merge`-label branch is unchanged and does not need this file.
+Cited from `wrap-up/auto-merge-short-circuit.md` — read this file only when that file's
+applicability check reaches its `merge-authorization` branch (below); the existing `auto:merge`-
+label branch is unchanged and does not need this file.
 
 ## Applicability (second, independent trigger)
 
