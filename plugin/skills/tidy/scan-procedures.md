@@ -348,6 +348,14 @@ That is why `[doctor]` routes to **Yours ({N})** and **never** **Approve ({N})**
 
 → Collect each as: `[doctor] {id} ({severity}) — {summary} — {fix}`
 
+## Step 4.95: Calibration Read-Out
+
+Main thread, parallel with the agent batch — report-only, no action drill, matching `[doctor]`'s surface-or-suppress posture.
+
+Invoke `node "${CLAUDE_PLUGIN_ROOT}/bin/calibration-report.js"` and render its output verbatim under **Yours ({N})** — no action drill, no mutations.
+
+→ Collect as: `[calibration] {rendered report text}`
+
 ## Step 5: Record Sizing Review
 
 For `ready` records not yet claimed — `facets.bot.inProgress === false` (from Step 1's already-fetched facets under `work-backend: github-issues`; every `ready` local record qualifies, since the local driver carries no bot state) — fetch each body and check sizing:
@@ -403,5 +411,6 @@ Patterns and health observations are informational — they surface systemic iss
 | `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[acceptance-gap]`, `[sizing]` | **Yours ({N})** | Auto (no-op, always surfaced) at every aggressiveness tier — no mutation exists to stage; each finding carries its own paste-ready command. |
 | `[pattern]` | **Yours ({N})** | Informational; presented as items in Yours. |
 | `[doctor]` | **Yours ({N})** | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** **Approve ({N})**, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
+| `[calibration]` | **Yours ({N})** | Report-only, surface-or-suppress, never applied — matches `[doctor]`'s semantics. No action drill. |
 | `[health]` | **Yours ({N})** — each line carries the finding's own follow-up command (e.g. the matching `/claude-tweaks:*-health` skill or the file to review) | Project-level observations. |
 | Keep / nothing-to-report scans (any tag above) | **Clean:** (counted) | Never itemized rows. |

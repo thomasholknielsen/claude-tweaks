@@ -104,6 +104,7 @@ function telemetryOutcome(result, findings) {
   return String(result);
 }
 
+// Coupled reader: plugin/bin/lib/calibration/tsv-reader.js parses this exact column shape.
 function appendTelemetry(telemetryPath, { now, runId, rowId, gate, findings, result }) {
   // telemetryPath is an explicit param, not defaulted here — the CLI resolves
   // the production path. When absent (e.g. a caller that hasn't wired it up
