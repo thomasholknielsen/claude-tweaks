@@ -286,7 +286,7 @@ Address fixes first, then re-run this review — when "fix now" items exist
 - Every reviewed page produces vitals — Web Vitals are a first-class finding category, never skip the `vitals` op
 - Always use annotated screenshots — bare screenshots lose the overlay numbering that makes findings precise
 - Journey walks use a single `batch` invocation per session lifecycle slice — never spread a journey across many one-off invocations
-- When a step fails, `trace save` first, then `close` — failure reports without a trace path are not actionable
+- When a step fails, save the trace first (`trace stop <path>` — recording must have been started at session open via `trace start`), then `close` — failure reports without a trace path are not actionable
 - The review is scoped to the current work — don't review the entire application (except in journey mode, where the full journey is in scope, and discover mode, which scans the whole app)
 - Journey mode auto-detects when invoked with no arguments by checking `docs/journeys/` against recent changes
 - Journey files are living documents — update them when visual review reveals gaps or inaccuracies

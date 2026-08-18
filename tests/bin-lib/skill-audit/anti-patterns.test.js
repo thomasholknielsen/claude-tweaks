@@ -533,5 +533,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   an Input-section numbered-list item, not a table row). Measured by
   //   RUNNING the parser on the working tree (actual 379), not by adding 3 to
   //   376 (`[IL-99]`).
-  assert.strictEqual(total, 379);
+  //
+  //   379 -> 381, /stories maintainer-objective fixes (agent-browser drift +
+  //   Target Environment Guard) merged with origin/main (deepen's +3 above —
+  //   both sides moved this pin from 376 independently). Own-branch side: two
+  //   rows ADDED to stories/SKILL.md's Anti-Patterns table ("Running an
+  //   action-less `find` as an existence probe", "Generating negative stories
+  //   against a non-local target without acknowledgment"); three rows reworded
+  //   in place with no count change (two in stories/SKILL.md, one in
+  //   visual-review/SKILL.md — trace record-then-stop model). Measured by
+  //   RUNNING the parser on the merged working tree (actual 381), not by
+  //   adding 2 to 379 — the arithmetic agreeing here is a check, not the
+  //   evidence (`[IL-99]`).
+  assert.strictEqual(total, 381);
 });

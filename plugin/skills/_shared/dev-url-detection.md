@@ -25,7 +25,7 @@ Before probing ports, check if a URL was previously detected and persisted:
    c. If it doesn't respond → log: "Persisted URL {url} not responding — probing ports..." and continue to Step 1
 3. If no file or no `servers` section → continue to Step 1
 
-> **File split:** `stories/servers.yml` holds server URLs only — safe to commit and share between runs. Credentials live in the encrypted Auth Vault (set via `agent-browser auth set`), never in a file under `stories/` — `stories/servers.yml` must not be gitignored.
+> **File split:** `stories/servers.yml` holds server URLs only — safe to commit and share between runs. Credentials live in the encrypted Auth Vault (saved via `agent-browser auth save`), never in a file under `stories/` — `stories/servers.yml` must not be gitignored.
 
 ### Step 1: Probe Common Ports
 
