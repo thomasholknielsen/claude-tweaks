@@ -125,7 +125,7 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    since Section C is skipped when no worktree exists).
 3.5. **Transitional guard — a run directory whose only copy is inside this worktree.**
    Run directories created since run-dir anchoring shipped (2026-08-07, `_shared/pipeline-run-dir.md`'s
-   Anchoring section) live under the **main checkout**, so Section B step 5 can rely on the copy
+   Anchoring section) live under the **main checkout**, so Section B step 4 can rely on the copy
    being there and removing a worktree cannot destroy it. Runs created *before* that hold their
    only copy of `config.yml`, `decisions.md`, `events.jsonl` and `staged/` inside the worktree,
    where step 4 below deletes them permanently — there is no git history to recover from, the
