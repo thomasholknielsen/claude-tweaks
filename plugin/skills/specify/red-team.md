@@ -49,7 +49,7 @@ unchanged from before.
 > |---|---|
 > | Implementer | Could I build exactly what this asks for without asking a question? |
 > | Maintainer | In 6 months, can someone changing related code know what they can/can't break? |
-> | Skeptical Reviewer | What unstated assumption is doing the load-bearing work here? |
+> | Skeptical Reviewer | What unstated assumption is doing the load-bearing work here? Additionally: if the record body contains a `Blocked by #N: {assumption}` line, check whether that assumption text asserts prose/documentation shape (a specific string or wording) rather than a structural fact (a function, symbol, API, or file existing) — the former is not robust to #N's own `## Non-Goals` later narrowing prose scope without touching whether the thing structurally exists. Flag a prose-shape assumption as a finding; a mechanical assumption is not a finding on this check alone. |
 
 ## Write-back procedure
 
