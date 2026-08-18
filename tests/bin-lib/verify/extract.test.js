@@ -109,6 +109,14 @@ test('summary line with only a failed count (no passed count) yields null, never
   assert.strictEqual(parseCounts('FAIL src/b.test.js\nTests: 3 failed', 'summary'), null);
 });
 
+test('a green summary line with total derives the missing failed=0, never nulling out a clean run (I2)', () => {
+  assert.deepStrictEqual(parseCounts('Tests: 5 passed, 5 total', 'summary'), { tests: 5, pass: 5, fail: 0 });
+});
+
+test('a summary line with passed but no failed and no total still yields null (nothing to derive from)', () => {
+  assert.strictEqual(parseCounts('Tests: 5 passed', 'summary'), null);
+});
+
 test('generic family never yields counts', () => {
   assert.strictEqual(parseCounts('# tests 3\n# pass 3\n# fail 0', 'generic'), null);
 });

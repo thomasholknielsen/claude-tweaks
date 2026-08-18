@@ -48,7 +48,8 @@ async function main() {
   } catch (err) {
     if (err instanceof UsageError) {
       process.stderr.write(`${err.message}\n${USAGE}\n`);
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     }
     throw err;
   }
@@ -78,10 +79,10 @@ async function main() {
   }
   lines.push('', `report: ${jsonPath}`);
   process.stdout.write(`${lines.join('\n')}\n`);
-  process.exit(report.pass ? 0 : 1);
+  process.exitCode = report.pass ? 0 : 1;
 }
 
 main().catch((err) => {
   process.stderr.write(`verify.js: ${String((err && err.stack) || err)}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 });

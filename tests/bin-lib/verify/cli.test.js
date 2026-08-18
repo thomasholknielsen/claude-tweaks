@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { execFile } = require('child_process');
+const { execFile, spawnSync } = require('child_process');
 
 const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'verify.js');
 
@@ -56,18 +56,33 @@ test('a metacharacter-bearing --cmd value executes intact in the child shell (AC
   assert.ok(log.includes('22'));
 });
 
-test('a >1MB emitter leaves runner stdout <= 64KB while the log holds everything (AC2)', async () => {
+test('a >1MB emitter leaves runner stdout <= 64KB while the log holds everything (AC2)', () => {
+  // execFile's pipe-captured stdout would only ever measure the OS pipe
+  // buffer's own capacity (65536 bytes on this platform), not the runner's
+  // real output size — a >64KB write truncated by that buffer looks
+  // identical to a genuinely-bounded one. Redirect to a real file instead so
+  // the assertion measures what the runner actually wrote.
   const logDir = tmpDir();
-  const { code, stdout } = await runCli([
+  const outFile = path.join(tmpDir(), 'stdout.txt');
+  const outFd = fs.openSync(outFile, 'w');
+  const result = spawnSync(process.execPath, [CLI,
     '--log-dir', logDir,
-    '--cmd', 'tests=node -e "process.stdout.write(Buffer.alloc(1500000, 120), () => process.exit(1))"']);
-  assert.notStrictEqual(code, 0);
-  assert.ok(Buffer.byteLength(stdout) <= 64 * 1024,
-    `runner stdout was ${Buffer.byteLength(stdout)} bytes`);
+    '--cmd', 'tests=node -e "process.stdout.write(Buffer.alloc(1500000, 120), () => process.exit(1))"',
+  ], { stdio: ['ignore', outFd, 'ignore'] });
+  fs.closeSync(outFd);
+  assert.notStrictEqual(result.status, 0);
+  const stdoutSize = fs.statSync(outFile).size;
+  assert.ok(stdoutSize <= 64 * 1024, `runner stdout was ${stdoutSize} bytes`);
   assert.ok(fs.statSync(path.join(logDir, 'tests.log')).size >= 1500000);
 });
 
-test('a non-spawnable command is a failed check with the spawn error, never a silent skip (AC6)', async () => {
+test('an unresolvable shell command is a failed check via shell exit code (not the spawnError seam — see run.test.js for that path) (AC6 partial)', async () => {
+  // spawn(cmd, {shell: true}) means the shell itself always spawns
+  // successfully, then reports "command not found" via its own exit code
+  // (127) — this exercises that shell exit-code path, not the runner's
+  // own spawnError capture (a spawnImpl that throws synchronously, or
+  // emits a child 'error' event), which is only exercised end-to-end via
+  // the injected fake in run.test.js.
   const logDir = tmpDir();
   const { code } = await runCli([
     '--log-dir', logDir, '--cmd', 'tests=definitely-not-a-real-command-892']);

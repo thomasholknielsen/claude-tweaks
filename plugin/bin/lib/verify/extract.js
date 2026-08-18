@@ -8,6 +8,7 @@
 const MAX_REGION_LINES = 100;
 const GENERIC_TAIL_LINES = 30;
 const MAX_SUMMARY_CHARS = 200;
+const MAX_LINE_CHARS = 500;
 
 const TAP_MARKERS = [/^not ok\b/m, /^ok \d/m, /^# tests\b/m];
 const SUMMARY_MARKERS = [/^FAIL /m, /^PASS /m, /^Tests:.*failed/m, /^=+ .*(passed|failed).*=+$/m];
@@ -19,7 +20,9 @@ function sniffFamily(text) {
 }
 
 function cap(lines) {
-  return lines.slice(0, MAX_REGION_LINES).join('\n');
+  return lines.slice(0, MAX_REGION_LINES)
+    .map((line) => (line.length > MAX_LINE_CHARS ? `${line.slice(0, MAX_LINE_CHARS)}…` : line))
+    .join('\n');
 }
 
 function extractFailingRegion(text, family) {
@@ -68,9 +71,14 @@ function parseCounts(text, family) {
     const lineMatch = text.match(/^Tests:.*$/m) || text.match(/^=+ .*(?:passed|failed).*=+$/m);
     if (lineMatch === null) return null;
     const line = lineMatch[0];
-    const failed = num(line.match(/(\d+) failed/));
-    const passed = num(line.match(/(\d+) passed/));
+    let failed = num(line.match(/(\d+) failed/));
+    let passed = num(line.match(/(\d+) passed/));
     const total = num(line.match(/(\d+) total/));
+    if (failed === null && passed === null) return null;
+    if (total !== null) {
+      if (failed === null) failed = total - passed;
+      if (passed === null) passed = total - failed;
+    }
     if (failed === null || passed === null) return null;
     return { tests: total === null ? passed + failed : total, pass: passed, fail: failed };
   }
@@ -88,5 +96,5 @@ function summaryLine(text, family) {
 
 module.exports = {
   sniffFamily, extractFailingRegion, parseCounts, summaryLine,
-  MAX_REGION_LINES, GENERIC_TAIL_LINES,
+  MAX_REGION_LINES, GENERIC_TAIL_LINES, MAX_LINE_CHARS,
 };

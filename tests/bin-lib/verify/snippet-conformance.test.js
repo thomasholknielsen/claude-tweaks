@@ -46,6 +46,11 @@ test('negative control: the parser rejects an unknown flag, so drift turns this 
   assert.throws(() => parseArgs(['--not-a-real-flag']), UsageError);
 });
 
+test('the snippet tokenizer itself can go red on an injected unknown flag', () => {
+  const mutated = extractSnippet() + ' --bogus';
+  assert.throws(() => parseArgs(snippetArgv(mutated)), UsageError);
+});
+
 test('the retired capture recipe is gone from verification.md (AC8/AC11)', () => {
   assert.ok(!/verify-test\.log/.test(DOC), 'verify-test.log recipe still present');
   assert.ok(!/Capture, never stream/i.test(DOC), '"Capture, never stream" heading still present');
