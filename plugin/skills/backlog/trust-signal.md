@@ -9,9 +9,10 @@ table only when `{resolved-ceiling}` is `trusted` or higher, **or** `--trust` wa
 `_shared/trust-table.md`'s Fetch section, including its per-parent branches and its `git log`
 read, never runs this session — Trust evidence is omitted from the report for this run, and Step
 4's footer renders the skip wording given there instead of the ceiling-description wording. On this
-skip path, delete or ignore any pre-existing `/tmp/backlog-refine-trust.json` left over from an
-earlier run in the same environment (`rm -f /tmp/backlog-refine-trust.json`, or simply never read
-it) — this run must never render a stale trust table left behind by a prior `--trust` invocation.
+skip path, delete or ignore any pre-existing session-scoped `backlog-refine-trust.json` left over
+from an earlier run in this same session (`_shared/session-tmp-root.md`; resolve the path, then
+`rm -f "$path"`, or simply never read it) — this run must never render a stale trust table left
+behind by a prior `--trust` invocation.
 
 When fetching: run `_shared/trust-table.md`'s Fetch section in full (including its
 `backlog-fetch-limit` resolution, its `work-links` resolution — which decides which of the two
@@ -31,6 +32,10 @@ JS source — a value containing a quote character would otherwise break out of 
 the same reason `code-health/focus-mode.md`'s F1 block passes its own values that way.
 
 ```bash
+BACKLOG_REFINE_TRUST=$(node -e "
+  const { sessionTmpPath } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'backlog-refine-trust.json') || require('path').join(require('os').tmpdir(), 'backlog-refine-trust.json'))
+")
 node -e "
   const fs = require('fs');
   const root = process.env.CLAUDE_PLUGIN_ROOT;
@@ -62,7 +67,7 @@ node -e "
     };
   }
   console.log(JSON.stringify(out));
-" -- "{resolved-window}" > /tmp/backlog-refine-trust.json
+" -- "{resolved-window}" > "$BACKLOG_REFINE_TRUST"
 ```
 
 **This signal never changes what the gate recommends.** `/claude-tweaks:assess-agent-autonomy`'s

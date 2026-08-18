@@ -8,13 +8,27 @@ not) and Acceptance Queue (awaiting sign-off), which cover different concerns.
 
 ## Step 1: Fetch
 
+Every temp file this mode writes below resolves through `bin/lib/session-tmp.js`'s `sessionTmpPath`, per `_shared/session-tmp-root.md`'s session-scoped temp-root convention (cited once here, not restated per script).
+
 Two separate `gh issue list` calls — `--label` ANDs multiple values passed to the same flag, so a
 single call with both labels would return only records carrying both (nearly always empty), not
 either:
 
 ```bash
-gh issue list --state open --label needs:definition --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-needs-definition.json
-gh issue list --state open --label solution:unjustified --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-solution-unjustified.json
+eval "$(node -e "
+  const { sessionTmpPath } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = {
+    ST_BACKLOG_ATTENTION_NEEDS_DEFINITION: 'backlog-attention-needs-definition.json',
+    ST_BACKLOG_ATTENTION_SOLUTION_UNJUSTIFIED: 'backlog-attention-solution-unjustified.json',
+  };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
+gh issue list --state open --label needs:definition --json number,title,createdAt,labels --limit 200 > "$ST_BACKLOG_ATTENTION_NEEDS_DEFINITION"
+gh issue list --state open --label solution:unjustified --json number,title,createdAt,labels --limit 200 > "$ST_BACKLOG_ATTENTION_SOLUTION_UNJUSTIFIED"
 ```
 
 If either fetch returns exactly `200` results, state that in the rendered output — the same
@@ -31,9 +45,22 @@ action` concatenates both remedies (`needs:definition`'s redirect action first, 
 `solution:unjustified`'s grant-or-evidence action, semicolon-separated).
 
 ```bash
+eval "$(node -e "
+  const { sessionTmpPath } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = {
+    ST_BACKLOG_ATTENTION_NEEDS_DEFINITION: 'backlog-attention-needs-definition.json',
+    ST_BACKLOG_ATTENTION_SOLUTION_UNJUSTIFIED: 'backlog-attention-solution-unjustified.json',
+    ST_BACKLOG_ATTENTION_MERGED: 'backlog-attention-merged.json',
+  };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
 node -e "
-  const needsDefinition = require('/tmp/backlog-attention-needs-definition.json');
-  const solutionUnjustified = require('/tmp/backlog-attention-solution-unjustified.json');
+  const needsDefinition = require('$ST_BACKLOG_ATTENTION_NEEDS_DEFINITION');
+  const solutionUnjustified = require('$ST_BACKLOG_ATTENTION_SOLUTION_UNJUSTIFIED');
   const byNumber = new Map();
   for (const r of needsDefinition) byNumber.set(r.number, { ...r, types: ['needs:definition'] });
   for (const r of solutionUnjustified) {
@@ -42,7 +69,7 @@ node -e "
     else byNumber.set(r.number, { ...r, types: ['solution:unjustified'] });
   }
   console.log(JSON.stringify([...byNumber.values()]));
-" > /tmp/backlog-attention-merged.json
+" > "$ST_BACKLOG_ATTENTION_MERGED"
 ```
 
 ## Step 3: Rank
@@ -53,10 +80,22 @@ Priority band first (`priority:high` > `priority:medium` > `priority:low`), then
 label sorts after every banded record, ordered among themselves by `createdAt` only.
 
 ```bash
+eval "$(node -e "
+  const { sessionTmpPath } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = {
+    ST_BACKLOG_ATTENTION_MERGED: 'backlog-attention-merged.json',
+    ST_BACKLOG_ATTENTION_RANKED: 'backlog-attention-ranked.json',
+  };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const BAND_ORDER = { high: 0, medium: 1, low: 2 };
-  const records = require('/tmp/backlog-attention-merged.json');
+  const records = require('$ST_BACKLOG_ATTENTION_MERGED');
   const ranked = records
     .map((r) => ({ ...r, priority: parseRecordFacets(r.labels).priority }))
     .sort((a, b) => {
@@ -66,7 +105,7 @@ node -e "
       return new Date(a.createdAt) - new Date(b.createdAt);
     });
   console.log(JSON.stringify(ranked));
-" > /tmp/backlog-attention-ranked.json
+" > "$ST_BACKLOG_ATTENTION_RANKED"
 ```
 
 ## Step 4: Render
