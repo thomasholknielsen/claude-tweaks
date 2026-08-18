@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.96.0 — Reconcile() latency reduction, fast-lane transcript-judge extraction, backlog trust-signal + merge-lane circuit breaker, and an 8-finding pre-release review-fix batch
+
+Reconcile() latency reduction, fast-lane transcript-judge extraction, backlog trust-signal + merge-lane circuit breaker, and an 8-finding pre-release review-fix batch.
+
 ## v6.95.0 — Cut plugin payload over to plugin/ with git-subdir marketplace source
 
 Cut plugin payload over to plugin/ with git-subdir marketplace source.
