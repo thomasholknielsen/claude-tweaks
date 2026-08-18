@@ -522,5 +522,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   the parser on the merged working tree (actual 376), not by adding 3 to
   //   373 — the arithmetic agreeing here is a check, not the evidence
   //   (`[IL-99]`).
-  assert.strictEqual(total, 376);
+  //
+  //   376 -> 378, /stories maintainer-objective fixes (agent-browser drift +
+  //   Target Environment Guard). Two rows ADDED to stories/SKILL.md's
+  //   Anti-Patterns table ("Running an action-less `find` as an existence
+  //   probe", "Generating negative stories against a non-local target without
+  //   acknowledgment"); three rows reworded in place with no count change (two
+  //   in stories/SKILL.md, one in visual-review/SKILL.md — trace
+  //   record-then-stop model). Verified: `git diff origin/main...HEAD --
+  //   'plugin/skills/*/SKILL.md' | grep -E '^[-+]\|'` returns exactly those
+  //   two net `+` rows plus the three reword pairs. Measured by RUNNING the
+  //   parser on this tree (actual 378), not by adding 2 to 376 — the
+  //   arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
+  assert.strictEqual(total, 378);
 });
