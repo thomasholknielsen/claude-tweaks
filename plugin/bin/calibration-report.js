@@ -33,9 +33,15 @@ function loadRuns(root) {
   });
 }
 
-function resolveAutonomyCeiling() {
+// resolve-policy.js resolves its project root via `git rev-parse
+// --show-toplevel` at ITS OWN process cwd (never from a --run value or a
+// positional argument — see that file's own header comment: "--run" there
+// names a pipeline run directory's config.yml overlay, a different concept
+// entirely). The only way to make it read `root`'s own policy.yml is to
+// spawn it with `root` as the child process's cwd.
+function resolveAutonomyCeiling(root, runner = execFileSync) {
   try {
-    return execFileSync('node', [path.join(__dirname, 'resolve-policy.js'), '--values', 'autonomy'], { encoding: 'utf8' }).trim();
+    return runner('node', [path.join(__dirname, 'resolve-policy.js'), '--values', 'autonomy'], { encoding: 'utf8', cwd: root }).trim();
   } catch {
     return 'unknown';
   }
@@ -74,7 +80,12 @@ function renderText(result, ceiling) {
       (result.consoleDist['approve-all'] / Math.max(1, Object.entries(result.consoleDist).filter(([k]) => k !== 'unlogged').reduce((s, [, v]) => s + v, 0))) === 1 &&
       ceiling === 'supervised') {
     lines.push('Consider raising autonomy from supervised to trusted (ceiling read at report time — stops earlier in the window may predate the current setting).');
-    lines.push('# edit .claude-tweaks/policy.yml: autonomy: trusted');
+    lines.push(
+      'node -e "const fs=require(\'fs\');const p=\'.claude-tweaks/policy.yml\';' +
+      'let t=fs.existsSync(p)?fs.readFileSync(p,\'utf8\'):\'\';' +
+      't=/^autonomy:/m.test(t)?t.replace(/^autonomy:.*$/m,\'autonomy: trusted\'):t+\'autonomy: trusted\\n\';' +
+      'fs.writeFileSync(p,t)"',
+    );
   }
   if (result.suppressions.narrowing.length) {
     lines.push(`(Suppressed narrowing signals — under 10 appearances: ${result.suppressions.narrowing.join(', ')})`);
@@ -107,7 +118,7 @@ function main() {
     }));
   }
   const result = aggregate({ tsv, runs, rowIds: ROW_IDS, windowN: args.runs });
-  const ceiling = resolveAutonomyCeiling();
+  const ceiling = resolveAutonomyCeiling(args.root);
   if (args.json) process.stdout.write(JSON.stringify(result) + '\n');
   else process.stdout.write(renderText(result, ceiling));
   process.exit(0);
