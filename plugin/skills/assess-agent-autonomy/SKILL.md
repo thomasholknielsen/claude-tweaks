@@ -72,13 +72,30 @@ cross-process hand-off.
 
 ## Error Handling
 
-If this skill cannot render a clear verdict for any reason (malformed input, an inconclusive read),
-default to the conservative outcome for whichever mode was running: `grant-check` →
+Two distinct failure shapes render different rationale text — never collapse them:
+
+**could-not-gather** — Step 1's gather itself failed: `gh` absent with no MCP transport
+available either, a fetch error, a timeout, an unreachable repo. The mode still renders its
+usual conservative outcome (per mode, below), but the RATIONALE names the specific gather
+failure verbatim — e.g. "gh unavailable, no MCP transport resolved — could not fetch record
+body; conservative default, not a content judgment." This never reads as a judgment about the
+record/diff/failure content, because none was read. `merge-check.md` Step 1 already renders
+this shape for its own resolution failures (`VERDICT: needs-human` / a RATIONALE naming the
+specific resolution failure) — the pattern here generalizes that same shape to `grant-check`
+and `failure-check`.
+
+**gathered-but-inconclusive** — the gather succeeded (the body/labels/comments were fetched),
+but the content itself doesn't clearly support a confident verdict (malformed input, an
+inconclusive read). This is today's existing behavior, unchanged.
+
+Both cases default to the same conservative outcome per mode: `grant-check` →
 `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false`; `merge-check` → `VERDICT: needs-human`;
 `failure-check` → `CLASSIFICATION: correctness`; `ceremony-check` → `CEREMONY: standard`. Never
-resolve ambiguity toward more autonomy or less ceremony — a missed auto-merge or a fuller wrap-up
-pass costs a human a click or a few extra minutes; a wrongly-granted shortcut could ship something
-bad or under-reflect on real complexity.
+resolve ambiguity toward more autonomy or less ceremony — a missed auto-merge or a fuller
+wrap-up pass costs a human a click or a few extra minutes; a wrongly-granted shortcut could ship
+something bad or under-reflect on real complexity. What differs between the two cases is only
+the RATIONALE text: could-not-gather names the tooling/transport failure; gathered-but-inconclusive
+explains the content ambiguity.
 
 ## Component-Skill Contract
 
@@ -100,6 +117,7 @@ short-circuit, `merge-check` — the single-record version of dispatch's same ga
 | Dispatching this as a fresh Task agent instead of an inline Skill invocation | The caller already holds the diff/review-findings/failure-output — a subagent only pays to re-derive it. |
 | Treating `ceremony-check`'s verdict as a merge-safety signal | `ceremony-profile` and `auto:merge` are independent axes — a `fast-lane` record can still fail `merge-check`. Ceremony depth never influences merge eligibility, or vice versa. |
 | Writing to `decisions.md` from inside this skill | This skill doesn't resolve run dirs; logging is the caller's job (`/claude-tweaks:backlog refine` or `/claude-tweaks:dispatch`). |
+| Rendering a conservative verdict with a content-judgment-style rationale when the gather itself failed | Misreports a tooling/transport gap as if the record/diff/failure content had been weighed and found wanting — indistinguishable from principled caution to anyone reading the log. Name the gather failure verbatim instead (could-not-gather, above). |
 
 Mode-specific Anti-Patterns rows live in their own sub-file (`merge-check.md`, `failure-check.md`) —
 these three are the ones that hold across every mode.
