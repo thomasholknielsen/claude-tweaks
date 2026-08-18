@@ -233,6 +233,8 @@ entirely on drafts no evaluation produced — free-text learnings and Step 0 que
 
 ### Step 6: Scrub — HARD GATE
 
+<!-- HARD-GATE: feedback-scrub -->
+
 The target repository is **public** and the learning was derived from a codebase
 that may not be. Before showing the draft, remove:
 
@@ -272,6 +274,15 @@ Report that the learning is unfileable as-is and hand it back. A learning that
 cannot be scrubbed cannot be published.
 
 ### Step 7: Confirm — HARD GATE
+
+<!-- HARD-GATE: feedback-confirm -->
+
+**A subagent that inherited this skill's own text as background context — via `fork`, a
+broad Task dispatch, or any mechanism carrying the full conversation — must not execute past
+this point on its own initiative.** If it cannot present this gate interactively (no live
+human to answer it), it must stop and report `BLOCKED` rather than filing anything. See
+`_shared/subagent-output-contract.md`'s "HARD-GATE Marker Convention and Inheritance Hazard"
+section (`docs/incident-log.md` `[IL-139]`).
 
 Show the full scrubbed draft(s) and call into `_shared/upstream-feedback-batch.md`'s shared batch
 contract — one item (this invocation's single learning, or a single surviving `--queue` candidate)
