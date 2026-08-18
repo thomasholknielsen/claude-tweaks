@@ -104,7 +104,13 @@ function computeBlastRadius(opts = {}, deps = {}) {
     throw new BlastRadiusError('merge-base resolution returned an empty value');
   }
 
-  const files = parseNumstat(git(['diff', '--numstat', `${mergeBase}..HEAD`]));
+  let diffRaw;
+  try {
+    diffRaw = git(['diff', '--numstat', `${mergeBase}..HEAD`]);
+  } catch (err) {
+    throw new BlastRadiusError(`git diff --numstat failed: ${err.message}`);
+  }
+  const files = parseNumstat(diffRaw);
   const config = resolveConfig({ git, readFile, runDir });
   const summary = blastRadiusSummary(classifyDiffFiles(files, config.mergeSensitivePaths));
   return { mergeBase, config, summary };

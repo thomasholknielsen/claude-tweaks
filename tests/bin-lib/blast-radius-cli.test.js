@@ -63,6 +63,18 @@ test('unresolvable merge base throws BlastRadiusError — never a zero summary',
   );
 });
 
+test('git diff --numstat failure after a resolved merge base throws BlastRadiusError', () => {
+  const git = fakeGit({
+    'merge-base': () => `${SHA}\n`,
+    diff: () => { throw new Error('fatal: bad revision'); },
+    'rev-parse': () => '/repo\n',
+  });
+  assert.throws(
+    () => computeBlastRadius({ integrationBranch: 'main' }, { git, readFile: () => null }),
+    (err) => err instanceof BlastRadiusError && /git diff --numstat failed/.test(err.message)
+  );
+});
+
 test('unverifiable --base throws BlastRadiusError', () => {
   const git = fakeGit({
     'rev-parse': (args) => {
