@@ -49,3 +49,17 @@ test('failure-check.md Step 1 references the issue_read MCP mapping and the coul
     'expected failure-check.md to reference the could-not-gather case by name'
   );
 });
+
+test('grant-check.md and failure-check.md both cover the fetch-error scenario', () => {
+  const grantSource = fs.readFileSync(GRANT_CHECK_MD, 'utf8');
+  const failureSource = fs.readFileSync(FAILURE_CHECK_MD, 'utf8');
+  const fetchErrorPhrase = 'Or the fetch itself fails';
+  assert.ok(
+    grantSource.includes(fetchErrorPhrase),
+    `expected grant-check.md to cover the fetch-error scenario with phrase "${fetchErrorPhrase}"`
+  );
+  assert.ok(
+    failureSource.includes(fetchErrorPhrase),
+    `expected failure-check.md to cover the fetch-error scenario with phrase "${fetchErrorPhrase}"`
+  );
+});

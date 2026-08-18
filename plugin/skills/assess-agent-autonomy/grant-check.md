@@ -23,6 +23,8 @@ failure verbatim, e.g. "gh unavailable, no MCP transport resolved — could not 
 body"}`, and skip the rest of this mode's procedure — the same short-circuit shape
 `merge-check.md` Step 1 already uses for its own resolution failures.
 
+**Or the fetch itself fails** (the gh or MCP `issue_read` call was attempted but errored — network failure, 404, timeout, rate limit, auth expiry): same `could-not-gather` case — stop here and render Step 3 directly: `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` / `RATIONALE: {name the specific fetch failure verbatim, e.g. "gh issue view failed: {error message}" or "MCP issue_read call failed: {error message}"}`, and skip the rest of this mode's procedure.
+
 Read the record's full body (Current State / Deliverables / Acceptance Criteria) from the fetched
 JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present:
 
