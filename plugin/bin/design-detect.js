@@ -18,7 +18,6 @@
 // invocation (unknown --mode, no --mode at all).
 'use strict';
 const fs = require('fs');
-const path = require('path');
 const {
   evaluate,
   readDesignIntegrationFlagFromFile,
@@ -82,7 +81,6 @@ function resolvePlatform(args) {
 
 function resolveDesignIntegration(args) {
   if (args.designIntegration) return args.designIntegration;
-  const root = args.claudeMdPath ? path.dirname(args.claudeMdPath) : repoRoot();
   if (args.claudeMdPath) {
     try {
       const { readDesignIntegrationFlag } = require('./lib/design-detect');
@@ -91,7 +89,7 @@ function resolveDesignIntegration(args) {
       return null;
     }
   }
-  return readDesignIntegrationFlagFromFile(root);
+  return readDesignIntegrationFlagFromFile(repoRoot());
 }
 
 function main(argv) {
