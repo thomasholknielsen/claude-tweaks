@@ -47,7 +47,7 @@ Surface: terminal
 
 ## Acceptance Criteria
 
-1. The template states the tier rule once, with both worked examples; both sweeps return zero for the old unconditional phrasing: `grep -rc "show the full patch / diff for each pending item" plugin/` and the whitespace-spanning control `grep -rzlE 'show[[:space:]]+the[[:space:]]+full[[:space:]]+patch[[:space:]]*/[[:space:]]*diff' plugin/` (the control pass is part of this AC, not just a deliverable step — a restatement wrapped mid-phrase must fail acceptance, not slip through).
+1. The template states the tier rule once, with both worked examples; both sweeps return zero for the old unconditional phrasing: `grep -rc "show the full patch / diff for each pending item" plugin/` and the whitespace-spanning control `grep -rzlE 'show[[:space:]]+the[[:space:]]+full[[:space:]]+patch[[:space:]]*/[[:space:]]*diff[[:space:]]+for[[:space:]]+each[[:space:]]+pending[[:space:]]+item' plugin/` (the control pass is part of this AC, not just a deliverable step — a restatement wrapped mid-phrase must fail acceptance, not slip through; the tier rule's own low/med bullet legitimately reuses "show the full patch / diff" without the old rule's "for each pending item" tail, so the control must anchor on the full old phrase including that tail — an untailed control would false-positive against the new, correct rule text).
 2. The view command in the template is on its own line with no trailing inline comment, and uses the absolute `stagePath` (the console already renders absolute stage paths deliberately, so a reader can run it from any cwd).
 3. The fail-open default (no recorded reversibility → full diff) is stated in the rule.
 4. `npm test` green, full suite (byte-pinned prose tests across suites).
