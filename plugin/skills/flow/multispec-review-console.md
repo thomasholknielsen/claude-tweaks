@@ -162,7 +162,7 @@ Halt before applying. Leave the parent run dir intact. User resumes with `/claud
 
 ## Empty-console fast path
 
-If every per-spec `decisions.md` has zero entries AND every per-spec `staged/` is empty AND the parent `staged/` is empty AND there are no skill or config updates across the run AND no cleanup actions apply across any spec AND no queue writes are pending across any spec, skip the console entirely. Log "Multi-spec Review Console: nothing to review" and archive silently.
+If every per-spec `decisions.md` has zero **decision-bearing** entries (`review-console.md`'s Empty-console fast path — `AUTO`/`STAGED`/`KEPT-PROMPT`/`REFUSED`; `SCANNED` audit lines are excluded, per that file's `SCANNED` exclusion) AND every per-spec `staged/` is empty AND the parent `staged/` is empty AND there are no skill or config updates across the run AND no cleanup actions apply across any spec AND no queue writes are pending across any spec, skip the console entirely. Log "Multi-spec Review Console: nothing to review" and archive silently.
 
 ## Sort order
 
