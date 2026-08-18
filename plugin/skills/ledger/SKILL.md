@@ -78,19 +78,11 @@ Append a row to the ledger table.
 **Optional:**
 - **Resolution** — pre-filled for `observation` items, `—` for `open` items
 
-**De-duplication:** Before adding, check existing items for semantic duplicates. If an item with the same phase and substantially similar description exists, skip the add and note: "Duplicate — matches item #{N}." Surface this in the skill's output to the user (do not silently skip).
+**De-duplication:** per `_shared/ledger-format.md`'s De-duplication on Append rule — same phase + substantially similar description = skip the add and say so, never silently.
 
 ### Update Item
 
-Change an item's status and/or resolution.
-
-**Rules:**
-- `open` → any terminal status (with resolution text)
-- Terminal statuses are final — cannot be reopened
-- Resolution text is required for all terminal statuses except `observation`
-- For `fixed`: include the commit hash or file reference
-- For `deferred`: include origin, affected files, and trigger for when to revisit
-- For `accepted`: include the stated reason why this is acceptable
+Change an item's status and/or resolution. Legal transitions, terminality, and the per-status resolution-text requirements: `_shared/ledger-format.md`'s Status Lifecycle section (Resolution-text requirements).
 
 ### Query
 
@@ -150,7 +142,7 @@ Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
 ## Invocation Model
 
-`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, `/flow`, and `/tidy` — they read this skill to learn the ledger file format and resolve-gate procedure, then write to `docs/plans/YYYY-MM-DD-{feature}-ledger.md` directly using file operations. There is no programmatic invocation API, so the standard Component-Skill Contract (which suppresses `## Next Actions` when a parent skill is driving the interaction via `$PIPELINE_RUN_DIR`) does not apply here: no parent skill ever invokes `/claude-tweaks:ledger` through the Skill tool, so every actual run of this skill's own procedure is a direct, standalone invocation — `## Next Actions` always renders. The format contract itself (entry schema, statuses, phase taxonomy, resolve-gate procedure) lives in `_shared/ledger-format.md` — this file covers only the two standalone human commands and the mutation operations (Create/Add/Update/Query/Delete).
+`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, and `/flow` — they read `_shared/ledger-format.md` (not this file) to learn the ledger file format and resolve-gate procedure, then write to `docs/plans/YYYY-MM-DD-{feature}-ledger.md` directly using file operations. There is no programmatic invocation API, so the standard Component-Skill Contract (which suppresses `## Next Actions` when a parent skill is driving the interaction via `$PIPELINE_RUN_DIR`) does not apply here: no parent skill ever invokes `/claude-tweaks:ledger` through the Skill tool, so every actual run of this skill's own procedure is a direct, standalone invocation — `## Next Actions` always renders. The format contract itself (entry schema, statuses, phase taxonomy, resolve-gate procedure) lives in `_shared/ledger-format.md` — this file covers only the two standalone human commands and the mutation operations (Create/Add/Update/Query/Delete).
 
 ## Anti-Patterns
 
