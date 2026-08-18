@@ -2,8 +2,14 @@
 const fs = require('node:fs');
 
 function readEventsKinds(filePath) {
-  if (!fs.existsSync(filePath)) return null;
-  const text = fs.readFileSync(filePath, 'utf8');
+  let text;
+  try {
+    text = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    // Missing or unreadable (TOCTOU with a concurrent archive/prune) — see
+    // tsv-reader.js's readTsv for the identical rationale.
+    return null;
+  }
   const counts = {};
   for (const line of text.split('\n')) {
     if (!line) continue;

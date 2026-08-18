@@ -12,12 +12,34 @@ function parseArgs(argv) {
   const out = { runs: 20, json: false, root: process.cwd() };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--runs') out.runs = Number(argv[++i]);
-    else if (a === '--json') out.json = true;
+    if (a === '--runs') {
+      const raw = argv[++i];
+      const parsed = Number(raw);
+      // A non-numeric or missing value must fail loudly, not silently widen
+      // the window: aggregate()'s `slice(-windowN)` treats NaN as 0, which
+      // Array.prototype.slice reads as "the whole array" — so an unvalidated
+      // typo like `--runs abc` would silently report over unlimited history
+      // instead of the requested window. Review finding #901.
+      if (raw === undefined || !Number.isFinite(parsed) || parsed <= 0) {
+        process.stderr.write(`--runs requires a positive number, got: ${raw}\n`);
+        process.exit(2);
+      }
+      out.runs = parsed;
+    } else if (a === '--json') out.json = true;
     else if (a === '--root') out.root = argv[++i];
     else { process.stderr.write(`unknown flag: ${a}\n`); process.exit(2); }
   }
   return out;
+}
+
+function readDecisionLines(decisionsPath) {
+  try {
+    return fs.readFileSync(decisionsPath, 'utf8').split('\n').filter(Boolean);
+  } catch {
+    // Missing, or unreadable due to a TOCTOU race with a concurrent archive
+    // job — review finding #901, same rationale as tsv-reader.js/readTsv.
+    return [];
+  }
 }
 
 function loadRuns(root) {
@@ -26,8 +48,7 @@ function loadRuns(root) {
   const runIds = fs.readdirSync(archiveDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
   return runIds.map((runId) => {
     const dir = path.join(archiveDir, runId);
-    const decisionsPath = path.join(dir, 'decisions.md');
-    const decisionLines = fs.existsSync(decisionsPath) ? fs.readFileSync(decisionsPath, 'utf8').split('\n').filter(Boolean) : [];
+    const decisionLines = readDecisionLines(path.join(dir, 'decisions.md'));
     const events = readEventsKinds(path.join(dir, 'events.jsonl')) || { counts: {} };
     return { runId, decisionLines, events };
   });

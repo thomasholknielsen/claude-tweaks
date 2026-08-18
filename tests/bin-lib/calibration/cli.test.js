@@ -74,6 +74,29 @@ test('unknown flag exits 2 (not just some non-zero code)', () => {
   }
 });
 
+test('--runs rejects a non-numeric value with exit 2, instead of silently widening the window to unlimited history', () => {
+  // Review finding #901: an unvalidated Number(argv[++i]) turns a typo like
+  // "--runs abc" into NaN, and aggregate()'s slice(-NaN) reads as slice(0) —
+  // the WHOLE run history, not the requested window. Must fail loudly.
+  const root = makeFixtureRoot();
+  try {
+    execFileSync('node', [CLI, '--runs', 'abc', '--root', root], { encoding: 'utf8' });
+    assert.fail('should have thrown');
+  } catch (err) {
+    assert.strictEqual(err.status, 2);
+  }
+});
+
+test('--runs as the last argument with no value exits 2 rather than reading undefined', () => {
+  const root = makeFixtureRoot();
+  try {
+    execFileSync('node', [CLI, '--root', root, '--runs'], { encoding: 'utf8' });
+    assert.fail('should have thrown');
+  } catch (err) {
+    assert.strictEqual(err.status, 2);
+  }
+});
+
 test('autonomy-raising signal fires at 100% approve-all over >=10 stops under the schema-default (supervised) ceiling', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'calib-ceiling-'));
   fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });

@@ -23,6 +23,15 @@ test('readTsv parses rows, counts malformed lines, and returns null for a missin
   assert.strictEqual(readTsv(tmpFile('missing.tsv')), null);
 });
 
+test('readTsv returns null (never throws) when the path exists but is unreadable as a file', () => {
+  // A directory in place of a file triggers EISDIR on readFileSync — a
+  // portable stand-in for the TOCTOU race (file deleted/permission-changed
+  // between an existsSync check and the read) review finding #901 flagged.
+  const dirAsFile = tmpFile('not-a-file.tsv');
+  fs.mkdirSync(dirAsFile);
+  assert.strictEqual(readTsv(dirAsFile), null);
+});
+
 test('readTsv output is coupled to the real writer (fails loudly on column drift)', () => {
   const p = tmpFile('coupling.tsv');
   appendTelemetry(p, { now: new Date('2026-08-01T00:00:00Z'), runId: 'run-x', rowId: 'skills', gate: 'closed', findings: [], result: 'na' });
@@ -63,4 +72,10 @@ test('readEventsKinds counts typed events and fails open on malformed lines', ()
   const result = readEventsKinds(p);
   assert.deepStrictEqual(result.counts, { 'gate-denial': 2, 'wd-deny': 1 });
   assert.strictEqual(readEventsKinds(tmpFile('missing.jsonl')), null);
+});
+
+test('readEventsKinds returns null (never throws) when the path exists but is unreadable as a file', () => {
+  const dirAsFile = tmpFile('not-a-file.jsonl');
+  fs.mkdirSync(dirAsFile);
+  assert.strictEqual(readEventsKinds(dirAsFile), null);
 });
