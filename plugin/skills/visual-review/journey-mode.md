@@ -22,16 +22,17 @@ Walk the journey via a single `agent-browser batch` invocation that owns the ses
 ```
 agent-browser batch --session checkout-journey-review \
   "open https://app.example.com/cart" \
+  "trace start" \
   "snapshot -i -c" \
-  "screenshot --annotate --filename screenshots/browse/checkout-journey-review/01_cart.png" \
+  "screenshot --annotate screenshots/browse/checkout-journey-review/01_cart.png" \
   "vitals" \
   "open https://app.example.com/checkout/shipping" \
   "snapshot -i -c" \
-  "screenshot --annotate --filename screenshots/browse/checkout-journey-review/02_shipping.png" \
+  "screenshot --annotate screenshots/browse/checkout-journey-review/02_shipping.png" \
   "vitals" \
   "open https://app.example.com/checkout/payment" \
   "snapshot -i -c" \
-  "screenshot --annotate --filename screenshots/browse/checkout-journey-review/03_payment.png" \
+  "screenshot --annotate screenshots/browse/checkout-journey-review/03_payment.png" \
   "vitals" \
   "close"
 ```
@@ -99,10 +100,12 @@ If the browser review revealed that "should feel" descriptions are inaccurate, r
 
 ## When a journey step fails — capture trace, attach path, close session
 
-When a journey step fails — assertion mismatch, page error, navigation timeout, broken render, unrecoverable interaction error — capture a trace **before** closing the session. The trace lets you diagnose the failure offline without re-running the journey.
+When a journey step fails — assertion mismatch, page error, navigation timeout, broken render, unrecoverable interaction error — save the trace **before** closing the session. The trace lets you diagnose the failure offline without re-running the journey.
+
+Tracing is record-then-stop: recording was started by the `trace start` in the walk's opening batch (see the worked example above) — a trace can only be saved for the interval after recording started, so a walk that never started recording has nothing to save on failure. To save:
 
 ```
-agent-browser --session <session> trace save traces/<session>/<timestamp>.zip
+agent-browser --session <session> trace stop traces/<session>/<timestamp>.zip
 ```
 
 `<timestamp>` should be ISO-like and filename-safe (`20260501-143022`). Then close the session:
@@ -111,6 +114,6 @@ agent-browser --session <session> trace save traces/<session>/<timestamp>.zip
 agent-browser --session <session> close
 ```
 
-In the failure report, attach the trace path verbatim so the user can open it with `agent-browser trace view <path>`. Do not omit the trace — failure reports without a trace path are not actionable. There is no automatic retention policy; users manage cleanup.
+In the failure report, attach the trace path verbatim. The file is a Chrome DevTools trace — the user opens it via Chrome DevTools → Performance → Load profile (the CLI has no trace-viewing subcommand). Do not omit the trace — failure reports without a trace path are not actionable. There is no automatic retention policy; users manage cleanup, and `traces/` belongs in `.gitignore`.
 
-If the failure is mid-batch, the batch invocation will return partial output up to the failure point. Run `trace save` and `close` as separate invocations after the batch returns; do not append them to the failed batch.
+If the failure is mid-batch, the batch invocation will return partial output up to the failure point. Run `trace stop <path>` and `close` as separate invocations after the batch returns; do not append them to the failed batch.

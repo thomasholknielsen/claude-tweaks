@@ -225,7 +225,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | Running visual review without a running app | The browser can't inspect what isn't served — verify the URL responds first |
 | Describing elements by position instead of annotated overlay number | "The button on the right" is brittle; "element [3]" is precise — always reference annotated screenshot overlays |
 | Skipping `vitals` capture | Performance is a first-class finding — every reviewed page must produce LCP/CLS/INP/TTFB/FCP values |
-| Closing the session before saving a trace on failure | Failure reports without a trace path aren't actionable — `trace save` first, then `close` |
+| Closing the session before saving a trace on failure | Failure reports without a trace path aren't actionable — `trace stop <path>` first, then `close` (and recording must have been started via `trace start` at session open — there is no retroactive capture) |
 | Per-step `agent-browser` invocations during journey walks | Use `batch` — one process, one session lifecycle, fewer tokens and less latency |
 | Batching across sessions | One `agent-browser batch` invocation owns a single session — never mix session names |
 | Silently auto-applying a Creative Opportunities suggestion without the apply-gate | Recommendations only — the user accepts via the apply-gate (standalone) or takes it away to run manually (parent-invoked); never execute an Impeccable creative command without that accept |
