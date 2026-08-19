@@ -45,7 +45,7 @@ const { resolvePrState } = require('./pr-state');
 function defaultRefExists(root, branch, timeoutMs) {
   try {
     execFileSync('git', ['-C', root, 'ls-remote', '--exit-code', 'origin', `refs/heads/${branch}`], {
-      stdio: 'ignore', timeout: timeoutMs,
+      stdio: 'ignore', timeout: timeoutMs, windowsHide: true,
     });
     return true;
   } catch (e) {
