@@ -15,7 +15,7 @@ unchanged from before.
 > narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents
 > complete.
 >
-> **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. `[Use: Standard]` (resolve via `node plugin/bin/resolve-profile.js standard`, contract § Model Selection). Read-only — personas never modify the record themselves.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. `[Use: Standard]` (resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`, contract § Model Selection). Read-only — personas never modify the record themselves.
 >
 > **Persona prompts (inline literally per agent — Mode 3 from `skills/_shared/multi-agent-coordination.md`):**
 >
@@ -40,7 +40,7 @@ unchanged from before.
 > Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
 > Do not add narration, headers, or summaries before or after the table.
 >
-> [Use: Standard] — resolve via `node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
+> [Use: Standard] — resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection).
 > ```
 >
 > **The three personas (lens questions verbatim):**
@@ -53,7 +53,7 @@ unchanged from before.
 
 ## Write-back procedure
 
-**Synthesis path (record #220).** When this run is interactive and `node plugin/bin/resolve-profile.js frontier --run-dir "$PIPELINE_RUN_DIR"` (`_shared/subagent-output-contract.md`'s Model Selection dispatch procedure) returns `frontier`, dispatch the write-back below as **one** `[Use: Frontier]` singleton Task agent — the main thread hands it every persona's raw findings plus the current record body — and, when this decomposition followed a brainstorm in the same session, the brainstorm's decision summary (the design doc's rationale section, or the parent record's `## Decision Rationale` once Step 4 wrote it), since findings that turn on a design decision the record has not yet absorbed cannot be resolved from the record alone — and the agent returns the fully recomposed body (the same shape steps 1-3 below produce by hand). Any other resolution (non-interactive, stance below `default`, cap exhausted, or a plain non-interactive run with no run directory) means the resolver returns `capable` or degrades — **in that case the write-back stays exactly as documented below, run in the main thread, with no dispatch of any kind.** There is no Capable dispatch of this step; the degraded state is today's existing main-thread behavior, unchanged.
+**Synthesis path (record #220).** When this run is interactive and `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" frontier --run-dir "$PIPELINE_RUN_DIR"` (`_shared/subagent-output-contract.md`'s Model Selection dispatch procedure) returns `frontier`, dispatch the write-back below as **one** `[Use: Frontier]` singleton Task agent — the main thread hands it every persona's raw findings plus the current record body — and, when this decomposition followed a brainstorm in the same session, the brainstorm's decision summary (the design doc's rationale section, or the parent record's `## Decision Rationale` once Step 4 wrote it), since findings that turn on a design decision the record has not yet absorbed cannot be resolved from the record alone — and the agent returns the fully recomposed body (the same shape steps 1-3 below produce by hand). Any other resolution (non-interactive, stance below `default`, cap exhausted, or a plain non-interactive run with no run directory) means the resolver returns `capable` or degrades — **in that case the write-back stays exactly as documented below, run in the main thread, with no dispatch of any kind.** There is no Capable dispatch of this step; the degraded state is today's existing main-thread behavior, unchanged.
 
 After all dispatched personas return (and, when the synthesis path above did not trigger, in the main thread itself), write findings back into the record body:
 

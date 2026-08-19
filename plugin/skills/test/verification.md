@@ -15,48 +15,19 @@ If CLAUDE.md doesn't document verification commands, scan `package.json` scripts
 
 ## Step 2: Execute
 
-Run all checks. Order matters — fail fast:
-
-> **Parallel execution:** Use parallel tool calls aggressively — type checking and linting are independent and should run concurrently as parallel Bash calls. Run tests after both pass (tests are slower and type/lint failures often cause test failures too).
-
-1. Type checking (fastest feedback)
-2. Linting
-3. Tests (unit + integration)
-
-### Capture, never stream
-
-**Never let a check's raw output land in context** — this applies to every check, not just tests. Redirect each command to a log file, then report its exit code plus a bounded summary read back from that file. Measured in this repo, one `npm test` run is ~386 KB / ~8,950 lines (~96,000 tokens); what this step actually needs from it — did it pass, and if not what failed — fits in well under 1 KB.
-
-Write logs to the checkout's own git dir — per-worktree unique and stable across Bash calls, so a later recovery read finds the same file and a concurrent session's run can never clobber it (fixed `/tmp/verify-*.log` names collide across parallel sessions and misattribute another run's failures). Run every check in this exact shape:
+Run every resolved check through the deterministic runner — one plain command at the invocation level (no `;`, `&&`, or pipe chains):
 
 ```bash
-LOG="$(git rev-parse --git-dir)/claude-tweaks-verify-test.log"
-npm test > "$LOG" 2>&1; echo "exit=$?"; tail -30 "$LOG"; grep -E '^not ok|^# (tests|pass|fail)' "$LOG"
+node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --log-dir "$(git rev-parse --git-dir)/claude-tweaks-verify" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
 ```
 
-(In the rare non-git directory, fall back to `/tmp/verify-{check}-{project-dirname}.log` — the collision risk returns but only where no git dir exists to anchor to.)
+Substitute the project's own commands from Step 1, one `--cmd <name>=<command>` per resolved check, and omit any stage the project doesn't have (`--cmd tests="npm test"` alone is valid — in this repo it is the whole set). The reserved names `types`, `lint`, and `tests` get the ordering policy: `types` and `lint` run concurrently, `tests` starts only after every supplied one of them exits 0, and a stage-1 failure reports `tests` as `skipped: fail-fast`. Any other name runs serially after the known stages under the same fail-fast. The `--log-dir` shape above anchors logs in the checkout's own git dir — per-worktree unique, so a concurrent session's run can never clobber it; leave `--log-dir` off to get a fresh directory under the OS tmpdir instead.
 
-Three rules make this shape correct:
+`--cmd` values are opaque strings executed by the child shell. If a compound value (e.g. `--cmd tests="a && b"`) trips a worktree session's command text-shape guard (see `_shared/scratch-worktree.md`'s "## 7. Shell constraint"), split it into two `--cmd` checks instead.
 
-- `echo "exit=$?"` must be the **next** command after the check — any command in between clobbers `$?`. The `exit=` line is the only authoritative pass/fail signal.
-- The trailing `grep` exiting 1 because it matched nothing is **expected, and is not a check failure** — a clean `node --test` run has zero `not ok` lines. Judge the check by `exit=`, never by the grep's own status.
-- Use a distinct `$LOG` path per check (`…/claude-tweaks-verify-typecheck.log`, `…/claude-tweaks-verify-lint.log`, `…/claude-tweaks-verify-test.log` — all under the same `$(git rev-parse --git-dir)` anchor). The type check and lint run concurrently per the parallel-execution directive above, and would otherwise overwrite each other's output.
+### Reading the result
 
-Substitute the project's own commands from Step 1. Type check and lint are adequately summarized by `tail -20 "$LOG"` alone. Test runners need a count line as well:
-
-- `node --test` — add `grep -E '^not ok|^# (tests|pass|fail)' "$LOG"` after the `tail`, as above.
-- jest / vitest / pytest — `tail -30 "$LOG"` alone already captures their trailing summary block.
-
-### On a non-zero exit: read only the failing region
-
-Only when `exit=` is non-zero, go back to the log — and read the **failing region**, never the whole file. Cap every recovery read:
-
-```bash
-grep -n -A 20 '^not ok' "$LOG" | head -100                 # node --test
-grep -n -B 2 -A 20 -E 'FAIL|Error:' "$LOG" | head -100     # other runners
-```
-
-`node --test` emits its TAP diagnostic block *after* the `not ok` line, so a bare `grep '^not ok'` returns each failure's title with none of its cause — always pair it with trailing context (`-A`), as above. If 100 capped lines still don't explain the failure, widen once with a narrower pattern (`head -200`); never `cat` the log.
+The runner's stdout is already bounded — one table row per check plus at most one ≤100-line failing region per failed check, never raw check output — and it exits 0 iff every non-skipped check passed. It writes `{log-dir}/report.json`: per-check `{command, exitCode, durationMs, logPath, summary, failingRegion}` (plus `counts` where a test summary parses; a skipped check carries `{skipped: "fail-fast"}` in place of an exit code), and top-level `pass`, `startedAt`, `durationMs`, `sha`, and `dirty`. The recorded `exitCode` is the check command's own — judge each check by it, never by grep side effects. Each check's full output is in its own `{log-dir}/{name}.log` for a recovery read of last resort; read the failing region the runner already extracted, never `cat` the log.
 
 ### Skip-if-recent (for /flow pipelines)
 
@@ -73,7 +44,7 @@ In a multi-spec `/flow` run, `flow/multi-spec.md`'s pre-flight verify sweep runs
 
 ## Step 2.5: Verification pass stamp
 
-When **all three checks pass** (types + lint + tests — the full procedure, regardless of which skill called it), record the pass before reporting:
+When the runner exits 0 for the full resolved check set (the full procedure, regardless of which skill called it — a targeted or partial run must not stamp), record the pass before reporting:
 
 ```bash
 git rev-parse HEAD > "$(git rev-parse --git-dir)/claude-tweaks-verify-pass"
@@ -83,7 +54,7 @@ One plain command, worktree-guard-safe; the stamp lives in the checkout's own gi
 
 Rules:
 
-- Write it **only** on a full three-check pass. A targeted or partial run (types-only, lint-only, a scoped test path) must not stamp, and a failing run must never stamp.
+- Write it **only** when the runner exits 0 for the full resolved check set. A targeted or partial run (types-only, lint-only, a scoped test path) must not stamp, and a failing run must never stamp.
 - The stamp asserts verification only — QA story outcomes are tracked separately (the QA ledger), and consumers that care about QA consult that as they already do.
 - Consumers treat a missing, unreadable, or mismatched stamp as "no recent pass" and re-run — fail-open, mirroring the `VERIFICATION_SHA` mismatch rule in Skip-if-recent above. A stale stamp is never a reason to trust a skip.
 
@@ -101,16 +72,18 @@ Present results in a consistent format:
 | Tests | {pass/fail} | {Xs} | {passed}/{total}, {failed count} failures |
 ```
 
+Source the table from report.json: Status from each check's exitCode (or skipped), Duration from durationMs, Details from summary/counts. Capture VERIFICATION_SHA from report.json's sha — with the dirty caveat: dirty: true means "verified this tree, which is not exactly commit sha".
+
 ### On failure
 
 ```markdown
 ### Failures
 
 #### {Check name}
-{error output — the capped recovery read from Step 2's "On a non-zero exit" procedure, not the raw log}
+{the failingRegion the runner extracted (its stdout, or report.json's failingRegion field) — not the raw log}
 ```
 
-The failure detail here comes from Step 2's bounded recovery read. Do not re-run the check without redirection to produce it, and do not paste the raw log — Step 2's capture rule governs what enters context; this section only governs how it is presented.
+The failure detail here comes from the runner's bounded extraction. Do not re-run the check outside the runner to produce it, and do not paste the raw log — the runner's bounding governs what enters context; this section only governs how it is presented.
 
 ### Gate behavior
 

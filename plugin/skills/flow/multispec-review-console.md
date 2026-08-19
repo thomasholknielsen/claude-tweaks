@@ -117,7 +117,7 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 6. Apply config updates (docs, CLAUDE.md, rules)
 7. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
 8. Execute Cleanup actions rows in order — dev-server teardown (no dependency) may run any time; branch-finish (row 16 in this example) must complete before any per-spec claim-release/grant-removal/label-cleanup row runs, since those rows read branch-finish's outcome for the release reason and `$LINK`. Under `pr-first`, "Approve all, leave PR open" skips the branch-finish merge attempt entirely (the PR stays as-is) and every per-spec row below waits for `merged` evidence instead, same as any other `pending-review` outcome (`_shared/pr-first-merge.md`'s Outcome vocabulary — the reconciler completes cleanup later). This is "Shared teardown" below, gated on the visible rows above rather than running unconditionally.
-9. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
+9. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included) — routes through `bin/lib/reconcile/archive-merged.js`'s `archiveRunDir` (or `wrap-up/cleanup-procedures-execution.md` Section B's manual equivalent, applied once per `spec-{N}/` subdirectory rather than once at the top level), never a plain recursive move: every git-tracked `spec-{N}/work/` subtree moves via `git mv` before the gitignored rest (`spec-{N}/config.yml`, `decisions.md`, `staged/`) moves via plain `mv` into its own `archive/{run-id}/spec-{N}/`, then the parent-level `manifest.yml`/`config.yml`/`decisions.md` move the same way (#593 — a multi-spec parent whose `spec-{N}/work/` subtrees skip `git mv` resurrects those tracked files at the pre-archive path on the next checkout, the same failure mode the single-spec path already guards against)
 
 ## On override (option 2)
 
@@ -159,6 +159,8 @@ Applies identically from "Shared teardown" step 5 above, regardless of whether i
 ## On stop (option 3)
 
 Halt before applying. Leave the parent run dir intact. User resumes with `/claude-tweaks:flow {specs} review-console` (a dedicated resume step that re-reads the same parent dir and re-presents the console).
+
+**Logging the terminal decision:** At the consolidated terminal-decision point (when Approve all + merge / Approve all, leave PR open / Override / Stop is chosen), log the same `AUTO {time} — Review Console: terminal decision {…}. Reversibility: n/a.` line (per `wrap-up/review-console-interactive.md`'s format) to the parent run's `decisions.md`.
 
 ## Empty-console fast path
 

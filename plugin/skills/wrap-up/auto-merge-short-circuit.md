@@ -96,7 +96,7 @@ chained onto the merge (the gate inspects the whole command string up front,
 so a compound call is denied and the merge never runs either). `git merge`
 itself isn't covered, so it runs in the main checkout normally. Same two-call
 shape as `dispatch/settle-and-merge.md`'s local-merge fallback;
-`_shared/policy-schema.md`'s `worktree-always` block lists what the gate
+`_shared/policy-schema-coverage.md`'s `worktree-always` block lists what the gate
 intercepts.
 
 **Shell state does not survive between the two calls** — each Bash call gets

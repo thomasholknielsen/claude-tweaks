@@ -234,7 +234,7 @@ After the push, run `_shared/pr-first-merge-post-merge.md` Step 4.1 against the 
 Log to `{run-dir}/decisions.md`:
 `AUTO {time} — Auto-merge: group [{issues}], assess-agent-autonomy verdict auto-merge for every member (see each member's RATIONALE). Merge commit: {sha}. Reversibility: high (git revert). [lever: auto-merge-max-lines={value} ({source}); auto-merge-max-files={value} ({source}); merge-sensitive-paths={value} ({source})]`
 
-The trailing `[lever: …]` field follows `_shared/auto-decision-log.md`'s Lever attribution section — these are the levers the gate's `merge-check` invocation reads (`skills/assess-agent-autonomy/merge-check.md`); `{value}` comes from that invocation's own resolver call; `{source}` needs the envelope form — re-resolve with `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" merge-sensitive-paths auto-merge-max-lines auto-merge-max-files` (no `--values`) when writing the line.
+The trailing `[lever: …]` field follows `_shared/auto-decision-log.md`'s Lever attribution section — these are the levers the gate's `merge-check` invocation reads (`skills/assess-agent-autonomy/merge-check.md`); `{value}` comes from that invocation's `blast-radius.js` CLI output (its `config` object); `{source}` needs the envelope form — re-resolve with `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" merge-sensitive-paths auto-merge-max-lines auto-merge-max-files` (no `--values`) when writing the line.
 
 Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already produced and reported) to a `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped, only the wait for a click is skipped.
 

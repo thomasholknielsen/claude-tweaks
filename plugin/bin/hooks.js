@@ -286,6 +286,55 @@ async function main(argv) {
     }
     return 0;
   }
+  if (cmd === 'archive-run') {
+    const { archiveRunDir } = require('./lib/reconcile/archive-merged');
+    const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
+    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not archived\n`);
+      return 0;
+    }
+    if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — run not archived\n');
+      return 0;
+    }
+    const state = ctxLib.readRunState(runDir);
+    if (!state) {
+      process.stdout.write(
+        `claude-tweaks: ${path.basename(runDir)} has no readable run-state.json — not archived; ` +
+        'a state-less dir is reconcile\'s archiveOrphanedMint\'s job, not this verb\'s\n',
+      );
+      return 0;
+    }
+    if (NON_TERMINAL.has(state.status)) {
+      process.stdout.write(
+        `claude-tweaks: ${path.basename(runDir)} is ${state.status} — not archived; ` +
+        'run close-run first (or let the owning session finish)\n',
+      );
+      return 0;
+    }
+    const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
+    if (!mainRoot) {
+      process.stdout.write('claude-tweaks: could not resolve the main checkout root — run not archived\n');
+      return 0;
+    }
+    // Output below is informational human text, never parsed by any caller
+    // (skills/flow/multispec-review-console.md's parent-dir archival is a
+    // future caller of this verb, not a consumer of this stdout format).
+    // The "moved:" lines are read from archiveRunDir's own movedEntries
+    // return value — never a hardcoded guess at the run dir's shape, which
+    // is the exact fixed-list drift this whole record eliminates.
+    const result = archiveRunDir(mainRoot, runDir);
+    if (!result.ok) {
+      process.stdout.write(`claude-tweaks: archival refused — ${result.reason}\n`);
+      return 0;
+    }
+    for (const name of result.movedEntries) {
+      process.stdout.write(`moved: ${name}\n`);
+    }
+    process.stdout.write(`claude-tweaks: archived ${path.basename(runDir)}\n`);
+    return 0;
+  }
   if (cmd === 'check-resume-freshness') {
     // Read-only: never writes run-state.json. Skills call this immediately
     // before any of the three resume paths' safe-to-resume ruling

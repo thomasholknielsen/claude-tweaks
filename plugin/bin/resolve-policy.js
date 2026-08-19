@@ -129,7 +129,7 @@ function main(argv) {
   // merge-verification (#559) has no static schema default either — an absent
   // value (never an invalid one; `invalid: true` stays visible) is derived by
   // bin/lib/merge-verification.js's four-branch ladder, whose prose statement
-  // of record is skills/_shared/policy-schema.md's coverage block.
+  // of record is skills/_shared/policy-schema-coverage.md's coverage block.
   if (keys.includes('merge-verification')) {
     const entry = result['merge-verification'];
     if (entry && entry.source === 'default' && !entry.invalid) {

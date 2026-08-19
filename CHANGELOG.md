@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.98.0 — Windows: hide console windows on background reconcile git subprocesses — ends the WT window storm; blast-radius CLI (#888), transport-aware autonomy gathers (#889), verify.js runner (#892), calibration readers + report (#901), run-archival enumeration + archive-run verb (#902), tidy unfiled-drafts backstop (#905), reversibility-tiered console patch display (#906)
+
+Windows: hide console windows on background reconcile git subprocesses — ends the WT window storm; blast-radius CLI (#888), transport-aware autonomy gathers (#889), verify.js runner (#892), calibration readers + report (#901), run-archival enumeration + archive-run verb (#902), tidy unfiled-drafts backstop (#905), reversibility-tiered console patch display (#906).
+
 ## v6.97.0 — Review objective-audit batch — SKILL.md dispatcher split, dispatch-template lazy-load fix, collision-free scratch dirs, build-review-context + review-coordination CLIs, verify-pass stamp, low-tier single-read; design-detect.js extraction, /deepen objective fruits, scope-resolution ladder, ledger ops-triage contract
 
 Review objective-audit batch — SKILL.md dispatcher split, dispatch-template lazy-load fix, collision-free scratch dirs, build-review-context + review-coordination CLIs, verify-pass stamp, low-tier single-read; design-detect.js extraction, /deepen objective fruits, scope-resolution ladder, ledger ops-triage contract.
