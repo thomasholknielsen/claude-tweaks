@@ -256,6 +256,14 @@ identity that made the claim.
 **Work-ready evidence.** Pass `releasePayload` a `link` (merge commit URL/sha or PR URL) when one
 exists — it lands in the release marker and human line.
 
+**In-flight detection at claim time (#315).** A `pr-opened:` tombstone's `link` field points at
+the PR that build produced — before reclaiming such a tombstone, a claim-time reader may check
+`gh pr view <link> --json state --jq .state`; a still-`OPEN` result means a build for this issue
+already exists and reclaiming would race it. `bin/lib/issues/claim-engine.js`'s `claimOne` runs
+this check (`tombstoneInFlightPr`), returning `outcome: 'in-flight'` instead of proceeding to a
+fresh claim; any other reason, a missing `link`, or a failed/closed/merged check falls through to
+the reclaim behavior below unchanged (fail open).
+
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a
 tombstone) — `bin/release-claim.js` appends its own line; claim-side entries go through

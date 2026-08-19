@@ -125,8 +125,33 @@ function removeInProgressLabel({ owner, repo, issueNumber, runner = defaultRunne
   } catch { return false; }
 }
 
+// content: the raw tombstone blob text just read (a `'tombstone'`-classified
+// claim). runner: the same injectable gh runner claimOne already has in
+// scope. Returns { link } when this tombstone's `reason` is a `pr-opened:`
+// release whose `link` points at a PR `gh pr view` still reports `OPEN` —
+// the in-flight-build signal `_shared/issue-claims.md`'s release-reason
+// vocabulary documents `link` for (#315). Returns null for every other
+// case — a non-`pr-opened:` reason (`merged:`/`abandoned:`, left untouched
+// per the issue's own scope), a missing `link`, a closed/merged PR, or any
+// failure along the way (unparseable content, a `gh pr view` error, an
+// unparseable state) — always fail OPEN to "not in flight" so a `gh` hiccup
+// (rate limit, network blip, a deleted PR) can never wedge the claim path;
+// the caller falls through to today's unchanged reclaim behavior.
+function tombstoneInFlightPr(content, runner) {
+  try {
+    const parsed = JSON.parse(content);
+    const reason = parsed && parsed.reason;
+    const link = parsed && parsed.link;
+    if (typeof reason !== 'string' || !reason.startsWith('pr-opened:') || !link) return null;
+    const state = runner(['pr', 'view', link, '--json', 'state', '--jq', '.state']).trim();
+    return state === 'OPEN' ? { link } : null;
+  } catch {
+    return null; // fail open — a broken check must never block a legitimate reclaim
+  }
+}
+
 // { owner, repo, issueNumber, runId, sessionId, host, now, runner } ->
-// { issueNumber, outcome: 'claimed'|'contested'|'error', state, holder?, error? }
+// { issueNumber, outcome: 'claimed'|'contested'|'in-flight'|'error', state, holder?, link?, error? }
 function claimOne({ owner, repo, issueNumber, runId, sessionId, host, now, runner = defaultRunner }) {
   let read;
   try {
@@ -135,6 +160,16 @@ function claimOne({ owner, repo, issueNumber, runId, sessionId, host, now, runne
     return { issueNumber, outcome: 'error', state: null, error: errorText(err) };
   }
   const classified = classifyClaimBlob(read.content, now);
+  // A `pr-opened:` tombstone whose linked PR is still open means a build
+  // already completed for this issue and is awaiting merge — reclaiming
+  // (and re-building) here would race that open PR (#315). Gate this ahead
+  // of the reclaimable branch below since a tombstone is otherwise always
+  // reclaimable; every other tombstone reason, and any failure in the
+  // check itself, falls straight through unchanged.
+  if (classified.state === 'tombstone') {
+    const inFlight = tombstoneInFlightPr(read.content, runner);
+    if (inFlight) return { issueNumber, outcome: 'in-flight', state: classified.state, link: inFlight.link };
+  }
   if (!classified.reclaimable) {
     let holder = null;
     try { holder = read.content ? JSON.parse(read.content) : null; } catch { /* unreadable — no holder identity to report */ }
@@ -188,23 +223,29 @@ function releaseOne({ owner, repo, issueNumber, runId, reason, link, now, runner
 }
 
 // { owner, repo, issueNumbers, runId, sessionId, host, now, runner, keepGoing } ->
-// { claimed: [n...], contested: [{issueNumber, ...}], errored: [{issueNumber, ...}], released: [n...] }
+// { claimed: [n...], contested: [{issueNumber, ...}], errored: [{issueNumber, ...}], released: [n...], inFlight: [{issueNumber, link, ...}] }
 // Group-claim-all-or-abort (`_shared/issue-claims.md`'s "Group claiming"):
-// on the first contest/error, release everything this call *did* claim, per
-// target, and stop — unless keepGoing, which downgrades the failing target
-// to a skip and continues with the rest of the group.
+// on the first contest/error/in-flight, release everything this call *did*
+// claim, per target, and stop — unless keepGoing, which downgrades the
+// failing target to a skip and continues with the rest of the group.
+// `inFlight` (#315) is reported in its own bucket, distinct from
+// `contested`/`errored`, so a caller can tell "someone else holds this" and
+// "a real transport failure" apart from "a build for this issue already
+// completed and has an open PR" — but it aborts the group the same way.
 function claimGroup({ owner, repo, issueNumbers, runId, sessionId, host, now, runner = defaultRunner, keepGoing = false }) {
   const claimed = [];
   const contested = [];
   const errored = [];
+  const inFlight = [];
   for (const issueNumber of issueNumbers) {
     const result = claimOne({ owner, repo, issueNumber, runId, sessionId, host, now, runner });
     if (result.outcome === 'claimed') { claimed.push(issueNumber); continue; }
     if (result.outcome === 'contested') contested.push(result);
+    else if (result.outcome === 'in-flight') inFlight.push(result);
     else errored.push(result);
     if (!keepGoing) break; // all-or-abort: stop attempting further targets
   }
-  const aborted = !keepGoing && (contested.length > 0 || errored.length > 0);
+  const aborted = !keepGoing && (contested.length > 0 || errored.length > 0 || inFlight.length > 0);
   const released = [];
   const stillClaimed = [];
   if (aborted) {
@@ -219,11 +260,11 @@ function claimGroup({ owner, repo, issueNumbers, runId, sessionId, host, now, ru
       else stillClaimed.push(issueNumber);
     }
   }
-  return { claimed: aborted ? stillClaimed : claimed, contested, errored, released };
+  return { claimed: aborted ? stillClaimed : claimed, contested, errored, released, inFlight };
 }
 
 module.exports = {
   defaultRunner, errorText, isHttpStatus, isHttp404, isHttp422, claimFilePath,
   ensureClaimsBranch, readClaimBlob, writeClaimBlob, postClaimMirror, removeInProgressLabel,
-  claimOne, releaseOne, claimGroup,
+  tombstoneInFlightPr, claimOne, releaseOne, claimGroup,
 };
