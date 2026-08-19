@@ -19,7 +19,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
               [ /claude-tweaks:backlog ]   <- utility (no fixed lifecycle position)
                               │
                               v
-                    /claude-tweaks:dispatch   (claims + executes)
+                    /claude-tweaks:dispatch   (selects + executes)
                               │
                               v
                     close-via-merge   (record closes)
@@ -34,7 +34,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
 - A scheduled Routine (or a human standing in for one) needs to sweep the `ready` queue and machine-grant every record whose gate chain fully clears, with no per-record decision to answer — `grant` mode, `github-issues` only, and only once a project has deliberately opted into the `autonomy: unattended` ceiling plus its `grant-origination-enabled` policy key.
 - You want one ranked list of every open record carrying `needs:definition` or `solution:unjustified`, with a per-row recommended action — `attention` mode, `github-issues` only.
 
-Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:specify`'s job), claiming or building anything (`/claude-tweaks:dispatch`'s job), or filing/closing records.
+Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:specify`'s job), claiming records (`/claude-tweaks:flow`'s Step 2.8 job) or building anything (`/claude-tweaks:dispatch`'s hand-off to `/flow`), or filing/closing records.
 
 ## Input
 

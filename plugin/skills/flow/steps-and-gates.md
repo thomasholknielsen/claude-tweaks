@@ -119,9 +119,12 @@ single record then runs the normal step pipeline
 (`build,test,review,polish,wrap-up`) against that file — the step pipeline
 and gates below are unchanged. Multiple
 records (`#A,#B`) run Multi-spec mode instead (see `multi-spec.md`), each
-materializing to its own file. `/flow` performs no selection, filtering, or
-claiming of its own; see `/claude-tweaks:dispatch` (selection + claiming) and
-`/claude-tweaks:backlog refine` (authorization) for that logic.
+materializing to its own file. `/flow` performs no selection or filtering of
+its own; see `/claude-tweaks:dispatch` (selection) and `/claude-tweaks:backlog
+refine` (authorization) for that logic. `/flow` does claim its own named
+targets at Step 2.8 (`claim-targets.md`), whether the invocation came from
+dispatch's hand-off or a human running `/flow #{n}` directly against any
+record carrying no live claim.
 
 ## Gate Behavior
 
