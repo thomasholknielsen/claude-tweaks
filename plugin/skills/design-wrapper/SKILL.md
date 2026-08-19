@@ -118,7 +118,7 @@ Output is one JSON object: `{decision: "proceed" | "skip", track?, reason?, plat
 
 When the track resolves `terminal`, read `terminal-routing.md` — every terminal-track outcome (honest Impeccable skips, `pre-build`'s principles-only load) lives there. When the track resolves `native`, read `native-routing.md` in this skill's directory for the reference mapping and dispatch rule — a web-track run never needs either file. `test` and `live` never dispatch on the native track (upstream's own constraint — `reference/routing.md`: *"`live` and the bundled `detect.mjs` are web-only"*); every other mode dispatches on the native track with `platform` named.
 
-The trigger extensions and path patterns Layer 3 sniffs against, and the full decision-table reference (every row, worked examples, edge cases) for anyone auditing the CLI's behavior rather than just calling it, live in `frontend-detection.md` in this skill's directory — the CLI's `plugin/bin/lib/design-detect/index.js` is the executable twin of that file, the same pairing `bin/lib/merge-verification.js` has with `_shared/policy-schema.md`'s coverage block.
+The trigger extensions and path patterns Layer 3 sniffs against, and the full decision-table reference (every row, worked examples, edge cases) for anyone auditing the CLI's behavior rather than just calling it, live in `frontend-detection.md` in this skill's directory — the CLI's `plugin/bin/lib/design-detect/index.js` is the executable twin of that file, the same pairing `bin/lib/merge-verification.js` has with `_shared/policy-schema-coverage.md`'s coverage block.
 
 ### Step 2: Availability check
 
