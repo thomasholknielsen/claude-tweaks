@@ -93,6 +93,8 @@ read `cross-spec-promise-check.md` in this skill's directory.
 
 ## Step 2: Identify What Changed
 
+**Resolving `{base}`:** never trust a bare local branch name for `{base}` — a long-lived worktree's local tracking branch (commonly `main`) routinely drifts behind its remote. Resolve it via `git fetch origin {base}` then use `origin/{base}` in every command below, or otherwise confirm `git log -1 {base}` matches `git log -1 origin/{base}` before trusting the diff scope.
+
 ### Merge-Provenance Check
 
 Before analyzing the diff, detect whether the base branch was merged into this branch mid-history — content that arrived that way is not work this branch introduced and must not be reviewed as such. `{base}`/`{branch}` reuse whatever base-branch resolution the rest of this step already uses.
