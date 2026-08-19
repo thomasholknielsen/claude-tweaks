@@ -10,10 +10,9 @@
 // Injectable seams (deps.git, deps.readFile) follow the same fake-runner test
 // convention as the gh-shelling modules (see the gh-api-module-pattern skill).
 const fs = require('fs');
-const path = require('path');
 const { execFileSync } = require('child_process');
 const { classifyDiffFiles, blastRadiusSummary } = require('./issues/blast-radius.js');
-const { resolvePolicyKeys } = require('./policy-schema.js');
+const { resolvePolicyConfig } = require('./policy-schema.js');
 
 class BlastRadiusError extends Error {
   constructor(...args) {
@@ -53,24 +52,17 @@ function parseNumstat(raw) {
 }
 
 function resolveConfig({ git, readFile, runDir }) {
-  let root;
+  let resolved;
   try {
-    root = git(['rev-parse', '--show-toplevel']).trim();
-  } catch {
-    root = process.cwd();
-  }
-  let policyRaw;
-  let runConfigRaw;
-  try {
-    policyRaw = readFile(path.join(root, '.claude-tweaks', 'policy.yml'));
-    runConfigRaw = runDir ? readFile(path.join(runDir, 'config.yml')) : null;
+    ({ result: resolved } = resolvePolicyConfig({
+      git,
+      readFile,
+      runDir,
+      keys: ['merge-sensitive-paths', 'auto-merge-max-lines', 'auto-merge-max-files'],
+    }));
   } catch (err) {
     throw new BlastRadiusError(`failed to read policy config: ${err.message}`);
   }
-  const resolved = resolvePolicyKeys(
-    ['merge-sensitive-paths', 'auto-merge-max-lines', 'auto-merge-max-files'],
-    { policyRaw, runConfigRaw }
-  );
   const rawPaths = resolved['merge-sensitive-paths'].value;
   const mergeSensitivePaths = Array.isArray(rawPaths)
     ? rawPaths

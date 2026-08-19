@@ -526,6 +526,33 @@ function resolveIntegrationModel(repoRoot) {
   return detectIntegrationModel(repoRoot);
 }
 
+// Shared root-resolution + policy.yml/config.yml read + resolvePolicyKeys
+// orchestration for bin/resolve-policy.js's CLI and
+// bin/lib/blast-radius-cli.js's resolveConfig — both independently
+// reimplemented this exact pathway before #916 (each resolving repo root via
+// `git rev-parse --show-toplevel`, falling back to `process.cwd()` on
+// failure, then reading `.claude-tweaks/policy.yml` and an optional
+// `{runDir}/config.yml` overlay). `git`/`readFile` stay caller-injected (the
+// fake-runner test seam blast-radius-cli.js already uses) rather than owned
+// here, since the two callers deliberately differ in read-fail-safe-vs-fail-
+// loud judgment (resolve-policy.js's `readFileSafe` swallows every read
+// error; blast-radius-cli.js's `defaultReadFile` swallows only ENOENT and
+// rethrows the rest) — only the orchestration around them is shared. `root`
+// is returned too since a caller such as resolve-policy.js's
+// integration-model default needs it independent of any resolved key.
+function resolvePolicyConfig({ git, readFile, runDir = null, keys }) {
+  let root;
+  try {
+    root = git(['rev-parse', '--show-toplevel']).trim();
+  } catch {
+    root = process.cwd();
+  }
+  const policyRaw = readFile(path.join(root, '.claude-tweaks', 'policy.yml'));
+  const runConfigRaw = runDir ? readFile(path.join(runDir, 'config.yml')) : null;
+  const result = resolvePolicyKeys(keys, { policyRaw, runConfigRaw });
+  return { root, policyRaw, runConfigRaw, result };
+}
+
 function auditPolicy(repoRoot) {
   const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
   const claudeMdRaw = readFileSafe(path.join(repoRoot, 'CLAUDE.md'));
@@ -591,5 +618,5 @@ function auditPolicy(repoRoot) {
 
 module.exports = {
   POLICY_KEYS, POLICY_CATEGORIES, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys,
-  detectIntegrationModel, resolveIntegrationModel,
+  detectIntegrationModel, resolveIntegrationModel, resolvePolicyConfig,
 };
