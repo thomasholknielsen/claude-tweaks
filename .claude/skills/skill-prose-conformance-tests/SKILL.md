@@ -82,6 +82,7 @@ When a resolver has a deliberate special case that excludes one source from prec
 | A shell or `node -e` snippet the reader is told to run, where the full command matters | Extract the fence from the doc with a structurally-anchored regex and execute exactly that string; byte-pin the fence instead only when the probe needs fixture-specific surroundings |
 | A shell snippet the reader is told to run, where only the flags matter | Byte-pin the fence, tokenize it, feed the argv straight through the CLI's own arg parser |
 | A behavioural claim about a third-party tool (`git apply --check`, `gh`, `mv -n`) | Probe the tool; asserting the sentence proves only that the sentence is present |
+| A documented convention this project wants enforced against every future addition — no fixed code structure to pin against, no bytes a migration will rewrite | Read the live corpus and pin the convention itself (a regex over `plugin/skills/**/*.md`, or wherever the convention applies); never freeze it — freezing would stop the suite from catching a new violation, which is the whole point (`tests/resolve-profile-invocation-conformance.test.js`, #670) |
 
 ## Project Conventions
 
@@ -118,7 +119,7 @@ A varying failure count across runs on byte-identical code tracks machine load f
 
 ## Reference
 
-- Instances: `tests/curation-judge-stagepath.test.js`, `tests/staged-patch-contract.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/hooks-gate-coverage.test.js`, `tests/skill-conventions.test.js`, `tests/blast-radius-snippet.test.js`, `tests/pipeline-run-dir-adoption-anchoring.test.js`, `tests/bin-lib/verify/snippet-conformance.test.js` (lighter argv-tokenize-direct variant)
+- Instances: `tests/curation-judge-stagepath.test.js`, `tests/staged-patch-contract.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/hooks-gate-coverage.test.js`, `tests/skill-conventions.test.js`, `tests/blast-radius-snippet.test.js`, `tests/pipeline-run-dir-adoption-anchoring.test.js`, `tests/bin-lib/verify/snippet-conformance.test.js` (lighter argv-tokenize-direct variant), `tests/resolve-profile-invocation-conformance.test.js` (live-corpus convention enforcement, no fixture)
 - Shared helper: `tests/helpers/git-fixtures.js`
 - Rules: `docs/donts.md` `[IL-66]`, `[IL-78]`, `[IL-80]`, `[IL-105]`; full accounts in `docs/incident-log.md`
 - Conventions for authoring the prose itself: `docs/skill-authoring.md`
