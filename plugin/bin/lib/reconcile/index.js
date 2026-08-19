@@ -22,6 +22,7 @@ const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
 const { sharedFetch } = require('./shared-fetch');
 const { readCache, writeCache, isFresh } = require('./cache');
+const { formatReconcileSummary, archivedCountFromRunsResult } = require('./residue-summary');
 
 // Execution order (mirror, red-tip, console, release, archive,
 // archive-branches, remote-prune, reap) is significant — see the ordering
@@ -304,7 +305,18 @@ async function reconcile(opts = {}) {
   // check (#820, D7).
   const cache = readCache(root);
   writeCache(root, { ...cache, lastRunAt: Date.now() });
+
+  // #644 Deliverable 3 — the one-line residue summary /claude-tweaks:flow's
+  // closing report renders, attached to the same JSON this function already
+  // returns (never a second data source): archived count from this pass's
+  // own `runs`, stuck count/age from the residue cache `archive`/`reap`
+  // (Deliverable 2) just finished updating, mirror ff outcome from this
+  // pass's own `mirror` when `mirror` was among the requested checks.
+  result.residueSummary = formatReconcileSummary(root, {
+    archivedCount: archivedCountFromRunsResult(result),
+    mirror: result.mirror,
+  });
   return result;
 }
 
-module.exports = { reconcile, ALL_CHECKS };
+module.exports = { reconcile, ALL_CHECKS, formatReconcileSummary };
