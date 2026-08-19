@@ -14,6 +14,7 @@ const { makeCmdStatus } = require('./lib/health-core/remembered-status');
 const { decide } = require('./lib/docs-health/dedup');
 const { validateFinding } = require('./lib/docs-health/validate-finding');
 const { toIssuePayload } = require('./lib/docs-health/issue-payload');
+const { resolveReadCommit } = require('./lib/health-core/read-commit');
 const { selectTarget, listDocs } = require('./lib/docs-health/scope');
 const path = require('path');
 const { computeInboundReferences } = require('./lib/docs-health/findability');
@@ -105,6 +106,10 @@ function cmdNextTarget(args) {
 
 function cmdValidateFindings(args) {
   const root = args.root || process.cwd();
+  // Resolved ONCE per run, right before filing — #117's freshness stamp
+  // must reflect the commit this sweep actually read, not the moment each
+  // finding's issue happens to be created.
+  const verifiedAsOf = resolveReadCommit(root);
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
@@ -214,7 +219,7 @@ function cmdValidateFindings(args) {
       cache[finding.id] = decision.action === 'reopen'
         ? { status: 'regressed', issue: decision.issue || null, lastSeenMs: Date.now() }
         : { status: 'staged', lastSeenMs: Date.now() };
-      payloads.push(toIssuePayload(finding));
+      payloads.push(toIssuePayload(finding, verifiedAsOf));
     }
   }
 
