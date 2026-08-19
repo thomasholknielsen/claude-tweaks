@@ -172,7 +172,7 @@ function tombstoneInFlightPr(content, runner, owner, repo) {
     const parsed = JSON.parse(content);
     const reason = parsed && parsed.reason;
     const link = parsed && parsed.link;
-    if (typeof reason !== 'string' || !reason.startsWith('pr-opened:') || !link) return null;
+    if (typeof reason !== 'string' || !reason.startsWith('pr-opened:')) return null;
     if (!isSameRepoPrUrl(link, owner, repo)) return null;
     const state = runner(['pr', 'view', link, '--json', 'state', '--jq', '.state']).trim();
     return state === 'OPEN' ? { link } : null;

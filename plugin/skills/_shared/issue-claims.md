@@ -266,11 +266,12 @@ the reclaim behavior below unchanged (fail open). `link` is untrusted (any sessi
 registry-branch write access can set it), so `tombstoneInFlightPr` validates it — a well-formed
 `https://github.com/{owner}/{repo}/pull/{number}` URL for the SAME owner/repo as the issue being
 claimed — before ever calling `gh pr view`; anything else (wrong repo, malformed, non-string) is
-treated the same as a missing `link` and never reaches `gh` at all. `bin/lib/claim-targets/claim-targets.js` — the
-group-claim loop `/claude-tweaks:flow` Step 2.8 and `/claude-tweaks:dispatch` actually call, a
-separate implementation from `claim-engine.js` — runs the same `tombstoneInFlightPr` check inline
-and reports the stopped target via `inFlight`/`reason: 'in-flight'` instead of `outcome`
-(`flow/claim-targets.md`'s "Branch on exit code").
+treated the same as a missing `link` and never reaches `gh` at all.
+`bin/lib/claim-targets/claim-targets.js` — the group-claim loop `/claude-tweaks:flow` Step 2.8 and
+`/claude-tweaks:dispatch` actually call, a separate implementation from `claim-engine.js` — runs
+the same `tombstoneInFlightPr` check inline and reports the stopped target via
+`inFlight`/`reason: 'in-flight'` instead of `outcome` (`flow/claim-targets.md`'s "Branch on exit
+code").
 
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a
