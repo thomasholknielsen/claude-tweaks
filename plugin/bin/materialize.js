@@ -19,13 +19,48 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { parseRecordFacets, extractFingerprint, parseDependencies } = require('./lib/issues/record');
+const {
+  parseRecordFacets, extractFingerprint, extractVerifiedAsOf, parseDependencies,
+} = require('./lib/issues/record');
 const { shapeGate, liftMetadata, composeHeader, composeFile } = require('./lib/issues/materialize-format');
 const wtDetect = require('./lib/hooks/worktree-detect');
 
 const USAGE = 'usage: materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--help]\n';
 
 const isPos = (n) => Number.isInteger(n) && n > 0;
+
+// #117 AC3: the threshold (commit distance from the record's own
+// Verified-as-of: stamp to this checkout's current HEAD) past which
+// materialize surfaces an explicit drift statement instead of staying
+// silent. A judgment default, not a protocol constant — tune here if it
+// proves noisy for a given project's commit cadence; no policy lever yet.
+const DRIFT_THRESHOLD_COMMITS = 50;
+
+// sha -> { sha, commits, ageDays, stale } | null. null means "could not
+// compute" (no stamp on the record, or the stamped sha isn't reachable from
+// HEAD in this checkout — e.g. a shallow clone) — never an error; a
+// consumer that can't compute drift simply says nothing about it, per
+// [IL-71]'s own posture: absence of a stamp/computation is not itself
+// evidence the body is fresh.
+function computeDrift(sha, deps) {
+  if (!sha) return null;
+  let commits;
+  try {
+    commits = Number(String(deps.gitRevListCount(sha)).trim());
+  } catch {
+    return null;
+  }
+  if (!Number.isFinite(commits)) return null;
+  let ageDays = null;
+  try {
+    const iso = String(deps.gitCommitDate(sha)).trim();
+    const then = iso ? new Date(iso).getTime() : NaN;
+    if (Number.isFinite(then)) ageDays = Math.max(0, Math.floor((Date.now() - then) / 86400000));
+  } catch {
+    // Elapsed time is supplementary — commit distance alone is enough to judge staleness.
+  }
+  return { sha, commits, ageDays, stale: commits >= DRIFT_THRESHOLD_COMMITS };
+}
 
 function parseArgs(argv) {
   const opts = { n: null, runDir: null, repo: null, ceremony: null, multiRecordSlug: null, help: false };
@@ -54,6 +89,10 @@ const realDeps = {
   ghView: (owner, repo, n) => execFileSync('gh', ['issue', 'view', String(n), '--repo', `${owner}/${repo}`, '--json', 'number,title,body,labels,url'], { encoding: 'utf8' }),
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  // #117: commit distance from a record's Verified-as-of: stamp to current
+  // HEAD, and that commit's own date — both scoped to computeDrift above.
+  gitRevListCount: (sha) => execFileSync('git', ['rev-list', '--count', `${sha}..HEAD`], { encoding: 'utf8' }),
+  gitCommitDate: (sha) => execFileSync('git', ['show', '-s', '--format=%cI', sha], { encoding: 'utf8' }),
   cwd: () => process.cwd(),
   mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
   isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
@@ -113,6 +152,22 @@ function run(argv, deps = realDeps) {
     return 1;
   }
 
+  // #117 AC3: this record's own Verified-as-of: stamp (present when it was
+  // filed by one of the four health-sweep skills, absent otherwise — a
+  // human-filed or /capture-originated record has nothing to compare). A
+  // fresh stamp bounds drift; it never establishes correctness, so this is
+  // an advisory line, not a gate — [IL-71]'s re-verification instruction
+  // stays in force regardless of what this says.
+  const verifiedAsOf = extractVerifiedAsOf(record.body);
+  const drift = verifiedAsOf ? computeDrift(verifiedAsOf, deps) : null;
+  if (drift && drift.stale) {
+    const ageNote = drift.ageDays === null ? '' : `, ~${drift.ageDays}d old`;
+    deps.stderr(
+      `materialize.js: Record #${opts.n}'s premise is ${drift.commits} commits old${ageNote} `
+      + `(verified-as-of ${drift.sha}) — re-derive facts against current HEAD before implementing.\n`,
+    );
+  }
+
   const facets = parseRecordFacets(record.labels);
   const labelNames = (record.labels || []).map((l) => (typeof l === 'string' ? l : l && l.name)).filter(Boolean);
   const ceremony = facets.ceremony || opts.ceremony;
@@ -144,7 +199,9 @@ function run(argv, deps = realDeps) {
   deps.mkdirp(workDir);
   deps.writeFile(outFile, fileContent);
 
-  deps.stdout(JSON.stringify({ record: opts.n, file: outFile, ceremonySource: facets.ceremony ? 'label' : 'override', surface: meta.surface || null }, null, 2) + '\n');
+  deps.stdout(JSON.stringify({
+    record: opts.n, file: outFile, ceremonySource: facets.ceremony ? 'label' : 'override', surface: meta.surface || null, drift,
+  }, null, 2) + '\n');
   return 0;
 }
 

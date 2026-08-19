@@ -10,6 +10,7 @@ const { decide, RISK_RANK } = require('./lib/code-health/dedup');
 const { computeRisk } = require('./lib/code-health/risk');
 const { validateFindingV2, applyConfidenceFloor } = require('./lib/code-health/validate-finding');
 const { toIssuePayloadV2 } = require('./lib/code-health/issue-payload');
+const { resolveReadCommit } = require('./lib/health-core/read-commit');
 const { getCriterion } = require('./lib/code-health/criteria');
 const { classifyArea } = require('./lib/code-health/area-type');
 const { listSlices, contentHash, selectSlice, sliceRecursive } = require('./lib/code-health/scope');
@@ -143,6 +144,10 @@ function cmdPullIssues(args) {
 
 function cmdValidateFindings(args) {
   const root = args.root || process.cwd();
+  // Resolved ONCE per run, right before filing — #117's freshness stamp
+  // must reflect the commit this sweep actually read, not the moment each
+  // finding's issue happens to be created.
+  const verifiedAsOf = resolveReadCommit(root);
   const findingsPath = args._[1]; // positional after the subcommand name
   if (!findingsPath) {
     process.stderr.write(
@@ -238,7 +243,7 @@ function cmdValidateFindings(args) {
       cache[finding.id] = decision.action === 'reopen'
         ? { status: 'regressed', issue: decision.issue || null, severity: finding.severity, risk: finding.risk }
         : { status: 'open', issue: null, severity: finding.severity, risk: finding.risk };
-      payloads.push(toIssuePayloadV2(finding));
+      payloads.push(toIssuePayloadV2(finding, verifiedAsOf));
     } else if (decision.action === 'remember') {
       rememberCandidates.push({ id: finding.id, severity: finding.severity, risk: finding.risk });
     }

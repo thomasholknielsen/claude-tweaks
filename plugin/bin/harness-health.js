@@ -8,6 +8,7 @@ const {
 const { computeChurn } = require('./lib/health-core/runs');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispatch');
+const { resolveReadCommit } = require('./lib/health-core/read-commit');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
 const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
@@ -225,8 +226,13 @@ function cmdValidateFindings(args) {
   // not just on the same-container run `mark` itself was tested against.
   const readCacheWithDeclined = (r) => mergeDeclinedIntoCache(readCache(r), readDurableState(r).declined || {});
 
+  // Resolved ONCE per run, right before filing — #117's freshness stamp
+  // must reflect the commit this sweep actually read, not the moment each
+  // finding's issue happens to be created.
+  const verifiedAsOf = resolveReadCommit(root);
+
   const { cache, payloads, seen, wontfixSuppressed } = dedupAndDispatch({
-    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors, readCache: readCacheWithDeclined, decide, toIssuePayload,
+    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors, readCache: readCacheWithDeclined, decide, toIssuePayload, verifiedAsOf,
   });
 
   if (!args.dryRun) {
