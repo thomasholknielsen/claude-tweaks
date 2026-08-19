@@ -185,3 +185,23 @@ Marking "Yes, update" as `(Recommended)` follows the same reasoning as CREATE St
 **Step 6.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: <assembled body>}`. If this call fails because `record.routine_id` no longer refers to an existing routine (e.g. deleted out-of-band at claude.ai/code/routines), report the record as stale and offer the same recourse as STATUS Step 2 (`status.md` in this skill's directory): delete `.claude-tweaks/routines/{PREFIXED_NAME}.yml` and re-run `create <skill>` instead — do not proceed to Step 7 or rewrite the instantiated record for a failed update.
 
 **Step 7.** Rewrite the instantiated record with the resolved schedule, the resolved `branch` (Step 3's value — omit the key entirely when nothing resolved, per CREATE Step 9), the new `template_version` and `model` (both resolved fresh from the current template, not preserved from the old record), the new `kernel_version` (resolved fresh from the schema at assembly time, via the documented grep — Step 2 already ran it once for the sync check; reuse that result rather than re-invoking it here, and if it was unresolved, Step 2 already stopped before reaching this step), and a fresh `created_at` timestamp (this field doubles as "last written at") — preserving `routine_id`, `template`, and `console_url` from the existing record.
+
+## PAUSE `<skill>`
+
+Unlike CREATE/UPDATE, PAUSE writes nothing locally — it makes one live `RemoteTrigger` call and nothing else, so Step 0's worktree check does not apply here.
+
+**Step 1 — Resolve the record.** Load the template and resolve `PREFIXED_NAME` exactly as CREATE Steps 1-2 do. Then run `record-freshness.md` in this skill's directory (Steps F1-F2) and apply its Step F3 UPDATE disposition exactly as UPDATE Step 1 does — same stale-checkout stop condition, same "read from the `upstream` authority copy when applicable" rule. Require an existing record for the current project (routed here directly — there is no idempotency-check auto-route the way CREATE has one). If none exists on either side, tell the user to run `create <skill>` first and stop.
+
+**Step 2 — Pause.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: {"enabled": false}}` — a body touching only `enabled`, never reassembling schedule, model, tools, or prompt the way UPDATE's Step 6 body does. If the call fails because `record.routine_id` no longer refers to an existing routine (deleted out-of-band at claude.ai/code/routines), report the record as stale and offer the same recourse as STATUS Step 2 / UPDATE Step 6: delete `.claude-tweaks/routines/{PREFIXED_NAME}.yml` and re-run `create <skill>` instead.
+
+**Step 3 — Report.** "`{PREFIXED_NAME}` paused — it will not fire until resumed." No instantiated-record write: the record schema (`_shared/routine-template-schema.md`) carries no `enabled`/`paused` field, so there is nothing local to rewrite — `status <skill>`'s `enabled` check (`status.md` Step 3.5) reads the live state directly off `RemoteTrigger get`, not a record copy.
+
+## RESUME `<skill>`
+
+Mirrors PAUSE exactly, with one difference.
+
+**Step 1 — Resolve the record.** Same as PAUSE Step 1.
+
+**Step 2 — Resume.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: {"enabled": true}}`. Same stale-record handling as PAUSE Step 2.
+
+**Step 3 — Report.** "`{PREFIXED_NAME}` resumed — it will fire on its existing schedule again." Same no-record-write rationale as PAUSE Step 3.

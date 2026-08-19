@@ -362,7 +362,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `skills/_shared/trust-table.md` | Fetch + Render supplies `fleet status`'s per-class trust table — same shared rendering `/backlog overview` and `/help` consume. |
 | `skills/routine/status.md` | Steps 2-3.5 supply the per-routine STATUS procedure `fleet status` loops over fleet-marked records. |
 | `bin/lib/issues/fleet-counters.js` | Pure module deriving `fleet status`'s weekly counters — fixtures pin AC1. |
-| `#213` | The pause verb `fleet off` depends on, open at ship time — pause path consumes whatever ships; until then the no-pause-verb fallback reports deletion-vs-keep and performs no destructive action. |
+| `skills/routine/create-and-update.md` | PAUSE section supplies `fleet off`'s per-routine pause call (`RemoteTrigger update {"enabled": false}`, touching only that field) — reused rather than reimplemented. |
 
 ## routine-kickoff
 
