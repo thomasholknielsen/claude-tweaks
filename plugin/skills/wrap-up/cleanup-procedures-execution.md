@@ -255,7 +255,13 @@ Before any step below runs a `gh` command, run the Detection Ladder from
 `_shared/forge-detection.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
 skip — Section E exists specifically to write GitHub state (release claims, remove labels); if
 `gh` is unavailable there is nothing safe to degrade to. Report the specific failing check and
-stop before attempting any release.
+stop before attempting any release. **Decision:** this stays hard even after 6.69.0 widened
+item 7's Condition (`cleanup-procedures.md`'s table) from "materialized header present" to
+"record-based work" — a standalone `/wrap-up #N` run now reaches this gate far more often, but
+claim release is itself a `gh`-write action with no automated fallback in this CLI; the MCP path
+in `_shared/github-write-transport.md` is a documented manual procedure for a `gh`-absent
+environment, not something Section E degrades to on its own, so it stops here rather than
+silently skipping the release.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
    `/flow` releases all claims once after its consolidated Review Console and merge.
@@ -279,11 +285,19 @@ stop before attempting any release.
    under, for a singleton. (A multi-spec bundle is the one exception this single-spec Section E does
    not itself resolve — see the callout below.) A spec reaching this point through any other path
    (a human running `/flow #{issue}` directly, or a spec merely *derived from* an issue with no
-   live claim) resolves the same way. The CLI reads the blob at `claims/issue-${ISSUE}.json` on
-   `claims-registry` itself; a `runId` other than `$RUN_ID` means a successor holds the lock — it
-   exits `4`, writes nothing, posts nothing, and appends `AUTO — skipped release of issue
-   #{issue}: claim held by run {claim.runId}` to `decisions.md`; skip the remaining steps for
-   this issue — a successor owns it now.
+   live claim) resolves the same way. The CLI classifies the blob at `claims/issue-${ISSUE}.json`
+   on `claims-registry` before touching it (`classifyClaimBlob`, per `_shared/issue-claims.md`'s
+   "The lock" section), and the two outcomes that reach this step are not the same. **Absent**
+   (never claimed) or a **tombstone** (already released) — nothing is held, so the CLI proceeds
+   quietly to the release-and-comment path below and logs the ordinary `released claim on
+   #{issue} (...) — already released or swept` line; it never writes the "held by run" line
+   below. **Live or stale**, by contrast, is an actual outstanding lock — only then does a
+   `runId` other than `$RUN_ID` mean a successor holds it: the CLI exits `4`, writes nothing,
+   posts nothing, and appends `AUTO — skipped release of issue #{issue}: claim held by run
+   {claim.runId}` to `decisions.md`; skip the remaining steps for this issue — a successor owns
+   it now. (An unreadable/corrupt blob fails closed the same way, with `holder: unreadable`, per
+   `_shared/issue-claims.md`'s Failure posture table's "Claim write rejected, blob classified
+   `'unreadable'`" row — treated as live, so it also skips and logs.)
 
    **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
    `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" in `cleanup-procedures.md`) —
