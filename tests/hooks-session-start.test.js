@@ -443,6 +443,14 @@ test('SessionStart spawn gate: fires against a real pr-first remote even though 
     assert.ok(spawnedWith[1][0].endsWith(path.join('bin', 'hooks.js')));
     assert.strictEqual(spawnedWith[1][1], 'reconcile-background');
     assert.strictEqual(spawnedWith[2].detached, true);
+    // `detached: true` is precisely what leaves the child with no console to
+    // inherit, so it MUST be paired with `windowsHide: true` — otherwise the
+    // child, and every git process the background pass spawns beneath it,
+    // each get their own VISIBLE console window on Windows. Observed as a
+    // storm of black boxes flashing for the whole reconcile pass; see
+    // tests/hooks-git-exec.test.js for the funnel-level counterpart.
+    assert.strictEqual(spawnedWith[2].windowsHide, true,
+      'a detached child must also be windowsHide:true — otherwise it and its git descendants each open a visible console window on Windows');
     const errorListeners = listeners.filter(([event]) => event === 'error');
     assert.strictEqual(errorListeners.length, 1, "the spawned child must carry an 'error' listener — without one, an async spawn failure becomes an uncaught exception");
     assert.strictEqual(typeof errorListeners[0][1], 'function');

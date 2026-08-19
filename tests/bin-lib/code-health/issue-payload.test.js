@@ -170,3 +170,26 @@ test('v2 body omits "Also affects" when relatedAnchors is an empty array', () =>
   const { body } = toIssuePayloadV2({ ...V2_FINDING, relatedAnchors: [] });
   assert.ok(!body.includes('Also affects:'));
 });
+
+// ── freshness stamp (#117) ──────────────────────────────────────────────────
+
+test('toIssuePayloadV2 with no verifiedAsOf argument omits the stamp (existing callers unaffected)', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(!body.includes('Verified-as-of:'));
+});
+
+test('toIssuePayloadV2 threads verifiedAsOf through to the composed body', () => {
+  const { extractVerifiedAsOf } = require('../../../plugin/bin/lib/issues/record');
+  const { body } = toIssuePayloadV2(V2_FINDING, 'abc1234');
+  assert.strictEqual(extractVerifiedAsOf(body), 'abc1234');
+});
+
+test('legacy toIssuePayload (v1) never carries a verifiedAsOf param — frozen shape unaffected', () => {
+  // v1 is a historical fixed shape (see the frozen-legacy comment at its
+  // definition) — it is not called by bin/code-health.js and must not gain
+  // this feature, so this only proves it still ignores an extra argument
+  // rather than throwing.
+  const { toIssuePayload } = require('../../../plugin/bin/lib/code-health/issue-payload');
+  const { body } = toIssuePayload(FINDING);
+  assert.ok(!body.includes('Verified-as-of:'));
+});

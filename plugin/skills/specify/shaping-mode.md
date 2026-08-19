@@ -105,7 +105,7 @@ Using the facets already read in Resolve-the-input case 1/5 (`parseRecordFacets`
 - **`risk:*` absent** — judge low/medium/high from the now-shaped Deliverables and Acceptance Criteria (blast radius, reversibility), per `_shared/work-record.md`'s Scoring axis, then stamp it.
 - **`size:*` absent** — judge low/medium/high the same way (estimated size), then stamp it.
 - **`ceremony:*` absent** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check #{n}")`) against the now-shaped body — the same input a fresh fetch would use, but already in memory here. Stamp the verdict as an explicit label, `ceremony:fast-lane` or `ceremony:standard` — never omit it, unlike `risk:*`/`size:*`'s omit-when-unscored convention (this axis has no unscored state; every record gets a verdict the first time it's shaped). Bootstrap both label values per `_shared/label-bootstrap.md` before the first write, same as any new label pair.
-- **Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against the now-shaped body **and** the `## Original request` block preserved above.
+- **Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check #{n}")`) against the now-shaped body **and** the `## Original request` block preserved above.
 
   On `FRAMING: open`, stamp nothing and add nothing — absence is the clean state.
 
@@ -121,6 +121,8 @@ Using the facets already read in Resolve-the-input case 1/5 (`parseRecordFacets`
 - **Type absent** — judge `bug | feature | task` from the now-shaped content (defect vs. new capability vs. maintenance/refactor/docs/chore), per `_shared/work-record.md`'s Type axis, then stamp it: `work-backend: github-issues` — `work-types: native` applies the native Issue Type (`--type {t}` on the edit call below); `work-types: labels` adds the matching label instead (`--add-label "type:{t}"`, pair lives in `record.js`'s `TYPE_LABELS` — bootstrap it first per `_shared/label-bootstrap.md`, as decomposition mode does). `work-backend: local-files` — set `facets.type` in the `writeRecord` call below.
 - **`parked` present** — remove it; a record entering shaping mode is being promoted out of hold.
 - **`ready`** — add it (idempotent when already present, e.g. a born-ready record).
+
+**Per-record invocation.** Every run — a single record or a comma-list batch alike — the `ceremony-check #{n}` and `framing-check #{n}` invocations above run once per record; on a batch this means once per record inside the per-record loop, never reused or rendered from memory for a later record. **Self-check before writing:** confirm exactly one `ceremony-check #{n}` and one `framing-check #{n}` Skill invocation exist for this record (two `framing-check #{n}` invocations where the solution-baked evidence path above re-invoked once) before the compose-then-write-once pass below — a divergent ceremony or framing verdict across records, whether within one batch or across sequential single-record runs in the same session, is only valid when each record had its own invocation.
 
 ### Compose-then-write-once
 

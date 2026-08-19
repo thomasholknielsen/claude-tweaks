@@ -54,48 +54,25 @@ Rules:
 - **The two acceptance backstops — `[parent-gate]` and `[acceptance-gap]` — sit in a different scope on each driver.** Both come from Step 4.8 (`github`) under `work-backend: github-issues` and from Step 1 (`backlog`, and `specs` through it) under `work-backend: local-files`, since the local sweeps read the record store rather than the GitHub API. `--scope=github` surfaces neither on the local driver, and `--scope=backlog` surfaces neither on the GitHub one; an unscoped run covers both regardless.
 - **Scoped runs use the identical Step 6 report/approval, Step 7 execution, and Step 7.5 verification** as a full sweep — only the set of findings feeding them is narrower. The Step 7 commit message names the scope explicitly (see Step 7.5 below); an unscoped full run's commit message is unchanged.
 
-## Steps 1-4.9 and 5.5: Scan Everything
+## Steps 1-4.95 and 5.5: Scan Everything
 
-> **No decisions during scanning.** Steps 1-4.9 and 5.5 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
+> **No decisions during scanning.** Steps 1-4.95 and 5.5 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-Steps split by cost, the same way `skills/help/status-scan.md`'s Execution model does. A step whose scan rules are substantial enough to inline, or that does real `gh` work, earns a Task agent. Steps 4, 4.6, and 4.9 are none of those — their entire rule set is a four-row table over a `Glob` of the plan directories, a single `Read` of `docs/REGISTRY.md`, and one Skill-tool call that shells out to a JSON-emitting script, respectively — so dispatching them as agents would pay the full inherited `CLAUDE.md` cost to run one `Glob`. They run in the main thread instead.
+Steps split by cost, the same way `skills/help/status-scan.md`'s Execution model does. A step whose scan rules are substantial enough to inline, or that does real `gh` work, earns a Task agent. Steps 4, 4.6, 4.9, and 4.95 are none of those — their entire rule set is a four-row table over a `Glob` of the plan directories, a single `Read` of `docs/REGISTRY.md`, and one Skill-tool call that shells out to a JSON-emitting script (twice — the design-wrapper doctor check and the calibration read-out), respectively — so dispatching them as agents would pay the full inherited `CLAUDE.md` cost to run one `Glob`. They run in the main thread instead.
 
-> **Parallel execution:** Dispatch the agent-backed steps selected by the active scope (Steps 1, 3, 4.5, 4.7, 4.8, and 5.5 for an unscoped/full run; a `--scope`-filtered subset otherwise, per "Scope Selection" above) as parallel Task agents — each scan is independent (Work Records, Design Docs, Git, Issue Claims, GitHub PRs/Issues, Patterns). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. Step 5.5 has no data dependency on any other step (git-log only), so it joins the parallel batch directly — its output is simply slotted into the correct Step 6 report section afterward. Step 5 is the one step that stays sequential: it depends on Step 1's record-scan results (its `ready`, unclaimed rows), which is why `specs` pulls in both Step 1 and Step 5 (per "Scope Selection" above), and it runs only after the parallel batch (including Step 1) completes. Assemble all findings into the Step 6 report.
->
-> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. [Use: Fast] (resolved as stated in the Model profile line below).
->
-> **Model profile:** [Use: Fast] — each scan is a mechanical read of a single data source (the open work-record queue, design-doc directory, `bin/residue.js` + local branches, issue-claim blobs + comments, gh PR/issue queries, recent git history). No cross-cutting analysis at the per-scan level; Step 5 does the synthesis sequentially in the main thread after the parallel batch (including Step 5.5) completes. Resolve via `node plugin/bin/resolve-profile.js fast` (contract § Model Selection).
->
-> **Output template (each agent must follow exactly):**
->
-> ```markdown
-> OUTPUT FORMAT (required):
-> Return ONLY a markdown table, no preamble:
->
-> | Severity | Path:Line | Finding | Evidence |
-> |---|---|---|---|
-> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
-> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
->
-> Severity scale: critical / high / medium / low / info
-> If no findings: return literal text "No findings."
-> Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
-> Do not add narration, headers, or summaries before or after the table.
-> ```
->
-> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the Template A table verbatim. Agents do not invent a new schema.
->
-> **Tidy-specific column semantics (for the dispatcher, not the agents):** when the dispatcher receives Template A rows back from each scan agent, it interprets the four standard columns in this skill's vocabulary — Severity = recommendation urgency (`info` for Keep, `low` for routine cleanup, `medium` for Promote/Absorb/Defer, `high` for stale-Delete or registry break); Path:Line = the artifact (the record reference — `#{n}` under `github-issues`, the local record path under `local-files` — `docs/REGISTRY.md`, or a worktree path); Finding = `[type] item — short detail` (e.g., `[backlog] "Build redis cache" — 5 weeks old`); Evidence = the recommendation (`Delete — stale` / `Promote — ready for brainstorm` / `Absorb → #42`). The dispatcher merges all agents' Template A tables into the Step 6 report using these semantics. **Template A itself is unchanged** — the remapping is purely how the dispatcher reads it.
-
-> **Parallel execution:** Use parallel tool calls aggressively — the `Glob`/`Read` operations in Steps 4 and 4.6 and Step 4.9's Skill-tool call are independent and should run concurrently.
-
-Issue those Step 4/4.6/4.9 tool calls in the same message that dispatches the agent batch above — they depend on neither it nor each other, so the whole batch overlaps. Being in the main thread they need no status line and no agent envelope, and the Contract/Model profile/Output template above do not apply to them; their findings feed the Step 6 report directly in the same `[plan]`/`[registry]`/`[doctor]` format, read through the same column semantics. Keep Step 4's judgment metadata-only (filename, file age, whether a related record exists and is still open) — do not read plan bodies into the main thread, which is the cost this demotion exists to avoid. All three steps stay `--scope`-selectable exactly as before (`plans` → 4, `registry` → 4.6, `design` → 4.9); only the execution mechanism changes, not which steps a scope covers.
+**Extracted — read `scan-execution.md` in this skill's directory.** That file carries the dispatch
+contract, model profile, output template, and column semantics for the agent-backed steps, plus
+the main-thread Step 4/4.6/4.9/4.95 execution note — everything below this paragraph through the
+`--scope`-selectable rule. Nothing of that mechanics remains here; this section survives so an
+external reference to it still resolves in one hop.
 
 ### Scan steps (data sources + collection format)
 
 Read `scan-procedures.md` in this skill's directory for the full classification tables, age thresholds, and per-step rules. The dispatcher inlines the relevant section into each agent's prompt so subagents have everything they need. Main-thread Steps 4 and 4.6 read their own sections from that file directly — nothing to inline, since there is no agent boundary to cross.
 
 **Step 1 is a separate file.** Its rules live in `step-1-records.md`, not in `scan-procedures.md` (which keeps only a stub under that heading). Read `step-1-records.md` and inline it **whole** into the Work Records agent's prompt; read it only when the active scope selects Step 1 (`backlog` or `specs`, or an unscoped run), so a scoped run that never touches records never pays for it. The two files are read independently — neither is a prerequisite for the other.
+
+**Step 4.7's four backstop scans are likewise a separate file.** Their rules live in `issue-claims-backstops.md`, not in `scan-procedures.md` (which keeps only a stub under each `### Backstop:` heading). Read `issue-claims-backstops.md` and inline it **whole** into the Issue Claims agent's prompt, directly after `scan-procedures.md`'s own Step 4.7 section — see that file's own header for why the ordering matters.
 
 | Step | Data source | Output prefix |
 |------|-------------|--------------|
@@ -107,6 +84,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4.7 | `gh api contents/claims` on `claims-registry` | `[claim]` |
 | 4.8 | `gh pr list` / `gh issue list --label by:code-health` / `--label by:harness-health` / `--label by:journey-health` / `--label by:docs-health` per `_shared/github-pr-scan.md` (`repo-wide` scope), plus closed records with no acceptance disposition per `_shared/github-pr-scan-acceptance.md`'s `acceptance-gap` scope, plus decomposition parents complete but ungated per that same file's `parent-gate` scope | `[pr]`, `[gh-issue]`, `[acceptance-gap]`, `[parent-gate]` |
 | 4.9 (main thread, parallel with the agent batch) | `/claude-tweaks:design-wrapper doctor --source tidy` — the project's own Impeccable artifacts | `[doctor]` |
+| 4.95 (main thread, parallel with the agent batch) | `plugin/bin/calibration-report.js` — report-only, no scope tag of its own | `[calibration]` |
 | 5 (sequential, after Step 1) | `ready` records not yet claimed | `[sizing]` |
 | 5.5 (parallel, independent of every other step) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
 
@@ -224,7 +202,7 @@ Commit with a message summarizing the tidy-up. For a scoped run (`--scope` was p
 
 This resolves the account- and project-specific values a portable template can't hardcode (which environment, which repo) and creates a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism. Add `--dry-run` to `/claude-tweaks:routine create` to inspect the assembled routine configuration before anything is created — distinct from `/claude-tweaks:tidy --dry-run` (Step 6 above), which previews what a specific tidy firing would mutate, not how the routine itself is configured. Before trusting a newly-changed `tidy-aggressiveness` policy value to an unattended scheduled firing, invoke `/claude-tweaks:tidy --dry-run` manually first (optionally with the same `--scope` the routine uses, e.g. `--scope=github --dry-run`) and review the `DRY-RUN` log entries before letting the routine run for real.
 
-**Unattended execution:** a scheduled firing runs Steps 1-7.5 exactly as an interactive invocation would, except Step 6's Standalone auto fallback takes over in place of the interactive batch-approval prompt — but only when the target project's own `.claude-tweaks/policy.yml` already sets `auto-mode: default-on` (project policy, not a routine-specific mechanism — see `_shared/auto-mode-contract.md`). A bare scheduled firing (`/claude-tweaks:tidy`, no arguments, no conversation history) has no other way to supply an `auto` mode signal; if the project hasn't configured `auto-mode: default-on`, the routine falls back to interactive and blocks on a batch-approval prompt that will never be answered. When auto-mode is enabled project-wide, safe, atomic actions (stale deletes and cleanly-merged worktree/branch removals) auto-apply — and per the `moderate` aggressiveness default, so do the reversible git-tracked judgment cleanups (`local-files` deletes/absorbs/defers); outward-facing GitHub writes still stage, and everything requiring judgment is staged to that run's `decisions.md` rather than blocking on input. Nothing is invented here for routines specifically — this is the same Standalone auto path `/tidy` already uses whenever it runs outside a parent pipeline. If Task-based subagent dispatch isn't available in a given cloud routine session, Steps 1, 3, 4.5, 4.7, 4.8, and 5.5 degrade to running sequentially in the main thread instead of in parallel — same steps, same output, just not parallelized. Steps 4, 4.6, and 4.9 already run in the main thread and are unaffected.
+**Unattended execution:** a scheduled firing runs Steps 1-7.5 exactly as an interactive invocation would, except Step 6's Standalone auto fallback takes over in place of the interactive batch-approval prompt — but only when the target project's own `.claude-tweaks/policy.yml` already sets `auto-mode: default-on` (project policy, not a routine-specific mechanism — see `_shared/auto-mode-contract.md`). A bare scheduled firing (`/claude-tweaks:tidy`, no arguments, no conversation history) has no other way to supply an `auto` mode signal; if the project hasn't configured `auto-mode: default-on`, the routine falls back to interactive and blocks on a batch-approval prompt that will never be answered. When auto-mode is enabled project-wide, safe, atomic actions (stale deletes and cleanly-merged worktree/branch removals) auto-apply — and per the `moderate` aggressiveness default, so do the reversible git-tracked judgment cleanups (`local-files` deletes/absorbs/defers); outward-facing GitHub writes still stage, and everything requiring judgment is staged to that run's `decisions.md` rather than blocking on input. Nothing is invented here for routines specifically — this is the same Standalone auto path `/tidy` already uses whenever it runs outside a parent pipeline. If Task-based subagent dispatch isn't available in a given cloud routine session, Steps 1, 3, 4.5, 4.7, 4.8, and 5.5 degrade to running sequentially in the main thread instead of in parallel — same steps, same output, just not parallelized. Steps 4, 4.6, 4.9, and 4.95 already run in the main thread and are unaffected.
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 

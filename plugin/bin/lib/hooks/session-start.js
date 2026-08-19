@@ -216,7 +216,12 @@ async function run(ctx) {
           const child = spawn(
             process.execPath,
             [path.join(__dirname, '..', '..', 'hooks.js'), 'reconcile-background'],
-            { cwd: ctx.cwd, detached: true, stdio: 'ignore' },
+            // `windowsHide: true` is load-bearing alongside `detached: true`:
+            // detaching is what leaves the child with no inheritable console,
+            // and without the flag Windows gives it a VISIBLE one — as it
+            // then does for every git process this background pass spawns
+            // beneath it. See tests/hooks-git-exec.test.js for the funnel.
+            { cwd: ctx.cwd, detached: true, stdio: 'ignore', windowsHide: true },
           );
           // spawn() returns an EventEmitter, and an ASYNCHRONOUS spawn
           // failure (EAGAIN under fork pressure — routine in a repo running

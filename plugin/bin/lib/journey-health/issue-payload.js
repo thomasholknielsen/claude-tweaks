@@ -20,7 +20,11 @@ const CATEGORY_LABELS = { drift: 'drift', coverage: 'coverage', 'regression-susp
 // there is no local pre-validation or default fallback here on purpose.
 const SEVERITY_TO_RISK = { high: 'high', med: 'medium', low: 'low' };
 
-function toIssuePayload(finding) {
+// verifiedAsOf (#117): the sha the sweep read this repo at, resolved ONCE per
+// run by the caller (bin/journey-health.js, via health-core/read-commit.js)
+// and threaded through here — never resolved inside this function. See
+// specShapedBody's own verifiedAsOf doc in record.js for why.
+function toIssuePayload(finding, verifiedAsOf) {
   const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;
 
   // Only ever populated for category: "coverage" findings — the other three
@@ -33,6 +37,7 @@ function toIssuePayload(finding) {
     deliverables: finding.recommendation,
     acceptanceCriteria: `The condition described above is resolved: a fresh \`/claude-tweaks:journey-health\` audit of journey '${finding.journey}' files no finding with this fingerprint.`,
     filedBy: '/claude-tweaks:journey-health',
+    verifiedAsOf,
   });
 
   const title = `Journey ${categoryLabel}: ${finding.journey} — ${finding.section}`;
