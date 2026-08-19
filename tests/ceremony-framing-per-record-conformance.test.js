@@ -1,7 +1,7 @@
 // tests/ceremony-framing-per-record-conformance.test.js
 // Pins the "one ceremony-check/framing-check invocation per record" wording
-// across skills/specify/shaping-mode.md, skills/specify/record-creation.md,
-// skills/challenge/SKILL.md, and skills/assess-agent-autonomy/ceremony-check.md
+// across plugin/skills/specify/shaping-mode.md, plugin/skills/specify/record-creation.md,
+// plugin/skills/challenge/SKILL.md, and plugin/skills/assess-agent-autonomy/ceremony-check.md
 // so the four files cannot silently drift out of agreement with each other.
 // See #708.
 'use strict';
@@ -13,10 +13,10 @@ const path = require('path');
 const REPO_ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 
-const CHALLENGE = read('skills/challenge/SKILL.md');
-const SHAPING = read('skills/specify/shaping-mode.md');
-const RECORD_CREATION = read('skills/specify/record-creation.md');
-const CEREMONY_CHECK = read('skills/assess-agent-autonomy/ceremony-check.md');
+const CHALLENGE = read('plugin/skills/challenge/SKILL.md');
+const SHAPING = read('plugin/skills/specify/shaping-mode.md');
+const RECORD_CREATION = read('plugin/skills/specify/record-creation.md');
+const CEREMONY_CHECK = read('plugin/skills/assess-agent-autonomy/ceremony-check.md');
 
 test('challenge/SKILL.md argument-hint documents framing-check\'s optional #{n}', () => {
   assert.ok(
