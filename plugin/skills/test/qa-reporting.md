@@ -152,7 +152,7 @@ After ALL agents in a tier complete (not during execution — to avoid file writ
 }
 ```
 
-The `summary.passed` count includes both PASS and PASS_WITH_CAVEATS stories (since caveats are informational). The `summary.pass_with_caveats` count is the subset of passed stories that had caveats. The `findings` array contains classified failure findings and caveat-derived ux-issue findings. Each failure finding includes the `trace` path captured by the qa-agent before closing the session — open the trace with `agent-browser trace view <path>`. The `caveats` array contains raw observations from PASS_WITH_CAVEATS stories. The `recovered_locators` array contains all locator recoveries across all stories — each entry includes the source file and step index so the YAML update can be traced. The `page_inventories` array contains structured snapshot data per unique URL — consumed by `/review` lens 3h (UX analysis, `ux-analysis.md`) and `/visual-review` (`browser-review.md`'s Shared review contract, "First Impressions (Step 2)") to ground page-level recommendations in observed structure.
+The `summary.passed` count includes both PASS and PASS_WITH_CAVEATS stories (since caveats are informational). The `summary.pass_with_caveats` count is the subset of passed stories that had caveats. The `findings` array contains classified failure findings and caveat-derived ux-issue findings. Each failure finding includes the `trace` path captured by the qa-agent before closing the session — a Chrome DevTools trace, opened via Chrome DevTools → Performance → Load profile (the CLI has no trace-viewing subcommand). The `caveats` array contains raw observations from PASS_WITH_CAVEATS stories. The `recovered_locators` array contains all locator recoveries across all stories — each entry includes the source file and step index so the YAML update can be traced. The `page_inventories` array contains structured snapshot data per unique URL — consumed by `/review` lens 3h (UX analysis, `ux-analysis.md`) and `/visual-review` (`browser-review.md`'s Shared review contract, "First Impressions (Step 2)") to ground page-level recommendations in observed structure.
 
 **`{RUN_DIR}/report.md`** — human-readable (same format as the report below).
 
@@ -176,7 +176,7 @@ The `summary.passed` count includes both PASS and PASS_WITH_CAVEATS stories (sin
 | 1   | {story name} | stale-selector   | Low      | Locator "Submit" not found       | traces/{id}/{ts}.zip                 | Update locator in story YAML        |
 | 2   | {story name} | code-bug         | High     | Expected "Dashboard" in title    | traces/{id}/{ts}.zip                 | Investigate component behavior      |
 
-> Open a trace with `agent-browser trace view <path>`. Classification is automated — override categories in the findings table if needed.
+> Traces are Chrome DevTools traces — open via Chrome DevTools → Performance → Load profile. Classification is automated — override categories in the findings table if needed.
 
 ## Observations (informational)
 
@@ -213,7 +213,19 @@ Auto-recovered {N} locator(s) in {M} story file(s). Story YAML files have been u
 
 | Story ID     | Story Name   | Reason                       |
 | ------------ | ------------ | ---------------------------- |
-| {story.id}   | {story name} | Blocked by {dep id} / missing-auth-vault: {vault name} |
+| {story.id}   | {story name} | Blocked by {dep id} / missing-auth-vault: {vault name} / unacknowledged-remote-target: {host} |
+
+## Story Hygiene
+
+(Only include when Phase 2.5's tag-hygiene capture recorded anything — `VAULT_TAG_STALE` or `NEEDS_REVIEW_RAN` non-empty. This section is the consumer for the repair tags `/stories` writes; without it those tags are dead writes nothing ever reads.)
+
+| Story ID   | Tag               | This run | Recommendation                                              |
+| ---------- | ----------------- | -------- | ----------------------------------------------------------- |
+| {story.id} | `needs-review`    | PASS     | Tag is stale — clear it (re-run below revalidates + clears) |
+| {story.id} | `needs-review`    | FAIL     | Story is genuinely broken — regenerate it                   |
+| {story.id} | `needs-auth-vault`| PASS     | Vault `{name}` now exists — tag is stale, clear it          |
+
+`/claude-tweaks:stories` — update-mode re-run revalidates flagged stories, clears healed tags, and regenerates broken ones
 
 ## Failures
 
@@ -222,7 +234,7 @@ Auto-recovered {N} locator(s) in {M} story file(s). Story YAML files have been u
 ### Story: {failed story name}
 **ID:** {story.id}
 **Source:** {filename}
-**Trace:** `{trace path}` — open with `agent-browser trace view {trace path}`
+**Trace:** `{trace path}` — a Chrome DevTools trace; open via Chrome DevTools → Performance → Load profile (not a slash command)
 **Agent Report:**
 {full agent report for this story}
 
@@ -255,7 +267,7 @@ Auto-recovered {N} locator(s) in {M} story file(s). Story YAML files have been u
 
 ## Screenshots & Traces
 - Screenshots: `{RUN_DIR}/`
-- Failure traces: `{TRACES_BASE}/<story-id>/<timestamp>.zip` — open with `agent-browser trace view <path>`
+- Failure traces: `{TRACES_BASE}/<story-id>/<timestamp>.zip` — Chrome DevTools traces; open via Chrome DevTools → Performance → Load profile
 
 ## Report Files
 - Machine-readable: `{RUN_DIR}/report.json`

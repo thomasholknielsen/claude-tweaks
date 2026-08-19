@@ -70,10 +70,11 @@ function toPosix(p) {
 }
 
 // The single machine-readable statement of what the worktree-always gate
-// covers. `skills/_shared/policy-schema.md`'s `worktree-always` row is its
-// prose counterpart, and tests/hooks-gate-coverage.test.js asserts the two
-// agree — so widening this constant fails a test until that row is updated.
-// Every other skill file cites that row rather than restating the list.
+// covers. `skills/_shared/policy-schema-coverage.md`'s `worktree-always`
+// coverage block is its prose counterpart, and tests/hooks-gate-coverage.test.js
+// asserts the two agree — so widening this constant fails a test until that
+// block is updated. Every other skill file cites that block rather than
+// restating the list.
 //
 // Why the binding exists: this set was widened twice on 2026-07-20 (push in
 // c8f929e1, cp/mv/tee in cab6142b) and no commit swept the prose describing
@@ -86,7 +87,7 @@ const GATE_COVERAGE = Object.freeze({
   tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
   gitActions: Object.freeze(['commit', 'push']),
   bashWriteShapes: WRITE_SHAPES,
-  // These have their own prose-binding block — skills/_shared/policy-schema.md's
+  // These have their own prose-binding block — skills/_shared/policy-schema-coverage.md's
   // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins
   // the two) — deliberately separate from the worktree-always block above,
   // so widening either gate never requires touching the other's prose.
@@ -612,7 +613,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       `claude-tweaks: this project requires an isolated worktree for ` +
       `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
       `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
-      `see _shared/policy-schema.md's worktree-always coverage block; exempt: ` +
+      `see _shared/policy-schema-coverage.md's worktree-always coverage block; exempt: ` +
       `${GATE_COVERAGE.exemptions.paths.join(', ')} and an allowlisted (${GATE_COVERAGE.exemptions.commit}) commit) ` +
       `(policy: worktree-always in .claude-tweaks/policy.yml). You're currently working in ` +
       `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +

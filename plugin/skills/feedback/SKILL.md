@@ -131,6 +131,12 @@ structural heuristic (the same posture `solution:unjustified`'s judgment takes).
 `Clear` otherwise. When `Needed`, form a one-line rationale naming the open
 choice — this and the verdict feed Step 5's draft.
 
+When the free-text names a preserved unfiled draft by absolute path (the
+`/claude-tweaks:feedback re-file the preserved draft at {abs path}` form `/claude-tweaks:tidy`'s
+backstop scan hands out), read that file and use its body directly as the gathered summary,
+affected component, and repro-steps-or-use-case content — the draft was already fully composed
+once; Step 6's scrub reruns unconditionally as the standing safety net regardless of this shortcut.
+
 ### Step 2: Classify the kind
 
 Read `_shared/learning-routing.md` and confirm the learning is D5 at all.

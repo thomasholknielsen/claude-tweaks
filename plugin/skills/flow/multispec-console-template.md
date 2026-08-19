@@ -171,5 +171,5 @@ Status values:
 
 Populate this footer from `manifest.yml` — any spec with `status: failed`, `not-run`, or still `running` gets a row.
 
-Below each table, show the full patch / diff for each pending item.
+Below each table, patch display follows `wrap-up/console-template.md`'s reversibility-tiered rule verbatim — see that file's tiering section for the low/med/high cases and the fail-open default.
 ```

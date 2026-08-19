@@ -130,6 +130,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 - Edge cases handled (null, empty, malformed input)?
 - Errors logged with sufficient context for debugging?
 - User-facing errors safe (no internal details leaked)?
+- No `fs.existsSync(...)`-then-`fs.readFileSync(...)` TOCTOU races — read directly and catch, treating a read failure the same as "absent," rather than checking existence first? (#901's hindsight: this exact pattern recurred independently 3 times within one record's own fresh code, in a project where concurrent sibling sessions routinely archive/prune the exact directories these readers walk.)
 
 ### 3d: Performance
 

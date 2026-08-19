@@ -1,6 +1,6 @@
 # Story Examples
 
-All examples use schema v2 — locators are semantic only: `{ role, name? }`, `{ testid }`, `{ text, exact? }`, `{ label }`, `{ placeholder }`. Raw selectors and `@eN` snapshot refs are forbidden in YAML. At runtime, locators resolve to session-scoped refs via `agent-browser --session <name> find <type> <args>` — see `agent-browser-reference.md` in the `/claude-tweaks:browse` skill directory for the full operation vocabulary.
+All examples use schema v2 — locators are semantic only: `{ role, name? }`, `{ testid }`, `{ text, exact? }`, `{ label }`, `{ placeholder }`. Raw selectors and `@eN` snapshot refs are forbidden in YAML. At runtime, a locator and its step's action execute as one command — `agent-browser --session <name> find <locator> <value> <action> [text]`; the action argument is mandatory (a bare `find` defaults to clicking) — see `agent-browser-reference.md` in the `/claude-tweaks:browse` skill directory for the full operation vocabulary.
 
 ### Example 1: DOM-only stories (no source files available)
 
@@ -193,7 +193,46 @@ stories:
         locator: { role: switch, name: "Email notifications" }
 ```
 
-Note: `source_files` merges the journey's `files:` frontmatter (`page.tsx`, `profile.ts`) with component-level files discovered during source analysis (`profile-form.tsx`, `password/page.tsx`, `notifications/page.tsx`). The `journey: profile-settings` field enables `/test qa journey=profile-settings` and coverage tracking. The `auth: { vault: "default-user" }` field causes the runtime to invoke `agent-browser --session <story-id> auth use default-user` after `open` and before the first action — credentials never appear in the YAML.
+Note: `source_files` merges the journey's `files:` frontmatter (`page.tsx`, `profile.ts`) with component-level files discovered during source analysis (`profile-form.tsx`, `password/page.tsx`, `notifications/page.tsx`). The `journey: profile-settings` field enables `/test qa journey=profile-settings` and coverage tracking. The `auth: { vault: "default-user" }` field causes the runtime to invoke `agent-browser --session <story-id> auth login default-user` after `open` and before the first action — credentials never appear in the YAML.
+
+### Example 4: File-level blocks (setup, teardown, target_env)
+
+File-level blocks sit above the `stories` array. `setup` carries shared preconditions (viewport, an Auth Vault reference, pre-steps), `teardown` runs after the file's stories, and `target_env` records the Target Environment Guard's classification from generation time (`/claude-tweaks:stories` SKILL.md Step 2) — `/test qa` re-checks it before running `negative`-tagged stories.
+
+```yaml
+schema_version: 2
+
+target_env: { host: "localhost", classification: local, negatives_acknowledged: true }
+
+setup:
+  viewport: "1440x900"
+  # Auth Vault reference (vault stores credentials encrypted, locally):
+  auth: { vault: "default-user" }
+  # Or use file-level `setup.steps` for non-auth setup actions:
+  steps:
+    - action: navigate
+      target: "https://example.com/setup-page"
+
+teardown:
+  steps:
+    - action: click
+      locator: { role: button, name: "Log out" }
+
+stories:
+  - id: story-kebab-id
+    description: "Descriptive name of the journey"
+    url: "https://example.com/starting-page"
+    journey: profile-settings          # optional — refs docs/journeys/profile-settings.md
+    auth: { vault: "default-user" }    # optional — overrides the file-level vault
+    tags: [core, smoke]
+    priority: high
+    source_files:
+      - app/(dashboard)/starting-page/page.tsx
+    steps:
+      - action: click
+        locator: { role: button, name: "Add to cart" }
+        verify: "Cart shows 1 item"
+```
 
 ### Locator-type quick reference
 
