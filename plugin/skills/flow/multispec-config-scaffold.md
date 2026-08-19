@@ -1,9 +1,8 @@
 # Multi-Spec — Scaffold the Per-Spec Subdirectory
 
-Loaded by `multi-spec.md`'s "Run directory layout" and "Execution" sections. Extracted per
-`docs/plugin-structure.md`'s sub-file convention (`multi-spec.md` sits at the ~20KB read
-budget — see `tests/run-dir-timestamp-utc.test.js`'s `#724` pin — so a load-bearing addition
-lands here rather than inline).
+Loaded by `multi-spec.md`'s "Execution" section — it lives here rather than inline because
+`multi-spec.md` sits at its ~20KB read budget (`tests/run-dir-timestamp-utc.test.js`'s `#724`
+pin).
 
 ## The gap this closes
 
