@@ -6,8 +6,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  archiveRunDir, listSpecDirs, decideArchive, readConsoleState, isOrphanedMint,
+  archiveRunDir, listSpecDirs, decideArchive, readConsoleState, isOrphanedMint, trackArchiveResult,
 } = require('../../../plugin/bin/lib/reconcile/archive-merged');
+const { RESIDUE_ESCALATE_THRESHOLD, listResidueFailures } = require('../../../plugin/bin/lib/reconcile/cache');
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -173,4 +174,40 @@ test('archive-merged module still exports its pre-existing surface', () => {
   assert.equal(typeof decideArchive, 'function');
   assert.equal(typeof readConsoleState, 'function');
   assert.equal(typeof isOrphanedMint, 'function');
+});
+
+// #644 Deliverable 2 — trackArchiveResult is archiveMerged's one choke
+// point for the move-failed consecutive-failure counter and escalation.
+test('trackArchiveResult: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-track-'));
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-stuck');
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    trackArchiveResult(root, 'o/r', dir, { ok: false, reason: 'move-failed' }, { escalate });
+  }
+  assert.equal(calls.length, 1, `expected exactly one escalation call, got ${calls.length}`);
+  assert.equal(calls[0].reason, 'move-failed');
+  assert.equal(calls[0].targetPath, dir);
+  assert.equal(calls[0].count, RESIDUE_ESCALATE_THRESHOLD);
+
+  trackArchiveResult(root, 'o/r', dir, { ok: false, reason: 'move-failed' }, { escalate });
+  assert.equal(calls.length, 1, 'must not re-escalate on a later still-failing call');
+});
+
+test('trackArchiveResult: only tracks move-failed — a different failure reason never enters the counter', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-track2-'));
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-other');
+  trackArchiveResult(root, 'o/r', dir, { ok: false, reason: 'commit-failed' });
+  assert.deepEqual(listResidueFailures(root), []);
+});
+
+test('trackArchiveResult: a success clears a prior failure streak for the same dir', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-track3-'));
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-recovered');
+  trackArchiveResult(root, 'o/r', dir, { ok: false, reason: 'move-failed' });
+  assert.equal(listResidueFailures(root).length, 1);
+  trackArchiveResult(root, 'o/r', dir, { ok: true, movedEntries: [] });
+  assert.deepEqual(listResidueFailures(root), []);
 });
