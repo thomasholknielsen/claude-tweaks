@@ -14,23 +14,13 @@ node -e "
 "
 ```
 
-**MCP path** (`gh` unavailable, an MCP transport resolved per the caller's own transport
-contract — e.g. `dispatch/mcp-transport.md`): use the confirmed `issue_read` (get_comments mode)
-mapping from `_shared/github-write-transport.md` in place of the `gh api` call above — the same
-mapping `dispatch/settle-and-merge.md` step 4 already cites for its own comment fetch. The rest
-of this step consumes the same comment-body-string shape regardless of transport.
-
-**Neither available** (no `gh`, no MCP transport resolved): stop here — this is the
-`could-not-gather` case (`SKILL.md`'s Error Handling). Render Step 3 directly:
-`CLASSIFICATION: correctness` / `NOTIFY_NOW: false` / `RATIONALE: {name the specific gather
-failure verbatim, e.g. "gh unavailable, no MCP transport resolved — could not fetch prior
-attempt comments"}`, and skip the rest of this mode's procedure.
-
-**Or the fetch itself fails** (the gh or MCP `issue_read` call was attempted but errored —
-network failure, 404, timeout, rate limit, auth expiry): same `could-not-gather` case — stop here
-and render Step 3 directly: `CLASSIFICATION: correctness` / `NOTIFY_NOW: false` / `RATIONALE:
-{name the specific fetch failure verbatim, e.g. "gh api call failed: {error message}" or "MCP
-issue_read call failed: {error message}"}`, and skip the rest of this mode's procedure.
+Follows `_gather-resilience.md`'s three-part shape: the MCP path uses `issue_read`'s
+**get_comments mode** (the same mapping `dispatch/settle-and-merge.md` step 4 already cites for
+its own comment fetch) in place of the `gh api` call above — the rest of this step consumes the
+same comment-body-string shape regardless of transport. The could-not-gather short-circuits
+(neither transport available, or the fetch itself fails) render Step 3 directly with
+`CLASSIFICATION: correctness` / `NOTIFY_NOW: false` and the specific gather/fetch failure named
+verbatim in `RATIONALE`.
 
 Read the actual failure output from the gate that failed (test output, review findings, error
 logs) — already in the calling agent's context from the run that just failed.

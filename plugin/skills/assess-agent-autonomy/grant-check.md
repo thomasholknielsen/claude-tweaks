@@ -11,25 +11,14 @@ chain (gate 4), once per candidate whose ceiling/opt-in/trust/origin gates alrea
 gh issue view "$N" --json body,labels -q '{body: .body, labels: [.labels[].name]}' > /tmp/assess-grant-${N}.json
 ```
 
-**MCP path** (`gh` unavailable, and the calling context has its own resolved MCP transport — e.g.
-a caller like `dispatch/mcp-transport.md`'s contract; `grant-check`'s current callers,
-`/claude-tweaks:backlog refine`/`grant`, do not yet have an equivalent, so this branch is not
-reachable from them today): use the confirmed `issue_read` (get mode) mapping from
-`_shared/github-write-transport.md` in place of the `gh issue view` call above — the rest of this
-step consumes the same `{body, labels}` shape regardless of transport.
-
-**Neither available** (no `gh`, no MCP transport resolved): stop here — this is the
-`could-not-gather` case (`SKILL.md`'s Error Handling). Render Step 3 directly:
-`RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` / `RATIONALE: {name the specific gather
-failure verbatim, e.g. "gh unavailable, no MCP transport resolved — could not fetch record
-body"}`, and skip the rest of this mode's procedure — the same short-circuit shape
-`merge-check.md` Step 1 already uses for its own resolution failures.
-
-**Or the fetch itself fails** (the gh or MCP `issue_read` call was attempted but errored —
-network failure, 404, timeout, rate limit, auth expiry): same `could-not-gather` case — stop here
-and render Step 3 directly: `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` / `RATIONALE:
-{name the specific fetch failure verbatim, e.g. "gh issue view failed: {error message}" or "MCP
-issue_read call failed: {error message}"}`, and skip the rest of this mode's procedure.
+Follows `_gather-resilience.md`'s three-part shape: the MCP path uses `issue_read`'s **get mode**
+(`grant-check`'s current callers, `/claude-tweaks:backlog refine`/`grant`, do not yet have a
+resolved MCP transport, so this branch is not reachable from them today) in place of the `gh
+issue view` call above — the rest of this step consumes the same `{body, labels}` shape
+regardless of transport. The could-not-gather short-circuits (neither transport available, or the
+fetch itself fails) render Step 3 directly with `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE:
+false` and the specific gather/fetch failure named verbatim in `RATIONALE` — the same
+short-circuit shape `merge-check.md` Step 1 already uses for its own resolution failures.
 
 Read the record's full body (Current State / Deliverables / Acceptance Criteria) from the fetched
 JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present:
