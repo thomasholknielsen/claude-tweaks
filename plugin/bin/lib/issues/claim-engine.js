@@ -22,8 +22,14 @@
 const { execFileSync } = require('child_process');
 const { classifyClaimBlob, claimPayload, releasePayload, CLAIMS_BRANCH } = require('./claims');
 
+// Mirrors plugin/bin/claim-targets.js's GH_TIMEOUT_MS — a hanging `gh` call
+// (network stall, auth prompt) must fail, not block indefinitely, so every
+// fail-open caller (tombstoneInFlightPr included, #315) actually gets to
+// fall through instead of hanging the whole claim path.
+const GH_TIMEOUT_MS = 5000;
+
 function defaultRunner(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: GH_TIMEOUT_MS });
 }
 
 function errorText(err) {
