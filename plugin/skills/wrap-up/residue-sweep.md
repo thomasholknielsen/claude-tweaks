@@ -6,6 +6,17 @@ to remember and write into the transcript — then writes each finding into this
 the ledger's own three-phase resolve gate (`_shared/ledger-format.md`'s Resolve Gate section) has something to enforce on
 a standalone run, where no other producer ever creates one.
 
+**Multi-spec: skip when this is not the final spec's wrap-up.** In a `/flow` multi-spec run
+(`flow/multi-spec.md`), the shared PR and branch stay open by design until the run's own "Finish
+once at the end" step, after every spec's pipeline completes — a per-spec wrap-up mid-run is not
+"close time" for that PR/branch. Running this preamble against an in-progress multi-spec run's own
+open PR reports it as outstanding residue, which it isn't. Check the parent run dir's
+`manifest.yml` (`multispec.specs[]`): if any entry other than the current spec has `status`
+`pending` or `running`, this is not the final spec — skip this preamble entirely (report "Residue
+sweep deferred — multi-spec run in progress" and proceed straight to the resolve gate on whatever
+ledger items already exist). Run it normally on the final spec's wrap-up, or on any single-spec
+run, where "this work" and "the whole run" are the same thing.
+
 ## Running the sweep
 
 ```bash
