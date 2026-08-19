@@ -48,7 +48,7 @@ function resolvePrState(repoRoot, branch) {
     stdout = execFileSync(
       'gh',
       ['pr', 'list', '--head', branch, ...PR_LIST_ARGS.slice(2)],
-      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: FETCH_TIMEOUT_MS },
+      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: FETCH_TIMEOUT_MS, windowsHide: true },
     );
   } catch (e) {
     return classifyExecError(e);
@@ -75,7 +75,7 @@ async function resolvePrStateAsync(repoRoot, branch) {
     const r = await execFileAsync(
       'gh',
       ['pr', 'list', '--head', branch, ...PR_LIST_ARGS.slice(2)],
-      { cwd: repoRoot, encoding: 'utf8', timeout: FETCH_TIMEOUT_MS },
+      { cwd: repoRoot, encoding: 'utf8', timeout: FETCH_TIMEOUT_MS, windowsHide: true },
     );
     stdout = r.stdout;
   } catch (e) {
