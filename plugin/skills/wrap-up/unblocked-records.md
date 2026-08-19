@@ -1,6 +1,6 @@
 # Phase 3 — Newly Unblocked Records (record mode only)
 
-The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
+The record this run just closed is already known — the `${CLOSED_NUM}` value passed into this step (the only source every snippet below actually reads; there is no materialized-header field consumed here). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
 
 **`work-backend: github-issues`:** branches on `work-links` (same resolver read `/claude-tweaks:dispatch` Step 2 uses):
 

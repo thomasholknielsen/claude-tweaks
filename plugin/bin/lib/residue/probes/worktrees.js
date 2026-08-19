@@ -1,3 +1,24 @@
+// bin/lib/residue/probes/worktrees.js — leftover git worktrees for the
+// residue sweep. Reports every worktree other than the main working tree
+// and this run's own (excluded via `scope.headBranch`, mirroring
+// `probeBranches`'s self-exclusion) — another session's live worktree, or a
+// stale one nobody tore down.
+//
+// `REAPER_DOMAIN` distinguishes the two permanently separate worktree
+// domains from `docs/decisions/0004-worktree-two-domain-convention.md`:
+// `.claude/worktrees/` (native `EnterWorktree`, auto-collected by the
+// `SessionStart` reaper — `bin/lib/hooks/worktree-reap.js`) versus
+// `.worktrees/` (git-fallback `git worktree add`, cleaned up only by
+// superpowers' `finishing-a-development-branch`, never by the reaper). A
+// finding's evidence line says which domain it's in precisely because that
+// determines whether leaving it alone is safe (the reaper will eventually
+// collect it) or a real leak (it never will).
+//
+// Lock handling distinguishes a live session (do not touch) from an
+// abandoned lock (a crashed/killed session's leftover) via a real
+// liveness probe (`process.kill(pid, 0)`), not just lock presence — a
+// locked-but-dead worktree is exactly the case a human needs to see, not
+// one this probe should silently treat as "someone's using it."
 'use strict';
 
 const path = require('node:path');

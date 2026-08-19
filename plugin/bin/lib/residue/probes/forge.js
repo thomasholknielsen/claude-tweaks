@@ -1,3 +1,13 @@
+// bin/lib/residue/probes/forge.js — open pull requests at residue-sweep
+// time. Every open PR is a finding: this run's own head branch is
+// `blast-radius` (this session's own open work, still worth surfacing —
+// e.g. a forgotten draft PR from an earlier phase of the same run), and
+// every other open PR is `observed` (another lane's in-flight work — never
+// this run's concern to act on, only to make visible). `gh pr list`'s
+// implicit default page size is 30 and truncates silently past it; this
+// probe passes an explicit `--limit 100` for the same reason
+// `_shared/github-pr-scan.md` documents it as this repo's convention for
+// every other `gh pr list --state open` call site.
 'use strict';
 
 const { makeFinding } = require('../finding');
