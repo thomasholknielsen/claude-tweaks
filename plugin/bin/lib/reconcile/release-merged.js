@@ -87,7 +87,7 @@ function classifyGhExecError(e) {
 function ghApi(args) {
   try {
     const stdout = execFileSync('gh', ['api', ...args], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS,
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, windowsHide: true,
     });
     return { stdout, failure: null };
   } catch (e) {
@@ -98,7 +98,7 @@ function ghApi(args) {
 // Raw `gh` runner for the shared write path below (ghApi prepends `api` and
 // swallows failures; writeTombstoneShared composes its own argv and needs the throw).
 function ghRunner(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS });
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, windowsHide: true });
 }
 
 function repoSlugOf(repoRoot) {
@@ -144,7 +144,7 @@ function readClaim(repoSlug, name, api = ghApi) {
 // calling code is structured.
 async function ghApiAsync(args) {
   try {
-    const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS });
+    const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true });
     return { stdout, failure: null };
   } catch (e) {
     return { stdout: null, failure: classifyGhExecError(e) };

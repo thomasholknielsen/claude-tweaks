@@ -495,7 +495,7 @@ function extractMapEntry(raw, topKey) {
 // remote at all (checked first, so a local-files project with no remote never
 // shells out to gh). Each check runs under a 5s timeout.
 function detectIntegrationModel(repoRoot) {
-  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8' };
+  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8', windowsHide: true };
   try {
     execFileSync('git', ['remote', 'get-url', 'origin'], opts);
   } catch {
