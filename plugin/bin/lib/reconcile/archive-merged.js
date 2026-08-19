@@ -115,6 +115,13 @@ function archiveRunDir(root, runDir) {
     return { ok: false, reason: 'mkdir-failed' };
   }
 
+  // Collects the actual set of entries this call moves, in move order — so
+  // a caller reporting what happened (e.g. hooks.js archive-run's "moved:"
+  // lines) reads it from here rather than re-deriving or hardcoding its own
+  // guess at the run dir's shape, which is the exact fixed-list drift this
+  // function's own enumeration swap (above) exists to eliminate.
+  const movedEntries = [];
+
   const specDirs = listSpecDirs(runDir);
 
   // Every git-tracked work/ subtree — the top-level one (single-spec
@@ -146,6 +153,7 @@ function archiveRunDir(root, runDir) {
     for (const [src, dest] of workMoves) {
       const mv = runGit(['mv', src, dest], root);
       if (mv.failure) return { ok: false, reason: 'git-mv-failed' };
+      movedEntries.push(path.relative(runDir, src));
     }
     // The git mv above only stages the rename — this check runs headlessly
     // (SessionStart, dispatch's queue pull) with no interactive session
@@ -155,13 +163,46 @@ function archiveRunDir(root, runDir) {
     if (commit.failure) return { ok: false, reason: 'commit-failed' };
   }
 
-  for (const name of ['config.yml', 'decisions.md', 'events.jsonl', 'manifest.yml', 'console.json', 'run-state.json', 'staged']) {
-    const src = path.join(runDir, name);
-    if (!fs.existsSync(src)) continue;
+  // Tracked-entry guard: a git-tracked file in the run dir outside work/
+  // would otherwise be silently fs.renameSync'd (moved, not `git mv`'d) —
+  // the tracked blob would still point at the OLD path, corrupting history.
+  // #593 documents this class. work/ itself is already git-mv'd above.
+  if (fs.existsSync(runDir)) {
+    const lsFiles = runGit(['ls-files', runDir], root);
+    if (lsFiles.failure) return { ok: false, reason: 'ls-files-failed' };
+    const trackedOutsideWork = (lsFiles.stdout || '')
+      .split('\n')
+      .filter(Boolean)
+      .map((p) => path.relative(runDir, path.join(root, p)))
+      .filter((rel) => rel && !rel.startsWith('work' + path.sep) && rel !== 'work');
+    if (trackedOutsideWork.length > 0) {
+      return { ok: false, reason: 'tracked-entry' };
+    }
+
+    // TOCTOU: runDir could be deleted between the fs.existsSync(runDir) guard
+    // above and this read (review finding #902) — readdirSync would
+    // otherwise throw uncaught, propagating past every caller's own
+    // {ok, reason} contract (hooks.js's archive-run verb has no catch of
+    // its own around this call).
+    let entries;
     try {
-      fs.renameSync(src, path.join(archiveDir, name));
+      entries = fs.readdirSync(runDir);
     } catch {
-      return { ok: false, reason: 'move-failed' };
+      return { ok: false, reason: 'readdir-failed' };
+    }
+    // spec-{N}/ dirs are excluded here — their archive twins may already
+    // exist (created by the workMoves batch above), so a whole-dir rename
+    // would fail ENOTEMPTY; their contents move entry-by-entry in the
+    // dedicated spec loop below instead.
+    for (const name of entries.filter((n) => n !== 'work' && !specDirs.includes(n))) {
+      const src = path.join(runDir, name);
+      if (!fs.existsSync(src)) continue;
+      try {
+        fs.renameSync(src, path.join(archiveDir, name));
+      } catch {
+        return { ok: false, reason: 'move-failed' };
+      }
+      movedEntries.push(name);
     }
   }
 
@@ -171,7 +212,19 @@ function archiveRunDir(root, runDir) {
   for (const specName of specDirs) {
     const specDir = path.join(runDir, specName);
     const specArchiveDir = path.join(archiveDir, specName);
-    for (const name of ['config.yml', 'decisions.md', 'events.jsonl', 'run-state.json', 'staged']) {
+    // Enumerated, never a fixed list — the same #662/#902 drift class the
+    // top-level loop above eliminated: a fixed list here would strand any
+    // spec-level file outside it (e.g. engine-state.json), leaving specDir
+    // non-empty so the rmdir below silently fails and the half-archived
+    // spec dir resurfaces forever. work/ is already git-mv'd above.
+    if (!fs.existsSync(specDir)) continue;
+    let specEntries;
+    try {
+      specEntries = fs.readdirSync(specDir);
+    } catch {
+      return { ok: false, reason: 'readdir-failed' };
+    }
+    for (const name of specEntries.filter((n) => n !== 'work')) {
       const src = path.join(specDir, name);
       if (!fs.existsSync(src)) continue;
       try {
@@ -180,6 +233,7 @@ function archiveRunDir(root, runDir) {
       } catch {
         return { ok: false, reason: 'move-failed' };
       }
+      movedEntries.push(path.join(specName, name));
     }
     try {
       fs.rmdirSync(specDir);
@@ -204,7 +258,7 @@ function archiveRunDir(root, runDir) {
     /* best-effort — non-empty for an unexpected reason, or already gone */
   }
 
-  return { ok: true };
+  return { ok: true, movedEntries };
 }
 
 function archiveMerged({ cwd, dryRun = false } = {}) {

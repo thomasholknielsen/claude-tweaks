@@ -160,6 +160,8 @@ Applies identically from "Shared teardown" step 5 above, regardless of whether i
 
 Halt before applying. Leave the parent run dir intact. User resumes with `/claude-tweaks:flow {specs} review-console` (a dedicated resume step that re-reads the same parent dir and re-presents the console).
 
+**Logging the terminal decision:** At the consolidated terminal-decision point (when Approve all + merge / Approve all, leave PR open / Override / Stop is chosen), log the same `AUTO {time} — Review Console: terminal decision {…}. Reversibility: n/a.` line (per `wrap-up/review-console-interactive.md`'s format) to the parent run's `decisions.md`.
+
 ## Empty-console fast path
 
 If every per-spec `decisions.md` has zero entries AND every per-spec `staged/` is empty AND the parent `staged/` is empty AND there are no skill or config updates across the run AND no cleanup actions apply across any spec AND no queue writes are pending across any spec, skip the console entirely. Log "Multi-spec Review Console: nothing to review" and archive silently.
