@@ -1,0 +1,336 @@
+# Wrap-Up Cleanup Procedures — execution detail
+
+Read this file only from Phase 4's **execution step** — the one call site (of the four listed in
+`cleanup-procedures.md`) that actually runs these procedures. The cleanup-planning step and the
+phase-trace report checklist need only the canonical list's table in `cleanup-procedures.md`
+itself; `review-console.md`'s Cleanup actions section renders that same table's rows, never this
+file's procedure detail. This holds Sections A through E — the detailed procedure for cleanup list
+items 3, 4, 6, 7, and 8 (items 1, 2, and 5 are simple enough to execute inline at the execution
+step without a dedicated sub-procedure, per `cleanup-procedures.md`).
+
+---
+
+## A. Design wrapper caches (v4.5.0)
+
+Delete the per-spec caches written by `/claude-tweaks:design-wrapper` alongside the ledger:
+
+- `docs/plans/YYYY-MM-DD-{feature}-audit.json` — written by `review` mode; consumed by `polish`. Stale after the spec ships.
+- `docs/plans/YYYY-MM-DD-{feature}-recommendations.json` — written by `survey` mode (via `/flow` pipeline summary). Used to detect declines on re-runs; obsolete once the spec is wrapped up.
+- `docs/plans/YYYY-MM-DD-{feature}-declined.json` — written by `/flow` decline detection. Obsolete once the spec is wrapped up.
+
+Resolve each path using the same date+feature prefix as the ledger filename. Glob `docs/plans/*-audit.json`, `*-recommendations.json`, and `*-declined.json` matching the spec slug as a fallback when the ledger filename is unavailable. Missing files are not errors — they mean the spec did not exercise the corresponding mode.
+
+Cleanup is silent — no user prompt. The caches are pipeline state, not user-authored content. Resolves the Phase 2 carry-over open item flagged in `skills/design-wrapper/SKILL.md` (audit cache cleanup); recommendations + declined caches use the same pattern.
+
+**Not included in this cleanup:** `.claude-tweaks/design/score-history.jsonl` — the persistent, cross-run design-score history log written by `/claude-tweaks:design-wrapper review`'s score capture (`skills/design-wrapper/modes/review.md` Step 4.5). Unlike the per-spec caches above, it is committed to git and accumulates across every spec's review run by design. Never delete, truncate, or reset it as part of wrap-up cleanup or any other skill's cleanup procedure — doing so destroys the trend this log exists to provide.
+
+---
+
+## B. Pipeline run directory (v4.6.0)
+
+If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet):
+
+1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
+2. Verify the Review Console ran and applied/dismissed all staged items.
+3. **Mark the run terminal, if not already closed by Section C's step 3.6** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). Idempotent: re-running it on an already-clean run (the worktree-strategy case, where Section C's step 3.6 closed it first) is a harmless no-op. E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
+4. **Move the `work/` subdirectory** to `.claude-tweaks/pipelines/archive/{run-id}/work/` — the materialized record files (`materialize.md`'s "committed as audit trail, never gitignored" contract) are git-tracked, unlike the rest of the run directory: move it with `git mv` (mandatory — the archive path itself is gitignored, so a plain `mv` + `git add` is rejected and the tracked files would register as deletions; `git mv` preserves the tracked rename regardless of the ignore rule).
+5. **Gitignored content** (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`):
+   already in the main checkout — run directories are anchored there at creation
+   (`_shared/pipeline-run-dir.md`, Anchoring), and for a run that predates anchoring,
+   Section C step 3.5's transitional guard has already copied it there and re-pointed
+   `$RUN_DIR`. Either way `$RUN_DIR` names a main-checkout path by the time this step
+   runs. Move them into the archive path with a plain `mv`, same destination as
+   `work/`'s but without `git mv` since they were never tracked. This is identical for
+   worktree-strategy and `current-branch` runs; the two-branch split it replaces existed
+   only because the worktree strategy used to hold the sole copy.
+6. Skipped staged items remain in the archive; they are NOT silently dropped.
+
+Do NOT delete the run directory outright — the auto-decision log is project history (for the user's calibration of project policy), not pipeline state.
+
+A run directory always exists from Phase 1 onward, so this section always applies. The one residual exception is a pre-v4.6 pipeline whose run directory was never created — if none resolves, skip this section silently rather than failing the wrap-up.
+
+---
+
+## C. Git Worktree (worktree strategy only)
+
+If the build used worktree git strategy, clean up the worktree directory:
+
+### Teardown ordering invariant
+
+Worktree removal is always the **last** action taken against a worktree — only after every
+git-needing step still pending against it (branch finish/merge, push, branch delete, issue claim
+release reading a materialized header from inside it) has completed, never interleaved before one.
+For the worktree the session is standing in, removal is `ExitWorktree` **only**: never a raw `git
+worktree remove`, and never a `cd`-then-remove compound — a `cd` out of the worktree denied by
+`worktree-always` must never fall back to running `git worktree remove` from inside it, which
+deletes the shell's own cwd and leaves the session with no git context. `bin/lib/hooks/pre-tool-use.js`'s
+teardown gate denies that raw-command/own-cwd shape directly. Step 4 below is that removal; step
+3.6 (`close-run`) MUST precede it, unchanged (`[IL-116]`). `flow/multispec-review-console.md`'s
+Shared teardown and `flow/worktree-merge.md` cite this invariant rather than restating it.
+
+1. Run `git worktree list` to find worktrees associated with this spec's feature branch.
+2. **Stamp the closing-keyword carrier commit — worktree strategy, single-terminal path only.**
+   Skip this step entirely when this run is part of a multi-terminal-parallel dispatch destined
+   for `flow/worktree-merge.md`'s reconciliation merge (the run was launched via
+   `/claude-tweaks:flow {spec} worktree` alongside sibling terminals, not a solo worktree run) —
+   that merge stamps its own `Fixes #{issue}` lines directly (`--no-ff`, per "Close-via-merge" in
+   `_shared/issue-claims.md`), and a carrier commit here would double-stamp the closing
+   reference. Otherwise, check for a materialized header — glob `${RUN_DIR}/work/*-spec.md`
+   (the file `skills/flow/materialize.md` writes and never deletes) and read each match's
+   header `record:` field:
+
+   ```bash
+   ISSUES=()
+   for f in "${RUN_DIR}"/work/*-spec.md; do
+     [ -e "$f" ] || continue
+     ISSUES+=("$(grep -m1 '^record:' "$f" | sed 's/^record: *//')")
+   done
+   if [ "${#ISSUES[@]}" -gt 0 ]; then
+     git commit --allow-empty -m "$(printf 'Fixes #%s\n' "${ISSUES[@]}")"
+   fi
+   ```
+
+   One `Fixes #{issue}` line per resolved issue on the branch — *before* handing off to
+   `/superpowers:finishing-a-development-branch`, from inside the worktree. A legacy
+   spec-file-mode run (no `#N` origin, no materialized header — "pure-local", per
+   `materialize.md`'s alias) has no `work/` file: the loop above finds nothing, `$ISSUES` stays
+   empty, and this step is a no-op — no carrier commit, no closing keyword, because there was
+   never an issue to close. Skip the commit if one for these issues already exists on the
+   branch (`git log {branch} --grep="Fixes #{issue}"` — avoids duplicate empty commits if this
+   step re-runs after an interruption).
+
+   **Why a dedicated commit, not the merge artifact:** `/superpowers:finishing-a-development-branch`'s
+   own git mechanics give the closing keyword no reliable home otherwise. Its "Merge locally"
+   option runs a bare `git merge <feature-branch>` with no `--no-ff` — git fast-forwards
+   silently whenever possible, producing **no merge commit at all** to carry a message into.
+   Its "Push and Create PR" option pushes, then creates the PR "with the forge's tooling — its
+   CLI if one is available" — for a GitHub remote, that's `gh pr create` — but nothing guarantees
+   the resulting PR body carries a closing keyword. Stamping the feature branch itself sidesteps both: the keyword
+   travels with the branch regardless of which of the four options gets chosen (fast-forward
+   merge, non-ff merge, push+PR — even one the user creates manually afterward — or
+   keep-as-is), because GitHub scans every commit that reaches the default branch, not just a
+   merge commit or PR body. See "Close-via-merge" in `_shared/issue-claims.md` for the full
+   contract, including the multi-terminal parallel path (`flow/worktree-merge.md`), which
+   performs its own merge directly with `--no-ff` and does not need this carrier commit.
+3. **`integration-model: pr-first` (`_shared/integration-model.md`): skip this step entirely.** The
+   Review Console's own terminal decision already routed the merge — `review-console.md`'s "On
+   approval" step 6 ran `_shared/pr-first-merge.md` directly (or deliberately skipped it, "leave PR
+   open") before this cleanup step is reached. Calling `/superpowers:finishing-a-development-branch`
+   here too would re-ask a decision already made — the same improvised-third-stop pattern
+   `_shared/auto-mode-contract.md` forbids, mirroring the split `flow/worktree-merge.md` and
+   `flow/multispec-review-console.md`'s Shared teardown already state. Proceed to step 4 with
+   whichever outcome the Review Console's merge step produced.
+
+   **`integration-model: local-merge`:** verify the feature branch reached an outcome (merged, PR
+   created, discarded, or explicitly kept as-is) via `/superpowers:finishing-a-development-branch`:
+   - **Already completed (merged, PR created, or discarded)** → proceed to step 4.
+   - **Not yet decided** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. Then branch on the outcome:
+     - **Merged, PR created, or discarded** → proceed to step 4.
+     - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 3.5, 3.6, 4, and 5 below entirely for this spec (do NOT close the run, do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
+   In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp
+   — the carrier is the final wrap-up commit message instead: include the same
+   `Fixes #{issue}` lines there; GitHub closes the issues when that commit reaches the default
+   branch (the operative instruction lives in `execution-and-verification.md`'s commit procedure,
+   since Section C is skipped when no worktree exists).
+3.5. **Transitional guard — a run directory whose only copy is inside this worktree.**
+   Run directories created since run-dir anchoring shipped (2026-08-07, `_shared/pipeline-run-dir.md`'s
+   Anchoring section) live under the **main checkout**, so Section B step 5 can rely on the copy
+   being there and removing a worktree cannot destroy it. Runs created *before* that hold their
+   only copy of `config.yml`, `decisions.md`, `events.jsonl` and `staged/` inside the worktree,
+   where step 4 below deletes them permanently — there is no git history to recover from, the
+   same shape as `[IL-46]`. Copy them out first, from inside the worktree:
+
+   ```bash
+   # pwd -P on the WT/RUN_REAL sides: on macOS the same directory reaches you as
+   # both /var/... and /private/var/..., and an unresolved prefix test silently
+   # never matches — the guard then looks like a clean no-op while the state it
+   # exists to save is still inside the worktree. resolve-run-dir --root-only
+   # already returns a realpath'd MAIN, so it needs no separate pwd -P here.
+   WT=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
+   MAIN=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --root-only)
+   RUN_REAL=$(cd "$RUN_DIR" 2>/dev/null && pwd -P)
+   case "${RUN_REAL:+$RUN_REAL/}" in
+     "$WT"/*)
+       DEST="$MAIN/.claude-tweaks/pipelines/$(basename "$RUN_REAL")"
+       mkdir -p "$DEST"
+       # Everything except `work/` — never a filename allowlist. A multi-spec run
+       # nests one `spec-{n}/` directory per record, each with its own
+       # decisions.md and staged/, alongside files like manifest.yml that no
+       # fixed list anticipates. An allowlist copies the top-level names and
+       # leaves the rest for step 4 to destroy — this guard failing silently in
+       # exactly the way it exists to prevent. -mindepth/-maxdepth rather than
+       # BSD's `-depth 1`, which GNU find reads as a path argument.
+       find "$RUN_REAL" -mindepth 1 -maxdepth 1 ! -name work -exec cp -R {} "$DEST/" \;
+       RUN_DIR="$DEST"
+       ;;
+   esac
+   ```
+
+   Copy the gitignored half only — **not `work/`**. Materialized headers are git-tracked and
+   reach the main checkout by merge (`_shared/pipeline-run-dir.md`, Anchoring); copying them
+   would leave untracked duplicates that Section B step 4's `git mv` then fails on. Re-point
+   `$RUN_DIR` at the copy, as above: Sections D and E and Section B's archival all read it
+   after this point. A run whose `$RUN_DIR` is empty or already outside the worktree is a
+   no-op, so this is inert on every run created after anchoring shipped.
+
+   **Removal condition** (`[IL-85]` — a compatibility path with no stated end date is never
+   collected): delete this step once no live worktree still holds an un-archived pre-anchoring
+   run directory. Verify by running, from the main checkout,
+   `find . -path "*/.claude/worktrees/*/.claude-tweaks/pipelines/*" -maxdepth 6 -type d` and
+   confirming every hit is a run whose directory also exists under the main checkout's own
+   `.claude-tweaks/pipelines/`. Delete unconditionally after **2026-11-07** regardless — three
+   months is longer than any worktree in this repo's history has stayed live, and a
+   pre-anchoring run still sitting in a worktree by then is abandoned state, not live state.
+3.6. **Close the pipeline run — the sanctioned exit the teardown gate checks for.** If a pipeline
+   run directory resolves for this work (see `_shared/pipeline-run-dir.md`'s resolution order),
+   run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` now, from inside the
+   worktree, **before step 4 removes it.** This clears the run's recorded worktree assignment,
+   which is exactly what `bin/lib/hooks/pre-tool-use.js`'s teardown gate (`checkTeardownGate`)
+   checks before allowing an `ExitWorktree`/`git worktree remove` call — skipping this step is the
+   pattern the gate exists to deny (`[IL-116]`), and its own deny message points back here as the
+   fix. Skip silently if no run directory resolves (a pre-v4.6 pipeline that never created one).
+4. Remove the worktree. Use **`ExitWorktree`** (`action: "remove"`) for the worktree this
+   session is standing in: the harness holds a live lock on it, so raw `git worktree remove`
+   fails with exit 128 (`[IL-58]`), and `SessionStart`'s reaper never touches a live-pid lock
+   either — it returns `in-use` and skips, correctly, because a session's own worktree at
+   wrap-up time always has a live pid. `ExitWorktree` is the only remedy for that case.
+
+   **Prove it before passing `discard_changes: true` — the ancestry check, not a bare SHA
+   match.** Run `_shared/scratch-worktree.md`'s "Tearing down" (§6) ancestry check —
+   `git merge-base --is-ancestor HEAD origin/{integration-branch}` — against the branch this
+   worktree's branch actually merged into, rather than a `git rev-parse HEAD` equality test
+   (`[IL-45]`'s original mitigation): equality only holds after a fast-forward, and this file's
+   own merge procedure (`review-console.md`'s "On approval," `pr-first-merge.md` Step 3) uses
+   `--no-ff`, so the integration branch's tip is a *new* merge commit whose SHA never equals the
+   worktree branch's — an ancestry check is what actually proves the `--no-ff` case safe, not
+   just the fast-forward one. **Exit 0** authorizes `discard_changes: true` directly, with the
+   same one-line stated reason that file's §6 uses — no separate confirmation once the check has
+   actually run and passed; this is what "proven, not improvised" means for this call too. **Non-zero**
+   — stop and surface via `git log origin/{integration-branch}..HEAD --oneline`, same as that
+   file's own non-zero branch; never override on a non-zero result. `[IL-45]`'s content-diff
+   fallback (`git diff <branch> <default-branch>` empty) still applies for a branch discarded
+   without ever merging (no `origin/{integration-branch}` ancestry to prove) — the ancestry check
+   above is the primary proof whenever a merge actually happened, since it is strictly stronger:
+   it holds for `--no-ff`, fast-forward, and squash/rebase merges alike, all of which the SHA
+   equality test alone would reject.
+
+   For a worktree this session does **not** occupy and that `git worktree list --porcelain`
+   shows unlocked, `git worktree remove {path}` is fine.
+5. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
+6. If the branch was merged (the same condition step 5 just checked), also delete the
+   remote branch — run `_shared/pr-first-merge-post-merge.md`'s `## Step 5: Delete the remote
+   branch` against `{branch}`. Skip silently if the branch was kept for an open PR
+   (step 5's own condition) or if no remote tracking ref exists for it.
+
+If no worktree exists for this spec, skip this section silently.
+
+---
+
+## D. Ephemeral dev server (v4.11.0)
+
+If `/visual-review` or `/stories` auto-started a dev server during this run (`dev-url-detection.md` "Ephemeral server start"), it recorded the PID, port, and worktree root in `{run-dir}/ephemeral-server.txt`.
+
+1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section** — the server is shared across all specs in the run. The parent `/flow` kills it once after the consolidated Review Console (otherwise each later spec's visual review would have to restart it).
+2. Read `{run-dir}/ephemeral-server.txt`. Stop the process: `kill {pid}` (fall back to `lsof -ti tcp:{port} | xargs kill` if the PID is stale).
+3. Confirm the port is free, then delete `ephemeral-server.txt`.
+
+This only stops servers *this pipeline started*. A dev server the user was already running (or one on the main checkout) is never touched — it was never recorded in `ephemeral-server.txt`.
+
+If no `ephemeral-server.txt` exists, skip this section silently (the run used an already-running server, or visual review degraded to code-only).
+
+---
+
+## E. Issue claim release (v5.3.0)
+
+This spec's record is identified whenever this section runs (`SKILL.md` Phase 1 — an argument, a
+branch/commit reference, or, when `skills/flow/materialize.md` wrote one, a materialized header's
+`record:` field). Call that number `<n>`: the pipeline may hold `claims/issue-<n>.json` on
+`claims-registry` per `_shared/issue-claims.md`. A header is not required to attempt this — a run that never went
+through `/claude-tweaks:dispatch` never held a claim either: step 3's CLI exits `3` (already
+released / never claimed) or `4` (held by another run) there without touching the blob. Release it
+only after the branch outcome is known (item 4, Git
+Worktree, completes first — the execution order of the canonical list guarantees this):
+
+Before any step below runs a `gh` command, run the Detection Ladder from
+`_shared/forge-detection.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
+skip — Section E exists specifically to write GitHub state (release claims, remove labels); if
+`gh` is unavailable there is nothing safe to degrade to. Report the specific failing check and
+stop before attempting any release.
+
+1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
+   `/flow` releases all claims once after its consolidated Review Console and merge.
+2. Map the outcome from `/superpowers:finishing-a-development-branch` to a release reason:
+   merged → `merged: spec {spec}`; PR opened → `pr-opened: spec {spec}`; discarded →
+   `abandoned: spec {spec}`. Set `$LINK` to the merge commit sha/URL (merged), the PR URL
+   (pr-opened), or empty (abandoned). **Kept as-is has no release reason here** — per Section C
+   step 3, this whole section is skipped for that outcome; the claim stays held while the work
+   continues.
+   In `current-branch` mode (no branch finish): the reason is `merged: spec {spec}` and
+   `$LINK` is the final wrap-up commit sha — and that wrap-up commit's MESSAGE must carry the
+   closing keywords (one `Fixes #{issue}` line per resolved issue; see Section C's carrier
+   note). This applies per spec's own wrap-up commit in multi-spec current-branch runs.
+3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers") — performed by the CLI in
+   step 4.** Resolve `$RUN_ID` as `basename($PIPELINE_RUN_DIR)`. Whether that value matches the
+   run id `/claude-tweaks:dispatch` claimed under follows directly from dispatch minting the run
+   directory itself: dispatch Step 4 mints `PIPELINE_RUN_DIR` and writes the claim's `runId` as that
+   directory's own basename, then passes the same `PIPELINE_RUN_DIR` value inline on both of a
+   group's Task calls — `/flow` Step 3 adopts it rather than creating a separate run directory of
+   its own, so this pipeline's `$PIPELINE_RUN_DIR` **is** the directory the claim was written
+   under, for a singleton. (A multi-spec bundle is the one exception this single-spec Section E does
+   not itself resolve — see the callout below.) A spec reaching this point through any other path
+   (a human running `/flow #{issue}` directly, or a spec merely *derived from* an issue with no
+   live claim) resolves the same way. The CLI reads the blob at `claims/issue-${ISSUE}.json` on
+   `claims-registry` itself; a `runId` other than `$RUN_ID` means a successor holds the lock — it
+   exits `4`, writes nothing, posts nothing, and appends `AUTO — skipped release of issue
+   #{issue}: claim held by run {claim.runId}` to `decisions.md`; skip the remaining steps for
+   this issue — a successor owns it now.
+
+   **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
+   `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" in `cleanup-procedures.md`) —
+   release happens once, at end-of-run, in `flow/multispec-review-console.md`'s "Shared
+   teardown," which passes `--run "$MULTISPEC_PARENT_DIR"` instead: the claim dispatch wrote is
+   keyed to the parent directory's basename (the identity minted for the whole group), while
+   each spec's own `$PIPELINE_RUN_DIR` in that context is the `spec-{N}/` subdirectory, not the
+   parent.
+4. **Release in one command** — ownership check, tombstone `PUT` (sha = the
+   blob's current sha from the CLI's own read), release comment, and the label removals of steps
+   6-7, once per issue:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" "$ISSUE" --run "$PIPELINE_RUN_DIR" \
+     --reason "$REASON" ${LINK:+--link "$LINK"} --remove-in-progress ${REMOVE_GRANTS:+--remove-grants} --section "/wrap-up"
+   ```
+
+   (set `REMOVE_GRANTS=1` per step 6's rule.) The CLI wraps `gh` only — in a `gh`-absent environment
+   run the same read-classify-write over the MCP tools per `_shared/github-write-transport.md`;
+   the MCP path stays the documented fallback rather than a second mode of the CLI.
+5. Exit `0` = released. Exit `3` = a 404/409/422 from the blob write — the claim was already released
+   or swept (or the sha went stale between the read and this write); the CLI still posts the
+   release comment so the trail records the outcome. Exit `1` = any other failure: retry the
+   command once, then log and continue — TTL is the backstop, never block wrap-up. Exit `2` =
+   malformed call or `gh` absent (see step 4's fallback).
+6. **Remove grants** when the outcome was `merged:` or `pr-opened:`: pass `--remove-grants`, which
+   strips `auto:build` and `auto:merge`, whichever are present, best-effort per label — reversible,
+   each removal logged to `decisions.md` by the CLI. Omit it for issues released as `abandoned:`
+   (the grant is the standing retry request); an issue carrying no `auto:*` label is a harmless
+   no-op. See "Grant revocation" and the "Release triggers" table in `_shared/issue-claims.md`.
+7. **Remove `bot:in-progress`; restore `parked` if applicable.** `--remove-in-progress` (always
+   passed) removes `bot:in-progress` — best-effort, the CLI logs a warning and continues on
+   failure. Then, only when the outcome reason is `abandoned: spec {spec}` (i.e. NOT
+   `merged:`/`pr-opened:`) AND the materialized header (`${RUN_DIR}/work/*-spec.md` — read
+   directly; per the step above, the file is never deleted before this point) carries
+   `parked-at-shaping: true` (`materialize.md`'s field for exactly this restore-on-abandon case):
+   restore `parked` — bootstrap the label if missing (per _shared/label-bootstrap.md, LABELS_JSON =
+   [['parked', 'Deferred backlog entry, waiting on a trigger condition']]), then
+   `gh issue edit "$ISSUE" --add-label parked`. Skip restoration silently when no materialized
+   header exists or `parked-at-shaping` is absent, or when the outcome was `merged:`/`pr-opened:`
+   (the record shipped or is under review — it should stay unparked). Best-effort — on failure, log
+   a warning and continue; `/tidy` Step 4.7's backstop check catches a restoration that silently
+   failed.
+8. The CLI logs the release (or ownership skip) and every label removal to `decisions.md` (status
+   `AUTO`, reason string as detail). Log the `parked` restoration yourself:
+   `node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO
+   --section "/wrap-up" --step "Section E" --text "restored parked on #{issue}" --reversibility
+   high`.
+
+This section does not apply to conversation-based work — cleanup planning's item 7 condition (record-based work) already excludes it before Section E is ever reached.

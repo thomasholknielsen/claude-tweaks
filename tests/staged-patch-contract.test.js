@@ -13,7 +13,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { FIXTURE_TIMEOUT_MS } = require('./helpers/git-fixtures');
 
-const SKILLS = path.join(__dirname, '..', 'skills');
+const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const CONTRACT = path.join(SKILLS, '_shared', 'staged-patch.md');
 const read = (...p) => fs.readFileSync(path.join(SKILLS, ...p), 'utf8');
 
@@ -34,6 +34,7 @@ const STAGING_SITES = [
   ['review', 'step3-routing.md', /staged\/review-\{n\}\.patch/],
   ['test', 'SKILL.md', /staged\/test-fix-\{n\}\.patch/],
   ['_shared', 'multi-agent-coordination.md', /staged\/review-unconfirmed-\{n\}\.patch/],
+  ['deepen', 'SKILL.md', /staged\/deepen-collapse-\{n\}\.patch/],
 ];
 for (const [dir, file, anchor] of STAGING_SITES) {
   test(`${dir}/${file} still stages a .patch and cites _shared/staged-patch.md`, () => {

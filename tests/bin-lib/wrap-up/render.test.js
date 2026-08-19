@@ -1,7 +1,7 @@
 // bin/lib/wrap-up/tests/render.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { renderState } = require('../../../bin/lib/wrap-up/render');
+const { renderState } = require('../../../plugin/bin/lib/wrap-up/render');
 
 const PUSHED = {
   isRepo: true, branch: 'feature-x', detachedAt: null, upstream: 'origin/main',

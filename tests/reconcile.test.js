@@ -7,15 +7,15 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { classifyMirror } = require('../bin/lib/reconcile/classify');
-const { mirrorFastForward } = require('../bin/lib/reconcile/mirror-ff');
-const { decideReap } = require('../bin/lib/reconcile/reap-merged');
-const { decideRelease } = require('../bin/lib/reconcile/release-merged');
-const { decideArchive, readConsoleState } = require('../bin/lib/reconcile/archive-merged');
-const { isWorktreeLocked } = require('../bin/lib/hooks/worktree-reap');
-const { reconcile } = require('../bin/lib/reconcile');
+const { classifyMirror } = require('../plugin/bin/lib/reconcile/classify');
+const { mirrorFastForward } = require('../plugin/bin/lib/reconcile/mirror-ff');
+const { decideReap } = require('../plugin/bin/lib/reconcile/reap-merged');
+const { decideRelease } = require('../plugin/bin/lib/reconcile/release-merged');
+const { decideArchive, readConsoleState } = require('../plugin/bin/lib/reconcile/archive-merged');
+const { isWorktreeLocked } = require('../plugin/bin/lib/hooks/worktree-reap');
+const { reconcile } = require('../plugin/bin/lib/reconcile');
 
-const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
+const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
 function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
   try {
@@ -105,6 +105,19 @@ test('classifyMirror: dirty when the working tree has uncommitted changes, befor
   fs.writeFileSync(path.join(mainDir, 'a.txt'), 'modified\n');
   const r = classifyMirror(mainDir, 'main');
   assert.strictEqual(r.state, 'dirty');
+});
+
+test('classifyMirror: skipFetch=true never calls fetch, trusts already-fetched refs', () => {
+  const { originDir, mainDir } = pairedFixture();
+  git(['fetch', 'origin'], mainDir); // caller already fetched, simulating the shared-fetch path
+  // Point origin at an invalid URL so a *second* fetch attempt would fail —
+  // if classifyMirror still fetched despite skipFetch, this would surface as
+  // a non-null failure instead of the 'current' state proven by the fetch above.
+  git(['remote', 'set-url', 'origin', 'https://example.invalid/nope.git'], mainDir);
+  const result = classifyMirror(mainDir, 'main', { skipFetch: true });
+  assert.equal(result.state, 'current');
+  assert.equal(result.failure, null);
+  void originDir;
 });
 
 test('mirrorFastForward: fast-forwards when strictly behind and clean (AC1)', () => {
@@ -277,7 +290,7 @@ function runDirFixture() {
 }
 
 test('archiveRunDir: the git mv of work/ is committed, not left staged (no uncommitted rename after archival)', () => {
-  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
   const { root, runDir, runId } = runDirFixture();
 
   const result = archiveRunDir(root, runDir);
@@ -298,7 +311,7 @@ test('archiveRunDir: the git mv of work/ is committed, not left staged (no uncom
 });
 
 test('archiveRunDir: run-state.json moves to the archived location with status: clean, not left orphaned at the old path', () => {
-  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
   const { root, runDir, runId } = runDirFixture();
 
   const result = archiveRunDir(root, runDir);
@@ -312,8 +325,8 @@ test('archiveRunDir: run-state.json moves to the archived location with status: 
 });
 
 test('archiveRunDir: the old run dir is removed once empty — a later iterRunDirsWithState pass never re-yields it', () => {
-  const { archiveRunDir } = require('../bin/lib/reconcile/archive-merged');
-  const { iterRunDirsWithState } = require('../bin/lib/hooks/context');
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { iterRunDirsWithState } = require('../plugin/bin/lib/hooks/context');
   const { root, runDir } = runDirFixture();
 
   archiveRunDir(root, runDir);
@@ -345,7 +358,7 @@ function mintEmptyRunDir(root, runId, { ageMs = 0 } = {}) {
 }
 
 test('isOrphanedMint: false when config.yml exists, regardless of age', () => {
-  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const dir = mintEmptyRunDir(root, '2026-08-01T000000-record-999', { ageMs: ORPHAN_MINT_TTL_MS * 2 });
   fs.writeFileSync(path.join(dir, 'config.yml'), 'x: 1\n');
@@ -353,21 +366,21 @@ test('isOrphanedMint: false when config.yml exists, regardless of age', () => {
 });
 
 test('isOrphanedMint: false when empty but within the grace window', () => {
-  const { isOrphanedMint } = require('../bin/lib/reconcile/archive-merged');
+  const { isOrphanedMint } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const dir = mintEmptyRunDir(root, '2026-08-15T000000-record-999');
   assert.strictEqual(isOrphanedMint(dir), false);
 });
 
 test('isOrphanedMint: true when empty (no config.yml) and older than the TTL', () => {
-  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const dir = mintEmptyRunDir(root, '2026-08-01T000000-record-999', { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
   assert.strictEqual(isOrphanedMint(dir), true);
 });
 
 test('archiveMerged: an orphaned mint older than the TTL is archived on the next sweep, not left in place', () => {
-  const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../bin/lib/reconcile/archive-merged');
+  const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const runId = '2026-08-01T120000-record-999';
   mintEmptyRunDir(root, runId, { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
@@ -381,7 +394,7 @@ test('archiveMerged: an orphaned mint older than the TTL is archived on the next
 });
 
 test('archiveMerged: an orphaned mint within the TTL is left in place, not archived', () => {
-  const { archiveMerged } = require('../bin/lib/reconcile/archive-merged');
+  const { archiveMerged } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
   const runId = '2026-08-15T120000-record-999';
   const dir = mintEmptyRunDir(root, runId);
@@ -412,7 +425,7 @@ test('isWorktreeLocked: a path not registered in git worktree list at all is not
 
 // --- reconcile() orchestrator: offline degradation and model gating ---
 
-test('reconcile: local-merge project falls back to the legacy ancestry reap, skips mirror/release/archive (AC4-adjacent)', () => {
+test('reconcile: local-merge project falls back to the legacy ancestry reap, skips mirror/release/archive (AC4-adjacent)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-lm-'));
   git(['init', '-q', '--initial-branch=main'], dir);
   git(['config', 'user.email', 'test@example.com'], dir);
@@ -430,38 +443,38 @@ test('reconcile: local-merge project falls back to the legacy ancestry reap, ski
     'integration-model: local-merge\nintegration-branch: main\n',
   );
 
-  const r = reconcile({ cwd: dir });
+  const r = await reconcile({ cwd: dir });
   assert.strictEqual(r.mirror, null);
   assert.deepStrictEqual(r.worktrees, []); // legacy reap ran, found zero worktrees to consider
   assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
 });
 
-test('reconcile: local-merge with no resolvable integration branch at all resolves no-remote, never crashes', () => {
+test('reconcile: local-merge with no resolvable integration branch at all resolves no-remote, never crashes', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-lm-noib-'));
   git(['init', '-q'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: local-merge\n');
-  const r = reconcile({ cwd: dir });
+  const r = await reconcile({ cwd: dir });
   assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-remote' }]);
 });
 
-test('reconcile: no network / no remote resolves to no-remote, never crashes (AC4)', () => {
+test('reconcile: no network / no remote resolves to no-remote, never crashes (AC4)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-noremote-'));
   git(['init', '-q'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
 
-  const r = reconcile({ cwd: dir });
+  const r = await reconcile({ cwd: dir });
   assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-remote' }]);
 });
 
-test('reconcile: outside any repo resolves to no-repo, never crashes', () => {
+test('reconcile: outside any repo resolves to no-repo, never crashes', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-norepo-'));
-  const r = reconcile({ cwd: dir });
+  const r = await reconcile({ cwd: dir });
   assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-repo' }]);
 });
 
-test('reconcile: checks filter excludes reap -> local-merge project runs nothing at all', () => {
+test('reconcile: checks filter excludes reap -> local-merge project runs nothing at all', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-checks-'));
   git(['init', '-q', '--initial-branch=main'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
@@ -470,7 +483,7 @@ test('reconcile: checks filter excludes reap -> local-merge project runs nothing
     'integration-model: local-merge\nintegration-branch: main\n',
   );
 
-  const r = reconcile({ cwd: dir, checks: ['mirror'] });
+  const r = await reconcile({ cwd: dir, checks: ['mirror'] });
   // 'mirror' was requested but has no local-merge equivalent — nothing runs.
   assert.strictEqual(r.worktrees, null);
   assert.deepStrictEqual(r.skipped, [{ check: 'mirror,release,archive,archive-branches,remote-prune,console', reason: 'local-merge-model' }]);
@@ -484,7 +497,7 @@ test('reconcile: reap dispatches strictly after release and archive in source or
   // Pinned structurally, the same way tests/hooks-gate-coverage.test.js
   // pins prose to code — a real ordering regression here has no other test
   // that would catch it without fabricating live PR/claim state.
-  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
   const releaseIdx = src.indexOf("checks.includes('release')");
   const archiveIdx = src.indexOf("checks.includes('archive')");
   const reapIdx = src.lastIndexOf("checks.includes('reap')"); // the pr-first dispatch, not the local-merge fallback above it
@@ -494,19 +507,42 @@ test('reconcile: reap dispatches strictly after release and archive in source or
 });
 
 test('reconcile: ALL_CHECKS includes red-tip immediately after mirror', () => {
-  const { ALL_CHECKS } = require('../bin/lib/reconcile');
+  const { ALL_CHECKS } = require('../plugin/bin/lib/reconcile');
   const mirrorIdx = ALL_CHECKS.indexOf('mirror');
   assert.strictEqual(ALL_CHECKS[mirrorIdx + 1], 'red-tip', 'red-tip must be the entry immediately after mirror');
 });
 
 test('reconcile: red-tip dispatches immediately after mirror in source order (load-bearing — reads the ref mirror-ff just fetched)', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'reconcile', 'index.js'), 'utf8');
   const mirrorIdx = src.indexOf("checks.includes('mirror')");
   const redTipIdx = src.indexOf("checks.includes('red-tip')");
   const consoleIdx = src.indexOf("checks.includes('console')");
   assert.ok(mirrorIdx > 0 && redTipIdx > 0 && consoleIdx > 0);
   assert.ok(mirrorIdx < redTipIdx, 'mirror must dispatch before red-tip');
   assert.ok(redTipIdx < consoleIdx, 'red-tip must dispatch before console');
+});
+
+// #820 review: sharedFetchOk alone can't distinguish "fetch ran and
+// succeeded" from "fetch never ran" (it defaults to true) — a caller
+// requesting red-tip without mirror/remote-prune must not silently read a
+// never-refreshed local ref. Currently unreachable via FAST_CHECKS/
+// BACKGROUND_CHECKS (both always pair red-tip with mirror), but the gate
+// itself must hold regardless of which caller exercises it.
+test('reconcile(): red-tip requested alone (no mirror/remote-prune) skips rather than reading a stale ref', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['red-tip'] });
+    assert.equal(r.redTip, null, 'red-tip must never dispatch without a fetch this pass');
+    assert.deepEqual(r.skipped, [{ check: 'red-tip', reason: 'no-fetch-this-pass' }]);
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
 });
 
 // --- hooks.js verb: garbage-stdin invariant + JSON shape (AC5) ---
@@ -535,4 +571,401 @@ test('reconcile verb: --dry-run is accepted and never mutates on a no-remote fix
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.stdout);
   assert.deepStrictEqual(parsed.skipped, [{ check: 'all', reason: 'no-remote' }]);
+});
+
+test('reconcile(): returns a thenable (async contract) even when every check stays synchronous internally', async () => {
+  const { originDir, mainDir } = pairedFixture();
+  git(['remote', 'set-url', 'origin', 'https://example.invalid/nope.git'], mainDir); // no gh reachable, exercised as local-merge below is enough
+  const p = reconcile({ cwd: mainDir, checks: ['mirror'] });
+  assert.equal(typeof p.then, 'function', 'reconcile() must return a Promise');
+  const r = await p;
+  assert.equal(typeof r, 'object');
+  void originDir;
+});
+
+// --- preflight (#820): one upfront gh-health check gates the whole set ---
+
+// Writes .claude-tweaks/policy.yml via `seedDir` (commit + push), then pulls
+// it into `mainDir` — so mainDir ends up both carrying the policy file AND
+// clean/current with origin (classifyMirror reports 'dirty' over 'current'
+// for ANY uncommitted change, tracked or not, which a direct writeFileSync
+// straight into mainDir's working tree would trigger and mask mirror's real
+// result under test).
+function writePolicyViaSeedAndPull(seedDir, mainDir, contents) {
+  fs.mkdirSync(path.join(seedDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, '.claude-tweaks', 'policy.yml'), contents);
+  git(['add', '.claude-tweaks'], seedDir);
+  git(['commit', '-q', '-m', 'policy'], seedDir);
+  git(['push', '-q', 'origin', 'main'], seedDir);
+  git(['pull', '-q', 'origin', 'main'], mainDir);
+}
+
+test('reconcile(): a failing GitHub-health preflight skips every requested check in one entry, never per-check timeouts (D1)', async () => {
+  const { seedDir, mainDir } = pairedFixture();
+  // pairedFixture()'s origin is a bare local repo, not a GitHub remote, so
+  // resolveIntegrationModel's forge-detection fallback would otherwise land
+  // on local-merge (no gh-backed repo to detect) — force pr-first explicitly
+  // so this test actually reaches the preflight, per the same pattern used
+  // above at policy.yml: 'integration-model: pr-first\n'.
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const original = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['mirror', 'release'] });
+    // mirror is pure git (mirror-ff.js never shells to `gh`) and is
+    // deliberately excluded from the preflight gate — it still runs despite
+    // a failing GitHub-health check, and pairedFixture()'s mainDir is a
+    // fresh clone already current with origin (review finding: this gate
+    // previously skipped mirror too).
+    assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
+    assert.equal(r.claims, null);
+    assert.deepEqual(r.skipped, [{ check: 'release', reason: 'preflight-github-unreachable' }]);
+  } finally {
+    preflight.ghHealthCheck = original;
+  }
+});
+
+test('reconcile(): checks: ["mirror"] alone never calls the GitHub-health preflight at all', async () => {
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const original = preflight.ghHealthCheck;
+  let called = false;
+  preflight.ghHealthCheck = () => { called = true; return { ok: false, reason: 'github-unreachable' }; };
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['mirror'] });
+    assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
+    assert.deepEqual(r.skipped, []);
+    assert.equal(called, false, 'a mirror-only request has no gh-dependent check, so preflight must never run');
+  } finally {
+    preflight.ghHealthCheck = original;
+  }
+});
+
+// --- wall-clock budget (#820): an exhausted budget skips the remainder ---
+
+test('reconcile(): an exhausted wall-clock budget skips every remaining check in one entry (D4)', async () => {
+  const { mainDir } = pairedFixture();
+  // Same forcing as the preflight test above: pairedFixture()'s origin is a
+  // bare local repo, not a real GitHub remote, so resolveIntegrationModel's
+  // detectIntegrationModel fallback resolves to local-merge and short-
+  // circuits before the budget is ever created. Force pr-first explicitly so
+  // this test actually reaches the budget guards.
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+
+  // Must clear the preflight gate before the budget guard is even reached —
+  // stub it to succeed rather than depending on a real `gh` call reaching
+  // GitHub, which the test environment cannot guarantee.
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const budgetMod = require('../plugin/bin/lib/reconcile/budget');
+  const original = budgetMod.createBudget;
+  budgetMod.createBudget = () => ({ exceeded: () => true, remainingMs: () => 0 });
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['mirror', 'red-tip'] });
+    assert.deepEqual(r.skipped, [{ check: 'mirror,red-tip', reason: 'budget-exceeded' }]);
+  } finally {
+    budgetMod.createBudget = original;
+    preflight.ghHealthCheck = originalHealth;
+  }
+});
+
+// --- shared fetch (#820 D2): mirror and remote-prune merge into one fetch ---
+
+test('reconcile(): mirror and remote-prune share one fetch, not two (D2)', async () => {
+  const { mainDir } = pairedFixture();
+  // Same forcing as the preflight/budget tests above: pairedFixture()'s
+  // origin is a bare local repo, not a real GitHub remote. Committed (not
+  // left as an untracked file) — unlike the preflight/budget tests, THIS
+  // test needs classifyMirror to actually reach its fetch call (not bail
+  // out early on `state: 'dirty'`), so `git status --porcelain` in mainDir
+  // must read clean.
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  // NOT counted via a `gitExec.runGit = stub` swap: classify.js,
+  // prune-remote.js, and shared-fetch.js each do
+  // `const { runGit } = require('../hooks/git-exec')` once at module load,
+  // which copies the function VALUE into a local const at that instant.
+  // Reassigning `gitExec.runGit` afterward only changes what a fresh
+  // `require('../hooks/git-exec').runGit` property lookup returns — every
+  // already-bound local `runGit` inside those three modules keeps pointing
+  // at the original function, so a stub swap silently never fires and the
+  // count would read 0 (or pass by accident), not discriminate the merge.
+  // (Verified empirically with a throwaway destructure/mutate/call repro:
+  // the destructured binding never observed the module.exports reassignment.)
+  // Counting at the process-spawn boundary instead — a `git` executable
+  // placed first on PATH — needs no assumption about any module's import
+  // style and observes every real `git fetch` invocation.
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-gitwrap-'));
+  const logFile = path.join(wrapperDir, 'fetch-calls.log');
+  fs.writeFileSync(logFile, '');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const wrapperPath = path.join(wrapperDir, 'git');
+  // git-exec.js always calls execFileSync('git', ['-C', cwd, ...args]) — the
+  // real subcommand (fetch, status, rev-list, ...) is always positional $3.
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/bin/sh\nif [ "$3" = "fetch" ]; then\n  echo x >> "${logFile}"\nfi\nexec "${realGit}" "$@"\n`,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  let r;
+  try {
+    r = await reconcile({ cwd: mainDir, checks: ['mirror', 'remote-prune'] });
+  } finally {
+    process.env.PATH = originalPath;
+    preflight.ghHealthCheck = originalHealth;
+  }
+
+  assert.deepEqual(r.skipped, [], `expected no skipped entries, saw ${JSON.stringify(r.skipped)}`);
+  const fetchCalls = fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).length;
+  assert.equal(fetchCalls, 1, `expected exactly one fetch, saw ${fetchCalls}`);
+});
+
+// --- shared fetch: shape scoped to the requested checks (#820 final review) ---
+//
+// FAST_CHECKS (mirror) and BACKGROUND_CHECKS (remote-prune) are provably
+// disjoint, so each process must pay only for the fetch its own checks need:
+// a narrow single-ref fetch under mirror's tight hot-path cap, or the broad
+// `--prune` all-refs fetch on git-exec's own env-overridable budget.
+
+// Installs a `git` shim first on PATH that appends every `git fetch`
+// invocation's full argv to a log file, then execs the real git. Counting at
+// the process-spawn boundary rather than stubbing `runGit` is load-bearing
+// here for the same reason the D2 test above documents: classify.js,
+// prune-remote.js, and shared-fetch.js each destructure `runGit` at module
+// load, so a module-property stub would never be observed.
+// Async so a caller may await real work inside the PATH swap: restoring PATH
+// while an in-flight reconcile() still has fetches to issue would silently
+// stop logging them, and the count assertion would pass for the wrong reason.
+async function withFetchArgvLog(fn) {
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-fetchargv-'));
+  const logFile = path.join(wrapperDir, 'fetch-argv.log');
+  fs.writeFileSync(logFile, '');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const wrapperPath = path.join(wrapperDir, 'git');
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/bin/sh\nif [ "$3" = "fetch" ]; then\n  echo "$*" >> "${logFile}"\nfi\nexec "${realGit}" "$@"\n`,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  try {
+    await fn();
+  } finally {
+    process.env.PATH = originalPath;
+  }
+  return fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
+}
+
+test('sharedFetch: a mirror-only pass fetches the single integration ref, never --prune all-refs', async () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../plugin/bin/lib/reconcile/shared-fetch');
+  const calls = await withFetchArgvLog(() => {
+    const r = sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: false });
+    assert.equal(r.failure, null, 'the narrow fetch must succeed against the local bare origin');
+  });
+  assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch origin main$/, `mirror-only must fetch a single ref, saw: ${calls[0]}`);
+  assert.doesNotMatch(calls[0], /--prune/, 'mirror-only must not pay for a --prune all-refs fetch');
+});
+
+test('sharedFetch: a remote-prune pass still fetches --prune all-refs', async () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../plugin/bin/lib/reconcile/shared-fetch');
+  const calls = await withFetchArgvLog(() => {
+    sharedFetch(mainDir, { integration: 'main', mirror: false, remotePrune: true });
+  });
+  assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch --prune origin$/, `remote-prune must keep the --prune all-refs shape, saw: ${calls[0]}`);
+});
+
+test('sharedFetch: mirror + remote-prune together fall back to the broader --prune shape (superset serves both)', async () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../plugin/bin/lib/reconcile/shared-fetch');
+  const calls = await withFetchArgvLog(() => {
+    sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: true });
+  });
+  assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch --prune origin$/, `both-requested must widen, never narrow, saw: ${calls[0]}`);
+});
+
+// The two timeout halves of the same fix, proven by the one observable
+// difference between "explicit timeoutMs" and "git-exec's own resolveTimeout":
+// only the latter honors CT_HOOKS_GIT_TIMEOUT_MS (see git-exec.js's
+// resolveTimeout — an explicit opts.timeoutMs short-circuits the env var).
+// A 1ms budget cannot survive even a process spawn, so an honored override
+// resolves to `timeout` and an ignored one resolves to a real fetch.
+function withGitTimeoutOverride(ms, fn) {
+  const original = process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+  process.env.CT_HOOKS_GIT_TIMEOUT_MS = String(ms);
+  try {
+    return fn();
+  } finally {
+    if (original === undefined) delete process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+    else process.env.CT_HOOKS_GIT_TIMEOUT_MS = original;
+  }
+}
+
+test('sharedFetch: the remote-prune shape passes no explicit timeout — CT_HOOKS_GIT_TIMEOUT_MS still applies (Task 4\'s ruling, now pinned)', () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../plugin/bin/lib/reconcile/shared-fetch');
+  const r = withGitTimeoutOverride(1, () => sharedFetch(mainDir, { integration: 'main', mirror: false, remotePrune: true }));
+  assert.equal(r.failure, 'timeout', 'a hardcoded timeoutMs on this shape would ignore the env override and let the fetch succeed');
+});
+
+test('sharedFetch: the mirror-only shape pins its own tight hot-path budget — CT_HOOKS_GIT_TIMEOUT_MS cannot shrink it', () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetch } = require('../plugin/bin/lib/reconcile/shared-fetch');
+  const r = withGitTimeoutOverride(1, () => sharedFetch(mainDir, { integration: 'main', mirror: true, remotePrune: false }));
+  assert.equal(r.failure, null, 'the mirror shape must carry an explicit timeoutMs, which git-exec resolves ahead of the env override');
+});
+
+// The finding this fix answers is about the PRODUCTION wiring, not just
+// sharedFetch's own signature: session-start.js's inline pass is what was
+// paying for a --prune all-refs fetch it had no use for. Pin the whole path.
+test('reconcile(): a FAST_CHECKS pass (session-start\'s inline hot path) issues only the narrow single-ref fetch', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const { FAST_CHECKS } = require('../plugin/bin/lib/hooks/session-start');
+  let calls;
+  try {
+    calls = await withFetchArgvLog(() => reconcile({ cwd: mainDir, checks: FAST_CHECKS }));
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+  assert.equal(calls.length, 1, `expected exactly one fetch on the fast path, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch origin main$/, `the inline hot path must not pay for --prune, saw: ${calls[0]}`);
+});
+
+// --- session-level freshness TTL short-circuit (#820, D7) ---
+
+test('reconcile(): skipIfFresh=true short-circuits entirely when the cache is within TTL (D7)', async () => {
+  const { mainDir } = pairedFixture();
+  const cache = require('../plugin/bin/lib/reconcile/cache');
+  cache.writeCache(mainDir, { lastRunAt: Date.now(), claimShas: {} });
+  const r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipIfFresh: true });
+  assert.deepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
+  assert.equal(r.mirror, null);
+});
+
+test('reconcile(): skipIfFresh=true runs normally when the cache is stale (past TTL)', async () => {
+  const { mainDir } = pairedFixture();
+  const cache = require('../plugin/bin/lib/reconcile/cache');
+  cache.writeCache(mainDir, { lastRunAt: Date.now() - (60 * 60 * 1000), claimShas: {} });
+  const r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipIfFresh: true });
+  assert.notDeepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
+});
+
+test('reconcile(): skipIfFresh defaults to false — omitting it always runs, cache or not (back-compat for every existing caller)', async () => {
+  const { mainDir } = pairedFixture();
+  const cache = require('../plugin/bin/lib/reconcile/cache');
+  cache.writeCache(mainDir, { lastRunAt: Date.now(), claimShas: {} });
+  const r = await reconcile({ cwd: mainDir, checks: ['mirror'] });
+  assert.notDeepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
+});
+
+test('reconcile(): a real (non-short-circuited) pass stamps lastRunAt for the next skipIfFresh check', async () => {
+  const { mainDir } = pairedFixture();
+  // Same forcing as the preflight/budget/D2 tests above: pairedFixture()'s
+  // origin is a bare local repo, not a real GitHub remote, so
+  // resolveIntegrationModel's forge-detection fallback would otherwise land
+  // on local-merge — whose early return (index.js's model !== 'pr-first'
+  // branch) exits before the end-of-function stamp this test is checking.
+  // Force pr-first explicitly, and commit policy.yml so `git status
+  // --porcelain` reads clean (classifyMirror bails out early on a dirty
+  // tree, before ever reaching the stamp).
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const cache = require('../plugin/bin/lib/reconcile/cache');
+  const before = Date.now();
+  let r;
+  try {
+    r = await reconcile({ cwd: mainDir, checks: ['mirror'] });
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+  assert.deepEqual(r.skipped, [], `expected a fully-completed pass, saw ${JSON.stringify(r.skipped)}`);
+  const after = cache.readCache(mainDir);
+  assert.ok(after.lastRunAt >= before, 'lastRunAt must be stamped after a real pass');
+});
+
+// AC1: reconcile() degrades within ~2s via the preflight when GitHub is
+// unreachable, instead of accumulating every check's own 5-10s timeout.
+test('AC1: a preflight failure resolves in well under the old per-check-timeout sum', async () => {
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const original = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
+  const start = Date.now();
+  let r;
+  try {
+    r = await reconcile({ cwd: mainDir, checks: ['mirror', 'release', 'remote-prune', 'console'] });
+  } finally {
+    preflight.ghHealthCheck = original;
+  }
+  const elapsed = Date.now() - start;
+  // Functional assertion: preflight gate produces exactly the expected skip
+  // entry — mirror is excluded (pure git, no `gh` dependency) and still runs.
+  assert.deepEqual(r.skipped, [{ check: 'release,remote-prune,console', reason: 'preflight-github-unreachable' }]);
+  assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
+  // Secondary timing assertion: the preflight-gated failure resolves quickly
+  assert.ok(elapsed < 2500, `preflight-gated failure took ${elapsed}ms, expected well under 2.5s`);
+});
+
+// AC2: total wall-clock time is bounded by the explicit budget regardless
+// of how much stale state exists.
+test('AC2: an exhausted budget bounds total reconcile() time regardless of remaining check count', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+
+  // Must clear the preflight gate before the budget guard is even reached
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const budgetMod = require('../plugin/bin/lib/reconcile/budget');
+  const original = budgetMod.createBudget;
+  budgetMod.createBudget = () => ({ exceeded: () => true, remainingMs: () => 0 });
+  const start = Date.now();
+  try {
+    await reconcile({ cwd: mainDir, checks: require('../plugin/bin/lib/reconcile').ALL_CHECKS });
+  } finally {
+    budgetMod.createBudget = original;
+    preflight.ghHealthCheck = originalHealth;
+  }
+  assert.ok(Date.now() - start < 1000, 'a pre-exhausted budget must skip every check near-instantly');
 });

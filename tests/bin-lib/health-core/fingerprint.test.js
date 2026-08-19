@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { normalizeText, fingerprintFromBasis, createFingerprint } = require('../../../bin/lib/health-core/fingerprint');
+const { normalizeText, fingerprintFromBasis, createFingerprint } = require('../../../plugin/bin/lib/health-core/fingerprint');
 
 test('normalizeText collapses whitespace and lowercases', () => {
   assert.strictEqual(normalizeText('  Foo   BAR  baz '), 'foo bar baz');

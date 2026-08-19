@@ -11,13 +11,17 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const MERGE = read('skills', '_shared', 'pr-first-merge.md');
-const SETTLE = read('skills', 'dispatch', 'settle-and-merge.md');
-const CONSOLE = read('skills', 'wrap-up', 'review-console.md');
-const WORKTREE_MERGE = read('skills', 'flow', 'worktree-merge.md');
-const TASK_PROMPT = read('skills', 'dispatch', 'task-prompt.md');
-const TWO_CALL_GATE = read('skills', 'dispatch', 'two-call-gate.md');
-const DISPATCH_SKILL = read('skills', 'dispatch', 'SKILL.md');
+const MERGE = read('plugin', 'skills', '_shared', 'pr-first-merge.md');
+const MERGE_POST_MERGE = read('plugin', 'skills', '_shared', 'pr-first-merge-post-merge.md');
+const SETTLE = read('plugin', 'skills', 'dispatch', 'settle-and-merge.md');
+// #552: the fast-lane merge mechanics (pr-first/local-merge branches, the
+// #299 fix, and the Step 4.1 post-merge citation below) moved out of
+// review-console.md into its own lazy-loaded sub-file.
+const AUTO_MERGE = read('plugin', 'skills', 'wrap-up', 'auto-merge-short-circuit.md');
+const WORKTREE_MERGE = read('plugin', 'skills', 'flow', 'worktree-merge.md');
+const TASK_PROMPT = read('plugin', 'skills', 'dispatch', 'task-prompt.md');
+const TWO_CALL_GATE = read('plugin', 'skills', 'dispatch', 'two-call-gate.md');
+const DISPATCH_SKILL = read('plugin', 'skills', 'dispatch', 'SKILL.md');
 
 // AC7: acceptance labeling before the merge step — asserted structurally,
 // not only by prose, since a reordering here silently drops acceptance
@@ -35,8 +39,8 @@ test('the precondition gate is the same one condition pr-run-comments.md already
   assert.match(MERGE, /run-state\.json.*carries a `pr` object.*AND\s*\n?\s*`integration-model` resolves `pr-first`/s);
 });
 
-test('the tag mapping preserves both pre-#411 tags for /help\'s metric', () => {
-  assert.match(MERGE, /`\{tag\}` is `auto-merge`.*or `fast-lane`/s);
+test('the tag mapping preserves both pre-#411 tags plus #715\'s manifesto-authorized tag for /help\'s metric', () => {
+  assert.match(MERGE, /`\{tag\}` is `auto-merge`.*`fast-lane`.*`manifesto-authorized`/s);
   assert.match(MERGE, /github-pr-scan\.md.*triage-queue.*item 3/s);
 });
 
@@ -51,7 +55,7 @@ test('the armed outcome never polls or waits, and defers cleanup to the reconcil
 
 test('no git merge, commit, or push runs in the main checkout anywhere in this procedure', () => {
   assert.match(
-    MERGE,
+    MERGE_POST_MERGE,
     /No `git merge`, `git commit`, or\s*\n?\s*`git push` runs in the main checkout anywhere in this procedure/,
   );
 });
@@ -78,17 +82,17 @@ test('settle-and-merge.md keeps a local-merge fallback section, explicitly scope
   );
 });
 
-test('review-console.md fast-lane routes pr-first through the shared procedure and states the #299 fix', () => {
-  assert.match(CONSOLE, /run `_shared\/pr-first-merge\.md`'s\s*\n?\s*procedure now/);
-  assert.match(CONSOLE, /#299:/);
+test('auto-merge-short-circuit.md fast-lane routes pr-first through the shared procedure and states the #299 fix', () => {
+  assert.match(AUTO_MERGE, /run `_shared\/pr-first-merge\.md`'s\s*\n?\s*procedure now/);
+  assert.match(AUTO_MERGE, /#299:/);
   assert.match(
-    CONSOLE,
+    AUTO_MERGE,
     /a defect that simply cannot\s*\n?\s*recur once there is no checkout resolution step to get wrong/,
   );
 });
 
-test("review-console.md's retained local-merge branch reads the worktree path from run-state.json, not $RUN_DIR directly", () => {
-  const parts = CONSOLE.split('**`integration-model: local-merge`:**');
+test("auto-merge-short-circuit.md's retained local-merge branch reads the worktree path from run-state.json, not $RUN_DIR directly", () => {
+  const parts = AUTO_MERGE.split('**`integration-model: local-merge`:**');
   const localMergeSection = parts[parts.length - 1];
   assert.ok(localMergeSection, 'local-merge branch must exist');
   assert.match(localMergeSection.slice(0, 4000), /require\('\$RUN_DIR\/run-state\.json'\)\.worktree/);
@@ -138,15 +142,15 @@ test('AC4: every remaining "ready-to-merge" mention across skills/ is local-merg
       }
     }
   }
-  walk(path.join(ROOT, 'skills'));
+  walk(path.join(ROOT, 'plugin', 'skills'));
   assert.deepStrictEqual(offenders, [], `files mentioning ready-to-merge without local-merge scoping: ${offenders.join(', ')}`);
 });
 
 test('Step 4 runs the release-status check before reconcile and stages — never writes — the CHANGELOG backfill (#678)', () => {
-  const step4 = MERGE.indexOf('## Step 4: Post-merge reconcile');
-  const conflict = MERGE.indexOf('## Conflict path');
-  assert.ok(step4 > 0 && conflict > step4, 'Step 4 must precede the Conflict path');
-  const section = MERGE.slice(step4, conflict);
+  const step4 = MERGE_POST_MERGE.indexOf('## Step 4: Post-merge reconcile');
+  const step5 = MERGE_POST_MERGE.indexOf('## Step 5: Delete the remote branch');
+  assert.ok(step4 > 0 && step5 > step4, 'Step 4 must precede Step 5');
+  const section = MERGE_POST_MERGE.slice(step4, step5);
   assert.match(section, /### Step 4\.1: Which release carried this\?/, 'Step 4.1 subheading exists');
   assert.match(section, /### Step 4\.2: Reconcile/, 'Step 4.2 subheading exists');
   assert.match(section, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/release\.js" status --merge/, 'Step 4.1 invokes the status subcommand');
@@ -161,17 +165,17 @@ test('Step 4 runs the release-status check before reconcile and stages — never
 });
 
 test('the three local-merge fallback sections route the post-merge release-status check to Step 4.1 (#678)', () => {
-  assert.match(SETTLE, /pr-first-merge\.md` Step 4\.1/);
-  assert.match(WORKTREE_MERGE, /pr-first-merge\.md` Step 4\.1/);
-  assert.match(CONSOLE, /pr-first-merge\.md` Step 4\.1/);
+  assert.match(SETTLE, /pr-first-merge-post-merge\.md` Step 4\.1/);
+  assert.match(WORKTREE_MERGE, /pr-first-merge-post-merge\.md` Step 4\.1/);
+  assert.match(AUTO_MERGE, /pr-first-merge-post-merge\.md` Step 4\.1/);
 });
 
 test('/flow closing reports carry the release-status line verbatim (#678)', () => {
-  const summary = read('skills', 'flow', 'summary-template.md');
+  const summary = read('plugin', 'skills', 'flow', 'summary-template.md');
   // The multi-spec closing template moved to multispec-summary.md in #724's
   // 20KB extraction — the release-status line travels with it.
-  const multi = read('skills', 'flow', 'multispec-summary.md');
-  const comments = read('skills', '_shared', 'pr-run-comments.md');
+  const multi = read('plugin', 'skills', 'flow', 'multispec-summary.md');
+  const comments = read('plugin', 'skills', '_shared', 'pr-run-comments.md');
   assert.match(summary, /\*\*Release status:\*\* \{/, 'single-spec summary renders the release-status line');
   assert.match(multi, /\*\*Release status:\*\* \{/, 'multi-spec summary template renders the release-status line');
   assert.match(summary, /not yet in a release — bump pending/, 'the human form is quoted verbatim');

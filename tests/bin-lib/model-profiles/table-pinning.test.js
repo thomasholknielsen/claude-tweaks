@@ -8,9 +8,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { PROFILES, effortLine } = require('../../../bin/lib/model-profiles/profiles');
+const { PROFILES, effortLine } = require('../../../plugin/bin/lib/model-profiles/profiles');
 
-const CONTRACT = path.join(__dirname, '..', '..', '..', 'skills', '_shared', 'subagent-output-contract.md');
+const CONTRACT = path.join(__dirname, '..', '..', '..', 'plugin', 'skills', '_shared', 'subagent-output-contract.md');
 
 function modelSelectionSection() {
   const text = fs.readFileSync(CONTRACT, 'utf8');
@@ -52,7 +52,7 @@ const EFFORT_TEMPLATE = '[Effort: {level} — apply {level}-level reasoning dept
 
 test('the section cites the resolver CLI and the effortLine template shape', () => {
   const section = modelSelectionSection();
-  assert.match(section, /node bin\/resolve-profile\.js/);
+  assert.match(section, /node plugin\/bin\/resolve-profile\.js/);
   assert.match(section, /\[Use: \{Profile\}\]/);
   assert.ok(section.includes(EFFORT_TEMPLATE),
     'the Dispatching paragraph must publish effortLine\'s literal template');

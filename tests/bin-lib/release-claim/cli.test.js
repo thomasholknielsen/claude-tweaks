@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { run } = require('../../../bin/release-claim');
+const { run } = require('../../../plugin/bin/release-claim');
 
 const NOW = Date.parse('2026-08-16T12:00:00Z');
 const RUN_DIR_NAME = '2026-08-16T100000-spec-999';

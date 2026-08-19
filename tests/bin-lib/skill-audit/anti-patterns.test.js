@@ -10,8 +10,8 @@ const {
   bodyOutsideSection,
   rowIdentifiers,
   compareTables,
-} = require('../../../bin/lib/skill-audit/anti-patterns.js');
-const { listSkillDirs, KNOWN_SKILLS } = require('../../../bin/lib/skill-audit/skill-catalog.js');
+} = require('../../../plugin/bin/lib/skill-audit/anti-patterns.js');
+const { listSkillDirs, KNOWN_SKILLS } = require('../../../plugin/bin/lib/skill-audit/skill-catalog.js');
 
 const SAMPLE = [
   '# Some skill',
@@ -116,9 +116,11 @@ test('compareTables CATCHES a dropped identifier inside a surviving row', () => 
 });
 
 test('every shipped skill has a parseable Anti-Patterns table', () => {
-  const skillsDir = path.join(__dirname, '..', '..', '..', 'skills');
-  const repoRoot = path.join(__dirname, '..', '..', '..');
-  const names = listSkillDirs(repoRoot);
+  const skillsDir = path.join(__dirname, '..', '..', '..', 'plugin', 'skills');
+  // listSkillDirs resolves `skills/` directly beneath the root it is given —
+  // that root is the plugin payload root (`plugin/`), not the repo root.
+  const pluginRoot = path.join(__dirname, '..', '..', '..', 'plugin');
+  const names = listSkillDirs(pluginRoot);
   // Directory-derived, not a hard-coded `33` -- see skill-catalog.js.
   assert.ok(names.length >= 30, `expected the whole skill corpus, found ${names.length}`);
   for (const known of KNOWN_SKILLS) {
@@ -520,5 +522,28 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   the parser on the merged working tree (actual 376), not by adding 3 to
   //   373 — the arithmetic agreeing here is a check, not the evidence
   //   (`[IL-99]`).
-  assert.strictEqual(total, 376);
+  //
+  //   376 -> 379, deepen decline-memory + collapse fast lane. Three rows ADDED
+  //   to skills/deepen/SKILL.md's Anti-Patterns table ("Staging a deepen-kind
+  //   candidate as a `.patch` in `auto` mode", "Suppressing a previously
+  //   declined candidate", "Walking collapse candidates through the
+  //   per-candidate design conversation"). Verified: `git diff -- 'plugin/
+  //   skills/*/SKILL.md' | grep -E '^[-+]\|'` returns exactly these three `+`
+  //   lines and no `-` lines (simplify/SKILL.md's edit in the same change is
+  //   an Input-section numbered-list item, not a table row). Measured by
+  //   RUNNING the parser on the working tree (actual 379), not by adding 3 to
+  //   376 (`[IL-99]`).
+  //
+  //   379 -> 381, /stories maintainer-objective fixes (agent-browser drift +
+  //   Target Environment Guard) merged with origin/main (deepen's +3 above —
+  //   both sides moved this pin from 376 independently). Own-branch side: two
+  //   rows ADDED to stories/SKILL.md's Anti-Patterns table ("Running an
+  //   action-less `find` as an existence probe", "Generating negative stories
+  //   against a non-local target without acknowledgment"); three rows reworded
+  //   in place with no count change (two in stories/SKILL.md, one in
+  //   visual-review/SKILL.md — trace record-then-stop model). Measured by
+  //   RUNNING the parser on the merged working tree (actual 381), not by
+  //   adding 2 to 379 — the arithmetic agreeing here is a check, not the
+  //   evidence (`[IL-99]`).
+  assert.strictEqual(total, 381);
 });

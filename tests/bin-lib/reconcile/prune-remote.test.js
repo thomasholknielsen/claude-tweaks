@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { decideRemotePrune, pruneRemote } = require('../../../bin/lib/reconcile/prune-remote');
+const { decideRemotePrune, pruneRemote } = require('../../../plugin/bin/lib/reconcile/prune-remote');
 
 // The delete bar is deliberately stricter than archive-branches' local -D:
 // a pushed deletion is unrecoverable from this checkout once origin GCs the
@@ -30,6 +30,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { defaultRefExists } = require('../../../plugin/bin/lib/reconcile/prune-remote');
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -49,6 +50,26 @@ function makeRepoWithOrigin() {
   git(dir, 'remote', 'add', 'origin', origin);
   git(dir, 'push', '-u', 'origin', 'main');
   return dir;
+}
+
+// Two independently prunable remote branches (both cherry-equivalent + MERGED),
+// built with the exact same steps as the single-branch delete test above,
+// looped over 'build/b1' and 'build/b2' — the batch-push tests need at least
+// two candidates in the same `pruneRemote()` pass to observe batching.
+function buildTwoPrunableBranchesFixture() {
+  const dir = makeRepoWithOrigin();
+  for (const name of ['build/b1', 'build/b2']) {
+    const file = `${name.replace('/', '-')}.txt`;
+    git(dir, 'checkout', '-b', name);
+    fs.writeFileSync(path.join(dir, file), `${name}\n`);
+    git(dir, 'add', file);
+    git(dir, 'commit', '-m', `change ${name}`);
+    git(dir, 'push', 'origin', name);
+    git(dir, 'checkout', 'main');
+    git(dir, 'cherry-pick', name); // merged in substance (squash-merge shape)
+    git(dir, 'branch', '-D', name); // local branch already disposed; remote lingers
+  }
+  return { root: dir, integration: 'main' };
 }
 
 test('pruneRemote: squash-merged remote build/* branch is deleted on origin; dry-run only reports', () => {
@@ -175,6 +196,21 @@ test('pruneRemote: origin/HEAD symbolic ref is never a candidate, alongside a re
   assert.match(git(dir, 'symbolic-ref', 'refs/remotes/origin/HEAD'), /refs\/remotes\/origin\/main/); // origin/HEAD survives untouched
 });
 
+// skipFetch trusts the caller already refreshed origin/* this pass
+// (reconcile()'s shared fetch, #820 D2) — pointing origin at an invalid URL
+// proves no second fetch is attempted: if pruneRemote still fetched despite
+// skipFetch, this would surface as `fetch-failed` instead of a real result.
+test('pruneRemote: skipFetch=true never calls fetch, trusts already-fetched refs', () => {
+  const dir = makeRepoWithOrigin();
+  const originUrl = git(dir, 'remote', 'get-url', 'origin').trim();
+  git(dir, 'fetch', '--prune', 'origin'); // caller already fetched, simulating the shared-fetch path
+  git(dir, 'remote', 'set-url', 'origin', 'https://example.invalid/nope.git');
+
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  assert.strictEqual(r.failure, null);
+  void originUrl;
+});
+
 test('pruneRemote: branch attached to a live worktree is silently out of scope', () => {
   const dir = makeRepoWithOrigin();
   git(dir, 'checkout', '-b', 'build/wt');
@@ -192,18 +228,173 @@ test('pruneRemote: branch attached to a live worktree is silently out of scope',
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/wt'), /build\/wt/);
 });
 
-const { reconcile, ALL_CHECKS } = require('../../../bin/lib/reconcile');
+// gitExec.runGit = stub does NOT work here: prune-remote.js does
+// `const { runGit } = require('../hooks/git-exec')` once at module load,
+// which copies the function VALUE into a local const at that instant.
+// Reassigning `gitExec.runGit` afterward only changes what a fresh
+// `require('../hooks/git-exec').runGit` property lookup returns — the
+// already-bound local `runGit` inside prune-remote.js keeps pointing at the
+// original function (see tests/reconcile.test.js's identical note on
+// classify.js/shared-fetch.js, #820 D2). Intercept at the process-spawn
+// boundary instead: a `git` wrapper placed first on PATH.
+function installPushWrapper(failMultiBranch) {
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-gitwrap-'));
+  const logFile = path.join(wrapperDir, 'push-calls.log');
+  fs.writeFileSync(logFile, '');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const wrapperPath = path.join(wrapperDir, 'git');
+  // Real invocation shape is `git -C <cwd> push origin --delete <branch...>`,
+  // so $1=-C $2=<cwd> $3=push $4=origin $5=--delete $6=<branch1> $7=<branch2?>.
+  // When failMultiBranch is set, a push --delete naming 2+ branches (the
+  // batch) exits 1 without touching origin; a single-branch push --delete
+  // (the per-branch fallback) is let through to real git.
+  const failClause = failMultiBranch ? '\n  if [ -n "$7" ]; then\n    exit 1\n  fi' : '';
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/bin/sh\nif [ "$3" = "push" ]; then\n  echo "$@" >> "${logFile}"${failClause}\nfi\nexec "${realGit}" "$@"\n`,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  return {
+    logFile,
+    restore: () => { process.env.PATH = originalPath; },
+  };
+}
+
+test('pruneRemote: multiple prunable branches are deleted with ONE push call, not one per branch', () => {
+  const { root, integration } = buildTwoPrunableBranchesFixture();
+  const wrapper = installPushWrapper(false);
+  let result;
+  try {
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  } finally {
+    wrapper.restore();
+  }
+  const pushLines = fs.readFileSync(wrapper.logFile, 'utf8').split('\n').filter(Boolean);
+  assert.equal(pushLines.length, 1, `expected one batched push, saw ${pushLines.length}: ${JSON.stringify(pushLines)}`);
+  assert.match(pushLines[0], /build\/b1/);
+  assert.match(pushLines[0], /build\/b2/);
+  assert.equal(result.entries.filter((e) => e.action === 'delete').length, 2);
+});
+
+test('pruneRemote: a failed batch push falls back to per-branch deletes, one bad ref does not swallow the rest', () => {
+  const { root, integration } = buildTwoPrunableBranchesFixture();
+  const wrapper = installPushWrapper(true);
+  let result;
+  try {
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  } finally {
+    wrapper.restore();
+  }
+  const pushLines = fs.readFileSync(wrapper.logFile, 'utf8').split('\n').filter(Boolean);
+  const batchAttempted = pushLines.some((l) => /build\/b1/.test(l) && /build\/b2/.test(l));
+  assert.equal(batchAttempted, true, `expected a batch attempt naming both branches, saw ${JSON.stringify(pushLines)}`);
+  assert.equal(result.entries.filter((e) => e.action === 'delete').length, 2, 'per-branch fallback still deletes both');
+});
+
+// Review finding: the per-branch fallback's own push can fail because the
+// branch was ALREADY gone (deleted by the batch despite its own nonzero
+// exit, or by a concurrent reconcile pass) — that must read as a completed
+// delete, not delete-failed. build/b1 is deleted on origin out-of-band, by a
+// SECOND clone (deleting via `root`'s own git auto-prunes its local tracking
+// ref immediately, defeating the repro — a second clone's delete does not),
+// before pruneRemote ever runs; skipFetch: true means root's stale local
+// tracking ref still makes b1 look like a normal candidate, so only the
+// fallback push itself exposes that it's gone.
+test('pruneRemote: batch fails; a branch already deleted before the fallback push is reported delete, not delete-failed', () => {
+  const { root, integration } = buildTwoPrunableBranchesFixture();
+  const originUrl = git(root, 'remote', 'get-url', 'origin').trim();
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-clone3-'));
+  git(other, 'clone', originUrl, 'c');
+  git(path.join(other, 'c'), 'push', 'origin', '--delete', 'build/b1');
+  const wrapper = installPushWrapper(true); // batch push fails without touching origin; single-branch pushes hit real git
+  let result;
+  try {
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  } finally {
+    wrapper.restore();
+  }
+  const b1 = result.entries.find((e) => e.name === 'build/b1');
+  const b2 = result.entries.find((e) => e.name === 'build/b2');
+  assert.strictEqual(b1.action, 'delete', `already-gone branch must be reported delete, not misreported as ${b1.action}/${b1.reason}`);
+  assert.strictEqual(b2.action, 'delete', 'a genuinely present branch still deletes normally');
+});
+
+// A genuine, non-"already gone" per-branch failure — a wrapper that fails
+// EVERY push --delete naming build/b1 (batch and single-branch fallback
+// alike), never reaching real git for it — must still report delete-failed:
+// checkRefExists reporting the ref is still present (or indeterminate, on a
+// bad connection) must never be read as success.
+function installAlwaysFailWrapper(branchToFail) {
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-gitwrap2-'));
+  const logFile = path.join(wrapperDir, 'push-calls.log');
+  fs.writeFileSync(logFile, '');
+  const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  const wrapperPath = path.join(wrapperDir, 'git');
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/bin/sh\n` +
+    `if [ "$3" = "push" ]; then\n` +
+    `  echo "$@" >> "${logFile}"\n` +
+    `  case " $* " in\n` +
+    `    *" ${branchToFail} "*) exit 1 ;;\n` +
+    `  esac\n` +
+    `fi\n` +
+    `exec "${realGit}" "$@"\n`,
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  return { logFile, restore: () => { process.env.PATH = originalPath; } };
+}
+
+test('pruneRemote: a genuine per-branch delete failure still reports delete-failed', () => {
+  const { root, integration } = buildTwoPrunableBranchesFixture();
+  const wrapper = installAlwaysFailWrapper('build/b1');
+  let result;
+  try {
+    result = pruneRemote({
+      cwd: root, integration, skipFetch: true,
+      resolvePr: () => ({ number: 1, state: 'MERGED' }),
+      refExists: () => true, // both branches provably still exist on origin
+    });
+  } finally {
+    wrapper.restore();
+  }
+  assert.strictEqual(result.entries.find((e) => e.name === 'build/b1').action, 'skip');
+  assert.strictEqual(result.entries.find((e) => e.name === 'build/b1').reason, 'delete-failed');
+  assert.strictEqual(result.entries.find((e) => e.name === 'build/b2').action, 'delete');
+});
+
+test('defaultRefExists: true when the ref is present, false when git ls-remote --exit-code reports it missing (exit 2), null on any other failure', () => {
+  const dir = makeRepoWithOrigin();
+  assert.strictEqual(defaultRefExists(dir, 'main', 5000), true);
+  assert.strictEqual(defaultRefExists(dir, 'no-such-branch-at-all', 5000), false);
+  // An unreachable remote fails ls-remote itself (git exit 128, "fatal"), a
+  // different exit code from the ref-not-found case above (exit 2) — must
+  // read as indeterminate, never as "gone".
+  execFileSync('git', ['-C', dir, 'remote', 'set-url', 'origin', '/no/such/path/at/all'], { stdio: 'ignore' });
+  assert.strictEqual(defaultRefExists(dir, 'main', 5000), null);
+});
+
+const { reconcile, ALL_CHECKS } = require('../../../plugin/bin/lib/reconcile');
 
 test("index: ALL_CHECKS includes 'remote-prune'; dispatch sits between 'archive-branches' and 'reap'; result gains remoteBranches slot", () => {
   assert.ok(ALL_CHECKS.includes('remote-prune'));
-  const src = fs.readFileSync(path.join(__dirname, '../../../bin/lib/reconcile/index.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '../../../plugin/bin/lib/reconcile/index.js'), 'utf8');
   const iBranches = src.indexOf("checks.includes('archive-branches')");
-  const iRemote = src.indexOf("checks.includes('remote-prune')");
+  // Search from iBranches: the shared-fetch gate above the mirror dispatch
+  // (#820 D2) also tests `checks.includes('remote-prune')` — as part of
+  // deciding whether to run the one shared fetch at all — so the literal
+  // string now appears earlier in the file too. The actual dispatch block is
+  // the occurrence after archive-branches.
+  const iRemote = src.indexOf("checks.includes('remote-prune')", iBranches);
   const iReap = src.indexOf("checks.includes('reap')", iBranches);
   assert.ok(iBranches > -1 && iRemote > iBranches && iReap > iRemote, 'dispatch order: archive-branches < remote-prune < reap');
 });
 
-test('index: pr-first repo with a working remote actually reaches the remote-prune dispatch; requesting a different check leaves remoteBranches null', () => {
+test('index: pr-first repo with a working remote actually reaches the remote-prune dispatch; requesting a different check leaves remoteBranches null', async () => {
   // A no-remote fixture never reaches the dispatch at all (it short-circuits
   // at the earlier `if (!integration)` guard) — that would pass even with
   // the dispatch block deleted, so it doesn't discriminate. This fixture has
@@ -219,9 +410,9 @@ test('index: pr-first repo with a working remote actually reaches the remote-pru
     'integration-model: pr-first\nintegration-branch: main\n',
   );
 
-  const withDispatch = reconcile({ cwd: dir, checks: ['remote-prune'] });
+  const withDispatch = await reconcile({ cwd: dir, checks: ['remote-prune'] });
   assert.ok(Array.isArray(withDispatch.remoteBranches), 'remote-prune requested under pr-first must set remoteBranches to an array, not stay null');
 
-  const withoutDispatch = reconcile({ cwd: dir, checks: ['mirror'] });
+  const withoutDispatch = await reconcile({ cwd: dir, checks: ['mirror'] });
   assert.strictEqual(withoutDispatch.remoteBranches, null, 'remote-prune not requested must leave remoteBranches null');
 });

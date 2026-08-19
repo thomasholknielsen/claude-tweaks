@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { decideArchive, inScope, shouldAgeTag } = require('../../../bin/lib/reconcile/archive-branches');
+const { decideArchive, inScope, shouldAgeTag } = require('../../../plugin/bin/lib/reconcile/archive-branches');
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -73,8 +73,8 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { archiveBranches } = require('../../../bin/lib/reconcile/archive-branches');
-const { reconcile, ALL_CHECKS } = require('../../../bin/lib/reconcile');
+const { archiveBranches } = require('../../../plugin/bin/lib/reconcile/archive-branches');
+const { reconcile, ALL_CHECKS } = require('../../../plugin/bin/lib/reconcile');
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -205,18 +205,18 @@ test('archiveBranches: archive/* tag older than 90 days is deleted, younger kept
 // AC6: index wiring
 test("index: ALL_CHECKS includes 'archive-branches'; dispatch sits between 'archive' and 'reap'; result gains branches slot", () => {
   assert.ok(ALL_CHECKS.includes('archive-branches'));
-  const src = fs.readFileSync(path.join(__dirname, '../../../bin/lib/reconcile/index.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '../../../plugin/bin/lib/reconcile/index.js'), 'utf8');
   const iArchive = src.indexOf("checks.includes('archive')");
   const iBranches = src.indexOf("checks.includes('archive-branches')");
   const iReap = src.indexOf("checks.includes('reap')", iArchive);
   assert.ok(iArchive > -1 && iBranches > iArchive && iReap > iBranches, 'dispatch order: archive < archive-branches < reap');
 });
 
-test('index: no-remote repo never dispatches archive-branches; result.branches stays null', () => {
+test('index: no-remote repo never dispatches archive-branches; result.branches stays null', async () => {
   const dir = makeRepo();
   // no origin remote -> resolveIntegrationBranch fails -> skipped no-remote; that
   // still proves archive-branches never dispatches outside pr-first. Assert the
   // result shape carries the branches slot untouched.
-  const r = reconcile({ cwd: dir, checks: ['archive-branches'] });
+  const r = await reconcile({ cwd: dir, checks: ['archive-branches'] });
   assert.strictEqual(r.branches, null);
 });

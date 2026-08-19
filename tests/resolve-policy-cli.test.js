@@ -14,9 +14,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { POLICY_KEYS } = require('../bin/lib/policy-schema');
+const { POLICY_KEYS } = require('../plugin/bin/lib/policy-schema');
 
-const CLI = path.join(__dirname, '..', 'bin', 'resolve-policy.js');
+const CLI = path.join(__dirname, '..', 'plugin', 'bin', 'resolve-policy.js');
 const FIXTURES = path.join(__dirname, 'fixtures', 'resolve-policy');
 
 const tempDirs = [];

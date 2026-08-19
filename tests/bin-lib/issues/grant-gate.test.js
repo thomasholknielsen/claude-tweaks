@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { evaluateGrantGate } = require('../../../bin/lib/issues/grant-gate.js');
+const { evaluateGrantGate } = require('../../../plugin/bin/lib/issues/grant-gate.js');
 
 // Fixture: an agent-filed, clean-trust, low-risk record — every gate clear.
 // Individual tests mutate one dimension at a time (record labels/facets, policy,
@@ -75,6 +75,27 @@ test('AC2 key 2: grant-origination opt-in unset refuses even at unattended', () 
   });
   assert.equal(result.grant, false);
   assert.equal(result.failedKey, 'grant-origination-opt-in');
+});
+
+test('needs:definition refuses unconditionally, before trust/origin are consulted', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:definition'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'needs-definition');
+});
+
+test('needs:definition refuses even with no trustVerdicts/grantCheck passed at all', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:definition'] }),
+    policy: basePolicy(),
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'needs-definition');
+  assert.equal(result.needsGrantCheck, undefined);
 });
 
 test('AC2 key 3: no cell at all for this class refuses (distinct from a present insufficient-evidence row)', () => {
@@ -238,6 +259,55 @@ test('gate order: ceiling failure short-circuits before trust/origin/grant-check
     grantCheck: { clear: false },
   });
   assert.equal(result.failedKey, 'ceiling');
+});
+
+// --- #311: global merge-lane circuit breaker (policy.mergeLaneBreakerTripped) ---
+
+test('#311 AC1: mergeLaneBreakerTripped forces autoMerge false while grant stays true, and the snapshot records it', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord(),
+    policy: basePolicy({ mergeLaneBreakerTripped: true }),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, true);
+  assert.equal(result.autoMerge, false);
+  assert.equal(result.failedKey, null);
+  assert.equal(result.snapshot.mergeLaneBreakerTripped, true);
+});
+
+test('#311 AC5: while tripped, auto:build origination (grant:true) is unaffected — the breaker gates autoMerge only', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord(),
+    policy: basePolicy({ mergeLaneBreakerTripped: true }),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, true);
+  assert.equal(result.failedKey, null);
+});
+
+test('#311: mergeLaneBreakerTripped absent/false preserves today\'s behavior — no snapshot key, autoMerge follows permittedGrants', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord(),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.autoMerge, true);
+  assert.equal('mergeLaneBreakerTripped' in result.snapshot, false);
+});
+
+test('#311: a tripped breaker never routes through deny() — a record that would otherwise be refused still refuses on its own failedKey, not the breaker', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord(),
+    policy: basePolicy({ ceiling: 'trusted', mergeLaneBreakerTripped: true }),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.autoMerge, false);
+  assert.equal(result.failedKey, 'ceiling', 'the breaker must never be attributed as the reason a record failed an earlier, unrelated gate');
 });
 
 test('re-authorization (bot:blocked) path is unaffected by this module — it is a caller-level distinction', () => {

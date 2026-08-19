@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SKILLS = path.join(__dirname, '..', 'skills');
+const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const GATE_FILE = path.join(SKILLS, '_shared', 'pr-first-merge.md');
 const read = (...p) => fs.readFileSync(path.join(SKILLS, ...p), 'utf8');
 
@@ -48,7 +48,7 @@ test('checks-pending-timeout is defined only in the gate; other files at most ci
 test('merge-when-green appears outside the gate only as a lever value (#559 files) or a citation', () => {
   // The #559 lever files name the value as a lever, never the procedure; anything else naming
   // the value must cite the gate's file.
-  const LEVER_FILES = new Set(['_shared/policy-schema.md', 'flow/manifesto.md']);
+  const LEVER_FILES = new Set(['_shared/policy-schema.md', '_shared/policy-schema-coverage.md', 'flow/manifesto.md']);
   const offenders = [];
   for (const file of otherSkillFiles()) {
     const rel = path.relative(SKILLS, file);
@@ -75,7 +75,11 @@ test('the gate reads state before any merge attempt and names the red-path piece
 });
 
 test('every pr-first merge site and the resume confirmation cite the gate', () => {
-  for (const rel of ['dispatch/settle-and-merge.md', 'dispatch/SKILL.md', 'flow/worktree-merge.md']) {
+  // #852 extracted dispatch's "Confirm before resuming" procedure (including
+  // this citation) out of SKILL.md into its own sub-file to stay under the
+  // 40 KB ceiling — the resume confirmation's own citation of the gate now
+  // lives there instead.
+  for (const rel of ['dispatch/settle-and-merge.md', 'dispatch/resume-confirmation.md', 'flow/worktree-merge.md']) {
     assert.ok(read(...rel.split('/')).includes('Merge-verification gate'), `${rel} does not cite the gate`);
   }
 });

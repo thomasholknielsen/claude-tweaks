@@ -5,7 +5,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { resolvePolicyKeys, parseFlatLines } = require('../bin/lib/policy-schema');
+const { resolvePolicyKeys, parseFlatLines } = require('../plugin/bin/lib/policy-schema');
 
 test('parseFlatLines is exported (Task 2 wrappers consume it)', () => {
   assert.strictEqual(typeof parseFlatLines, 'function');
@@ -310,4 +310,43 @@ test('an invalid autonomy value feeding the derivation falls back to supervised,
     policyRaw: 'autonomy: banana\n',
   });
   assert.deepStrictEqual(result['housekeeping-auto-merge'], { value: false, source: 'default' });
+});
+
+// --- merge-authorization: run-config-or-arg only, never policy.yml (#715) ---
+
+test('merge-authorization: unset everywhere resolves to the ask default', () => {
+  const result = resolvePolicyKeys(['merge-authorization'], { policyRaw: null, runConfigRaw: null });
+  assert.deepStrictEqual(result['merge-authorization'], { value: 'ask', source: 'default' });
+});
+
+test('merge-authorization: a run-config value (a live Manifesto override) wins', () => {
+  const result = resolvePolicyKeys(['merge-authorization'], {
+    policyRaw: null,
+    runConfigRaw: 'merge-authorization: pre-authorized\n',
+  });
+  assert.deepStrictEqual(result['merge-authorization'], { value: 'pre-authorized', source: 'run-config' });
+});
+
+test('merge-authorization: a policy.yml value is ignored — falls back to the default, not "policy"', () => {
+  const result = resolvePolicyKeys(['merge-authorization'], {
+    policyRaw: 'merge-authorization: pre-authorized\n',
+    runConfigRaw: null,
+  });
+  assert.deepStrictEqual(result['merge-authorization'], { value: 'ask', source: 'default' });
+});
+
+test('merge-authorization: run-config still wins even when policy.yml also sets it (policy ignored, not merely lower-precedence)', () => {
+  const result = resolvePolicyKeys(['merge-authorization'], {
+    policyRaw: 'merge-authorization: pre-authorized\n',
+    runConfigRaw: 'merge-authorization: ask\n',
+  });
+  assert.deepStrictEqual(result['merge-authorization'], { value: 'ask', source: 'run-config' });
+});
+
+test('merge-authorization: an invalid run-config value falls back to the default, tagged invalid', () => {
+  const result = resolvePolicyKeys(['merge-authorization'], {
+    policyRaw: null,
+    runConfigRaw: 'merge-authorization: sometimes\n',
+  });
+  assert.deepStrictEqual(result['merge-authorization'], { value: 'ask', source: 'default', invalid: true });
 });

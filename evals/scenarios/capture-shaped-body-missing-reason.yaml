@@ -1,7 +1,7 @@
 name: capture-shaped-body-missing-reason
 description: >
   Runtime pin for #697 AC 3 (capture's Shaped-body branch,
-  skills/capture/SKILL.md "The deferral check"): a shaped idea body whose
+  plugin/skills/capture/SKILL.md "The deferral check"): a shaped idea body whose
   header carries an Origin: line (a content signal that this filing is a
   deferral, per SKILL.md's deferral-check rule), with NO --defer-reason=
   flag and no Defer-reason: line in the body text, must file NOTHING and

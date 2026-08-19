@@ -15,13 +15,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { parseChangelogVersions, findHeadingDefects, findCoverageGaps } = require('../bin/lib/changelog.js');
-const { historyAvailable, shippedVersions, walkedVersions } = require('../bin/lib/changelog-git.js');
-const { RECORD_PATH, readShippedRecord, recordedVersions } = require('../bin/lib/shipped-record.js');
+const { parseChangelogVersions, findHeadingDefects, findCoverageGaps } = require('../plugin/bin/lib/changelog.js');
+const { historyAvailable, shippedVersions, walkedVersions } = require('../plugin/bin/lib/changelog-git.js');
+const { RECORD_PATH, readShippedRecord, recordedVersions } = require('../plugin/bin/lib/shipped-record.js');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const CHANGELOG_PATH = path.join(REPO_ROOT, 'CHANGELOG.md');
-const MANIFEST_PATH = path.join(REPO_ROOT, '.claude-plugin', 'plugin.json');
+const MANIFEST_PATH = path.join(REPO_ROOT, 'plugin', '.claude-plugin', 'plugin.json');
 
 const changelog = fs.readFileSync(CHANGELOG_PATH, 'utf8');
 const manifestVersion = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')).version;
@@ -30,7 +30,7 @@ test("the manifest's current version has a CHANGELOG entry", () => {
   const documented = parseChangelogVersions(changelog).map((e) => e.version);
   assert.ok(
     documented.includes(manifestVersion),
-    `.claude-plugin/plugin.json is at ${manifestVersion} but CHANGELOG.md has no "## v${manifestVersion} — ..." entry. ` +
+    `plugin/.claude-plugin/plugin.json is at ${manifestVersion} but CHANGELOG.md has no "## v${manifestVersion} — ..." entry. ` +
       `Add one in the same commit as the bump — see CLAUDE.md's "Releasing (two repos)".`,
   );
 });
@@ -113,7 +113,7 @@ test("the manifest's current version is in the shipped-versions record", () => {
   const recorded = new Set(recordedVersions(REPO_ROOT));
   assert.ok(
     recorded.has(manifestVersion),
-    `.claude-plugin/plugin.json is at ${manifestVersion} but ${RECORD_PATH} has no line for it. ` +
+    `plugin/.claude-plugin/plugin.json is at ${manifestVersion} but ${RECORD_PATH} has no line for it. ` +
       `Append "${manifestVersion}\t<YYYY-MM-DD>\trelease" in the same commit as the bump — ` +
       `see CLAUDE.md's "Releasing (two repos)". This is the step that keeps the record from ` +
       'drifting back into something that has to be inferred.',

@@ -1,13 +1,13 @@
 ---
 files:
-  - skills/tidy/step-6-auto.md
-  - skills/tidy/step-6-interactive.md
-  - skills/tidy/SKILL.md
-  - skills/tidy/scan-procedures.md
-  - bin/lib/reconcile/release-merged.js
-  - bin/lib/reconcile/archive-branches.js
-  - bin/lib/reconcile/prune-remote.js
-  - bin/lib/reconcile/reap-merged.js
+  - plugin/skills/tidy/step-6-auto.md
+  - plugin/skills/tidy/step-6-interactive.md
+  - plugin/skills/tidy/SKILL.md
+  - plugin/skills/tidy/scan-procedures.md
+  - plugin/bin/lib/reconcile/release-merged.js
+  - plugin/bin/lib/reconcile/archive-branches.js
+  - plugin/bin/lib/reconcile/prune-remote.js
+  - plugin/bin/lib/reconcile/reap-merged.js
 ---
 
 # Tidy Standalone-Auto Report: Verb-Grouped Sections and Reconcile-Converged Rows
@@ -20,8 +20,8 @@ files:
 ## Steps
 
 ### 1. Scans run — reconcile converges first
-- **Action:** Tidy's scan procedures run `reconcile()` at their own trigger points. Under `pr-first`, the release check drops claims on merged-PR evidence (`merged: reconciled from PR #{n}`) or issue-closed evidence (`issue-closed: reconciled from #{n}`), the archive-branches check deletes cherry-equivalent plugin-owned branches and tags-then-deletes aged unmerged ones, the remote-prune check deletes remote plugin-owned branches carrying both signals (a MERGED PR and cherry-equivalence) after refreshing origin, and the reap check removes merged runs' worktrees — a locked worktree with a live owner is reap's skip, reported with its reason, never broken. Under `local-merge`, only `reap`'s legacy ancestry check runs — everything else keeps staging.
-- **Expect:** No approval prompt for any of this — these are reconcile's background-convergence writes, outside the skill-side auto-mode contract; tidy only reports the results.
+- **Action:** Tidy's scan procedures run `reconcile()` at their own trigger points. Under `pr-first`, the release check drops claims on merged-PR evidence (`merged: reconciled from PR #{n}`) or issue-closed evidence (`issue-closed: reconciled from #{n}`), the archive-branches check deletes cherry-equivalent plugin-owned branches and tags-then-deletes aged unmerged ones, the remote-prune check deletes remote plugin-owned branches carrying both signals (a MERGED PR and cherry-equivalence) after refreshing origin, and the reap check removes merged runs' worktrees — a locked worktree with a live owner is reap's skip, reported with its reason, never broken. Under `local-merge`, only `reap`'s legacy ancestry check runs — everything else keeps staging. Two whole-pass early exits (#820) can skip the entire requested check set before any of the above runs: a GitHub-health preflight (`preflight.js`, ~2s) on an unreachable/degraded GitHub, and an overall wall-clock pass budget (`budget.js`) once exceeded — either means this call converged nothing, not that there was nothing to converge; a failed shared fetch is likewise reported once for whichever of `mirror`/`red-tip`/`remote-prune` were requested together, not per check.
+- **Expect:** No approval prompt for any of this — these are reconcile's background-convergence writes, outside the skill-side auto-mode contract; tidy only reports the results. A preflight or budget skip is a check-set-wide `unknown`, not a clean pass — a report reading "nothing to converge" after one must not be trusted as "reconcile ran and found nothing" without also checking `decisions.md`/`events.jsonl` for the skip reason.
 
 ### 2. Findings route by the table, not judgment
 - **Action:** Each scan finding routes per `step-6-auto.md`'s tier table (default `moderate`): reversible git-tracked cleanups auto-apply, outward-facing GitHub writes stage, no-op findings surface with their command.
@@ -29,7 +29,7 @@ files:
 
 ### 3. The report renders before any question
 - **Action:** The hard gate requires the rendered report in the same response, above any `AskUserQuestion`.
-- **Expect:** The conformance scan ran first — no `┌─┐` box art, but aligned columns inside ```text fences (the "no box-drawing tables" rule bans drawn borders, not alignment); no line over 100 characters, titles truncated to 50 with `…`; records as `#{N}` plus a title column (titles from the scan agents' own findings — no per-row `gh issue view`); Yours grouped by the command the human runs in the fixed order `specify`, `demo`, `git`, `capture`, `backlog refine`, then alphabetical, with the command-less `review ({k})` group last of all, one row per record and no `(likewise …)` shorthand, each group closing with one batch line (`flow`/`dispatch` — multi-ref `argument-hint`) or a paste block of single commands, or one ref-less line when the command takes no record (`/claude-tweaks:backlog refine`); Clean as one `{scan}  {count} checked` line per scan; `{run-dir}/decisions.md` referenced by path exactly once. The interactive twin (`skills/tidy/step-6-interactive.md`) renders this identical template and is bound by the same Report rules and Yours grouping, differing only in its close: it presents the report and then calls `AskUserQuestion` with the "Approve ({N}) (Recommended)" / "Override specific items" options — which is the `AskUserQuestion` this step's hard gate orders the report above.
+- **Expect:** The conformance scan ran first — no `┌─┐` box art, but aligned columns inside ```text fences (the "no box-drawing tables" rule bans drawn borders, not alignment); no line over 100 characters, titles truncated to 50 with `…`; records as `#{N}` plus a title column (titles from the scan agents' own findings — no per-row `gh issue view`); Yours grouped by the command the human runs in the fixed order `specify`, `demo`, `git`, `capture`, `backlog refine`, then alphabetical, with the command-less `review ({k})` group last of all, one row per record and no `(likewise …)` shorthand, each group closing with one batch line (`flow`/`dispatch` — multi-ref `argument-hint`) or a paste block of single commands, or one ref-less line when the command takes no record (`/claude-tweaks:backlog refine`); Clean as one `{scan}  {count} checked` line per scan; `{run-dir}/decisions.md` referenced by path exactly once. The interactive twin (`plugin/skills/tidy/step-6-interactive.md`) renders this identical template and is bound by the same Report rules and Yours grouping, differing only in its close: it presents the report and then calls `AskUserQuestion` with the "Approve ({N}) (Recommended)" / "Override specific items" options — which is the `AskUserQuestion` this step's hard gate orders the report above.
 
 ### 4. Next Actions close the loop
 - **Action:** The plain-markdown `## Next Actions` block derives from the report: an "Approve ({N})" line first (bolded, recommended) when Approve is non-empty, then Yours *groups* — one line per group in report order, carrying the group's batch line, the first line of its paste block, or its ref-less line (total handoff capped at four lines) — then the help dashboard — no closing question.

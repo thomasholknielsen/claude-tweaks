@@ -1,7 +1,11 @@
 'use strict';
-const { test } = require('node:test');
+const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { shapeGate, liftMetadata, composeHeader, composeFile, sectionText } = require('../../../bin/lib/issues/materialize-format');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { shapeGate, liftMetadata, composeHeader, composeFile, sectionText } = require('../../../plugin/bin/lib/issues/materialize-format');
+const wtDetect = require('../../../plugin/bin/lib/hooks/worktree-detect');
 
 const SHAPED_BODY = [
   'Surface: backend',
@@ -123,13 +127,44 @@ test('composeFile: header, then "# {n}: {title}", then the body verbatim', () =>
 
 // ---- materialize.js CLI -----------------------------------------------------
 
-const { run: cliRun } = require('../../../bin/materialize');
+const { run: cliRun } = require('../../../plugin/bin/materialize');
+
+// #790/[IL-127]: materialize.js's run() now rejects a --run-dir that doesn't
+// resolve under the main checkout (bin/lib/hooks/worktree-detect.js's
+// isAnchoredUnderRoot), read through deps.cwd()/deps.mainRoot() (#790
+// Finding 1) rather than process.cwd()/wtDetect directly. repoRoot below is
+// that main checkout; every CLI test below runs with cwd chdir'd into it and
+// a run-dir nested under it — a bare os.tmpdir() literal like the old
+// '/tmp/run-1' no longer anchors. worktree-detect.js's checks are purely
+// structural (`fs.statSync(...).isDirectory()`), not real git plumbing, so a
+// bare `.git` directory — no `git init` subprocess — is enough, mirroring
+// tests/bin-lib/release-claim/cli.test.js's `mkRun()` fixture.
+let repoRoot;
+before(() => {
+  repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-materialize-cli-'));
+  fs.mkdirSync(path.join(repoRoot, '.git'));
+});
+after(() => {
+  fs.rmSync(repoRoot, { recursive: true, force: true });
+});
+
+function withCwd(dir, fn) {
+  const prev = process.cwd();
+  process.chdir(dir);
+  try { return fn(); } finally { process.chdir(prev); }
+}
+
+function mkRunDir(name = 'run-1') {
+  return path.join(repoRoot, '.claude-tweaks', 'pipelines', name);
+}
 
 function cliDeps({ ghView, ghAvailable = true, remoteUrl = 'https://github.com/acme/w.git' } = {}) {
   const out = []; const err = []; const written = {};
   return {
     deps: {
       ghView, ghAvailable: () => ghAvailable, remoteUrl: () => remoteUrl,
+      cwd: () => process.cwd(), mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
+      isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
       mkdirp: () => {}, writeFile: (p, c) => { written[p] = c; },
       stdout: (s) => out.push(s), stderr: (s) => err.push(s),
     },
@@ -148,56 +183,65 @@ test('materialize CLI: --help exits 0', () => {
 });
 
 test('materialize CLI: happy path writes {run-dir}/work/{n}-spec.md with the composed header', () => {
+  const runDir = mkRunDir();
   const { deps, out, written } = cliDeps({ ghView: () => ghJson() });
-  const code = cliRun(['1', '--run-dir', '/tmp/run-1'], deps);
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
   assert.equal(code, 0);
   const env = JSON.parse(out.join(''));
-  assert.equal(env.file, '/tmp/run-1/work/1-spec.md');
-  const content = written['/tmp/run-1/work/1-spec.md'];
+  const expectedFile = path.join(runDir, 'work', '1-spec.md');
+  assert.equal(env.file, expectedFile);
+  const content = written[expectedFile];
   assert.match(content, /^---\nrecord: 1\norigin: capture\nrisk: low\nsize: high\nceremony: standard\ngrants: \[build\]/);
   assert.match(content, /^# 1: A record$/m);
 });
 
 test('materialize CLI: an unshaped record fails the gate (exit 1), pointing at /specify', () => {
+  const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => ghJson({ body: 'no sections here' }) });
-  const code = cliRun(['1', '--run-dir', '/tmp/run-1'], deps);
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
   assert.equal(code, 1);
   assert.match(err.join(''), /run `\/claude-tweaks:specify #1` first/);
 });
 
 test('materialize CLI: no ceremony label and no --ceremony override is a malformed invocation (exit 2)', () => {
+  const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => ghJson({ labels: ['ready', 'risk:low'] }) });
-  const code = cliRun(['1', '--run-dir', '/tmp/run-1'], deps);
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
   assert.equal(code, 2);
   assert.match(err.join(''), /ceremony-check/);
 });
 
 test('materialize CLI: --ceremony override is honored when the record carries no ceremony label', () => {
+  const runDir = mkRunDir();
   const { deps, out, written } = cliDeps({ ghView: () => ghJson({ labels: ['ready'] }) });
-  const code = cliRun(['1', '--run-dir', '/tmp/run-1', '--ceremony', 'fast-lane'], deps);
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir, '--ceremony', 'fast-lane'], deps));
   assert.equal(code, 0);
   const env = JSON.parse(out.join(''));
   assert.equal(env.ceremonySource, 'override');
-  assert.match(written['/tmp/run-1/work/1-spec.md'], /^ceremony: fast-lane$/m);
+  assert.match(written[path.join(runDir, 'work', '1-spec.md')], /^ceremony: fast-lane$/m);
 });
 
 test('materialize CLI: an unresolvable issue number is a malformed invocation (exit 2)', () => {
+  const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => { throw new Error('gh: issue not found'); } });
-  const code = cliRun(['999', '--run-dir', '/tmp/run-1'], deps);
+  const code = withCwd(repoRoot, () => cliRun(['999', '--run-dir', runDir], deps));
   assert.equal(code, 2);
   assert.match(err.join(''), /could not be resolved/);
 });
 
 test('materialize CLI: --multi-record-slug writes under spec-{slug}/work/', () => {
+  const runDir = mkRunDir('run-parent');
   const { deps, out } = cliDeps({ ghView: () => ghJson() });
-  const code = cliRun(['1', '--run-dir', '/tmp/run-parent', '--multi-record-slug', '1'], deps);
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir, '--multi-record-slug', '1'], deps));
   assert.equal(code, 0);
   const env = JSON.parse(out.join(''));
-  assert.equal(env.file, '/tmp/run-parent/spec-1/work/1-spec.md');
+  assert.equal(env.file, path.join(runDir, 'spec-1', 'work', '1-spec.md'));
 });
 
 test('materialize CLI: gh absent exits 2', () => {
+  const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => { throw new Error('must not call gh'); }, ghAvailable: false });
-  assert.equal(cliRun(['1', '--run-dir', '/tmp/run-1'], deps), 2);
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
+  assert.equal(code, 2);
   assert.match(err.join(''), /`gh` is required/);
 });

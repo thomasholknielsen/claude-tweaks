@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const post = require('../bin/lib/hooks/post-tool-use');
+const post = require('../plugin/bin/lib/hooks/post-tool-use');
 
 function runWrite(filePath) {
   return post.run({

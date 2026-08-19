@@ -12,7 +12,7 @@ const {
   readSnapshot,
   writeSnapshot,
   invalidateSnapshot,
-} = require('../../../bin/lib/issues/record-snapshot');
+} = require('../../../plugin/bin/lib/issues/record-snapshot');
 
 test('UNION_FIELDS carries the field set every consumer needs', () => {
   assert.strictEqual(

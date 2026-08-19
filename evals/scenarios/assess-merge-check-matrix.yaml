@@ -13,7 +13,7 @@ description: >
   is exercised by exactly one scenario.
 
   `--base main` short-circuits merge-check's integration-branch resolution
-  ladder entirely (skills/assess-agent-autonomy/SKILL.md, Mode: merge-check,
+  ladder entirely (plugin/skills/assess-agent-autonomy/SKILL.md, Mode: merge-check,
   Step 1) — the contract under eval is the Step 2 judgment + Step 3 verdict,
   not the resolution ladder. The fixture's own .claude-tweaks/policy.yml still
   pins integration-branch: main, for a future scenario exercising resolution

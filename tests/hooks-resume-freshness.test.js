@@ -7,7 +7,7 @@ const path = require('path');
 const {
   checkResumeFreshness,
   RESUME_FRESHNESS_THRESHOLD_MS,
-} = require('../bin/lib/hooks/resume-freshness');
+} = require('../plugin/bin/lib/hooks/resume-freshness');
 const { gitRepo, linkedWorktreeOf, fixtureGit } = require('./helpers/git-fixtures');
 
 function tmpRunDir(state) {

@@ -32,14 +32,16 @@ const HISTORY_PATH = path.join(EVALS_ROOT, 'history.jsonl');
 // content into a fresh tmpdir, excluding .git, evals/, docs/,
 // .claude-tweaks/, and .superpowers/ — so plugins[0].path never names a real,
 // nameable path into this worktree.
-const PLUGIN_SNAPSHOT_DIRS = ['.claude-plugin', 'skills', 'agents', 'hooks', 'bin', 'commands'];
+// PLUGIN_SNAPSHOT_DIRS is the eval fixture snapshot, not the payload
+// definition — the payload boundary is the plugin/ subtree (ADR-0015).
+const PLUGIN_SNAPSHOT_DIRS = ['plugin/.claude-plugin', 'plugin/skills', 'plugin/agents', 'plugin/hooks', 'plugin/bin', 'plugin/commands'];
 
 export function buildPluginSnapshot() {
   const snapshotDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-plugin-snapshot-'));
   for (const name of PLUGIN_SNAPSHOT_DIRS) {
     const src = path.join(PLUGIN_ROOT, name);
     if (fs.existsSync(src)) {
-      fs.cpSync(src, path.join(snapshotDir, name), { recursive: true });
+      fs.cpSync(src, path.join(snapshotDir, path.basename(name)), { recursive: true });
     }
   }
   return snapshotDir;

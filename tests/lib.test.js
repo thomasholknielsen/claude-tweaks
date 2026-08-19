@@ -1,8 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 
-const color = require('../bin/lib/color');
-const deps = require('../bin/lib/deps');
+const color = require('../plugin/bin/lib/color');
+const deps = require('../plugin/bin/lib/deps');
 
 test('color: NO_COLOR=1 disables color', () => {
   const orig = process.env.NO_COLOR;
@@ -65,7 +65,7 @@ test('deps: has() returns true for node', () => {
 // present" spawns a subprocess purely to re-derive a fact this process
 // already has for free.
 test('deps: has(\'node\') never shells out to `node --version` (no subprocess)', () => {
-  const modulePath = require.resolve('../bin/lib/deps');
+  const modulePath = require.resolve('../plugin/bin/lib/deps');
   const childProcess = require('node:child_process');
   const originalExecSync = childProcess.execSync;
   let called = false;
@@ -75,7 +75,7 @@ test('deps: has(\'node\') never shells out to `node --version` (no subprocess)',
   };
   delete require.cache[modulePath];
   try {
-    const freshDeps = require('../bin/lib/deps');
+    const freshDeps = require('../plugin/bin/lib/deps');
     assert.strictEqual(freshDeps.has('node'), true);
     assert.strictEqual(called, false, "has('node') must not shell out to `node --version`");
   } finally {

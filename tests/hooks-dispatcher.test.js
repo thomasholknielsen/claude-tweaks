@@ -6,9 +6,9 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { readRunState } = require('../bin/lib/hooks/context');
+const { readRunState } = require('../plugin/bin/lib/hooks/context');
 
-const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
+const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
 function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
   try {
@@ -23,6 +23,10 @@ function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
 
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  // #790: an explicit --run must resolve under a real git checkout (see
+  // bin/hooks.js's resolveRunArg anchoring check) — a bare, non-git tmp dir
+  // no longer counts as a valid anchor for any run dir nested under it.
+  execFileSync('git', ['-C', dir, 'init', '-q']);
   const run = path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   // #721: an unadopted mint (neither run-state.json nor decisions.md) is
@@ -81,7 +85,7 @@ test('close-run on a run dir with no pre-existing run-state.json creates one and
 });
 
 test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   // staleDir sorts newer than ownDir and is non-terminal (interrupted, never
@@ -137,7 +141,7 @@ test('record-worktree with a non-existent --run path fails loudly instead of fal
   const bogus = path.join(project, 'does-not-exist');
   const result = runHook(['record-worktree', '--run', bogus, '/tmp/wt'], { cwd: project });
   assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /--run path not found/);
+  assert.match(result.stdout, /--run path rejected/);
   assert.doesNotMatch(result.stdout, /worktree recorded/);
   assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false,
     'an invalid --run must not silently fall back to a different run dir');
@@ -151,7 +155,7 @@ test('record-worktree --run with no following value fails loudly instead of fall
   // missing-value case from the separate "no worktree given" branch.
   const result = runHook(['record-worktree', '/tmp/wt-2', '--run'], { cwd: project });
   assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /claude-tweaks: --run path not found: \(missing value\) — worktree not recorded/);
+  assert.match(result.stdout, /claude-tweaks: --run path rejected: \(missing value\) — worktree not recorded/);
   assert.doesNotMatch(result.stdout, /worktree recorded/);
   assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false,
     '--run with a missing value must not silently fall back to a different run dir');
@@ -178,7 +182,7 @@ test('close-run with a non-existent --run path fails loudly instead of falling b
   const bogus = path.join(project, 'does-not-exist');
   const result = runHook(['close-run', '--run', bogus], { cwd: project });
   assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /--run path not found/);
+  assert.match(result.stdout, /--run path rejected/);
   const state = readRunState(run);
   assert.strictEqual(state.status, 'active', 'an invalid --run must not touch a different run dir at all');
 });
@@ -195,7 +199,7 @@ test('close-run --run with no following value fails loudly instead of falling ba
 
   const result = runHook(['close-run', '--run'], { cwd: project });
   assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /claude-tweaks: --run path not found: \(missing value\) — run not closed/);
+  assert.match(result.stdout, /claude-tweaks: --run path rejected: \(missing value\) — run not closed/);
   assert.strictEqual(readRunState(run).status, 'active',
     '--run with a missing value must not fall back to closing the newest non-terminal run');
 });
@@ -280,8 +284,7 @@ test('close-run WITH an explicit --run still closes a run recorded by another se
 });
 
 test('e2e: foreign-session commit in the main checkout is allowed with a systemMessage, not denied', () => {
-  const project = tmpProject();
-  execFileSync('git', ['-C', project, 'init', '-q']);
+  const project = tmpProject(); // already a git repo (tmpProject inits one) — the "main checkout" this test's title refers to
   const worktree = gitRepo();
   runHook(['record-worktree', worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
 
@@ -316,7 +319,7 @@ test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the o
 });
 
 test('hooks.json registers PreToolUse matchers for Edit, Write, and NotebookEdit', () => {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const matchers = config.hooks.PreToolUse.map((entry) => entry.matcher);
   assert.ok(matchers.includes('Edit'), 'expected an Edit matcher');
   assert.ok(matchers.includes('Write'), 'expected a Write matcher');
@@ -324,7 +327,7 @@ test('hooks.json registers PreToolUse matchers for Edit, Write, and NotebookEdit
 });
 
 test('hooks.json registers a PreToolUse matcher for ExitWorktree (unfiltered, literal tool-name match)', () => {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const entry = config.hooks.PreToolUse.find((e) => e.matcher === 'ExitWorktree');
   assert.ok(entry, 'expected a PreToolUse ExitWorktree matcher entry');
   assert.strictEqual(entry.hooks.length, 1);
@@ -334,14 +337,14 @@ test('hooks.json registers a PreToolUse matcher for ExitWorktree (unfiltered, li
 });
 
 test("hooks.json's PreToolUse Bash `if` patterns include Bash(git worktree *)", () => {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const bashEntry = config.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
   const ifs = bashEntry.hooks.map((h) => h.if);
   assert.ok(ifs.includes('Bash(git worktree *)'), 'expected PreToolUse\'s Bash matcher to include an "if": "Bash(git worktree *)" entry');
 });
 
 test('hooks.json registers a PostToolUse matcher for Skill (unfiltered, literal tool-name match)', () => {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const skillEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Skill');
   assert.ok(skillEntry, 'expected a PostToolUse Skill matcher entry');
   assert.strictEqual(skillEntry.hooks.length, 1);
@@ -355,7 +358,7 @@ test('hooks.json registers a PostToolUse matcher for AskUserQuestion (unfiltered
   // `if (ctx.input.tool_name === 'AskUserQuestion') return logAskUserQuestion(ctx);`
   // branch since #452, but with no matcher entry here the hook was never
   // spawned for that tool at all — the branch was dead code in production.
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const askEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'AskUserQuestion');
   assert.ok(askEntry, 'expected a PostToolUse AskUserQuestion matcher entry');
   assert.strictEqual(askEntry.hooks.length, 1);
@@ -374,7 +377,7 @@ test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_F
   // parser: no registered `if` pattern matched its literal text, so both
   // the worktree-always deny and the E1 wrong-checkout deny silently never
   // fired for this shape.
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const requiredPatterns = ['Bash(git -c *)', 'Bash(git --exec-path=*)', 'Bash(git --namespace=*)'];
   for (const event of ['PreToolUse', 'PostToolUse']) {
     const bashEntry = config.hooks[event].find((e) => e.matcher === 'Bash');
@@ -483,7 +486,7 @@ test('record-pr writes run-state.pr and prints a confirmation line', () => {
 });
 
 test('record-pr --run pins the target run dir, same as record-worktree', () => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   fs.mkdirSync(staleDir, { recursive: true });
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
@@ -501,7 +504,7 @@ test('record-pr with a non-existent --run path fails loudly instead of falling b
   const bogus = path.join(project, 'nope');
   const result = runHook(['record-pr', '--run', bogus, '7', 'https://github.com/o/r/pull/7'], { cwd: project });
   assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /--run path not found/);
+  assert.match(result.stdout, /--run path rejected/);
 });
 
 test('record-pr with no resolvable run dir prints a not-recorded notice instead of silent success', () => {
@@ -549,5 +552,5 @@ test('check-resume-freshness: no resolvable --run path reports the not-found lin
   const project = tmpProject();
   const result = runHook(['check-resume-freshness', '--run', path.join(project, 'nope')], { cwd: project });
   assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /--run path not found/);
+  assert.match(result.stdout, /--run path rejected/);
 });

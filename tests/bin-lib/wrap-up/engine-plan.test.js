@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { buildWorklist } = require('../../../bin/lib/wrap-up/engine-plan');
+const { buildWorklist } = require('../../../plugin/bin/lib/wrap-up/engine-plan');
 
 const FACTS = { isRepo: true, changedFiles: ['src/a.js', 'src/b.js'], renamedDeleted: [],
   skillsLibraryExists: false, multiFileDiff: true, docsTreeNonEmpty: false,
@@ -88,5 +88,5 @@ test('frontmatter-overlap computes journey candidates', () => {
 
 test('every registry row appears exactly once, in order', () => {
   const wl = buildWorklist({ facts: FACTS, signals: {}, ceremonyProfile: 'standard', budgets: {} });
-  assert.deepStrictEqual(wl.rows.map((r) => r.id), require('../../../bin/lib/wrap-up/registry').ROW_IDS);
+  assert.deepStrictEqual(wl.rows.map((r) => r.id), require('../../../plugin/bin/lib/wrap-up/registry').ROW_IDS);
 });

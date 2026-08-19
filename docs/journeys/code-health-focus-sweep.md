@@ -1,16 +1,16 @@
 ---
 files:
-  - bin/lib/code-health/candidates-dead-code.js
-  - bin/lib/code-health/focus-generators.js
-  - skills/code-health/SKILL.md
-  - skills/code-health/focus-mode.md
+  - plugin/bin/lib/code-health/candidates-dead-code.js
+  - plugin/bin/lib/code-health/focus-generators.js
+  - plugin/skills/code-health/SKILL.md
+  - plugin/skills/code-health/focus-mode.md
 ---
 
 # Code-Health Focus Sweep
 
 **Persona:** Developer maintaining the claude-tweaks plugin who wants a dedicated pass over dead code across the whole repository, not whatever directory the generalist sweep's rotation cursor happens to land on today.
 **Goal:** Run a `focus=dead-code` code-health sweep and get genuine dead-code findings filed as deduplicated GitHub issues.
-**Entry point:** Typing `/claude-tweaks:code-health focus=dead-code` in a session, or a scheduled Routine firing with the same argument — `/claude-tweaks:routine fleet on` provisions four focus-scoped routines (dead-code, test-hygiene, abstraction-police, experiment-cleanup) exactly this way (`skills/routine/fleet.md`'s composition table).
+**Entry point:** Typing `/claude-tweaks:code-health focus=dead-code` in a session, or a scheduled Routine firing with the same argument — `/claude-tweaks:routine fleet on` provisions four focus-scoped routines (dead-code, test-hygiene, abstraction-police, experiment-cleanup) exactly this way (`plugin/skills/routine/fleet.md`'s composition table).
 **Success state:** Either the sweep reports "no candidates this firing" honestly (with scanned/skipped counts, so a silent skip is distinguishable from a genuinely clean repo), or genuine dead-code findings reach the judge and get filed.
 
 ## Steps
@@ -19,7 +19,7 @@ files:
 - **URL:** N/A (slash command)
 - **Action:** Developer types `/claude-tweaks:code-health focus=dead-code`.
 - **Should feel:** Deliberate — this is a different mode from the everyday generalist sweep, and the argument makes that explicit rather than implicit.
-- **Should understand:** `focus=dead-code` swaps only the *scoping* strategy (candidate-driven instead of `next-slice` directory rotation) — everything downstream (criterion, judge, verify gate, dedup, filing) is unchanged. SKILL.md's Step 1 hands off to `skills/code-health/focus-mode.md` for the full focus-mode procedure.
+- **Should understand:** `focus=dead-code` swaps only the *scoping* strategy (candidate-driven instead of `next-slice` directory rotation) — everything downstream (criterion, judge, verify gate, dedup, filing) is unchanged. SKILL.md's Step 1 hands off to `plugin/skills/code-health/focus-mode.md` for the full focus-mode procedure.
 - **Red flags:** An unrecognized `focus=` value should fail loud, naming the known values — never silently fall back to the generalist sweep.
 
 ### 2. Candidate generation runs

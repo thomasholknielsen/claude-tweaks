@@ -1,9 +1,9 @@
 // bin/lib/record-graph/tests/render-svg.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { renderSvg } = require('../../../bin/lib/record-graph/render-svg');
-const { ORIGIN_COLORS, BORDER_COLORS } = require('../../../bin/lib/record-graph/palette');
-const { buildGraph } = require('../../../bin/lib/record-graph/layout');
+const { renderSvg } = require('../../../plugin/bin/lib/record-graph/render-svg');
+const { ORIGIN_COLORS, BORDER_COLORS } = require('../../../plugin/bin/lib/record-graph/palette');
+const { buildGraph } = require('../../../plugin/bin/lib/record-graph/layout');
 const { FIXTURE_RECORDS } = require('./fixtures');
 
 const GENERATED_AT = '2026-08-03T12:00:00.000Z';

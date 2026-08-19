@@ -15,12 +15,12 @@ const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const SCAN = read('skills', '_shared', 'github-pr-scan.md');
-const STEP6 = read('skills', 'tidy', 'step-6-auto.md');
-const TIDY_SKILL = read('skills', 'tidy', 'SKILL.md');
-const ACTIONS_GH = read('skills', 'tidy', 'actions-github-issues.md');
-const POLICY_SCHEMA_MD = read('skills', '_shared', 'policy-schema.md');
-const { POLICY_KEYS } = require('../bin/lib/policy-schema');
+const SCAN = read('plugin', 'skills', '_shared', 'github-pr-scan.md');
+const STEP6 = read('plugin', 'skills', 'tidy', 'step-6-auto.md');
+const TIDY_SKILL = read('plugin', 'skills', 'tidy', 'SKILL.md');
+const ACTIONS_GH = read('plugin', 'skills', 'tidy', 'actions-github-issues.md');
+const POLICY_SCHEMA_MD = read('plugin', 'skills', '_shared', 'policy-schema.md');
+const { POLICY_KEYS } = require('../plugin/bin/lib/policy-schema');
 
 // --- Extract and syntax-check every `node -e "..."` script in the two new items ---
 
@@ -68,6 +68,80 @@ test('item 9 (unarmed ready PR): every embedded node -e script is syntactically 
 
 test('item 10 (unsettled run): every embedded node -e script is syntactically valid', () => {
   assertAllSyntaxValid(extractNodeScripts(ITEM10), 'item 10');
+});
+
+// #438: item 9's green-check filter must treat a permanently-conditional-skip
+// check (SKIPPED/NEUTRAL) as non-blocking, not as a failure — otherwise the
+// filter can never find a candidate on any PR carrying such a check (e.g.
+// track-issue-fixes.yml's default-branch-only cleanup-fix-labels job, which
+// reports SKIPPED on every feature-branch PR). Runs item 9's actual embedded
+// candidate-filter script (not just a syntax check) against a fixture PR
+// list, isolated to a session-scoped temp directory so it never touches the
+// script's hardcoded /tmp/pr-scan-unarmed*.json paths shared with a live sweep.
+test("item 9's green-check filter treats SKIPPED as non-blocking, not a failure (regression)", () => {
+  const filterScript = extractNodeScripts(ITEM9)[0];
+  assert.ok(
+    filterScript && /pr-scan-unarmed-candidates\.json/.test(filterScript),
+    'expected the first item-9 script to be the candidate filter (writes pr-scan-unarmed-candidates.json)',
+  );
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-item9-filter-'));
+  const inputPath = path.join(tmpDir, 'pr-scan-unarmed.json');
+  const candidatesPath = path.join(tmpDir, 'pr-scan-unarmed-candidates.json');
+
+  // Source-text substitution of the script's hardcoded literals — the script
+  // closes over these paths as literals, not via process.argv, so isolation
+  // has to happen before the script is written to disk and run.
+  const isolatedScript = filterScript
+    .split('/tmp/pr-scan-unarmed-candidates.json').join(candidatesPath)
+    .split('/tmp/pr-scan-unarmed.json').join(inputPath);
+
+  // Comfortably older than the pr-unarmed-age-hours default (24h) used below,
+  // so the age filter doesn't trip first and mask the conclusion-filter
+  // behavior under test.
+  const oldEnough = new Date(Date.now() - 25 * 3600000).toISOString();
+  const fixturePrs = [
+    {
+      // Positive case: SUCCESS + SKIPPED must still be "green".
+      number: 1001,
+      title: 'positive: SUCCESS + SKIPPED is green',
+      isDraft: false,
+      autoMergeRequest: null,
+      updatedAt: oldEnough,
+      statusCheckRollup: [{ conclusion: 'SUCCESS' }, { conclusion: 'SKIPPED' }],
+      body: '<!-- claude-tweaks-run: 2026-01-01T000000-record-1001 -->',
+    },
+    {
+      // Negative control: identical except one conclusion is a real FAILURE —
+      // isolates the SKIPPED-handling behavior as the one varying dimension;
+      // without this, a test that can't go red would prove nothing.
+      number: 1002,
+      title: 'negative control: a real FAILURE is still excluded',
+      isDraft: false,
+      autoMergeRequest: null,
+      updatedAt: oldEnough,
+      statusCheckRollup: [{ conclusion: 'SUCCESS' }, { conclusion: 'FAILURE' }],
+      body: '<!-- claude-tweaks-run: 2026-01-01T000000-record-1002 -->',
+    },
+  ];
+  fs.writeFileSync(inputPath, JSON.stringify(fixturePrs));
+
+  const scriptPath = path.join(tmpDir, 'item9-filter.js');
+  fs.writeFileSync(scriptPath, isolatedScript);
+  execFileSync('node', [scriptPath], {
+    env: { ...process.env, UNARMED_AGE: '24' },
+    stdio: 'pipe',
+  });
+
+  const candidateNumbers = JSON.parse(fs.readFileSync(candidatesPath, 'utf8')).map((c) => c.number);
+  assert.ok(
+    candidateNumbers.includes(1001),
+    'PR with SUCCESS + SKIPPED conclusions should be a candidate — SKIPPED must not be treated as a failure',
+  );
+  assert.ok(
+    !candidateNumbers.includes(1002),
+    'PR with a real FAILURE conclusion should be excluded — proves the assertion actually discriminates',
+  );
 });
 
 // --- Key prose claims ---

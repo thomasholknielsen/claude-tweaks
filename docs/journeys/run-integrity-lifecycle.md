@@ -1,10 +1,10 @@
 ---
 files:
-  - bin/lib/hooks/skill-invocation.js
-  - bin/lib/hooks/run-integrity.js
-  - bin/lib/hooks/pre-tool-use.js
-  - bin/lib/hooks/session-start.js
-  - bin/hooks.js
+  - plugin/bin/lib/hooks/skill-invocation.js
+  - plugin/bin/lib/hooks/run-integrity.js
+  - plugin/bin/lib/hooks/pre-tool-use.js
+  - plugin/bin/lib/hooks/session-start.js
+  - plugin/bin/hooks.js
 ---
 
 # Run-Integrity Lifecycle: Detect, Remediate, and Gate Bypassed Pipeline Closures
@@ -26,7 +26,7 @@ files:
 
 ### 3. Teardown while the run is open — denied with the path out
 - **Action:** Attempt `ExitWorktree` (`action: "remove"`) or `git worktree remove <path>` targeting a worktree recorded by an `active`/`interrupted` run.
-- **Expect:** Deny naming the run dir and `cleanup-procedures.md` Section C. Non-destructive exits (`action: "keep"`), unassigned worktrees, and unparseable commands pass. A worktree owned by a *different* session's run allows with a warning and a `wd-foreign-teardown` event instead.
+- **Expect:** Deny naming the run dir and `cleanup-procedures-execution.md` Section C. Non-destructive exits (`action: "keep"`), unassigned worktrees, and unparseable commands pass. A worktree owned by a *different* session's run allows with a warning and a `wd-foreign-teardown` event instead.
 
 ### 4. Close, then tear down — the sanctioned exit
 - **Action:** Run `node ".../bin/hooks.js" close-run --run "<dir>"` (wrap-up's Section C step 3.6 does this for you), then retry the teardown.

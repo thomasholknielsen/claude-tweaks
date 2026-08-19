@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { deriveTestVerdict } = require('../../../bin/lib/dispatch/artifact-verdict');
+const { deriveTestVerdict } = require('../../../plugin/bin/lib/dispatch/artifact-verdict');
 
 function tmpFile(content) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-artifact-verdict-'));

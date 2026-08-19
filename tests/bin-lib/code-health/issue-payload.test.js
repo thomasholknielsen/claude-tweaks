@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { toIssuePayload } = require('../../../bin/lib/code-health/issue-payload');
+const { toIssuePayload } = require('../../../plugin/bin/lib/code-health/issue-payload');
 
 const FINDING = {
   id: 'codehealth-abc12345',
@@ -49,7 +49,7 @@ test('the fingerprint can be re-extracted from the body with a stable regex', ()
 
 // ── v2 issue payload ───────────────────────────────────────────────────────
 
-const { toIssuePayloadV2 } = require('../../../bin/lib/code-health/issue-payload');
+const { toIssuePayloadV2 } = require('../../../plugin/bin/lib/code-health/issue-payload');
 
 const V2_FINDING = {
   id: 'codehealth-ab12cd34',
@@ -122,14 +122,14 @@ test('v2 body has ## Acceptance Criteria containing acceptance', () => {
 });
 
 test('v2 fingerprint marker is re-extractable with extractFingerprint', () => {
-  const { extractFingerprint } = require('../../../bin/lib/issues/record');
+  const { extractFingerprint } = require('../../../plugin/bin/lib/issues/record');
   const { body } = toIssuePayloadV2(V2_FINDING);
   assert.strictEqual(extractFingerprint(body), 'codehealth-ab12cd34');
 });
 
 test('toIssuePayload (v1) still works after extending the module', () => {
   // Guard: existing v1 export must be unaffected.
-  const { toIssuePayload: v1 } = require('../../../bin/lib/code-health/issue-payload');
+  const { toIssuePayload: v1 } = require('../../../plugin/bin/lib/code-health/issue-payload');
   const FINDING = {
     id: 'codehealth-abc12345', title: 'T', lens: 'oversized-file', category: 'architecture',
     severity: 'high', confidence: 'high', area: 'apps/web',

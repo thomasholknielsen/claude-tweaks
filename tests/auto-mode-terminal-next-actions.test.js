@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const CONTRACT = fs.readFileSync(
-  path.join(__dirname, '..', 'skills', '_shared', 'auto-mode-contract.md'),
+  path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'auto-mode-contract.md'),
   'utf8',
 );
 

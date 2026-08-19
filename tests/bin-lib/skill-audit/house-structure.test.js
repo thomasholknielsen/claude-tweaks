@@ -29,7 +29,7 @@ const path = require('node:path');
 const { sectionIndex, EMOJI_RE } = require('../health-core/skill-md-house-checks');
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
-const SKILLS_DIR = path.join(ROOT, 'skills');
+const SKILLS_DIR = path.join(ROOT, 'plugin', 'skills');
 
 // docs/skill-authoring.md's "Interaction style directive" section: this exact
 // line, byte for byte, after the frontmatter of every skill. Asserting the

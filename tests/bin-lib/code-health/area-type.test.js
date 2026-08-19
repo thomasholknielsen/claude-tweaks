@@ -5,9 +5,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { classifyArea } = require('../../../bin/lib/code-health/area-type');
+const { classifyArea } = require('../../../plugin/bin/lib/code-health/area-type');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'bin', 'code-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-at-')); }
 

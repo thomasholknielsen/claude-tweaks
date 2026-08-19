@@ -39,6 +39,24 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.97.0 — Review objective-audit batch — SKILL.md dispatcher split, dispatch-template lazy-load fix, collision-free scratch dirs, build-review-context + review-coordination CLIs, verify-pass stamp, low-tier single-read; design-detect.js extraction, /deepen objective fruits, scope-resolution ladder, ledger ops-triage contract
+
+Review objective-audit batch — SKILL.md dispatcher split, dispatch-template lazy-load fix, collision-free scratch dirs, build-review-context + review-coordination CLIs, verify-pass stamp, low-tier single-read; design-detect.js extraction, /deepen objective fruits, scope-resolution ladder, ledger ops-triage contract.
+
+### also carried in this build
+
+Records #552 (merge `31850b64`) and #890 (merge `68bea79e`) reached `main` under v6.97.0 without
+a bump of their own — the release step that would have written them up never ran, so the build
+that first carried them is numbered for other work. Backfilled after the fact.
+
+## v6.96.0 — Reconcile() latency reduction, fast-lane transcript-judge extraction, backlog trust-signal + merge-lane circuit breaker, and an 8-finding pre-release review-fix batch
+
+Reconcile() latency reduction, fast-lane transcript-judge extraction, backlog trust-signal + merge-lane circuit breaker, and an 8-finding pre-release review-fix batch.
+
+## v6.95.0 — Cut plugin payload over to plugin/ with git-subdir marketplace source
+
+Cut plugin payload over to plugin/ with git-subdir marketplace source.
+
 ## v6.94.0 — Hand-scripted procedure CLIs — release-claim + log-decision with anchoring guards (#686); multi-spec run infrastructure — spec-status/manifest atomic writes, sanitizeWorktreeName, two-AskUserQuestion-stop cap, PR-first console merge-decision fold (#687-#693); Multi-Spec Review Console applied fixes for #741-#743; capture --batch multi-entry filing + character-budget cap + session-scoped temp paths (#781, #783, #784); bare /feedback session-evaluation guarantee + rubric sharpening (#785, #805); backlog refine dependency-repair log fix (#792); anchoring-guard bypass fixes in run-dir/decisions.md structural checks (#813)
 
 Hand-scripted procedure CLIs — release-claim + log-decision with anchoring guards (#686); multi-spec run infrastructure — spec-status/manifest atomic writes, sanitizeWorktreeName, two-AskUserQuestion-stop cap, PR-first console merge-decision fold (#687-#693); Multi-Spec Review Console applied fixes for #741-#743; capture --batch multi-entry filing + character-budget cap + session-scoped temp paths (#781, #783, #784); bare /feedback session-evaluation guarantee + rubric sharpening (#785, #805); backlog refine dependency-repair log fix (#792); anchoring-guard bypass fixes in run-dir/decisions.md structural checks (#813).

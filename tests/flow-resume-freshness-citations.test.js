@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SKILLS_DIR = path.join(__dirname, '..', 'skills');
+const SKILLS_DIR = path.join(__dirname, '..', 'plugin', 'skills');
 const FRAGMENT = '_shared/run-resume-freshness.md';
 
 // The three resume paths named in #676's own Current State — a fresh
@@ -13,7 +13,11 @@ const FRAGMENT = '_shared/run-resume-freshness.md';
 // is exhaustive by construction rather than discovered by a repo-wide scan.
 const CALL_SITES = [
   path.join(SKILLS_DIR, 'wrap-up', 'SKILL.md'),
-  path.join(SKILLS_DIR, 'dispatch', 'SKILL.md'),
+  // #852 extracted dispatch's "Confirm before resuming" procedure (including
+  // this citation) out of SKILL.md into its own sub-file to stay under the
+  // 40 KB ceiling — the resume path's freshness-probe citation now lives
+  // there instead.
+  path.join(SKILLS_DIR, 'dispatch', 'resume-confirmation.md'),
   path.join(SKILLS_DIR, 'flow', 'steps-and-gates.md'),
 ];
 

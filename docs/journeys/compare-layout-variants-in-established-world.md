@@ -1,7 +1,7 @@
 ---
 files:
-  - skills/design-wrapper/modes/explore.md
-  - skills/design-wrapper/SKILL.md
+  - plugin/skills/design-wrapper/modes/explore.md
+  - plugin/skills/design-wrapper/SKILL.md
 ---
 
 # Compare Layout Variants of a New Surface in an Established World

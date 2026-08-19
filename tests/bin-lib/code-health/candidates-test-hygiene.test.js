@@ -14,7 +14,7 @@ const {
   findPairing,
   scanTestHygiene,
   candidatesTestHygiene,
-} = require('../../../bin/lib/code-health/candidates-test-hygiene');
+} = require('../../../plugin/bin/lib/code-health/candidates-test-hygiene');
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-testhygiene-'));

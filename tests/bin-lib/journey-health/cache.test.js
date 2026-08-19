@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { cachePath, readCache, writeCache } = require('../../../bin/lib/journey-health/cache');
+const { cachePath, readCache, writeCache } = require('../../../plugin/bin/lib/journey-health/cache');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-cache-')); }
 
@@ -49,7 +49,7 @@ test('cachePath points under .claude-tweaks/journey-health/cache.json', () => {
 // pure function shared with harness-health and is fully covered by
 // bin/lib/health-core/tests/runs.test.js — no need to duplicate it here.
 
-const { readDurableState, writeDurableState } = require('../../../bin/lib/journey-health/cache');
+const { readDurableState, writeDurableState } = require('../../../plugin/bin/lib/journey-health/cache');
 
 test('readDurableState/writeDurableState are exported and bound to journey-health', () => {
   // cache.js's exports are already bound instances (createDurableState('journey-health')

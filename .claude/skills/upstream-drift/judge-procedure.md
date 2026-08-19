@@ -7,7 +7,7 @@ The single canonical judging procedure for `/upstream-drift`, used by two caller
 
 Both callers substitute the same four placeholders before use: `{dep.name}` (the manifest entry's `name`), `{installed-tag}` and `{latest-tag}` (from Step 3's tag resolution), and `{root}` (the resolved repository root).
 
-Keeping this in one file is deliberate — the same reason `skills/docs-health/judge-procedure.md` exists: a procedure restated in both the sequential step and the dispatch prompt drifts, and only one copy gets updated.
+Keeping this in one file is deliberate — the same reason `plugin/skills/docs-health/judge-procedure.md` exists: a procedure restated in both the sequential step and the dispatch prompt drifts, and only one copy gets updated.
 
 Everything below the horizontal rule is the inlinable body.
 
@@ -73,6 +73,8 @@ Two entries against the *same upstream repository* need different prefixes. Neve
 
 **If the basename matches at more than one prefix, that is the normal case, not an anomaly.** Some upstreams vendor one source tree into a directory per agent harness. At `skill-v4.0.4`, `pbakaus/impeccable` carries `skills/impeccable/SKILL.md` under fifteen distinct prefixes — `plugin/`, `.claude/`, `.cursor/`, `.gemini/`, `.agents/`, and ten more. Pick the one prefix whose subtree corresponds to the installed root, by checking that the installed root's *own* top-level directory names appear under it. For `impeccable-plugin` the installed root holds `agents/`, `hooks/`, `skills/`, and upstream `plugin/` holds `agents/`, `hooks/`, `skills/` (plus packaging metadata) — that is the match; `.claude/` holds only `skills/`, and is not.
 
+**`plugin/` in this section always means a prefix inside the *upstream* repository being diffed.** Since #418 this repo has its own `plugin/` payload subtree as well. The two are unrelated: a `plugin/…` path in a finding's `upstreamPath` is upstream's, one in `localSeam` is ours.
+
 ## 4. Diff the contract root's subtree, at both tags
 
 ```bash
@@ -94,12 +96,12 @@ Removals matter as much as additions: an upstream file that disappeared is a cap
 
 ## 5. Compare structurally — never by keyword
 
-**Do not decide whether this repo already handles an upstream file by grepping for its name.** That search can only find files that already mention it, and is structurally incapable of finding the file whose defect is total silence (`[IL-15]`) — which is the exact defect this class exists to catch. A grep for `live-setup` across `skills/design-wrapper/` returns nothing, and the correct reading of that nothing is "unhandled," not "not applicable."
+**Do not decide whether this repo already handles an upstream file by grepping for its name.** That search can only find files that already mention it, and is structurally incapable of finding the file whose defect is total silence (`[IL-15]`) — which is the exact defect this class exists to catch. A grep for `live-setup` across `plugin/skills/design-wrapper/` returns nothing, and the correct reading of that nothing is "unhandled," not "not applicable."
 
 Instead, for each added or removed path:
 
 1. **Read the file** at `{latest-tag}` (`gh api "repos/{dep.upstream.repo}/contents/<path>?ref={latest-tag}" --jq '.content' | base64 -d`). Read enough to state what it does — its frontmatter, its opening contract, its headings. A finding written without opening the file is a listing, not a triage.
-2. **Identify the seam in this repo it would touch**, by reasoning from what the file does to which of this repo's files own that responsibility. Locate those by their role (`skills/design-wrapper/modes/live.md` owns live mode; `skills/visualize/` owns DESIGN.md consumption), then read them to see what they currently assume.
+2. **Identify the seam in this repo it would touch**, by reasoning from what the file does to which of this repo's files own that responsibility. Locate those by their role (`plugin/skills/design-wrapper/modes/live.md` owns live mode; `plugin/skills/visualize/` owns DESIGN.md consumption), then read them to see what they currently assume.
 3. **State why it might matter, concretely** — a named consequence for a named file. "New reference doc" is not a reason. "This repo's live-mode wrapper enumerates the states it delegates and this one is not among them, so a project without the config file has an unmodelled precondition" is.
 4. If, having read both sides, the answer is genuinely "this repo has no seam here," say so and drop it. An honest `no-op` beats a padded finding, and this step is where padding gets caught.
 
@@ -164,7 +166,7 @@ Contract root resolves to `plugin/` (step 3). The subtree diff (step 4) yields 2
   "upstreamPath": "plugin/skills/impeccable/reference/live-setup.md",
   "changeKind": "added",
   "title": "Live mode gained a one-time project-setup path that this repo's live wrapper does not model",
-  "localSeam": "skills/design-wrapper/modes/live.md",
+  "localSeam": "plugin/skills/design-wrapper/modes/live.md",
   "severity": "med",
   "confidence": "med",
   "effort": "small",
@@ -183,12 +185,12 @@ Contract root resolves to `plugin/` (step 3). The subtree diff (step 4) yields 2
   "upstreamPath": "plugin/agents/impeccable-documenter.md",
   "changeKind": "added",
   "title": "A fourth upstream subagent writes DESIGN.md from the shipped artifact — a producer for surface this repo only consumes",
-  "localSeam": "skills/visualize/SKILL.md, skills/design-wrapper/SKILL.md, skills/init/bootstrap/step-11-impeccable-design-integration.md",
+  "localSeam": "plugin/skills/visualize/SKILL.md, plugin/skills/design-wrapper/SKILL.md, plugin/skills/init/bootstrap/step-11-impeccable-design-integration.md",
   "severity": "low",
   "confidence": "med",
   "effort": "med",
   "whatItIs": "A subagent definition (tools Read/Write/Bash/Glob/Grep, maxTurns 30) that records DESIGN.md and its sidecar after a build, deriving tokens from the built code rather than from intent, and reconciling rather than replacing an existing DESIGN.md. The installed 4.0.2 exposes three agents; this is the fourth.",
-  "whyItMatters": "Nine files under skills/ read DESIGN.md — /visualize styles its output from those tokens — but nothing in this repo produces it, so the tokens are whatever a human last wrote. This is the missing producer for an already-wired consumer, and it arrives with an upgrade this repo has not taken.",
+  "whyItMatters": "Nine files under plugin/skills/ read DESIGN.md — /visualize styles its output from those tokens — but nothing in this repo produces it, so the tokens are whatever a human last wrote. This is the missing producer for an already-wired consumer, and it arrives with an upgrade this repo has not taken.",
   "evidence": "Present in tree at skill-v4.0.4, absent at skill-v4.0.2; contract root plugin/."
 }
 ```

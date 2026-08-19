@@ -2,8 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { exceedsOversightFloor, maxRiskTier } = require('../../../bin/lib/issues/oversight-floor.js');
-const { resolveValue } = require('../../../bin/lib/policy-schema.js');
+const { exceedsOversightFloor, maxRiskTier } = require('../../../plugin/bin/lib/issues/oversight-floor.js');
+const { resolveValue } = require('../../../plugin/bin/lib/policy-schema.js');
 
 test('#366 AC1: risk exceeds its floor, size does not — reason risk', () => {
   const result = exceedsOversightFloor({ risk: 'high', size: 'low' }, { riskFloor: 'high', sizeFloor: 'high' });

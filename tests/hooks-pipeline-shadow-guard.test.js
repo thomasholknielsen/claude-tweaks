@@ -18,7 +18,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
-const pre = require('../bin/lib/hooks/pre-tool-use');
+const pre = require('../plugin/bin/lib/hooks/pre-tool-use');
 
 const bashInput = (command, cwd) => ({ tool_name: 'Bash', tool_input: { command }, cwd });
 const editInput = (filePath) => ({ tool_name: 'Edit', tool_input: { file_path: filePath } });

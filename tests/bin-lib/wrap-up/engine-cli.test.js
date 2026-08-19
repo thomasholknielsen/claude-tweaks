@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const CLI = path.join(__dirname, '..', '..', '..', 'bin', 'wrap-up-engine.js');
+const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'wrap-up-engine.js');
 
 let repoDir;
 let baseSha;
@@ -76,8 +76,14 @@ after(() => {
   fs.rmSync(repoDir, { recursive: true, force: true });
 });
 
+// #790/[IL-127]: wrap-up-engine.js now rejects a --run-dir that doesn't
+// resolve under the main checkout (bin/lib/hooks/worktree-detect.js's
+// isAnchoredUnderRoot). repoDir is that main checkout (git-init'd in
+// before()), so run dirs must nest under it — a bare os.tmpdir() sibling no
+// longer anchors, mirroring real usage where run dirs always live at
+// <main>/.claude-tweaks/pipelines/...
 function makeRunDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'wrapup-engine-rundir-'));
+  return fs.mkdtempSync(path.join(repoDir, 'wrapup-engine-rundir-'));
 }
 
 function readState(runDir) {

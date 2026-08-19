@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { pullReconIssues } = require('../../../bin/lib/code-health/pull-issues');
+const { pullReconIssues } = require('../../../plugin/bin/lib/code-health/pull-issues');
 
 // A current-format issue: by:code-health + risk:<tier> + work-fingerprint marker —
 // the real shape toIssuePayloadV2 emits (bin/lib/code-health/issue-payload.js, via

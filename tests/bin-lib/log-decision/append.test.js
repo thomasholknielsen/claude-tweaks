@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { formatEntry, resolveTarget, appendEntry, STATUSES } = require('../../../bin/lib/log-decision/append');
+const { formatEntry, resolveTarget, appendEntry, STATUSES } = require('../../../plugin/bin/lib/log-decision/append');
 
 // The schema line _shared/auto-decision-log.md documents — a test-side parser, so
 // every entry the module emits is proven readable by the documented shape.

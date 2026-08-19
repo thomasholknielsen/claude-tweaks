@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseFrontmatterListField, splitFrontmatterFence } = require('../../../bin/lib/health-core/frontmatter-list');
+const { parseFrontmatterListField, splitFrontmatterFence } = require('../../../plugin/bin/lib/health-core/frontmatter-list');
 
 // --- splitFrontmatterFence: the canonical fence-boundary detector other
 // modules (e.g. bin/lib/issues/local-store.js's splitFrontmatter) reuse

@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, classifyGhApiError,
-} = require('../../../bin/lib/issues/claim-store');
+} = require('../../../plugin/bin/lib/issues/claim-store');
 
 // Fake ghApi functions mirror release-merged.js's own ghApi shape: a
 // non-throwing function returning {stdout, failure, status} — never the
@@ -95,11 +95,11 @@ test('writeClaimBlob: failure propagates, ok:false', () => {
   assert.deepEqual(r, { ok: false, failure: 'network-failure' });
 });
 
-test('listClaimNames: happy path parses newline-separated names, trims/filters blanks', () => {
+test('listClaimNames: happy path extracts names from the {name,sha} entries listClaimEntries returns', () => {
   const ghApi = (args) => {
     assert.equal(args[0], 'repos/acme/w/contents/claims?ref=claims-registry');
-    assert.deepEqual(args.slice(1), ['-q', '.[].name']);
-    return { stdout: 'issue-1.json\nissue-2.json\n\n', failure: null, status: null };
+    assert.deepEqual(args.slice(1), ['-q', '[.[] | {name, sha}]']);
+    return { stdout: JSON.stringify([{ name: 'issue-1.json', sha: 'sha1' }, { name: 'issue-2.json', sha: 'sha2' }]), failure: null, status: null };
   };
   const r = listClaimNames(ghApi, 'acme/w');
   assert.deepEqual(r, { names: ['issue-1.json', 'issue-2.json'], failure: null });
@@ -211,4 +211,23 @@ test('writeClaimBlob: a ghApi that never sets status (release-merged.js\'s own) 
   };
   const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', message: 'x' });
   assert.deepEqual(r, { ok: false, failure: 'network-failure' });
+});
+
+test('listClaimEntries: returns name + sha per entry from the same single Contents-API call listClaimNames already made', () => {
+  const { listClaimEntries } = require('../../../plugin/bin/lib/issues/claim-store');
+  let seenArgs = null;
+  const ghApi = (args) => {
+    seenArgs = args;
+    return { stdout: JSON.stringify([{ name: 'issue-7.json', sha: 'sha7' }, { name: 'issue-9.json', sha: 'sha9' }]), failure: null, status: null };
+  };
+  const r = listClaimEntries(ghApi, 'acme/w');
+  assert.deepEqual(r, { entries: [{ name: 'issue-7.json', sha: 'sha7' }, { name: 'issue-9.json', sha: 'sha9' }], failure: null });
+  assert.match(seenArgs[0], /repos\/acme\/w\/contents\/claims\?ref=/);
+  assert.match(seenArgs.join(' '), /-q .*name.*sha/);
+});
+
+test('listClaimNames: still works, now a thin wrapper over listClaimEntries', () => {
+  const { listClaimNames } = require('../../../plugin/bin/lib/issues/claim-store');
+  const ghApi = () => ({ stdout: JSON.stringify([{ name: 'issue-7.json', sha: 'sha7' }]), failure: null, status: null });
+  assert.deepEqual(listClaimNames(ghApi, 'acme/w'), { names: ['issue-7.json'], failure: null });
 });

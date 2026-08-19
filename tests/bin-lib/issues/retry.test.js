@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const {
   attemptFailedCommentBody, countFailedAttempts, hasHitRetryCeiling, hasNegativeEvidenceMarker,
   extractNegativeEvidenceMarker,
-} = require('../../../bin/lib/issues/retry');
+} = require('../../../plugin/bin/lib/issues/retry');
 
 test('attemptFailedCommentBody formats the human-readable retry comment', () => {
   const body = attemptFailedCommentBody({ attemptNumber: 2, reason: 'test gate failed (3 type errors)' });

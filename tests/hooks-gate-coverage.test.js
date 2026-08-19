@@ -17,10 +17,10 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { GATE_COVERAGE } = require('../bin/lib/hooks/pre-tool-use');
-const { WRITE_SHAPES, fileWriteTargets } = require('../bin/lib/hooks/git-command');
+const { GATE_COVERAGE } = require('../plugin/bin/lib/hooks/pre-tool-use');
+const { WRITE_SHAPES, fileWriteTargets } = require('../plugin/bin/lib/hooks/git-command');
 
-const SCHEMA = path.join(__dirname, '..', 'skills', '_shared', 'policy-schema.md');
+const SCHEMA = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'policy-schema-coverage.md');
 const BEGIN = '<!-- gate-coverage:begin -->';
 const END = '<!-- gate-coverage:end -->';
 const TEARDOWN_BEGIN = '<!-- teardown-gate-coverage:begin -->';
@@ -31,7 +31,7 @@ function coverageBlock() {
   const start = text.indexOf(BEGIN);
   const end = text.indexOf(END);
   assert.ok(start !== -1 && end !== -1 && end > start,
-    `policy-schema.md must contain a ${BEGIN} ... ${END} block — it is the canonical statement of gate coverage`);
+    `policy-schema-coverage.md must contain a ${BEGIN} ... ${END} block — it is the canonical statement of gate coverage`);
   return text.slice(start + BEGIN.length, end);
 }
 
@@ -40,7 +40,7 @@ function teardownCoverageBlock() {
   const start = text.indexOf(TEARDOWN_BEGIN);
   const end = text.indexOf(TEARDOWN_END);
   assert.ok(start !== -1 && end !== -1 && end > start,
-    `policy-schema.md must contain a ${TEARDOWN_BEGIN} ... ${TEARDOWN_END} block — it is the canonical statement of teardown gate coverage`);
+    `policy-schema-coverage.md must contain a ${TEARDOWN_BEGIN} ... ${TEARDOWN_END} block — it is the canonical statement of teardown gate coverage`);
   return text.slice(start + TEARDOWN_BEGIN.length, end);
 }
 
@@ -51,29 +51,29 @@ function tokensFor(block, label) {
   return (line.match(/`([^`]+)`/g) || []).map((t) => t.slice(1, -1));
 }
 
-test('policy-schema.md\'s coverage block lists exactly the tools the gate checks', () => {
+test('policy-schema-coverage.md\'s coverage block lists exactly the tools the gate checks', () => {
   assert.deepStrictEqual(tokensFor(coverageBlock(), 'Tools'), [...GATE_COVERAGE.tools],
-    'GATE_COVERAGE.tools and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema.md');
+    'GATE_COVERAGE.tools and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema-coverage.md');
 });
 
-test('policy-schema.md\'s coverage block lists exactly the git actions the gate checks', () => {
+test('policy-schema-coverage.md\'s coverage block lists exactly the git actions the gate checks', () => {
   assert.deepStrictEqual(tokensFor(coverageBlock(), 'Git actions'), [...GATE_COVERAGE.gitActions],
-    'GATE_COVERAGE.gitActions and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema.md');
+    'GATE_COVERAGE.gitActions and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema-coverage.md');
 });
 
-test('policy-schema.md\'s coverage block lists exactly the Bash write shapes the gate checks', () => {
+test('policy-schema-coverage.md\'s coverage block lists exactly the Bash write shapes the gate checks', () => {
   assert.deepStrictEqual(tokensFor(coverageBlock(), 'Bash write shapes'), [...GATE_COVERAGE.bashWriteShapes],
-    'GATE_COVERAGE.bashWriteShapes and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema.md');
+    'GATE_COVERAGE.bashWriteShapes and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema-coverage.md');
 });
 
-test('policy-schema.md\'s coverage block lists exactly the gate\'s exemptions', () => {
+test('policy-schema-coverage.md\'s coverage block lists exactly the gate\'s exemptions', () => {
   // Derived from the constant, never a hand-typed literal (spec #537): a
   // hand-typed expectation would keep passing even after the exemption's
   // shape changed underneath it, which is exactly the drift this whole
   // suite exists to catch.
   const expected = [...GATE_COVERAGE.exemptions.paths, GATE_COVERAGE.exemptions.commit];
   assert.deepStrictEqual(tokensFor(coverageBlock(), 'Exemptions'), expected,
-    'GATE_COVERAGE.exemptions and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema.md');
+    'GATE_COVERAGE.exemptions and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema-coverage.md');
 });
 
 test('GATE_COVERAGE is frozen, so a caller cannot mutate the contract at runtime', () => {
@@ -88,7 +88,7 @@ test('every GATE_COVERAGE field is load-bearing, not a parallel hand-kept list',
   // gate, the assertions above keep pinning prose against a dead value — still
   // green, and no longer about the gate's behaviour at all. That is precisely
   // the failure mode [IL-78] describes: a check that would pass on any input.
-  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'pre-tool-use.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'hooks', 'pre-tool-use.js'), 'utf8');
   // Iterate every GATE_COVERAGE key rather than a hardcoded ['tools',
   // 'gitActions'] list — a field this loop doesn't visit is exactly the
   // "constant nothing reads" gap the loop exists to catch (whole-branch
@@ -102,7 +102,7 @@ test('every GATE_COVERAGE field is load-bearing, not a parallel hand-kept list',
   // bashWriteShapes is implemented in git-command.js, so it is load-bearing
   // there instead: WRITE_SHAPES guards which command words fileWriteTargets
   // will even inspect.
-  const gc = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'git-command.js'), 'utf8');
+  const gc = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'hooks', 'git-command.js'), 'utf8');
   assert.ok(gc.includes('WRITE_SHAPES.includes('),
     'fileWriteTargets must gate on WRITE_SHAPES so an unlisted shape is dead code');
   assert.strictEqual(GATE_COVERAGE.bashWriteShapes, WRITE_SHAPES,
@@ -115,7 +115,7 @@ test('every WRITE_SHAPES entry has a matching hooks.json if-matcher (#70)', () =
   // never spawns for it — and it reads exactly like working coverage. That is
   // how `sed -i` bypassed the gate for months while fileWriteTargets looked
   // fine. Assert the two lists agree in both directions.
-  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
   const bashPre = hooks.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
   assert.ok(bashPre, 'PreToolUse must carry a Bash matcher group');
 
@@ -123,10 +123,10 @@ test('every WRITE_SHAPES entry has a matching hooks.json if-matcher (#70)', () =
   for (const h of bashPre.hooks) {
     if (!h.if) {
       // A predicate-less entry fires on every Bash call — that is the
-      // unconditional matcher policy-schema.md declines on measured cost.
+      // unconditional matcher policy-schema-coverage.md declines on measured cost.
       // If one is ever added deliberately, this test needs rewriting, not
       // deleting.
-      assert.fail('PreToolUse Bash carries an unconditional hook — see the measured cost in policy-schema.md');
+      assert.fail('PreToolUse Bash carries an unconditional hook — see the measured cost in policy-schema-coverage.md');
     }
     const m = /^Bash\(([^ )*]+)/.exec(h.if);
     if (m) matched.add(m[1]);
@@ -138,18 +138,18 @@ test('every WRITE_SHAPES entry has a matching hooks.json if-matcher (#70)', () =
   }
 });
 
-test('policy-schema.md\'s teardown coverage block lists exactly the tools the teardown gate checks', () => {
+test('policy-schema-coverage.md\'s teardown coverage block lists exactly the tools the teardown gate checks', () => {
   assert.deepStrictEqual(tokensFor(teardownCoverageBlock(), 'Tools'), [...GATE_COVERAGE.teardownTools],
-    'GATE_COVERAGE.teardownTools and the canonical prose have diverged — update the teardown coverage block in skills/_shared/policy-schema.md');
+    'GATE_COVERAGE.teardownTools and the canonical prose have diverged — update the teardown coverage block in skills/_shared/policy-schema-coverage.md');
 });
 
-test('policy-schema.md\'s teardown coverage block lists exactly the git commands the teardown gate checks', () => {
+test('policy-schema-coverage.md\'s teardown coverage block lists exactly the git commands the teardown gate checks', () => {
   assert.deepStrictEqual(tokensFor(teardownCoverageBlock(), 'Git commands'), [...GATE_COVERAGE.teardownGitCommands],
-    'GATE_COVERAGE.teardownGitCommands and the canonical prose have diverged — update the teardown coverage block in skills/_shared/policy-schema.md');
+    'GATE_COVERAGE.teardownGitCommands and the canonical prose have diverged — update the teardown coverage block in skills/_shared/policy-schema-coverage.md');
 });
 
 test('pre-tool-use.js branches on GATE_COVERAGE.teardownTools, not a duplicated literal', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'pre-tool-use.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'hooks', 'pre-tool-use.js'), 'utf8');
   assert.ok(src.includes('GATE_COVERAGE.teardownTools'),
     'pre-tool-use.js must branch on GATE_COVERAGE.teardownTools, not a hardcoded comparison');
 });

@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { seedDurableState } = require('./seed-durable-state');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'bin', 'code-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-status-v2-')); }
 

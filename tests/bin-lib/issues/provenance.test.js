@@ -2,8 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { resolveProvenance, PRODUCERS } = require('../../../bin/lib/issues/provenance.js');
-const { ORIGINS } = require('../../../bin/lib/issues/record.js');
+const { resolveProvenance, PRODUCERS } = require('../../../plugin/bin/lib/issues/provenance.js');
+const { ORIGINS } = require('../../../plugin/bin/lib/issues/record.js');
 
 test('PRODUCERS is record.js ORIGINS, not a second copy', () => {
   assert.deepEqual(PRODUCERS, ORIGINS);

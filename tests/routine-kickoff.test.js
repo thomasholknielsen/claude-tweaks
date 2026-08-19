@@ -10,7 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const skill = fs.readFileSync(
-  path.join(__dirname, '..', 'skills', 'routine-kickoff', 'SKILL.md'), 'utf8');
+  path.join(__dirname, '..', 'plugin', 'skills', 'routine-kickoff', 'SKILL.md'), 'utf8');
 
 test('names dispatch, tidy, and backlog as manual-execution exclusions, with the principle', () => {
   assert.ok(skill.includes('the target is `dispatch`, `tidy`, or `backlog`'));

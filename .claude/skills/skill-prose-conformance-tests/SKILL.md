@@ -1,21 +1,47 @@
 ---
 name: skill-prose-conformance-tests
-description: Use when adding or changing a `node --test` suite that pins the prose in `skills/**/*.md` — when reading live skill text is legitimate versus when to freeze a fixture, how to prove an assertion can actually go red, and how to byte-pin an executable snippet and run it. Keywords - prose test, conformance test, byte-pin, live corpus, fixture, skill markdown, live probe, IL-80.
+description: Use when adding or changing a `node --test` suite that pins the prose in `plugin/skills/**/*.md` — when reading live skill text is legitimate versus when to freeze a fixture, how to prove an assertion can actually go red, and how to byte-pin an executable snippet and run it. Keywords - prose test, conformance test, byte-pin, live corpus, fixture, skill markdown, live probe, IL-80.
 ---
 
 # Skill-prose conformance tests
 
 ## Overview
 
-This repo ships markdown as its product: `skills/**/*.md` is the payload, not documentation about it. So its correctness gets pinned the way code does — a third of the suites under `tests/` read a skill file and assert on its text (count it live: `grep -l 'skills/' tests/*.test.js | wc -l`). That makes prose-reading tests a first-class house pattern here, and one with a failure mode ordinary unit tests do not have: the subject is a file somebody is *supposed* to edit.
+This repo ships markdown as its product: `plugin/skills/**/*.md` is the payload, not documentation about it. So its correctness gets pinned the way code does — a large share of the suites under `tests/` read a skill file and assert on its text (count it live: `grep -l 'skills/' tests/*.test.js | wc -l`). That makes prose-reading tests a first-class house pattern here, and one with a failure mode ordinary unit tests do not have: the subject is a file somebody is *supposed* to edit.
 
 ## Key Patterns
 
 ### Read live prose only when the prose is the declared contract
 
-`tests/wrap-up-registry-pin.test.js` binds `skills/wrap-up/SKILL.md`'s Phase 2 registry table to the code registry it documents (`bin/lib/wrap-up/registry.js`). Reading the live file is correct there because updating that table *is* the intended response to a registry change. `tests/hooks-gate-coverage.test.js` states the same carve-out for the same reason; the two cite each other as the house pattern.
+`tests/wrap-up-registry-pin.test.js` binds `plugin/skills/wrap-up/SKILL.md`'s Phase 2 registry table to the code registry it documents (`plugin/bin/lib/wrap-up/registry.js`). Reading the live file is correct there because updating that table *is* the intended response to a registry change. `tests/hooks-gate-coverage.test.js` states the same carve-out for the same reason; the two cite each other as the house pattern.
 
-Everywhere else, freeze the input. `[IL-80]`: a test opened `skills/review/SKILL.md`, deleted its `## Relationship to Other Skills` section in memory, and asserted the loss checker reported ≥95% of the section's identifiers lost. It passed at 100% — and then the migration it was gating deleted that section from all 32 skills, and the test failed on its own precondition. It was not broken by a regression; it was invalidated by its own subject matter succeeding. The fix was to commit the file verbatim at the last pre-deletion commit as a fixture under `tests/fixtures/`, so the experiment keeps running on exactly the bytes that produced the recorded numbers.
+Everywhere else, freeze the input. `[IL-80]`: a test opened `plugin/skills/review/SKILL.md`, deleted its `## Relationship to Other Skills` section in memory, and asserted the loss checker reported ≥95% of the section's identifiers lost. It passed at 100% — and then the migration it was gating deleted that section from all 32 skills, and the test failed on its own precondition. It was not broken by a regression; it was invalidated by its own subject matter succeeding. The fix was to commit the file verbatim at the last pre-deletion commit as a fixture under `tests/fixtures/`, so the experiment keeps running on exactly the bytes that produced the recorded numbers.
+
+### Prove go-red with a frozen pre-change excerpt beside the live file
+
+`[IL-105]` says prove the assertion can go red; the mechanism this repo converged on three times is to freeze the bytes the change *replaced* as a fixture constant inside the test, then assert every pattern twice — it matches the live file, and it does **not** match the frozen excerpt. `tests/backlog-refine-reverify-before-write.test.js` and `tests/backlog-refine-closing-render.test.js` both wrap the pair in a one-claim-per-call helper:
+
+```js
+// The pre-change Step 5 opening (#764) — narration-allowance line followed directly by the
+// Priority/Related write block, no reverify subsection between them.
+const PRE_CHANGE_STEP_5_HEAD = `## Step 5: Apply
+
+*(Narration allowance: …)*
+
+**Priority/Related rows:** For every record the priority decision resolved to apply:
+`;
+
+// One claim per call: the pattern must match the shipped prose AND fail against the
+// pre-change text, so a green result proves the regex can actually go red [IL-105].
+function assertClaimPinned(pattern, missingMessage) {
+  assert.match(refineModeProse, pattern, missingMessage);
+  assert.doesNotMatch(PRE_CHANGE_STEP_5_HEAD, pattern, 'pattern must NOT match the pre-change text (proves it can go red)');
+}
+```
+
+The excerpt is a string literal in the test file, not a read of history, so it survives every later edit to the live file — the same reason `[IL-80]`'s fixture exists. `tests/backlog-narration-bounded-allowance.test.js` runs the identical fixture in the other direction for its retirement sweep: `assert.match(PRE_CHANGE_BANNER, pattern)` proves the sweep pattern is discriminating rather than vacuous, because it must catch the clause the change retired.
+
+**The blind spot: `doesNotMatch` passes for free when the control lacks the tokens.** An adjacency claim — two tokens joined by a `[\s\S]{0,N}` window — only goes red against the control when the control contains *both* tokens and separates them by more than `N`. A control that contains neither token, or only one, satisfies `doesNotMatch` for the wrong reason, and the window (the whole adjacency claim) is never exercised. `tests/backlog-refine-reverify-before-write.test.js`'s cross-reference test is exactly this case: `/Step 6 auto-apply table already applies the identical rule[\s\S]{0,150}step-6-auto\.md/` is checked against a `PRE_CHANGE_STEP_5_HEAD` that mentions neither token, so nothing tests that `150` — the pattern would still be green at any window width. For an adjacency or ordering claim, build the control so it carries the anchor and lacks only the thing being pinned, and run the *same* extraction over both: `tests/backlog-narration-bounded-allowance.test.js` calls `textAfterHeader(PRE_CHANGE_BANNER, '## Step 1: Fetch')`, so the frozen text supplies the header and the miss is attributable to the reminder's absence rather than the header's.
 
 ### Byte-pin an executable snippet, then run that same string
 
@@ -33,9 +59,15 @@ spawnSync('bash', ['-c', SWEEP_SNIPPET], { cwd: main, encoding: 'utf8', timeout:
 
 Documented procedure and exercised procedure are then the same bytes by construction, rather than by a reviewer's eye. `tests/staged-patch-contract.test.js` covers the other half — it probes `git apply --check`'s real accept/reject discrimination on this machine instead of asserting that the contract's sentence about it is true.
 
+**Lighter variant: pin only the flags, not the side effects.** When the goal is proving a documented snippet's *flags* parse cleanly against the CLI's real arg parser — not exercising the command's full side effects — tokenize the live snippet and feed the resulting argv straight through the parser directly, with no subprocess and no fixture repo. `tests/bin-lib/verify/snippet-conformance.test.js` is the instance: it extracts `verification.md`'s pinned `verify.js` invocation, tokenizes the argv after the script path, and calls `parseArgs` on it. Its go-red proof exercises the extractor itself, not just the assertion — it appends a bogus flag to the *extracted* snippet and asserts the whole extract-plus-parse pipeline throws, catching a broken tokenizer as well as a broken doc.
+
 ### Fixture repos come from the shared helper
 
-`tests/helpers/git-fixtures.js` exports `gitRepo`, `linkedWorktreeOf`, `harnessWorktreeOf`, `fixtureGit`, and `FIXTURE_TIMEOUT_MS`, and 11 suites consume it. Build throwaway repos from it rather than hand-rolling another `spawnSync('git', ['init'])` ladder, and take `FIXTURE_TIMEOUT_MS` from it too so one machine-speed knob governs the suite.
+`tests/helpers/git-fixtures.js` exports `gitRepo`, `linkedWorktreeOf`, `harnessWorktreeOf`, `fixtureGit`, and `FIXTURE_TIMEOUT_MS`, consumed by every suite that needs a throwaway repo. Build throwaway repos from it rather than hand-rolling another `spawnSync('git', ['init'])` ladder, and take `FIXTURE_TIMEOUT_MS` from it too so one machine-speed knob governs the suite.
+
+### Negative-exclusion tests for a resolver's source-exclusion special case
+
+When a resolver has a deliberate special case that excludes one source from precedence entirely (a config layer that must never win even though it normally would — `merge-authorization`'s exclusion of `.claude-tweaks/policy.yml`, `bin/lib/policy-schema.js`), assert the excluded source is actually ignored, not just what the resolver ultimately returns. `tests/resolve-policy-lib.test.js`'s four `merge-authorization` tests are the instance: unset resolves to default, run-config wins over an unset policy value, a set policy.yml value is discarded (falls to default, not `source: 'policy'`), and run-config still wins even when policy.yml is also set. The third case is the one a same-final-value assertion alone would miss — a resolver that merely deprioritized policy.yml instead of excluding it could pass every other assertion while silently letting policy.yml win whenever run-config is absent.
 
 ## Decision Framework
 
@@ -43,7 +75,8 @@ Documented procedure and exercised procedure are then the same bytes by construc
 |---|---|
 | A table or list that restates a data structure living in code | Read it live and pin it against that structure; say so in a header comment, citing `[IL-80]` and why this is the carve-out |
 | Content a future migration is expected to delete or rewrite | Freeze the bytes as a fixture under `tests/fixtures/` |
-| A shell or `node -e` snippet the reader is told to run | Byte-pin the fence, then execute the pinned string against a fixture |
+| A shell or `node -e` snippet the reader is told to run, where the full command matters | Byte-pin the fence, then execute the pinned string against a fixture |
+| A shell snippet the reader is told to run, where only the flags matter | Byte-pin the fence, tokenize it, feed the argv straight through the CLI's own arg parser |
 | A behavioural claim about a third-party tool (`git apply --check`, `gh`, `mv -n`) | Probe the tool; asserting the sentence proves only that the sentence is present |
 
 ## Project Conventions
@@ -80,7 +113,7 @@ A varying failure count across runs on byte-identical code tracks machine load f
 
 ## Reference
 
-- Instances: `tests/curation-judge-stagepath.test.js`, `tests/staged-patch-contract.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/hooks-gate-coverage.test.js`, `tests/skill-conventions.test.js`
+- Instances: `tests/curation-judge-stagepath.test.js`, `tests/staged-patch-contract.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/hooks-gate-coverage.test.js`, `tests/skill-conventions.test.js`, `tests/bin-lib/verify/snippet-conformance.test.js` (lighter argv-tokenize-direct variant)
 - Shared helper: `tests/helpers/git-fixtures.js`
 - Rules: `docs/donts.md` `[IL-66]`, `[IL-78]`, `[IL-80]`, `[IL-105]`; full accounts in `docs/incident-log.md`
 - Conventions for authoring the prose itself: `docs/skill-authoring.md`
