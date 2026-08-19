@@ -39,6 +39,16 @@ trace of it.
 
    If `CLASSIFICATION` is `transient`, **preserve** `auto:merge` — do not remove it. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
 
+   Log this decision to `{run-dir}/decisions.md`, the same `Rationale:`-suffixed shape
+   `grant-check`'s two callers already use (`backlog/grant-mode.md`, `backlog/refine-mode.md`) —
+   carrying `CLASSIFICATION`, `NOTIFY_NOW`, and `RATIONALE` verbatim regardless of whether
+   `RATIONALE` holds a content judgment or names a could-not-gather failure class (the field name
+   is the same either way, only its prose shape differs):
+
+   ```
+   AUTO {time} — Settle: failure-check classified #{n} as {CLASSIFICATION} (NOTIFY_NOW={NOTIFY_NOW}) — {revoked | preserved} auto:merge. Rationale: {RATIONALE}.
+   ```
+
 4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` via the canonical resolver), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct.
 
    **Comment source routes on the pr-first gate** (`_shared/pr-run-comments.md`): when `run-state.json` carries a `pr` object, the "Attempt N failed" comments this step counts live on the **PR**, not the issue — step 5 below posts the full failure comment there, not to the issue. Fetch from `repos/{owner}/{repo}/issues/{pr-number}/comments` (PRs are issues under the REST model, so the identical endpoint shape applies, just with the PR's number). Absent a `pr` object, fetch from the issue exactly as today.
