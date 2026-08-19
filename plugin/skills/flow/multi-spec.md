@@ -176,6 +176,12 @@ Why shared, not per-record: sequential records in one run are one logical unit o
 
 > Separate-terminal parallel runs (`/flow #42 worktree` in each terminal) are different — those are N independent single-record runs and each correctly gets its own worktree. See `worktree-merge.md`.
 
+## PR phase-checklist convention (shared PR)
+
+A multi-spec run shares one PR (`_shared/pr-early-run-lifecycle.md`) across every spec in the run — the same worktree, the same branch, the same draft PR opened once at run start. The checklist row (`- [ ] {phase}` between `<!-- phases-start -->`/`<!-- phases-end -->`) that `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update procedure flips is therefore **cumulative and run-level, never per-spec, and never reset**: a row checked by one spec's own phase exit stays checked when a later spec restarts that same phase for itself. There is no reset step anywhere in that procedure — each phase exit only flips its own row from unchecked to checked — so `[x] build [x] test` on a shared PR means "at least one spec in this run has completed build and test," not "the currently active spec is at test."
+
+This is a deliberate simplification, not an oversight: the checklist has no spec-id axis to key a per-spec row or a reset on, and adding one would mean threading a spec identifier through every phase-exit call site in every skill (build, test, review, polish, wrap-up) that currently updates the checklist identically whether the run is single-spec or multi-spec. A maintainer who needs **which spec** is at **which phase**, not just which phases the run overall has reached, reads `manifest.yml`'s `specs[].status` (`pending | running | complete | failed | not-run` — see "Run directory layout" above) instead of the PR checklist — that field is per-spec by construction, unlike the checklist.
+
 ## Failure handling (default vs `keep-going`)
 
 Default mode stops the remaining specs on a HARD-GATE failure (compounding-risk default). `keep-going` inverts that — opt-in, for genuinely independent specs, so the consolidated console can surface every outcome together instead of stopping at the first failure. Read `multispec-failure-handling.md` in this skill's directory for the full behavior: the default-vs-`keep-going` console output shapes, the dependency-conflict warning, and the shared-worktree interaction (a failed spec's commits stay in the shared branch either way; only whether later specs keep building atop them differs).
