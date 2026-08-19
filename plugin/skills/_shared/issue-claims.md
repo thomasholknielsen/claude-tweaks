@@ -262,7 +262,11 @@ the PR that build produced — before reclaiming such a tombstone, a claim-time 
 already exists and reclaiming would race it. `bin/lib/issues/claim-engine.js`'s `claimOne` runs
 this check (`tombstoneInFlightPr`), returning `outcome: 'in-flight'` instead of proceeding to a
 fresh claim; any other reason, a missing `link`, or a failed/closed/merged check falls through to
-the reclaim behavior below unchanged (fail open).
+the reclaim behavior below unchanged (fail open). `bin/lib/claim-targets/claim-targets.js` — the
+group-claim loop `/claude-tweaks:flow` Step 2.8 and `/claude-tweaks:dispatch` actually call, a
+separate implementation from `claim-engine.js` — runs the same `tombstoneInFlightPr` check inline
+and reports the stopped target via `inFlight`/`reason: 'in-flight'` instead of `outcome`
+(`flow/claim-targets.md`'s "Branch on exit code").
 
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a

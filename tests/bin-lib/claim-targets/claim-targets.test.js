@@ -48,6 +48,14 @@ function tombstoneMarker(runId) {
     released: true, runId, reason: 'x', releasedAt: new Date(NOW).toISOString(),
   });
 }
+// #315 — a `pr-opened:` tombstone carries a `link` to the PR that build
+// produced; `run()` must consult it (via `tombstoneInFlightPr`, shared with
+// claim-engine.js) before treating this like any other reclaimable tombstone.
+function prOpenedTombstoneMarker(runId, link) {
+  return JSON.stringify({
+    released: true, runId, reason: 'pr-opened: spec 272', releasedAt: new Date(NOW).toISOString(), link,
+  });
+}
 
 // reads/writes: { [issue]: [response, response, ...] } — consumed in call
 // order, last entry repeats once exhausted. Throws on any unhandled argv
@@ -81,7 +89,7 @@ function makeGhApi({ reads = {}, writes = {} } = {}) {
 
 // gh: throwing-style generic runner. `fail` names which call classes throw.
 function makeGh({
-  repoSlug = REPO, labelExists = false, fail = {},
+  repoSlug = REPO, labelExists = false, fail = {}, prState = null,
 } = {}) {
   const calls = [];
   function gh(args) {
@@ -100,6 +108,10 @@ function makeGh({
     if (args[0] === 'issue' && args[1] === 'comment') {
       if (fail.comment) throw new Error('comment failed');
       return '';
+    }
+    if (args[0] === 'pr' && args[1] === 'view') {
+      if (fail.prView) throw new Error('pr view failed');
+      return `${prState}\n`;
     }
     throw new Error(`unexpected gh ${args.join(' ')}`);
   }
@@ -163,6 +175,79 @@ test('(b) tombstone target: conditional write carries the blob sha', () => {
   assert.deepEqual(JSON.parse(io.out[0]).claimed, [722]);
   const w = calls.find((a) => isWrite(a, '722'));
   assert.equal(fieldOf(w, 'sha'), 'sha722');
+});
+
+// ---- #315: pr-opened tombstone in-flight check -----------------------------
+// A `pr-opened:` tombstone whose linked PR is still OPEN means a build for
+// this issue already completed and is awaiting merge — `run()` must not
+// reclaim/re-write over it. Ported from claim-engine.js's `claimOne`, which
+// `bin/claim-targets.js` (the actual `/flow`/dispatch claim path) does not
+// call — this loop has its own inline classify-then-write sequence.
+
+test('(k) pr-opened tombstone, linked PR OPEN, default mode: no reclaim write, exit 3, inFlight envelope', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: { 760: [readOk(prOpenedTombstoneMarker('otherRun', 'https://github.com/acme/w/pull/304'), 'sha760')] },
+    writes: {},
+  });
+  const { gh, calls: ghCalls } = makeGh({ prState: 'OPEN' });
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '760'], deps);
+
+  assert.equal(code, 3);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.inFlight, [{ issue: 760, link: 'https://github.com/acme/w/pull/304' }]);
+  assert.deepEqual(body.released, []);
+  assert.ok(!calls.some((a) => isWrite(a, '760')), 'must not write a fresh claim while the linked PR is open');
+  assert.ok(ghCalls.some((a) => a[0] === 'pr' && a[1] === 'view' && a[2] === 'https://github.com/acme/w/pull/304'));
+});
+
+test('(k2) pr-opened tombstone, linked PR OPEN, --keep-going: skipped with in-flight reason, no write, exit 0', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: { 761: [readOk(prOpenedTombstoneMarker('otherRun', 'https://github.com/acme/w/pull/305'), 'sha761')] },
+    writes: {},
+  });
+  const { gh } = makeGh({ prState: 'OPEN' });
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '761', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.claimed, []);
+  assert.equal(body.skipped.length, 1);
+  assert.deepEqual(body.skipped[0], { issue: 761, reason: 'in-flight', link: 'https://github.com/acme/w/pull/305' });
+  assert.ok(!calls.some((a) => isWrite(a, '761')), 'must not write a fresh claim while the linked PR is open');
+});
+
+test('(k3) pr-opened tombstone, linked PR CLOSED/MERGED: falls through to normal reclaim, exit 0', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: { 762: [readOk(prOpenedTombstoneMarker('otherRun', 'https://github.com/acme/w/pull/306'), 'sha762')] },
+    writes: { 762: [writeOk] },
+  });
+  const { gh } = makeGh({ prState: 'MERGED' });
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '762'], deps);
+
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(io.out[0]).claimed, [762]);
+  const w = calls.find((a) => isWrite(a, '762'));
+  assert.equal(fieldOf(w, 'sha'), 'sha762', 'closed/merged PR must fall through to the ordinary conditional reclaim write');
+});
+
+test('(k4) pr-opened tombstone whose gh pr view call itself fails: fails open, reclaims as before', () => {
+  const { ghApi } = makeGhApi({
+    reads: { 763: [readOk(prOpenedTombstoneMarker('otherRun', 'https://github.com/acme/w/pull/307'), 'sha763')] },
+    writes: { 763: [writeOk] },
+  });
+  const { gh } = makeGh({ fail: { prView: true } });
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '763'], deps);
+
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(io.out[0]).claimed, [763], 'a gh failure on the in-flight check must never wedge the claim path');
 });
 
 // (c) stale target -> conditional PUT (re-claim)
