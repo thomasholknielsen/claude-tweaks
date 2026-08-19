@@ -43,9 +43,13 @@ The excerpt is a string literal in the test file, not a read of history, so it s
 
 **The blind spot: `doesNotMatch` passes for free when the control lacks the tokens.** An adjacency claim — two tokens joined by a `[\s\S]{0,N}` window — only goes red against the control when the control contains *both* tokens and separates them by more than `N`. A control that contains neither token, or only one, satisfies `doesNotMatch` for the wrong reason, and the window (the whole adjacency claim) is never exercised. `tests/backlog-refine-reverify-before-write.test.js`'s cross-reference test is exactly this case: `/Step 6 auto-apply table already applies the identical rule[\s\S]{0,150}step-6-auto\.md/` is checked against a `PRE_CHANGE_STEP_5_HEAD` that mentions neither token, so nothing tests that `150` — the pattern would still be green at any window width. For an adjacency or ordering claim, build the control so it carries the anchor and lacks only the thing being pinned, and run the *same* extraction over both: `tests/backlog-narration-bounded-allowance.test.js` calls `textAfterHeader(PRE_CHANGE_BANNER, '## Step 1: Fetch')`, so the frozen text supplies the header and the miss is attributable to the reminder's absence rather than the header's.
 
-### Byte-pin an executable snippet, then run that same string
+### Bind an executable snippet to a test — extract-and-run first, byte-pin second
 
-When skill prose carries a shell snippet the reader is expected to execute, assert it byte-identical **and** execute it. `tests/curation-judge-stagepath.test.js` holds the shadow sweep as a `SWEEP_SNIPPET` array joined on `\n`, asserts the fence matches byte-for-byte:
+When skill prose carries a shell snippet the reader is expected to execute, bind it to a `node --test` file that both pins it and runs it. `docs/skill-authoring.md`'s "Executable snippets in skill prose" names two forms and **prefers extract-and-run**: the test pulls the fence out of the doc with an anchored regex and executes exactly that string, so the doc is the only source of the executed text and the two cannot drift; the test fails loudly — *"extraction pattern is out of sync"* — when the anchor moves. Shipped instances: `tests/pipeline-run-dir-adoption-anchoring.test.js` and `tests/blast-radius-snippet.test.js`, the latter extracting `plugin/skills/assess-agent-autonomy/merge-check.md`'s Step 1 fence and running it against a fixture git repo.
+
+**Anchor the extraction on structure, not on a sentence.** `tests/blast-radius-snippet.test.js` anchors on the prose phrase "is one CLI call", which any rewording of that paragraph breaks — and the failure then reads as a test defect rather than as the procedure changing. A heading, a fence delimiter, or a table-row prefix survives ordinary editing; this is the extraction-side statement of the Project Conventions bullet below.
+
+Reach for **byte-pinning** when the probe has to wrap the snippet in fixture-specific surroundings — then assert it byte-identical **and** execute it. `tests/curation-judge-stagepath.test.js` holds the shadow sweep as a `SWEEP_SNIPPET` array joined on `\n`, asserts the fence matches byte-for-byte:
 
 ```js
 assert.ok(s4.includes('```bash\n' + SWEEP_SNIPPET + '\n```'), 'sweep snippet present byte-for-byte inside a bash fence');
@@ -73,7 +77,7 @@ When a resolver has a deliberate special case that excludes one source from prec
 |---|---|
 | A table or list that restates a data structure living in code | Read it live and pin it against that structure; say so in a header comment, citing `[IL-80]` and why this is the carve-out |
 | Content a future migration is expected to delete or rewrite | Freeze the bytes as a fixture under `tests/fixtures/` |
-| A shell or `node -e` snippet the reader is told to run | Byte-pin the fence, then execute the pinned string against a fixture |
+| A shell or `node -e` snippet the reader is told to run | Extract the fence from the doc with a structurally-anchored regex and execute exactly that string; byte-pin the fence instead only when the probe needs fixture-specific surroundings |
 | A behavioural claim about a third-party tool (`git apply --check`, `gh`, `mv -n`) | Probe the tool; asserting the sentence proves only that the sentence is present |
 
 ## Project Conventions
@@ -105,10 +109,11 @@ A varying failure count across runs on byte-identical code tracks machine load f
 | Adding another hand-rolled git-init ladder | `tests/helpers/git-fixtures.js` already owns it, and two builders are two things to keep correct |
 | Running the whitespace-collapsed control scan on only the presence half of a migration suite | The absence half is the half that fails open, so the untested direction is exactly the one that silently certifies a retired clause as deleted `[IL-66]` |
 | Merging on a green branch without re-running the full suite post-merge | Byte-pinning suites are the class that goes red only at the merge combination |
+| Anchoring a snippet-extraction regex on a prose sentence | The sentence is the part of the doc most likely to be reworded, so the suite goes red on its own anchor instead of on the procedure — and the tempting fix is to loosen the regex, which quietly stops pinning the fence at all |
 
 ## Reference
 
-- Instances: `tests/curation-judge-stagepath.test.js`, `tests/staged-patch-contract.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/hooks-gate-coverage.test.js`, `tests/skill-conventions.test.js`
+- Instances: `tests/curation-judge-stagepath.test.js`, `tests/staged-patch-contract.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/hooks-gate-coverage.test.js`, `tests/skill-conventions.test.js`, `tests/blast-radius-snippet.test.js`, `tests/pipeline-run-dir-adoption-anchoring.test.js`
 - Shared helper: `tests/helpers/git-fixtures.js`
 - Rules: `docs/donts.md` `[IL-66]`, `[IL-78]`, `[IL-80]`, `[IL-105]`; full accounts in `docs/incident-log.md`
 - Conventions for authoring the prose itself: `docs/skill-authoring.md`
