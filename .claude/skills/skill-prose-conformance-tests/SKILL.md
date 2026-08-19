@@ -7,7 +7,7 @@ description: Use when adding or changing a `node --test` suite that pins the pro
 
 ## Overview
 
-This repo ships markdown as its product: `plugin/skills/**/*.md` is the payload, not documentation about it. So its correctness gets pinned the way code does — a large share of the suites under `tests/` read a skill file and assert on its text. That makes prose-reading tests a first-class house pattern here, and one with a failure mode ordinary unit tests do not have: the subject is a file somebody is *supposed* to edit.
+This repo ships markdown as its product: `plugin/skills/**/*.md` is the payload, not documentation about it. So its correctness gets pinned the way code does — a large share of the suites under `tests/` read a skill file and assert on its text (count it live: `grep -l 'skills/' tests/*.test.js | wc -l`). That makes prose-reading tests a first-class house pattern here, and one with a failure mode ordinary unit tests do not have: the subject is a file somebody is *supposed* to edit.
 
 ## Key Patterns
 
@@ -82,6 +82,7 @@ When a resolver has a deliberate special case that excludes one source from prec
 ## Project Conventions
 
 - Anchor on a literal token the skill already uses — a filename pattern, a fenced heading, a table-row prefix — never a paraphrase. Hard-wrapped markdown splits phrases across lines, so a single-line literal match returns zero while the phrase is right there `[IL-66]`.
+- When the assertion and the prose it pins are authored in the same change — a plan that inserts both, a build that writes the test before the edit lands — copy the pinned literal out of the edit's own replacement text, never from memory of what that edit says. The file does not contain the token yet, so the "anchor on a literal the skill already uses" check above has nothing to grep against, and the two literals can diverge before either ships. #708's plan self-review caught exactly this: a mutual-consistency assertion cited a different string than the plan's own edit instructions inserted.
 - Apply the whitespace-collapsed control scan to **both** directions of a migration suite — absence assertions need it more than presence ones. A single-line `includes()` that asserts a retired clause is *gone* fails open when the clause survives a line wrap: the test goes green and certifies a deletion that never happened, where the same wrap on a citation-presence check at least fails loud. `tests/github-rate-limit-conformance.test.js` pairs `collapseWhitespace(s) => s.replace(/\s+/g, ' ')` with its citation-presence checks **and** its `assert.ok(!collapsed.includes(collapsedRetired))` absence checks — collapse both haystack and needle, one control test per assertion `[IL-66]`.
 - Prove the assertion can go red before trusting its green: negate the prose and assert the regex *fails*, one claim per test. A multi-assertion test short-circuits, and bare tokens plus wide `[\s\S]{0,N}` windows routinely survive inversion `[IL-105]`.
 - A pinned constant must be load-bearing. An exported list that nothing else reads pins prose against a dead value and stays green forever `[IL-78]`.
@@ -104,6 +105,7 @@ A varying failure count across runs on byte-identical code tracks machine load f
 | Reading live skill prose you intend to change | The test becomes a scheduled failure timed to the migration, so it is gone exactly when the change is riskiest `[IL-80]` |
 | Excluding a directory from a dangling-reference sweep by its role ("that one is the parser, skip it") | That reasoning is precisely how `[IL-80]`'s live-corpus dependency survived the sweep that had already surfaced the file |
 | Asserting a fenced snippet reads correctly without running it | The snippet is instruction to a shell, not to a reader; only execution separates correct from merely plausible |
+| Retyping the pinned literal from memory of the edit that introduces it | The obvious failure — a red test — is the benign one; the likely "fix" is to reword the *prose* to match the misremembered assertion, silently shipping the remembered wording instead of the designed wording |
 | Paraphrasing the pinned snippet inside the test | The fence and the probe then drift apart, and the probe stops describing the shipped procedure while both stay green |
 | Adding another hand-rolled git-init ladder | `tests/helpers/git-fixtures.js` already owns it, and two builders are two things to keep correct |
 | Running the whitespace-collapsed control scan on only the presence half of a migration suite | The absence half is the half that fails open, so the untested direction is exactly the one that silently certifies a retired clause as deleted `[IL-66]` |
