@@ -101,14 +101,14 @@ $RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── decisions.md        ← Run-level audit log (freeform-issue translations log here)
 ├── staged/             ← Run-level staged items (translation-{issue}.md) — read by the consolidated console
 └── spec-{N}/           ← Per-record subdirectory (one per record; `work/{N}-spec.md` holds the materialized file — see `materialize.md`)
-    ├── config.yml      ← Copy of the parent's, written when the parent scaffolds this subdirectory (see below)
+    ├── config.yml      ← Copy of the parent's, written by the per-spec scaffolding step below ("Scaffold the per-spec subdirectory")
     ├── decisions.md
     └── staged/
 ```
 
 The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
 
-**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written by `/flow` in the same step that creates the subdirectory (Step 3). Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec (observed on the #678 run: `review-auto-apply-ceiling` read `default` from `spec-678/` while the parent held `run-config: medium`). A mid-run in-place lever edit (the ceremony escape hatch) lands in the spec's own copy and scopes to that spec — intended.
+**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written immediately before that spec's pipeline starts (see "Scaffold the per-spec subdirectory before exporting its `PIPELINE_RUN_DIR`" below — not the parent-level Manifesto, Step 3, which writes only the parent's own `config.yml` and never touches a `spec-{N}/` subdirectory). Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec (observed on the #678 run: `review-auto-apply-ceiling` read `default` from `spec-678/` while the parent held `run-config: medium`; the underlying gap — this file asserted the copy existed with no step ever performing it — persisted until #925). A mid-run in-place lever edit (the ceremony escape hatch) lands in the spec's own copy and scopes to that spec — intended.
 
 `manifest.yml` lists the records in execution order plus their status as the run progresses — written exclusively through `node plugin/bin/hooks.js spec-status` (see "Phase-progress banner and per-spec completion summary" below); nothing else writes this file. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — so `multispec-batch-curation.md`'s registry pass has a stable pre-batch baseline to read back rather than re-deriving it after N specs' worth of commits have landed:
 
@@ -144,6 +144,16 @@ Record any failures as ledger items in the **parent** run directory (not a per-s
 This does not replace each spec's own `/test` gate — every spec still runs verification normally. It establishes the baseline so a spec whose `/test` run hits a failure already recorded here cites the existing ledger entry (`Pre-existing — see ledger #{N}, batch pre-flight sweep`) instead of re-diagnosing it, per `test/verification.md`'s "Pre-existing failures (multi-spec batches)" note.
 
 Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
+
+**Scaffold the per-spec subdirectory before exporting its `PIPELINE_RUN_DIR`.** Immediately before starting each spec's own pipeline — not upfront for all specs, and not during the parent-level Manifesto (`SKILL.md` Step 3, which writes only the parent's own `config.yml`) — create that spec's subdirectory and copy the parent's `config.yml` into it verbatim:
+
+```bash
+mkdir -p "{parent}/spec-{N}/staged"
+cp "{parent}/config.yml" "{parent}/spec-{N}/config.yml"
+touch "{parent}/spec-{N}/decisions.md"
+```
+
+This is a byte-for-byte copy, not a symlink or a deferred write — a mid-run in-place lever edit (the ceremony escape hatch) then lands in one spec's own copy and scopes to that spec, never touching its siblings or the parent. Do this before the `PIPELINE_RUN_DIR` env var below is exported for that spec: every downstream skill this spec's pipeline invokes resolves policy via `resolve-policy.js --run "$PIPELINE_RUN_DIR"`, which reads `{runDir}/config.yml` with no parent fallback (`bin/resolve-policy.js`) — an unscaffolded subdirectory makes that call silently resolve every Manifesto-set lever to `source: default`, dropping the run's own answers with no error (`#678`; `#925`).
 
 For each per-spec invocation, `/flow` exports these environment variables (the last is conditional on the caller, not always set):
 
