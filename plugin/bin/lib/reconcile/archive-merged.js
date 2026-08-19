@@ -190,7 +190,11 @@ function archiveRunDir(root, runDir) {
     } catch {
       return { ok: false, reason: 'readdir-failed' };
     }
-    for (const name of entries.filter((n) => n !== 'work')) {
+    // spec-{N}/ dirs are excluded here — their archive twins may already
+    // exist (created by the workMoves batch above), so a whole-dir rename
+    // would fail ENOTEMPTY; their contents move entry-by-entry in the
+    // dedicated spec loop below instead.
+    for (const name of entries.filter((n) => n !== 'work' && !specDirs.includes(n))) {
       const src = path.join(runDir, name);
       if (!fs.existsSync(src)) continue;
       try {
@@ -208,7 +212,19 @@ function archiveRunDir(root, runDir) {
   for (const specName of specDirs) {
     const specDir = path.join(runDir, specName);
     const specArchiveDir = path.join(archiveDir, specName);
-    for (const name of ['config.yml', 'decisions.md', 'events.jsonl', 'run-state.json', 'staged']) {
+    // Enumerated, never a fixed list — the same #662/#902 drift class the
+    // top-level loop above eliminated: a fixed list here would strand any
+    // spec-level file outside it (e.g. engine-state.json), leaving specDir
+    // non-empty so the rmdir below silently fails and the half-archived
+    // spec dir resurfaces forever. work/ is already git-mv'd above.
+    if (!fs.existsSync(specDir)) continue;
+    let specEntries;
+    try {
+      specEntries = fs.readdirSync(specDir);
+    } catch {
+      return { ok: false, reason: 'readdir-failed' };
+    }
+    for (const name of specEntries.filter((n) => n !== 'work')) {
       const src = path.join(specDir, name);
       if (!fs.existsSync(src)) continue;
       try {
