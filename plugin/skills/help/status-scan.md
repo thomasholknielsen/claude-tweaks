@@ -89,6 +89,24 @@ node -e "
 
 **Definition flag:** flag every `backlog`-bucket record carrying `needs:definition` — under `work-backend: github-issues` the label, under `work-backend: local-files` `facets.needsDefinition === true` (already present on the fetched record above — no extra call either way) — stamped by `/claude-tweaks:capture` or `/claude-tweaks:feedback` at filing time when the record names an open choice with no tradeoff made yet. Flag matches in the Needs Attention table with the concrete next step: `run /claude-tweaks:specify {ref} to route through brainstorming`.
 
+**Sampling flag** (`work-backend: github-issues` only — no local-files equivalent exists, the same omission `_shared/trust-table.md` states for its own `demo:*` reads). `bin/lib/issues/trust.js`'s `MIN_VERDICTS` counts merged-and-unreverted outcomes toward promotion (#267), so a trust class can promote purely on operational survival signal without ever collecting a real `/demo` verdict. This flag is the sampling floor that keeps forcing some of that evidence in (#310): among every closed record still carrying `demo:pending` (the acceptance-labeling step applies it to every `auto:merge`'d record regardless of who granted it — `wrap-up/auto-merge-short-circuit.md`), flag the ones whose position in the full machine-granted-merge history — ordered by `closedAt`, machine-origin detected by `fleet-counters.js`'s `isMachineGrant` audit-comment marker, never the `auto:merge` label alone (a human can grant that label too) — lands on a `grant-sampling-every` boundary. Computed from the same `/tmp/help-records-faceted.json` snapshot Stage 1 already fetched (`--state all`, so closed records are already present) — no extra `gh` call:
+
+```bash
+export GRANT_SAMPLING_EVERY="$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values grant-sampling-every)"
+node -e "
+  const { sampledForDemo } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-sampling.js');
+  const records = require('/tmp/help-records-faceted.json');
+  const merges = records
+    .filter((r) => r.state === 'CLOSED' && r.facets.grants && r.facets.grants.merge)
+    .map((r) => ({ number: r.number, closedAtIso: r.closedAt, commentBodies: (r.comments || []).map((c) => c.body) }));
+  const flaggedOrdinals = new Map(sampledForDemo(merges, process.env.GRANT_SAMPLING_EVERY).map((f) => [f.number, f.ordinal]));
+  const pending = records.filter((r) => flaggedOrdinals.has(r.number) && r.facets.acceptance === 'pending');
+  console.log(JSON.stringify(pending.map((r) => ({ number: r.number, ordinal: flaggedOrdinals.get(r.number) }))));
+"
+```
+
+Each result flags in the Needs Attention table: `{ref} — sampling floor: machine-granted merge #{ordinal} since the last count reset, still awaiting a verdict — /claude-tweaks:demo {ref}`. An empty result means nothing sampled this run — omit the flag entirely rather than rendering a zero row, same convention as the Justification/Definition flags above. A record already resolved (`facets.acceptance` is `approved` or `changes-requested`) never appears here even if its ordinal lands on a boundary — sampling only ever asks for a verdict that hasn't been given yet, it never re-flags a settled one.
+
 ### PR-state join (in-flight runs and tombstones)
 
 `work-backend: github-issues` only (`local-files` has no PR concept — skip this sub-section

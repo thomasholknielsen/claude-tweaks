@@ -112,6 +112,12 @@ const POLICY_KEYS = [
   // markers dated today, UTC) — /claude-tweaks:backlog grant mode's own floor.
   // Absent = uncapped (optional-when-absent, see #269's Deliverables).
   { key: 'fleet-daily-grant-cap', type: 'integer', min: 1, summary: "Caps how many machine-issued grants may be handed out across one calendar day; leave it unset for no cap.", category: 'autonomy-trust', tier: 'advanced' },
+  // Sampling floor (#310): counts machine-granted merged records in closedAt
+  // order and flags every Nth one, so a human /demo verdict keeps entering
+  // the trust table even though #267 lets a class promote purely on
+  // merged-and-unreverted survival signal. bin/lib/issues/grant-sampling.js
+  // is the sole reader.
+  { key: 'grant-sampling-every', type: 'integer', min: 1, default: 10, summary: "Flags every Nth machine-granted merged record for a real /demo verdict, so human calibration evidence keeps entering the trust table.", category: 'autonomy-trust', tier: 'advanced' },
   // experiment-cleanup vertical (code-health focus mode) — the repo's own
   // feature-flag idiom, as regex-source strings (first capture group =
   // flag identifier). Empty/absent = the vertical is inactive; there is no
