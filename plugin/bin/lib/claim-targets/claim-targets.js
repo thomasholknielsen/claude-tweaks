@@ -161,6 +161,10 @@ function run(argv, deps) {
     return 2;
   }
   if (!repoSlug) { deps.stderr(`claim-targets: could not resolve repo slug (empty)\n${USAGE}`); return 2; }
+  // `tombstoneInFlightPr` (#315 review follow-up) validates a tombstone's
+  // `link` against this exact owner/repo before ever calling `deps.gh` —
+  // split once here rather than re-parsing `repoSlug` per target.
+  const [repoOwner, repoName] = repoSlug.split('/');
 
   const claimedThisRun = [];
   const alreadyOwned = [];
@@ -196,7 +200,7 @@ function run(argv, deps) {
     // the check itself, falls straight through unchanged (fail open) —
     // see `tombstoneInFlightPr`'s own doc comment in claim-engine.js.
     if (classified.state === 'tombstone') {
-      const inFlight = tombstoneInFlightPr(content, deps.gh);
+      const inFlight = tombstoneInFlightPr(content, deps.gh, repoOwner, repoName);
       if (inFlight) {
         if (opts.keepGoing) { skipped.push({ issue, reason: 'in-flight', link: inFlight.link }); continue; }
         return abort({ inFlight: [{ issue, link: inFlight.link }] }, 3);

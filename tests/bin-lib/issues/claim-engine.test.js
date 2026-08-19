@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   isHttp404, isHttp422, ensureClaimsBranch, readClaimBlob, writeClaimBlob,
-  claimOne, releaseOne, claimGroup, claimFilePath,
+  claimOne, releaseOne, claimGroup, claimFilePath, tombstoneInFlightPr,
 } = require('../../../plugin/bin/lib/issues/claim-engine');
 
 const T0 = 1720000000000;
@@ -298,6 +298,69 @@ test('claimOne: plain tombstone with no link at all -> reclaims exactly as befor
   };
   const result = claimOne({ owner: 'acme', repo: 'w', issueNumber: 9, runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner });
   assert.equal(result.outcome, 'claimed');
+});
+
+// ---- tombstoneInFlightPr: same-repo link validation (#315 review follow-up) ----
+// `link` is read straight from a claims-registry blob, writable by any
+// session with registry-branch access. An unvalidated `link` could point at
+// a permanently-open PR in an unrelated repo (or a malformed/non-string
+// value) and wedge every future reclaim of the real issue — a stored-DoS on
+// the claim path. Every invalid shape must return null WITHOUT ever calling
+// `runner` (no `gh pr view`), falling through to ordinary reclaim exactly
+// like a missing link.
+
+function refusesWithoutRunnerCall(link) {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = prOpenedTombstone(link);
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.equal(result, null);
+  assert.equal(calls.length, 0, 'an invalid link must never reach the runner (no gh pr view call)');
+}
+
+test('tombstoneInFlightPr: link pointing at a DIFFERENT repo -> null, no runner call', () => {
+  refusesWithoutRunnerCall('https://github.com/other-owner/other-repo/pull/304');
+});
+
+test('tombstoneInFlightPr: malformed/non-URL link -> null, no runner call', () => {
+  refusesWithoutRunnerCall('not-a-url');
+});
+
+test('tombstoneInFlightPr: non-string link (a number) -> null, no runner call', () => {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = JSON.stringify({ released: true, runId: 'run-1', reason: 'pr-opened: spec 272', releasedAt: new Date(T0).toISOString(), link: 304 });
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.equal(result, null);
+  assert.equal(calls.length, 0, 'a non-string link must never reach the runner');
+});
+
+test('tombstoneInFlightPr: a flag-shaped link ("--repo") -> null, no runner call', () => {
+  refusesWithoutRunnerCall('--repo');
+});
+
+test('tombstoneInFlightPr: same-repo, well-formed, OPEN link -> { link }, one runner call', () => {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = prOpenedTombstone('https://github.com/acme/w/pull/304');
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.deepEqual(result, { link: 'https://github.com/acme/w/pull/304' });
+  assert.equal(calls.length, 1);
+});
+
+test('claimOne: pr-opened tombstone whose link points at a DIFFERENT repo -> reclaims (no pr view call)', () => {
+  const calls = [];
+  const runner = (args) => {
+    calls.push(args);
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT')) return '{}';
+    if (joined.includes('contents/claims/')) return JSON.stringify({ content: prOpenedTombstone('https://github.com/other-owner/other-repo/pull/304'), sha: 'shaT' });
+    if (joined.includes('issue edit') || joined.includes('issue comment')) return '{}';
+    throw new Error('unexpected ' + joined);
+  };
+  const result = claimOne({ owner: 'acme', repo: 'w', issueNumber: 272, runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner });
+  assert.equal(result.outcome, 'claimed');
+  assert.ok(!calls.some((c) => c.join(' ').startsWith('pr view')), 'a wrong-repo link must never trigger the PR-state check');
 });
 
 // ---- claimGroup: in-flight is explicit, distinct from contested/errored ---

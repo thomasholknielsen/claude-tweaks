@@ -125,24 +125,55 @@ function removeInProgressLabel({ owner, repo, issueNumber, runner = defaultRunne
   } catch { return false; }
 }
 
+// Escapes a literal string for embedding inside a `new RegExp(...)` pattern —
+// `owner`/`repo` come from this claim's own caller (trusted), but are still
+// escaped defensively since GitHub does allow `.` in either.
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// link: the tombstone blob's `link` field (untrusted — see tombstoneInFlightPr's
+// doc comment). owner/repo: the SAME owner/repo as the issue being claimed.
+// True only when `link` is a string matching the well-formed PR URL shape
+// `https://github.com/{owner}/{repo}/pull/{digits}` for that exact
+// owner/repo (case-sensitive). Everything else — wrong repo, a non-string
+// value, a malformed URL, a flag-like string such as `--repo` — is false.
+function isSameRepoPrUrl(link, owner, repo) {
+  if (typeof link !== 'string') return false;
+  if (typeof owner !== 'string' || !owner || typeof repo !== 'string' || !repo) return false;
+  const re = new RegExp(`^https://github\\.com/${escapeRegExp(owner)}/${escapeRegExp(repo)}/pull/\\d+$`);
+  return re.test(link);
+}
+
 // content: the raw tombstone blob text just read (a `'tombstone'`-classified
 // claim). runner: the same injectable gh runner claimOne already has in
-// scope. Returns { link } when this tombstone's `reason` is a `pr-opened:`
-// release whose `link` points at a PR `gh pr view` still reports `OPEN` —
-// the in-flight-build signal `_shared/issue-claims.md`'s release-reason
-// vocabulary documents `link` for (#315). Returns null for every other
-// case — a non-`pr-opened:` reason (`merged:`/`abandoned:`, left untouched
-// per the issue's own scope), a missing `link`, a closed/merged PR, or any
-// failure along the way (unparseable content, a `gh pr view` error, an
-// unparseable state) — always fail OPEN to "not in flight" so a `gh` hiccup
-// (rate limit, network blip, a deleted PR) can never wedge the claim path;
-// the caller falls through to today's unchanged reclaim behavior.
-function tombstoneInFlightPr(content, runner) {
+// scope. owner/repo: the SAME owner/repo as the issue being claimed —
+// `link` must validate against this exact repo before `runner` is ever
+// called (#315 review follow-up: `link` is read from a claims-registry blob
+// writable by any session with registry-branch access, so an unvalidated
+// `link` could point at a permanently-open PR in an unrelated repo — or a
+// malformed/non-string value — and wedge every future reclaim of the real
+// issue, a stored-DoS on the claim path). Returns { link } when this
+// tombstone's `reason` is a `pr-opened:` release whose `link` is a
+// well-formed `https://github.com/{owner}/{repo}/pull/{number}` URL for
+// this SAME owner/repo (see `isSameRepoPrUrl`) and `gh pr view` still
+// reports that PR `OPEN` — the in-flight-build signal
+// `_shared/issue-claims.md`'s release-reason vocabulary documents `link`
+// for (#315). Returns null for every other case — a non-`pr-opened:` reason
+// (`merged:`/`abandoned:`, left untouched per the issue's own scope), a
+// missing/invalid/wrong-repo `link` (rejected before any `runner` call), a
+// closed/merged PR, or any failure along the way (unparseable content, a
+// `gh pr view` error, an unparseable state) — always fail OPEN to "not in
+// flight" so a `gh` hiccup (rate limit, network blip, a deleted PR) or an
+// untrusted `link` can never wedge the claim path; the caller falls through
+// to today's unchanged reclaim behavior.
+function tombstoneInFlightPr(content, runner, owner, repo) {
   try {
     const parsed = JSON.parse(content);
     const reason = parsed && parsed.reason;
     const link = parsed && parsed.link;
     if (typeof reason !== 'string' || !reason.startsWith('pr-opened:') || !link) return null;
+    if (!isSameRepoPrUrl(link, owner, repo)) return null;
     const state = runner(['pr', 'view', link, '--json', 'state', '--jq', '.state']).trim();
     return state === 'OPEN' ? { link } : null;
   } catch {
@@ -167,7 +198,7 @@ function claimOne({ owner, repo, issueNumber, runId, sessionId, host, now, runne
   // reclaimable; every other tombstone reason, and any failure in the
   // check itself, falls straight through unchanged.
   if (classified.state === 'tombstone') {
-    const inFlight = tombstoneInFlightPr(read.content, runner);
+    const inFlight = tombstoneInFlightPr(read.content, runner, owner, repo);
     if (inFlight) return { issueNumber, outcome: 'in-flight', state: classified.state, link: inFlight.link };
   }
   if (!classified.reclaimable) {

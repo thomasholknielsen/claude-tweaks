@@ -250,6 +250,23 @@ test('(k4) pr-opened tombstone whose gh pr view call itself fails: fails open, r
   assert.deepEqual(JSON.parse(io.out[0]).claimed, [763], 'a gh failure on the in-flight check must never wedge the claim path');
 });
 
+test('(k5) pr-opened tombstone whose link points at a DIFFERENT repo: falls through to normal reclaim, exit 0', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: { 764: [readOk(prOpenedTombstoneMarker('otherRun', 'https://github.com/other-owner/other-repo/pull/308'), 'sha764')] },
+    writes: { 764: [writeOk] },
+  });
+  const { gh, calls: ghCalls } = makeGh({ prState: 'OPEN' });
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '764'], deps);
+
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(io.out[0]).claimed, [764]);
+  const w = calls.find((a) => isWrite(a, '764'));
+  assert.equal(fieldOf(w, 'sha'), 'sha764', 'a wrong-repo link must fall through to the ordinary conditional reclaim write');
+  assert.ok(!ghCalls.some((a) => a[0] === 'pr' && a[1] === 'view'), 'a wrong-repo link must never trigger the PR-state check');
+});
+
 // (c) stale target -> conditional PUT (re-claim)
 test('(c) stale target: conditional write re-claims with the blob sha', () => {
   const staleClaimedAt = new Date(NOW - 100 * 3600 * 1000).toISOString(); // 100h ago, ttl 72h

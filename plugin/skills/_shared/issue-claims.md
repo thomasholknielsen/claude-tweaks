@@ -262,7 +262,11 @@ the PR that build produced — before reclaiming such a tombstone, a claim-time 
 already exists and reclaiming would race it. `bin/lib/issues/claim-engine.js`'s `claimOne` runs
 this check (`tombstoneInFlightPr`), returning `outcome: 'in-flight'` instead of proceeding to a
 fresh claim; any other reason, a missing `link`, or a failed/closed/merged check falls through to
-the reclaim behavior below unchanged (fail open). `bin/lib/claim-targets/claim-targets.js` — the
+the reclaim behavior below unchanged (fail open). `link` is untrusted (any session with
+registry-branch write access can set it), so `tombstoneInFlightPr` validates it — a well-formed
+`https://github.com/{owner}/{repo}/pull/{number}` URL for the SAME owner/repo as the issue being
+claimed — before ever calling `gh pr view`; anything else (wrong repo, malformed, non-string) is
+treated the same as a missing `link` and never reaches `gh` at all. `bin/lib/claim-targets/claim-targets.js` — the
 group-claim loop `/claude-tweaks:flow` Step 2.8 and `/claude-tweaks:dispatch` actually call, a
 separate implementation from `claim-engine.js` — runs the same `tombstoneInFlightPr` check inline
 and reports the stopped target via `inFlight`/`reason: 'in-flight'` instead of `outcome`
