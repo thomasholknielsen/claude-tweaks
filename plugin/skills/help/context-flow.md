@@ -68,7 +68,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, plan files, ledger items. Invokes `/journeys` for journey files and `/simplify` for code cleanup. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/journeys` | Changed files (from parent or git diff), `docs/journeys/*.md` | `docs/journeys/*.md` | — |
 | `/simplify` | Changed files (from parent or git diff) | Simplified code (in-place) | — |
-| `/deepen` | Changed files / spec scope, module call sites | Depth refactors (in-place) or staged candidates (`decisions.md` + `{run-dir}/staged/deepen-{n}.md` per the Auto-Mode Contract — never the ledger) | — |
+| `/deepen` | Changed files / spec scope, module call sites | Depth refactors (in-place) or staged candidates (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`, plus `staged/deepen-collapse-{n}.patch` for narrow collapses per `_shared/staged-patch.md` — never the ledger) | — |
 | `/reflect` | Changed files, review summary (in full mode), ledger | Ledger items (phase depends on invoker: `review/hindsight`, `wrap-up`, or `reflect`) | — |
 | `/test` | CLAUDE.md (for commands), `stories/*.yaml` (in qa/all mode) | `TEST_PASSED=true`, QA report (when stories exist), `docs/plans/*-ledger.md` (QA findings and observations) | — |
 | `/test` (qa mode) | `stories/*.yaml` | `screenshots/qa/report.json`, `screenshots/qa/report.md`, `TEST_PASSED=true`, `docs/plans/*-ledger.md` (QA findings and observations) | — |

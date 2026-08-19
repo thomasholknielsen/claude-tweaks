@@ -1,11 +1,14 @@
 # Step 3 Lens Scope and Dispatch — /claude-tweaks:review
 
-Read from `SKILL.md`'s Step 3 before dispatching any lens. Holds the `review-effort` tier →
+Read from `code-mode-steps.md`'s Step 3 before dispatching any lens. Holds the `review-effort` tier →
 lens-scope mapping, the dispatch contract (context bundle, reproduction pairs, model profiles),
-and the question list for lenses 3a-3f. The severity floor per lens stays in `SKILL.md`; the
-canonical agent prompt (Calibration block + OUTPUT FORMAT) lives in `step3-routing.md`.
+the canonical agent prompt (the "Per-lens Calibration + Output template" section below — moved
+here from `step3-routing.md` so that file's findings-conditional lazy-load actually holds; it
+used to be needed pre-dispatch, which made its "load only when findings exist" contract
+structurally false), and the question list for lenses 3a-3f. The severity floor per lens stays
+in `code-mode-steps.md`.
 
-"Above" in the next section means `SKILL.md`'s Step 3 preamble — the "skip lenses that don't
+"Above" in the next section means `code-mode-steps.md`'s Step 3 preamble — the "skip lenses that don't
 apply to the type of change" rule and the severity-floor table.
 
 ## Lens scope and dispatch
@@ -22,38 +25,33 @@ apply to the type of change" rule and the severity-floor table.
 
 A lens outside the resolved tier's scope is never dispatched — it does not run and produces no findings. The pre-existing "skip a lens if it doesn't apply to this change type" rule (above) still applies on top of whichever set the tier allows — e.g. at `high`, Performance is still skipped for a docs-only diff. Lens 3h additionally requires QA data to be available at all (its own existing, effort-independent gate) — when QA data isn't available, 3h doesn't run even at `high`+. Lenses 3g-cov, 3i, and 3i-diagram are **not** gated by effort at all — they're main-thread/deterministic, not agent-dispatched, and stay gated only by their own existing data-availability conditions.
 
-Reproduction pairs (the 2-agent verification dispatch below) always run for every lens that already uses the reproduction-pair mechanism (3a-3f) and is in scope at the resolved tier — verification is never skipped, only the initial lens set that gets a chance to flag something. (3h is never reproduction-paired, at any tier — see the "not dispatched as reproduction pairs" note below.)
+Reproduction pairs (the 2-agent verification dispatch below) run for every lens that uses the reproduction-pair mechanism (3a-3f) and is in scope at the resolved tier, **at `medium` and above** — verification is never skipped there, only the initial lens set that gets a chance to flag something. (3h is never reproduction-paired, at any tier — see the "not dispatched as reproduction pairs" note below.)
 
-At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatched lens's prompt, after the Output Format block (do not modify the CALIBRATION block itself — it stays byte-identical across all tiers, per `step3-routing.md`'s dispatch contract): resolve the lens's profile per `_shared/subagent-output-contract.md`'s Model Selection dispatch procedure and append the returned `effortLine` verbatim — shape `[Effort: {level} — apply {level}-level reasoning depth to this task.]`. This is still a best-effort prompt-level nudge, not a verified change to the dispatched agent's actual reasoning depth — the lens-scope table above is the load-bearing mechanism — but it is now the resolver's own honest statement of effort rather than a hand-written sentence, so it never drifts from what the resolver actually returned.
+**Low-tier single-read dispatch (`low` only).** At `low`, the reproduction mechanism does not run at all — dispatch **one** agent per in-scope lens (3b, 3c), not a pair. This is not "reproduction with N=1" (Mode 1 in `_shared/multi-agent-coordination.md` is N=2 always when it runs); it is the tier's economy trade, halving the cheapest tier's fixed cost. Every finding a single-read agent returns enters as `unconfirmed`, and the only path to `confirmed` is the Direct-verification override below applied deliberately: the reviewing agent reads the actual current source at each finding's `{path}:{line}` (the real file content, not the agent's report of it) and independently confirms it. Log a confirmation as `AUTO {HH:MM:SS} — Single-read (low tier): lens "{lens}" finding {path}:{line} confirmed via direct verification (source read independently). Reversibility: high.` A finding the reviewer cannot confirm this way stays `unconfirmed` — log `STAGED {HH:MM:SS} — Single-read (low tier): lens "{lens}" finding {path}:{line} not directly verified. Staged to Review Console as low-confidence. Reversibility: high.` — and routes to the Wrap-Up Console's Low-confidence subsection as usual. The correlated-misread protection a pair provides is deliberately traded away here; a review that warrants that protection warrants `medium` or above (Step 2.5's ambiguity rule already never defaults to `low`).
+
+At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatched lens's prompt, after the Output Format block (do not modify the CALIBRATION block itself — it stays byte-identical across all tiers, per the "Per-lens Calibration + Output template" section below): resolve the lens's profile per `_shared/subagent-output-contract.md`'s Model Selection dispatch procedure and append the returned `effortLine` verbatim — shape `[Effort: {level} — apply {level}-level reasoning depth to this task.]`. This is still a best-effort prompt-level nudge, not a verified change to the dispatched agent's actual reasoning depth — the lens-scope table above is the load-bearing mechanism — but it is now the resolver's own honest statement of effort rather than a hand-written sentence, so it never drifts from what the resolver actually returned.
 
 > **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3, Step 3.5, and Step 3.6 (reproduction, debate, refutation, and gap-sweep agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
 
 > **Full diff content is read here, in the lens agents — not in the main thread.** Step 2 deliberately holds only `--stat`/`--name-only`, so this dispatch is the first point at which actual diff content is read. Give each lens agent the shared context bundle's path (built below) plus the diff *scope* — the base/branch refs, or the own-work file set when the Merge-Provenance Check found merge commits. Do not inline diff text into the prompts from the main thread: every dispatched agent has its own context window, and re-inlining the diff N times reintroduces the cost Step 2 exists to avoid.
 
-> **Parallel execution — assemble the shared context on disk, never in main-thread context.** Every lens needs the same files, so build the bundle once using shell redirection, whose content never enters this thread, and hand every dispatched agent the same path:
+> **Parallel execution — assemble the shared context on disk, never in main-thread context.** Every lens needs the same files, so build the bundle once — its content never enters this thread — and hand every dispatched agent the same path. One plain command (the compound-shell recipe this replaces is refused by the harness worktree guard, and its fixed `/tmp` path collided across concurrent review sessions):
 >
 > ```bash
-> CTX="/tmp/review-context-$(git rev-parse --short HEAD).md"
-> { git diff {base}...{branch}
->   git diff {base}...{branch} --name-only | while read -r f; do
->     printf '\n===== %s =====\n' "$f"
->     cat -- "$f" 2>/dev/null
->   done
-> } > "$CTX"
-> wc -c "$CTX"    # only the byte count enters this thread
+> node "${CLAUDE_PLUGIN_ROOT}/bin/build-review-context.js" build --base {base} --branch {branch}
 > ```
 >
-> A section can legitimately come out empty — a deleted file, or a path git quoted for non-ASCII characters that `cat` then couldn't open. That degrades safely rather than silently: the full diff sits at the top of the same bundle, so the agent still sees that file's change either way.
+> Append `--run "$PIPELINE_RUN_DIR"` when a pipeline run directory exists (the scratch dir then lives under `{run}/tmp/review-ctx`, per-run unique); without it the CLI mints a fresh unique directory under the system temp dir — never a fixed shared path. When Step 2.5's record-label read already minted `{ctx-dir}` (`review-effort-derivation.md`), pass `--dir {ctx-dir}` to reuse it instead of minting a second dir. When Step 2's Merge-Provenance Check produced an own-work file set, write that list to a file (one path per line) and add `--files-from {path}`. The CLI prints one JSON line — `{dir, contextPath, bytes, files, emptySections}` — and only that line enters this thread. Carry the printed `dir` (written `{ctx-dir}` below) through Steps 3-3.6: every scratch file this skill writes (`lens-*.json`, `findings-by-lens.json`) lives there, so concurrent reviews can never clobber each other's files.
+>
+> A section can legitimately come out empty (`emptySections` names them) — a deleted file, or an unreadable path. That degrades safely rather than silently: the full diff sits at the top of the same bundle, so the agent still sees that file's change either way.
 >
 > Do **not** `Read` the changed files into this thread to "front-load" them. `Read` places their full content in main-thread context, and each dispatched agent still reads its own copy regardless — so the front-load saves no I/O and costs the entire diff plus every touched file, the exact cost Step 2 exists to avoid. An agent needing more than the bundle (imports, schemas, callers) reads those itself, in its own context window.
 
-> **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i).
+> **Parallel execution (conditional):** At `medium` and above, when the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. At `low`, dispatch single agents per the Low-tier single-read rule above instead. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i).
 >
-> **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model profile). Independent runs — no agent sees the other's output. After both return, write each agent's `findings` array to a temp file and call `categoriseReproduction`:
+> **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model profile). Independent runs — no agent sees the other's output. After both return, write each agent's `findings` array to `{ctx-dir}/lens-{LENS}-agentA.json` / `{ctx-dir}/lens-{LENS}-agentB.json` and call:
 > ```bash
-> node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
->   console.log(JSON.stringify(c.categoriseReproduction(require(process.argv[1]), require(process.argv[2]))))" \
->   /tmp/lens-${LENS}-agentA.json /tmp/lens-${LENS}-agentB.json
+> node "${CLAUDE_PLUGIN_ROOT}/bin/review-coordination.js" categorise-reproduction {ctx-dir}/lens-{LENS}-agentA.json {ctx-dir}/lens-{LENS}-agentB.json
 > ```
 > A dispatched lens agent that fails mid-flight is a different case from one that completes — see `_shared/subagent-output-contract.md`'s "Failed-agent retrieval" section for how to read its result cheaply, without blocking on the full envelope.
 >
@@ -64,7 +62,49 @@ At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatch
 >
 > **Model profile (per lens):** 3a (Convention) and 3f (Test Quality) → [Use: Fast] — mechanical convention checks on isolated files. 3b-3e (Security, Errors, Performance, Architecture) → [Use: Standard] — multi-file analysis and cross-cutting findings. 3h (UX Analysis) → [Use: Capable] — judgment-heavy synthesis. Resolve each via `node plugin/bin/resolve-profile.js {profile}` (contract § Model Selection).
 >
-> **Output template (each agent must follow exactly):** The Calibration block + OUTPUT FORMAT must be reproduced byte-identical in each dispatched agent's prompt — do NOT paraphrase. Read `step3-routing.md` in this skill's directory for the canonical dispatch template; inline it verbatim into every `Task()` call.
+> **Output template (each agent must follow exactly):** The Calibration block + OUTPUT FORMAT must be reproduced byte-identical in each dispatched agent's prompt — do NOT paraphrase. The canonical dispatch template is the "Per-lens Calibration + Output template" section below; inline it verbatim into every `Task()` call.
+
+## Per-lens Calibration + Output template (dispatch contract)
+
+The CALIBRATION filter and severity scale below are the canonical copy from `_shared/criteria-review-quality.md`, reproduced here because dispatched agents cannot read sibling files. Keep them byte-identical to the fragment.
+
+The Calibration and Output template MUST be reproduced byte-identical in every dispatched per-lens reviewer agent's prompt. Do NOT adapt, summarize, or paraphrase — the cross-lens reproduction logic in Step 3.5 depends on every agent applying the same filter.
+
+```markdown
+CALIBRATION (required):
+Only flag issues where:
+- the user will hit a bug, broken state, or unsafe behavior
+- the code will fail under realistic load, edge cases, or future maintenance
+- a project convention is violated in a way that compounds (not isolated stylistic choices)
+
+Do NOT flag:
+- alternate naming you'd prefer ("`fetchUser` would read better as `getUser`")
+- formatting, whitespace, or import ordering quibbles
+- "could be DRYer" without a concrete second caller that proves the duplication is real
+- hypothetical edge cases the spec didn't require ("what if the input is a 4GB string?")
+- missing comments on self-explanatory code
+
+When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.
+
+OUTPUT FORMAT (required):
+First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED — nothing before it, not even a lead-in sentence.
+WRONG: "Based on my review, DONE" — narration before the status word still violates this.
+Then return ONLY a markdown table, no preamble:
+
+| Severity | Path:Line | Finding | Evidence |
+|---|---|---|---|
+| critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+| medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+
+Severity scale: critical / high / medium / low / info
+If no findings: return literal text "No findings."
+Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
+Do not add narration, headers, or summaries before or after the table.
+```
+
+Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table (`step3-routing.md`) — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation.
+
+**Pass diff scope, not diff text.** When composing each prompt, give the agent the shared context bundle's path (built above) plus the base/branch refs (or the own-work file set when Step 2's Merge-Provenance Check found merge commits). Do not paste diff content into the prompt: Step 2 deliberately keeps only `--stat`/`--name-only` in the main thread, and inlining the diff into N lens prompts would pull the full diff back into main-thread context to compose them.
 
 ## Lens definitions (3a-3f)
 
@@ -90,6 +130,7 @@ At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatch
 - Edge cases handled (null, empty, malformed input)?
 - Errors logged with sufficient context for debugging?
 - User-facing errors safe (no internal details leaked)?
+- No `fs.existsSync(...)`-then-`fs.readFileSync(...)` TOCTOU races — read directly and catch, treating a read failure the same as "absent," rather than checking existence first? (#901's hindsight: this exact pattern recurred independently 3 times within one record's own fresh code, in a project where concurrent sibling sessions routinely archive/prune the exact directories these readers walk.)
 
 ### 3d: Performance
 

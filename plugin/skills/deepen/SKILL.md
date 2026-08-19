@@ -36,7 +36,7 @@ This is **not** a code-quality or bug pass — use `/claude-tweaks:review` for c
 
 1. **File paths or directories** — analyze module depth across those files
 2. **Spec number** (e.g., `42`) — scope to files changed for that spec
-3. **No arguments** — use `git diff --name-only` against the base branch or recent commits
+3. **No arguments** — resolve scope per `_shared/scope-resolution.md`'s deterministic fallback ladder, stating which rung resolved it in the run's opening line
 
 ```
 /claude-tweaks:deepen                       → analyze recently changed modules
@@ -75,6 +75,14 @@ Apply the depth criteria in `_shared/criteria-architecture-depth.md`; `depth-ana
 
 Rank candidates by leverage per unit of churn (callers affected, interface shrink, blast radius — see `_shared/criteria-architecture-depth.md`). Present them as a numbered list. **Do not propose interfaces yet** — present *what* is shallow and *why*, then ask which to explore. Proposing concrete interfaces for every candidate up front is the runaway-rewrite this skill exists to prevent.
 
+**Decline memory.** Before presenting, read `.claude-tweaks/deepen/declines.md` — anchored at the main checkout (resolve the repo root the same way `_shared/pipeline-run-dir.md`'s Anchoring section resolves `$RUN_ROOT`; a worktree-relative read silently misses the durable copy). A missing file is an empty memory, not an error. Each line records one previously declined candidate:
+
+```
+- {module path} | {kind} | declined {YYYY-MM-DD} | {one-line why-shallow at the time}
+```
+
+A candidate whose module path and kind match a recorded line is still presented — a decline is advisory context, never suppression (the module may have changed since) — but carries the marker `(declined {date})` appended to its "Why it's shallow" cell and its `AskUserQuestion` option description below, so the user can wave it through without re-judging it from scratch.
+
 ```
 Found {N} depth opportunities in {scope}, ranked by leverage:
 
@@ -95,7 +103,7 @@ If zero candidates, state: "No shallow modules found in scope — the abstractio
 
 **Filtering by kind:** `/claude-tweaks:deepen --kind deepen|collapse` scopes this table (and the `AskUserQuestion` options built from it) to only that kind before presenting — use it for a pass focused solely on the cheap, low-ceremony collapse cleanups (or, conversely, only the real-abstraction deepen candidates). Candidates of the excluded kind still count toward "Found {N}" in the summary line but are not shown as selectable options, and are folded into the Report's "Candidates not actioned" total. Omit the flag to see the full mixed list, as today.
 
-Note: neither the ledger nor any other durable store remembers a declined or filtered-out candidate across runs (the ledger records resolutions, not declined candidates) — a later `/claude-tweaks:deepen` run over overlapping scope will re-rank and re-present it as if seen for the first time.
+**Recording declines.** When the user declines a candidate — shown at Step 3 but not selected, or skipped at Step 4 — append its line to `.claude-tweaks/deepen/declines.md` in the format above (when a line for the same module path and kind already exists, update its date in place). Record only candidates the user actually saw and passed on: candidates hidden by `--kind` filtering were never judged and are not recorded, and auto mode records nothing — staging is not a decline. This file is the only cross-run memory this skill has; the ledger records resolutions, not declined candidates.
 
 ### Auto mode
 
@@ -105,13 +113,19 @@ Depth refactors are architectural and low-reversibility. In `auto` mode (a pipel
 - STAGED {HH:MM:SS} — Step 3: {N} depth candidates in {scope}. Architectural — staged for Review Console. Reversibility: low.
 ```
 
+**Collapse candidates additionally stage as patches.** For each collapse candidate with 3 or fewer call sites, also compose the mechanical inline — call sites rewritten to the wrapped callee, wrapper deleted — as `staged/deepen-collapse-{n}.patch` per `_shared/staged-patch.md`: a `Target:` / `Invariant:` / `Finding:` / `Staged-at:` preamble followed by the unified diff, validated with `git apply --check` from the worktree before its `STAGED` entry is written; a failing check is handled per that file's Staging-time gate. This makes the Review Console actionable for the cheap cleanups instead of advisory — the console applies (or re-derives) per that contract, always attended: that file's Unattended floor excludes `deepen-collapse-{n}.patch` from `consoleAutoResolve`'s zero-click apply. Never stage a deepen-kind candidate as a patch — interface design requires the user — and a collapse wider than 3 call sites stays list-only too: a wide mechanical diff composed mid-pipeline goes stale by console time more often than it applies.
+
 Surface at the Wrap-Up Review Console. Do not run Steps 4-5 in auto mode — interface design requires the user. See `_shared/auto-mode-contract.md`.
 
 ## Step 4: Design the Interface (Stage 2 of 2 — interactive only)
 
-For each candidate the user picked, hold a focused interface conversation — do not jump to code. Per the adaptive section-batching convention (docs/skill-authoring.md), if the user accepts two consecutive candidates' designs without modification, batch the rest into a single approval.
+Selected candidates split by kind here — a collapse has no interface to design, so it never pays the design conversation:
 
-1. **Propose the deepened (or collapsed) interface** — the smallest surface that hides the most behavior. Show the before/after signature, not the implementation.
+**Collapse candidates — one batch, no design conversation.** Inlining a pass-through is mechanical: rewrite each call site to the wrapped callee, delete the wrapper. Present every selected collapse candidate together as one batch table — `| # | Module | Call sites rewritten | Before → after (one representative call site) | Tested via |`, where `Tested via` is the existing caller tests, since the calls' behavior is unchanged — then one `AskUserQuestion` for the whole batch per the batch-table convention: `question`: `"Apply these {N} collapses?"`, `header`: `"Confirm"`, `multiSelect`: `false`, Option 1 `"Apply all (Recommended)"`, Option 2 `"Override specific items"` (the user's #-by-# corrections arrive as free text in the next message; items skipped that way are recorded as declined), Option 3 `"Skip all"` (all recorded as declined). If, while composing the batch, a "wrapper" turns out to carry behavior after all — a transform, a default, an error contract — reclassify it as a deepen candidate on the spot and route it through the conversation below; never inline behavior silently.
+
+**Deepen candidates — a focused interface conversation each.** Do not jump to code. Per the adaptive section-batching convention (docs/skill-authoring.md), if the user accepts two consecutive candidates' designs without modification, batch the rest into a single approval.
+
+1. **Propose the deepened interface** — the smallest surface that hides the most behavior. Show the before/after signature, not the implementation.
 2. **Classify dependencies** for testability (pure computation / local stand-in / network boundary → port + adapter) per `_shared/criteria-architecture-depth.md`. State how the deepened module will be tested.
 3. **Name the trade-off** — what the new shape makes easy, what it makes harder, and what would force revisiting it. If the trade-off is genuinely hard-to-reverse, surprising, and a real choice, flag it as an `[ADR-candidate]` so wrap-up can record it (see `_shared/decision-records.md`).
 4. Confirm before implementing — call `AskUserQuestion`: `question`: `"Apply this interface change to {module}?"` (when batched per the adaptive convention, `"Apply these {N} interface changes?"`, listing each module), `header`: `"Confirm"`, `multiSelect`: `false`
@@ -120,7 +134,7 @@ For each candidate the user picked, hold a focused interface conversation — do
 
 ## Step 5: Apply and Verify
 
-When Step 4 approved multiple candidates (batched per the adaptive convention), apply them **one module at a time** — implement, verify, and commit each before starting the next. This is what makes "reverted cleanly" (item 4 below) actually true at the moment it matters: if verification fails partway through a multi-candidate batch, only the in-progress module is uncommitted; every prior module in the batch already has its own clean, independently-revertible commit.
+When Step 4 approved multiple candidates (a collapse batch, or deepen candidates batched per the adaptive convention), apply them **one module at a time** — implement, verify, and commit each before starting the next. This is what makes "reverted cleanly" (item 4 below) actually true at the moment it matters: if verification fails partway through a multi-candidate batch, only the in-progress module is uncommitted; every prior module in the batch already has its own clean, independently-revertible commit.
 
 For each approved candidate, in order:
 
@@ -160,7 +174,7 @@ Verification: {pass/fail}
 Candidates not actioned: {N} (staged / declined / blocked — listed for follow-up)
 ```
 
-If no changes were made: "No depth changes — abstractions reviewed are earning their keep." List any candidates the user declined so they aren't silently dropped. This list is scoped to the current run only — nothing here persists to the ledger or any other durable store (the ledger records resolutions, not declined candidates); a future `/deepen` run has no memory of what was declined here.
+If no changes were made: "No depth changes — abstractions reviewed are earning their keep." List any candidates the user declined so they aren't silently dropped. Each decline also persists to `.claude-tweaks/deepen/declines.md` (Step 3's decline memory), so a future `/deepen` run over overlapping scope re-presents it pre-marked `(declined {date})` rather than as first-seen; the ledger still records resolutions only, never declined candidates.
 
 ## Next Actions
 
@@ -192,5 +206,8 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Drifting into component / service / boundary vocabulary | Proposals become impossible to compare — use the controlled vocabulary |
 | Changing behavior during a depth refactor | Structure only — behavior changes belong to a different skill; broken tests mean you changed behavior |
 | Auto-applying a refactor in `auto` mode | Architecture is low-reversibility — `auto` stages candidates for the Review Console, never refactors silently |
+| Staging a deepen-kind candidate as a `.patch` in `auto` mode | Interface design requires the user — auto stages interface candidates as a list; only mechanical, narrow collapses become patches |
+| Suppressing a previously declined candidate | Decline memory is advisory — the module may have changed since; annotate with the decline date, never hide |
+| Walking collapse candidates through the per-candidate design conversation | A pass-through has no interface to design — the ceremony `--kind collapse` promises to avoid; batch the mechanical before/afters into one confirm |
 | Running a whole-repo depth audit | This skill reviews recent work — repo-wide audits are a separate deliberate exercise |
 | Deepening a module by pushing a network call into previously pure code | Trades testability for a smaller surface — flag it as a risk, don't do it silently |

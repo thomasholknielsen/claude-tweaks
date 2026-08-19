@@ -34,7 +34,7 @@ Run the code-simplifier subagent on recently changed files. Catches complexity t
 
 1. **File paths** — specific files or directories to simplify
 2. **Record/spec reference** (`#N`, or legacy bare spec number) — scope to files changed for that record
-3. **No arguments** — use `git diff --name-only` against the base branch or recent commits
+3. **No arguments** — resolve scope per `_shared/scope-resolution.md`'s deterministic fallback ladder, stating which rung resolved it in the run's opening line
 
 ```
 /claude-tweaks:simplify                       → simplify all recently changed files

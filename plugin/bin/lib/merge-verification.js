@@ -1,7 +1,7 @@
 // bin/lib/merge-verification.js — derived default for the `merge-verification`
 // policy key (#559): how much CI verification a merge into the integration
 // branch requires. The four-branch ladder is stated in prose exactly once, in
-// skills/_shared/policy-schema.md's merge-verification coverage block; this
+// skills/_shared/policy-schema-coverage.md's merge-verification coverage block; this
 // file is its code twin, the same way bin/lib/policy-schema.js's
 // detectIntegrationModel twins skills/_shared/forge-detection.md.
 //
@@ -168,7 +168,7 @@ function readDefaultBranch(repoRoot) {
 //   (2) no PR-triggered CI under .github/workflows       -> off
 //   (3) integration branch is the repo's default branch -> merge-when-green
 //   (4) any other (non-default) integration branch       -> off
-// Prose statement of record: skills/_shared/policy-schema.md's coverage block.
+// Prose statement of record: skills/_shared/policy-schema-coverage.md's coverage block.
 // integration-model per skills/_shared/integration-model.md; the branch pair
 // per skills/_shared/integration-branch.md via the shared resolvers, never a
 // hand-rolled detection. Any lookup failure resolves toward off.

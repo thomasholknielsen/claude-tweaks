@@ -34,7 +34,7 @@ Create or update journey files for features that have been built. Journeys docum
 1. **Spec number** (e.g., `42`) — analyze files changed for that spec
 2. **File paths** — analyze those specific files for journey impact
 3. **`--journey <name>`** — target one existing (or new) journey directly by name, bypassing Step 1's scope resolution entirely — routes straight to Step 3 (Update Existing Journey Files) against `docs/journeys/{name}.md` if it exists, or Step 2 (Create New Journey Files) using `{name}` if it doesn't. This is the form `/claude-tweaks:journey-health` uses when recommending a re-run against a specific journey slug.
-4. **No arguments** — use `git diff --name-only` against the base branch or recent commits
+4. **No arguments** — resolve scope per `_shared/scope-resolution.md`'s deterministic fallback ladder
 
 ```
 /claude-tweaks:journeys                       → analyze recent changes for journey impact

@@ -126,6 +126,38 @@ test('findings-include: fails when no row matches', () => {
   assert.strictEqual(result.pass, false);
 });
 
+test('result-contains: passes when every needle appears anywhere', () => {
+  const result = runAssertion(
+    { resultText: 'Found 1 depth opportunity:\n| 1 | src/store-wrapper.js | collapse | pure pass-through |' },
+    { type: 'result-contains', contains: ['store-wrapper', 'collapse'] },
+  );
+  assert.strictEqual(result.pass, true);
+});
+
+test('result-contains: within pins needles to lines matching the scope substring', () => {
+  const text = '| 1 | src/store-wrapper.js | collapse | pass-through |\n| 2 | src/other.js | deepen | leaks |';
+  const pinned = runAssertion(
+    { resultText: text },
+    { type: 'result-contains', within: 'store-wrapper', contains: 'collapse' },
+  );
+  assert.strictEqual(pinned.pass, true);
+  // "deepen" appears in the text, but never on a store-wrapper line.
+  const crossLine = runAssertion(
+    { resultText: text },
+    { type: 'result-contains', within: 'store-wrapper', contains: 'deepen' },
+  );
+  assert.strictEqual(crossLine.pass, false);
+});
+
+test('result-contains: fails and names the missing needle', () => {
+  const result = runAssertion(
+    { resultText: 'no candidates found' },
+    { type: 'result-contains', contains: ['collapse'] },
+  );
+  assert.strictEqual(result.pass, false);
+  assert.match(result.message, /collapse/);
+});
+
 test('findings-exclude-false-positive: passes when the file is never mentioned', () => {
   const result = runAssertion(
     { resultText: SAMPLE_FINDINGS_TEXT },

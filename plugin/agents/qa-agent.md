@@ -20,7 +20,7 @@ The full agent-browser operation vocabulary lives in `skills/browse/agent-browse
 ## Variables
 
 - **SCREENSHOTS_DIR:** base directory for this story's screenshots, passed via the prompt's `**SCREENSHOT_PATH**` field. Each step writes `00_<step-name>.png`, `01_<step-name>.png`, etc.
-- **TRACES_BASE:** base directory for failure traces (default `traces/`). On any step failure, capture a trace at `{TRACES_BASE}/<story-id>/<ISO-timestamp>.zip` BEFORE closing the session.
+- **TRACES_BASE:** base directory for failure traces (default `traces/`). Tracing is record-then-stop: recording starts right after `open` (Setup Step c), and on any step failure the trace is saved to `{TRACES_BASE}/<story-id>/<ISO-timestamp>.zip` via `trace stop` BEFORE closing the session. A trace cannot be captured retroactively — if recording never started, there is nothing to save.
 
 ## Test Isolation
 
@@ -58,12 +58,14 @@ Extract from the prompt:
 
 a. **Create the screenshot directory** (`mkdir -p {SCREENSHOT_PATH}` via the Bash tool).
 
-b. **Create the trace directory** (`mkdir -p {TRACES_BASE}/<story-id>` via the Bash tool) so a first-failure trace save (Section 6 Step 1) has somewhere to write — the CLI does not create missing parent directories for its output path.
+b. **Create the trace directory** (`mkdir -p {TRACES_BASE}/<story-id>` via the Bash tool) so a failure-path `trace stop` (Section 6 Step 1) has somewhere to write — the CLI does not create missing parent directories for its output path.
 
-c. **Open the session at the story URL:**
+c. **Open the session at the story URL, then start trace recording immediately:**
 ```
 agent-browser --session <story-id> open <url>
+agent-browser --session <story-id> trace start
 ```
+Recording must start here, before any step runs — `trace stop <path>` (Section 6 Step 1) can only save what was recorded, and a failure with no recording started yields no trace.
 
 d. **Set viewport** (if specified). The flag is cross-platform — no shell-specific env-var workarounds needed.
 ```
@@ -73,11 +75,11 @@ agent-browser --session <story-id> set viewport <width> <height>
 e. **Apply auth** before any interactive step:
 - **Auth (vault) present** — preferred path. The vault stores credentials encrypted, locally; the LLM never sees the password.
   ```
-  agent-browser --session <story-id> auth use <vault-name>
+  agent-browser --session <story-id> auth login <vault-name>
   ```
-  The user must have set the vault once before running the story:
+  `auth login` navigates to the vault's saved login URL, waits for the form fields, and submits. The user must have saved the vault once before running the story:
   ```
-  agent-browser auth set <vault-name> <username> <password>
+  agent-browser auth save <vault-name> --url <login-url> --username <username> --password <password>
   ```
   If the vault is missing, the orchestrator's Phase 2.5 pre-flight will have caught it — abort with a clear message rather than improvising: capture a trace immediately, BEFORE Teardown or Close run (see Section 6 Step 1 — Failure Handling), then proceed to Teardown (Section 5) and Close (Section 6 Step 3) before reporting FAIL.
 - **Auth (legacy) present** — fallback for projects that have not yet migrated. Navigate to the legacy auth `url`, fill the resolved username/password into the form, and submit.
@@ -97,36 +99,33 @@ For each step in the steps array:
 
 **Action steps** (have an `action` field):
 
-1. Resolve the semantic locator. The `locator:` field is one of:
-   - `{ role: <role>, name: <name> }` → `agent-browser --session <story-id> find role <role> --name "<name>"`
-   - `{ testid: <id> }` → `agent-browser --session <story-id> find testid <id>`
-   - `{ text: <text>, exact?: <bool> }` → `agent-browser --session <story-id> find text "<text>" [--exact]`
-   - `{ label: <label> }` → `agent-browser --session <story-id> find label "<label>"`
-   - `{ placeholder: <text> }` → `agent-browser --session <story-id> find placeholder "<text>"`
+1. Build the command. `find` locates semantically and performs the action in **one** command — `find <locator> <value> <action> [text]`. **The action argument is mandatory: a bare `find` with no action defaults to clicking the element**, so never run `find` as a probe. Locator mapping (the story's `action` field supplies `<action>`):
+   - `{ role: <role>, name: <name> }` → `agent-browser --session <story-id> find role <role> <action> --name "<name>"`
+   - `{ testid: <id> }` → `agent-browser --session <story-id> find testid <id> <action>`
+   - `{ text: <text>, exact?: <bool> }` → `agent-browser --session <story-id> find text "<text>" <action> [--exact]`
+   - `{ label: <label> }` → `agent-browser --session <story-id> find label "<label>" <action>`
+   - `{ placeholder: <text> }` → `agent-browser --session <story-id> find placeholder "<text>" <action>`
 
-   `find` returns a session-scoped `@eN` ref. NEVER store these refs across steps — each `find` resolves a fresh ref against the current snapshot.
+   Actions that are not element actions do not go through `find`:
+   - `screenshot` → `agent-browser --session <story-id> screenshot {SCREENSHOT_PATH}/<NN>_<step-name>-raw.png` (path is positional — there is no `--filename` flag; unannotated here, step 5 below captures the annotated version separately at the plain `<NN>_<step-name>.png` path)
+   - `assert_visible` → take a fresh `snapshot -i -c` and check the tree for an element matching the locator (role + accessible name, testid, text). Element present = PASS, absent = FAIL. Never phrase this as an action-less `find` — that clicks.
+   - `navigate` (rare; only inside step blocks) → `agent-browser --session <story-id> open <url>`
 
-   **Escaping story-supplied strings:** every `<name>`/`<text>`/`<label>`/`<placeholder>` above (and the `<value>`/`<text>` arguments used by `fill`/`type` in Step 3 below) is a story-authored string spliced into a double-quoted Bash argument. Before splicing any such string into a command, backslash-escape it for double-quoted-shell-argument safety, in this order: `\` → `\\`, then `"` → `\"`, `` ` `` → `` \` ``, and `$` → `\$` (escape backslashes first so the newly-inserted escape characters are not themselves re-escaped). Never interpolate a story-supplied string into a shell command unescaped.
+   **Escaping story-supplied strings:** every `<name>`/`<text>`/`<label>`/`<placeholder>` above (and the `<value>`/`<text>` arguments used by `fill`/`type`) is a story-authored string spliced into a double-quoted Bash argument. Before splicing any such string into a command, backslash-escape it for double-quoted-shell-argument safety, in this order: `\` → `\\`, then `"` → `\"`, `` ` `` → `` \` ``, and `$` → `\$` (escape backslashes first so the newly-inserted escape characters are not themselves re-escaped). Never interpolate a story-supplied string into a shell command unescaped.
 
-2. **Locator failure recovery:** If `find` returns 0 matches, take a fresh snapshot:
+2. **Execute the command.** For `fill`/`type`, the story's `value` field supplies the trailing `[text]` argument (escaped per Step 1): e.g. `find label "Email" fill "user@example.com"`.
+
+3. **Locator failure recovery:** If the `find` command errors with element-not-found, take a fresh snapshot:
    ```
    agent-browser --session <story-id> snapshot -i -c
    ```
-   Search the snapshot for an element matching the locator's intent (role + accessible name, testid, exact text). If you find an unambiguous match with a different but semantically equivalent locator (e.g., the `name` shifted from "Sign in" to "Sign In"), record the recovery in `recovered_locators` and use the new locator. If multiple elements match, do not recover — mark FAIL.
-
-3. **Execute the action** against the resolved ref. `<value>`/`<text>` are story-supplied — apply the same escaping rule from Step 1 above before splicing them into the double-quoted argument. Action mapping:
-   - `click` → `agent-browser --session <story-id> click <ref>`
-   - `fill` → `agent-browser --session <story-id> fill <ref> "<value>"`
-   - `type` → `agent-browser --session <story-id> type <ref> "<text>"`
-   - `screenshot` → `agent-browser --session <story-id> screenshot --filename {SCREENSHOT_PATH}/<NN>_<step-name>-raw.png` (unannotated; step 5 below captures the annotated version separately, at the plain `<NN>_<step-name>.png` path)
-   - `assert_visible` → resolve via `find` (success = element found); no further command needed
-   - `navigate` (rare; only inside step blocks) → `agent-browser --session <story-id> open <url>`
+   Search the snapshot for an element matching the locator's intent (role + accessible name, testid, exact text). If you find an unambiguous match with a different but semantically equivalent locator (e.g., the `name` shifted from "Sign in" to "Sign In"), record the recovery in `recovered_locators` and retry the action once — either via `find` with the corrected locator, or by acting on the matching `@eN` ref from this snapshot (`click @eN`, `fill @eN "<value>"`; refs are session-scoped and regenerate every snapshot — never reuse one across steps). If multiple elements match, do not recover — mark FAIL.
 
 4. If the step has a `verify` field, take a fresh snapshot and evaluate the assertion against the page state.
 
 5. **Take an annotated screenshot** after the action:
    ```
-   agent-browser --session <story-id> screenshot --annotate --filename {SCREENSHOT_PATH}/<NN>_<step-name>.png
+   agent-browser --session <story-id> screenshot --annotate {SCREENSHOT_PATH}/<NN>_<step-name>.png
    ```
 
 6. Mark PASS or FAIL.
@@ -194,11 +193,11 @@ Teardown runs at the end of every path through Setup and the step loop — wheth
 
 **On any step failure (assertion mismatch, locator unrecoverable, navigation timeout, blocking console error):**
 
-1. Capture a trace immediately, BEFORE Teardown (Section 5) or Close (Step 3 below) run:
+1. Save the trace immediately, BEFORE Teardown (Section 5) or Close (Step 3 below) run:
    ```
-   agent-browser --session <story-id> trace save {TRACES_BASE}/<story-id>/<ISO-timestamp>.zip
+   agent-browser --session <story-id> trace stop {TRACES_BASE}/<story-id>/<ISO-timestamp>.zip
    ```
-   Use a UTC ISO-8601 timestamp with colons replaced by `-` for filesystem safety (e.g., `2026-05-01T14-30-22Z`). The `{TRACES_BASE}/<story-id>` directory was already created in Setup (Section 2 Step b).
+   This stops the recording started in Setup (Section 2 Step c) and saves it to the given path. Use a UTC ISO-8601 timestamp with colons replaced by `-` for filesystem safety (e.g., `2026-05-01T14-30-22Z`). The `{TRACES_BASE}/<story-id>` directory was already created in Setup (Section 2 Step b). The saved file is a Chrome DevTools trace — a human opens it via Chrome DevTools → Performance → Load profile.
 
 2. Record the trace path in the failure record. Include it in the REPORT_JSON's failure entry and emit a `TRACE: <path>` line in the report so the orchestrator can surface it.
 
@@ -221,14 +220,14 @@ Return the structured report as detailed in the "Report" section below. If `reco
 ## Workflow — Legacy Format
 
 1. **Parse** the user story into discrete, sequential steps (support all legacy formats in the Examples section). Also parse `**Auth (vault):**` and `**Auth (legacy):**` if present.
-2. **Setup:** create the screenshot directory and the trace directory (`{TRACES_BASE}/<story-id>`); open the session at the story URL; if a viewport is set, apply it via `set viewport`; apply auth (vault preferred, legacy fallback) — see Structured Format Step 2.
+2. **Setup:** create the screenshot directory and the trace directory (`{TRACES_BASE}/<story-id>`); open the session at the story URL and start trace recording (`trace start`) immediately after `open`; if a viewport is set, apply it via `set viewport`; apply auth (vault preferred, legacy fallback) — see Structured Format Step 2.
 3. **Execute each step sequentially** (maintain a `caveats` array, initially empty):
    a. Resolve the target via `find` using a semantic locator inferred from the free-text step.
    b. Execute the action via the appropriate `agent-browser` command. Free-text-derived values (the story's narrative/checklist/BDD text) are spliced into double-quoted Bash arguments the same way structured-format `<value>`/`<text>` fields are — apply the escaping rule from "Escaping story-supplied strings" (Structured Format, Section 4 Step 1) before splicing any such string into a command.
    c. Take an annotated screenshot.
    d. Evaluate PASS or FAIL.
    e. On PASS: run the Caveat Detection check.
-   f. On FAIL: capture a trace, then stop. Mark remaining steps SKIPPED. Do NOT close here — Step 4 below is the single close point for both outcomes.
+   f. On FAIL: save the trace via `trace stop {TRACES_BASE}/<session>/<timestamp>.zip`, then stop executing. Mark remaining steps SKIPPED. Do NOT close here — Step 4 below is the single close point for both outcomes.
 4. **Close** the session via `agent-browser --session <session> close` — runs unconditionally, whether the story passed or a step 3f failure stopped it early.
 5. **Return** the structured report (with `TRACE:` line if a trace was captured).
 
