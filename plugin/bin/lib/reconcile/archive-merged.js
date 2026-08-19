@@ -90,6 +90,22 @@ function readConsoleState(runDir) {
 // failure leaves the run non-terminal and picked up again next pass; the
 // fs.existsSync guards below make a retry over an already-partially-moved
 // run dir a safe no-op on whatever already succeeded.
+// Multi-spec parent run dirs (`multi-spec.md`'s Run directory layout) nest
+// one `spec-{N}/` subdirectory per record, each carrying its own git-tracked
+// `work/{N}-spec.md` plus its own gitignored config.yml/decisions.md/staged/
+// (`multi-spec.md`: "Each spec-{N}/ carries its own config.yml"). A
+// single-spec run dir has none of these. Returns [] (not an error) when
+// runDir is unreadable — the top-level work/ move below still runs.
+function listSpecDirs(runDir) {
+  try {
+    return fs.readdirSync(runDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && e.name.startsWith('spec-'))
+      .map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
 function archiveRunDir(root, runDir) {
   const runId = path.basename(runDir);
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
@@ -99,10 +115,46 @@ function archiveRunDir(root, runDir) {
     return { ok: false, reason: 'mkdir-failed' };
   }
 
-  const workSrc = path.join(runDir, 'work');
-  if (fs.existsSync(workSrc)) {
-    const mv = runGit(['mv', workSrc, path.join(archiveDir, 'work')], root);
-    if (mv.failure) return { ok: false, reason: 'git-mv-failed' };
+  // Collects the actual set of entries this call moves, in move order — so
+  // a caller reporting what happened (e.g. hooks.js archive-run's "moved:"
+  // lines) reads it from here rather than re-deriving or hardcoding its own
+  // guess at the run dir's shape, which is the exact fixed-list drift this
+  // function's own enumeration swap (above) exists to eliminate.
+  const movedEntries = [];
+
+  const specDirs = listSpecDirs(runDir);
+
+  // Every git-tracked work/ subtree — the top-level one (single-spec
+  // layout) and one per spec-{N}/ subdirectory (multi-spec parent layout,
+  // #593) — moves via `git mv` in one batch, then one commit covers all of
+  // them. `work/` is deliberately git-tracked (materialize.md, "committed
+  // as audit trail, never gitignored") while the archive path itself is
+  // gitignored, so a plain mv + git add would register as a deletion; a
+  // multi-spec parent whose spec-{N}/work/ subtrees were previously left
+  // out of this move is exactly the bug this fixes — they used to survive
+  // untouched at the pre-archive path and resurrect on the next checkout,
+  // same mechanism as the top-level case the rest of this function already
+  // handled.
+  const workMoves = [];
+  const topWork = path.join(runDir, 'work');
+  if (fs.existsSync(topWork)) workMoves.push([topWork, path.join(archiveDir, 'work')]);
+  for (const specName of specDirs) {
+    const specWork = path.join(runDir, specName, 'work');
+    if (!fs.existsSync(specWork)) continue;
+    const specArchiveDir = path.join(archiveDir, specName);
+    try {
+      fs.mkdirSync(specArchiveDir, { recursive: true });
+    } catch {
+      return { ok: false, reason: 'mkdir-failed' };
+    }
+    workMoves.push([specWork, path.join(specArchiveDir, 'work')]);
+  }
+  if (workMoves.length) {
+    for (const [src, dest] of workMoves) {
+      const mv = runGit(['mv', src, dest], root);
+      if (mv.failure) return { ok: false, reason: 'git-mv-failed' };
+      movedEntries.push(path.relative(runDir, src));
+    }
     // The git mv above only stages the rename — this check runs headlessly
     // (SessionStart, dispatch's queue pull) with no interactive session
     // guaranteed to commit anything afterward, so an uncommitted rename
@@ -111,13 +163,82 @@ function archiveRunDir(root, runDir) {
     if (commit.failure) return { ok: false, reason: 'commit-failed' };
   }
 
-  for (const name of ['config.yml', 'decisions.md', 'events.jsonl', 'manifest.yml', 'console.json', 'run-state.json', 'staged']) {
-    const src = path.join(runDir, name);
-    if (!fs.existsSync(src)) continue;
+  // Tracked-entry guard: a git-tracked file in the run dir outside work/
+  // would otherwise be silently fs.renameSync'd (moved, not `git mv`'d) —
+  // the tracked blob would still point at the OLD path, corrupting history.
+  // #593 documents this class. work/ itself is already git-mv'd above.
+  if (fs.existsSync(runDir)) {
+    const lsFiles = runGit(['ls-files', runDir], root);
+    if (lsFiles.failure) return { ok: false, reason: 'ls-files-failed' };
+    const trackedOutsideWork = (lsFiles.stdout || '')
+      .split('\n')
+      .filter(Boolean)
+      .map((p) => path.relative(runDir, path.join(root, p)))
+      .filter((rel) => rel && !rel.startsWith('work' + path.sep) && rel !== 'work');
+    if (trackedOutsideWork.length > 0) {
+      return { ok: false, reason: 'tracked-entry' };
+    }
+
+    // TOCTOU: runDir could be deleted between the fs.existsSync(runDir) guard
+    // above and this read (review finding #902) — readdirSync would
+    // otherwise throw uncaught, propagating past every caller's own
+    // {ok, reason} contract (hooks.js's archive-run verb has no catch of
+    // its own around this call).
+    let entries;
     try {
-      fs.renameSync(src, path.join(archiveDir, name));
+      entries = fs.readdirSync(runDir);
     } catch {
-      return { ok: false, reason: 'move-failed' };
+      return { ok: false, reason: 'readdir-failed' };
+    }
+    // spec-{N}/ dirs are excluded here — their archive twins may already
+    // exist (created by the workMoves batch above), so a whole-dir rename
+    // would fail ENOTEMPTY; their contents move entry-by-entry in the
+    // dedicated spec loop below instead.
+    for (const name of entries.filter((n) => n !== 'work' && !specDirs.includes(n))) {
+      const src = path.join(runDir, name);
+      if (!fs.existsSync(src)) continue;
+      try {
+        fs.renameSync(src, path.join(archiveDir, name));
+      } catch {
+        return { ok: false, reason: 'move-failed' };
+      }
+      movedEntries.push(name);
+    }
+  }
+
+  // Each spec-{N}/ subdirectory's own gitignored content moves the same
+  // way, into its archive twin created above — then the now-empty
+  // spec-{N}/ itself is removed, mirroring the top-level cleanup below.
+  for (const specName of specDirs) {
+    const specDir = path.join(runDir, specName);
+    const specArchiveDir = path.join(archiveDir, specName);
+    // Enumerated, never a fixed list — the same #662/#902 drift class the
+    // top-level loop above eliminated: a fixed list here would strand any
+    // spec-level file outside it (e.g. engine-state.json), leaving specDir
+    // non-empty so the rmdir below silently fails and the half-archived
+    // spec dir resurfaces forever. work/ is already git-mv'd above.
+    if (!fs.existsSync(specDir)) continue;
+    let specEntries;
+    try {
+      specEntries = fs.readdirSync(specDir);
+    } catch {
+      return { ok: false, reason: 'readdir-failed' };
+    }
+    for (const name of specEntries.filter((n) => n !== 'work')) {
+      const src = path.join(specDir, name);
+      if (!fs.existsSync(src)) continue;
+      try {
+        fs.mkdirSync(specArchiveDir, { recursive: true });
+        fs.renameSync(src, path.join(specArchiveDir, name));
+      } catch {
+        return { ok: false, reason: 'move-failed' };
+      }
+      movedEntries.push(path.join(specName, name));
+    }
+    try {
+      fs.rmdirSync(specDir);
+    } catch {
+      /* best-effort — non-empty for an unexpected reason, or already gone */
     }
   }
 
@@ -137,7 +258,7 @@ function archiveRunDir(root, runDir) {
     /* best-effort — non-empty for an unexpected reason, or already gone */
   }
 
-  return { ok: true };
+  return { ok: true, movedEntries };
 }
 
 function archiveMerged({ cwd, dryRun = false } = {}) {
@@ -179,6 +300,6 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
 }
 
 module.exports = {
-  archiveMerged, decideArchive, readConsoleState, archiveRunDir,
+  archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
   isOrphanedMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS,
 };

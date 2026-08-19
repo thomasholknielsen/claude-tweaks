@@ -13,7 +13,7 @@ the main checkout. On a project with `worktree-always: true` set
 (`.claude-tweaks/policy.yml`), the PreToolUse gate denies some of the writes those two steps
 may still need to make from there — any write whose target isn't already inside a linked git
 worktree. Exactly what counts as a covered write is stated once, canonically, in
-`skills/_shared/policy-schema.md`'s `worktree-always` coverage block. This file cites that
+`skills/_shared/policy-schema-coverage.md`'s `worktree-always` coverage block. This file cites that
 block rather than restating it, per CLAUDE.md's own rule against duplicating it (`[IL-93]`:
 five files once restated an earlier, narrower version of that list, and all five went stale
 the next time the gate widened without a matching prose sweep). Check that block, not this

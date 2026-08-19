@@ -2,7 +2,6 @@
 files:
   - plugin/skills/_shared/pr-first-merge.md
   - plugin/skills/dispatch/SKILL.md
-  - plugin/skills/dispatch/settle-and-merge.md
   - plugin/skills/backlog/refine-mode.md
   - plugin/skills/_shared/github-pr-scan.md
 ---
