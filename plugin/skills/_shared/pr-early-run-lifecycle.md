@@ -210,9 +210,9 @@ time rather than tracking a local diff.
 **Multi-spec runs share one PR.** A dispatch bundle or a `/flow` multi-spec run has multiple
 records built on the same branch behind the same draft PR, so this procedure's checklist rows
 are **cumulative across every spec in the run, never reset per spec** — see
-`flow/multi-spec.md`'s "PR phase-checklist convention" section for the full rationale and the
-per-spec status source (`manifest.yml`'s `specs[].status`) a maintainer should read instead when
-they need spec-level, not run-level, granularity.
+`flow/multispec-pr-checklist.md` for the full rationale and the per-spec status source
+(`manifest.yml`'s `specs[].status`) a maintainer should read instead when they need spec-level,
+not run-level, granularity.
 
 ## Pre-merge title/description refresh
 
