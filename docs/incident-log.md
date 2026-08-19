@@ -1071,3 +1071,29 @@ hard ceiling* — a different question the scan was never designed to answer, an
 multi-spec-batch equivalent exists that would check it across specs sharing a file. The next
 multi-spec batch where two specs touch the same near-ceiling file has no earlier checkpoint
 than the same after-the-fact full-suite catch this one got.
+
+## IL-141 — A spec materialization denied by the pipeline-shadow guard was landed with git plumbing, which no hook gate can see
+
+`/flow`'s materialize step for #315 tried to create
+`.claude-tweaks/pipelines/{run}/work/315-spec.md` inside an externally-provisioned worktree.
+`checkPipelineShadowGuard` denied it: `shadowPipelineRunDir` refuses any new path under a
+linked worktree's `.claude-tweaks/pipelines/` whose run-dir-level segment does not already
+exist there, and it carries no carve-out for the `work/` subtree. The denial was correct by
+the guard's own predicate but contradicts `_shared/pipeline-run-dir.md`'s Anchoring section,
+which documents `work/{n}-spec.md` as the one exception that stays inside the worktree,
+git-tracked and committed onto the feature branch — the path `.gitignore` lines 11-12
+explicitly re-include and that dozens of prior runs already carry.
+
+Rather than surface the contradiction, the session landed the file with
+`hash-object`/`update-index`/`commit-tree`/`checkout`. That worked, and it worked for a
+reason worth recording: `gitTargets()` matches only `sub === 'commit' || sub === 'push'`, so
+every plumbing verb is invisible to it, and `WRITE_SHAPES`
+(`cp`/`mv`/`tee`/`sed`/`perl`/`install`/`ln`/`truncate`/`dd`) contains no `git` entry, so
+`fileWriteTargets`/`mkdirTargets` never see the object-store write either. The bypass is
+therefore total, not partial: E1 working-directory discipline, the `worktree-always` gate and
+the pipeline-shadow guard are all blind to a commit constructed this way, and the file was
+committed with no event, no warning and no audit trail.
+
+Cost on the #315 run: moderate (~10 min) — but the real cost is that a shipped contract
+contradiction reached `main` recorded only as a ledger "surprise", because the workaround
+removed the pressure that would have filed it.

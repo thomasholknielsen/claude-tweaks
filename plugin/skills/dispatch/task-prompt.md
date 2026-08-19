@@ -35,6 +35,10 @@ inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
 /superpowers:using-git-worktrees. Echo `pwd` and `git rev-parse --show-toplevel` before any
 commit and verify both resolve to that inherited worktree; if they resolve to the main
 checkout instead, STOP and report BLOCKED rather than committing.
+If your first commit is denied by the working-directory hook even though `pwd` and
+`git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
+assignment once with `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
+and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
@@ -94,6 +98,10 @@ the first call) -- you inherit it. Do NOT create, enter, or switch worktrees, an
 /superpowers:using-git-worktrees. Echo `pwd` and `git rev-parse --show-toplevel` before any
 commit and verify both resolve to that inherited worktree; if they resolve to the main
 checkout instead, STOP and report BLOCKED.
+If your first commit is denied by the working-directory hook even though `pwd` and
+`git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
+assignment once with `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
+and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.

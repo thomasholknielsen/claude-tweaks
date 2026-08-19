@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   isHttp404, isHttp422, ensureClaimsBranch, readClaimBlob, writeClaimBlob,
-  claimOne, releaseOne, claimGroup, claimFilePath,
+  claimOne, releaseOne, claimGroup, claimFilePath, tombstoneInFlightPr,
 } = require('../../../plugin/bin/lib/issues/claim-engine');
 
 const T0 = 1720000000000;
@@ -205,6 +205,181 @@ test('claimOne: a failed label/comment mirror never flips a successful claim to 
   assert.equal(result.outcome, 'claimed');
   assert.equal(result.mirror.labelOk, false);
   assert.equal(result.mirror.commentOk, false);
+});
+
+// ---- claimOne: pr-opened tombstone in-flight check ------------------------
+// #315 — a tombstone whose reason is `pr-opened: spec {n}` and carries a
+// `link` may point at a still-open PR: an already-completed build for this
+// same issue. Re-claiming (and re-building) in that case would race a live
+// PR. `claimOne` must consult the linked PR's state before treating the
+// tombstone as a plain reclaim, and must fail OPEN (fall through to today's
+// reclaim behavior) on anything but a positive `OPEN` reading.
+
+function prOpenedTombstone(link) {
+  return JSON.stringify({ released: true, runId: 'run-1', reason: 'pr-opened: spec 272', releasedAt: new Date(T0).toISOString(), link });
+}
+
+test('claimOne: pr-opened tombstone with an OPEN linked PR -> in-flight, never reclaims', () => {
+  const calls = [];
+  const runner = (args) => {
+    calls.push(args);
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT')) throw new Error('must not write a fresh claim while the linked PR is still open');
+    if (joined.includes('contents/claims/')) return JSON.stringify({ content: prOpenedTombstone('https://github.com/acme/w/pull/304'), sha: 'shaT' });
+    if (joined.startsWith('pr view')) {
+      assert.ok(joined.includes('https://github.com/acme/w/pull/304'));
+      return 'OPEN\n';
+    }
+    throw new Error('unexpected ' + joined);
+  };
+  const result = claimOne({ owner: 'acme', repo: 'w', issueNumber: 272, runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner });
+  assert.equal(result.outcome, 'in-flight');
+  assert.equal(result.state, 'tombstone');
+  assert.equal(result.link, 'https://github.com/acme/w/pull/304');
+  assert.ok(!calls.some((c) => c.join(' ').startsWith('api --method PUT')), 'no claim write must happen while the PR is open');
+});
+
+test('claimOne: pr-opened tombstone whose linked PR is CLOSED/MERGED -> falls through to today\'s reclaim', () => {
+  const calls = [];
+  const runner = (args) => {
+    calls.push(args);
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT')) return '{}';
+    if (joined.includes('contents/claims/')) return JSON.stringify({ content: prOpenedTombstone('https://github.com/acme/w/pull/304'), sha: 'shaT' });
+    if (joined.startsWith('pr view')) return 'MERGED\n';
+    if (joined.includes('issue edit') || joined.includes('issue comment')) return '{}';
+    throw new Error('unexpected ' + joined);
+  };
+  const result = claimOne({ owner: 'acme', repo: 'w', issueNumber: 272, runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner });
+  assert.equal(result.outcome, 'claimed');
+  assert.equal(result.state, 'tombstone');
+  assert.ok(calls.some((c) => c.join(' ').startsWith('api --method PUT') && c.join(' ').includes('sha=shaT')), 'must reclaim via a conditional write once the linked PR is closed/merged');
+});
+
+test('claimOne: pr-opened tombstone whose gh pr view call itself fails -> fails open, reclaims', () => {
+  const runner = (args) => {
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT')) return '{}';
+    if (joined.includes('contents/claims/')) return JSON.stringify({ content: prOpenedTombstone('https://github.com/acme/w/pull/304'), sha: 'shaT' });
+    if (joined.startsWith('pr view')) throw new Error('gh: could not resolve to a PullRequest (HTTP 404)');
+    if (joined.includes('issue edit') || joined.includes('issue comment')) return '{}';
+    throw new Error('unexpected ' + joined);
+  };
+  const result = claimOne({ owner: 'acme', repo: 'w', issueNumber: 272, runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner });
+  assert.equal(result.outcome, 'claimed', 'a gh failure on the in-flight check must never wedge the claim path');
+});
+
+test('claimOne: merged: tombstone reason is unaffected — no gh pr view call, reclaims as before', () => {
+  const calls = [];
+  const runner = (args) => {
+    calls.push(args);
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT')) return '{}';
+    if (joined.includes('contents/claims/')) {
+      return JSON.stringify({ content: JSON.stringify({ released: true, runId: 'run-1', reason: 'merged: spec 12', releasedAt: new Date(T0).toISOString(), link: 'https://github.com/acme/w/commit/deadbeef' }), sha: 'shaT' });
+    }
+    if (joined.includes('issue edit') || joined.includes('issue comment')) return '{}';
+    throw new Error('unexpected ' + joined);
+  };
+  const result = claimOne({ owner: 'acme', repo: 'w', issueNumber: 12, runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner });
+  assert.equal(result.outcome, 'claimed');
+  assert.ok(!calls.some((c) => c.join(' ').startsWith('pr view')), 'a non-pr-opened reason must never trigger the PR-state check');
+});
+
+test('claimOne: plain tombstone with no link at all -> reclaims exactly as before (no in-flight check applies)', () => {
+  const runner = (args) => {
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT')) return '{}';
+    if (joined.includes('contents/claims/')) {
+      return JSON.stringify({ content: JSON.stringify({ released: true, runId: 'run-1', reason: 'pr-opened: spec 9', releasedAt: new Date(T0).toISOString() }), sha: 'shaT' });
+    }
+    if (joined.includes('issue edit') || joined.includes('issue comment')) return '{}';
+    throw new Error('unexpected ' + joined);
+  };
+  const result = claimOne({ owner: 'acme', repo: 'w', issueNumber: 9, runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner });
+  assert.equal(result.outcome, 'claimed');
+});
+
+// ---- tombstoneInFlightPr: same-repo link validation (#315 review follow-up) ----
+// `link` is read straight from a claims-registry blob, writable by any
+// session with registry-branch access. An unvalidated `link` could point at
+// a permanently-open PR in an unrelated repo (or a malformed/non-string
+// value) and wedge every future reclaim of the real issue — a stored-DoS on
+// the claim path. Every invalid shape must return null WITHOUT ever calling
+// `runner` (no `gh pr view`), falling through to ordinary reclaim exactly
+// like a missing link.
+
+function refusesWithoutRunnerCall(link) {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = prOpenedTombstone(link);
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.equal(result, null);
+  assert.equal(calls.length, 0, 'an invalid link must never reach the runner (no gh pr view call)');
+}
+
+test('tombstoneInFlightPr: link pointing at a DIFFERENT repo -> null, no runner call', () => {
+  refusesWithoutRunnerCall('https://github.com/other-owner/other-repo/pull/304');
+});
+
+test('tombstoneInFlightPr: malformed/non-URL link -> null, no runner call', () => {
+  refusesWithoutRunnerCall('not-a-url');
+});
+
+test('tombstoneInFlightPr: non-string link (a number) -> null, no runner call', () => {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = JSON.stringify({ released: true, runId: 'run-1', reason: 'pr-opened: spec 272', releasedAt: new Date(T0).toISOString(), link: 304 });
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.equal(result, null);
+  assert.equal(calls.length, 0, 'a non-string link must never reach the runner');
+});
+
+test('tombstoneInFlightPr: a flag-shaped link ("--repo") -> null, no runner call', () => {
+  refusesWithoutRunnerCall('--repo');
+});
+
+test('tombstoneInFlightPr: same-repo, well-formed, OPEN link -> { link }, one runner call', () => {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = prOpenedTombstone('https://github.com/acme/w/pull/304');
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.deepEqual(result, { link: 'https://github.com/acme/w/pull/304' });
+  assert.equal(calls.length, 1);
+});
+
+test('claimOne: pr-opened tombstone whose link points at a DIFFERENT repo -> reclaims (no pr view call)', () => {
+  const calls = [];
+  const runner = (args) => {
+    calls.push(args);
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT')) return '{}';
+    if (joined.includes('contents/claims/')) return JSON.stringify({ content: prOpenedTombstone('https://github.com/other-owner/other-repo/pull/304'), sha: 'shaT' });
+    if (joined.includes('issue edit') || joined.includes('issue comment')) return '{}';
+    throw new Error('unexpected ' + joined);
+  };
+  const result = claimOne({ owner: 'acme', repo: 'w', issueNumber: 272, runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner });
+  assert.equal(result.outcome, 'claimed');
+  assert.ok(!calls.some((c) => c.join(' ').startsWith('pr view')), 'a wrong-repo link must never trigger the PR-state check');
+});
+
+// ---- claimGroup: in-flight is explicit, distinct from contested/errored ---
+
+test('claimGroup: an in-flight target is reported in its own bucket, not merged into errored', () => {
+  const runner = (args) => {
+    const joined = args.join(' ');
+    if (joined.startsWith('api --method PUT')) throw new Error('must not write while the linked PR is open');
+    if (joined.includes('contents/claims/issue-272.json')) return JSON.stringify({ content: prOpenedTombstone('https://github.com/acme/w/pull/304'), sha: 'shaT' });
+    if (joined.startsWith('pr view')) return 'OPEN\n';
+    throw new Error('unexpected ' + joined);
+  };
+  const result = claimGroup({ owner: 'acme', repo: 'w', issueNumbers: [272], runId: 'run-2', sessionId: 's', host: 'h', now: T0, runner, keepGoing: false });
+  assert.deepEqual(result.claimed, []);
+  assert.equal(result.errored.length, 0, 'an in-flight result must not be reported as an error');
+  assert.equal(result.contested.length, 0, 'an in-flight result must not be reported as contested');
+  assert.equal(result.inFlight.length, 1);
+  assert.equal(result.inFlight[0].issueNumber, 272);
+  assert.equal(result.inFlight[0].link, 'https://github.com/acme/w/pull/304');
 });
 
 // ---- releaseOne ------------------------------------------------------------
