@@ -8,6 +8,15 @@ Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — 
 
 Extracted to `_shared/forge-detection.md` (the re-read cut: a consumer needing only the three-check gate no longer has to load this file's full 39 KB to get it). This heading stays as a stub so existing section references still resolve in one hop. Every scope section below still runs behind this ladder exactly as before — read `forge-detection.md` for the checks, the skip-row format, the fail-open posture, and the transport-aware check-2 note.
 
+## `gh`-absent handling (MCP fallback)
+
+Per `forge-detection.md`'s transport-aware check-2 note, a consumer with a documented MCP fallback does not stop at check 2 when `gh` is absent — it proceeds via that path instead. This file is such a consumer, but only partially: its `gh issue list`/`gh issue view` calls route through `_shared/github-write-transport.md`'s CRUD mapping (`list_issues`/`issue_read`) when `gh` is absent; its `gh pr list`/`gh pr view`/`gh pr checks` calls and the PR `reviewThreads` GraphQL query do not — that mapping carries no PR row (issues only, confirmed by reading it). This is a deliberate scope decision, not an oversight: adding a PR row to the CRUD mapping was considered and rejected in favor of the narrower, smaller fix below (#172).
+
+Consequently every PR-based call in this file degrades **individually** rather than the whole scan skipping wholesale on `gh`'s absence alone: a step whose call is `gh pr *`-only reports `[pr] {step} skipped — no MCP support for PR data (gh CLI required)`, severity `info`, for that step alone, while any issue-based step in the same scope still runs via MCP.
+
+- **`current-pr`** (Stage 4.5) is PR-only end to end — all four items call `gh pr view`/the PR `reviewThreads` query/`gh pr checks`/`gh pr list` — so it degrades as a whole scope under `gh`-absent. That's the per-item rule applied to a scope where every item happens to be PR-based, not a special case.
+- **`repo-wide`** (Step 4.8) is mixed: items 1, 2, 4, and 9 (open-PR list, PR review threads, merged/closed-PR cross-check, unarmed-PR sweep) are PR-only and degrade individually; items 3, 5, 6, 7, and 8 (the four `by:*-health` issue lists and the grant-queue counts) are issue-only and route through `list_issues`. Item 10 (unsettled run) is mixed at the sub-step level: the claims-registry read (`_shared/issue-claims.md`'s "List all claims" MCP path) and the `bot:in-progress` issue lookup (`list_issues`) both have MCP paths; the PR cross-check (`gh pr list --state all`) does not — see that item's own note below for how it degrades.
+
 ## Staleness Thresholds
 
 Keyed on `updatedAt`. Same scale as /tidy's backlog-record audit:
@@ -20,7 +29,7 @@ Keyed on `updatedAt`. Same scale as /tidy's backlog-record audit:
 
 ## Scope: `current-pr` (consumed by /help Stage 4.5)
 
-Deep scan of the current branch's PR only, plus one cheap repo-wide count.
+Deep scan of the current branch's PR only, plus one cheap repo-wide count. **`gh`-absent:** this whole scope is PR-only and has no MCP fallback — see "`gh`-absent handling" above; it degrades as a whole scope (`[pr] Current PR scan skipped — no MCP support for PR data (gh CLI required)`, severity `info`), not via check 2's generic "GitHub scan skipped" message.
 
 1. **PR lookup** — `gh pr view --json number,title,isDraft,reviewDecision,statusCheckRollup,closingIssuesReferences,url`. Non-zero exit means no PR for the current branch → emit one info row (`No open PR for current branch`), then run item 4 only.
 2. **Unresolved review threads** — resolve `{owner}` and `{repo}` via `gh repo view --json owner,name -q '.owner.login + " " + .name'`, `{number}` from item 1, then run exactly:
@@ -37,6 +46,8 @@ Emit `[pr]` rows per the Output Contract.
 ## Scope: `repo-wide` (consumed by /tidy Step 4.8)
 
 Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, `by:journey-health`-labelled issues, and `by:docs-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/step-1-records.md`).
+
+**`gh`-absent:** items 3, 5, 6, 7, and 8 route through `list_issues` (MCP); items 1, 2, 4, and 9, plus item 10's PR cross-check, are PR-only and degrade individually — see "`gh`-absent handling" above.
 
 > **Parallel execution:** Use parallel tool calls aggressively — items 1, 3, 4, 5, 6, 7, 8, and the initial fetches of items 9 and 10 below, plus each open PR's own review-thread query in item 2, are independent gh/bash calls with no dependency on one another and should run concurrently. Item 9's per-candidate thread/link fetches and item 10's per-issue claim-blob reads depend on their own item's earlier filter step, so only those later sub-steps are sequential.
 
@@ -187,7 +198,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
       > /tmp/pr-scan-unsettled-prs.json
     ```
 
-    A live claim with `claimedAt` older than `unsettled-age-hours` qualifies; a `bot:in-progress` label with no matching claim entry above qualifies once its `updatedAt` clears the same threshold. For a qualifying candidate, find the PR whose `closingIssuesReferences` includes its issue number. **No PR found** qualifies unconditionally — there is nothing to check progress against. A PR found qualifies only when its progress — the later of its last head-branch commit date and its last comment date, any actor, bot comments included — is **no more recent than the claim's `claimedAt`** (nothing has happened since the claim was taken, however active the PR looked when it was first opened); a PR with newer activity is not unsettled; it does not report:
+    A live claim with `claimedAt` older than `unsettled-age-hours` qualifies; a `bot:in-progress` label with no matching claim entry above qualifies once its `updatedAt` clears the same threshold. Fetches 1 and 2 above have MCP fallbacks (the claims-registry read and `list_issues` respectively); fetch 3 (`gh pr list --state all`) does not — under `gh`-absent, skip fetch 3 and report every qualifying candidate as `[unsettled] #{n}: no PR data available (gh absent) — resume: node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile, then re-run /claude-tweaks:dispatch or /claude-tweaks:flow #{n}` instead of attempting the match below. On `gh`, for a qualifying candidate, find the PR whose `closingIssuesReferences` includes its issue number. **No PR found** qualifies unconditionally — there is nothing to check progress against. A PR found qualifies only when its progress — the later of its last head-branch commit date and its last comment date, any actor, bot comments included — is **no more recent than the claim's `claimedAt`** (nothing has happened since the claim was taken, however active the PR looked when it was first opened); a PR with newer activity is not unsettled; it does not report:
 
     ```bash
     node -e "

@@ -55,6 +55,8 @@ branch, gated on the same detection check above — see `_shared/issue-claims.md
 procedure. Health-state's cursor CAS is *not* this pattern (it is a plain non-force `git
 push`) — see the note at the top of this file before adding it back here.
 
+**Pull requests are deliberately not in this mapping.** This CRUD mapping covers issues only — no `list_pull_requests`/`get_pull_request` row exists, and none is planned. A `gh pr *` caller (`_shared/github-pr-scan.md`'s PR-based scan items) has no MCP fallback and degrades per-item on `gh`-absence instead — see that file's own "`gh`-absent handling" section for the scoped alternative that was chosen over widening this mapping (#172).
+
 ## Pacing scripted mutation sequences
 
 Any scripted sequence of mutative calls through either transport follows

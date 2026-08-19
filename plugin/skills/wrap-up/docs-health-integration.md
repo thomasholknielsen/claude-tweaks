@@ -39,13 +39,13 @@ For each doc in scope:
 Route surviving findings by `classification`:
 
 - **`additive`** → collect as `[doc] {file} — {description}` rows. In every mode they surface in the Review Console's own "Documentation updates" section (`review-console.md`), which owns the one terminal decision — applied at Phase 4's execution step exactly like any other approved doc edit.
-- **`restructural`** → file as a `by:docs-health` GitHub issue via the existing dedup/filing CLI machinery, scoped to exactly this run's touched-doc IDs instead of a `next-target` rotation pick:
+- **`restructural`** → file as a `by:docs-health` GitHub issue via the existing dedup/filing CLI machinery, scoped to exactly this run's touched-doc IDs instead of a `next-target` rotation pick. `gh` present:
 
   ```bash
   gh issue list --label by:docs-health --state all --json number,state,labels,body --limit 500 > /tmp/wrapup-docs-health-issues-raw.json
   ```
 
-  Parse via `extractFingerprint` (`bin/lib/issues/record.js`) into `{ number, state, labels, fingerprint }` objects, same as `/claude-tweaks:docs-health` Step 4, and write to `/tmp/wrapup-docs-health-issues.json`. Write this check's `restructural` findings to `/tmp/wrapup-docs-health-findings.json` in the same finding shape `_shared/criteria-docs-diataxis.md`'s "Emitting a finding" section defines, then:
+  `gh` absent → route via `list_issues` (MCP), filtered by label `by:docs-health`, state `all`, per `_shared/github-write-transport.md`'s CRUD mapping — write the same `{number, state, labels, body}` shape to the same temp file so the rest of this step is unaffected. Either way, parse via `extractFingerprint` (`bin/lib/issues/record.js`) into `{ number, state, labels, fingerprint }` objects, same as `/claude-tweaks:docs-health` Step 4, and write to `/tmp/wrapup-docs-health-issues.json`. Write this check's `restructural` findings to `/tmp/wrapup-docs-health-findings.json` in the same finding shape `_shared/criteria-docs-diataxis.md`'s "Emitting a finding" section defines, then:
 
   ```bash
   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" validate-findings /tmp/wrapup-docs-health-findings.json \
