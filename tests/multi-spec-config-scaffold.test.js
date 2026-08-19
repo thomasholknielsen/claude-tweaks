@@ -8,12 +8,16 @@
 // /flow in the same step that creates the subdirectory (Step 3)") but no
 // step anywhere in flow/SKILL.md or flow/multi-spec.md ever actually
 // performed it — Step 3 is the parent-level Manifesto, which never touches
-// a spec-{N}/ subdirectory. Two things are pinned here: the prose now states
-// a concrete scaffolding step (not just an assertion), and the underlying
-// mechanism — resolve-policy.js reading whatever --run dir it's given —
-// already resolves correctly once that directory actually carries a
-// config.yml, so the fix is prose-only; no resolve-policy.js code change was
-// needed or made.
+// a spec-{N}/ subdirectory. The concrete scaffolding step lives in the
+// extracted sub-file multispec-config-scaffold.md (multi-spec.md itself
+// sits at its ~20KB read budget — #724 — with no headroom for the full
+// explanation inline). Three things are pinned here: multi-spec.md cites
+// the sub-file at the right ordering point, the sub-file itself states a
+// concrete scaffolding step (not just an assertion) and corrects the false
+// Step-3 attribution, and the underlying mechanism — resolve-policy.js
+// reading whatever --run dir it's given — already resolves correctly once
+// that directory actually carries a config.yml, so the fix is prose-only;
+// no resolve-policy.js code change was needed or made.
 'use strict';
 const { test, after } = require('node:test');
 const assert = require('node:assert');
@@ -24,21 +28,30 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const MULTI_SPEC = fs.readFileSync(path.join(ROOT, 'plugin', 'skills', 'flow', 'multi-spec.md'), 'utf8');
+const SCAFFOLD_SUBFILE = fs.readFileSync(path.join(ROOT, 'plugin', 'skills', 'flow', 'multispec-config-scaffold.md'), 'utf8');
 const CLI = path.join(ROOT, 'plugin', 'bin', 'resolve-policy.js');
 const FIXTURES = path.join(__dirname, 'fixtures', 'resolve-policy');
 
-test("multi-spec.md states a concrete scaffolding step, not just an assertion", () => {
+test("multi-spec.md cites the scaffolding sub-file at the right point", () => {
   assert.match(
     MULTI_SPEC,
-    /cp\s+"\{parent\}\/config\.yml"\s+"\{parent\}\/spec-\{N\}\/config\.yml"/,
-    'the prose must give the literal copy command — an assertion that a copy "exists" with no step performing it is exactly the gap #925 fixes',
+    /Scaffold the per-spec subdirectory before exporting its `PIPELINE_RUN_DIR`.*multispec-config-scaffold\.md/,
+    'multi-spec.md must point downstream readers to the sub-file that actually states the scaffolding step',
   );
 });
 
-test("multi-spec.md corrects the false Step-3 attribution", () => {
+test("multispec-config-scaffold.md states a concrete scaffolding step, not just an assertion", () => {
   assert.match(
-    MULTI_SPEC,
-    /not the parent-level Manifesto, Step 3, which writes only the parent's own `config\.yml`/,
+    SCAFFOLD_SUBFILE,
+    /cp\s+"\{parent\}\/config\.yml"\s+"\{parent\}\/spec-\{N\}\/config\.yml"/,
+    'the sub-file must give the literal copy command — an assertion that a copy "exists" with no step performing it is exactly the gap #925 fixes',
+  );
+});
+
+test("multispec-config-scaffold.md corrects the false Step-3 attribution", () => {
+  assert.match(
+    SCAFFOLD_SUBFILE,
+    /Step 3 is the parent-level Manifesto[\s\S]*?which writes only the \*\*parent's\*\* `config\.yml`/,
     'Step 3 (the Manifesto) only ever wrote the parent config.yml — citing it as the copy site was itself part of the #925 gap and must not resurface',
   );
 });
