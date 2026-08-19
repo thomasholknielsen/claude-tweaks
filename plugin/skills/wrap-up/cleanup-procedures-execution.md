@@ -214,13 +214,25 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    it holds for `--no-ff`, fast-forward, and squash/rebase merges alike, all of which the SHA
    equality test alone would reject.
 
-   For a worktree this session does **not** occupy and that `git worktree list --porcelain`
-   shows unlocked, `git worktree remove {path}` is fine.
-5. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
-6. If the branch was merged (the same condition step 5 just checked), also delete the
-   remote branch — run `_shared/pr-first-merge-post-merge.md`'s `## Step 5: Delete the remote
-   branch` against `{branch}`. Skip silently if the branch was kept for an open PR
-   (step 5's own condition) or if no remote tracking ref exists for it.
+   For a worktree this session does **not** occupy, use `teardown-run` (below) instead of a raw
+   `git worktree remove` — it already checks `git worktree list --porcelain` for you and skips
+   (never forces) a locked one.
+5. **Steps 5-6, subsumed into one call.** For a worktree this session does not occupy, run:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" teardown-run --run "$RUN_DIR" \
+     --merged  # or --abandoned when the branch was discarded, not merged
+   ```
+
+   One command performs archival (idempotent if Section B already archived this run — a second
+   pass is a harmless no-op), worktree removal (skip-and-report if locked, never forced), the
+   local branch delete (only under `--merged`, and only when the branch isn't the integration
+   branch itself), and the remote branch delete (`pr-first-merge-post-merge.md`'s `## Step 5:
+   Delete the remote branch` mechanism, verbatim) — replacing what used to be 4-5 hand-assembled
+   commands per run. **Own-worktree carve-out:** never call `teardown-run` against the worktree
+   the session is standing in — that removal path is `ExitWorktree` only, per step 4 above and
+   `[IL-58]`; `teardown-run`'s own worktree-removal step is for a worktree this session does not
+   occupy.
 
 If no worktree exists for this spec, skip this section silently.
 
