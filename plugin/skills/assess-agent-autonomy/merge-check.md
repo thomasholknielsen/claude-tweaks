@@ -18,10 +18,12 @@ started from.
 
 - **Otherwise**, resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` and pass
   it as `--integration-branch`. If nothing resolves — no `origin` remote, no `gh` auth, an
-  offline or detached runner — stop here. This is the `could-not-gather` case `SKILL.md`'s Error
-  Handling already covers, not a hard crash. Render Step 3 directly: `VERDICT: needs-human` /
-  `RATIONALE: {name the specific resolution failure, e.g. "could not resolve this project's
-  integration branch"}`, and skip the rest of this mode's procedure.
+  offline or detached runner — stop here. This is the `could-not-gather` case (see
+  `_gather-resilience.md`'s Could-not-gather section — the same shape `grant-check`/
+  `failure-check`'s Step 1 use, minus the MCP-fallback parameter this mode has no equivalent
+  for), not a hard crash. Render Step 3 directly: `VERDICT: needs-human` / `RATIONALE: {name the
+  specific resolution failure, e.g. "could not resolve this project's integration branch"}`, and
+  skip the rest of this mode's procedure.
 
 The whole gather — merge-base resolution, the numstat diff, this project's
 `merge-sensitive-paths`/`auto-merge-max-lines`/`auto-merge-max-files` config, and the
@@ -42,7 +44,7 @@ stderr, no JSON — when the merge base cannot be resolved, so a resolution fail
 read as a 0-file blast radius that clears every threshold (the silent-approval hazard the
 previous multi-command shell choreography here guarded against with prose alone, #888). On a
 non-zero exit, render Step 3 directly: `VERDICT: needs-human` / `RATIONALE: {the CLI's stderr
-line}` — the same handling as an unresolvable integration branch above.
+line}` — the same could-not-gather handling as the unresolvable integration branch case above.
 
 Measuring from the integration branch rather than the GitHub default is what makes blast radius
 mean the record's own change. Against a branch that diverged long ago, the merge base is ancient
