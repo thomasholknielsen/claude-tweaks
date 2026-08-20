@@ -19,13 +19,13 @@ files:
 
 2. **Confirm (or edit) the Manifesto** — Pick "Provision with current values", or "Change a lever" to edit any of the five (each re-asked individually, written to `policy.yml`, table re-rendered).
    - **Check:** Any value written here echoes again in the final summary — no silent config write.
-   - **Check:** `autonomy` reaches further than row 9's provisioning gate. With `housekeeping-auto-merge` left unset, `trusted`/`unattended` is what its effective default derives from (#580), so row 11's weekly tidy may arm `--auto` on its own green, marker-stamped housekeeping PRs instead of staging them. Writing `housekeeping-auto-merge` explicitly in `policy.yml` overrides the derivation in both directions.
+   - **Check:** `autonomy` reaches further than row 10's provisioning gate. With `housekeeping-auto-merge` left unset, `trusted`/`unattended` is what its effective default derives from (#580), so row 12's weekly tidy may arm `--auto` on its own green, marker-stamped housekeeping PRs instead of staging them. Writing `housekeeping-auto-merge` explicitly in `policy.yml` overrides the derivation in both directions.
 
 3. **Cloud-parity check** — The skill verifies the environment's Setup-script reality before creating billed infrastructure.
    - **Check:** A parity note names what was verified (or what could not be), per `fleet.md` Step 2.
 
 4. **Provisioning loop** — The skill walks the fleet composition table (four focus-scoped code-health finders at 15-minute offsets, the generalist sweeps, the conditional grant unit, the dispatch drain, tidy weekly), running the existing CREATE/UPDATE procedure per row with fleet-resolved crons instead of the interactive cadence picker.
-   - **Check:** Row 9 (the backlog grant unit) provisions **only** when `autonomy: unattended` AND `grant-origination-enabled: true` were both already set — otherwise it is reported as skipped with the two-key reason. A repo missing a template gets a partial fleet with each skipped row named, never a refusal.
+   - **Check:** Row 10 (the backlog grant unit) provisions **only** when `autonomy: unattended` AND `grant-origination-enabled: true` were both already set — otherwise it is reported as skipped with the two-key reason. A repo missing a template gets a partial fleet with each skipped row named, never a refusal.
 
 5. **Summary** — One table: each row's PREFIXED_NAME, created vs adopted vs reconciled vs skipped, its cron, and every policy value the Manifesto wrote.
    - **Check:** A second `fleet on` run is an idempotent reconcile — existing routines (including any created earlier by standalone `create`) are adopted or re-synced, never duplicated.
