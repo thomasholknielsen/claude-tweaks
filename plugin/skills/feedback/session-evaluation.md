@@ -56,8 +56,10 @@ below.
 Task agent, no self-assessment. Gather 2 contributes nothing new to this invocation's merged
 batch. Report a pointer to the prior watermark's `issueUrls` (below) in the Step 0 run summary
 instead of a fresh finding list: "session evaluation unchanged since {evaluatedAt} — prior filings:
-{issueUrls, or "none" if empty}." `--full` bypasses this check entirely (SKILL.md's Input table)
-and always dispatches fresh, exactly as today.
+{issueUrls, or "none" if empty or absent}." A watermark written before this field existed (a
+pre-#701 stamp) has no `issueUrls` at all, not merely an empty one — treat absent the same as
+empty rather than surfacing `undefined`. `--full` bypasses this check entirely (SKILL.md's Input
+table) and always dispatches fresh, exactly as today.
 
 **When `false` (grown, or no watermark exists):** proceed to the judge dispatch as today —
 `_shared/transcript-judge.md`'s own offset clause (item 5 of the Prompt contents) already scopes
