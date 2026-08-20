@@ -116,7 +116,20 @@ connectors caveat in step 6 below).
 6. Fill in the routine's own real fields on that same form — confirmed live against the actual
    new-routine form layout:
    - Type `routine_name` into the "Name" field.
-   - Type `instructions` into the "Instructions" textarea.
+   - Fill the "Instructions" textarea in bounded chunks rather than one unbounded `type` call.
+     **Do not issue a single `type` call for the full `instructions` string.** Confirmed failure
+     mode: a single-shot `type` of a multi-KB prompt (the common case — 6 of 7 shipped routine
+     templates embed a multi-KB cloud self-heal preamble ahead of their `Then:
+     /claude-tweaks:<skill>` kickoff line) froze the tab's renderer — `screenshot`/`read_page`
+     timed out (`Script injection timed out`, then `Page still loading (executeScript waited
+     45000ms for document_idle)`) for over a minute before partial recovery. Click the textarea to
+     focus it, then split `instructions` into successive chunks of at most 500 characters (break
+     each chunk at the nearest preceding whitespace boundary when one exists within the last 50
+     characters of the cut point, so a word is not split mid-token; otherwise cut at exactly 500),
+     and issue one `type` call per chunk into the already-focused field, inserting an explicit
+     400ms `wait` between chunks so the renderer can catch up before the next injection. A prompt
+     at or under 500 characters fits in a single chunk, so the existing single-`type`-call
+     behavior for small prompts is unchanged.
    - Click the "Schedule" trigger tile. If `cron_expression` was passed, click its "Custom" sub-tab
      (alongside Once / Hourly / Daily / Weekdays / Weekly) — confirmed live that this reveals a raw
      "Cron expression" text field, pre-filled with a default derived from whatever cadence tab was
