@@ -210,6 +210,27 @@ function resolveRunDir(cwd, env, sessionId) {
   return resolveRun(cwd, env, sessionId).dir;
 }
 
+// Ownership classification (#1098): composite identity — session id AND
+// worktree binding. Session-id equality is NOT sufficient evidence of
+// ownership: CLAUDE_CODE_SESSION_ID is shared across all subagents of a
+// session (measured 2026-08-20, #965), so N parallel siblings are
+// indistinguishable by it — only the worktree binding separates them.
+// Fail-open: unprovable evidence (deleted binding, indeterminate git answer,
+// caller outside any known checkout, missing cwd) degrades to
+// 'indeterminate', never 'foreign' — preserving resolveRun's documented
+// asymmetry: an unowned run may still be ours; a provably-foreign run never is.
+// `caller.cwd` must be absolute (same convention as findRunByWorktreePath's
+// pre-resolved target). This predicate only classifies — it enforces
+// nothing; consumers (#1012, #1099) own what each verdict does.
+function classifyOwnership(caller, runState) {
+  const callerId = caller && typeof caller.sessionId === 'string' && caller.sessionId ? caller.sessionId : null;
+  const ownerId = runState && typeof runState.sessionId === 'string' && runState.sessionId ? runState.sessionId : null;
+  if (callerId && ownerId && callerId !== ownerId) return 'foreign';
+  const cwd = caller && typeof caller.cwd === 'string' && caller.cwd ? caller.cwd : null;
+  if (!cwd) return 'indeterminate';
+  return 'indeterminate'; // binding arms land in Task 2, no-binding arms in Task 3
+}
+
 // Shared by findRunByWorktreePath/findRunsByWorktreePath below: does this
 // run-state's recorded `worktree` match targetPath? Realpath-canonicalizes
 // both sides where they exist on disk (recorded assignments are already
@@ -371,6 +392,6 @@ function appendEvent(runDir, type, data, attribution) {
 }
 
 module.exports = {
-  readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
+  readStdin, parseInput, resolveRun, resolveRunDir, classifyOwnership, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
   readRunState, writeRunState, appendEvent, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
 };
