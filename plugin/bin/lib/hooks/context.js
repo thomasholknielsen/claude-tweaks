@@ -228,7 +228,19 @@ function classifyOwnership(caller, runState) {
   if (callerId && ownerId && callerId !== ownerId) return 'foreign';
   const cwd = caller && typeof caller.cwd === 'string' && caller.cwd ? caller.cwd : null;
   if (!cwd) return 'indeterminate';
-  return 'indeterminate'; // binding arms land in Task 2, no-binding arms in Task 3
+  const binding = runState && typeof runState.worktree === 'string' && runState.worktree ? runState.worktree : null;
+  const info = wtDetect.repoInfo(cwd);
+  if (info.indeterminate) return 'indeterminate';
+  if (binding) {
+    // repoInfo already realpaths its answer; worktreeMatches realpaths the
+    // recorded side — a caller anywhere inside the recorded worktree
+    // resolves to that worktree's root and matches here.
+    if (info.repoRoot && worktreeMatches({ worktree: binding }, info.repoRoot, info.repoRoot)) return 'mine';
+    if (!info.repoRoot || !info.isLinkedWorktree) return 'indeterminate'; // outside any repo, or main checkout — cannot prove foreign
+    try { fs.realpathSync(binding); } catch { return 'indeterminate'; } // binding gone from disk — fail open
+    return 'foreign'; // caller is in a different live worktree than a binding that provably exists
+  }
+  return 'indeterminate'; // no-binding arms land in Task 3
 }
 
 // Shared by findRunByWorktreePath/findRunsByWorktreePath below: does this

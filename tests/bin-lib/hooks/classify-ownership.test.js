@@ -28,3 +28,84 @@ test('indeterminate: caller cwd missing or empty', () => {
   assert.strictEqual(classifyOwnership({ sessionId: 's', cwd: '' }, { sessionId: 's' }), 'indeterminate');
   assert.strictEqual(classifyOwnership({ sessionId: 's' }, { sessionId: 's' }), 'indeterminate');
 });
+
+test('mine: equal ids, caller cwd inside the recorded worktree (subdirectory)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const sub = path.join(wt, 'nested');
+  fs.mkdirSync(sub, { recursive: true });
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: sub }, { sessionId: 's', worktree: wt }),
+    'mine',
+  );
+});
+
+test('foreign: equal ids, caller in a DIFFERENT live worktree than the binding — the #965 incident shape', () => {
+  const main = gitRepo();
+  const wtA = linkedWorktreeOf(main);
+  const wtB = linkedWorktreeOf(main);
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: wtA }, { sessionId: 's', worktree: wtB }),
+    'foreign',
+  );
+});
+
+test('foreign: owner id missing, binding recorded, caller in a different live worktree', () => {
+  const main = gitRepo();
+  const wtA = linkedWorktreeOf(main);
+  const wtB = linkedWorktreeOf(main);
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: wtA }, { worktree: wtB }),
+    'foreign',
+  );
+});
+
+test('mine: owner id missing, binding recorded, caller cwd inside the binding — binding match outranks incomplete identity', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: wt }, { worktree: wt }),
+    'mine',
+  );
+});
+
+test('indeterminate: equal ids, binding recorded, caller in the main checkout', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: main }, { sessionId: 's', worktree: wt }),
+    'indeterminate',
+  );
+});
+
+test('indeterminate: recorded worktree deleted from disk — fail-open, never foreign', () => {
+  const main = gitRepo();
+  const wtA = linkedWorktreeOf(main);
+  const wtGone = linkedWorktreeOf(main);
+  fs.rmSync(wtGone, { recursive: true, force: true });
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: wtA }, { sessionId: 's', worktree: wtGone }),
+    'indeterminate',
+  );
+});
+
+test('indeterminate: caller cwd in a non-git directory, binding recorded', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const nonGit = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-clown-nongit-'));
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: nonGit }, { sessionId: 's', worktree: wt }),
+    'indeterminate',
+  );
+});
+
+test('mine: caller cwd given as a symlink to the recorded worktree', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-clown-link-')), 'wt-link');
+  fs.symlinkSync(wt, link);
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: link }, { sessionId: 's', worktree: wt }),
+    'mine',
+  );
+});
