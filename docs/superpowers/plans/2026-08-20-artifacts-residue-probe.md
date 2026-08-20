@@ -289,7 +289,7 @@ module.exports = { probeArtifacts, THIRTY_DAYS_MS };
 
 - [ ] **Step 5: Wire it in `plugin/bin/residue.js`** — add `const { probeArtifacts } = require('./lib/residue/probes/artifacts');` after the `probePipelineRuns` require (~line 20), and add `probeArtifacts({ cwd }),` after `probePipelineRuns({ cwd }),` in the `filterResultsByScope([...])` array (~line 125).
 - [ ] **Step 6: Run the new suite to verify it passes** — Run: `node --test tests/bin-lib/residue/artifacts.test.js`. Expected: 9/9 PASS.
-- [ ] **Step 7: Run the sibling residue suites** — Run: `node --test tests/bin-lib/residue/`. Expected: all pass (KINDS widening must not break existing pins; if a suite pins the KINDS list literally, flag it in the report rather than silently editing it).
+- [ ] **Step 7: Run the sibling residue suites** — Run: `node --test tests/bin-lib/residue/*.test.js`. Expected: all pass (KINDS widening must not break existing pins; if a suite pins the KINDS list literally, flag it in the report rather than silently editing it).
 - [ ] **Step 8: Commit** — `git add plugin/bin/lib/residue/probes/artifacts.js plugin/bin/lib/residue/finding.js plugin/bin/residue.js tests/bin-lib/residue/artifacts.test.js` then `git commit -m "Add artifacts residue probe: 30-day retention + legacy-root findings — refs #1078"`
 
 ### Task 2: Routing prose + retention sentences + full suite

@@ -124,7 +124,7 @@ function main() {
     suiteResult,
     probeRelease({ scope, manifest, run }),
     probePipelineRuns({ cwd }),
-    probeArtifacts({ cwd }),
+    probeArtifacts({ cwd, run: git }),
   ], opts.scope);
 
   if (opts.json) {
