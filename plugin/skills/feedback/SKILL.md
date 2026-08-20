@@ -170,8 +170,7 @@ classifier from rule 4 per `_shared/learning-routing.md`. Do not file.
 
 Derive the `--search` keywords from the affected component name **only** — never from the
 free-text symptom/summary, since that text is draft-derived and has not yet passed Step 6's scrub
-criteria (credentials, absolute paths outside the plugin, code excerpts, the reporting project's
-name). A component name (a skill, contract, or CLI name from this project's own public docs) is
+criteria below. A component name (a skill, contract, or CLI name from this project's own public docs) is
 inherently public vocabulary and carries no privacy risk on its own — this is what keeps
 draft-derived, potentially-private text from ever reaching the public search API before the scrub
 gate runs:
