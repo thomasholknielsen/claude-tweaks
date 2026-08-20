@@ -33,10 +33,21 @@ the same time:
 - **`flow/worktree-merge.md`**: shown unaffected — its own text already routes `pr-first` merges
   through `_shared/pr-first-merge.md` instead of this file; this file's §5-6 is reached only on its
   `local-merge` conflict-resolution path, by design.
-- **`wrap-up/residue-sweep.md`**: an equivalent-shaped gap (its `remedy: auto` fixes merge back via
-  this file unconditionally, no `integration-model` branch) — filed separately as #435 rather than
-  fixed here, since #424's own scope kept this file's mechanics minimal/zero and residue-sweep
-  fixes have no existing PR/marker convention to wire up the way tidy's did.
+- **`wrap-up/residue-sweep.md`**: had the equivalent-shaped gap (its `remedy: auto` fixes merged
+  back via this file unconditionally, no `integration-model` branch) — filed separately as #435
+  since #424's own scope kept this file's mechanics minimal/zero and residue-sweep had no
+  existing PR/marker convention to wire up the way tidy's did. #435 fixed it the same shape as
+  #424: `wrap-up/residue-sweep.md`'s own `remedy: auto` section now resolves `integration-model`
+  and branches — `pr-first` pushes the scratch worktree's branch and opens a PR stamped
+  `<!-- wrap-up-residue-pr -->` (a distinct marker from tidy's, since the two are separate call
+  sites, but gated by the same `housekeeping-auto-merge` lever — reused rather than duplicated,
+  since both are the same "auto-arm a housekeeping PR" semantic), reusing
+  `_shared/pr-early-run-lifecycle.md`'s create/reopen shape; `local-merge` keeps this file's §5-6
+  merge-back unchanged. `github-pr-scan.md`'s `repo-wide` sweep backstop (item 9) was **not**
+  extended to recognize the new marker — residue-sweep only ever runs as part of an already
+  hands-off wrap-up, so creation-time arming (gated by the same lever) is sufficient; a PR that
+  fails to arm at creation stays unarmed and visible in the wrap-up run's own decisions.md rather
+  than picked up later by a sweep that doesn't know its marker.
 
 ## 1. When to provision
 
