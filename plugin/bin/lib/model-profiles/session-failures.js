@@ -45,6 +45,50 @@ function readFailedModels(sessionId) {
   }
 }
 
+// #841 item 1: a small mkdir-based mutual-exclusion lock around
+// recordFailure's read-modify-write below. fs.mkdirSync is atomic on every
+// platform Node targets — "did I create this directory" is a genuine
+// test-and-set — unlike the read-then-add-then-write sequence it guards,
+// which is not atomic on its own: two concurrent recordFailure calls for
+// two *different* models can both read the same starting set, each add
+// their own model, then both write, and the second rename wins — the
+// loser's model is silently dropped (the lost-update variant; the separate
+// torn-read variant is already closed by the tmp-file+rename below).
+//
+// Best-effort: if the lock cannot be acquired within `lockTimeoutMs`, the
+// write proceeds without it rather than blocking or throwing —
+// recordFailure must never be the reason a dispatch hangs or fails. A
+// dropped write under contention degrades to the pre-#841 best-effort
+// posture (silent loss of one model, never data corruption), not a new
+// failure mode.
+const LOCK_TIMEOUT_MS = 2000;
+const LOCK_POLL_MS = 20;
+
+function acquireLock(lockDir, timeoutMs, pollMs) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      fs.mkdirSync(lockDir);
+      return true;
+    } catch (e) {
+      if (e.code !== 'EEXIST') return false; // unexpected error — proceed unlocked
+      if (Date.now() >= deadline) return false; // timed out — proceed unlocked (best-effort)
+      // Node has no synchronous sleep primitive; Atomics.wait on a private
+      // SharedArrayBuffer blocks this thread for pollMs without the busy-spin
+      // a tight empty loop would cost.
+      try {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pollMs);
+      } catch {
+        // Atomics.wait unavailable (rare) — fall through to an immediate retry.
+      }
+    }
+  }
+}
+
+function releaseLock(lockDir) {
+  try { fs.rmdirSync(lockDir); } catch { /* already gone, or never acquired */ }
+}
+
 // Appends `model` to the session's failure set (idempotent — recording the
 // same model twice does not duplicate it). A no-op when no session id is
 // available: there is nowhere safe to write a shared file, and the CLI
@@ -55,17 +99,46 @@ function readFailedModels(sessionId) {
 // writeFileSync: rename is atomic on POSIX, so a concurrent readFailedModels
 // call (a sibling Task dispatch's own read, per this repo's parallel
 // fan-out dispatch pattern) always sees either the old complete file or the
-// new complete file, never a torn/truncated one mid-write. This does not
-// fix the separate lost-update race between two concurrent writers — that
-// remains a known, accepted limitation.
-function recordFailure(sessionId, model) {
+// new complete file, never a torn/truncated one mid-write. The mkdir lock
+// above additionally serializes the read-modify-write against a concurrent
+// recordFailure, closing the lost-update race the rename alone did not.
+//
+// `opts.lockTimeoutMs`/`opts.lockPollMs` override the production defaults —
+// exposed for tests to prove the timeout-degrade path without a real
+// multi-second wait; production callers omit both.
+function recordFailure(sessionId, model, opts = {}) {
   const p = failurePath(sessionId);
   if (!p) return;
-  const current = readFailedModels(sessionId);
-  current.add(model);
-  const tmp = `${p}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify([...current]));
-  fs.renameSync(tmp, p);
+  const lockDir = `${p}.lock`;
+  const locked = acquireLock(lockDir, opts.lockTimeoutMs ?? LOCK_TIMEOUT_MS, opts.lockPollMs ?? LOCK_POLL_MS);
+  try {
+    const current = readFailedModels(sessionId);
+    current.add(model);
+    const tmp = `${p}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify([...current]));
+    fs.renameSync(tmp, p);
+  } finally {
+    if (locked) releaseLock(lockDir);
+  }
 }
 
-module.exports = { failurePath, readFailedModels, recordFailure };
+// #841 item 3: the one recovery path for this blacklist. Credit exhaustion
+// is normally a usage window, not permanent — a session degraded early in a
+// long-running window otherwise has no documented way to clear it before
+// the window naturally rolls over. Deletes the session's failure file,
+// tolerating it already being absent. Mirrors
+// bin/lib/issues/record-snapshot.js's invalidateSnapshot() shape; see that
+// file's own header for the sibling this was compared against.
+function invalidateFailures(sessionId) {
+  const p = failurePath(sessionId);
+  if (!p) return;
+  try {
+    fs.unlinkSync(p);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+}
+
+module.exports = {
+  failurePath, readFailedModels, recordFailure, invalidateFailures, acquireLock, releaseLock,
+};
