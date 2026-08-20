@@ -252,16 +252,21 @@ only after the branch outcome is known (item 4, Git
 Worktree, completes first — the execution order of the canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
-`_shared/forge-detection.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
-skip — Section E exists specifically to write GitHub state (release claims, remove labels); if
-`gh` is unavailable there is nothing safe to degrade to. Report the specific failing check and
-stop before attempting any release. **Decision:** this stays hard even after 6.69.0 widened
-item 7's Condition (`cleanup-procedures.md`'s table) from "materialized header present" to
-"record-based work" — a standalone `/wrap-up #N` run now reaches this gate far more often, but
-claim release is itself a `gh`-write action with no automated fallback in this CLI; the MCP path
-in `_shared/github-write-transport.md` is a documented manual procedure for a `gh`-absent
-environment, not something Section E degrades to on its own, so it stops here rather than
-silently skipping the release.
+`_shared/forge-detection.md` (checks 1-3). Checks 1 (GitHub remote) and 3 (repo reachable) are
+hard gates on either transport — there is no meaningful degraded mode when the repo itself is
+unreachable; report the specific failing check and stop before attempting any release. Check 2
+(`gh` installed) does **not** gate on its own: Section E is a transport-aware consumer with a
+documented MCP fallback — step 4 below already routes a `gh`-absent release through the MCP
+tools per `_shared/github-write-transport.md`'s conditional-write pattern (claim tombstone) and
+CRUD mapping (label removal, release comment) — so per `_shared/forge-detection.md`'s own rule
+("a consumer with a documented MCP fallback... proceeds via that path instead of stopping"),
+`gh`-absence alone degrades to that path rather than stopping. **Decision:** this was ambiguous
+before 6.69.0 widened item 7's Condition (`cleanup-procedures.md`'s table) from "materialized
+header present" to "record-based work," which made a standalone `/wrap-up #N` run reach this
+gate far more often — but every write this section performs already has a documented MCP
+equivalent (see step 4), matching CLAUDE.md's Dependencies row (`gh`-absent env routes the same
+CRUD via `_shared/github-write-transport.md`'s MCP path). A genuine hard stop occurs only when
+checks 1 or 3 fail.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
    `/flow` releases all claims once after its consolidated Review Console and merge.
