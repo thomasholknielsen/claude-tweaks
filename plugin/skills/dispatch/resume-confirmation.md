@@ -9,7 +9,7 @@ a re-invocation of a parked run.
 - Option 1 — `label`: `"Resume"` (append `" (Recommended)"` per the Recommended-derivation rule below), `description`: `"Re-invoke the resume command below — re-enters the Review Console for final approval"`
 - Option 2 — `label`: `"Cancel"` (append `" (Recommended)"` instead when the rule below picks this option), `description`: `"Leave the run parked; do nothing"`
 
-Under `integration-model: local-merge` (no PR — `_shared/integration-model.md`), the question string substitutes the branch/worktree for the PR reference and reads CI as fixed text — `header`, `multiSelect`, and both Options stay byte-identical to the pr-first template above:
+Under `integration-model: local-merge` (no PR — `_shared/integration-model.md`), the same call takes these values instead — `header`, `multiSelect`, and both Options stay byte-identical to the pr-first template above:
 - `question`: `"Resume {target} toward merge? Branch {branch} ({worktree}), CI: not applicable — local-merge, files changed: {count-or-list}. Declining leaves the run parked."`, `header`: `"Resume run"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Resume"` (append `" (Recommended)"` per the Recommended-derivation rule below), `description`: `"Re-invoke the resume command below — re-enters the Review Console for final approval"`
 - Option 2 — `label`: `"Cancel"` (append `" (Recommended)"` instead when the rule below picks this option), `description`: `"Leave the run parked; do nothing"`
