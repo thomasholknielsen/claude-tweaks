@@ -79,8 +79,11 @@ test('POLICY_KEYS entries are unique', () => {
   // 52 -> 53, #310 (sampling floor): grant-sampling-every — every Nth
   // machine-granted merged record is flagged for a real /demo verdict, so
   // human calibration evidence keeps entering the trust table.
-  assert.strictEqual(POLICY_KEYS.length, 53);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 53);
+  // 53 -> 54, #660 (review prose-exemption lever): review-auto-apply-prose-exempt
+  // — lets a prose-only fix auto-apply one severity tier above the resolved
+  // review-auto-apply-ceiling, see skills/review/step3-routing.md.
+  assert.strictEqual(POLICY_KEYS.length, 54);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 54);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

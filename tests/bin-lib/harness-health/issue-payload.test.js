@@ -115,7 +115,7 @@ test('toIssuePayload for a patch finding carries structured decision fields matc
 // blocks (the markdown that actually ships to GitHub). Duplicating it as
 // top-level fields made a payload with ~2.6 KB of patch text 38% duplicate
 // bytes, uncapped across the findings array. Keep this in step with the
-// identical test in bin/lib/docs-health/tests/issue-payload.test.js.
+// identical test in tests/bin-lib/docs-health/issue-payload.test.js.
 test('toIssuePayload does not duplicate the patch text as top-level fields', () => {
   const f = patchFinding();
   const payload = toIssuePayload(f);
