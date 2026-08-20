@@ -27,6 +27,16 @@ probe, not an environment classification — it holds regardless of *why* `gh` i
 | Get a single issue by number | `gh issue view {n} --json state,...` | `issue_read` (get mode) |
 | List an issue's comments | `gh api repos/{owner}/{repo}/issues/{n}/comments?per_page=100` | `issue_read` (get_comments mode) |
 
+**Pull requests are not covered by this mapping.** Every row above is an issue operation — there
+is no `list_pull_requests`/`pr_read`/`pr_write` row, and none is planned: PR review-thread reads
+(`gh api graphql`), CI-check reads (`gh pr checks`), and PR list/view reads (`gh pr list`/
+`gh pr view`) have no MCP equivalent today. A `gh`-absent consumer that needs a PR read degrades
+that read individually rather than treating the missing mapping as a reason to skip everything
+it does — `_shared/github-pr-scan.md`'s Transport section is the canonical example: issue-backed
+items in a scope route through this file's `list_issues` row, PR-backed items in the same scope
+degrade per-item with a narrower message instead. This resolves the gap deliberately (a
+documented per-item degrade) rather than leaving it implicit.
+
 **Never use `search_issues` (or `gh issue list --search`) for a find-by-marker/dedup lookup.**
 Both ride an eventually-consistent search index — this caused three real duplicate-digest
 production incidents when `tidy`'s Rolling digest briefly used `gh issue list --search`
