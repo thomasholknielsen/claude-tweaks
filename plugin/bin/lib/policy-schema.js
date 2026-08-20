@@ -129,6 +129,11 @@ const POLICY_KEYS = [
   // matches is never emitted as a candidate, regardless of decision signals.
   { key: 'experiment-flag-exclude', type: 'list', default: [], summary: "Names extra flag-name substrings the experiment-cleanup sweep should never flag, on top of the built-in kill-switch defaults.", category: 'health-sweeps', tier: 'advanced' },
   { key: 'doc-convention-adr', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing decision-record convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-tutorial', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing Tutorial-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-how-to', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing How-To-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-reference', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing Reference-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-explanation', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing Explanation-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-journey', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing Journey-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
   // Retention for docs/superpowers/plans/*.md at /wrap-up's cleanup-planning
   // item 1. Default keep-forever preserves today's unconditional-retention
   // behavior (ADR-0007's own convention) for every project that never sets
