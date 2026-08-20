@@ -34,5 +34,8 @@
   },
   "doc:decisions/0011-skill-relationship-edges-live-outside-the-payload": {
     "lastAuditedMs": 1787033111312
+  },
+  "doc:decisions/0012-autonomy-ceiling-top-tier-ships-shut": {
+    "lastAuditedMs": 1787206469464
   }
 }
