@@ -48,7 +48,7 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via `render --section console --start-at {n}` when the engine ran (`curation-engine.md` section 2, with `{n}` the next number in this console's global sequence).
 
-The engine's real output shape is plainer than the per-section shapes below: `renderConsoleSections` emits a bare `#### {title}` heading per section plus one uniform `| # | Target | Change | Disposition |` table (integer `#`, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same four columns for all five sections, no six-column Reference repairs shape and no `17a`/`17b` sub-lettering. The richer per-section shapes below (`| # | Skill | Section | Change |`, the six-column Reference repairs table, etc.) are the **prose-fallback template**, used when the engine did not run. On an engine run, insert `render`'s output verbatim into this response — do not hand-expand it into these shapes.
+The engine's real output shape is plainer than the per-section shapes below: `renderConsoleSections` emits a bare `#### {title}` heading per section plus one uniform `| # | Target | Change | Disposition |` table (integer `#`, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same four columns for all five sections, no six-column Reference repairs shape and no `18a`/`18b` sub-lettering. The richer per-section shapes below (`| # | Skill | Section | Change |`, the six-column Reference repairs table, etc.) are the **prose-fallback template**, used when the engine did not run. On an engine run, insert `render`'s output verbatim into this response — do not hand-expand it into these shapes.
 
 #### Skill updates (from the Skills curation row)
 
@@ -63,24 +63,24 @@ The engine's real output shape is plainer than the per-section shapes below: `re
 |---|---|---|---|
 | 13 | doc | docs/api.md | Document new /auth/refresh endpoint |
 
-A `[{genre}-convention]` row (see the Configuration updates section below for its full render shape) also renders inside this section on a D2 `conflict` outcome for one of the four core Diátaxis genres — e.g. `#13a  how-to-convention  docs/guides/  — this repo's how-to guides disagree with the plugin's convention`, keyed against that genre's own `doc-convention-{genre}` policy key. It blocks every `[doc]` row for that same genre from the same run until answered.
+A `[{genre}-convention]` row (see the Configuration updates section below for its full render shape) also renders inside this section on a D2 `conflict` outcome for one of the four core Diátaxis genres, taking its own next number in the global sequence like any other finding — e.g. `#14  how-to-convention  docs/guides/  — this repo's how-to guides disagree with the plugin's convention`, keyed against that genre's own `doc-convention-{genre}` policy key. It blocks every `[doc]` row for that same genre from the same run until answered.
 
 #### Journey updates (from the Journeys curation row)
 
 | # | Type | Target | Change |
 |---|---|---|---|
-| 14 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
+| 15 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
 
 #### Configuration updates (from the CLAUDE.md & rules and Decision records curation rows)
 
 | # | Type | Target | Change |
 |---|---|---|---|
-| 15 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
+| 16 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
 A `[{genre}-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — this is the general row shape `_shared/existing-convention-detection.md` collects for **any** genre whose Detection is `active` (`_shared/diataxis-genre-templates.md`), not an ADR-specific one; `[adr-convention]` below is the canonical worked instance. A `[journey-convention]` row also renders here on a `conflict` `/claude-tweaks:journeys` Step 2 staged during this run (`journeys/SKILL.md`'s Step 2 auto-mode branch) — journeys is not part of `/claude-tweaks:wrap-up`'s curation engine, so this is the one row type in this section sourced from a different skill's staged file rather than a curation row's own scan; it resolves identically once it reaches here. Render it as:
 
 ```
-#16  adr-convention  docs/decisions/  — this repo's decision records disagree with the plugin's convention
+#17  adr-convention  docs/decisions/  — this repo's decision records disagree with the plugin's convention
 
      plugin form  : 0017-slack-transport.md
      found (16)   : ADR-016-slack-integration-strategy.md
@@ -102,8 +102,8 @@ two states. **Applied** rows are reported, not re-approved — they already happ
 
 | # | State | Target | Repair | Broken by | Why |
 |---|-------|--------|--------|-----------|-----|
-| 17a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
-| 17b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
+| 18a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
+| 18b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
 
 The `Why` column carries `permittedInitiative`'s own reason string verbatim for both states, so a
 run that tripped a cap reads differently from a run that found nothing — under the prose fallback
@@ -119,7 +119,7 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 
 | # | Type | Action | Details |
 |---|---|---|---|
-| 18 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
+| 19 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
 | ... | cleanup | ... | ... |
 
 #### Queue writes (Approve all applies the default; Override drills each item)

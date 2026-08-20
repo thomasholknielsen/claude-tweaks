@@ -240,7 +240,7 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
 
 7. **Create `docs/REGISTRY.md`** with approved entries (existing docs only — missing docs are not added until they're created).
 
-8. **Capture doc work as backlog work records** — For each finding from the assessment (stale, thin, misplaced, missing), file a backlog work record (`_shared/work-record.md`; no `by:*` label — an `Origin: /init doc registry (Phase 8.5)` body line records provenance instead, same convention `wrap-up/leftover-routing.md` uses) with the Phase 2 context baked in:
+8. **Capture doc work as backlog work records** — For each finding from the assessment (stale, thin, misplaced, missing, convention conflict), file a backlog work record (`_shared/work-record.md`; no `by:*` label — an `Origin: /init doc registry (Phase 8.5)` body line records provenance instead, same convention `wrap-up/leftover-routing.md` uses) with the Phase 2 context baked in:
 
    ```markdown
    ### Refresh docs/api.md — missing 5 endpoints
