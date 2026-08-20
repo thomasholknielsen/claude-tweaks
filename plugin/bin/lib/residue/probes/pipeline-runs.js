@@ -53,6 +53,17 @@ function probePipelineRuns({ cwd } = {}) {
       // housekeeping any wrap-up cycle should surface and fix regardless of
       // which run originally produced the orphan, not something to hide
       // behind --scope repo the way another session's live worktree is.
+      //
+      // #1011 audited this against the same class of gap #499 fixed in
+      // probeBranches (a merged-but-undeleted branch could still belong to a
+      // LIVE concurrent session, so unconditional blast-radius tagging there
+      // was unsafe) and found the two are not the same class: this finding
+      // only fires when `state.status === 'clean'` above — a terminal,
+      // self-reported "nothing more to do but archive" state, not "merged
+      // and therefore maybe still in use elsewhere." A clean run dir is
+      // inert regardless of which session's wrap-up produced it, and
+      // archival (unlike branch deletion) is a non-destructive move, not a
+      // delete. No fix applied; this comment records the audit trail.
       scope: 'blast-radius',
       subject: path.relative(root, dir),
       remedy: 'auto',
