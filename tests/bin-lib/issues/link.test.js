@@ -90,8 +90,20 @@ test('isAlreadyLinkedError: only a 422 whose message mentions already', () => {
 const { run } = require('../../../plugin/bin/link-records');
 
 function cliDeps({ runner, ghAvailable = true, remoteUrl = 'https://github.com/acme/w.git' } = {}) {
-  const out = []; const err = [];
-  return { deps: { runner, ghAvailable: () => ghAvailable, remoteUrl: () => remoteUrl, stdout: (s) => out.push(s), stderr: (s) => err.push(s) }, out, err };
+  const out = []; const err = []; const invalidateCalls = [];
+  return {
+    deps: {
+      runner,
+      ghAvailable: () => ghAvailable,
+      remoteUrl: () => remoteUrl,
+      invalidateSnapshot: (sessionId) => invalidateCalls.push(sessionId),
+      stdout: (s) => out.push(s),
+      stderr: (s) => err.push(s),
+    },
+    out,
+    err,
+    invalidateCalls,
+  };
 }
 
 test('link-records CLI: --help exits 0 and prints usage', () => {
@@ -117,7 +129,7 @@ test('link-records CLI: happy path — 1 GraphQL + 1 sub_issues + 1 blocked_by, 
     if (isPost(args, 'repos/acme/w/issues/598/dependencies/blocked_by')) { assert.equal(fieldOf(args, 'issue_id'), '2'); return '{}'; }
     throw new Error('unexpected ' + args.join(' '));
   };
-  const { deps, out } = cliDeps({ runner });
+  const { deps, out, invalidateCalls } = cliDeps({ runner });
   const code = run(['--parent', '592', '--subs', '595', '--blocked-by', '598:595'], deps);
   assert.equal(code, 0);
   assert.equal(calls.filter(isGraphQL).length, 1);
@@ -126,6 +138,22 @@ test('link-records CLI: happy path — 1 GraphQL + 1 sub_issues + 1 blocked_by, 
   assert.equal(env.repo, 'acme/w');
   assert.deepEqual(env.subIssues.ok.map((o) => o.number), [595]);
   assert.deepEqual(env.blockedBy.ok.map((o) => o.dependent), [598]);
+  // #1097: a successful sub_issues link write must invalidate the session-scoped
+  // sub-issues snapshot _shared/trust-table.md's native branch caches, or a
+  // pre-existing issue linked mid-session stays invisible for the rest of the TTL.
+  assert.equal(invalidateCalls.length, 1, 'expected one invalidateSnapshot call after a non-empty subIssues.ok write');
+});
+
+test('link-records CLI: blocked-by-only invocation (no sub_issues write) does not invalidate the snapshot', () => {
+  const runner = (args) => {
+    if (isGraphQL(args)) return graphqlJSON({ 598: 3, 595: 2 });
+    if (isPost(args, 'repos/acme/w/issues/598/dependencies/blocked_by')) return '{}';
+    throw new Error('unexpected ' + args.join(' '));
+  };
+  const { deps, invalidateCalls } = cliDeps({ runner });
+  const code = run(['--blocked-by', '598:595'], deps);
+  assert.equal(code, 0);
+  assert.equal(invalidateCalls.length, 0, 'a blocked-by-only write (no sub_issues.ok entries) must not invalidate the sub-issues snapshot');
 });
 
 test('link-records CLI: id resolution failure exits 1', () => {

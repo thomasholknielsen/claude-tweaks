@@ -69,6 +69,49 @@ test('accept: --run is an absolute path correctly anchored under the main checko
   assert.match(out.stdout, /worktree recorded/);
 });
 
+test('#280: accept — --run is a worktree-local INITIALIZED run dir with no main-checkout counterpart', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', '2026-01-01T000000-spec-280']);
+  // The distinguishing signal: a marker file a real pipeline step wrote
+  // (decisions.md, from the standalone-fallback/Manifesto init), not merely
+  // a directory that exists.
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assert.match(out.stdout, /worktree-local fallback \(#280\)/i);
+  assert.match(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /not anchored|resolves outside the main checkout/i);
+});
+
+test('#280: reject — a worktree-local run dir that is a bare mkdir (uninitialized) still refuses, even with no main-checkout counterpart', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  // Same shape as the #790 "reject" tests above (bare mkdir, no marker
+  // file) — confirms the #280 fallback does not loosen the ordinary case.
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', '2026-01-01T000000-spec-281']);
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+});
+
+test('#280: reject — a worktree-local INITIALIZED run dir is NOT adopted when a same-named run dir already exists under the main checkout', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const runId = '2026-01-01T000000-spec-282';
+  // The main-checkout copy is authoritative whenever one exists — the
+  // worktree-local copy must never win over it, even if it happens to be
+  // initialized too (e.g. a resumed session that later regained main-checkout
+  // write access).
+  mkRunDir(main, ['.claude-tweaks', 'pipelines', runId]);
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', runId]);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+});
+
 test('reject: --run resolves under a directory with no git repo ancestor at all — distinct message, not the worktree-shadow wording', () => {
   // #790 Finding 5: mainCheckoutRoot() returning null (no .git anywhere up
   // the ancestor chain) is a DIFFERENT failure than "exists, but resolves

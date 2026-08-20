@@ -133,7 +133,47 @@ legitimate run directory outside the repository:
   (`main`, `--run-dir`), `bin/materialize.js` (`run`, `--run-dir`), and `bin/apply-refine-labels.js`
   (`--run`) — have no such use: each resolves `mainCheckoutRoot()`/`isAnchoredUnderRoot()` from
   `bin/lib/hooks/worktree-detect.js` and refuses any value not anchored under the main checkout
-  **before any filesystem write**, with exit code 2 (malformed invocation).
+  **before any filesystem write**, with exit code 2 (malformed invocation). `bin/hooks.js`'s
+  `resolveRunArg` carries the one narrow exception to this rule — see **Worktree-local `--run`
+  fallback (#280)** immediately below.
+
+### Worktree-local `--run` fallback (#280)
+
+`resolveRunArg` (`bin/hooks.js`, shared by `record-worktree`, `record-pr`, `spec-status`,
+`close-run`, `teardown-run`, and `archive-run` — every CLI verb an explicit `--run <dir>` reaches)
+adds one narrow exception to the unanchored-rejection rule above. It exists for the harness-
+isolation incident this record documents (flow run `2026-08-09T140101-spec-262`): a session whose
+harness refuses every write to the main checkout for the whole session has no anchored run
+directory to name at all — its run dir was legitimately initialized worktree-local as the only
+available option, and without this exception `--run "$RUN_DIR"` for that run can never resolve
+(`record-worktree` prints `worktree not recorded` and E1 enforcement never binds).
+
+The gating signal that separates this from an ordinary stray worktree-local directory is
+**initialization, not existence**: a `--run` candidate that resolves inside a linked worktree is
+adopted only when (a) it is already an **initialized** run dir — carries at least one of
+`decisions.md`, `run-state.json`, or `config.yml`, the same bar every other resolver in this file
+uses to tell a real run from a bare `mkdir` — and (b) no directory of the same name already exists
+under the main checkout, which would make that copy the authoritative one instead. A bare `mkdir`
+of a worktree-local pipelines path (the [IL-96]/[IL-127] shadow shape `checkPipelineShadowGuard`
+exists to prevent, above) fails condition (a) and is rejected exactly as before — an ordinary run
+with no worktree-local run dir at all can never spuriously match this fallback, satisfying the
+"blocked vs. absent" distinction the record's Deliverables call for. `record-worktree`'s stdout
+names the fallback explicitly (`resolved via the worktree-local fallback (#280)`) rather than
+reporting it identically to the ordinary anchored path, so the degraded state (this run's audit
+trail lives only in the worktree until merge) is diagnosable, not silent.
+
+**Scoped to `resolveRunArg` only — not mirrored into `bin/lib/hooks/context.js`'s
+`resolveRunDir`/`resolveRun`.** That function answers a different question (this file's header
+note above): an *implicit* fallback scan across every run dir for hook-event attribution, with no
+caller-named target to validate against. `resolveRunArg`'s fallback is deliberately narrow because
+it validates a single, explicitly-named candidate the caller already believes is theirs; the same
+logic applied to `resolveRun`'s broad scan would mean every hook event silently widens its search
+to a second directory tree on every invocation, for a scenario (harness-blocked main-checkout
+writes) `resolveRun`'s callers have no way to detect or react to differently than the ordinary
+case. If a future incident shows hook-event attribution needs the same recovery path, it should
+be evaluated on its own — mirroring this fallback verbatim would import `resolveRunArg`'s
+single-candidate assumption into a many-candidate scan without re-deriving whether its safety
+argument still holds there.
 - **Resolver CLIs with a documented sandbox use** — `bin/resolve-profile.js` (`--run-dir`) and
   `bin/resolve-policy.js` (`--run`), whose journey and test invocations legitimately point outside
   any checkout (`docs/journeys/resolve-dispatch-model-profile.md`'s `/tmp/mp-journey`) — apply the

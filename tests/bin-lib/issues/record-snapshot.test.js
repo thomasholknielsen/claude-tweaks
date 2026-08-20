@@ -8,6 +8,7 @@ const {
   UNION_FIELDS,
   snapshotPath,
   gitLogPath,
+  subIssuesPath,
   isFresh,
   readSnapshot,
   writeSnapshot,
@@ -36,6 +37,12 @@ test('snapshotPath/gitLogPath return null for an absent or blank session id', ()
   assert.strictEqual(snapshotPath(''), null);
   assert.strictEqual(snapshotPath('   '), null);
   assert.strictEqual(gitLogPath(undefined), null);
+});
+
+test('subIssuesPath mirrors gitLogPath: tmpdir path keyed by session id, null on falsy id', () => {
+  assert.strictEqual(subIssuesPath(null), null);
+  assert.ok(subIssuesPath('abc').endsWith('ct-subissues-abc.json'));
+  assert.strictEqual(subIssuesPath('sess-abc'), path.join(os.tmpdir(), 'ct-subissues-sess-abc.json'));
 });
 
 test('isFresh: false for a missing file, no throw', () => {
@@ -78,6 +85,21 @@ test('invalidateSnapshot deletes both the snapshot and the git-log dump', () => 
   invalidateSnapshot(sessionId);
   assert.ok(!fs.existsSync(snap));
   assert.ok(!fs.existsSync(log));
+});
+
+test('invalidateSnapshot also removes the sub-issues snapshot', () => {
+  const sessionId = `test-invalidate-subissues-${process.pid}`;
+  const snap = snapshotPath(sessionId);
+  const log = gitLogPath(sessionId);
+  const sub = subIssuesPath(sessionId);
+  fs.writeFileSync(snap, '[]');
+  fs.writeFileSync(log, '');
+  fs.writeFileSync(sub, '[]');
+  assert.ok(fs.existsSync(sub));
+  invalidateSnapshot(sessionId);
+  assert.ok(!fs.existsSync(snap));
+  assert.ok(!fs.existsSync(log));
+  assert.ok(!fs.existsSync(sub));
 });
 
 test('invalidateSnapshot tolerates an already-absent snapshot (no throw)', () => {

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS, DEFER_REASONS,
   extractFingerprint, extractVerifiedAsOf, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
-  buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
+  buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues, buildNativeSubIssuesQuery,
 } = require('../../../plugin/bin/lib/issues/record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -452,6 +452,19 @@ test('buildNativeDependencyQuery returns null for an empty array', () => {
 
 test('buildNativeDependencyQuery returns null for non-array input', () => {
   assert.strictEqual(buildNativeDependencyQuery(undefined), null);
+});
+
+test('buildNativeSubIssuesQuery aliases each number and requests subIssues nodes + pageInfo', () => {
+  const q = buildNativeSubIssuesQuery([42, 731]);
+  assert.match(q, /i42: issue\(number:42\)\{ number subIssues\(first:100\)\{ nodes\{ number \} pageInfo\{ hasNextPage \} \} \}/);
+  assert.match(q, /i731: issue\(number:731\)/);
+  assert.match(q, /query\(\$owner:String!,\$repo:String!\)/);
+});
+
+test('buildNativeSubIssuesQuery returns null for empty or non-array input', () => {
+  assert.strictEqual(buildNativeSubIssuesQuery([]), null);
+  assert.strictEqual(buildNativeSubIssuesQuery(undefined), null);
+  assert.strictEqual(buildNativeSubIssuesQuery('42'), null);
 });
 
 // AC — dependency assumptions (cross-spec-promise-tracking)
