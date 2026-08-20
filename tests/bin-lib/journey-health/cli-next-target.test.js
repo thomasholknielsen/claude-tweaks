@@ -11,7 +11,7 @@ function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-cl
 
 // Wraps `git` with a logging shim on PATH so a test can count how many times
 // the CLI shells out to git (fetch/show), without needing a real GitHub-hosted
-// remote. Mirrors bin/lib/harness-health/tests/cli-next-target.test.js's
+// remote. Mirrors tests/bin-lib/harness-health/cli-next-target.test.js's
 // makeGitSpy.
 function makeGitSpy() {
   const spyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-nt-gitspy-'));
@@ -28,7 +28,7 @@ function makeGitSpy() {
 // Seeds a real local `origin` remote with a health-state branch so
 // readDurableState's `git fetch origin health-state` succeeds for real,
 // without needing live GitHub credentials. Mirrors
-// bin/lib/harness-health/tests/cli-next-target.test.js's seedDurableCursors.
+// tests/bin-lib/harness-health/cli-next-target.test.js's seedDurableCursors.
 function seedDurableCursors(root, cursors) {
   const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-nt-bare-'));
   execFileSync('git', ['init', '--bare', '-q', bareDir]);

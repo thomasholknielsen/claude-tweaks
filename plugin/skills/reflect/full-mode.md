@@ -33,13 +33,41 @@ Before routing (Step 3), walk each Near-misses finding through `_shared/causal-d
 Unlike the other lenses, Friction evaluates the pipeline's own behavior toward the operator
 during this run, not the code that got built.
 
-**Input:** the run's `events.jsonl` (no run dir / no file → this lens reports nothing), filtered
-to: `wd-deny` and `gate-denial` (logged by `bin/lib/hooks/pre-tool-use.js`), `contract-violation`
-(logged by `bin/lib/hooks/subagent-stop.js`), and `ask-user-question` (logged by
-`bin/lib/hooks/post-tool-use.js`). `contract-violation` specifically can under-report — the
+**Input:** run `node "${CLAUDE_PLUGIN_ROOT}/bin/friction-events.js" --run "$PIPELINE_RUN_DIR"`
+rather than reading `events.jsonl` directly — it returns this run's own events UNIONED with any
+other non-terminal run dir recorded against the same worktree (a JSON array on stdout; `[]` when
+none exist), filtered to: `wd-deny` and `gate-denial` (logged by `bin/lib/hooks/pre-tool-use.js`),
+`contract-violation` (logged by `bin/lib/hooks/subagent-stop.js`), and `ask-user-question` (logged
+by `bin/lib/hooks/post-tool-use.js`). `contract-violation` specifically can under-report — the
 SubagentStop hook it depends on fires unreliably for Task dispatches
 (`_shared/subagent-output-contract.md`, claude-code#27755) — so the lens should not treat its
 *absence* as proof of a clean run.
+
+**Ad-hoc-session fallback (#500).** An ad-hoc worktree dev session — implementing a change
+directly at the user's request, outside any `/claude-tweaks:build`/`/claude-tweaks:flow`
+pipeline — has no run dir of its own until this very wrap-up run creates one, so friction incurred
+earlier in that session would otherwise have nowhere it was ever logged to. `bin/lib/hooks/
+post-tool-use.js`'s `stampAdHocRunDir` closes that gap at the source: an `EnterWorktree` call that
+finds no run dir already owned by this session mints a lightweight standalone one
+(`{ts}-adhoc-standalone`, `run-state.json` stamped with this session's id and the worktree path) so
+every `appendEvent(...)` call from that point on has somewhere to land — no changes to any gate's
+own deny logic or message text. `friction-events.js` is the read side: it finds that ad-hoc run dir
+back by its recorded `worktree` field (`bin/lib/hooks/context.js`'s `findRunsByWorktreePath` — the
+plural sibling of the teardown gate's `findRunByWorktreePath`, since a session can leave behind more
+than one such stamp before it finally reaches wrap-up) and merges its events into the output
+alongside this run's own. A genuinely frictionless ad-hoc session still returns `[]` — nothing is
+manufactured. A formal `/claude-tweaks:build`/`/claude-tweaks:flow` run is unaffected: its own
+`PIPELINE_RUN_DIR` is set (or `record-worktree` stamps ownership) before `EnterWorktree` fires, so
+`stampAdHocRunDir` sees an already-owned run and never mints a second, competing one.
+
+**This block is the single machine-checked statement of the vocabulary above** (`tests/reflect-friction-lens-vocab.test.js` pins it against the real `appendEvent(...)` call sites in `bin/lib/hooks/*.js` — a drift here is a test failure, not a silent doc rot, per `#452`'s post-mortem):
+
+<!-- friction-lens-vocab:begin -->
+- `wd-deny`: `bin/lib/hooks/pre-tool-use.js`
+- `gate-denial`: `bin/lib/hooks/pre-tool-use.js`
+- `contract-violation`: `bin/lib/hooks/subagent-stop.js`
+- `ask-user-question`: `bin/lib/hooks/post-tool-use.js`
+<!-- friction-lens-vocab:end -->
 
 **Membership rule:** an event qualifies only when it describes friction experienced by the run's
 own operator — a denied action, a forced stop. `wd-foreign-session` is excluded on this basis: it

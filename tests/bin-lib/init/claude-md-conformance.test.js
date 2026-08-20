@@ -138,6 +138,30 @@ test('the live template still ends with Don\'ts — the fence is unambiguous', (
   assert.strictEqual(names[names.length - 1], "Don'ts");
 });
 
+test('claude-tweaks Pipeline section does not forbid /superpowers:writing-plans outright — only multi-phase plan files', () => {
+  // #643: the sentence used to read "No phase-plan files; skip
+  // `/superpowers:writing-plans`." — read literally, that forbids the skill
+  // /claude-tweaks:build's own Spec Step 3 invokes for every record. The
+  // accurate rule (skills/specify/SKILL.md's Background section) only
+  // forbids *multi-phase* plan files (*-P1.md, *-P2.md, ...); a single plan
+  // per spec is normal. This pins the corrected wording so the contradiction
+  // cannot silently regress.
+  const src = fs.readFileSync(TEMPLATE, 'utf8');
+  const sections = splitSections(extractTemplateBody(src));
+  const pipeline = sections.get('claude-tweaks Pipeline');
+  assert.ok(pipeline, 'claude-tweaks Pipeline section must exist in the live template');
+  assert.doesNotMatch(
+    pipeline,
+    /no phase-plan files;\s*skip/i,
+    'must not claim /superpowers:writing-plans is skipped/forbidden outright',
+  );
+  assert.match(
+    pipeline,
+    /multi-phase plan files/i,
+    'must state the narrower multi-phase-file restriction instead',
+  );
+});
+
 const TPL = [
   '## Initial Mode Template',
   '',

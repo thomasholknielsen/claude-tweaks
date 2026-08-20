@@ -20,7 +20,7 @@
 // `\s+` form matches is also matched by the more permissive `\s*` form (a
 // space is itself whitespace), so using `\s*` here is a pure widening for
 // docs-health's former callers, not a behavior break — verified against
-// bin/lib/docs-health/tests/freshness.test.js's fixtures, which all use a
+// tests/bin-lib/docs-health/freshness.test.js's fixtures, which all use a
 // real space after the dash.
 // Splits raw file content at the YAML-style '---' fence boundaries into
 // { frontmatter, afterLines }, or returns null when there's no frontmatter

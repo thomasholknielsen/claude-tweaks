@@ -119,6 +119,19 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   if (floorResult.exceeds) {
     return deny('oversight-floor', `record exceeds the oversight floor (reason: ${floorResult.reason}) — a human review is required`, { classKey, verdict });
   }
+  // Provenance-aware floor (#969): a record no human reviewed (shaped:headless,
+  // #968) is additionally evaluated against a fixed medium floor on both axes —
+  // stricter than the configured floor above, never looser. This branch may only
+  // ever narrow auto-granting, never widen it: it runs after the configured-floor
+  // deny (so that key keeps winning when both would fire, #969 AC4) and never
+  // short-circuits a later deny into a pass. Human-shaped records (no
+  // shapedHeadless facet) are untouched by this branch.
+  if (facets.shapedHeadless === true) {
+    const provenanceFloor = exceedsOversightFloor(facets, { riskFloor: 'medium', sizeFloor: 'medium' });
+    if (provenanceFloor.exceeds) {
+      return deny('shaped-headless-floor', `record was shaped headlessly (no human review) and exceeds the fixed medium provenance floor (reason: ${provenanceFloor.reason}) — run /claude-tweaks:backlog refine to grant it`, { classKey, verdict, risk: facets.risk, size: facets.size, floorReason: provenanceFloor.reason });
+    }
+  }
   const hasCap = typeof pol.dailyGrantCap === 'number' && pol.dailyGrantCap > 0;
   if (hasCap) {
     const issuedToday = typeof pol.grantsIssuedToday === 'number' ? pol.grantsIssuedToday : 0;

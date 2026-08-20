@@ -43,6 +43,35 @@ function isUnadoptedMint(dir, state) {
 // unfiltered .sort().reverse() would rank it first and shadow live runs.
 const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T/;
 
+// #848: a near-miss shape — the same 8-digit-date + T + 6-digit-time prefix
+// as a canonical run-id, minus the dashes (e.g. `20260817T173343-spec-764`,
+// the exact form a hand-composed `date -u +%Y%m%dT%H%M%S` mint produced
+// before every mint site delegated to run-dir-resolve.js's formatTimestamp()).
+// RUN_ID_RE silently excludes this shape from iterRunDirsWithState — by
+// design, that generator only yields directories it can confidently treat as
+// runs, since it drives both the fallback event-attribution scan and every
+// reconcile check's enumeration. findNonCanonicalRunDirs is the surfacing
+// half: report-only, never renamed or adopted, so a caller (reconcile) can
+// warn a human instead of silently omitting the run from every pass forever.
+const NON_CANONICAL_RUN_ID_RE = /^\d{8}T\d{6}/;
+
+// Directories under `.claude-tweaks/pipelines/` that look run-dir-shaped
+// (NON_CANONICAL_RUN_ID_RE) but don't match the canonical dash format
+// (RUN_ID_RE) and aren't `archive`. Anchored the same way
+// iterRunDirsWithState is — the main checkout, not raw cwd. Read-only: never
+// renames, deletes, or touches anything under the returned names.
+function findNonCanonicalRunDirs(cwd) {
+  const start = cwd || process.cwd();
+  const root = wtDetect.mainCheckoutRoot(start) || start;
+  const base = path.join(root, '.claude-tweaks', 'pipelines');
+  let entries;
+  try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return []; }
+  return entries
+    .filter((e) => e.isDirectory() && e.name !== 'archive' && !RUN_ID_RE.test(e.name) && NON_CANONICAL_RUN_ID_RE.test(e.name))
+    .map((e) => e.name)
+    .sort();
+}
+
 // #208: archived-is-terminal invariant, reader side. An archived run-id must never reach the
 // isUnadoptedMint/status inspection below regardless of what its resurrected active-side
 // run-state.json (if any) claims — that data is exactly the untrustworthy resurrected shell
@@ -181,6 +210,18 @@ function resolveRunDir(cwd, env, sessionId) {
   return resolveRun(cwd, env, sessionId).dir;
 }
 
+// Shared by findRunByWorktreePath/findRunsByWorktreePath below: does this
+// run-state's recorded `worktree` match targetPath? Realpath-canonicalizes
+// both sides where they exist on disk (recorded assignments are already
+// absolute; a torn-down worktree's path may no longer resolve, so the raw
+// string is kept as a fallback comparison rather than failing the match).
+function worktreeMatches(state, target, targetPath) {
+  if (!state || typeof state.worktree !== 'string' || !state.worktree) return false;
+  let recorded = state.worktree;
+  try { recorded = fs.realpathSync(recorded); } catch { /* keep recorded form */ }
+  return recorded === target || state.worktree === targetPath;
+}
+
 // Reverse lookup: which non-terminal run holds this worktree path as its
 // recorded assignment? Canonicalizes both sides via realpath where the paths
 // exist (recorded assignments are already absolute; the caller resolves a
@@ -191,12 +232,32 @@ function findRunByWorktreePath(cwd, targetPath) {
   let target = targetPath;
   try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
   for (const { dir, state } of iterRunDirsWithState(cwd)) {
-    if (!state || typeof state.worktree !== 'string' || !state.worktree) continue;
-    let recorded = state.worktree;
-    try { recorded = fs.realpathSync(recorded); } catch { /* keep recorded form */ }
-    if (recorded === target || state.worktree === targetPath) return { runDir: dir, state };
+    if (worktreeMatches(state, target, targetPath)) return { runDir: dir, state };
   }
   return null;
+}
+
+// Plural sibling of findRunByWorktreePath (#500): every non-terminal run
+// dir — not just the first — assigned to this worktree path, newest first.
+// Exists for the reflect Friction Lens's ad-hoc-session fallback
+// (skills/reflect/full-mode.md): a worktree dev session that never reached a
+// formal pipeline can leave behind more than one lightweight ad-hoc run dir
+// (post-tool-use.js's stampAdHocRunDir, one per EnterWorktree that found no
+// owned run yet) before a later /claude-tweaks:wrap-up finally reads them —
+// a single first-match lookup would silently drop every ad-hoc run but the
+// newest. `excludeDir`, when given, omits that one directory from the
+// result (the caller's own primary/current run dir, already read via its
+// normal path — never double-counted as a second source here).
+function findRunsByWorktreePath(cwd, targetPath, excludeDir) {
+  if (typeof targetPath !== 'string' || !targetPath) return [];
+  let target = targetPath;
+  try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
+  const out = [];
+  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+    if (excludeDir && path.resolve(dir) === path.resolve(excludeDir)) continue;
+    if (worktreeMatches(state, target, targetPath)) out.push({ runDir: dir, state });
+  }
+  return out;
 }
 
 // True synchronous sleep (no CPU-spinning) for writeRunState's lock retry
@@ -311,5 +372,5 @@ function appendEvent(runDir, type, data, attribution) {
 
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
-  readRunState, writeRunState, appendEvent, findRunByWorktreePath, RUN_ID_RE,
+  readRunState, writeRunState, appendEvent, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
 };

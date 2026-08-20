@@ -1,5 +1,5 @@
 'use strict';
-// bin/lib/wrap-up/tests/engine-record.test.js — validated judgment payloads,
+// tests/bin-lib/wrap-up/engine-record.test.js — validated judgment payloads,
 // uniform SCANNED decision lines, outcome telemetry, and engine-state.json
 // lifecycle. Uses real buildWorklist() output (Task 3) as the worklist fed
 // into initState, rather than a hand-shaped stand-in, so a shape drift

@@ -99,6 +99,7 @@ const GATE_COVERAGE = Object.freeze({
   exemptions: Object.freeze({
     paths: Object.freeze([`${toPosix(PIPELINE_STATE_DIR)}/`, toPosix(POLICY_FILE)]),
     commit: 'policy-only',
+    push: 'delete-only',
   }),
 });
 
@@ -214,6 +215,25 @@ function isPolicyOnlyCommit(command, cwd) {
   } catch {
     return false;
   }
+}
+
+// The delete-only push exemption's allowlist grammar (spec #658, Deliverable
+// 1's decision: EXEMPT): admits EXACTLY `git push <remote> --delete <branch>`
+// or `git push <remote> :<branch>` — one remote, one branch, nothing else —
+// no other flag, no shell operator (&&, ;, |, $(), backticks), no env-var
+// prefix, no path to git other than the bare word. Mirrors
+// POLICY_COMMIT_ALLOWLIST's whole-command, default-deny-by-construction
+// discipline directly: a compound command or an extra flag/positional simply
+// fails to match, the same way a compound commit does above. Unlike the
+// commit exemption, this needs no extra git query — a branch-delete push's
+// ref target is fully determined by the command text alone (a commit's
+// staged content is not), so the regex match is the whole check.
+const DELETE_ONLY_PUSH_ALLOWLIST = Object.freeze(new RegExp(
+  `^\\s*git\\s+push\\s+${CQ_ARG}\\s+(?:--delete\\s+${CQ_ARG}|:${CQ_BARE})\\s*$`,
+));
+
+function isDeleteOnlyPush(command) {
+  return typeof command === 'string' && DELETE_ONLY_PUSH_ALLOWLIST.test(command);
 }
 
 // Kept returning `string | null` — E1's own callers below compare toplevels for
@@ -589,6 +609,10 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     // is the command's working directory, not a file, so it plays no part in
     // this check beyond having produced `action === 'commit'`.
     if (action === 'commit' && isPolicyOnlyCommit(bashCommand, ctx.cwd)) continue;
+    // The delete-only push exemption (#658): ONLY for a target this loop
+    // resolved from a 'push' action, and only when the ENTIRE command
+    // matches the allowlist grammar above.
+    if (action === 'push' && isDeleteOnlyPush(bashCommand)) continue;
 
     // Breadcrumb for the residue sweep's judgment class (#185, Task 12) —
     // scoped to ctx.ownedRun, NEVER ctx.runDir: this gate fires before any
@@ -606,6 +630,15 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     const ownedRun = ctx.ownedRun || {};
     ctxLib.appendEvent(ownedRun.dir, 'gate-denial', { tool: toolName, path: targetPath }, ownedRun.attribution);
 
+    const retryGuidance = action === 'push'
+      ? `If you're trying to delete a branch whose worktree is already gone, there is nothing to ` +
+        `"retry inside a worktree" — use \`gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/{branch}\` ` +
+        `or \`gh pr merge --delete-branch\` instead. Otherwise, set one up first: invoke ` +
+        `/superpowers:using-git-worktrees, then follow \`_shared/worktree-setup.md\`'s post-creation ` +
+        `catch-up before any other action, then retry this push inside the new worktree.`
+      : `Set one up first: invoke /superpowers:using-git-worktrees, then follow ` +
+        `\`_shared/worktree-setup.md\`'s post-creation catch-up before any other action, ` +
+        `then retry this edit inside the new worktree.`;
     return denyResult(
       // Derived from GATE_COVERAGE rather than spelled out, so widening
       // the gate can never leave this message describing the old reach
@@ -614,11 +647,10 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
       `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
       `see _shared/policy-schema-coverage.md's worktree-always coverage block; exempt: ` +
-      `${GATE_COVERAGE.exemptions.paths.join(', ')} and an allowlisted (${GATE_COVERAGE.exemptions.commit}) commit) ` +
+      `${GATE_COVERAGE.exemptions.paths.join(', ')}, an allowlisted (${GATE_COVERAGE.exemptions.commit}) commit, ` +
+      `and an allowlisted (${GATE_COVERAGE.exemptions.push}) push) ` +
       `(policy: worktree-always in .claude-tweaks/policy.yml). You're currently working in ` +
-      `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
-      `then follow \`_shared/worktree-setup.md\`'s post-creation catch-up before any other action, ` +
-      `then retry this edit inside the new worktree.`,
+      `a non-isolated checkout (${repoRoot}). ${retryGuidance}`,
     );
   }
   return {};
@@ -777,6 +809,8 @@ module.exports = {
   isPolicyFile,
   isPolicyOnlyCommit,
   POLICY_COMMIT_ALLOWLIST,
+  isDeleteOnlyPush,
+  DELETE_ONLY_PUSH_ALLOWLIST,
   shadowPipelineRunDir,
   checkPipelineShadowGuard,
 };

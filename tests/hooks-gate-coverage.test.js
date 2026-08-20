@@ -18,7 +18,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { GATE_COVERAGE } = require('../plugin/bin/lib/hooks/pre-tool-use');
-const { WRITE_SHAPES, fileWriteTargets } = require('../plugin/bin/lib/hooks/git-command');
+const { WRITE_SHAPES, fileWriteTargets, gitTargets } = require('../plugin/bin/lib/hooks/git-command');
 
 const SCHEMA = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'policy-schema-coverage.md');
 const BEGIN = '<!-- gate-coverage:begin -->';
@@ -71,7 +71,7 @@ test('policy-schema-coverage.md\'s coverage block lists exactly the gate\'s exem
   // hand-typed expectation would keep passing even after the exemption's
   // shape changed underneath it, which is exactly the drift this whole
   // suite exists to catch.
-  const expected = [...GATE_COVERAGE.exemptions.paths, GATE_COVERAGE.exemptions.commit];
+  const expected = [...GATE_COVERAGE.exemptions.paths, GATE_COVERAGE.exemptions.commit, GATE_COVERAGE.exemptions.push];
   assert.deepStrictEqual(tokensFor(coverageBlock(), 'Exemptions'), expected,
     'GATE_COVERAGE.exemptions and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema-coverage.md');
 });
@@ -152,6 +152,41 @@ test('pre-tool-use.js branches on GATE_COVERAGE.teardownTools, not a duplicated 
   const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'hooks', 'pre-tool-use.js'), 'utf8');
   assert.ok(src.includes('GATE_COVERAGE.teardownTools'),
     'pre-tool-use.js must branch on GATE_COVERAGE.teardownTools, not a hardcoded comparison');
+});
+
+// #590: gitTargets now also recognizes `env git ...` — pin that hooks.json
+// carries a matching `if` predicate for both PreToolUse and PostToolUse (the
+// same #70 asymmetry the WRITE_SHAPES test above guards against: a parser
+// branch nothing spawns the hook for is dead code), and that the parser
+// really does resolve a target for the shape each new predicate names.
+test('every env-git `if` predicate this fix adds has a parser-recognized counterpart, in both PreToolUse and PostToolUse (#590)', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  // Exact literal predicates this fix adds — mirrors the six existing bare-`git`
+  // predicates one-for-one, so this list is deliberately hand-typed rather than
+  // derived from ENV_GIT_ACTIONS: -C/-c keep their trailing space (`Bash(git -C *)`
+  // already does), --exec-path=/--namespace= don't (`Bash(git --exec-path=*)`).
+  const ENV_GIT_PREDICATES = [
+    'Bash(env git commit *)',
+    'Bash(env git push *)',
+    'Bash(env git -C *)',
+    'Bash(env git -c *)',
+    'Bash(env git --exec-path=*)',
+    'Bash(env git --namespace=*)',
+  ];
+
+  for (const group of ['PreToolUse', 'PostToolUse']) {
+    const bashGroup = hooks.hooks[group].find((e) => e.matcher === 'Bash');
+    assert.ok(bashGroup, `${group} must carry a Bash matcher group`);
+    const ifs = bashGroup.hooks.map((h) => h.if).filter(Boolean);
+    for (const predicate of ENV_GIT_PREDICATES) {
+      assert.ok(ifs.includes(predicate),
+        `${group}'s Bash group is missing an "if": "${predicate}" predicate — gitTargets recognizes this 'env git' shape but the hook would never spawn for it`);
+    }
+  }
+
+  // Parser side: the shapes these new predicates name really do resolve.
+  assert.deepStrictEqual(gitTargets('env git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env git push', '/repo'), [{ action: 'push', dir: '/repo' }]);
 });
 
 test('an unlisted Bash write shape is genuinely not detected', () => {

@@ -15,11 +15,11 @@ function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-churn-
 // health-state migration — run history now lives on the durable health-state
 // branch (bin/lib/health-core/durable-state.js), not local disk. Its write
 // path (gh api blob/tree/commit/ref calls) requires live GitHub credentials
-// and is covered by bin/lib/health-core/tests/durable-state.test.js's
+// and is covered by tests/bin-lib/health-core/durable-state.test.js's
 // fake-runner tests; the read path is pure git plumbing (fetch + show), so
 // it's exercised for real below via a local bare git remote seeded directly
 // with runs.json (no gh/network needed) — the same technique
-// bin/lib/code-health/tests/cli-nextslice.test.js uses for cursors.
+// tests/bin-lib/code-health/cli-nextslice.test.js uses for cursors.
 function seedDurableRuns(root, runs) {
   const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-churn-bare-'));
   execFileSync('git', ['init', '--bare', '-q', bareDir]);

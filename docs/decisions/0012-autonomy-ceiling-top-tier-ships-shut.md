@@ -1,10 +1,8 @@
-# 12. The autonomy ceiling's top tier ships defined but shut
+# 0012. The autonomy ceiling's top tier ships defined but shut
 
-Date: 2026-08-07
-
-## Status
-
-Accepted
+- **Status:** accepted
+- **Date:** 2026-08-07
+- **Context:** Earned-autonomy tier design (`docs/superpowers/specs/2026-08-07-earned-autonomy-tier-design.md`), Phase 3
 
 ## Context
 

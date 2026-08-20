@@ -95,10 +95,25 @@ function formatOffsetClause({ bytesAtDispatch, line, filedRecords, dismissedFing
     + `omit findings they cover. These fingerprints were previously declined: ${declined}; omit findings matching them.`;
 }
 
+// #701's skip-before-dispatch check: true when the transcript has not grown
+// since `watermark` was recorded, so a caller can skip the judge dispatch
+// entirely (report the watermark's own payload instead) rather than paying
+// for a Task agent that would evaluate zero new bytes via the offset clause
+// above. `currentBytes` is the resolved transcript's current on-disk size —
+// the caller stats it, this function stays pure and untestable-disk-free.
+// A null/malformed watermark (no prior evaluation, or a corrupt one that
+// readWatermark already degraded to null) always returns false: there is
+// nothing to skip against, so the caller falls through to a normal dispatch.
+function isTranscriptUnchanged(watermark, currentBytes) {
+  if (!watermark || typeof watermark.bytesAtDispatch !== 'number') return false;
+  return currentBytes <= watermark.bytesAtDispatch;
+}
+
 module.exports = {
   watermarkPath,
   readWatermark,
   writeWatermark,
   byteOffsetToLine,
   formatOffsetClause,
+  isTranscriptUnchanged,
 };

@@ -171,6 +171,34 @@ async function main(argv) {
     process.stderr.write(`claude-tweaks: resolve-run-dir: ${result.message}\n`);
     return 1;
   }
+  if (cmd === 'sweep-shadow') {
+    // Promotes curation-engine.md §4's post-fan-out shadow sweep from an
+    // inline bash snippet to this verb (#738). --run/--worktree are the raw
+    // PIPELINE_RUN_DIR/WORKTREE values as a judge dispatch would set them —
+    // sweepShadow() itself does the `pwd -P`-style normalization and the
+    // anchoring/same-path checks, so unlike record-worktree/record-pr/
+    // close-run this does NOT go through resolveRunArg: --worktree is
+    // legitimately a linked worktree, which resolveRunArg's anchoring check
+    // would reject outright, and --run's own "is it under the main
+    // checkout" question is exactly the sweep's own diagnostic, not a
+    // separate gate ahead of it.
+    const args = argv.slice(3);
+    const runArg = flagVal(args, '--run');
+    const worktreeArg = flagVal(args, '--worktree');
+    const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
+    if (!mainRoot) {
+      process.stdout.write(`sweep: ${wtDetect.unanchoredRunDirNoRepoMessage(process.cwd())} — not swept\n`);
+      return 1;
+    }
+    const { sweepShadow } = require('./lib/hooks/sweep-shadow');
+    const result = sweepShadow({
+      runRoot: mainRoot,
+      pipelineRunDir: runArg ? path.resolve(process.cwd(), runArg) : runArg,
+      worktree: worktreeArg ? path.resolve(process.cwd(), worktreeArg) : worktreeArg,
+    });
+    for (const line of result.lines) process.stdout.write(line + '\n');
+    return result.diagnostic ? 1 : 0;
+  }
   if (cmd === 'record-pr') {
     // Mirrors record-worktree's shape: --run <path> pins the target run dir
     // explicitly (falls back to resolveRunDir's newest-non-terminal-run scan
