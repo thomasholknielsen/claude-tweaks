@@ -26,9 +26,44 @@ test('a cd on its own line, preceded by an unrelated statement joined only by a 
   );
 });
 
-test('a shell-variable cd on its own line, preceded by an unrelated statement, is unresolvable — no target (never falls back to the stale cwd)', () => {
+test('a shell-variable cd on its own line, preceded by an unrelated statement, resolves via the same-command assignment (no fallback to the stale cwd — the assignment IS the proof)', () => {
   assert.deepStrictEqual(
     gitTargets('MKT="/wt/spec-1"\ncd "$MKT" && git commit -m "x"', '/repo'),
+    [{ action: 'commit', dir: '/wt/spec-1' }],
+  );
+});
+
+test('a cd referencing a variable with no same-command assignment stays unresolvable', () => {
+  assert.deepStrictEqual(
+    gitTargets('cd "$SOME_VAR" && git commit -m "x"', '/repo'),
+    [],
+  );
+});
+
+test('fileWriteTargets resolves a same-command literal assignment substituted into a write target', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/private/tmp/foo; sed -i "" -e "s/x/y/" "$SP/file.md" && grep -c x "$SP/file.md"', '/repo'),
+    [{ action: 'edit', file: '/private/tmp/foo/file.md' }],
+  );
+});
+
+test('a dynamic/unresolvable assignment value is never chained — target stays unresolvable', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=$(pwd); sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
+    [],
+  );
+});
+
+test('a later re-assignment of the same name overrides the earlier one', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/a; SP=/b; sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
+    [{ action: 'edit', file: '/b/file.md' }],
+  );
+});
+
+test('a later re-assignment to an unresolvable value drops the earlier mapping — no stale substitution', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/a; SP=$(pwd); sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
     [],
   );
 });
