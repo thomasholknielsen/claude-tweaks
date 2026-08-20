@@ -106,6 +106,7 @@ one-time provision-now offer, which uses this list whole):
   ["parent-issue",      "Structure: parent issue — carries the acceptance gate for its sub-issues"],
   ["solution:unjustified",   "Solution: named without being traded off against alternatives — add evidence or accept the risk"],
   ["needs:definition",  "Undecided idea — must go through /specify's brainstorm redirect before reaching ready"],
+  ["shaped:headless",   "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body"],
   ["priority:high",     "Priority: dispatch picks this band first"],
   ["priority:medium",   "Priority: dispatch picks after priority:high"],
   ["priority:low",      "Priority: dispatch picks last among prioritized records"]
