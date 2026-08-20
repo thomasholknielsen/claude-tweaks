@@ -23,6 +23,14 @@ test('parseArgs: unknown flag is an error', () => {
   assert.match(parseArgs(['actions.json', '--bogus']).error, /unknown argument/);
 });
 
+test('parseArgs: --run as the last token with no value is an error, not silently omitted', () => {
+  assert.match(parseArgs(['actions.json', '--run']).error, /--run requires a value/);
+});
+
+test('parseArgs: --run immediately followed by another flag is an error, not treated as its value', () => {
+  assert.match(parseArgs(['actions.json', '--run', '--repo', 'acme/widgets']).error, /--run requires a value/);
+});
+
 test('validateAction: rejects a non-integer issue', () => {
   assert.match(validateAction({ issue: 'x', addLabels: ['a'] }, 0), /must be a positive integer/);
 });

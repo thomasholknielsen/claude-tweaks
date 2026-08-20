@@ -34,7 +34,10 @@ function parseArgs(argv) {
     const a = argv[i];
     const next = () => argv[++i];
     if (a === '--help' || a === '-h') opts.help = true;
-    else if (a === '--run') opts.run = next();
+    else if (a === '--run') {
+      opts.run = next();
+      if (!opts.run || opts.run.startsWith('--')) return { error: '--run requires a value' };
+    }
     else if (a === '--repo') opts.repo = next();
     else return { error: `unknown argument: ${a}` };
   }
