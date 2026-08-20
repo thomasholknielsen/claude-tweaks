@@ -59,29 +59,7 @@ The dependency check is the same regardless of whether the prerequisite is in-ru
 
 ## Cross-spec conflict detection
 
-When two specs in the run declare overlapping files, sequential execution can compound (spec 159 builds on spec 157's changes, possibly conflicting with what its spec assumed) and future parallel execution would conflict outright.
-
-### Procedure
-
-1. Collect each target's key files into a single `[{id, keyFiles}]` list: extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from the record body already fetched during Validation step 3 above — the same extraction `/claude-tweaks:specify` Step 1 and `help/status-scan.md`'s Conflict detection section perform. An empty `keyFiles` array is not erroring, but when the record is `ready` (spec-shaped — should have one) and `bin/lib/issues/grouping.js`'s `expectsKeyFilesSection` returns true (excludes the four health-sweep origins, whose own header shape legitimately has none), it means overlap detection is silently disabled for it — surface one warning line to `decisions.md` (`_shared/auto-decision-log.md`'s Entry schema — `AUTO {time} — Cross-spec conflict detection: record #{n} is ready but has no ### Key Files subsection — overlap detection disabled for it. Reversibility: n/a.`). A not-yet-`ready` record, or one `expectsKeyFilesSection` excludes, is the expected absence case and stays silent, as today.
-2. Call the shared grouping primitive — `groupByFileOverlap` (`bin/lib/issues/grouping.js`), the same one `/claude-tweaks:help`'s dashboard conflict detection and `/claude-tweaks:specify`'s creation-time check both use — over the combined list.
-3. Any group of size > 1 returned by `groupByFileOverlap` shares files across targets — record a **conflict warning** for each pair in that group.
-
-### Presentation
-
-Surface conflicts in the Pipeline Preview block as a dedicated footer line:
-
-```
-Conflicts: spec 157 ↔ spec 159 both modify src/auth/session.ts; spec 159 ↔ spec 160 both modify src/api/users.ts
-```
-
-This is a **warning, not a hard fail** — sequential execution is usually fine, but the user should know spec 159's plan assumed `src/auth/session.ts`'s pre-157 shape, which changes once 157 runs.
-
-If `auto` mode is set and conflicts are detected, the Manifesto still renders (as a read-only FYI in default `auto`, or as the approval gate under `confirm` / `hybrid`) — the conflict footer just makes it visible before the pipeline proceeds. No mid-flow re-prompt.
-
-### Anti-patterns
-
-Never hard-fail on file overlap (specs legitimately share files — false positives block real work), never suppress the conflict footer (it is the user's only interdependency signal), and never auto-reorder to dodge a conflict — re-ordering only helps when a real `blocked-by:` edge exists; conflicts and dependencies are different things.
+When two specs in the run declare overlapping files, sequential execution can compound (spec 159 builds on spec 157's changes, possibly conflicting with what its spec assumed) and future parallel execution would conflict outright. Read `multispec-conflict-detection.md` in this skill's directory for the procedure (the `groupByFileOverlap` primitive and the Key-Files-absence warning), the Pipeline Preview footer presentation, and the anti-patterns (never hard-fail, never suppress the footer, never auto-reorder to dodge a conflict).
 
 ## Run directory layout
 
@@ -101,14 +79,14 @@ $RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── decisions.md        ← Run-level audit log (freeform-issue translations log here)
 ├── staged/             ← Run-level staged items (translation-{issue}.md) — read by the consolidated console
 └── spec-{N}/           ← Per-record subdirectory (one per record; `work/{N}-spec.md` holds the materialized file — see `materialize.md`)
-    ├── config.yml      ← Copy of the parent's, written when the parent scaffolds this subdirectory (see below)
+    ├── config.yml      ← Copy of the parent's, written by the per-spec scaffolding step below ("Scaffold the per-spec subdirectory")
     ├── decisions.md
     └── staged/
 ```
 
 The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
 
-**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written by `/flow` in the same step that creates the subdirectory (Step 3). Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec (observed on the #678 run: `review-auto-apply-ceiling` read `default` from `spec-678/` while the parent held `run-config: medium`). A mid-run in-place lever edit (the ceremony escape hatch) lands in the spec's own copy and scopes to that spec — intended.
+**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written immediately before that spec's pipeline starts. Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec. The step that writes it, its ordering rule, and the `#678`/`#925` history behind it are under "Scaffold the per-spec subdirectory" below.
 
 `manifest.yml` lists the records in execution order plus their status as the run progresses — written exclusively through `node plugin/bin/hooks.js spec-status` (see "Phase-progress banner and per-spec completion summary" below); nothing else writes this file. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — so `multispec-batch-curation.md`'s registry pass has a stable pre-batch baseline to read back rather than re-deriving it after N specs' worth of commits have landed:
 
@@ -145,6 +123,8 @@ This does not replace each spec's own `/test` gate — every spec still runs ver
 
 Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
 
+**Scaffold the per-spec subdirectory before exporting its `PIPELINE_RUN_DIR`** — read `multispec-config-scaffold.md` in this skill's directory for the concrete `mkdir`/`cp`/`touch` step, its ordering rule, and why the parent-level Manifesto (Step 3) does not itself perform this copy (`#678`; `#925`).
+
 For each per-spec invocation, `/flow` exports these environment variables (the last is conditional on the caller, not always set):
 
 | Variable | Value | Purpose |
@@ -175,6 +155,10 @@ When `worktree` is specified, a sequential run uses **one shared worktree for th
 Why shared, not per-record: sequential records in one run are one logical unit of work on one base. Per-record worktrees would each branch from that base and need N separate merges unable to see each other's commits — the divergence/stale-base problem worktrees exist to avoid. One branch accumulates the records in dependency order and merges back as a single reconciled changeset.
 
 > Separate-terminal parallel runs (`/flow #42 worktree` in each terminal) are different — those are N independent single-record runs and each correctly gets its own worktree. See `worktree-merge.md`.
+
+## PR phase-checklist convention (shared PR)
+
+A multi-spec run shares one PR (`_shared/pr-early-run-lifecycle.md`); its checklist rows are **cumulative and run-level, never reset per spec**. Read `multispec-pr-checklist.md` in this skill's directory for the rationale and the per-spec status source.
 
 ## Failure handling (default vs `keep-going`)
 

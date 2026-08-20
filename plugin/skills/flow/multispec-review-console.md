@@ -151,6 +151,22 @@ These steps appear as visible, numbered Cleanup actions rows in the console temp
 4. **Remove grants** — pass `--remove-grants` for each issue released with a `merged:` or `pr-opened:` outcome (strips `auto:build`/`auto:merge`, best-effort per label); omit it for `abandoned:` (the grant is the standing retry request). See "Grant revocation" in `_shared/issue-claims.md`.
 5. **Remove `bot:in-progress`; restore `parked` if applicable** — see "Per-issue label cleanup" below.
 6. **Remove the shared worktree** — `wrap-up/cleanup-procedures-execution.md` Section C step 4; the run occupies exactly one (`multi-spec.md`'s "Shared worktree"). Per that Section's Teardown ordering invariant: only once steps 2-5 above have completed — step 3's claim release reads each spec's materialized header from inside this worktree — and only via `ExitWorktree`, never a raw `git worktree remove` nor a `cd`-then-remove compound. Run `close-run` first (Section C step 3.6) if the parent run dir is not already closed. Skip when the branch-finish outcome left work pending: `pr-first`'s "leave PR open" (no merge attempted) or `local-merge`'s "kept as-is" — the worktree stays for that continued work, mirroring Section C step 3's own skip.
+7. **Branch + remote-ref cleanup, once the shared worktree is gone (#594).** Run:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" teardown-run --run "$MULTISPEC_PARENT_DIR" \
+     --merged  # or --abandoned when the branch was discarded, not merged
+   ```
+
+   `teardown-run` composes the archival + local-branch-delete + remote-branch-delete mechanics
+   `cleanup-procedures-execution.md` Section C uses for a single-spec run — target
+   `$MULTISPEC_PARENT_DIR` (the run occupies exactly one worktree/branch for the whole multi-spec
+   run, recorded on the parent, never a per-spec `$PIPELINE_RUN_DIR`). Called after step 6 above,
+   not before: `teardown-run`'s own worktree-removal step would otherwise skip (the worktree is
+   still locked to this session at that point) — harmless either way, but the local branch delete
+   would fail outright if attempted while the branch is still checked out in the (not-yet-removed)
+   worktree, since git refuses to delete a checked-out branch. Skip when step 6 itself skipped
+   (work left pending).
 
 ### Per-issue label cleanup
 

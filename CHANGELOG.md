@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.99.0 — Dispatch batch: routine pause/resume + sampling floor for the trust ladder (#213, #310); github-pr-scan MCP fallback (#172); Section E ownership-check fix (#226); Impeccable Rule 5 fail/skip prose (#206); mutation-probe discipline for test tasks (#250); residue-probe header restoration + wrap-up prose fixes (#229); docs/donts.md IL-nn dedup + grammar fix (#244); multi-spec.md #724 budget fix
+
+Dispatch batch: routine pause/resume + sampling floor for the trust ladder (#213, #310); github-pr-scan MCP fallback (#172); Section E ownership-check fix (#226); Impeccable Rule 5 fail/skip prose (#206); mutation-probe discipline for test tasks (#250); residue-probe header restoration + wrap-up prose fixes (#229); docs/donts.md IL-nn dedup + grammar fix (#244); multi-spec.md #724 budget fix.
+
 ## v6.98.1 — Windows: hide console windows on the reconcile lib's own gh/git spawns — completes the v6.98.0 fix (#931, PR #955)
 
 Windows: hide console windows on the reconcile lib's own gh/git spawns — completes the v6.98.0 fix (#931, PR #955).
