@@ -1,7 +1,7 @@
 ---
 name: routine
 description: Use to create, update, or check status of a Claude Code cloud Routine for a claude-tweaks skill — instantiates a project-agnostic template into a live, scheduled routine. Keywords - routine, schedule, cron, cloud agent, recurring, automation.
-argument-hint: "<create|update|status> <skill>|--all|<fleet on|status|off> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
+argument-hint: "<create|update|status|pause|resume> <skill>|--all|<fleet on|status|off> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -32,11 +32,13 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 |---|---|
 | `create <skill>` | Instantiate `<skill>`'s routine template into a live routine for the current project. Routes to the UPDATE workflow automatically if an instantiated record already exists for this project+skill combination. |
 | `update <skill>` | Re-sync an existing routine against its (possibly changed) template. |
+| `pause <skill>` | Pause the live routine — sets `enabled: false` via a `RemoteTrigger update` call whose body touches only `enabled`. Reversible (`resume` undoes it); does not delete anything and does not otherwise touch the routine's schedule, model, tools, or prompt. |
+| `resume <skill>` | Resume a routine paused via `pause` (or via the claude.ai/code web UI's Repeats toggle) — sets `enabled: true` the same way. |
 | `status <skill>` | Show the instantiated record for `<skill>` alongside live routine state. |
 | `status --all` | Bulk drift check across every instantiated record in the project (`.claude-tweaks/routines/*.yml`), regardless of skill — no `<skill>` argument. The only entry point that can discover a record whose named skill no longer exists at all (renamed/retired), since every other path here starts from a skill name and checks that skill's own template file forward. See STATUS Step 1's `--all` branch for the full verdict table. |
 | `fleet on` | Turn on the self-maintaining posture in one action: a Manifesto collecting the human-owned policy levers, then provisioning (or reconciling, on a re-run) every routine in the fleet composition table — vertical finders, generalist sweeps, the conditional grant unit, the dispatch drain, and tidy. See `fleet.md` in this skill's directory. |
 | `fleet status` | One aggregated read-only screen for the fleet: fleet-marked routine table (schedule, last firing, health), the per-class trust table, and the weekly counters (firings, findings, grants split human/machine, merges, revocations) with each counter's source and blind spots named inline. See `fleet.md`'s Fleet status section. |
-| `fleet off` | Pause-based shutdown of every fleet-marked routine — durable state (records, rotation cursors, wontfix suppressions, trust history) survives. Never deletes; never touches non-fleet routines. With no pause verb landed (#213), reports the deletion-vs-keep tradeoff per routine and performs no destructive action. See `fleet.md`'s Fleet off section. |
+| `fleet off` | Pause-based shutdown of every fleet-marked routine — durable state (records, rotation cursors, wontfix suppressions, trust history) survives. Never deletes; never touches non-fleet routines. Pauses each fleet-marked routine via the `pause` action. See `fleet.md`'s Fleet off section. |
 | `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body (on `create`, when an environment was already resolved) or a text preview (on `create`, when none was — no browser session opens, no body exists to assemble); never make a `create`/`update` call or open a guided-creation browser session (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
 | `--defaults` (combine with `create` or `update`) | On `create`: skip Step 5's interactive cadence picker (use the template's own `default_schedule.cron_expression` verbatim) and Step 7's interactive confirm (proceed straight to creation once the body is assembled, or straight to the guided-creation flow if none was). On `update`: skip Step 3's schedule re-resolution entirely (keep the record's existing `schedule` field untouched — no cadence picker at all) and Step 5's interactive confirm (proceed straight to Step 6 once the body is assembled). Either way, for non-interactive/batch use. Environment still resolves via Step 4's normal sources (`--environment`, the cache, or its two fallback lookups); if none yields a value, `--defaults` does **not** suppress guided creation's own browser session (opening a browser and creating live, billed infrastructure is a bigger commitment than the batch-confirm callers like `/init` Step 15 already cover — Step 7's preview is still shown as a non-blocking report either way). |
 | `--branch <name>` (combine with `create`/`update`) | Pin the branch the routine audits — substituted into the kernel's `{{TARGET_BRANCH}}` placeholder, skipping every other source in CREATE Step 5.5's precedence. Use it when the repo's active development branch isn't its GitHub default (a `dev` → `staging` → `main` model), which is otherwise the case a routine gets wrong; `integration-branch` in `.claude-tweaks/policy.yml` is the durable form of the same answer. |
@@ -46,12 +48,13 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 
 ## Workflow
 
-Resolve the mode from `$ARGUMENTS` (`create` | `update` | `status` | `fleet on` | `fleet status` | `fleet off`), then read exactly one procedure file from this skill's directory. The modes are mutually exclusive, and `status --all` — the form `/claude-tweaks:init`'s Update Mode fires in bulk — has no use for CREATE's or UPDATE's body at all.
+Resolve the mode from `$ARGUMENTS` (`create` | `update` | `status` | `pause` | `resume` | `fleet on` | `fleet status` | `fleet off`), then read exactly one procedure file from this skill's directory. The modes are mutually exclusive, and `status --all` — the form `/claude-tweaks:init`'s Update Mode fires in bulk — has no use for CREATE's or UPDATE's body at all.
 
 | Mode | Read | Covers |
 |---|---|---|
 | `create <skill>` | `create-and-update.md` | CREATE Steps 0-9. Its Step 3 idempotency check routes to UPDATE automatically — same file, no second read. |
 | `update <skill>` | `create-and-update.md` | UPDATE Steps 0-7. UPDATE reuses CREATE's Steps 1, 2, 4, 5.5, and 6 by name, which is why the two modes share one file rather than splitting into two that would each read the other. |
+| `pause <skill>` / `resume <skill>` | `create-and-update.md` | PAUSE/RESUME Steps 1-3, at the end of the file. Reuses CREATE Step 1/UPDATE Step 1's record-resolution steps by name rather than a full body reassembly — same reason the two modes share one file. |
 | `status <skill>` / `status --all` | `status.md` | STATUS Steps 1-3.5, including the `--all` bulk-enumeration branch. Needs nothing from CREATE or UPDATE. |
 | `fleet on / status / off` | `fleet.md` | Steps 1-5 (Manifesto, cloud-parity check, conditional grant-unit provisioning, per-routine provisioning loop, summary). Its provisioning loop itself reads `create-and-update.md` per row — same CREATE/UPDATE procedure, parameterized by `fleet.md`'s own composition table rather than a single skill argument. `fleet status` and `fleet off` are the two companion sections in the same file (aggregated dashboard; pause-based shutdown). |
 
@@ -68,6 +71,10 @@ Steps 0-9 live in `create-and-update.md` in this skill's directory; Step 5's own
 ### UPDATE `<skill>`
 
 Steps 0-7 live in `create-and-update.md` in this skill's directory, after the CREATE section.
+
+### PAUSE `<skill>` / RESUME `<skill>`
+
+Steps 1-3 live in `create-and-update.md` in this skill's directory, after the UPDATE section. Both actions reuse CREATE Step 1 / UPDATE Step 1's record-resolution steps rather than re-deriving `PREFIXED_NAME` or the `RemoteTrigger` `trigger_id`.
 
 ### STATUS `<skill>`
 

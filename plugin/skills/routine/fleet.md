@@ -83,7 +83,7 @@ Row 9 (backlog grant) provisions **only when both** `autonomy: unattended` **and
 
 - **Both set** → row 9 provisions like every other row in Step 4's loop.
 - **Either unset** → skip row 9 entirely; the summary states plainly that the grant unit was withheld and names which policy change(s) would enable it (e.g. "grant unit withheld — set `autonomy: unattended` and `grant-origination-enabled: true` in `.claude-tweaks/policy.yml` to enable").
-- **Downgrade on re-run** — a prior `fleet on` provisioned row 9 (both keys were set then), and this Manifesto pass now reads `supervised` (or `grant-origination-enabled: false`): row 9's existing record is not silently left running unexplained. Check whether the routine skill's pause verb exists (#213); if it does, pause row 9's live routine and note "paused — autonomy downgraded to {ceiling}" in the summary. If no pause verb exists yet, leave the routine running and surface it prominently in the summary instead: "grant unit still live but autonomy is now {ceiling} — remove `{PREFIXED_NAME}` manually at claude.ai/code/routines, or restore the unattended keys." Either way this is **harmless-by-construction**: `bin/lib/issues/grant-gate.js`'s own gate chain re-checks the ceiling on every firing and denies every candidate at `supervised` (Gate 0, per `grant-mode.md`'s own contract) — a still-live but downgraded grant unit fires, finds nothing it's allowed to grant, and reports a clean no-op. State this explicitly in the summary so the human doesn't read "still live" as still-dangerous.
+- **Downgrade on re-run** — a prior `fleet on` provisioned row 9 (both keys were set then), and this Manifesto pass now reads `supervised` (or `grant-origination-enabled: false`): row 9's existing record is not silently left running unexplained. Pause row 9's live routine via `create-and-update.md`'s PAUSE action and note "paused — autonomy downgraded to {ceiling}" in the summary. This is **harmless-by-construction** even before the pause takes effect: `bin/lib/issues/grant-gate.js`'s own gate chain re-checks the ceiling on every firing and denies every candidate at `supervised` (Gate 0, per `grant-mode.md`'s own contract) — a still-live but downgraded grant unit fires, finds nothing it's allowed to grant, and reports a clean no-op. State this explicitly in the summary so the human doesn't read "still live" as still-dangerous.
 
 ## Step 4 — Per-routine provisioning loop
 
@@ -228,32 +228,21 @@ fleet-marked and *is* in scope for pausing, same as any other fleet member.)
    (composition-table `PREFIXED_NAME`s ∩ `record-freshness.md`'s `records[]`). Capture the
    before-list. A repo with no fleet-marked routines reports that plainly — "no fleet-marked
    routines in this project; nothing to pause" — and stops. Not an error.
-2. **Probe for the pause verb (#213).** Re-check at execution time whether the routine skill
-   has a pause mechanism (a pause/disable action documented in `create-and-update.md` or an
-   enabled/disabled field writable via `RemoteTrigger update`). #213 was open with no landed
-   verb when this section shipped, so the fallback below is the expected live path, not an
-   edge case.
-3. **Pause path (verb exists):** pause each fleet-marked routine via the landed mechanism —
-   consume whatever shipped, per #276's prerequisite note. Report the paused set and what
+2. **Pause each fleet-marked routine** via `create-and-update.md`'s PAUSE action (per #276's
+   prerequisite note) — one `RemoteTrigger update` call per routine, body `{"enabled": false}`,
+   using each row's already-resolved `record.routine_id`; no other field is touched. If a call
+   fails because a routine's record is stale (deleted out-of-band), report it per PAUSE Step 2's
+   own recourse and continue pausing the rest of the fleet rather than aborting the whole run —
+   **no destructive action** is taken on any routine either way. Report the paused set and what
    state survives (records, cursors, suppressions, trust history — all of it).
-4. **Fallback path (no pause verb — the live path today, AC6):** perform **no destructive
-   action**. For each fleet-marked routine, report the deletion-vs-keep tradeoff instead:
-
-   | Routine | If you delete it (manually, at claude.ai/code/routines) | If you keep it running |
-   |---|---|---|
-   | {name} | live firings stop; the instantiated record, rotation cursors, wontfix suppressions, and trust history all survive on disk — but deletion has no undo and re-provisioning re-creates billed infrastructure | keeps firing on schedule; report-only routines file findings as usual; the grant unit (if any) is harmless-by-construction at a downgraded ceiling (Gate 0 denies every candidate) |
-
-   Close with: deletion is a manual step at claude.ai/code/routines (IL-69: destroying billed
-   infrastructure must have a decided human owner); this skill never performs it.
-5. **Verify scope (AC3):** list routines before and after — the after-list must show every
-   fleet-marked routine paused (pause path) or untouched (fallback path), and every non-fleet
-   routine byte-identical in state. Include both lists in the report.
-6. **Round-trip note (AC4):** a paused fleet is resumed by re-running `fleet on` — Step 4's
-   reconcile detects the existing records and updates/resumes rather than duplicating. The
+3. **Verify scope (AC3):** list routines before and after — the after-list must show every
+   fleet-marked routine paused, and every non-fleet routine byte-identical in state (`fleet off`
+   **never deletes anything** and **never touches a routine that is not fleet-marked**, per the
+   header above). Include both lists in the report.
+4. **Round-trip note (AC4):** a paused fleet is resumed by re-running `fleet on` (Step 4's
+   reconcile detects the existing records) or, per-routine, via `resume <skill>` directly. The
    marker semantics both verbs consume are this file's own composition-table `PREFIXED_NAME`
-   rule (Step 4.2) — one home, both consumers. Paused-state semantics do not exist yet; they
-   will be defined by whatever pause mechanism #213 lands, at which point the pause path
-   (Step 3 above) consumes them.
+   rule (Step 4.2) — one home, both consumers.
 
 ## Anti-Patterns
 
@@ -263,7 +252,7 @@ fleet-marked and *is* in scope for pausing, same as any other fleet member.)
 | Comparing `template_version` to decide drift | IL-89 — a version string proves nothing about content. Re-render the prompt and compare bytes (Step 4's RECONCILE) |
 | Treating a `presence: none` + live-routine-name-match as "adopt it" | The routine wasn't created by this skill (no record exists) — adopting it silently could overwrite a hand-tuned prompt with no way to recover it (`RemoteTrigger` has no delete-and-restore). Report the collision; never touch it |
 | Provisioning row 9 because `autonomy: unattended` alone is set | The reserved second opt-in (`grant-origination-enabled`) is deliberately a separate human decision — `_shared/autonomy-ceiling.md`'s whole point is that the ceiling alone never authorizes a machine-originated grant |
-| Silently deleting or pausing a downgraded grant-unit routine | Deletion has no undo (`RemoteTrigger` has no delete API to call in the first place, at claude.ai/code/routines this is a manual step) — pause when the verb exists, otherwise surface prominently, never act unprompted beyond what Step 3 documents |
+| Silently deleting a downgraded grant-unit routine | Deletion has no undo (`RemoteTrigger` has no delete API to call in the first place, at claude.ai/code/routines this is a manual step) — pause it and state the downgrade in the summary, never act unprompted beyond what Step 3 documents |
 | Re-prompting per row for schedule/environment/confirm | Fleet mode's whole point is one deliberate action — the Manifesto (Step 1) and the batch preview (Step 4.3) are the only confirmation points; 11 separate `AskUserQuestion` calls would defeat "one-action provisioning" |
 | Treating a missing template as a fleet-wide failure | Composition, not exhaustiveness — provision what exists, name what's missing, never refuse the whole fleet over one absent template |
 | Deleting (or offering to delete) routines from `fleet off` | Deletion has no API and no undo — `fleet off` is pause-based precisely so durable state survives; deletion is a human act at claude.ai/code/routines (IL-69) |

@@ -8,7 +8,7 @@ files:
 # Routine Fleet Status and Off
 
 **Persona:** Repo maintainer operating the self-maintaining fleet (`fleet on` already ran) who wants to know what the fleet did to the codebase this week, and — separately — wants to shut it down temporarily without losing anything durable.
-**Goal:** Run `/claude-tweaks:routine fleet status` to get one read-only screen answering "what did my codebase do to itself this week," then run `/claude-tweaks:routine fleet off` and get an honest report of what shutdown actually does today — a no-pause-verb fallback that performs no destructive action, since #213's pause verb hasn't landed.
+**Goal:** Run `/claude-tweaks:routine fleet status` to get one read-only screen answering "what did my codebase do to itself this week," then run `/claude-tweaks:routine fleet off` and get every fleet-marked routine paused — no destructive action, all durable state intact.
 
 ## Steps
 
@@ -36,18 +36,18 @@ files:
    - **Action:** The skill enumerates fleet-marked routines using the exact same membership resolution as `fleet status` (composition-table `PREFIXED_NAME`s ∩ instantiated records) and captures the before-list.
    - **Check:** A project with zero fleet-marked routines gets the report "no fleet-marked routines in this project; nothing to pause" and stops there — reported as a normal outcome, not an error.
 
-6. **Pause-verb probe (#213)** — The skill re-checks, at execution time, whether the routine skill has landed a pause mechanism.
-   - **Action:** Looks for a pause/disable action documented in `create-and-update.md`, or an enabled/disabled field writable via `RemoteTrigger update`.
-   - **Check:** As of this build, #213 has not landed — the probe finds nothing, and every invocation of `fleet off` today takes the fallback path (Step 7), not the pause path. This is the concrete, testable behavior an operator sees right now, not a hypothetical edge case.
+6. **Pause each fleet-marked routine** — The skill calls the routine skill's `pause` action per fleet-marked routine.
+   - **Action:** One `RemoteTrigger update` call per routine, body `{"enabled": false}`, using each row's already-resolved `record.routine_id` — no other field is reassembled or changed. A routine whose record is stale (deleted out-of-band) is reported and skipped; the rest of the fleet still pauses.
+   - **Check:** Every fleet-marked routine's live `enabled` field is now `false`. Makes zero delete calls — `RemoteTrigger` has no delete API to call in the first place.
 
-7. **Fallback: deletion-vs-keep table, zero destructive action** — With no pause verb available, the skill reports the tradeoff instead of acting.
-   - **Action:** Renders one row per fleet-marked routine with `If you delete it (manually, at claude.ai/code/routines)` and `If you keep it running` columns. Makes zero `RemoteTrigger update`/delete calls — `RemoteTrigger` has no delete API to call in the first place.
-   - **Check:** Running `/claude-tweaks:routine fleet status` immediately after `fleet off` shows the exact same routine set at the exact same schedules as before — no routine's live state changed. The report closes with the literal sentence "deletion is a manual step at claude.ai/code/routines … this skill never performs it."
+7. **Verify scope** — Nothing outside the fleet moved.
+   - **Action:** Lists routines before and after the pause loop.
+   - **Check:** Running `/claude-tweaks:routine fleet status` immediately after `fleet off` shows every fleet-marked routine's schedule and record unchanged (only `enabled` flipped), and every non-fleet routine byte-identical in state — a hand-created routine sharing a skill under a name outside the composition table is untouched by construction.
 
-8. **Round-trip note** — The report states how the fleet resumes once shutdown is actually possible.
-   - **Action:** States that a paused fleet (once #213 lands) is resumed by re-running `fleet on` — Step 4's idempotent reconcile detects the existing records and resumes rather than duplicating, using the same composition-table `PREFIXED_NAME` marker both verbs already consume.
-   - **Check:** Reading the report today, the operator understands that "temporarily shutting down" the fleet currently means one of two things: manually delete the routine at claude.ai/code/routines (no undo, re-provisioning re-creates billed infrastructure), or leave it running — which is harmless-by-construction for the grant unit specifically, since `grant-gate.js`'s gate chain re-checks the autonomy ceiling on every firing and denies every candidate at `supervised`.
+8. **Round-trip note** — The report states how the fleet resumes.
+   - **Action:** States that a paused fleet is resumed by re-running `fleet on` — Step 4's idempotent reconcile detects the existing records and resumes rather than duplicating — or, per-routine, via `resume <skill>` directly, using the same composition-table `PREFIXED_NAME` marker both verbs already consume.
+   - **Check:** Reading the report, the operator understands that "temporarily shutting down" the fleet now means exactly one reversible action — `fleet off` / `fleet on` (or `resume`) — with no manual step at claude.ai/code/routines required, and no billed infrastructure destroyed or re-created either way.
 
 ## Outcome
 
-`fleet status` gives the maintainer one screen — routine health, trust classes, and five honestly-captioned weekly counters — without a single `gh` command typed by hand. `fleet off` gives the same maintainer a truthful shutdown report rather than a false sense of control: nothing is deleted, nothing is paused (yet), and the operator leaves knowing exactly what manual step would actually stop firings, and why leaving everything running is safe in the meantime.
+`fleet status` gives the maintainer one screen — routine health, trust classes, and five honestly-captioned weekly counters — without a single `gh` command typed by hand. `fleet off` gives the same maintainer a genuine, reversible shutdown: every fleet-marked routine's live `enabled` flag flips to `false`, nothing is deleted, nothing outside the fleet is touched, and `fleet on` (or `resume <skill>`) brings it straight back.

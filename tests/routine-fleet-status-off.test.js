@@ -13,10 +13,11 @@ test('fleet.md carries the status and off sections', () => {
   assert.ok(fleet.includes('## Fleet off (pause-based shutdown)'));
 });
 
-test('fleet off pins never-delete and non-fleet scope (AC3/AC6)', () => {
+test('fleet off pins never-delete, non-fleet scope, and the pause call (AC3/AC6, #213)', () => {
   assert.ok(/never\s+deletes anything/i.test(fleet));
   assert.ok(fleet.includes('no destructive'));
-  assert.ok(fleet.includes('deletion-vs-keep'));
+  assert.ok(fleet.includes("PAUSE action"));
+  assert.ok(fleet.includes('{"enabled": false}'));
   assert.ok(fleet.includes('never touches a routine that is not fleet-marked'));
 });
 
