@@ -1,0 +1,22 @@
+template_version: 1
+routine_name: specify-weekdays
+kickoff: specify next
+# Optional: `branch: <name>` pins the assembled kernel's target-branch placeholder.
+# Normally unset here — a branch is project-specific, so /claude-tweaks:routine resolves
+# it at instantiation.
+model: claude-sonnet-5
+allowed_tools: [Bash, Read, Edit, Write, Grep, Glob, Task]
+mcp_connections: []
+default_schedule:
+  cron_expression: "23 */2 * * 1-5"
+  description: "every 2 hours on weekdays, UTC — confirm against your local timezone at creation time. Offset from dispatch's 11 */2 cadence to avoid same-minute collisions; the fleet-table cron (0 8 * * 1-5) is a separate, independently-chosen value — see fleet.md's own composition table"
+notes: >
+  Headless shaping unit: each firing selects exactly one open record carrying none of
+  `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress` (next-mode.md's
+  eligibility predicate — #967), claims it, and shapes it into spec form. A record that
+  fails a framing-check guard is routed to `needs:definition` instead (#968) rather than
+  shaped — that is a productive, successful outcome for this firing, not a failure. A
+  firing with no eligible records is a cheap no-op: no claim, no write, no self-report.
+  This routine's own output feeds the grant unit and the dispatch drain downstream — a
+  freshly-shaped record still needs a human or the grant unit (#969, provenance-gated) to
+  authorize it before dispatch will pick it up.
