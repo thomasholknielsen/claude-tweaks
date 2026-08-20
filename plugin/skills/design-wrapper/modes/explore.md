@@ -71,9 +71,9 @@ Resolve `concept-seed.mjs` via `resolveImpeccablePlugin` (reuse Layer 0's `root`
 node "<root>/skills/impeccable/scripts/concept-seed.mjs" --scope direction --mode <mode>
 ```
 
-`<mode>` is a real, optional parameter of the script — one of `persuade`, `operate`, `read`, `experience`. Map the primary surface's job: **persuade** for marketing/conversion surfaces, **operate** for tools/dashboards, **read** for content/reading surfaces, **experience** for immersive ones. When the job is unclear, **omit `--mode` entirely** — staging then rolls from the full approved pool rather than this mode guessing. Leave `--candidate-count` at the script's own default; sizing the deal is upstream's call, not this mode's.
+`<mode>` is a real, optional parameter of the script — one of `persuade`, `operate`, `read`, `experience`. Map the primary surface's job: **persuade** for marketing/conversion surfaces, **operate** for tools/dashboards, **read** for content/reading surfaces, **experience** for immersive ones. When the job is unclear, **omit `--mode` entirely** — staging then rolls from the full approved pool rather than this mode guessing. Leave `--candidate-count` at the script's own default; sizing the deal is upstream's call, not this mode's. **This is the identity scope's own policy** — the layout scope makes a different, deliberate choice for its own deal; see "Dealing" below, which does not change this sentence's meaning here.
 
-Follow the returned instruction block exactly as upstream directs: derive grounded directions, fuse each dealt challenger, weigh them. **The render set is the *presented* directions only** — the assigned direction plus the one or two surviving fused challengers upstream's own presentation rule names — **never the full candidate list** `--candidate-count` sized. Record the deal's id ↔ display-name mapping (`--chosen` below takes the id, never the name). Carry the printed seed `key` and a reroll counter for the whole session — both cross every reroll and the final pick.
+Follow the returned instruction block exactly as upstream directs: derive grounded directions, fuse each dealt challenger, weigh them. **The render set is the *presented* directions only** — the assigned direction plus the one or two surviving fused challengers upstream's own presentation rule names — **never the full candidate list** `--candidate-count` sized. Record the deal's id ↔ display-name mapping (`--chosen` below takes the id, never the name). Carry the printed seed `key` and a reroll counter for the whole session — both cross every reroll and the final pick. **This one-to-three render-set size is the identity scope's own count and is unchanged by this record; it does not extend to the layout scope**, whose own, larger render-set size and its own diversity check are defined separately below in "Dealing" and "Machinery reuse".
 
 ### Synthesize clean-room cards
 
@@ -156,10 +156,12 @@ Run once scope resolution above routes here: an established-world composition to
 Resolve `concept-seed.mjs` the same way the identity scope's Deal and derive step does, then run:
 
 ```bash
-node "<root>/skills/impeccable/scripts/concept-seed.mjs" --scope surface --mode <mode> --from <key>
+node "<root>/skills/impeccable/scripts/concept-seed.mjs" --scope surface --mode <mode> --from <key> --candidate-count 6
 ```
 
 `<mode>` selection follows the identity scope's Deal and derive rule — the same persuade/operate/read/experience mapping, the same omit-when-unclear fallback — mapped from `<surface-topic>`'s job rather than the project's.
+
+**Unlike the identity scope's Deal and derive** (which leaves `--candidate-count` at the script's own default — unchanged above), this scope explicitly overrides it to `--candidate-count 6`. This is a deliberate policy choice scoped to the layout scope only, not a claim that the identity scope's default was wrong: "Machinery reuse" below applies a diversity check that rejects near-duplicate fused challengers before they reach the render set, and a small dealt pool risks starving that check down to too few survivors. The target is **at least four structurally distinct presented directions** by default — up from the one-to-three the unmodified deal otherwise yields — with no manual reroll or steer text required to reach it. A genuinely exhausted dealt pool (fewer than four directions survive the diversity check) degrades to presenting fewer than four rather than presenting near-duplicates; that degraded case is named in the offer text presented before Compare.
 
 `<key>` is the committed direction's seed key. It is **not recorded in `DESIGN.md`** — upstream's `document --seed` does not write it there. Its only durable homes, in resolution order:
 
@@ -186,7 +188,10 @@ Run Synthesize clean-room cards through Lock-in — every intervening identity-s
 - **Builder output:** one markup file, in place of one skin stylesheet.
 - **Scaffolding:** no single shared markup — each builder writes its own document. What carries over from One markup, N skins is the `docs/plans/YYYY-MM-DD-{feature}-explore/` directory convention and the invented-placeholder-content disclosure, not the shared-scaffold constraint (this scope inverts it — see Variant builders above).
 - **Switcher unit:** whole markup documents cycled — swap the displayed document (e.g. an iframe `src`) — never stylesheets layered over one shared markup.
+- **Diversity check (layout-scope addition — not part of the shared "Deal and derive" heading, and does not apply to the identity scope):** when fusing each dealt challenger, reject and replace a fused challenger whose composed markup is only superficially different from a direction already accepted for presentation — same overall page structure, same primary-action placement, same interaction framing, differing only in wording or a single component's arrangement. A rejected challenger is not counted toward the render set; continue fusing the next dealt challenger from the `--candidate-count 6` pool ("Dealing" above) until at least four structurally distinct directions are accepted or the pool is exhausted.
 - **Lock-in:** return `visual_reference`; no `/impeccable:impeccable document --seed` invocation.
+
+**Scope of this fix, stated explicitly:** the render-set-size and diversity-check change lives here and in "Dealing" above, as a layout-scope-specific addendum — never as an edit to the shared "Deal and derive" heading itself. The identity scope's own render-set size (Deal and derive, "the assigned direction plus the one or two surviving fused challengers") and its own `--candidate-count` policy (left at the script's default) are unchanged and unaffected by this addendum.
 
 Reroll and steer semantics are unchanged from the identity scope's Verdict step. The seed `key` is carried across rounds exactly as there.
 

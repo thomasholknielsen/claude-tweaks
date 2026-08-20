@@ -76,8 +76,14 @@ test('POLICY_KEYS entries are unique', () => {
   // at Manifesto time, that this run should merge itself once every
   // HARD-GATE is green — policy.yml is deliberately excluded as a source
   // (see resolvePolicyKeys' merge-authorization special case).
-  assert.strictEqual(POLICY_KEYS.length, 52);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 52);
+  // 52 -> 53, #310 (sampling floor): grant-sampling-every — every Nth
+  // machine-granted merged record is flagged for a real /demo verdict, so
+  // human calibration evidence keeps entering the trust table.
+  // 53 -> 54, #660 (review prose-exemption lever): review-auto-apply-prose-exempt
+  // — lets a prose-only fix auto-apply one severity tier above the resolved
+  // review-auto-apply-ceiling, see skills/review/step3-routing.md.
+  assert.strictEqual(POLICY_KEYS.length, 54);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 54);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

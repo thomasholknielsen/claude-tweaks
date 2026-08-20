@@ -47,6 +47,23 @@ function ok(dir, created) {
   return { ok: true, path: dir, created: !!created, reason: null, message: dir };
 }
 
+// #208: archived-is-terminal invariant. `{run-id}` is never written to again once
+// `archive/{run-id}/` exists — checked at this module's one writer chokepoint rather than
+// reconciling two copies on every read. Returns 'archived' | 'not-archived' | 'unknown' — the
+// last only when the read itself failed for a reason other than "doesn't exist" (a permission
+// error, e.g.). Every caller below treats 'unknown' exactly like 'not-archived' — fails OPEN,
+// same posture as every other ambiguity in this file: a genuinely unfinished/creatable run must
+// never be silently suppressed by an unrelated read failure (this record's AC4).
+function archiveStatus(pipelinesRoot, runId) {
+  if (!runId) return 'not-archived';
+  try {
+    const st = fs.statSync(path.join(pipelinesRoot, 'archive', runId));
+    return st.isDirectory() ? 'archived' : 'not-archived';
+  } catch (e) {
+    return e && e.code === 'ENOENT' ? 'not-archived' : 'unknown';
+  }
+}
+
 // Step 2 (`_shared/pipeline-run-dir.md`'s resolution order): the most recent
 // directory under `{pipelinesRoot}` whose name contains `specSlug`, matching
 // the reference snippet's `find ... -name "*${SPEC_SLUG}*" | sort | tail -n 1`.
@@ -90,22 +107,31 @@ function resolve(opts = {}) {
     const real = safeReal(envVal);
     if (real) {
       if (wtDetect.isAnchoredUnderRoot(real, mainRoot)) {
-        return ok(real, false);
+        // #208: a resurrected copy of an already-archived run-id — the env var was resolved
+        // before archival and the directory has since reappeared underneath it (a hook write
+        // racing archival, or any other resurrection path). Archived is terminal: never adopt
+        // it back as live. This is not the [IL-127] shadow-env failure below (the path IS
+        // correctly anchored) — fall through exactly like a stale/missing env var instead of
+        // failing loud, since there is a legitimate next step (Step 2/create) to fall through to.
+        if (archiveStatus(pipelinesRoot, path.basename(real)) !== 'archived') {
+          return ok(real, false);
+        }
+      } else {
+        // Exists, but resolves OUTSIDE the main checkout — this is the #692/
+        // [IL-127] shape: adopting it would use (or create) a worktree-local
+        // shadow of the run's audit trail. Fail loud rather than falling
+        // through silently, naming what it actually is when we can tell.
+        const info = wtDetect.repoInfo(real);
+        const shadowNote = info.isLinkedWorktree
+          ? `resolves inside a linked worktree (${info.repoRoot}) instead of the main checkout — a shadow copy`
+          : `does not resolve under the main checkout root (${mainRoot})`;
+        return fail(
+          'shadow-env',
+          `PIPELINE_RUN_DIR=${envVal} ${shadowNote}. This is exactly the failure ` +
+          `_shared/pipeline-run-dir.md's Anchoring section exists to prevent ([IL-127]) — refusing to use it. ` +
+          `Unset PIPELINE_RUN_DIR or point it at a directory under ${mainRoot}, then retry.`,
+        );
       }
-      // Exists, but resolves OUTSIDE the main checkout — this is the #692/
-      // [IL-127] shape: adopting it would use (or create) a worktree-local
-      // shadow of the run's audit trail. Fail loud rather than falling
-      // through silently, naming what it actually is when we can tell.
-      const info = wtDetect.repoInfo(real);
-      const shadowNote = info.isLinkedWorktree
-        ? `resolves inside a linked worktree (${info.repoRoot}) instead of the main checkout — a shadow copy`
-        : `does not resolve under the main checkout root (${mainRoot})`;
-      return fail(
-        'shadow-env',
-        `PIPELINE_RUN_DIR=${envVal} ${shadowNote}. This is exactly the failure ` +
-        `_shared/pipeline-run-dir.md's Anchoring section exists to prevent ([IL-127]) — refusing to use it. ` +
-        `Unset PIPELINE_RUN_DIR or point it at a directory under ${mainRoot}, then retry.`,
-      );
     }
     // Set but nothing exists there at all — stale, not dangerous. Fall
     // through to step 2 exactly like an unset var (matches the reference
@@ -115,7 +141,9 @@ function resolve(opts = {}) {
   // Step 2: newest matching directory under the main checkout.
   if (opts.specSlug) {
     const match = newestMatch(pipelinesRoot, opts.specSlug);
-    if (match) return ok(match, false);
+    // #208: same invariant as Step 1 — never reuse a live directory whose run-id already has
+    // an archived counterpart (a resurrected copy). Fall through to create/fail below instead.
+    if (match && archiveStatus(pipelinesRoot, path.basename(match)) !== 'archived') return ok(match, false);
   }
 
   // Standalone-fallback-shaped creation. Never runs unless --create was
@@ -124,9 +152,9 @@ function resolve(opts = {}) {
     // `--mode`, when GIVEN, gates creation to auto mode only — mirroring
     // resolution-order step 4's "AND the skill is running in auto mode"
     // clause for the standalone-auto allowlist (/tidy, /init, /capture,
-    // /claude-tweaks:dispatch, /claude-tweaks:backlog). When `--mode` is
-    // OMITTED entirely, no such gate applies — that is wrap-up's own
-    // documented exception (pipeline-run-dir.md resolution order step 4):
+    // /claude-tweaks:dispatch, /claude-tweaks:backlog, /claude-tweaks:specify).
+    // When `--mode` is OMITTED entirely, no such gate applies — that is
+    // wrap-up's own documented exception (pipeline-run-dir.md resolution order step 4):
     // wrap-up creates a standalone run dir in *every* mode, not only auto,
     // because its Review Console runs in every mode. Callers on the
     // standalone-auto allowlist pass `--mode auto` themselves (only once
@@ -143,6 +171,15 @@ function resolve(opts = {}) {
       // pre-populated with decisions.md and staged/ — byte-for-byte what the
       // reference snippet's own standalone branch does.
       const dir = path.join(pipelinesRoot, `${formatTimestamp(now)}-${opts.standalone}-standalone`);
+      // #208: never (re-)create a run-id that already exists under archive/ — archived is
+      // terminal. Checked immediately before the mkdir, the one writer chokepoint.
+      if (archiveStatus(pipelinesRoot, path.basename(dir)) === 'archived') {
+        return fail(
+          'archived-run-id',
+          `run-id ${path.basename(dir)} already exists under archive/ — archived is terminal, ` +
+          'refusing to recreate a live copy of it.',
+        );
+      }
       fs.mkdirSync(path.join(dir, 'staged'), { recursive: true });
       try { fs.closeSync(fs.openSync(path.join(dir, 'decisions.md'), 'a')); } catch { /* best-effort touch */ }
       return ok(dir, true);
@@ -154,6 +191,14 @@ function resolve(opts = {}) {
       // step actually initializes the run (the Config Manifesto), not by
       // this mint.
       const dir = path.join(pipelinesRoot, `${formatTimestamp(now)}-${opts.specSlug}`);
+      // #208: same archived-is-terminal guard as the standalone branch above.
+      if (archiveStatus(pipelinesRoot, path.basename(dir)) === 'archived') {
+        return fail(
+          'archived-run-id',
+          `run-id ${path.basename(dir)} already exists under archive/ — archived is terminal, ` +
+          'refusing to recreate a live copy of it.',
+        );
+      }
       fs.mkdirSync(dir, { recursive: true });
       return ok(dir, true);
     }

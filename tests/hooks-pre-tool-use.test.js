@@ -37,6 +37,19 @@ function mkRunAt(project, name, worktree) {
   fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify(state));
   return { run, state };
 }
+// #861: a REAL main checkout + a REAL linked worktree of it (not two
+// independent gitRepo() dirs) — needed by every "wrong checkout, still
+// in-project" E1 test below, now that the gate distinguishes "wrong location
+// WITHIN this project" (still denied) from "an entirely unrelated repo"
+// (allowed) via wtDetect.mainCheckoutRoot(). Two independent gitRepo() dirs
+// have no shared main-checkout root, so they now read as two different
+// projects — which is exactly the OUT-of-project scenario, not the
+// wrong-checkout-of-THIS-project scenario most of these tests intend.
+function mainAndWorktree() {
+  const main = gitRepoWithCommit();
+  const wt = linkedWorktreeOf(main);
+  return { main, wt };
+}
 const bashInput = (command, cwd) => ({ tool_name: 'Bash', tool_input: { command }, cwd });
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -47,11 +60,10 @@ test('commit in the assigned worktree is allowed', () => {
   assert.deepStrictEqual(out, {});
 });
 
-test('commit in a different checkout is denied with corrective reason', () => {
-  const wt = gitRepo();
-  const other = gitRepo();
+test('commit in the main checkout is still denied with corrective reason', () => {
+  const { main, wt } = mainAndWorktree();
   const { run, state } = mkRun(wt);
-  const out = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run, runState: state, cwd: other });
+  const out = pre.run({ input: bashInput('git commit -m "x"', main), runDir: run, runState: state, cwd: main });
   const spec = out.json.hookSpecificOutput;
   assert.strictEqual(spec.permissionDecision, 'deny');
   assert.match(spec.permissionDecisionReason, new RegExp(esc(wt)));
@@ -60,12 +72,23 @@ test('commit in a different checkout is denied with corrective reason', () => {
   assert.match(events, /"type":"wd-deny"/);
 });
 
+test('commit in an out-of-repo scratch git repo is allowed (#861)', () => {
+  // The over-match this record fixes: a probe subagent committing a scratch
+  // fixture repo entirely OUTSIDE this project (not the main checkout, not
+  // any known worktree) must not be denied — the gate's purpose is keeping
+  // THIS repo's edits in the worktree, not policing unrelated repositories.
+  const { wt } = mainAndWorktree();
+  const scratch = gitRepo(); // an unrelated repo — no shared main checkout with wt
+  const { run, state } = mkRun(wt);
+  const out = pre.run({ input: bashInput('git commit -m "x"', scratch), runDir: run, runState: state, cwd: scratch });
+  assert.deepStrictEqual(out, {});
+});
+
 test('wrong-checkout commit from a FOREIGN session is allowed with a warn and logs wd-foreign-session', () => {
-  const wt = gitRepo();
-  const other = gitRepo();
+  const { main, wt } = mainAndWorktree();
   const { run, state } = mkRun(wt, 'owner-session');
-  const input = { ...bashInput('git commit -m "x"', other), session_id: 'bystander-session' };
-  const out = pre.run({ input, runDir: run, runState: state, cwd: other });
+  const input = { ...bashInput('git commit -m "x"', main), session_id: 'bystander-session' };
+  const out = pre.run({ input, runDir: run, runState: state, cwd: main });
   assert.ok(!(out.json && out.json.hookSpecificOutput), 'foreign-session commit must not be denied');
   assert.match(out.json.systemMessage, /allowing this commit/);
   assert.match(out.json.systemMessage, new RegExp(esc(wt)));
@@ -76,11 +99,10 @@ test('wrong-checkout commit from a FOREIGN session is allowed with a warn and lo
 });
 
 test('wrong-checkout commit from the OWNING session is still denied', () => {
-  const wt = gitRepo();
-  const other = gitRepo();
+  const { main, wt } = mainAndWorktree();
   const { run, state } = mkRun(wt, 'owner-session');
-  const input = { ...bashInput('git commit -m "x"', other), session_id: 'owner-session' };
-  const out = pre.run({ input, runDir: run, runState: state, cwd: other });
+  const input = { ...bashInput('git commit -m "x"', main), session_id: 'owner-session' };
+  const out = pre.run({ input, runDir: run, runState: state, cwd: main });
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
   const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8');
   assert.match(events, /"type":"wd-deny"/);
@@ -88,29 +110,29 @@ test('wrong-checkout commit from the OWNING session is still denied', () => {
 
 test('missing or malformed session identity on either side falls back to deny (status quo)', () => {
   // Legacy run-state (no recorded owner), caller id present.
-  const legacyOther = gitRepo();
-  const legacy = mkRun(gitRepo());
+  const { main: legacyMain, wt: legacyWt } = mainAndWorktree();
+  const legacy = mkRun(legacyWt);
   const legacyOut = pre.run({
-    input: { ...bashInput('git commit -m "x"', legacyOther), session_id: 'bystander-session' },
-    runDir: legacy.run, runState: legacy.state, cwd: legacyOther,
+    input: { ...bashInput('git commit -m "x"', legacyMain), session_id: 'bystander-session' },
+    runDir: legacy.run, runState: legacy.state, cwd: legacyMain,
   });
   assert.strictEqual(legacyOut.json.hookSpecificOutput.permissionDecision, 'deny');
 
   // Owner recorded, caller id absent from hook input.
-  const noCallerOther = gitRepo();
-  const noCaller = mkRun(gitRepo(), 'owner-session');
+  const { main: noCallerMain, wt: noCallerWt } = mainAndWorktree();
+  const noCaller = mkRun(noCallerWt, 'owner-session');
   const noCallerOut = pre.run({
-    input: bashInput('git commit -m "x"', noCallerOther),
-    runDir: noCaller.run, runState: noCaller.state, cwd: noCallerOther,
+    input: bashInput('git commit -m "x"', noCallerMain),
+    runDir: noCaller.run, runState: noCaller.state, cwd: noCallerMain,
   });
   assert.strictEqual(noCallerOut.json.hookSpecificOutput.permissionDecision, 'deny');
 
   // Corrupt owner (non-string) never counts as identity.
-  const corruptOther = gitRepo();
-  const corrupt = mkRun(gitRepo(), { nested: true });
+  const { main: corruptMain, wt: corruptWt } = mainAndWorktree();
+  const corrupt = mkRun(corruptWt, { nested: true });
   const corruptOut = pre.run({
-    input: { ...bashInput('git commit -m "x"', corruptOther), session_id: 'bystander-session' },
-    runDir: corrupt.run, runState: corrupt.state, cwd: corruptOther,
+    input: { ...bashInput('git commit -m "x"', corruptMain), session_id: 'bystander-session' },
+    runDir: corrupt.run, runState: corrupt.state, cwd: corruptMain,
   });
   assert.strictEqual(corruptOut.json.hookSpecificOutput.permissionDecision, 'deny');
 });
@@ -124,10 +146,9 @@ test('git -C into the assigned worktree from elsewhere is allowed', () => {
 });
 
 test('push mismatch logs but never denies', () => {
-  const wt = gitRepo();
-  const other = gitRepo();
+  const { main, wt } = mainAndWorktree();
   const { run, state } = mkRun(wt);
-  const out = pre.run({ input: bashInput('git push origin main', other), runDir: run, runState: state, cwd: other });
+  const out = pre.run({ input: bashInput('git push origin main', main), runDir: run, runState: state, cwd: main });
   assert.deepStrictEqual(out, {});
   const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8');
   assert.match(events, /"type":"wd-push-mismatch"/);
@@ -165,9 +186,14 @@ test('two live runs: commit in the OLDER run\'s own worktree is allowed even whe
 
 test('two live runs: commit in a THIRD repo matching neither worktree is still denied, reason mentions both worktrees', () => {
   const project = tmpProject();
-  const olderWt = gitRepo();
-  const newerWt = gitRepo();
-  const thirdRepo = gitRepo();
+  // thirdRepo = the shared main checkout itself: a THIRD checkout of the SAME
+  // project (still in-scope for this gate), distinct from thirdRepo being a
+  // genuinely unrelated repo (which #861 now allows — covered by its own
+  // test above).
+  const main = gitRepoWithCommit();
+  const olderWt = linkedWorktreeOf(main);
+  const newerWt = linkedWorktreeOf(main);
+  const thirdRepo = main;
   mkRunAt(project, '2026-07-01T090000-spec-1', olderWt);
   const newer = mkRunAt(project, '2026-07-02T090000-spec-2', newerWt);
 
@@ -201,19 +227,18 @@ test('two live runs: a push mismatch matching another live worktree is not logge
 });
 
 test('deny reason substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the literal placeholder', () => {
-  const wt = gitRepo();
-  const other = gitRepo();
+  const { main, wt } = mainAndWorktree();
   const orig = process.env.CLAUDE_PLUGIN_ROOT;
 
   try {
     delete process.env.CLAUDE_PLUGIN_ROOT;
     const { run: run1, state: state1 } = mkRun(wt);
-    const withoutEnv = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run1, runState: state1, cwd: other });
+    const withoutEnv = pre.run({ input: bashInput('git commit -m "x"', main), runDir: run1, runState: state1, cwd: main });
     assert.match(withoutEnv.json.hookSpecificOutput.permissionDecisionReason, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js/);
 
     process.env.CLAUDE_PLUGIN_ROOT = '/opt/claude-tweaks';
     const { run: run2, state: state2 } = mkRun(wt);
-    const withEnv = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run2, runState: state2, cwd: other });
+    const withEnv = pre.run({ input: bashInput('git commit -m "x"', main), runDir: run2, runState: state2, cwd: main });
     assert.match(withEnv.json.hookSpecificOutput.permissionDecisionReason, /\/opt\/claude-tweaks\/bin\/hooks\.js/);
   } finally {
     if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
@@ -383,10 +408,9 @@ test('deny paths always carry exit: 0 — the deny signal is JSON permissionDeci
   assert.strictEqual(gateOut.json.hookSpecificOutput.permissionDecision, 'deny');
   assert.strictEqual(gateOut.exit, 0);
 
-  const wt = gitRepo();
-  const other = gitRepo();
+  const { main, wt } = mainAndWorktree();
   const { run, state } = mkRun(wt);
-  const wdOut = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run, runState: state, cwd: other });
+  const wdOut = pre.run({ input: bashInput('git commit -m "x"', main), runDir: run, runState: state, cwd: main });
   assert.strictEqual(wdOut.json.hookSpecificOutput.permissionDecision, 'deny');
   assert.strictEqual(wdOut.exit, 0);
 });
@@ -679,6 +703,27 @@ test('worktree-required: an unprovable target on a new shape fabricates nothing 
     const out = pre.run({ input: bashInput(cmd, repo), runDir: null, runState: null, cwd: repo });
     assert.deepStrictEqual(out, {}, `must not fabricate a target from: ${cmd}`);
   }
+});
+
+test('worktree-required: a same-command shell variable resolving inside the repo is now denied (#630)', () => {
+  const repo = policedRepo();
+  const cmd = `WT=${repo}; sed -i 's/x/y/' "$WT/a.js"`;
+  const out = pre.run({ input: bashInput(cmd, '/tmp'), runDir: null, runState: null, cwd: '/tmp' });
+  assert.strictEqual(decisionOf(out), 'deny', 'a same-command variable resolving inside the policed repo must now be provable and denied');
+});
+
+test('worktree-required: a same-command shell variable resolving outside the repo stays allowed (#630)', () => {
+  policedRepo();
+  const cmd = 'SP=/private/tmp/elsewhere; sed -i \'\' -e \'s/x/y/\' "$SP/file.md"';
+  const out = pre.run({ input: bashInput(cmd, '/tmp'), runDir: null, runState: null, cwd: '/tmp' });
+  assert.deepStrictEqual(out, {}, 'a same-command variable resolving outside the repo must still be allowed — no regression for the originally-reported shape');
+});
+
+test('worktree-required: a single-quoted $NAME reference is never substituted, even when the variable resolves inside the repo — real bash does not expand it, so the gate correctly stays unresolvable/allow rather than fabricating a false-outside target (#630)', () => {
+  const repo = policedRepo();
+  const cmd = `WT=${repo}; sed -i '' -e 's/x/y/' '$WT/a.js'`;
+  const out = pre.run({ input: bashInput(cmd, '/tmp'), runDir: null, runState: null, cwd: '/tmp' });
+  assert.deepStrictEqual(out, {}, 'single-quoted $WT must never be treated as a variable reference — no target is fabricated either way');
 });
 
 test('worktree-required: an unexpanded glob still resolves against the cwd and is denied (#70)', () => {

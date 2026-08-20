@@ -79,6 +79,29 @@ test('listRunDirs and resolveRunDir return empty/null when only archive/ exists'
   assert.strictEqual(ctx.resolveRunDir(project, {}), null);
 });
 
+// #848: a dash-less mint (`date -u +%Y%m%dT%H%M%S` instead of the canonical
+// `+%Y-%m-%dT%H%M%S`) is invisible to RUN_ID_RE — findNonCanonicalRunDirs is
+// the surfacing half, so a caller (reconcile) can report it instead of
+// silently omitting the run from every enumeration forever.
+test('findNonCanonicalRunDirs finds a dash-less run-dir name', () => {
+  const project = tmpProject();
+  mkRun(project, '20260817T173343-spec-764');
+  assert.deepStrictEqual(ctx.findNonCanonicalRunDirs(project), ['20260817T173343-spec-764']);
+});
+
+test('findNonCanonicalRunDirs ignores canonical run-dirs, archive/, and unrelated directories', () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-spec-1', { status: 'active' });
+  mkRun(project, 'archive');
+  fs.mkdirSync(path.join(project, '.claude-tweaks', 'pipelines', 'not-a-run-dir'), { recursive: true });
+  assert.deepStrictEqual(ctx.findNonCanonicalRunDirs(project), []);
+});
+
+test('findNonCanonicalRunDirs returns [] when the pipelines dir does not exist', () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
+  assert.deepStrictEqual(ctx.findNonCanonicalRunDirs(bare), []);
+});
+
 test('listRunDirsWithState returns each non-terminal dir paired with its already-read state', () => {
   const project = tmpProject();
   const a = mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted', worktree: '/wt/a' });
@@ -115,12 +138,23 @@ test('iterRunDirsWithState: stray dir with a stale non-terminal run-state.json i
   assert.deepStrictEqual(ctx.listRunDirs(project), []);
 });
 
-test('iterRunDirsWithState: stray dir is still yielded when its archive twin is missing, unreadable, or non-terminal', () => {
+test('iterRunDirsWithState: stray dir is still yielded when it has no archive twin at all', () => {
   const project = tmpProject();
   const genuinelyOpen = mkRun(project, '2026-07-01T090000-spec-1', { status: 'active' }); // no archive twin at all
-  const twinNonTerminal = mkRun(project, '2026-07-02T090000-spec-2'); // archive twin exists but isn't terminal
-  mkRun(project, path.join('archive', '2026-07-02T090000-spec-2'), { status: 'active' });
-  assert.deepStrictEqual(ctx.listRunDirs(project), [twinNonTerminal, genuinelyOpen]);
+  assert.deepStrictEqual(ctx.listRunDirs(project), [genuinelyOpen]);
+});
+
+// #208: archived is terminal regardless of the archive twin's own run-state —
+// existence of archive/{run-id}/ alone is authoritative, since that twin's
+// status field is exactly the untrustworthy resurrected data #208 fixes
+// (a later hook write can corrupt or resurrect it after the real archival).
+// Supersedes the pre-#208 assumption that a non-terminal archive twin meant
+// the archival hadn't "really" finished — AC3 states this explicitly.
+test('iterRunDirsWithState: #208 — a run-id present under archive/ is skipped even when that twin\'s own state is non-terminal', () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-02T090000-spec-2'); // stray active-side dir, no local run-state.json
+  mkRun(project, path.join('archive', '2026-07-02T090000-spec-2'), { status: 'active' }); // resurrected/corrupted twin state
+  assert.deepStrictEqual(ctx.listRunDirs(project), []);
 });
 
 test('listRunDirs is derived from listRunDirsWithState (same dirs, same order)', () => {
@@ -129,6 +163,31 @@ test('listRunDirs is derived from listRunDirsWithState (same dirs, same order)',
   const b = mkRun(project, '2026-07-02T090000-spec-2');
   assert.deepStrictEqual(ctx.listRunDirs(project), ctx.listRunDirsWithState(project).map((r) => r.dir));
   assert.deepStrictEqual(ctx.listRunDirs(project), [b, a]);
+});
+
+test('findRunsByWorktreePath returns every non-terminal run assigned to the worktree, newest first', () => {
+  const project = tmpProject();
+  const older = mkRun(project, '2026-07-01T090000-record-500-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  const newer = mkRun(project, '2026-07-02T090000-record-500-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  mkRun(project, '2026-07-03T090000-other-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-b' });
+  const result = ctx.findRunsByWorktreePath(project, '/tmp/wt-a');
+  assert.deepStrictEqual(result.map((r) => r.runDir), [newer, older]);
+});
+
+test('findRunsByWorktreePath excludes excludeDir (the caller\'s own primary run dir)', () => {
+  const project = tmpProject();
+  const primary = mkRun(project, '2026-07-01T090000-spec-500', { status: 'active', worktree: '/tmp/wt-a' });
+  const adhoc = mkRun(project, '2026-07-02T060000-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  const result = ctx.findRunsByWorktreePath(project, '/tmp/wt-a', primary);
+  assert.deepStrictEqual(result.map((r) => r.runDir), [adhoc]);
+});
+
+test('findRunsByWorktreePath returns [] when nothing matches or the path is empty', () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-record-1-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, '/tmp/no-match'), []);
+  assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, ''), []);
+  assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, null), []);
 });
 
 test('writeRunState merges, stamps updatedAt; readRunState round-trips', () => {

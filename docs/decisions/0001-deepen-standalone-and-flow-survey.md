@@ -1,4 +1,4 @@
-# 1. Deepen is a standalone analysis-only skill, surfaced via a flow survey
+# 0001. Deepen is a standalone analysis-only skill, surfaced via a flow survey
 
 - **Status:** accepted
 - **Date:** 2026-06-14

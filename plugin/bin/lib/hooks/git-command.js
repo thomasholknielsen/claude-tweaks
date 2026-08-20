@@ -76,21 +76,34 @@ function stripQuotes(s) {
 // (`/tmp/safe/<value-of-$SUFFIX>`), not two. Without this, resolveCd/isUnresolvable
 // only ever see the quoted portion in isolation, judge it fully resolvable, and
 // silently drop the unresolvable suffix that would otherwise poison the target.
+//
+// Returns `{ tokens, singleQuoted }` — `singleQuoted[i]` is true when any part
+// of `tokens[i]` was assembled from a single-quoted span. Real bash never
+// performs `$`-expansion inside single quotes (unlike double quotes or bare
+// words), so this flag is what lets substituteVars() below refuse to treat a
+// single-quoted `'$NAME'` as a variable reference — without it, a token like
+// `'$WT/a.js'` and `"$WT/a.js"` are indistinguishable post-tokenize, and the
+// substitution step would wrongly expand the single-quoted (never-expanded)
+// form, fabricating a target real bash would never produce for that command.
 function tokenize(seg) {
   const out = [];
+  const singleQuoted = [];
   const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
   let m;
   let prevEnd = -1;
   while ((m = re.exec(seg)) !== null) {
     const val = m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3];
+    const isSQ = m[2] !== undefined;
     if (out.length && m.index === prevEnd) {
       out[out.length - 1] += val;
+      if (isSQ) singleQuoted[singleQuoted.length - 1] = true;
     } else {
       out.push(val);
+      singleQuoted.push(isSQ);
     }
     prevEnd = re.lastIndex;
   }
-  return out;
+  return { tokens: out, singleQuoted };
 }
 
 // Global git flags that consume the NEXT token as a value.
@@ -141,20 +154,104 @@ function resolveCd(effCwd, raw) {
   return path.resolve(effCwd, stripQuotes(raw));
 }
 
+// Matches a segment that is exactly one token shaped like a simple literal
+// variable assignment: NAME=value / NAME="value" / NAME='value' (bash
+// permits no space around `=`, and this regex requires no space inside the
+// value either — a value containing an unescaped space tokenizes into more
+// than one token, which the length check in updateAssignment below excludes;
+// that's an accepted narrowing, not a bug). No `export`, no arrays:
+// `export SP=/x` tokenizes to two tokens (`export`, `SP=/x`) and fails the
+// length check before this regex ever runs, so `export` needs no separate
+// rejection.
+const SIMPLE_ASSIGNMENT_RE = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/;
+
+// Classifies raw (pre-substitution) token array `t` as a simple same-command
+// assignment and updates `vars` in place; returns whether it was one (the
+// caller `continue`s past handler/cd on true, the same way an existing `cd`
+// segment already does). A later assignment of the same name overwrites the
+// earlier one; an assignment whose OWN value is unresolvable DELETES any
+// earlier mapping for that name rather than leaving it in place — the
+// variable's value genuinely changed, so continuing to substitute the stale
+// earlier value would itself be a fabricated-target risk, the exact thing
+// this module's fail-open posture exists to avoid. Deliberately reads the
+// RAW (pre-substitution) token, never the substituted one — this is what
+// keeps a chained reference (`B=$A/y`) from ever resolving through a second
+// hop: `$A/y`'s raw value still contains `$`, so isUnresolvable rejects it
+// here, before substitution would otherwise have had a chance to touch it.
+function updateAssignment(vars, t) {
+  if (t.length !== 1) return false;
+  const m = SIMPLE_ASSIGNMENT_RE.exec(t[0]);
+  if (!m) return false;
+  const [, name, rawValue] = m;
+  const value = stripQuotes(rawValue);
+  if (isUnresolvable(value)) vars.delete(name);
+  else vars.set(name, value);
+  return true;
+}
+
+// Matches a token's $NAME / ${NAME} reference.
+const VAR_REF_RE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
+
+// Substitutes a same-command literal assignment into a token, deliberately
+// narrow: only a token whose $/backtick content is EXACTLY one $NAME or
+// ${NAME} reference to an already-tracked name is rewritten; anything else
+// (an unassigned name, a second $ or a backtick elsewhere in the token) is
+// returned unchanged and falls through to the existing
+// isUnresolvable()/null-target behavior unmodified. Never recursive — the
+// substituted value is a literal already proven not to contain `$` (by
+// updateAssignment's own isUnresolvable check at assignment time), so there
+// is nothing left to re-scan.
+function substituteVars(tokens, vars, singleQuoted) {
+  if (!vars.size) return tokens;
+  return tokens.map((tok, i) => {
+    // Real bash never expands `$NAME` inside single quotes — a token built
+    // from a single-quoted span is never a variable reference, regardless of
+    // its text. Skip it untouched; it falls through to the existing
+    // isUnresolvable()/null-target behavior unmodified (see tokenize()'s
+    // singleQuoted comment for why this guard exists).
+    if (singleQuoted && singleQuoted[i]) return tok;
+    if (!tok.includes('$') || tok.includes('`')) return tok;
+    const matches = [...tok.matchAll(VAR_REF_RE)];
+    if (matches.length !== 1) return tok;
+    if ((tok.match(/\$/g) || []).length !== 1) return tok;
+    const m = matches[0];
+    const name = m[1] || m[2];
+    if (!vars.has(name)) return tok;
+    return tok.slice(0, m.index) + vars.get(name) + tok.slice(m.index + m[0].length);
+  });
+}
+
 // Shared segment/token walk used by both gitTargets and fileWriteTargets:
 // splits the command into shell segments, tokenizes each, and tracks `cd` to
 // keep the effective cwd in sync. `handler(t, effCwd)` is invoked for every
 // non-cd, non-empty segment with the cwd value in effect for it (string, or
-// null meaning UNKNOWN). Extracted so a future fix to cd-resolution (a new
-// isUnresolvable pattern, pushd/popd support, etc.) can never land in one
-// caller's copy of this preamble and not the other's.
+// null meaning UNKNOWN). Also tracks same-command literal `NAME=value`
+// assignments (see updateAssignment/substituteVars above) and substitutes
+// them into every other segment's tokens before `handler`/the `cd` branch
+// sees them — one shared point so a future fix to either cd-resolution or
+// assignment-substitution can never land in one caller's copy of this
+// preamble and not the other's.
 function forEachCommandSegment(command, cwd, handler) {
   let effCwd = cwd || '.'; // string, or null meaning UNKNOWN
+  const vars = new Map(); // name -> literal value, same-command only, no chaining
   for (const seg of splitSegments(command)) {
-    const t = tokenize(seg.trim());
-    if (!t.length) continue;
-    if (t[0] === 'cd') {
-      effCwd = resolveCd(effCwd, t[1]);
+    const { tokens: rawT, singleQuoted } = tokenize(seg.trim());
+    if (!rawT.length) continue;
+    if (updateAssignment(vars, rawT)) continue;
+    const t = substituteVars(rawT, vars, singleQuoted);
+    // `FOO=1 cd /path` really does change the shell's cwd — a preceding
+    // assignment on a regular (non-special) builtin like `cd` is scoped only
+    // to that command's own execution environment, but `cd` has no
+    // subprocess to scope the env change to, so it still runs and changes
+    // the CURRENT shell's cwd (verified empirically; #590). `env cd /path`
+    // is the opposite case and deliberately NOT normalized here: `env` execs
+    // an external `cd` binary that does not exist on a normal system, so it
+    // errors and never changes cwd — normalizing it would fabricate a target
+    // for a shape that has no real effect.
+    let cdLead = 0;
+    while (cdLead < t.length && SIMPLE_ASSIGNMENT_RE.test(t[cdLead])) cdLead += 1;
+    if (t[cdLead] === 'cd') {
+      effCwd = resolveCd(effCwd, t[cdLead + 1]);
       continue;
     }
     handler(t, effCwd);
@@ -204,11 +301,40 @@ function skipGlobalFlags(t, i, dir) {
   return { index: i, dir, unprovable };
 }
 
+// Finds the index of the real `git` command word in a segment's raw token
+// array, looking past three equivalent shapes a real shell treats identically
+// to a bare `git` invocation (#590):
+//   - leading `NAME=value` assignment tokens: `FOO=1 git commit -m x`
+//   - the `env` builtin, plus ITS OWN leading flags/assignments, ahead of the
+//     real command: `env git commit -m x`, `env -i git commit -m x`,
+//     `env FOO=1 git commit -m x`
+//   - a directory-qualified executable ending in `/git`: `/usr/bin/git commit`
+// (any combination of the three also resolves, e.g. `FOO=1 /usr/bin/git …`
+// or `env FOO=1 /usr/bin/git …`.) Returns -1 when, after normalization, the
+// leading token still isn't `git` — ambiguity resolves to "not git" (allow),
+// the same never-fabricate-a-target posture as the rest of this module.
+function findGitLead(t) {
+  let i = 0;
+  while (i < t.length && SIMPLE_ASSIGNMENT_RE.test(t[i])) i += 1;
+  if (t[i] === 'env') {
+    i += 1;
+    // env's own flags (-i, etc.) and any NAME=value pairs preceding the real
+    // command — not full env-flag parsing (see #590's Gotchas: a narrower,
+    // deliberately scoped normalization, not a general env(1) implementation).
+    while (i < t.length && (SIMPLE_ASSIGNMENT_RE.test(t[i]) || (t[i] !== '-' && t[i].startsWith('-')))) i += 1;
+  }
+  if (i >= t.length) return -1;
+  const lead = t[i];
+  if (lead === 'git' || lead.endsWith('/git')) return i;
+  return -1;
+}
+
 function gitTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
-    if (t[0] !== 'git') return;
-    const { index: i, dir, unprovable } = skipGlobalFlags(t, 1, effCwd);
+    const lead = findGitLead(t);
+    if (lead === -1) return;
+    const { index: i, dir, unprovable } = skipGlobalFlags(t, lead + 1, effCwd);
     if (unprovable) return;
     if (dir === null) return; // cwd UNKNOWN and no provable -C — no target
     const sub = t[i];

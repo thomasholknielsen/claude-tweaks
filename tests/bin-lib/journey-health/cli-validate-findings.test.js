@@ -27,7 +27,7 @@ function finding(overrides = {}) {
 // GitHub credentials; the read path is pure git plumbing (fetch + show), so
 // it's exercised for real below via a local bare git remote seeded directly
 // with runs.json (no gh/network needed) — the same technique
-// bin/lib/harness-health/tests/cli-validate-findings.test.js's
+// tests/bin-lib/harness-health/cli-validate-findings.test.js's
 // seedDurableRuns uses.
 function seedDurableRuns(root, runs) {
   const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-vf-bare-'));
@@ -96,7 +96,7 @@ test('validate-findings --dry-run does not write cursor or cache state', () => {
 // --coverage-scan. The actual cursor-set semantics (per-journey light/deep
 // merge, coverage-scan cursor set, unrelated cursor keys preserved) are unit
 // tested directly against the pure mutator in
-// bin/lib/journey-health/tests/build-validate-findings-update.test.js.
+// tests/bin-lib/journey-health/build-validate-findings-update.test.js.
 test('validate-findings --coverage-scan still succeeds when durable persistence cannot complete, no local cursors.json is ever written', () => {
   const root = tmp();
   const findingsFile = path.join(root, 'findings.json');
@@ -277,7 +277,7 @@ test('churn-report: prints "no run logs found" when no runs exist', () => {
 
 // churn-report's own read side (readDurableState(root).runs, no longer
 // readRuns(root)) against a directly-seeded health-state branch, mirroring
-// bin/lib/harness-health/tests/cli-validate-findings.test.js's equivalent
+// tests/bin-lib/harness-health/cli-validate-findings.test.js's equivalent
 // test.
 test('churn-report: a seeded durable run history prints a table row', () => {
   const root = tmp();

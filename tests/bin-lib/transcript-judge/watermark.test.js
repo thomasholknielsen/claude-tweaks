@@ -176,3 +176,25 @@ test('formatOffsetClause: missing filedRecords (undefined) also renders "none"',
   const s = watermark.formatOffsetClause({ bytesAtDispatch: 50, line: 1, filedRecords: undefined });
   assert.match(s, /records already exist: none;/);
 });
+
+// ---- isTranscriptUnchanged (#701 skip-before-dispatch check) ---------------
+
+test('isTranscriptUnchanged: no watermark (null) -> false, nothing to skip against', () => {
+  assert.equal(watermark.isTranscriptUnchanged(null, 500), false);
+});
+
+test('isTranscriptUnchanged: current size equal to bytesAtDispatch -> true (no growth)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 500), true);
+});
+
+test('isTranscriptUnchanged: current size smaller than bytesAtDispatch -> true (still covered)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 480), true);
+});
+
+test('isTranscriptUnchanged: current size larger than bytesAtDispatch -> false (grown, dispatch)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 501), false);
+});
+
+test('isTranscriptUnchanged: malformed watermark (non-numeric bytesAtDispatch) -> false, degrade to dispatch', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 'not-a-number' }, 500), false);
+});

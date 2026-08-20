@@ -1,45 +1,74 @@
 # Backlog — Attention Mode
 
 Read-only, like `overview` mode — no writes, no grants. Unifies discovery of every open record
-carrying `needs:definition` or `solution:unjustified` into one ranked list with a per-row,
-type-differentiated recommended action. This is the "what does the backlog need from me today"
+carrying `needs:definition`, `solution:unjustified`, or `ready` + `shaped:headless` with no
+`auto:build` grant into one ranked list with a per-row, type-differentiated recommended action.
+This is the "what does the backlog need from me today"
 surface — distinct from `/claude-tweaks:help`'s Triage Queue (awaiting authorization, flagged or
 not) and Acceptance Queue (awaiting sign-off), which cover different concerns.
 
 ## Step 1: Fetch
 
-Two separate `gh issue list` calls — `--label` ANDs multiple values passed to the same flag, so a
-single call with both labels would return only records carrying both (nearly always empty), not
-either:
+Three `gh issue list` calls. `--label` ANDs multiple values passed to the same flag, which cuts
+both ways here, so the two shapes are deliberate and must not be normalized into each other:
+
+- The first two fetches (`needs:definition`, `solution:unjustified`) are each their own
+  **single-label** call precisely because of that AND — one call passing both labels would return
+  only records carrying both (nearly always empty), not either. Never merge them into one call.
+- The third fetch (`ready` + `shaped:headless`) passes **two labels to one call on purpose** — it
+  wants exactly the AND: records carrying both. **Do not "fix" it by splitting it into separate
+  `--label ready` / `--label shaped:headless` calls** — the rationale above is about the first two
+  fetches only, and splitting this one silently widens it to every `ready` record plus every
+  `shaped:headless` record, which is not what this classification is.
 
 ```bash
 gh issue list --state open --label needs:definition --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-needs-definition.json
 gh issue list --state open --label solution:unjustified --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-solution-unjustified.json
+gh issue list --state open --label ready --label shaped:headless --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-shaped-headless.json
 ```
 
-If either fetch returns exactly `200` results, state that in the rendered output — the same
+If any fetch returns exactly `200` results, state that in the rendered output — the same
 "may be more, here's the count" convention `/claude-tweaks:help`'s own fetches use — rather than
-silently treating it as complete.
+silently treating it as complete. The `shaped-headless` fetch additionally needs `auto:build`
+excluded, done in Step 2's merge script (below) rather than via a `gh` query flag — `gh issue
+list --label` only ANDs, it has no exclusion flag, matching this file's own established idiom of
+doing set logic in the `node -e` merge step rather than the `gh` query.
 
 ## Step 2: Merge and dedupe
 
-Merge by issue number. A record's number appearing in both fetches is not assumed impossible —
-no automated path stamps both labels today, but a human can always add either label directly, so
-the merge must not assume the two fetches are disjoint. When a number appears in both, render
-**one row** for it: `Type` reads `needs:definition + solution:unjustified`, and `Recommended
-action` concatenates both remedies (`needs:definition`'s redirect action first, then
-`solution:unjustified`'s grant-or-evidence action, semicolon-separated).
+Merge by issue number. A record's number appearing in more than one fetch is not assumed
+impossible — no automated path stamps two of these labels together today, but a human can always
+add any of them directly, so the merge must not assume the three fetches are disjoint. When a
+number appears in more than one, render **one row** for it: `Type` joins the matched types with
+` + ` (e.g. `needs:definition + solution:unjustified`), and `Recommended action` concatenates
+each matched type's remedy in that same order, semicolon-separated (`needs:definition`'s redirect
+action first, then `solution:unjustified`'s grant-or-evidence action, then
+`shaped:headless (no grant)`'s grant action). A record can in principle carry all three — e.g.
+`needs:definition` + `shaped:headless`, a combination reachable only when a human adds one of the
+two labels to a record that already carries the other, never from any #968/#969 automated path
+(the Framing Guard's `solution-baked` route stamps `needs:definition` and skips `shaping-mode.md`
+entirely, so it never applies `shaped:headless`) — the same one-row-per-number,
+concatenated-action convention applies; `types` is always rendered in fetch order
+(`needs:definition`, `solution:unjustified`, `shaped:headless (no grant)`) for a deterministic
+Type column.
 
 ```bash
 node -e "
   const needsDefinition = require('/tmp/backlog-attention-needs-definition.json');
   const solutionUnjustified = require('/tmp/backlog-attention-solution-unjustified.json');
+  const shapedHeadless = require('/tmp/backlog-attention-shaped-headless.json')
+    .filter((r) => !r.labels.some((l) => l.name === 'auto:build'));
   const byNumber = new Map();
   for (const r of needsDefinition) byNumber.set(r.number, { ...r, types: ['needs:definition'] });
   for (const r of solutionUnjustified) {
     const existing = byNumber.get(r.number);
     if (existing) existing.types.push('solution:unjustified');
     else byNumber.set(r.number, { ...r, types: ['solution:unjustified'] });
+  }
+  for (const r of shapedHeadless) {
+    const existing = byNumber.get(r.number);
+    if (existing) existing.types.push('shaped:headless (no grant)');
+    else byNumber.set(r.number, { ...r, types: ['shaped:headless (no grant)'] });
   }
   console.log(JSON.stringify([...byNumber.values()]));
 " > /tmp/backlog-attention-merged.json
@@ -80,6 +109,7 @@ One markdown table, one row per record:
 |--------|------|-------|---------------------|
 | #{n} | needs:definition | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming |
 | #{n} | solution:unjustified | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to grant despite the flag (accept risk), or add evidence to Current State and re-run /claude-tweaks:specify #{n} first |
+| #{n} | shaped:headless (no grant) | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to grant (spec was headlessly shaped — no human has reviewed it) |
 | #{n} | needs:definition + solution:unjustified | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming; run /claude-tweaks:backlog refine #{n} to grant despite the flag (accept risk), or add evidence to Current State and re-run /claude-tweaks:specify #{n} first |
 
 Pick up next: #{n} "{title}" — {oldest/highest-priority reason}.
@@ -89,13 +119,16 @@ Pick up next: #{n} "{title}" — {oldest/highest-priority reason}.
 brainstorming`. `solution:unjustified` rows recommend `run /claude-tweaks:backlog refine #{n} to
 grant despite the flag (accept risk), or add evidence to Current State and re-run
 /claude-tweaks:specify #{n} first` — naming `/backlog refine` explicitly as the actual grant
-mechanism, since this mode itself performs no grant. The trailing "Pick up next" line names the
-single oldest/highest-priority record across both types — the same shape `overview` mode's own
+mechanism, since this mode itself performs no grant. `shaped:headless (no grant)` rows recommend
+`run /claude-tweaks:backlog refine #{n} to grant (spec was headlessly shaped — no human has
+reviewed it)` — naming `/backlog refine` explicitly, same as the `solution:unjustified` row,
+since this mode itself performs no grant. The trailing "Pick up next" line names the
+single oldest/highest-priority record across all types — the same shape `overview` mode's own
 "what to build next" recommendation uses.
 
 When the merged list is empty, render `Nothing needs attention — no open record carries
-needs:definition or solution:unjustified.` instead of an empty table, and omit the "Pick up next"
-line.
+needs:definition, solution:unjustified, or an ungranted shaped:headless spec.` instead of an
+empty table, and omit the "Pick up next" line.
 
 ## Anti-Patterns
 
@@ -104,4 +137,4 @@ line.
 | A single `gh issue list --label needs:definition --label solution:unjustified` call | `--label` ANDs multiple values within one call — this returns only records carrying both, nearly always empty |
 | Granting, closing, or shaping anything from this mode | Read-only, like `overview` — the recommended actions are for the human to run, never executed here |
 | Inventing a third ranking scheme | Reuse `/claude-tweaks:dispatch`'s existing priority-band-then-age ordering |
-| Two rows for a record carrying both labels | Dedupe by issue number and render one row with a concatenated Type/Recommended action |
+| A separate row per matched type for a record carrying two or three of the classifications | Dedupe by issue number and render one row with a concatenated Type/Recommended action, however many types matched |

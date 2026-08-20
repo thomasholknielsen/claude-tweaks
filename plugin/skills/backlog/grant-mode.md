@@ -28,7 +28,7 @@ RISK_FLOOR=$(printf '%s\n' "$POLICY_VALUES" | sed -n '3p')   # line 3: risk-floo
 SIZE_FLOOR=$(printf '%s\n' "$POLICY_VALUES" | sed -n '4p')   # line 4: size-floor
 ```
 
-`RISK_FLOOR`/`SIZE_FLOOR` are whole-run values, resolved once here — like `CEILING`/`OPT_IN`, they feed both Phase A's and Phase C's `policy` object below (gate 5's oversight floor is not per-record configuration).
+`RISK_FLOOR`/`SIZE_FLOOR` are whole-run values, resolved once here — like `CEILING`/`OPT_IN`, they feed both Phase A's and Phase C's `policy` object below (gate 5's oversight floor is not per-record configuration). A `shaped:headless` record (#968 — no human reviewed the spec body) is additionally checked against a fixed `medium` floor on both axes, denying with `failedKey: 'shaped-headless-floor'` when it exceeds that floor — this second check is not configurable and is not part of `RISK_FLOOR`/`SIZE_FLOOR` above; it runs only after the configured floor already cleared, so the existing `'oversight-floor'` key keeps winning when both would deny.
 
 Substitute the literal values — do not `export` in an earlier Bash call and read `process.env`
 later (shell state doesn't survive between calls or reach a subagent; same hazard

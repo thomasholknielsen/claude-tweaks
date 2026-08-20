@@ -39,6 +39,34 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.103.0 — Merged-PR batch: worktree-always gate verb-aware read-only allowlist + delete-only push exemption (#658); non-canonical run-dir timestamps surfaced in reconcile, dash format pinned at mint (#848); /help acceptance-queue local-files twin (#203); anchored-staged-path invariant hoisted into pipeline-run-dir.md (#737); specify option-block cost/effort/churn admissibility rule (#639); design-wrapper explore layout-scope render-set widened
+
+Merged-PR batch: worktree-always gate verb-aware read-only allowlist + delete-only push exemption (#658); non-canonical run-dir timestamps surfaced in reconcile, dash format pinned at mint (#848); /help acceptance-queue local-files twin (#203); anchored-staged-path invariant hoisted into pipeline-run-dir.md (#737); specify option-block cost/effort/churn admissibility rule (#639); design-wrapper explore layout-scope render-set widened.
+
+## v6.102.0 — Headless shaping unit: specify next mode with framing-check guard and shaped:headless label (#967, #968), grant-gate oversight floor for shaped:headless records (#969), specify routine template + fleet row 9 (#970); dispatch local-merge resume question-string template (#545); help policy mode renders Shape-B derived defaults as computed (#636); build plan-authoring checks extracted to sub-file (ceiling breach)
+
+Headless shaping unit: specify next mode with framing-check guard and shaped:headless label (#967, #968), grant-gate oversight floor for shaped:headless records (#969), specify routine template + fleet row 9 (#970); dispatch local-merge resume question-string template (#545); help policy mode renders Shape-B derived defaults as computed (#636); build plan-authoring checks extracted to sub-file (ceiling breach).
+
+## v6.101.0 — Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#633); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale
+
+Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#633); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale.
+
+## v6.100.2 — Merged-PR batch: CLAUDE.md/template writing-plans contradiction narrowed to multi-phase files (#643); stray NUL byte stripped from initiative-budget.js + payload UTF-8 conformance guard (#859); eval fixtures frozen at pre-6.48.0 policy shape (#631); ADR-0010 stale Consequences bullet fix
+
+Merged-PR batch: CLAUDE.md/template writing-plans contradiction narrowed to multi-phase files (#643); stray NUL byte stripped from initiative-budget.js + payload UTF-8 conformance guard (#859); eval fixtures frozen at pre-6.48.0 policy shape (#631); ADR-0010 stale Consequences bullet fix.
+
+## v6.100.1 — Merged-PR batch: worktree gate same-command shell-variable resolution (#630); cloud-setup drift check resolves sha-pinned catalog entries (#860 follow-up); backlog overview needsYou overlay skips parent records (#766); Shape 2 prose-only trigger false-premise guard; IL-141/IL-115 citation fixes
+
+Merged-PR batch: worktree gate same-command shell-variable resolution (#630); cloud-setup drift check resolves sha-pinned catalog entries (#860 follow-up); backlog overview needsYou overlay skips parent records (#766); Shape 2 prose-only trigger false-premise guard; IL-141/IL-115 citation fixes.
+
+## v6.100.0 — Merged-PR batch: reconcile compact default output + --json (#638); worktree PreToolUse guard over-match fix (#861); worktree-always write-shape docs (#640); RENAMED_KEYS conformance pin (#629); auto-mode severity ceiling vocabulary (#332); capture duplicate-CLI cross-session signal (#789); archiveRunDir engine-state residue (#893); resolve-profile session-failure blacklist follow-ups parked (#841); ledger post-hoc drift fast-lane (#879); tidy scan-procedures gh-absent description fix (#172 follow-up); EnterWorktree retry branch-collision fast-lane; verify-mode entry-grammar dedup
+
+Merged-PR batch: reconcile compact default output + --json (#638); worktree PreToolUse guard over-match fix (#861); worktree-always write-shape docs (#640); RENAMED_KEYS conformance pin (#629); auto-mode severity ceiling vocabulary (#332); capture duplicate-CLI cross-session signal (#789); archiveRunDir engine-state residue (#893); resolve-profile session-failure blacklist follow-ups parked (#841); ledger post-hoc drift fast-lane (#879); tidy scan-procedures gh-absent description fix (#172 follow-up); EnterWorktree retry branch-collision fast-lane; verify-mode entry-grammar dedup.
+
+## v6.99.0 — Dispatch batch: routine pause/resume + sampling floor for the trust ladder (#213, #310); github-pr-scan MCP fallback (#172); Section E ownership-check fix (#226); Impeccable Rule 5 fail/skip prose (#206); mutation-probe discipline for test tasks (#250); residue-probe header restoration + wrap-up prose fixes (#229); docs/donts.md IL-nn dedup + grammar fix (#244); multi-spec.md #724 budget fix
+
+Dispatch batch: routine pause/resume + sampling floor for the trust ladder (#213, #310); github-pr-scan MCP fallback (#172); Section E ownership-check fix (#226); Impeccable Rule 5 fail/skip prose (#206); mutation-probe discipline for test tasks (#250); residue-probe header restoration + wrap-up prose fixes (#229); docs/donts.md IL-nn dedup + grammar fix (#244); multi-spec.md #724 budget fix.
+
 ## v6.98.1 — Windows: hide console windows on the reconcile lib's own gh/git spawns — completes the v6.98.0 fix (#931, PR #955)
 
 Windows: hide console windows on the reconcile lib's own gh/git spawns — completes the v6.98.0 fix (#931, PR #955).
@@ -147,6 +175,8 @@ Policy introspection: resolve-policy --all metadata, /help policy mode, init del
 ## v6.85.0 — Tidy report redesign + reconcile-backed auto-apply (#517-#519), /feedback session-evaluation mode (#509), resume-to-merge confirmation gate (#531), Review Console lever attribution (#535), needs:definition taxonomy, /init Enhancement filter tokens for Steps 18-20 + step-range drift fix, and closed-issue plan cleanup
 
 Tidy report redesign + reconcile-backed auto-apply (#517-#519), /feedback session-evaluation mode (#509), resume-to-merge confirmation gate (#531), Review Console lever attribution (#535), needs:definition taxonomy, /init Enhancement filter tokens for Steps 18-20 + step-range drift fix, and closed-issue plan cleanup.
+
+The reconcile-backed auto-apply work (#517-#519) also flips `tidy-aggressiveness`'s default from `conservative` to `moderate`: `/claude-tweaks:tidy` now auto-applies reversible git-tracked judgment cleanups (`local-files` deletes/absorbs/defers) that previously only staged for approval; outward-facing GitHub writes still stage regardless of aggressiveness. `conservative` remains available as an explicit opt-down in `.claude-tweaks/policy.yml`.
 
 ## v6.84.0 — Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec
 

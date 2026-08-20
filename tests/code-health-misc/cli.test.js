@@ -19,7 +19,7 @@ function tmpRepo() {
 // The read path (git fetch + show) is pure git plumbing, so it can be
 // exercised for real without gh/network: seed a local bare repo as `origin`
 // and commit runs.json directly onto a health-state branch — the same
-// technique bin/lib/code-health/tests/churn-v2.test.js uses.
+// technique tests/bin-lib/code-health/churn-v2.test.js uses.
 function seedDurableRuns(root, runs) {
   const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-cli-bare-'));
   execFileSync('git', ['init', '--bare', '-q', bareDir]);

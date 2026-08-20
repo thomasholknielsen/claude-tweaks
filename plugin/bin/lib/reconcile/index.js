@@ -9,6 +9,7 @@
 // per-check properties, not by a global lock.
 'use strict';
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
+const { findNonCanonicalRunDirs } = require('../hooks/context');
 const { resolveIntegrationBranch, reapWorktrees: legacyReapWorktrees } = require('../hooks/worktree-reap');
 const { resolveIntegrationModel } = require('../policy-schema');
 const { mirrorFastForward } = require('./mirror-ff');
@@ -50,6 +51,18 @@ async function reconcile(opts = {}) {
     return result;
   }
 
+  // #848: a non-canonical (dash-less) run-dir name is invisible to
+  // iterRunDirsWithState's RUN_ID_RE filter, so every check below silently
+  // omits it forever — surface it once, unconditionally, ahead of every
+  // other gate (skipIfFresh, no-remote, local-merge, gh preflight, budget),
+  // since it's a pure fs read and every one of those gates can otherwise
+  // return before a check that would have found it ever runs. Report-only:
+  // never renamed, never adopted as a run.
+  const nonCanonical = findNonCanonicalRunDirs(root);
+  if (nonCanonical.length) {
+    result.skipped.push({ check: 'all', reason: 'non-canonical-run-dir', names: nonCanonical });
+  }
+
   // Whole-pass freshness short-circuit (#820, D7) — opt-in only (default
   // false), so every existing direct caller of reconcile() (including the
   // standalone `reconcile` CLI subcommand and every test written before this
@@ -66,7 +79,7 @@ async function reconcile(opts = {}) {
     }
   }
 
-  const integration = resolveIntegrationBranch(root);
+  const integration = resolveIntegrationBranch(root, opts.cache);
   if (!integration) {
     result.skipped.push({ check: 'all', reason: 'no-remote' });
     return result;

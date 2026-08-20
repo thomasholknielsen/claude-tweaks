@@ -11,7 +11,7 @@ A Claude Code plugin containing markdown skill files that guide Claude through a
 | Runtime | Claude Code plugin system + Node 18+ (for the statusline) |
 | Content | Markdown (SKILL.md files with YAML frontmatter); Node modules under `plugin/bin/` |
 | Dependencies | Superpowers plugin (`/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`, `/superpowers:systematic-debugging`), code-simplifier plugin (`code-simplifier:code-simplifier` subagent), agent-browser (optional), git CLI (optional — statusline git segment only), gh CLI (optional — default transport for `work-backend: github-issues`: work-record system, the four health-sweep skills' issue filing, /tidy and /help's PR/issue scans. Not required since 6.24.0 — a `gh`-absent env (typically cloud Routine sandbox) routes the same CRUD via `_shared/github-write-transport.md`'s MCP path, with `_shared/issue-claims.md`'s file-blob lock standing in for the ref-level one) |
-| Test runner | `node --test tests/` (built-in, no external deps) |
+| Test runner | `node --test` (built-in, no external deps; invoked via `npm test`) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
 ## Structure
@@ -52,6 +52,10 @@ Invocation: `node plugin/bin/release.js <minor|patch> "<summary>"` from clean `m
 
 All hook registrations route through `plugin/bin/hooks.js <event>` — one dispatcher, one module per event in `plugin/bin/lib/hooks/`. The full contract — tiered posture, run-dir resolution and ownership, the never-break-a-session invariant, and its consumers — is in `docs/hooks.md`. Read it before touching `plugin/bin/hooks.js`, `plugin/bin/lib/hooks/`, or `plugin/hooks/hooks.json`.
 
+### Reconcile
+
+Adding a new `bin/lib/reconcile/` convergence check touches multiple registration sites — the full procedure is in `docs/reconcile-checks.md`. Read it before touching `bin/lib/reconcile/` or `bin/hooks.js`'s `reconcile` command.
+
 ## Philosophy
 
 - **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
@@ -84,7 +88,7 @@ claude --plugin-dir ./plugin        # Local development — load the payload sub
 
 Per-suite test invocations, the `plugin/bin/*.js` CLIs (the four health sweeps plus the standalone CLIs listed there), and the evals harness commands are in `docs/plugin-structure.md`.
 
-A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken.
+A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken. That tolerance applies only to counts **you ran yourself**: never accept a subagent's self-reported pass/fail numbers as a run, and never reconcile a mismatch against them as flake — a fabricated report is indistinguishable from load here, so re-run centrally and require dispatched agents to quote raw command output rather than summarize it.
 
 ### Subagent Contract (v4.2+)
 
@@ -92,13 +96,13 @@ The contract is **dispatch correctness** discipline, not a token-saving measure:
 
 Skills that dispatch parallel Task agents must reference `plugin/skills/_shared/subagent-output-contract.md` and follow its full contract: minimal **input** (scope + paths + literal output template — no conversation history), a **status line** (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`) as the agent's first reply line, an **output template** (Template A/B/C) inlined verbatim in the dispatch prompt, and **model profile selection** (`Fast | Standard | Capable`; `Frontier` only at contract-enumerated singleton slots, never in a fan-out — resolved per the contract's Model Selection section) appropriate to the work. Agents only see what's in their prompt — references to sibling files don't reach them. Used by `/browse`, `/design-wrapper` (`review` mode Step 3.8 — craft critics), `/dispatch` (`build,test` then `review,polish,wrap-up`, two Task calls per file-overlap group, own GROUP/OUTCOME/MANIFEST template — none of A/B/C fit; status line + input discipline still apply, `plugin/skills/dispatch/SKILL.md` Step 5), `/help`, `/init`, `/review`, `/specify`, `/test` (qa-prompts), `/tidy`, and `/visual-review`. When adding a new dispatch site, follow the full pattern, not just the output template.
 
-**Third-party agents are exempt**, on a structural condition: the agent's definition lives outside this repo's `plugin/agents/` directory, so it ships with someone else's plugin and is invoked as a delegation. Anything under our own `plugin/agents/` is never exempt. The exemption covers the agent only — the caller still normalizes the foreign output at the boundary, checks availability at the *agent* level (plugin presence does not imply agent presence), and distinguishes unavailable / failed / empty / unparseable rather than reporting a clean result. `impeccable-finish-reviewer` is the one such dispatch today (`design-wrapper/modes/review.md` Step 3.7). Full carve-out: the Exemption section of that `_shared` file.
+**Third-party agents are exempt**, on a structural condition: the agent's definition lives outside this repo's `plugin/agents/` directory, so it ships with someone else's plugin and is invoked as a delegation. Anything under our own `plugin/agents/` is never exempt. The exemption covers the agent only — the caller still normalizes the foreign output at the boundary, checks availability at the *agent* level (plugin presence does not imply agent presence), and distinguishes unavailable / failed / empty / unparseable rather than reporting a clean result. `impeccable-finish-reviewer` is the one such dispatch today (`plugin/skills/design-wrapper/modes/review.md` Step 3.7). Full carve-out: the Exemption section of that `_shared` file.
 
 ### Auto-Mode Contract + Bookend Architecture (v4.6+)
 
 claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.
 
-**Single source of truth:** `plugin/skills/_shared/auto-mode-contract.md` — defines mode states, decision precedence (CLI arg > pipeline config > project policy > skill default), reversibility/confidence/severity floors, the HARD-GATE exemption list, and what `auto` never silences (ledger resolve Phase 2, work-record creation — new backlog or parked records, governance gates) — except the narrow, explicit `autonomy` ceiling's bookkeeping capabilities (see `_shared/autonomy-ceiling.md`), which let floor-clearing ledger residue, queue writes, and ops-ack resolve without a click at `trusted`/`unattended`, and — at `unattended` only — let the Review Console's memory, queue-write, and upstream-filing approvals resolve with zero clicks under `consoleAutoResolve`.
+**Single source of truth:** `plugin/skills/_shared/auto-mode-contract.md` — defines mode states, decision precedence (CLI arg > pipeline config > project policy > skill default), reversibility/confidence floors and a severity ceiling, the HARD-GATE exemption list, and what `auto` never silences (ledger resolve Phase 2, work-record creation — new backlog or parked records, governance gates) — except the narrow, explicit `autonomy` ceiling's bookkeeping capabilities (see `_shared/autonomy-ceiling.md`), which let floor-clearing ledger residue, queue writes, and ops-ack resolve without a click at `trusted`/`unattended`, and — at `unattended` only — let the Review Console's memory, queue-write, and upstream-filing approvals resolve with zero clicks under `consoleAutoResolve`.
 
 **Audit trail:** `plugin/skills/_shared/auto-decision-log.md` — every auto-resolution writes a one-line entry to `.claude-tweaks/pipelines/{run-id}/decisions.md` per that file's canonical entry schema. The Review Console reads this log. Staged code-fix proposals follow `plugin/skills/_shared/staged-patch.md` — validated with `git apply --check` at staging time and re-derived from their `Invariant:` preamble at the console when the diff has gone stale.
 
@@ -126,7 +130,7 @@ work-types: labels
 
 ## claude-tweaks Pipeline
 
-**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No phase-plan files; skip `/superpowers:writing-plans`.
+**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No multi-phase plan files (`*-P1.md`, `*-P2.md`, …); a single plan per spec via `/superpowers:writing-plans`, stopped before its execution-choice offer, is expected and normal.
 
 **Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or a backlog work-record ref.
 
