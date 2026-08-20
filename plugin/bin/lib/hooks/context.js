@@ -240,7 +240,11 @@ function classifyOwnership(caller, runState) {
     try { fs.realpathSync(binding); } catch { return 'indeterminate'; } // binding gone from disk — fail open
     return 'foreign'; // caller is in a different live worktree than a binding that provably exists
   }
-  return 'indeterminate'; // no-binding arms land in Task 3
+  if (!callerId || !ownerId) return 'indeterminate'; // no binding and incomplete identity
+  // ids are both present and equal (different already returned foreign above)
+  if (info.isLinkedWorktree) return 'indeterminate'; // equal ids from inside a worktree prove nothing about an unbound run
+  if (info.repoRoot) return 'mine'; // main checkout + equal ids + no binding
+  return 'indeterminate'; // outside any repo
 }
 
 // Shared by findRunByWorktreePath/findRunsByWorktreePath below: does this

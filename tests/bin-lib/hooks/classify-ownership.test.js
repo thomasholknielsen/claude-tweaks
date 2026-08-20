@@ -109,3 +109,38 @@ test('mine: caller cwd given as a symlink to the recorded worktree', () => {
     'mine',
   );
 });
+
+test('mine: both ids present and equal, no binding, caller in the main checkout', () => {
+  const main = gitRepo();
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: main }, { sessionId: 's' }),
+    'mine',
+  );
+});
+
+test('indeterminate: equal ids, no binding, caller inside a linked worktree', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: wt }, { sessionId: 's' }),
+    'indeterminate',
+  );
+});
+
+test('indeterminate: either id missing, no binding', () => {
+  const main = gitRepo();
+  assert.strictEqual(classifyOwnership({ sessionId: 's', cwd: main }, {}), 'indeterminate');
+  assert.strictEqual(classifyOwnership({ cwd: main }, { sessionId: 's' }), 'indeterminate');
+  assert.strictEqual(classifyOwnership({ sessionId: '', cwd: main }, { sessionId: 's' }), 'indeterminate');
+});
+
+test('verdict vocabulary: every return value is one of mine/foreign/indeterminate', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const verdicts = new Set([
+    classifyOwnership({ sessionId: 'a', cwd: main }, { sessionId: 'b' }),
+    classifyOwnership({ sessionId: 's', cwd: wt }, { sessionId: 's', worktree: wt }),
+    classifyOwnership({ sessionId: 's', cwd: main }, { sessionId: 's', worktree: wt }),
+  ]);
+  for (const v of verdicts) assert.ok(['mine', 'foreign', 'indeterminate'].includes(v), `unexpected verdict ${v}`);
+});
