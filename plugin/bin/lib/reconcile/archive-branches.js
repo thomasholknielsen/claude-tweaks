@@ -19,11 +19,19 @@
 // it catches squash merges that ancestry checks and `git branch -d` both
 // miss; that is why execution uses `-D` behind this decision table and
 // never trusts `-d`'s verdict.
+//
+// Screen-then-confirm (#1083, adopting #1082's shape): in-scope branches are
+// screened in one bulk call (resolvePrStatesBulk) before any per-branch
+// work, and only a destructive provisional verdict (delete or
+// tag-and-delete) re-reads PR state per-branch to confirm. NO preferOpen
+// here, on screen or confirm: #664 deliberately scoped the destructive
+// tie-break to prune-remote — archive's deletes are local-only and
+// recoverable from origin.
 'use strict';
 
 const { runGit } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
-const { resolvePrState } = require('./pr-state');
+const { resolvePrState, resolvePrStatesBulk } = require('./pr-state');
 
 const BRANCH_AGE_DAYS = 14; // hardcoded by design — no policy lever
 const TAG_AGE_DAYS = 90; // matches git's default reflog window: past it, the tag's marginal recovery value is zero
@@ -108,10 +116,11 @@ function isCherryEquivalent(root, integration, branch) {
   return lines.every((l) => l.startsWith('-'));
 }
 
-function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
+function archiveBranches({ cwd, integration, dryRun, now, resolvePr, resolvePrBulk } = {}) {
   const root = cwd || process.cwd();
   const nowMs = now || Date.now();
   const resolve = resolvePr || resolvePrState;
+  const resolveBulk = resolvePrBulk || resolvePrStatesBulk;
   const entries = [];
 
   const wtList = runGit(['worktree', 'list', '--porcelain'], root);
@@ -121,15 +130,54 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
   const refs = runGit(['for-each-ref', '--format=%(refname:short)\t%(committerdate:iso8601-strict)\t%(objectname)', 'refs/heads'], root);
   if (refs.failure) return { entries, failure: 'git-failure' };
 
+  // Collect in-scope branches (with their committerDate/tip) first — the
+  // screen is one bulk call (#1083, adopting #1082's screen-then-confirm).
+  // NO preferOpen here, on screen or confirm: #664 deliberately scoped the
+  // destructive tie-break to prune-remote (see pickGoverningPr's census
+  // comment) — archive's deletes are local-only and recoverable from origin,
+  // and this restructure changes evidence acquisition only.
+  const candidates = [];
   for (const line of refs.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
     const [branch, committerDate, tip] = line.split('\t');
-    if (!inScope(branch, worktrees)) continue; // scope guard: namespace + worktree attachment — never reaches the decision fn
+    if (!inScope(branch, worktrees)) continue;
+    candidates.push({ branch, committerDate, tip });
+  }
+
+  const screen = candidates.length > 0
+    ? resolveBulk(root, candidates.map((c) => c.branch))
+    : new Map();
+  if (screen === 'gh-absent') return { entries, failure: 'gh-absent' };
+  if (screen === 'network-failure') return { entries, failure: 'pr-screen-failed' };
+
+  for (const { branch, committerDate, tip } of candidates) {
     const tipAgeDays = (nowMs - Date.parse(committerDate)) / (24 * 60 * 60 * 1000);
+    const screenPr = screen.get(branch) || null;
+
+    // OPEN-screened branches skip before cherry: decideArchive checks OPEN
+    // before cherryEquivalent (order pinned by the existing 'open PR -> skip,
+    // even when cherry-equivalent' test), so cherryEquivalent: true here is a
+    // documented sentinel that never reaches the cherry-driven branches.
+    if (screenPr && screenPr.state === 'OPEN') {
+      const provisional = decideArchive({ branch, tipAgeDays, cherryEquivalent: true, prState: screenPr });
+      entries.push({ name: branch, kind: 'branch', action: 'skip', reason: provisional.reason });
+      continue;
+    }
+
     const cherryEquivalent = isCherryEquivalent(root, integration, branch);
     if (cherryEquivalent === null) {
       entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'cherry-failed' });
       continue;
     }
+    const provisional = decideArchive({ branch, tipAgeDays, cherryEquivalent, prState: screenPr });
+    if (provisional.action === 'skip') {
+      entries.push({ name: branch, kind: 'branch', action: 'skip', reason: provisional.reason });
+      continue;
+    }
+
+    // Destructive candidate (delete or tag-and-delete): re-read PR state
+    // per-branch — today's exact evidence — and re-decide. Cherry is reused,
+    // not recomputed: same pass, same local refs, deterministically identical.
+    // Runs under dryRun too, so dry-run reasons are confirmed reasons.
     const prState = resolve(root, branch);
     const decision = decideArchive({ branch, tipAgeDays, cherryEquivalent, prState });
     if (decision.action === 'skip' || dryRun) {

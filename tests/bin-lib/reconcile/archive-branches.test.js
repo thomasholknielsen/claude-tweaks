@@ -134,6 +134,19 @@ function makeRepo() {
   return dir;
 }
 
+// Screen-then-confirm (#1083): every pre-existing test below injects only
+// `resolvePr` (the confirm step). Without an injected screen, the default
+// resolvePrStatesBulk would run for real — same hazard prune-remote.test.js
+// documents (repoSlugOf happily parses a bogus 'owner/repo' out of the
+// fixture's file-path origin URL, so the default screen would spawn a live
+// `gh api graphql`). Every branch here has no origin remote at all, but the
+// nullScreen fake keeps every candidate on the confirm-per-branch path
+// regardless, matching what today's tests already assume: a screen that
+// knows nothing (the deleted-ref blind spot, #1082/#1083) rather than a
+// screen that asserts MERGED — a permissive-MERGED screen would short-
+// circuit before decideArchive's cherry check ever ran for these fixtures.
+const nullScreen = (root, branches) => new Map(branches.map((b) => [b, null]));
+
 test('archiveBranches: cherry-equivalent build/* branch is deleted; out-of-namespace branch untouched (dry-run reports, real run mutates)', () => {
   const dir = makeRepo();
   // cherry-equivalent branch: same patch as main's next commit
@@ -146,12 +159,12 @@ test('archiveBranches: cherry-equivalent build/* branch is deleted; out-of-names
   // out-of-namespace branch with the same shape
   git(dir, 'branch', 'feature/keep', 'build/eq');
 
-  const dry = archiveBranches({ cwd: dir, integration: 'main', dryRun: true, resolvePr: () => null });
+  const dry = archiveBranches({ cwd: dir, integration: 'main', dryRun: true, resolvePr: () => null, resolvePrBulk: nullScreen });
   const dryEq = dry.entries.find((e) => e.name === 'build/eq');
   assert.strictEqual(dryEq.action, 'delete');
   assert.match(git(dir, 'branch', '--list', 'build/eq'), /build\/eq/); // dry-run did not mutate
 
-  const real = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const real = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null, resolvePrBulk: nullScreen });
   const realEq = real.entries.find((e) => e.name === 'build/eq');
   assert.strictEqual(realEq.action, 'delete');
   assert.strictEqual(git(dir, 'branch', '--list', 'build/eq').trim(), ''); // gone
@@ -175,7 +188,7 @@ test('archiveBranches: unmerged aged branch gets archive tag then delete; young 
   git(dir, 'commit', '-m', 'young');
   git(dir, 'checkout', 'main');
 
-  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null, resolvePrBulk: nullScreen });
   assert.strictEqual(r.entries.find((e) => e.name === 'build/aged').action, 'tag-and-delete');
   assert.strictEqual(r.entries.find((e) => e.name === 'build/young').action, 'skip');
   assert.match(git(dir, 'tag', '--list', 'archive/build%2faged'), /archive\/build%2faged/);
@@ -195,7 +208,7 @@ test('archiveBranches: same-pass survival — 120-day-old tip gets tagged AND th
   });
   git(dir, 'checkout', 'main');
 
-  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null, resolvePrBulk: nullScreen });
   const entry = r.entries.find((e) => e.name === 'build/veryold');
   assert.strictEqual(entry.action, 'tag-and-delete');
   assert.strictEqual(git(dir, 'branch', '--list', 'build/veryold').trim(), ''); // branch gone
@@ -216,7 +229,7 @@ test('archiveBranches: retry idempotency — a pre-existing lightweight archive 
   git(dir, 'tag', `archive/build%2fretry`, tip); // pre-existing lightweight tag, same tip, from an earlier failed pass
   git(dir, 'checkout', 'main');
 
-  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null, resolvePrBulk: nullScreen });
   const entry = r.entries.find((e) => e.name === 'build/retry');
   assert.strictEqual(entry.action, 'tag-and-delete');
   assert.notStrictEqual(entry.reason, 'tag-failed');
@@ -243,7 +256,7 @@ test('archiveBranches: build/foo archived-and-deleted, then unrelated build/foo/
   });
   git(dir, 'checkout', 'main');
 
-  const first = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const first = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null, resolvePrBulk: nullScreen });
   const fooEntry = first.entries.find((e) => e.name === 'build/foo');
   assert.strictEqual(fooEntry.action, 'tag-and-delete');
   assert.notStrictEqual(fooEntry.reason, 'tag-failed');
@@ -258,7 +271,7 @@ test('archiveBranches: build/foo archived-and-deleted, then unrelated build/foo/
   });
   git(dir, 'checkout', 'main');
 
-  const second = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const second = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null, resolvePrBulk: nullScreen });
   const barEntry = second.entries.find((e) => e.name === 'build/foo/bar');
   assert.strictEqual(barEntry.action, 'tag-and-delete'); // never 'skip'/'tag-failed' — the reported D/F conflict
   assert.notStrictEqual(barEntry.reason, 'tag-failed');
@@ -284,10 +297,160 @@ test('archiveBranches: archive/* tag older than 90 days is deleted, younger kept
   git(dir, 'branch', '-D', 'build/tagsrc');
   git(dir, 'tag', 'archive/fresh-tag'); // points at main's tip (fresh committer date)
 
-  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null, resolvePrBulk: nullScreen });
   assert.strictEqual(r.entries.find((e) => e.name === 'archive/old-tag' && e.kind === 'tag').action, 'aged-out');
   assert.strictEqual(git(dir, 'tag', '--list', 'archive/old-tag').trim(), '');
   assert.match(git(dir, 'tag', '--list', 'archive/fresh-tag'), /archive\/fresh-tag/);
+});
+
+// --- screen-then-confirm (#1083) ---
+
+const MERGED_PR_1083 = { number: 30, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const OPEN_PR_1083 = { number: 31, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
+
+test('screen: all-skip pass makes zero per-branch resolver calls, one bulk call, screen-sourced reasons', () => {
+  const dir = makeRepo();
+  // Reuse the squash-merge cherry-equivalent fixture shape from the first
+  // archiveBranches test above — its provisional destiny doesn't matter
+  // here: the OPEN screen must short-circuit before cherry is ever computed.
+  git(dir, 'checkout', '-b', 'build/eq');
+  fs.writeFileSync(path.join(dir, 'b.txt'), 'b\n');
+  git(dir, 'add', 'b.txt');
+  git(dir, 'commit', '-m', 'change');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/eq');
+
+  let bulkCalls = 0; let confirmCalls = 0;
+  const resolvePrBulk = (root, branches) => {
+    bulkCalls += 1;
+    assert.deepEqual(branches, ['build/eq']);
+    return new Map([['build/eq', OPEN_PR_1083]]);
+  };
+  const resolvePr = () => { confirmCalls += 1; return null; };
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk });
+  assert.equal(bulkCalls, 1);
+  assert.equal(confirmCalls, 0);
+  const entry = r.entries.find((e) => e.name === 'build/eq');
+  assert.deepEqual(entry, { name: 'build/eq', kind: 'branch', action: 'skip', reason: 'pr-open' });
+  assert.match(git(dir, 'branch', '--list', 'build/eq'), /build\/eq/); // still exists locally
+});
+
+test('screen-delete candidate confirms per-branch; confirm OPEN -> skip pr-open, branch survives', () => {
+  const dir = makeRepo();
+  // AC2 deleted-ref blind spot: screen returns null (as if the branch's PR
+  // history is invisible to the bulk ref() lookup) even though this branch
+  // IS cherry-equivalent, so the provisional verdict is delete.
+  git(dir, 'checkout', '-b', 'build/eq2');
+  fs.writeFileSync(path.join(dir, 'b2.txt'), 'b2\n');
+  git(dir, 'add', 'b2.txt');
+  git(dir, 'commit', '-m', 'change2');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/eq2');
+
+  let confirmCalls = 0;
+  const resolvePrBulk = () => new Map([['build/eq2', null]]);
+  const resolvePr = () => { confirmCalls += 1; return OPEN_PR_1083; };
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk });
+  assert.equal(confirmCalls, 1);
+  const entry = r.entries.find((e) => e.name === 'build/eq2');
+  assert.deepEqual(entry, { name: 'build/eq2', kind: 'branch', action: 'skip', reason: 'pr-open' });
+  assert.match(git(dir, 'branch', '--list', 'build/eq2'), /build\/eq2/); // survives
+});
+
+test('screen-delete candidate: confirm MERGED-without-cherry never applies (cherry true governs); confirm null still deletes', () => {
+  const dir = makeRepo();
+  git(dir, 'checkout', '-b', 'build/eq3');
+  fs.writeFileSync(path.join(dir, 'b3.txt'), 'b3\n');
+  git(dir, 'add', 'b3.txt');
+  git(dir, 'commit', '-m', 'change3');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/eq3');
+
+  const resolvePrBulk = () => new Map([['build/eq3', null]]);
+  const resolvePr = () => null;
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk });
+  const entry = r.entries.find((e) => e.name === 'build/eq3');
+  assert.deepEqual(entry, { name: 'build/eq3', kind: 'branch', action: 'delete', reason: 'cherry-equivalent' });
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/eq3').trim(), ''); // deleted
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/build%2feq3').trim(), ''); // delete path, not tag-and-delete: no tag
+});
+
+test('aged tag-and-delete candidate: confirm MERGED downgrades to merged-pr-without-cherry-equivalence skip', () => {
+  const dir = makeRepo();
+  const old = new Date(Date.now() - 20 * DAY).toISOString();
+  git(dir, 'checkout', '-b', 'build/aged2');
+  fs.writeFileSync(path.join(dir, 'c2.txt'), 'c2\n');
+  git(dir, 'add', 'c2.txt');
+  execFileSync('git', ['commit', '-m', 'aged2'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: old, GIT_AUTHOR_DATE: old },
+  });
+  git(dir, 'checkout', 'main');
+
+  const resolvePrBulk = () => new Map([['build/aged2', null]]);
+  const resolvePr = () => MERGED_PR_1083;
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk });
+  const entry = r.entries.find((e) => e.name === 'build/aged2');
+  assert.deepEqual(entry, { name: 'build/aged2', kind: 'branch', action: 'skip', reason: 'merged-pr-without-cherry-equivalence' });
+  assert.match(git(dir, 'branch', '--list', 'build/aged2'), /build\/aged2/); // survives
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/build%2faged2').trim(), ''); // no tag created
+});
+
+test('dry-run still confirms candidates and reports final reasons; nothing deleted', () => {
+  const dir = makeRepo();
+  const old = new Date(Date.now() - 20 * DAY).toISOString();
+  git(dir, 'checkout', '-b', 'build/aged3');
+  fs.writeFileSync(path.join(dir, 'c3.txt'), 'c3\n');
+  git(dir, 'add', 'c3.txt');
+  execFileSync('git', ['commit', '-m', 'aged3'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: old, GIT_AUTHOR_DATE: old },
+  });
+  git(dir, 'checkout', 'main');
+
+  let confirmCalls = 0;
+  const resolvePrBulk = () => new Map([['build/aged3', null]]);
+  const resolvePr = () => { confirmCalls += 1; return null; };
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: true, resolvePr, resolvePrBulk });
+  assert.ok(confirmCalls >= 1); // dry-run still confirms
+  const entry = r.entries.find((e) => e.name === 'build/aged3');
+  assert.match(entry.reason, /^unmerged-aged: /);
+  assert.match(git(dir, 'branch', '--list', 'build/aged3'), /build\/aged3/); // nothing deleted
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/build%2faged3').trim(), '');
+});
+
+test('screen failure is check-level: network -> pr-screen-failed, gh-absent -> gh-absent, zero per-branch work', () => {
+  const dir = makeRepo();
+  git(dir, 'checkout', '-b', 'build/anybranch');
+  fs.writeFileSync(path.join(dir, 'z.txt'), 'z\n');
+  git(dir, 'add', 'z.txt');
+  git(dir, 'commit', '-m', 'z');
+  git(dir, 'checkout', 'main');
+
+  let confirmCalls = 0;
+  const resolvePr = () => { confirmCalls += 1; return null; };
+  const net = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk: () => 'network-failure' });
+  assert.deepEqual(net, { entries: [], failure: 'pr-screen-failed' });
+  const absent = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk: () => 'gh-absent' });
+  assert.deepEqual(absent, { entries: [], failure: 'gh-absent' });
+  assert.equal(confirmCalls, 0);
+});
+
+test('per-candidate confirm failure skips that branch (gh-absent/network-failure reason), pass completes', () => {
+  const dir = makeRepo();
+  git(dir, 'checkout', '-b', 'build/eq4');
+  fs.writeFileSync(path.join(dir, 'b4.txt'), 'b4\n');
+  git(dir, 'add', 'b4.txt');
+  git(dir, 'commit', '-m', 'change4');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/eq4');
+
+  const resolvePrBulk = () => new Map([['build/eq4', null]]);
+  const resolvePr = () => 'network-failure';
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk });
+  assert.strictEqual(r.failure, null);
+  const entry = r.entries.find((e) => e.name === 'build/eq4');
+  assert.deepEqual(entry, { name: 'build/eq4', kind: 'branch', action: 'skip', reason: 'network-failure' });
 });
 
 // AC6: index wiring
