@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { resolvePrState, resolvePrStateAsync } = require('../../../plugin/bin/lib/reconcile/pr-state');
+const { resolvePrState, resolvePrStateAsync, resolvePrStatesBulk } = require('../../../plugin/bin/lib/reconcile/pr-state');
 
 // resolvePrState/resolvePrStateAsync both shell to `gh pr list` — neither is
 // injectable (mirrors the module's pre-existing design), so tests intercept
@@ -155,4 +155,69 @@ test('preferOpen with no OPEN PR in the set: behavior unchanged (MERGED wins)', 
   } finally {
     wrapper.restore();
   }
+});
+
+// Build a canned GraphQL response for a chunk's branches: entries maps
+// alias index -> { prs: [...] } (ref exists) or null (no ref).
+function graphqlResponse(entries) {
+  const repository = {};
+  entries.forEach((e, i) => {
+    repository['b' + i] = e === null ? null : {
+      name: 'x', target: { oid: 'deadbeef' },
+      associatedPullRequests: { nodes: e.prs },
+    };
+  });
+  return JSON.stringify({ data: { repository } });
+}
+
+test('resolvePrStatesBulk: complete map, tie-break parity with resolvePrState (preferOpen both ways)', () => {
+  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+  const open = { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
+  const calls = [];
+  const runner = (args) => { calls.push(args); return graphqlResponse([{ prs: [merged, open] }, { prs: [merged] }, null]); };
+  const r = resolvePrStatesBulk('/tmp', ['reused', 'merged-only', 'gone'], { preferOpen: true, runner, repoSlug: 'o/r' });
+  assert.equal(calls.length, 1);
+  assert.equal(r.get('reused').number, 11);        // preferOpen: OPEN governs
+  assert.equal(r.get('merged-only').number, 10);   // MERGED wins with no OPEN
+  assert.equal(r.get('gone'), null);               // deleted/never-pushed ref -> null, still present in map
+  assert.equal(r.size, 3);
+});
+
+test('resolvePrStatesBulk: default tie-break (no preferOpen) matches resolvePrState — MERGED wins over newer OPEN', () => {
+  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+  const open = { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
+  const runner = () => graphqlResponse([{ prs: [merged, open] }]);
+  const r = resolvePrStatesBulk('/tmp', ['reused'], { runner, repoSlug: 'o/r' });
+  assert.equal(r.get('reused').number, 10);
+});
+
+test('resolvePrStatesBulk: chunking at 50 with sequential short-circuit on chunk failure', () => {
+  const branches = Array.from({ length: 120 }, (_, i) => 'br-' + i);
+  let call = 0;
+  const runner = (args) => {
+    call += 1;
+    if (call === 2) { const e = new Error('boom'); e.code = 'ETIMEDOUT'; throw e; }
+    return graphqlResponse(Array.from({ length: 50 }, () => null));
+  };
+  const r = resolvePrStatesBulk('/tmp', branches, { runner, repoSlug: 'o/r' });
+  assert.equal(r, 'network-failure');
+  assert.equal(call, 2); // chunk 3 never issued — short-circuit
+});
+
+test('resolvePrStatesBulk: degraded responses classify network-failure; missing gh classifies gh-absent; empty set spawns nothing', () => {
+  const errResp = JSON.stringify({ data: { repository: { b0: null } }, errors: [{ message: 'partial' }] });
+  assert.equal(resolvePrStatesBulk('/tmp', ['a'], { runner: () => errResp, repoSlug: 'o/r' }), 'network-failure');
+  assert.equal(resolvePrStatesBulk('/tmp', ['a'], { runner: () => 'not json', repoSlug: 'o/r' }), 'network-failure');
+  const enoent = () => { const e = new Error('nope'); e.code = 'ENOENT'; throw e; };
+  assert.equal(resolvePrStatesBulk('/tmp', ['a'], { runner: enoent, repoSlug: 'o/r' }), 'gh-absent');
+  let spawned = 0;
+  assert.equal(resolvePrStatesBulk('/tmp', [], { runner: () => { spawned += 1; return '{}'; }, repoSlug: 'o/r' }).size, 0);
+  assert.equal(spawned, 0);
+});
+
+test('resolvePrStatesBulk: unresolvable repo slug classifies network-failure (fail closed, no spawn)', () => {
+  let spawned = 0;
+  const r = resolvePrStatesBulk('/tmp/definitely-not-a-repo-xyz', ['a'], { runner: () => { spawned += 1; return '{}'; } });
+  assert.equal(r, 'network-failure');
+  assert.equal(spawned, 0);
 });

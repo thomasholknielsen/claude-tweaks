@@ -112,4 +112,14 @@ function runGit(args, cwd, opts = {}) {
   }
 }
 
-module.exports = { runGit, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS };
+// origin remote URL -> 'owner/repo' slug, or null when unparseable/absent.
+// Moved here from reconcile/release-merged.js (#1082) — pr-state.js is a
+// second consumer, and a third copy of this parse is how drift starts.
+function repoSlugOf(repoRoot) {
+  const remote = runGit(['remote', 'get-url', 'origin'], repoRoot);
+  if (remote.failure || !remote.stdout) return null;
+  const m = /[:/]([^/]+\/[^/]+?)(\.git)?$/.exec(remote.stdout);
+  return m ? m[1] : null;
+}
+
+module.exports = { runGit, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS, repoSlugOf };

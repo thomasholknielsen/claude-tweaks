@@ -7,10 +7,22 @@
 // Node subprocess cannot see an agent session's MCP tools (see
 // `_shared/integration-model.md`) — a gh-absent environment reports that
 // reason rather than attempting an MCP path.
+//
+// Bulk-screen probe findings (2026-08-20, live repo, read-only — #1082 Task 0):
+// a 50-alias ref(qualifiedName)+associatedPullRequests query costs 1 GraphQL
+// rate-limit point and resolves LIVE (a PR opened hours earlier appears — no
+// search-index lag). ref() returns null for a branch deleted after its PR
+// merged and for never-pushed names — so a null screen entry can hide real
+// PR history; callers gate every destructive verdict on a per-branch confirm
+// (resolvePrState) for exactly this reason. Untested: fork-headed PRs (none
+// exist here; a divergence could only under-screen, never wrongly delete)
+// and degraded 200-with-errors responses (classification fails closed on any
+// incomplete response by construction).
 'use strict';
 const { execFileSync, execFile } = require('child_process');
 const { promisify } = require('util');
 const { classifyGhApiError } = require('../issues/claim-store');
+const { runGit, repoSlugOf } = require('../hooks/git-exec');
 
 const execFileAsync = promisify(execFile);
 
@@ -109,4 +121,61 @@ async function resolvePrStateAsync(repoRoot, branch) {
   return pickGoverningPr(prs);
 }
 
-module.exports = { resolvePrState, resolvePrStateAsync, FETCH_TIMEOUT_MS };
+const BULK_TIMEOUT_MS = 15000; // one chunked call covers many branches — roomier than FETCH_TIMEOUT_MS's per-branch 5s
+const BULK_CHUNK = 50; // probe-validated 2026-08-20: a 50-alias chunk costs 1 GraphQL rate-limit point (see header)
+
+// branches chunk -> one aliased GraphQL query string. Branch names are
+// JSON-escaped into the alias arguments (they come from for-each-ref, but
+// escape anyway); owner/name travel as typed variables, never placeholders.
+function buildBulkQuery(branches) {
+  const fields = branches
+    .map((b, i) => `b${i}: ref(qualifiedName:${JSON.stringify('refs/heads/' + b)}){ associatedPullRequests(first:10){ nodes{ number state mergedAt updatedAt } } }`)
+    .join('\n    ');
+  return `query($owner:String!,$name:String!){\n  repository(owner:$owner,name:$name){\n    ${fields}\n  }\n}`;
+}
+
+function defaultBulkRunner(args) {
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: BULK_TIMEOUT_MS, windowsHide: true });
+}
+
+// The bulk screen (#1082): every requested branch's governing PR in
+// ceil(N/50) GraphQL round trips instead of N REST calls. ALL-OR-NOTHING:
+// chunks issue sequentially and short-circuit on the first failure; any
+// transport failure, HTTP-200-with-errors, or unparseable/incomplete
+// response fails the WHOLE call ('network-failure') — a partial map would
+// make a missing chunk's branches indistinguishable from no-PR branches.
+// A returned Map is complete for every requested branch; null means
+// genuinely no governing PR/ref (including a ref deleted after merge —
+// the probe-confirmed blind spot callers gate with per-branch confirms).
+function resolvePrStatesBulk(repoRoot, branches, opts = {}) {
+  const runner = opts.runner || defaultBulkRunner;
+  const map = new Map();
+  if (!Array.isArray(branches) || branches.length === 0) return map;
+  const slug = opts.repoSlug || repoSlugOf(repoRoot);
+  if (!slug) return 'network-failure'; // no resolvable origin — fail closed, spawn nothing
+  const [owner, name] = slug.split('/');
+  for (let at = 0; at < branches.length; at += BULK_CHUNK) {
+    const chunk = branches.slice(at, at + BULK_CHUNK);
+    let parsed;
+    try {
+      const stdout = runner(['api', 'graphql', '-F', `owner=${owner}`, '-F', `name=${name}`, '-f', 'query=' + buildBulkQuery(chunk)]);
+      parsed = JSON.parse(stdout);
+    } catch (e) {
+      return classifyExecError(e);
+    }
+    const repo = parsed && parsed.data && parsed.data.repository;
+    if (!repo || Array.isArray(parsed.errors) && parsed.errors.length > 0) return 'network-failure';
+    for (let i = 0; i < chunk.length; i += 1) {
+      const key = 'b' + i;
+      if (!(key in repo)) return 'network-failure'; // incomplete alias set — never a silent null
+      const node = repo[key];
+      const prs = node && node.associatedPullRequests && node.associatedPullRequests.nodes;
+      map.set(chunk[i], node === null ? null : pickGoverningPr(prs, opts));
+    }
+  }
+  return map;
+}
+
+module.exports = {
+  resolvePrState, resolvePrStateAsync, resolvePrStatesBulk, FETCH_TIMEOUT_MS, BULK_CHUNK,
+};
