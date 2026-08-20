@@ -358,6 +358,35 @@ stated.
 
 **Group-claim-all-or-abort exception.** The row above assumes an independent-batch context (dispatch's per-issue loop, `/tidy`'s sweep), where dropping one issue and continuing is safe. A consumer claiming multiple targets under the group-claim-all-or-abort invariant (`flow/claim-targets.md`'s Step 2.8) gets different treatment: any transient `gh`/MCP failure during a claim read or write — not just a classification-based contest — triggers the same all-or-abort release-and-stop (or `keep-going` skip) as a live contest, since silently continuing with one named target unclaimed reopens the double-build race group-claiming exists to prevent.
 
+## Deliverable-name collisions (bin/ CLIs)
+
+The lock above claims the *issue number* being worked, not the *deliverable* (a named `bin/`
+CLI, module, or artifact) a record proposes to build — two different issues that each
+independently propose a same-named `bin/` CLI never collide here; the first collision point is a
+`git merge` add/add conflict, discovered only after both sides have already built, tested, and
+relied on diverging designs (the #637/spec-686-vs-"Ship bin/ CLIs"-PR incident this section
+exists to prevent a repeat of).
+
+**Where this fires:** at capture or specify time, whenever a record's title or body proposes
+building a new `bin/` CLI (a `bin/{name}.js` filename, or prose like "build a CLI for X"/"ship a
+`bin/` script for X"). Before filing or shaping such a record, grep both the shipped tree and the
+open queue for the proposed name:
+
+```bash
+ls plugin/bin/{name}.js 2>/dev/null; gh issue list --search "{name} in:title,body" --state open
+```
+
+A hit in either — an existing implementation, or another open record proposing the same
+deliverable — means resolve the collision (reuse, rename, or explicitly supersede the other
+record) before the record is shaped `ready`. `capture/SKILL.md`'s Adding-an-Entry step cites this
+section rather than restating it.
+
+Would this have caught the #637 incident? Yes — grepping `log-decision` against the open-issue
+titles at the time spec 686 was shaped would have surfaced "Ship bin/ CLIs for the hand-scripted
+per-run procedures" proposing the same `bin/log-decision.js` filename, before either side wrote
+code — the collision was visible from issue/PR titles alone, well before the eventual merge
+conflict.
+
 ## Consumers
 
 | Skill | Role |
