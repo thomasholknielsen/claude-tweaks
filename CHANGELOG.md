@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.100.2 — Merged-PR batch: CLAUDE.md/template writing-plans contradiction narrowed to multi-phase files (#643); stray NUL byte stripped from initiative-budget.js + payload UTF-8 conformance guard (#859); eval fixtures frozen at pre-6.48.0 policy shape (#631); ADR-0010 stale Consequences bullet fix
+
+Merged-PR batch: CLAUDE.md/template writing-plans contradiction narrowed to multi-phase files (#643); stray NUL byte stripped from initiative-budget.js + payload UTF-8 conformance guard (#859); eval fixtures frozen at pre-6.48.0 policy shape (#631); ADR-0010 stale Consequences bullet fix.
+
 ## v6.100.1 — Merged-PR batch: worktree gate same-command shell-variable resolution (#630); cloud-setup drift check resolves sha-pinned catalog entries (#860 follow-up); backlog overview needsYou overlay skips parent records (#766); Shape 2 prose-only trigger false-premise guard; IL-141/IL-115 citation fixes
 
 Merged-PR batch: worktree gate same-command shell-variable resolution (#630); cloud-setup drift check resolves sha-pinned catalog entries (#860 follow-up); backlog overview needsYou overlay skips parent records (#766); Shape 2 prose-only trigger false-premise guard; IL-141/IL-115 citation fixes.
