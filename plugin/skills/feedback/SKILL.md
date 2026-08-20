@@ -168,11 +168,16 @@ classifier from rule 4 per `_shared/learning-routing.md`. Do not file.
 
 ### Step 4: Dedup
 
-Derive a fingerprint basis from the affected component plus the core symptom,
-then search:
+Derive the `--search` keywords from the affected component name **only** — never from the
+free-text symptom/summary, since that text is draft-derived and has not yet passed Step 6's scrub
+criteria (credentials, absolute paths outside the plugin, code excerpts, the reporting project's
+name). A component name (a skill, contract, or CLI name from this project's own public docs) is
+inherently public vocabulary and carries no privacy risk on its own — this is what keeps
+draft-derived, potentially-private text from ever reaching the public search API before the scrub
+gate runs:
 
 ```bash
-gh issue list --repo thomasholknielsen/claude-tweaks --search '<keywords>' --state all --limit 10 --json number,title,state,url
+gh issue list --repo thomasholknielsen/claude-tweaks --search '<component>' --state all --limit 10 --json number,title,state,url
 ```
 
 Show any plausible matches and ask whether to file anyway, comment on the
@@ -187,13 +192,14 @@ has no dedicated batch-mode option; a human who wants that outcome uses the cont
 edit channel (naming the item and requesting "comment on #{N} instead of filing") rather than a
 third checkbox state.
 
-Derive `fingerprintBasis: { component, summary }` for the drafted item — the same
-affected-component-plus-core-symptom inputs used for the search above — and carry it
-into the drafts file built for Step 8. Computing the fingerprint marker embedded in
-the body is not this step's job: `bin/file-feedback.js` derives it via
-`fingerprintFromBasis('feedback', basis)` (`bin/lib/health-core/fingerprint.js`) when
-it processes the draft, so a later run recognizes its own prior filing. Never call
-`createFingerprint` directly here.
+Derive `fingerprintBasis: { component, summary }` for the drafted item — the
+affected-component-plus-core-symptom inputs, wider than what fed the narrowed search above — and
+carry it into the drafts file built for Step 8, full and unscrubbed. This basis feeds a different
+consumer than the search: `bin/file-feedback.js` derives the fingerprint marker via
+`fingerprintFromBasis('feedback', basis)` (`bin/lib/health-core/fingerprint.js`) when it processes
+the draft, so a later run recognizes its own prior filing — that stable dedup-on-refile detection
+needs the full basis regardless of what the search above sends. Never call `createFingerprint`
+directly here.
 
 ### Step 5: Draft
 
