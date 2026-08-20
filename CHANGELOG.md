@@ -39,9 +39,9 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
-## v6.101.0 — Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#960 area); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale
+## v6.101.0 — Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#633); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale
 
-Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#960 area); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale.
+Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#633); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale.
 
 ## v6.100.2 — Merged-PR batch: CLAUDE.md/template writing-plans contradiction narrowed to multi-phase files (#643); stray NUL byte stripped from initiative-budget.js + payload UTF-8 conformance guard (#859); eval fixtures frozen at pre-6.48.0 policy shape (#631); ADR-0010 stale Consequences bullet fix
 
