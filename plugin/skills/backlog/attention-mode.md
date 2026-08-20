@@ -1,8 +1,9 @@
 # Backlog — Attention Mode
 
 Read-only, like `overview` mode — no writes, no grants. Unifies discovery of every open record
-carrying `needs:definition` or `solution:unjustified` into one ranked list with a per-row,
-type-differentiated recommended action. This is the "what does the backlog need from me today"
+carrying `needs:definition`, `solution:unjustified`, or `ready` + `shaped:headless` with no
+`auto:build` grant into one ranked list with a per-row, type-differentiated recommended action.
+This is the "what does the backlog need from me today"
 surface — distinct from `/claude-tweaks:help`'s Triage Queue (awaiting authorization, flagged or
 not) and Acceptance Queue (awaiting sign-off), which cover different concerns.
 
@@ -114,8 +115,8 @@ single oldest/highest-priority record across all types — the same shape `overv
 "what to build next" recommendation uses.
 
 When the merged list is empty, render `Nothing needs attention — no open record carries
-needs:definition or solution:unjustified.` instead of an empty table, and omit the "Pick up next"
-line.
+needs:definition, solution:unjustified, or an ungranted shaped:headless spec.` instead of an
+empty table, and omit the "Pick up next" line.
 
 ## Anti-Patterns
 
