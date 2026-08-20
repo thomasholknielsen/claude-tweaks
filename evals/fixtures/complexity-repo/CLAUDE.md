@@ -1,5 +1,14 @@
 # eval-fixture-minimal-node-repo
 
+<!-- FROZEN FIXTURE (#631): intentionally pinned to the pre-6.48.0 policy-inside-CLAUDE.md
+     shape for eval-harness determinism. The policy block below still names three retired
+     keys — section-confirmation (retired, #331), merge-check (renamed branch-divergence-
+     check, #331), review-severity-floor (renamed review-auto-apply-ceiling, #332) — on
+     purpose, as a frozen legacy-shape snapshot, not staleness to fix in place. See
+     evals/tests/frozen-fixture-policy-tolerance.test.js, which pins that the harness's
+     actual policy resolution tolerates this frozen shape and never depends on these
+     retired keys resolving to any particular value. -->
+
 A minimal Node.js utility library (`src/`) — three small, independent, currently-uncalled functions. No entry point, no framework, no tests, no CI.
 
 ## Stack
