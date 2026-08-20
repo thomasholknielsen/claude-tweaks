@@ -7,15 +7,18 @@ function stubRunner(responses) {
   return (args) => (Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null);
 }
 
-// Same as stubRunner, but also records every call's args so a test can assert
-// ordering (the prune must run before the `--merged` read).
+// Same as stubRunner, but also records every call's args (and any execFileSync
+// options passed alongside them) so a test can assert ordering (the prune
+// must run before the `--merged` read) and per-call options (e.g. `timeout`).
 function recordingRunner(responses) {
   const calls = [];
-  const runner = (args) => {
+  const runner = (args, opts) => {
     calls.push(args.join(' '));
+    runner.optsByCall.push(opts);
     return Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null;
   };
   runner.calls = calls;
+  runner.optsByCall = [];
   return runner;
 }
 
@@ -191,6 +194,25 @@ test('a prune runs before the merged-branch read, and a since-pruned branch prod
     'remote prune origin',
     'branch -r --format=%(refname:short) --merged origin/main',
   ], 'prune must run before the merged-branch read, on the same injected run seam');
+});
+
+// #663 follow-up (review finding): the prune call is the first command on
+// this probe's run seam to contact a remote at all, so it needs an explicit
+// timeout — an unbounded `execFileSync` could hang the whole probe on a
+// slow/black-holed remote. The local-only merged-branch read has no such
+// risk and must stay unbounded.
+test('the prune call carries an explicit timeout; the local merged-branch read does not', () => {
+  const run = recordingRunner({
+    'remote prune origin': '',
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
+  });
+  probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.deepStrictEqual(run.calls, [
+    'remote prune origin',
+    'branch -r --format=%(refname:short) --merged origin/main',
+  ]);
+  assert.strictEqual(run.optsByCall[0] && run.optsByCall[0].timeout, 15000, 'prune call must pass an explicit timeout');
+  assert.strictEqual(run.optsByCall[1], undefined, 'the local-only merged-branch read must not carry a timeout option');
 });
 
 test('a prune failure degrades to the unpruned read rather than aborting the probe', () => {

@@ -53,8 +53,14 @@ function probeBranches({ scope, integrationBranch, run } = {}) {
   // stale ones need clearing. On failure (offline / network error), degrade
   // to the unpruned read below rather than failing the probe outright —
   // mirrors the `out === null` -> `{ran: false, ...}` handling for the
-  // merged-branch read itself, one line down.
-  const degraded = run(['remote', 'prune', remoteName]) === null;
+  // merged-branch read itself, one line down. This is the first command on
+  // this probe's `run` seam to contact a remote at all (`git config` and
+  // `git branch -r --merged` below are both local-only), so — unlike every
+  // other call through this seam — it needs an explicit bound: a
+  // slow/black-holed remote must degrade like any other prune failure, not
+  // hang the whole probe. 15s comfortably covers a real prune (normally
+  // sub-second) without masking a genuine hang as a fast failure.
+  const degraded = run(['remote', 'prune', remoteName], { timeout: 15000 }) === null;
   const cmd = ['branch', '-r', '--format=%(refname:short)', '--merged', remoteRef];
   const out = run(cmd);
   if (out === null) {
