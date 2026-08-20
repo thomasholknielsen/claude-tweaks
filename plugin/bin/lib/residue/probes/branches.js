@@ -84,9 +84,16 @@ function probeBranches({ scope, integrationBranch, run } = {}) {
     if (!name.startsWith(remotePrefix)) continue;
     if (name.endsWith('/HEAD')) continue;
     if (scope.headBranch && name.endsWith(`/${scope.headBranch}`)) continue;
+    // Anything reaching this point has already survived the scope.headBranch
+    // exclusion above, so — mirroring probeWorktrees's identical fallthrough
+    // contrast — it is never definitively this run's own blast radius under
+    // a strict reading: 'observed', not 'blast-radius'. See branches.js's
+    // header comment and #499 for why an unconditional 'blast-radius' tag
+    // here let a wrap-up's `--scope blast-radius` auto-remedy leak into
+    // unrelated, separately-completed sessions' merged branches.
     findings.push(makeFinding({
       kind: 'branch',
-      scope: 'blast-radius',
+      scope: 'observed',
       subject: name,
       remedy: 'auto',
       evidence: `git ${cmd.join(' ')} — merged, not deleted${degradeTag}`,
