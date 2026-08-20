@@ -88,7 +88,25 @@ for spec in $PLUGIN_SPECS; do
     // race, marketplace not yet resolvable), which degrades `expected` to "unversioned" too —
     // indistinguishable, by this variable alone, from a marketplace that legitimately has no
     // version field. `installed === "none"` is unambiguous either way and must win.
-    const expected = (declared && declared.version) || "unversioned";
+    let expected = (declared && declared.version) || null;
+    // A git-subdir-sourced entry (claude-tweaks, post-#418) carries no entry-level version at
+    // all: the payload plugin.json is the single version authority, and the catalog only pins
+    // a release commit sha. Resolve that sha to a version by reading the manifest the source
+    // repo actually shipped at that commit, instead of treating a missing version field as
+    // nothing to compare (claude-tweaks #860, which used to make claude-tweaks drift permanently
+    // unverifiable via this comparison).
+    if (!expected && declared && declared.source && declared.source.source === "git-subdir" && declared.source.sha && declared.source.url) {
+      try {
+        const rawBase = declared.source.url.replace(/^https:\/\/github\.com\//, "https://raw.githubusercontent.com/");
+        const rawUrl = rawBase + "/" + declared.source.sha + "/" + declared.source.path + "/.claude-plugin/plugin.json";
+        const atSha = JSON.parse(require("child_process").execFileSync("curl", ["-fsSL", rawUrl], { encoding: "utf8", timeout: 10000 }));
+        if (atSha && atSha.version) expected = atSha.version;
+      } catch {
+        // Network failure, missing manifest at that path, or unexpected shape: fall through to
+        // "unversioned" below, the same fail-open posture as an unresolvable catalog entry.
+      }
+    }
+    expected = expected || "unversioned";
 
     const drift = installed === "none" || (expected !== "unversioned" && installed !== expected);
     console.log([installed, expected, drift ? "DRIFT" : "ok", (entry && entry.installPath) || "-"].join("\t"));
