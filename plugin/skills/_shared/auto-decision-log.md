@@ -97,6 +97,7 @@ The bracketed field is **always last** — after the existing optional `{; commi
 - **Keys are literal:** copy lever names from `POLICY_KEYS` (`bin/lib/policy-schema.js`) verbatim; never paraphrase.
 - **List-valued levers** render the configured comma-joined string truncated at 60 chars with `…`; an unset list renders `[]`.
 - **Table-cell rendering:** inside any markdown table cell the field renders as an inline code span (backticks), which neutralizes `|` and brackets — e.g. `` `[lever: scope-creep=add-to-plan (policy)]` `` as a suffix in the cell that carries the entry's detail.
+- **One trailing annotation clause, optional:** after the semicolon-separated `key=value (source)` list, a logging site may append exactly one more semicolon-separated free-text clause — not a second `key=value` pair — when it needs to name *how* a lever was applied, not just its value. Example (`review/step3-routing.md`'s prose-exempt bump, #660): `[lever: review-auto-apply-ceiling=low (default); prose-exempt bump applied]`.
 
 Worked examples:
 
