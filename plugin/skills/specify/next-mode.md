@@ -305,6 +305,29 @@ A shaping-stage failure — the compose-then-write-once call failing, or
 this file's purposes: Release (below) still runs first, unconditionally,
 before this failure reaches Failure self-report below.
 
+**Stamping override for `next` mode.** `shaping-mode.md`'s own label-write
+call (invoked above) stamps `ready` alone — that is correct for the
+`--chained` and interactive postures it was written for, but a `next`-mode
+shape carries the additional provenance marker. After `shaping-mode.md`
+returns successfully, apply `ready` and `shaped:headless` together in one
+label-edit call — never as two separate calls, so no reader ever observes
+`ready` without `shaped:headless` alongside it on a `next`-shaped record:
+
+```bash
+gh issue edit {n} --add-label "ready,shaped:headless"
+```
+
+**Decision-log fallback.** Every auto-resolved decision this guard and
+this stamp produce (the framing verdict, the design-intent resolution
+already established by Flag rejection above, and this label write) logs
+per `_shared/auto-decision-log.md`'s schema when a pipeline run dir
+resolves. A Routine firing resolves no pipeline run dir — `$RUN_DIR`
+above is this firing's *claim* run directory
+(`_shared/pipeline-run-dir.md`'s standalone-auto fallback), not a
+`/flow`-style pipeline run — so the documented fallback applies: these
+decisions are noted in the firing's own returned output only, with no
+alternate log target.
+
 ## Release
 
 Release the claim (`_shared/issue-claims.md`'s release operation) on the
