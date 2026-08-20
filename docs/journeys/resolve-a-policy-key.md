@@ -1,6 +1,7 @@
 ---
 files:
   - plugin/bin/resolve-policy.js
+  - plugin/bin/lib/hooks/worktree-detect.js
   - plugin/bin/lib/policy-schema.js
   - plugin/bin/lib/policy.js
   - plugin/bin/lib/merge-verification.js
@@ -36,7 +37,7 @@ files:
 - **Action:** Run with `--run` pointing at an active pipeline run directory whose `config.yml` sets the requested lever.
 - **Should feel:** Deterministic layering — the run's Manifesto answer wins over the project default, and `source: "run-config"` says so.
 - **Should understand:** This is the whole precedence chain made mechanical: run config beats `policy.yml` beats the schema default, per key, in one call. A run dir that exists but has no `config.yml` yet is not an error — the overlay is simply absent.
-- **Red flags:** A nonexistent `--run` dir resolving anything (must exit 1 with a stderr message); the overlay applying to `model-profiles` (policy-only by contract).
+- **Red flags:** A nonexistent `--run` dir resolving anything (must exit 1 with a stderr message); the overlay applying to `model-profiles` (policy-only by contract). Running this step from a **linked worktree** with a *relative* `--run` (or one pointing inside any checkout other than the main one) exits 1 with a "resolves outside the main checkout" message naming the resolved path — that is the anchored-or-outside guard (#1065, the `[IL-127]` shadow-copy protection) working as designed, not a defect; a `$PIPELINE_RUN_DIR` resolved per `_shared/pipeline-run-dir.md` is always anchored under the main checkout and passes, as does any path outside every checkout.
 
 ### 4. Snapshot the whole config — `--all`
 - **URL:** `node plugin/bin/resolve-policy.js --all`
@@ -54,6 +55,7 @@ files:
 
 ## Origin
 - Created during build of #329 (policy resolver CLI); step 3 and the alias red-flag in step 2 updated during build of #332 (policy-key naming convention + rename program — `review-severity-floor` → `review-auto-apply-ceiling`, seven identity aliases); step 5 added during build of #602, when the hook's own read path (`isWorktreeAlwaysOn`/`rawValue` in `plugin/bin/lib/policy.js`) became alias-aware
+- No step change during build of #194 (Phase 2 doc-convention wiring) — five new keys (`doc-convention-{tutorial,how-to,reference,explanation,journey}`) were registered following `doc-convention-adr`'s exact existing shape, so step 4's `--all` snapshot already covers them with no new mechanism to demonstrate
 - Corrected during build of #682 — step 5's `rawValue` helper was replaced by `resolveWorktreeAlways` (exposing `{on, matchedKey}`, consumed by both the PreToolUse gate and `session-start.js`'s new unconditional verdict banner, IL-133); step 5 updated to name the current function.
 - Path-swept during build of #418 — the payload moved into `plugin/`, so every step's command and every code citation gained the `plugin/` prefix. No step's behavior, expectation, or red flag changed.
 - Related specs: #328 (parent — policy read-path family), #602 (`worktree.always` → `worktree-always`, hook read path), #334 (run-config direct reads onto `--run`), #682 (`resolveWorktreeAlways` + session-start verdict banner)

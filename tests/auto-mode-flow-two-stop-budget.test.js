@@ -24,14 +24,17 @@ const path = require('node:path');
 const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const FLOW_SKILL = path.join(SKILLS, 'flow', 'SKILL.md');
 const MANIFESTO = path.join(SKILLS, 'flow', 'manifesto.md');
+// #657 split the confirm/hybrid-only AskUserQuestion mechanics out of manifesto.md into this
+// companion file (never loaded by an auto-mode run) — same Manifesto bookend, just relocated.
+const MANIFESTO_CONFIRM = path.join(SKILLS, 'flow', 'manifesto-confirm.md');
 const REVIEW_CONSOLE = path.join(SKILLS, 'wrap-up', 'review-console.md');
 const MULTISPEC_CONSOLE = path.join(SKILLS, 'flow', 'multispec-review-console.md');
 
-const FOUR_FILES = [FLOW_SKILL, MANIFESTO, REVIEW_CONSOLE, MULTISPEC_CONSOLE];
+const FOUR_FILES = [FLOW_SKILL, MANIFESTO, MANIFESTO_CONFIRM, REVIEW_CONSOLE, MULTISPEC_CONSOLE];
 
 // Files whose entire content IS one of the two contracted bookends by definition — every
 // AskUserQuestion invocation inside them belongs to that bookend, never a new stop.
-const WHOLE_FILE_EXEMPT = new Set([MANIFESTO, REVIEW_CONSOLE, MULTISPEC_CONSOLE]);
+const WHOLE_FILE_EXEMPT = new Set([MANIFESTO, MANIFESTO_CONFIRM, REVIEW_CONSOLE, MULTISPEC_CONSOLE]);
 
 // A genuine decision-point invocation ("call `AskUserQuestion`" / "call AskUserQuestion with"),
 // not a passing mention of the tool's name elsewhere in a sentence.
@@ -82,8 +85,8 @@ test('positive control: an invocation inside a whole-file-exempt file is skipped
   assert.deepEqual(untaggedInvocations(text, 'x', true), []);
 });
 
-test('flow/manifesto.md, wrap-up/review-console.md, and flow/multispec-review-console.md are wholesale-exempt (Manifesto / Review Console bookends)', () => {
-  for (const f of [MANIFESTO, REVIEW_CONSOLE, MULTISPEC_CONSOLE]) {
+test('flow/manifesto.md, flow/manifesto-confirm.md, wrap-up/review-console.md, and flow/multispec-review-console.md are wholesale-exempt (Manifesto / Review Console bookends)', () => {
+  for (const f of [MANIFESTO, MANIFESTO_CONFIRM, REVIEW_CONSOLE, MULTISPEC_CONSOLE]) {
     assert.deepEqual(scanFile(f), [], `${path.relative(SKILLS, f)} must be treated as wholesale-exempt`);
   }
 });

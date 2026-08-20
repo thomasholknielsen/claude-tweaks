@@ -185,16 +185,17 @@ ceiling alone does not, by itself, answer this lever.
 `ledgerNarrowing` only narrows an item whose Phase 1 blocker reason matches one of the four
 categories `_shared/ledger-format.md`'s Resolve Gate Phase 1 already requires as legitimate:
 
-| Category | Example blocker-reason text |
+| Category | `Defer-reason:` value |
 |---|---|
-| External state | "Requires external state (third-party API data)" |
-| User product/design decision | "Needs a product decision on the rate-limit value" |
-| Not-yet-built dependency | "Depends on functionality not yet built in this pipeline" |
-| Scope expansion | "Would expand scope — breaks 14 unrelated tests" |
+| External state | `blocked-external` |
+| User product/design decision | `needs-human-decision` |
+| Not-yet-built dependency | `blocked-dependency` |
+| Scope expansion | `genuinely-larger` |
 
-Implemented by `bin/lib/issues/autonomy.js`'s `clearsFloor(blockerReason)`. Anything else —
-including an ambiguous or unrecognized reason — fails closed: ask, exactly as if the capability
-were locked for that one item.
+Implemented by `bin/lib/issues/autonomy.js`'s `clearsFloor(blockerReason)`, which since #696
+resolves a structured `Defer-reason:` value only — an exact `DEFER_REASONS` member — never
+free prose. Anything else — including an ambiguous or unrecognized reason — fails closed: ask,
+exactly as if the capability were locked for that one item.
 
 ### Restricted-disposition rule
 

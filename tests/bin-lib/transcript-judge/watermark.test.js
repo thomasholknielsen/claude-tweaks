@@ -159,20 +159,60 @@ test('byteOffsetToLine: readFile returning a plain string (not a Buffer) still w
 
 // ---- formatOffsetClause ------------------------------------------------------
 
-test('formatOffsetClause: exact literal wording, with filed records', () => {
-  const s = watermark.formatOffsetClause({ bytesAtDispatch: 6815744, line: 41203, filedRecords: ['#681', '#682'] });
+test('formatOffsetClause: exact literal wording, with filed records and dismissed fingerprints', () => {
+  const s = watermark.formatOffsetClause({
+    bytesAtDispatch: 6815744,
+    line: 41203,
+    filedRecords: ['#681', '#682'],
+    dismissedFingerprints: ['feedback-deadbeef', 'feedback-c0ffee'],
+  });
   assert.equal(
     s,
-    'Evaluate from byte offset 6815744 (line 41203); these records already exist: #681, #682; omit findings they cover.',
+    'Evaluate from byte offset 6815744 (line 41203); these records already exist: #681, #682; '
+    + 'omit findings they cover. These fingerprints were previously declined: feedback-deadbeef, '
+    + 'feedback-c0ffee; omit findings matching them.',
   );
 });
 
-test('formatOffsetClause: empty filedRecords renders "none"', () => {
-  const s = watermark.formatOffsetClause({ bytesAtDispatch: 100, line: 3, filedRecords: [] });
-  assert.equal(s, 'Evaluate from byte offset 100 (line 3); these records already exist: none; omit findings they cover.');
+test('formatOffsetClause: empty filedRecords and dismissedFingerprints render "none"', () => {
+  const s = watermark.formatOffsetClause({ bytesAtDispatch: 100, line: 3, filedRecords: [], dismissedFingerprints: [] });
+  assert.equal(
+    s,
+    'Evaluate from byte offset 100 (line 3); these records already exist: none; omit findings they cover. '
+    + 'These fingerprints were previously declined: none; omit findings matching them.',
+  );
 });
 
-test('formatOffsetClause: missing filedRecords (undefined) also renders "none"', () => {
-  const s = watermark.formatOffsetClause({ bytesAtDispatch: 50, line: 1, filedRecords: undefined });
+test('formatOffsetClause: missing filedRecords and dismissedFingerprints (both undefined) also render "none"', () => {
+  const s = watermark.formatOffsetClause({ bytesAtDispatch: 50, line: 1 });
   assert.match(s, /records already exist: none;/);
+  assert.match(s, /previously declined: none;/);
+});
+
+test('formatOffsetClause: dismissedFingerprints present, filedRecords empty — independent segments', () => {
+  const s = watermark.formatOffsetClause({ bytesAtDispatch: 10, line: 1, filedRecords: [], dismissedFingerprints: ['reflect-abc12345'] });
+  assert.match(s, /records already exist: none;/);
+  assert.match(s, /previously declined: reflect-abc12345;/);
+});
+
+// ---- isTranscriptUnchanged (#701 skip-before-dispatch check) ---------------
+
+test('isTranscriptUnchanged: no watermark (null) -> false, nothing to skip against', () => {
+  assert.equal(watermark.isTranscriptUnchanged(null, 500), false);
+});
+
+test('isTranscriptUnchanged: current size equal to bytesAtDispatch -> true (no growth)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 500), true);
+});
+
+test('isTranscriptUnchanged: current size smaller than bytesAtDispatch -> true (still covered)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 480), true);
+});
+
+test('isTranscriptUnchanged: current size larger than bytesAtDispatch -> false (grown, dispatch)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 501), false);
+});
+
+test('isTranscriptUnchanged: malformed watermark (non-numeric bytesAtDispatch) -> false, degrade to dispatch', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 'not-a-number' }, 500), false);
 });
