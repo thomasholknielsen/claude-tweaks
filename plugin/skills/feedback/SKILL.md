@@ -197,7 +197,12 @@ carry it into the drafts file built for Step 8, full and unscrubbed. This basis 
 consumer than the search: `bin/file-feedback.js` derives the fingerprint marker via
 `fingerprintFromBasis('feedback', basis)` (`bin/lib/health-core/fingerprint.js`) when it processes
 the draft, so a later run recognizes its own prior filing — that stable dedup-on-refile detection
-needs the full basis regardless of what the search above sends. Never call `createFingerprint`
+needs the full basis regardless of what the search above sends. Carrying it unscrubbed is safe for
+the same reason the search above is narrowed: the basis never leaves this machine as text —
+`fingerprintFromBasis` sha1-hashes it into a `feedback-{8 hex}` marker, and that opaque marker is
+the only thing derived from it that ever reaches GitHub (embedded in the filed body, and matched by
+the CLI's own dedup lookup). Never scrub the basis to match the scrubbed body: that mints a
+different marker for the same finding and breaks dedup-on-refile. Never call `createFingerprint`
 directly here.
 
 ### Step 5: Draft
