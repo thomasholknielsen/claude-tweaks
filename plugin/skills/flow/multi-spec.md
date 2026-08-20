@@ -166,6 +166,15 @@ A multi-spec run shares one PR (`_shared/pr-early-run-lifecycle.md`); its checkl
 
 Default mode stops the remaining specs on a HARD-GATE failure (compounding-risk default). `keep-going` inverts that — opt-in, for genuinely independent specs, so the consolidated console can surface every outcome together instead of stopping at the first failure. Read `multispec-failure-handling.md` in this skill's directory for the full behavior: the default-vs-`keep-going` console output shapes, the dependency-conflict warning, and the shared-worktree interaction (a failed spec's commits stay in the shared branch either way; only whether later specs keep building atop them differs).
 
+## Artifact-overwrite completion check (#786)
+
+`journeys/SKILL.md` and `stories/SKILL.md` namespace their generated artifact filenames by spec
+id inside a multi-spec shared worktree, so two specs can't silently overwrite each other's
+journey/story file. Read `multispec-artifact-namespacing.md` in this skill's directory for the
+namespacing rule's cross-reference and the completion-time check (a `git log --name-status`
+walk over the run's own commit range) that verifies no overwrite happened, run before the
+Consolidated Review Console renders and HARD-GATE on a detected collision.
+
 ## Consolidated Review Console (end of run)
 
 After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or the run aborts at a HARD-GATE failure), `/flow` runs **one consolidated Review Console** in `auto` or `hybrid` mode, replacing the N per-spec consoles that would otherwise interrupt the user between specs. For the full procedure, template, run-directory layout, approval/override/stop semantics, and the not-run footer for aborted runs, read `multispec-review-console.md` in this skill's directory.
