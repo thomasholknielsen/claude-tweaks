@@ -224,12 +224,17 @@ before the batched probe existed:
 
 ```bash
 : > /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl
+: > /tmp/tidy-acceptance-gap-fallback-failures.txt
 node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl
+  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl || echo "$N" >> /tmp/tidy-acceptance-gap-fallback-failures.txt
 done
 
 node -e "
   const fs = require('fs');
+  const failures = fs.readFileSync('/tmp/tidy-acceptance-gap-fallback-failures.txt', 'utf8').trim().split('\n').filter(Boolean);
+  if (failures.length) {
+    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write /tmp/tidy-acceptance-gap-sub-issues.json on an undercounted set');
+  }
   const raw = fs.readFileSync('/tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
   const subIssueNumbers = Array.from(new Set(raw)).sort((a, b) => a - b);
   fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
@@ -238,7 +243,10 @@ node -e "
 
 Both the primary path and the Fallback path converge on the same canonicalized
 `/tmp/tidy-acceptance-gap-sub-issues.json` — numerically sorted, deduplicated — which is what makes
-them interchangeable.
+them interchangeable. The `while read` loop's own exit code can't surface a failed per-parent
+`gh api` call, so each iteration appends its parent number to the failures file on failure, and the
+assembly step throws — naming every failed parent — before the output file is written, never an
+undercounted set (the same guard the trust-table Fallback carries).
 
 ### Oversight-floor pre-filter
 
@@ -509,23 +517,34 @@ The throw above runs before the write, so a failed retry can never leave a parti
 Runs only on exit 4 above, for every parent — the older, per-parent REST loop this branch used
 before the batched probe existed (exactly `wrap-up/verification-brief.md`'s own native command,
 `gh api repos/{owner}/{repo}/issues/{n}/sub_issues --jq '.[].number'`, run once per parent in the
-fetched set — each result appended as one JSON line rather than assembled by hand, so no
-shell-side JSON construction is needed):
+fetched set — each **page** appended as one JSON line rather than assembled by hand, so no
+shell-side JSON construction is needed; the composing step merges pages per parent, and a failed
+call appends its parent number to the failures file, which the composing step throws on — never a
+silently vanished parent):
 
 ```bash
 : > /tmp/tidy-sub-issues.jsonl
+: > /tmp/tidy-parentgate-fallback-failures.txt
 node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq "{number: $N, subIssueNumbers: [.[].number]}" \
-    >> /tmp/tidy-sub-issues.jsonl
+  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq "{number: $N, subIssueNumbers: [.[].number]}" \
+    >> /tmp/tidy-sub-issues.jsonl || echo "$N" >> /tmp/tidy-parentgate-fallback-failures.txt
 done
 
 node -e "
   const fs = require('fs');
+  const failures = fs.readFileSync('/tmp/tidy-parentgate-fallback-failures.txt', 'utf8').trim().split('\n').filter(Boolean);
+  if (failures.length) {
+    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write /tmp/tidy-parent-gates.json with silently missing parents');
+  }
   const parents = require('/tmp/tidy-parent-issues.json');
   const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
   const byNumber = new Map(parents.map(p => [p.number, p]));
   const subRows = fs.readFileSync('/tmp/tidy-sub-issues.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
-  const gates = subRows.map(({ number, subIssueNumbers }) => {
+  const merged = new Map();
+  for (const { number, subIssueNumbers } of subRows) {
+    merged.set(number, (merged.get(number) || []).concat(subIssueNumbers));
+  }
+  const gates = Array.from(merged, ([number, subIssueNumbers]) => {
     const p = byNumber.get(number);
     return {
       number,

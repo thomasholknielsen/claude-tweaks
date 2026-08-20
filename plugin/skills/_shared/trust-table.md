@@ -211,7 +211,7 @@ before the batched probe existed:
 : > /tmp/trust-table-sub-issue-numbers.jsonl
 : > /tmp/trust-table-sub-issue-failures.txt
 node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-sub-issue-numbers.jsonl || echo "$N" >> /tmp/trust-table-sub-issue-failures.txt
+  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-sub-issue-numbers.jsonl || echo "$N" >> /tmp/trust-table-sub-issue-failures.txt
 done
 
 LIMIT="{resolved-limit}"
