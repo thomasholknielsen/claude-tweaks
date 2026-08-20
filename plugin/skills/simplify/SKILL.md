@@ -69,7 +69,7 @@ Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follo
 ```
 SCOPE (required):
 - Files to simplify: {space-separated relative paths from Step 1}
-- Constraints: preserve all behavior; never expand scope beyond the listed files.
+- Constraints: preserve all behavior; never expand scope beyond the listed files. Do not run `git commit`, `git merge`, `git push`, or any other git mutation — edit the working tree only and return control; the caller commits (Step 4's "Note on committing").
 
 OUTPUT FORMAT (required):
 First reply line MUST be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.

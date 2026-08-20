@@ -12,6 +12,7 @@ const { mirrorFastForward } = require('../plugin/bin/lib/reconcile/mirror-ff');
 const { decideReap } = require('../plugin/bin/lib/reconcile/reap-merged');
 const { decideRelease } = require('../plugin/bin/lib/reconcile/release-merged');
 const { decideArchive, readConsoleState } = require('../plugin/bin/lib/reconcile/archive-merged');
+const { formatSummary } = require('../plugin/bin/lib/reconcile/format-summary');
 const { isWorktreeLocked } = require('../plugin/bin/lib/hooks/worktree-reap');
 const { reconcile } = require('../plugin/bin/lib/reconcile');
 
@@ -636,7 +637,18 @@ test('reconcile(): red-tip requested alone (no mirror/remote-prune) skips rather
 
 // --- hooks.js verb: garbage-stdin invariant + JSON shape (AC5) ---
 
-test('reconcile verb: garbage stdin still exits 0 and prints valid JSON', () => {
+// An isolated `pr-first` repo with no remote — every check skips as
+// `no-remote`, so the verb's output shape is exercised without any live
+// state being reachable.
+function noRemoteFixture(slug) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), slug));
+  git(['init', '-q'], dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  return dir;
+}
+
+test('reconcile verb: garbage stdin still exits 0 and prints valid JSON with --json', () => {
   // Always an isolated fixture cwd, never the ambient process cwd — a bare
   // `reconcile` with no cwd override would run for real against whatever
   // repo the test runner happens to be in (this project's own, under `npm
@@ -645,21 +657,94 @@ test('reconcile verb: garbage stdin still exits 0 and prints valid JSON', () => 
   // safe when it happened once during authoring, but a test must not rely
   // on that — it must never reach live state in the first place.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-garbage-'));
-  const r = runHook(['reconcile'], { input: '%%%not json%%%', cwd: dir });
+  const r = runHook(['reconcile', '--json'], { input: '%%%not json%%%', cwd: dir });
   assert.strictEqual(r.code, 0);
   assert.doesNotThrow(() => JSON.parse(r.stdout));
   assert.deepStrictEqual(JSON.parse(r.stdout).skipped, [{ check: 'all', reason: 'no-repo' }]);
 });
 
-test('reconcile verb: --dry-run is accepted and never mutates on a no-remote fixture', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-hook-'));
-  git(['init', '-q'], dir);
-  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
-  const r = runHook(['reconcile', '--dry-run'], { cwd: dir });
+test('reconcile verb: --dry-run --json is accepted and never mutates on a no-remote fixture', () => {
+  const dir = noRemoteFixture('ct-recon-hook-');
+  const r = runHook(['reconcile', '--dry-run', '--json'], { cwd: dir });
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.stdout);
   assert.deepStrictEqual(parsed.skipped, [{ check: 'all', reason: 'no-remote' }]);
+});
+
+test('reconcile verb: --json output is byte-for-byte JSON.stringify(out) + "\\n" (#638)', () => {
+  const dir = noRemoteFixture('ct-recon-json-shape-');
+  const r = runHook(['reconcile', '--dry-run', '--json'], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.stdout);
+  assert.strictEqual(r.stdout, JSON.stringify(parsed) + '\n');
+});
+
+test('reconcile verb: no --json (new default) prints a compact summary, not the raw JSON census (#638)', () => {
+  const dir = noRemoteFixture('ct-recon-compact-default-');
+  const r = runHook(['reconcile', '--dry-run'], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  assert.throws(() => JSON.parse(r.stdout), 'default output must not be a parseable JSON object');
+  assert.match(r.stdout, /^skipped: all — no-remote\n$/);
+});
+
+test('reconcile verb: compact default on a fixture with actions taken + a mix of skip reasons matches the aggregated format (#638)', () => {
+  const result = {
+    mirror: { state: 'behind', action: 'fast-forwarded' },
+    redTip: null,
+    worktrees: null,
+    claims: [{ issueNumber: 1, action: 'released' }, { issueNumber: 2, action: 'released' }],
+    runs: [
+      { runDir: 'r1', action: 'archived' },
+      { runDir: 'x1', action: 'skipped', reason: 'no-worktree' },
+      { runDir: 'x2', action: 'skipped', reason: 'no-worktree' },
+      { runDir: 'y1', action: 'skipped', reason: 'move-failed' },
+      { runDir: 'z1', action: 'skipped', reason: 'pr-open' },
+    ],
+    branches: null,
+    remoteBranches: null,
+    console: null,
+    skipped: [{ check: 'red-tip', reason: 'no-integration-ref' }],
+  };
+  const summary = formatSummary(result);
+  assert.strictEqual(summary, [
+    'mirror: fast-forwarded',
+    'released: 2 claims',
+    'archived: 1 run dir',
+    'skipped: 4 run dirs (no-worktree 2, move-failed 1, pr-open 1)',
+    'skipped: red-tip — no-integration-ref',
+  ].join('\n'));
+});
+
+test('reconcile verb: compact default separates branch entries from archive-branches.js\'s interleaved tag-aging entries in result.branches (#638)', () => {
+  // archive-branches.js pushes both kind:'branch' and kind:'tag' entries into
+  // the same result.branches array — a tag's own 'aged-out' action must not
+  // be dropped (it matches neither the branch row's takenActions nor
+  // skipActions), and a 'delete-failed' skip reason shared by both kinds
+  // must disambiguate by unit rather than merging into one branch-labeled
+  // count.
+  const result = {
+    mirror: null,
+    redTip: null,
+    worktrees: null,
+    claims: null,
+    runs: null,
+    branches: [
+      { name: 'worktree-record-1', kind: 'branch', action: 'delete', reason: 'cherry-equivalent' },
+      { name: 'worktree-record-2', kind: 'branch', action: 'skip', reason: 'too-young' },
+      { name: 'worktree-record-3', kind: 'branch', action: 'skip', reason: 'delete-failed' },
+      { name: 'archive/worktree-record-9', kind: 'tag', action: 'aged-out', reason: '> 90d' },
+      { name: 'archive/worktree-record-10', kind: 'tag', action: 'skip', reason: 'delete-failed' },
+    ],
+    remoteBranches: null,
+    console: null,
+    skipped: null,
+  };
+  const summary = formatSummary(result);
+  assert.strictEqual(summary, [
+    'archived: 1 branch',
+    'aged out: 1 tag',
+    'skipped: 3 items (too-young 1, delete-failed (branch) 1, delete-failed (tag) 1)',
+  ].join('\n'));
 });
 
 test('reconcile(): returns a thenable (async contract) even when every check stays synchronous internally', async () => {
