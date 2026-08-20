@@ -84,6 +84,8 @@ Every dispatched agent reports one of four statuses as the first line of its rep
 | `NEEDS_CONTEXT` | Information was missing from the dispatch | Provide what was missing; re-dispatch. |
 | `BLOCKED` | Cannot complete the task | Diagnose: more context (re-dispatch), more capable model (upgrade), smaller scope (split), or wrong plan (escalate). Never force-retry with no changes. |
 
+**Test-authoring tasks run a mutation probe before committing:** a dispatched implementer adding or modifying a test scratch-copies the code under test, mutates it to confirm the test goes red, restores it byte-identical, and reports mutants tried vs. survivors caught in its status line.
+
 **Finish everything the blocker doesn't gate before reporting `BLOCKED`.** A failed precondition — a worktree path that doesn't resolve, a missing fixture, an unavailable service — usually gates only *some* of the task. Analysis, measurement, verification, and drafting the exact edits are typically all still possible, and a `BLOCKED` report carrying that finished work costs the dispatcher one cheap re-dispatch instead of a full redo. This applies to the wrong-worktree case in Working Directory Discipline above: report `BLOCKED` rather than editing the wrong checkout, but do the read-only work first and hand back verified, ready-to-apply results. Do not silently downgrade to `DONE_WITH_CONCERNS` because you got most of it done — the blocker still stands, and the status line is what the dispatcher routes on.
 
 For review-style agents (Template A) the status line is followed by the findings table. For search-style (B) and scout-style (C), the status replaces any "no findings" sentinel.
