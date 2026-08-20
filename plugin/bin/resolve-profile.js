@@ -17,12 +17,31 @@
 //
 // before retrying or reporting — see subagent-output-contract.md's Model
 // Selection section for when to call this.
+//
+// Recovery (#841 item 3): credit exhaustion is normally a usage window, not
+// permanent, so a session degraded early in a long window otherwise has no
+// documented way to clear it before the window naturally rolls over. Clear
+// the blacklist explicitly:
+//
+//   node bin/resolve-profile.js clear-failures
+//
+// or, equivalently, remove the underlying file directly:
+//
+//   rm "${TMPDIR:-/tmp}/ct-model-failures-${CLAUDE_CODE_SESSION_ID}.json"
+//
+// No TTL: unlike the sibling blacklist this module mirrors
+// (bin/lib/issues/record-snapshot.js, which has both a TTL and
+// invalidateSnapshot()), this stays explicit-clear-only for now — a
+// time-based expiry needs its own policy.yml key and schema default
+// (record-snapshot-ttl-seconds's own wiring), which is disproportionate for
+// this low-risk, session-scoped file. Revisit if explicit-clear proves too
+// manual in practice.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const { resolve, PROFILES } = require('./lib/model-profiles/profiles');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
-const { readFailedModels, recordFailure } = require('./lib/model-profiles/session-failures');
+const { readFailedModels, recordFailure, invalidateFailures } = require('./lib/model-profiles/session-failures');
 
 function fail(msg) {
   process.stderr.write(`resolve-profile: ${msg}\n`);
@@ -42,7 +61,7 @@ function main(argv) {
   const args = argv.slice(2);
   const profile = args.shift();
   if (!profile) {
-    fail('usage: resolve-profile.js <profile>|record-failure <model> [--stance <s>] [--unattended] [--run-dir <path>]');
+    fail('usage: resolve-profile.js <profile>|record-failure <model>|clear-failures [--stance <s>] [--unattended] [--run-dir <path>]');
     return;
   }
 
@@ -58,6 +77,14 @@ function main(argv) {
     if (!sessionId) { fail('record-failure requires CLAUDE_CODE_SESSION_ID to be set — nothing recorded'); return; }
     recordFailure(sessionId, model);
     process.stdout.write(`${JSON.stringify({ recorded: true, model, sessionId })}\n`);
+    return;
+  }
+
+  if (profile === 'clear-failures') {
+    const sessionId = process.env.CLAUDE_CODE_SESSION_ID;
+    if (!sessionId) { fail('clear-failures requires CLAUDE_CODE_SESSION_ID to be set — nothing to clear'); return; }
+    invalidateFailures(sessionId);
+    process.stdout.write(`${JSON.stringify({ cleared: true, sessionId })}\n`);
     return;
   }
 
