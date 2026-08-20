@@ -695,6 +695,13 @@ test('worktree-required: a same-command shell variable resolving outside the rep
   assert.deepStrictEqual(out, {}, 'a same-command variable resolving outside the repo must still be allowed — no regression for the originally-reported shape');
 });
 
+test('worktree-required: a single-quoted $NAME reference is never substituted, even when the variable resolves inside the repo — real bash does not expand it, so the gate correctly stays unresolvable/allow rather than fabricating a false-outside target (#630)', () => {
+  const repo = policedRepo();
+  const cmd = `WT=${repo}; sed -i '' -e 's/x/y/' '$WT/a.js'`;
+  const out = pre.run({ input: bashInput(cmd, '/tmp'), runDir: null, runState: null, cwd: '/tmp' });
+  assert.deepStrictEqual(out, {}, 'single-quoted $WT must never be treated as a variable reference — no target is fabricated either way');
+});
+
 test('worktree-required: an unexpanded glob still resolves against the cwd and is denied (#70)', () => {
   // Not a fabricated target: the hook sees the raw command string, and
   // `sed -i ... *.js` run from the main checkout really does write there.

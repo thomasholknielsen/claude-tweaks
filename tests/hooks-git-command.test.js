@@ -68,6 +68,20 @@ test('a later re-assignment to an unresolvable value drops the earlier mapping â
   );
 });
 
+test('a single-quoted $NAME reference is never substituted â€” real bash does not expand inside single quotes', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets("SP=/private/tmp/foo; sed -i '' -e 's/x/y/' '$SP/file.md'", '/repo'),
+    [],
+  );
+});
+
+test('a single-quoted $NAME cd target is never substituted, mirroring the write-target case', () => {
+  assert.deepStrictEqual(
+    gitTargets('MKT="/wt/spec-1"\ncd \'$MKT\' && git commit -m "x"', '/repo'),
+    [],
+  );
+});
+
 test('a newline inside a quoted commit message does not fabricate a segment boundary', () => {
   assert.deepStrictEqual(
     gitTargets('git commit -m "line one\nline two" && git push', '/repo'),

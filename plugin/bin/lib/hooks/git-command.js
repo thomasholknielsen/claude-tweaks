@@ -76,21 +76,34 @@ function stripQuotes(s) {
 // (`/tmp/safe/<value-of-$SUFFIX>`), not two. Without this, resolveCd/isUnresolvable
 // only ever see the quoted portion in isolation, judge it fully resolvable, and
 // silently drop the unresolvable suffix that would otherwise poison the target.
+//
+// Returns `{ tokens, singleQuoted }` — `singleQuoted[i]` is true when any part
+// of `tokens[i]` was assembled from a single-quoted span. Real bash never
+// performs `$`-expansion inside single quotes (unlike double quotes or bare
+// words), so this flag is what lets substituteVars() below refuse to treat a
+// single-quoted `'$NAME'` as a variable reference — without it, a token like
+// `'$WT/a.js'` and `"$WT/a.js"` are indistinguishable post-tokenize, and the
+// substitution step would wrongly expand the single-quoted (never-expanded)
+// form, fabricating a target real bash would never produce for that command.
 function tokenize(seg) {
   const out = [];
+  const singleQuoted = [];
   const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
   let m;
   let prevEnd = -1;
   while ((m = re.exec(seg)) !== null) {
     const val = m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3];
+    const isSQ = m[2] !== undefined;
     if (out.length && m.index === prevEnd) {
       out[out.length - 1] += val;
+      if (isSQ) singleQuoted[singleQuoted.length - 1] = true;
     } else {
       out.push(val);
+      singleQuoted.push(isSQ);
     }
     prevEnd = re.lastIndex;
   }
-  return out;
+  return { tokens: out, singleQuoted };
 }
 
 // Global git flags that consume the NEXT token as a value.
@@ -188,9 +201,15 @@ const VAR_REF_RE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
 // substituted value is a literal already proven not to contain `$` (by
 // updateAssignment's own isUnresolvable check at assignment time), so there
 // is nothing left to re-scan.
-function substituteVars(tokens, vars) {
+function substituteVars(tokens, vars, singleQuoted) {
   if (!vars.size) return tokens;
-  return tokens.map((tok) => {
+  return tokens.map((tok, i) => {
+    // Real bash never expands `$NAME` inside single quotes — a token built
+    // from a single-quoted span is never a variable reference, regardless of
+    // its text. Skip it untouched; it falls through to the existing
+    // isUnresolvable()/null-target behavior unmodified (see tokenize()'s
+    // singleQuoted comment for why this guard exists).
+    if (singleQuoted && singleQuoted[i]) return tok;
     if (!tok.includes('$') || tok.includes('`')) return tok;
     const matches = [...tok.matchAll(VAR_REF_RE)];
     if (matches.length !== 1) return tok;
@@ -216,10 +235,10 @@ function forEachCommandSegment(command, cwd, handler) {
   let effCwd = cwd || '.'; // string, or null meaning UNKNOWN
   const vars = new Map(); // name -> literal value, same-command only, no chaining
   for (const seg of splitSegments(command)) {
-    const rawT = tokenize(seg.trim());
+    const { tokens: rawT, singleQuoted } = tokenize(seg.trim());
     if (!rawT.length) continue;
     if (updateAssignment(vars, rawT)) continue;
-    const t = substituteVars(rawT, vars);
+    const t = substituteVars(rawT, vars, singleQuoted);
     if (t[0] === 'cd') {
       effCwd = resolveCd(effCwd, t[1]);
       continue;
