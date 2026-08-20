@@ -1,0 +1,96 @@
+// plugin/bin/lib/declined-learning/store.js
+// One shared, project-local declined-learning store — see docs/skill-graph.md's `feedback` and
+// `reflect`/`wrap-up` sections for the citing skills; this header states the degrade-open
+// contract once, per CLAUDE.md's cross-reference rule.
+//
+// Records fingerprints of findings/insights a human explicitly declined, so a later run can
+// annotate a re-surfaced match ("previously declined {date}: {reason}") instead of presenting
+// it as a fresh proposal. One flat, non-per-consumer file (unlike
+// bin/lib/transcript-judge/watermark.js's per-consumer subdirectories) because every entry
+// already carries a `source` field distinguishing origin — nothing needs path-level isolation.
+//
+// readStore degrades open: a missing or corrupt store file returns {}, never a throw — the same
+// contract as watermark.js's readWatermark. writeStore (and therefore recordDecline/clearDecline,
+// which read-modify-write through it) lets a real write failure propagate; the caller decides how
+// to degrade. Every fs call is an injectable default param so tests never touch real disk.
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const STORE_PATH = path.join('.claude-tweaks', 'declined-learning', 'store.json');
+
+// Pure — the store has exactly one on-disk location; no per-transcript/per-consumer derivation.
+function storePath() {
+  return STORE_PATH;
+}
+
+// Returns the parsed store object, or {} when none exists (ENOENT), the file is present but not
+// valid JSON, or the parsed value isn't a plain object (corrupt/foreign content == empty store,
+// degrade-open contract).
+function readStore({ readFile = fs.readFileSync } = {}) {
+  try {
+    const raw = readFile(storePath(), 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+// Overwrites the whole store with `data`. Creates the containing directory if needed. Throws on
+// a real failure (permissions, disk full, etc.) — this module doesn't silently eat the error.
+function writeStore(data, { mkdirSync = fs.mkdirSync, writeFile = fs.writeFileSync } = {}) {
+  const p = storePath();
+  mkdirSync(path.dirname(p), { recursive: true });
+  writeFile(p, JSON.stringify(data, null, 2));
+}
+
+// Records (or overwrites) a decline entry for `fingerprint`. Read-modify-write through
+// readStore/writeStore, so it inherits both their degrade-open (read) and propagate (write)
+// behavior. Returns the entry that was written.
+function recordDecline(fingerprint, { reason = null, source, declinedAt = new Date().toISOString() } = {}, deps = {}) {
+  const current = readStore(deps);
+  const entry = { declinedAt, reason, source };
+  current[fingerprint] = entry;
+  writeStore(current, deps);
+  return entry;
+}
+
+// The annotation-lookup function: returns the stored { declinedAt, reason, source } entry for
+// `fingerprint`, or null when no decline is on record. Never throws — readStore already
+// degrades open.
+function lookupDecline(fingerprint, deps = {}) {
+  const current = readStore(deps);
+  return Object.prototype.hasOwnProperty.call(current, fingerprint) ? current[fingerprint] : null;
+}
+
+// All declined fingerprints, optionally filtered to one `source`. Consumed by feedback's
+// watermark write to populate `dismissedFingerprints` (session-evaluation.md).
+function listDeclinedFingerprints({ source } = {}, deps = {}) {
+  const current = readStore(deps);
+  const keys = Object.keys(current);
+  return source ? keys.filter((k) => current[k] && current[k].source === source) : keys;
+}
+
+// Removes a decline entry — "approving it anyway clears the entry" (a human re-affirms a
+// previously-declined finding/insight, so it should surface as fresh next time rather than
+// staying annotated forever). No-op (no write) when the fingerprint has no entry, so an
+// idempotent clear never touches disk twice. Returns whether an entry was actually removed.
+function clearDecline(fingerprint, deps = {}) {
+  const current = readStore(deps);
+  if (!Object.prototype.hasOwnProperty.call(current, fingerprint)) return false;
+  delete current[fingerprint];
+  writeStore(current, deps);
+  return true;
+}
+
+module.exports = {
+  storePath,
+  readStore,
+  writeStore,
+  recordDecline,
+  lookupDecline,
+  listDeclinedFingerprints,
+  clearDecline,
+};

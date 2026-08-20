@@ -32,6 +32,7 @@ node_modules/
 .claude-tweaks/journey-health/
 .claude-tweaks/docs-health/
 .claude-tweaks/feedback/
+.claude-tweaks/declined-learning/
 .claude-tweaks/routine-environment-cache.yml
 .claude-tweaks/init-state.yml
 .claude-tweaks/reconcile-cache.json

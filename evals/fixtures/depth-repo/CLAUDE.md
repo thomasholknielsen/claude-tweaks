@@ -25,7 +25,7 @@ docs/           Docs root — journeys/, plans/, superpowers/ (claude-tweaks)
 ## Commands
 
 ```bash
-npm test        # node --test test/
+npm test        # node --test "test/*.test.js"
 ```
 
 ## Conventions
@@ -58,7 +58,7 @@ How to execute any task here. These apply project-wide unless a more specific ru
 
 ## Testing
 
-`node --test test/` via `npm test`. One suite (`test/store.test.js`) covering both callers and the store's key validation.
+`node --test "test/*.test.js"` via `npm test`. One suite (`test/store.test.js`) covering both callers and the store's key validation.
 
 ## Environment
 

@@ -200,7 +200,7 @@ script prints a warning either way so this is visible, not silent.
 ## Running the harness's own tests
 
     cd evals
-    node --test tests/
+    npm test
 
 This is fast and free — it tests `runner.js`/`actor.js`/`assertions/`/
 `fixtures/`'s own logic with an injected fake `queryFn`, never a real API

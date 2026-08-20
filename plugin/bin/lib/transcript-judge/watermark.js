@@ -80,16 +80,33 @@ function byteOffsetToLine(filePath, byteOffset, { readFile = fs.readFileSync } =
   return newlines + 1;
 }
 
-// The literal contract-text embedded verbatim as a judge-dispatch prompt
-// item in skills/_shared/transcript-judge.md when a watermark exists for
-// the resolved transcript. Exact wording (quote precisely downstream):
+// The literal contract-text embedded verbatim as a judge-dispatch prompt item in
+// plugin/skills/_shared/transcript-judge.md when a watermark exists for the resolved transcript.
+// Exact wording (quote precisely downstream):
 //
-//   Evaluate from byte offset {bytesAtDispatch} (line {line}); these
-//   records already exist: {filedRecords joined by ", ", or "none"};
-//   omit findings they cover.
-function formatOffsetClause({ bytesAtDispatch, line, filedRecords }) {
+//   Evaluate from byte offset {bytesAtDispatch} (line {line}); these records already exist:
+//   {filedRecords joined by ", ", or "none"}; omit findings they cover. These fingerprints were
+//   previously declined: {dismissedFingerprints joined by ", ", or "none"}; omit findings
+//   matching them.
+function formatOffsetClause({ bytesAtDispatch, line, filedRecords, dismissedFingerprints }) {
   const records = Array.isArray(filedRecords) && filedRecords.length > 0 ? filedRecords.join(', ') : 'none';
-  return `Evaluate from byte offset ${bytesAtDispatch} (line ${line}); these records already exist: ${records}; omit findings they cover.`;
+  const declined = Array.isArray(dismissedFingerprints) && dismissedFingerprints.length > 0 ? dismissedFingerprints.join(', ') : 'none';
+  return `Evaluate from byte offset ${bytesAtDispatch} (line ${line}); these records already exist: ${records}; `
+    + `omit findings they cover. These fingerprints were previously declined: ${declined}; omit findings matching them.`;
+}
+
+// #701's skip-before-dispatch check: true when the transcript has not grown
+// since `watermark` was recorded, so a caller can skip the judge dispatch
+// entirely (report the watermark's own payload instead) rather than paying
+// for a Task agent that would evaluate zero new bytes via the offset clause
+// above. `currentBytes` is the resolved transcript's current on-disk size —
+// the caller stats it, this function stays pure and untestable-disk-free.
+// A null/malformed watermark (no prior evaluation, or a corrupt one that
+// readWatermark already degraded to null) always returns false: there is
+// nothing to skip against, so the caller falls through to a normal dispatch.
+function isTranscriptUnchanged(watermark, currentBytes) {
+  if (!watermark || typeof watermark.bytesAtDispatch !== 'number') return false;
+  return currentBytes <= watermark.bytesAtDispatch;
 }
 
 module.exports = {
@@ -98,4 +115,5 @@ module.exports = {
   writeWatermark,
   byteOffsetToLine,
   formatOffsetClause,
+  isTranscriptUnchanged,
 };
