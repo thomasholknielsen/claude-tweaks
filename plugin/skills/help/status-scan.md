@@ -97,7 +97,12 @@ node -e "
   const { sampledForDemo } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-sampling.js');
   const records = require('/tmp/help-records-faceted.json');
   const merges = records
-    .filter((r) => r.state === 'CLOSED' && r.facets.grants && r.facets.grants.merge)
+    // stateReason !== 'NOT_PLANNED' excludes a granted-but-declined record
+    // (closed without ever merging) from the machine-granted-merge count —
+    // the same signal trust.js's own notPlanned tracking reads off this
+    // fetch's stateReason field, mirroring fleet-counters.js's viaMergeCommit
+    // gate on its own merges input.
+    .filter((r) => r.state === 'CLOSED' && r.stateReason !== 'NOT_PLANNED' && r.facets.grants && r.facets.grants.merge)
     .map((r) => ({ number: r.number, closedAtIso: r.closedAt, commentBodies: (r.comments || []).map((c) => c.body) }));
   const flaggedOrdinals = new Map(sampledForDemo(merges, process.env.GRANT_SAMPLING_EVERY).map((f) => [f.number, f.ordinal]));
   const pending = records.filter((r) => flaggedOrdinals.has(r.number) && r.facets.acceptance === 'pending');
@@ -105,7 +110,7 @@ node -e "
 "
 ```
 
-Each result flags in the Needs Attention table: `{ref} — sampling floor: machine-granted merge #{ordinal} since the last count reset, still awaiting a verdict — /claude-tweaks:demo {ref}`. An empty result means nothing sampled this run — omit the flag entirely rather than rendering a zero row, same convention as the Justification/Definition flags above. A record already resolved (`facets.acceptance` is `approved` or `changes-requested`) never appears here even if its ordinal lands on a boundary — sampling only ever asks for a verdict that hasn't been given yet, it never re-flags a settled one.
+Each result flags in the Needs Attention table: `{ref} — sampling floor: the {ordinal}th machine-granted merge on record, still awaiting a verdict — /claude-tweaks:demo {ref}`. `{ordinal}` is the record's position in the full, unbounded machine-granted-merge history — there is no reset; ordinal 40 always means the 40th one ever, not "40 since some earlier checkpoint." An empty result means nothing sampled this run — omit the flag entirely rather than rendering a zero row, same convention as the Justification/Definition flags above. A record already resolved (`facets.acceptance` is `approved` or `changes-requested`) never appears here even if its ordinal lands on a boundary — sampling only ever asks for a verdict that hasn't been given yet, it never re-flags a settled one.
 
 ### PR-state join (in-flight runs and tombstones)
 
