@@ -58,4 +58,4 @@ When in doubt: would a calibrated senior engineer block a PR on this finding alo
 
 ## Confidence and reversibility
 
-The confidence / reversibility / severity-floor vocabulary that governs whether a finding may be auto-resolved is **not** redefined here — it lives in `_shared/auto-mode-contract.md` ("Reversibility / confidence / severity floors"). Read it there. In short: a finding may be auto-resolved only when reversibility:high AND confidence:high AND severity ≤ the configured floor; everything else is staged or kept-prompt.
+The confidence / reversibility floor and severity ceiling vocabulary that governs whether a finding may be auto-resolved is **not** redefined here — it lives in `_shared/auto-mode-contract.md` ("Reversibility / confidence floors; severity ceiling"). Read it there. In short: a finding may be auto-resolved only when reversibility:high AND confidence:high AND severity ≤ the configured ceiling; everything else is staged or kept-prompt.

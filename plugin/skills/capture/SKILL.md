@@ -290,6 +290,10 @@ Applies to both drivers. The cap governs the stub branch only — a supplied sha
 
 Both drivers run Backend Selection above; don't overthink — capture the essence.
 
+When the idea proposes building a new `bin/` CLI, check for a same-named deliverable already
+shipped or already proposed elsewhere before filing — `_shared/issue-claims.md`'s
+Deliverable-name-collisions section owns the check and the grep.
+
 ### Guessing the Type
 
 When `--type=<value>` is supplied, skip this entirely and use it as `$TYPE` — no guessing. Otherwise, Type is guessed from the idea's title/body text — advisory only:

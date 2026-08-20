@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { readRunState } = require('../plugin/bin/lib/hooks/context');
+const { linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
@@ -285,7 +286,13 @@ test('close-run WITH an explicit --run still closes a run recorded by another se
 
 test('e2e: foreign-session commit in the main checkout is allowed with a systemMessage, not denied', () => {
   const project = tmpProject(); // already a git repo (tmpProject inits one) — the "main checkout" this test's title refers to
-  const worktree = gitRepo();
+  // #861: `worktree` must be a REAL linked worktree of `project` (not an
+  // independent gitRepo()) — pre-tool-use.js now tells "wrong location WITHIN
+  // this project" apart from "an entirely unrelated repo" via each target's
+  // own main-checkout root, so an unrelated worktree fixture would read as a
+  // foreign repo and short-circuit to a bare allow with no systemMessage.
+  execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
+  const worktree = linkedWorktreeOf(project);
   runHook(['record-worktree', worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
 
   const result = runHook(['pre-tool-use'], {

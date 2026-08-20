@@ -117,6 +117,18 @@ test('a failed model with every tier below it also failed floors at fast, never 
   assert.strictEqual(r.source, 'degraded:session-failure');
 });
 
+// #841 item 2: when the profile is ALREADY at the floor (fast) and fast's
+// own model is also failed, nextViableModel has nowhere lower to go and
+// returns the same tier — a genuine no-change case, not a step-down. Source
+// must stay 'default', matching this function's own "last stage that
+// CHANGED the result" invariant instead of falsely claiming a degrade.
+test('a failed model already at the floor claims no source — genuinely unchanged, not a step-down', () => {
+  const r = resolve('fast', { failedModels: new Set(['haiku']) });
+  assert.strictEqual(r.model, 'haiku');
+  assert.strictEqual(r.effort, null);
+  assert.strictEqual(r.source, 'default');
+});
+
 test('a model not in failedModels is unaffected — no source claimed', () => {
   const r = resolve('standard', { failedModels: new Set(['fable']) });
   assert.strictEqual(r.model, 'sonnet');
