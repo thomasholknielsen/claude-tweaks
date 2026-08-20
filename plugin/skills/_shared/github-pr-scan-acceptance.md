@@ -158,18 +158,95 @@ node -e "
   }
   fs.writeFileSync('/tmp/tidy-parents-for-gap.json', JSON.stringify(parents));
 "
+```
 
+Run the batched fetch — one CLI call resolving every parent's sub-issues at once
+(`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), invoked via
+command substitution rather than an `xargs` pipe so an empty parent list still invokes it validly
+(its zero-positional contract prints an empty envelope rather than erroring) and the CLI's own exit
+status survives instead of being replaced by the pipe's:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))") > /tmp/tidy-gap-sub-issues-batch.json
+```
+
+Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
+GraphQL field is unavailable on this host — run the Fallback block below for **every** parent
+instead of the canonicalization step that follows; it produces the same
+`/tmp/tidy-acceptance-gap-sub-issues.json` by the older, verbatim REST path. **Exit 3** — the
+GraphQL call itself failed (network/API error, or a missing-repository response) — the run fails
+loud: report no `[acceptance-gap]` rows at all, naming the failed parents from the command's
+stderr. **Exit 1 or 2** — a malformed invocation or a missing `gh`/unresolvable repo: an
+environment or transcription bug, not a data outcome — stop and surface the CLI's stderr rather
+than reading the (empty) batch file. **Exit 0** — continue to the retry ladder below.
+
+The batch envelope's `retry` array names parents the probe could not resolve in one page — a
+missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true
+(`native-dependencies.js`'s `fetchNativeSubIssues` never lands a parent in `byParent` for either
+case, so a truncated page can never masquerade as a complete one). Each retry parent gets its own
+paginated REST call, exactly like the Fallback block's per-parent loop, and a retry parent whose
+REST call also fails throws, naming the parent — by design, this never coerces to an empty list:
+
+```bash
+node -e "
+  const fs = require('fs');
+  const { execFileSync } = require('child_process');
+  const batch = require('/tmp/tidy-gap-sub-issues-batch.json');
+  const byParent = batch.byParent || {};
+  const retryParents = batch.retry || [];
+  const retryResults = [];
+  for (const n of retryParents) {
+    let nums;
+    try {
+      const out = execFileSync('gh', ['api', '--paginate', 'repos/{owner}/{repo}/issues/' + n + '/sub_issues', '--jq', '.[].number'], { encoding: 'utf8' });
+      nums = out.trim().split('\n').filter(Boolean).map(Number);
+    } catch (err) {
+      throw new Error('sub-issue REST retry failed for parent #' + n + ': ' + (err && err.message ? err.message : String(err)));
+    }
+    retryResults.push(...nums);
+  }
+  if (retryParents.length) {
+    console.error('WARNING: ' + retryParents.length + ' parent(s) needed a per-parent REST retry (no alias, or more than one page, in the batched probe): ' + retryParents.join(', '));
+  }
+  const all = Object.values(byParent).flat().concat(retryResults);
+  const subIssueNumbers = Array.from(new Set(all)).sort((a, b) => a - b);
+  fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
+"
+```
+
+The throw above runs before the write, so a failed retry can never leave a partial
+`/tmp/tidy-acceptance-gap-sub-issues.json` on disk.
+
+#### Fallback (probe unavailable — older GHE)
+
+Runs only on exit 4 above, for every parent — the older, per-parent REST loop this branch used
+before the batched probe existed:
+
+```bash
 : > /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl
+: > /tmp/tidy-acceptance-gap-fallback-failures.txt
 node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl
+  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl || echo "$N" >> /tmp/tidy-acceptance-gap-fallback-failures.txt
 done
 
 node -e "
   const fs = require('fs');
-  const subIssueNumbers = fs.readFileSync('/tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  const failures = fs.readFileSync('/tmp/tidy-acceptance-gap-fallback-failures.txt', 'utf8').trim().split('\n').filter(Boolean);
+  if (failures.length) {
+    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write /tmp/tidy-acceptance-gap-sub-issues.json on an undercounted set');
+  }
+  const raw = fs.readFileSync('/tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  const subIssueNumbers = Array.from(new Set(raw)).sort((a, b) => a - b);
   fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
 "
 ```
+
+Both the primary path and the Fallback path converge on the same canonicalized
+`/tmp/tidy-acceptance-gap-sub-issues.json` — numerically sorted, deduplicated — which is what makes
+them interchangeable. The `while read` loop's own exit code can't surface a failed per-parent
+`gh api` call, so each iteration appends its parent number to the failures file on failure, and the
+assembly step throws — naming every failed parent — before the output file is written, never an
+undercounted set (the same guard the trust-table Fallback carries).
 
 ### Oversight-floor pre-filter
 
@@ -370,25 +447,104 @@ node -e "
 ```
 
 **`work-links: native`** — the parent body carries no task list, so sub-issue numbers come from the
-sub-issues API instead, one call per parent (exactly `wrap-up/verification-brief.md`'s own
-native command, `gh api repos/{owner}/{repo}/issues/{n}/sub_issues --jq '.[].number'`, run once
-per parent in the fetched set — each result appended as one JSON line rather than assembled by
-hand, so no shell-side JSON construction is needed):
+sub-issues API instead, via the same batched aliased-GraphQL probe with a per-parent REST fallback
+that the `acceptance-gap` scope above uses:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/tidy-parentgate-sub-issues-batch.json
+```
+
+Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
+GraphQL field is unavailable on this host — run the Fallback block below for **every** parent
+instead of the composing step that follows; it produces the same `/tmp/tidy-parent-gates.json` by
+the older, verbatim REST path. **Exit 3** — the GraphQL call itself failed (network/API error, or
+a missing-repository response) — the run fails loud: report no `[parent-gate]` rows at all, naming
+the failed parents from the command's stderr. **Exit 1 or 2** — a malformed invocation or a
+missing `gh`/unresolvable repo: an environment or transcription bug, not a data outcome — stop and
+surface the CLI's stderr rather than reading the (empty) batch file. **Exit 0** — continue to the
+composing step below.
+
+The batch envelope's `retry` array names parents the probe could not resolve in one page — a
+missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true
+(`native-dependencies.js`'s `fetchNativeSubIssues` never lands a parent in `byParent` for either
+case, so a truncated page can never masquerade as a complete one). Each retry parent gets its own
+paginated REST call, exactly like the Fallback block's per-parent loop, and a retry parent whose
+REST call also fails throws, naming the parent — by design, this never coerces to an empty list.
+Unlike `acceptance-gap`'s flattened union, this scope keeps each parent's own sub-issue set intact
+— the composing step below reads the envelope's `byParent` (plus retry results merged into it)
+per-parent, because `leaves` needs each parent's own numbers, not existence alone:
+
+```bash
+node -e "
+  const fs = require('fs');
+  const { execFileSync } = require('child_process');
+  const batch = require('/tmp/tidy-parentgate-sub-issues-batch.json');
+  const byParent = batch.byParent || {};
+  const retryParents = batch.retry || [];
+  for (const n of retryParents) {
+    let nums;
+    try {
+      const out = execFileSync('gh', ['api', '--paginate', 'repos/{owner}/{repo}/issues/' + n + '/sub_issues', '--jq', '.[].number'], { encoding: 'utf8' });
+      nums = out.trim().split('\n').filter(Boolean).map(Number);
+    } catch (err) {
+      throw new Error('sub-issue REST retry failed for parent #' + n + ': ' + (err && err.message ? err.message : String(err)));
+    }
+    byParent[n] = nums;
+  }
+  if (retryParents.length) {
+    console.error('WARNING: ' + retryParents.length + ' parent(s) needed a per-parent REST retry (no alias, or more than one page, in the batched probe): ' + retryParents.join(', '));
+  }
+  const parents = require('/tmp/tidy-parent-issues.json');
+  const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
+  const gates = parents.map((p) => ({
+    number: p.number,
+    title: p.title,
+    parentLabels: p.labels.map(l => l.name),
+    leaves: (byParent[p.number] || []).map(n => {
+      const info = infoOf.get(n);
+      return { number: n, state: (info && info.state) || 'OPEN', labels: (info && info.labels) || [] };
+    }),
+  }));
+  fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
+"
+```
+
+The throw above runs before the write, so a failed retry can never leave a partial
+`/tmp/tidy-parent-gates.json` on disk.
+
+#### Fallback (probe unavailable — older GHE)
+
+Runs only on exit 4 above, for every parent — the older, per-parent REST loop this branch used
+before the batched probe existed (exactly `wrap-up/verification-brief.md`'s own native command,
+`gh api repos/{owner}/{repo}/issues/{n}/sub_issues --jq '.[].number'`, run once per parent in the
+fetched set — each **page** appended as one JSON line rather than assembled by hand, so no
+shell-side JSON construction is needed; the composing step merges pages per parent, and a failed
+call appends its parent number to the failures file, which the composing step throws on — never a
+silently vanished parent):
 
 ```bash
 : > /tmp/tidy-sub-issues.jsonl
+: > /tmp/tidy-parentgate-fallback-failures.txt
 node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq "{number: $N, subIssueNumbers: [.[].number]}" \
-    >> /tmp/tidy-sub-issues.jsonl
+  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq "{number: $N, subIssueNumbers: [.[].number]}" \
+    >> /tmp/tidy-sub-issues.jsonl || echo "$N" >> /tmp/tidy-parentgate-fallback-failures.txt
 done
 
 node -e "
   const fs = require('fs');
+  const failures = fs.readFileSync('/tmp/tidy-parentgate-fallback-failures.txt', 'utf8').trim().split('\n').filter(Boolean);
+  if (failures.length) {
+    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write /tmp/tidy-parent-gates.json with silently missing parents');
+  }
   const parents = require('/tmp/tidy-parent-issues.json');
   const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
   const byNumber = new Map(parents.map(p => [p.number, p]));
   const subRows = fs.readFileSync('/tmp/tidy-sub-issues.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
-  const gates = subRows.map(({ number, subIssueNumbers }) => {
+  const merged = new Map();
+  for (const { number, subIssueNumbers } of subRows) {
+    merged.set(number, (merged.get(number) || []).concat(subIssueNumbers));
+  }
+  const gates = Array.from(merged, ([number, subIssueNumbers]) => {
     const p = byNumber.get(number);
     return {
       number,
@@ -403,6 +559,9 @@ node -e "
   fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
 "
 ```
+
+Both the primary path and the Fallback path converge on the same `/tmp/tidy-parent-gates.json`
+shape — `{number, title, parentLabels, leaves:[{number,state,labels}]}` per parent.
 
 ### Oversight-floor pre-filter
 

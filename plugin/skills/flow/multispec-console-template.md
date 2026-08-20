@@ -79,7 +79,7 @@ Generate the next five sections — Skill updates, Documentation updates, Journe
 |---|---|---|---|---|
 | 14 | 159 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
-An `[adr-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — the row's mechanics are unchanged from the single-spec console (`wrap-up/review-console.md`'s Configuration updates section), only its aggregation is per-spec here, the same way Queue writes already aggregates.
+A `[{genre}-convention]` row renders inside its hosting section (Configuration updates for `[adr-convention]`, Documentation updates for a D2 Diátaxis-genre instance) but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — the row's mechanics are unchanged from the single-spec console (`wrap-up/console-template.md`), only its aggregation is per-spec here, the same way Queue writes already aggregates.
 
 #### Reference repairs (from each spec's Broken references curation row)
 

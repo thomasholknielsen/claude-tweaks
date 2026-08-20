@@ -42,6 +42,7 @@ const path = require('path');
 const { resolve, PROFILES } = require('./lib/model-profiles/profiles');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 const { readFailedModels, recordFailure, invalidateFailures } = require('./lib/model-profiles/session-failures');
+const wtDetect = require('./lib/hooks/worktree-detect');
 
 function fail(msg) {
   process.stderr.write(`resolve-profile: ${msg}\n`);
@@ -97,6 +98,21 @@ function main(argv) {
     else if (a === '--unattended') unattended = true;
     else if (a === '--run-dir') runDir = requireValue(args, '--run-dir');
     else { fail(`unknown argument "${a}"`); return; }
+  }
+
+  // #1065: anchored-or-outside guard — reject a worktree-shadow run dir
+  // before any policy read or tally I/O. Outside-any-checkout paths (the
+  // journey's /tmp demo, tmp-fixture tests) stay accepted with no flag; the
+  // raw runDir string is kept for all downstream use — the reject message
+  // names the realpath-resolved candidate instead.
+  if (runDir !== undefined) {
+    const anchor = wtDetect.checkRunDirAnchoredOrOutside(runDir, process.cwd());
+    if (!anchor.ok) {
+      fail(anchor.reason === 'foreign-checkout'
+        ? wtDetect.unanchoredRunDirShadowMessage(anchor.resolved, anchor.mainRoot)
+        : wtDetect.unanchoredRunDirNoRepoMessage(process.cwd()));
+      return;
+    }
   }
 
   let policy = {};

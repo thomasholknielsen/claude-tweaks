@@ -10,6 +10,7 @@ const {
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
   funnelBuckets,
+  machineGrantOutlook,
   readyGrantedSubset,
 } = require('../../../plugin/bin/lib/issues/backlog');
 const { parseRecordFacets } = require('../../../plugin/bin/lib/issues/record');
@@ -255,51 +256,50 @@ test('funnelBuckets: every open record lands in exactly one bucket and sizes sum
     rec(3, { notPlanned: true }),                                                             // notPlanned
     rec(4, { stage: 'ready', grants: { build: true, merge: false } }, { blockedBy: [5] }),    // granted (5 in set)
     rec(5, { stage: 'ready', grants: { build: true, merge: false } }),                        // dispatchable
-    rec(6, { stage: 'ready' }),                                                               // shaped
-    rec(7, { priority: 'high' }),                                                             // scored
+    rec(6, { stage: 'ready' }),                                                               // specified
+    rec(7, { priority: 'high' }),                                                             // prioritized
     rec(8),                                                                                   // captured
     rec(9, { isParentIssue: true, risk: 'low', size: 'medium' }),                             // parents
   ];
   const b = funnelBuckets(records);
-  const all = [...b.captured, ...b.scored, ...b.shaped, ...b.granted, ...b.dispatchable, ...b.inFlight, ...b.parked, ...b.notPlanned, ...b.parents];
-  assert.equal(all.length, records.length);
+  const all = [...b.captured, ...b.prioritized, ...b.specified, ...b.granted, ...b.dispatchable, ...b.inFlight, ...b.parked, ...b.notPlanned, ...b.parents];  assert.equal(all.length, records.length);
   assert.equal(new Set(all.map((r) => r.number)).size, records.length);
   assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
   assert.deepEqual(b.parked.map((r) => r.number), [2]);
   assert.deepEqual(b.notPlanned.map((r) => r.number), [3]);
   assert.deepEqual(b.granted.map((r) => r.number), [4]);
   assert.deepEqual(b.dispatchable.map((r) => r.number), [5]);
-  assert.deepEqual(b.shaped.map((r) => r.number), [6]);
-  assert.deepEqual(b.scored.map((r) => r.number), [7]);
+  assert.deepEqual(b.specified.map((r) => r.number), [6]);
+  assert.deepEqual(b.prioritized.map((r) => r.number), [7]);
   assert.deepEqual(b.captured.map((r) => r.number), [8]);
   assert.deepEqual(b.parents.map((r) => r.number), [9]);
 });
 
 test('funnelBuckets: empty input yields empty buckets and overlay', () => {
   const b = funnelBuckets([]);
-  for (const key of ['captured', 'scored', 'shaped', 'granted', 'dispatchable', 'inFlight', 'parked', 'notPlanned', 'parents']) {
+  for (const key of ['captured', 'prioritized', 'specified', 'granted', 'dispatchable', 'inFlight', 'parked', 'notPlanned', 'parents']) {
     assert.deepEqual(b[key], []);
   }
   assert.deepEqual(b.needsYou, []);
 });
 
-test('funnelBuckets: a parent record with risk/size labels lands in parents, not scored or captured', () => {
+test('funnelBuckets: a parent record with risk/size labels lands in parents, not prioritized or captured', () => {
   const b = funnelBuckets([
     rec(1, { isParentIssue: true, risk: 'low', size: 'medium' }),
     rec(2, { isParentIssue: true }),
   ]);
   assert.deepEqual(b.parents.map((r) => r.number), [1, 2]);
-  assert.deepEqual(b.scored, []);
+  assert.deepEqual(b.prioritized, []);
   assert.deepEqual(b.captured, []);
 });
 
-test('funnelBuckets: a parent record is never shaped, granted, or dispatchable even if stage is ready', () => {
+test('funnelBuckets: a parent record is never specified, granted, or dispatchable even if stage is ready', () => {
   const b = funnelBuckets([
     rec(1, { isParentIssue: true, stage: 'ready' }),
     rec(2, { isParentIssue: true, stage: 'ready', grants: { build: true, merge: false } }),
   ]);
   assert.deepEqual(b.parents.map((r) => r.number), [1, 2]);
-  assert.deepEqual(b.shaped, []);
+  assert.deepEqual(b.specified, []);
   assert.deepEqual(b.dispatchable, []);
   assert.deepEqual(b.granted, []);
 });
@@ -373,10 +373,10 @@ test('funnelBuckets: top-level r.blockedBy wins over facets.blockedBy when both 
   assert.deepEqual(b.granted, []);
 });
 
-test('funnelBuckets: scored means any of priority/risk/size without ready stage', () => {
+test('funnelBuckets: prioritized keys on priority alone — risk/size-only records fall to captured for re-triage', () => {
   const b = funnelBuckets([rec(1, { risk: 'low' }), rec(2, { size: 'medium' }), rec(3, { priority: 'low' }), rec(4)]);
-  assert.deepEqual(b.scored.map((r) => r.number), [1, 2, 3]);
-  assert.deepEqual(b.captured.map((r) => r.number), [4]);
+  assert.deepEqual(b.prioritized.map((r) => r.number), [3]);
+  assert.deepEqual(b.captured.map((r) => r.number), [1, 2, 4]);
 });
 
 test('funnelBuckets: body-text canonical declaration now resolves via blockersOf — granted, not dispatchable', () => {
@@ -414,10 +414,10 @@ test('funnelBuckets: dormant regression pin — no needs-facets leaves every buc
   assert.deepEqual(b.inFlight.map((r) => r.number), [1]);
   assert.deepEqual(b.parked.map((r) => r.number), [2]);
   assert.deepEqual(b.dispatchable.map((r) => r.number), [3]);
-  assert.deepEqual(b.scored.map((r) => r.number), [4]);
+  assert.deepEqual(b.prioritized.map((r) => r.number), [4]);
   assert.deepEqual(b.captured.map((r) => r.number), [5]);
   assert.deepEqual(b.granted, []);
-  assert.deepEqual(b.shaped, []);
+  assert.deepEqual(b.specified, []);
   assert.deepEqual(b.notPlanned, []);
 });
 
@@ -429,14 +429,14 @@ test('funnelBuckets: needs:definition record joins needsYou AND keeps its primar
   const b = funnelBuckets(records);
   assert.deepEqual(b.needsYou, [{ id: 1, kind: 'definition' }]);
   assert.deepEqual(b.captured.map((r) => r.number), [1]);
-  assert.deepEqual(b.shaped.map((r) => r.number), [2]);
+  assert.deepEqual(b.specified.map((r) => r.number), [2]);
 });
 
 // solutionUnjustified is the live facet key both drivers set (record #677 rename).
 test('funnelBuckets: solutionUnjustified facet joins needsYou as kind unjustified', () => {
   const b = funnelBuckets([rec(1, { solutionUnjustified: true, priority: 'low' })]);
   assert.deepEqual(b.needsYou, [{ id: 1, kind: 'unjustified' }]);
-  assert.deepEqual(b.scored.map((r) => r.number), [1]);
+  assert.deepEqual(b.prioritized.map((r) => r.number), [1]);
 });
 
 // Both facets present: the hard gate dominates — one entry, kind definition (#471).
@@ -463,7 +463,7 @@ test('funnelBuckets: notPlanned record with solutionUnjustified does NOT appear 
 
 // #766: a decomposition parent routes to the `parents` bucket, never
 // dispatchable — its needsYou launcher would misroute to `/specify #N` on a
-// parent (the same defect class #616 fixed on the Shape paste block, missed
+// parent (the same defect class #616 fixed on the Specify paste block, missed
 // on this overlay surface). Mirrors the inFlight/notPlanned overlay-filter
 // tests above.
 test('funnelBuckets: parent record with needsDefinition does NOT appear in needsYou', () => {
@@ -516,4 +516,90 @@ test('funnelBuckets: same native-blocked record with no pre-attach (probe-failur
   ];
   const b = funnelBuckets(records);
   assert.deepEqual(b.dispatchable.map((r) => r.number).sort(), [10, 11]);
+});
+
+// --- machineGrantOutlook (overview bare mode's config-aware `specified` annotation) ---
+
+// Records mirror grant-gate.test.js's baseRecord — labels drive provenance/band,
+// facets are derived by evaluateGrantGate when absent. Phase-1 only: `eligible`
+// means "reaches grant-check", so a clear grantCheck is never part of these cases.
+function outlookRecord(number, labels, overrides = {}) {
+  return { number, labels, body: 'Surface: backend', ...overrides };
+}
+
+const cleanCodeHealthRow = [{ key: 'producer:code-health|low', verdict: 'clean' }];
+const unattendedPolicy = { ceiling: 'unattended', grantOriginationEnabled: true };
+
+test('machineGrantOutlook: clean-trust agent-filed record is eligible (pending grant-check)', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(1, ['by:code-health', 'ready', 'risk:low', 'size:low'])],
+    unattendedPolicy,
+    cleanCodeHealthRow,
+  );
+  assert.deepEqual(out.eligible, [1]);
+  assert.deepEqual(out.refused, {});
+});
+
+test('machineGrantOutlook: mixed class trust refuses under failedKey trust', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(2, ['by:code-health', 'ready', 'risk:low', 'size:low'])],
+    unattendedPolicy,
+    [{ key: 'producer:code-health|low', verdict: 'mixed' }],
+  );
+  assert.deepEqual(out.eligible, []);
+  assert.deepEqual(out.refused, { trust: [2] });
+});
+
+test('machineGrantOutlook: absent trust rows read as no-cell and refuse under trust', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(3, ['by:code-health', 'ready', 'risk:low', 'size:low'])],
+    unattendedPolicy,
+    undefined,
+  );
+  assert.deepEqual(out.refused, { trust: [3] });
+});
+
+test('machineGrantOutlook: human-filed record refuses under origin even with clean trust', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(4, ['ready', 'risk:low', 'size:low'])],
+    unattendedPolicy,
+    [{ key: 'human:human|low', verdict: 'clean' }],
+  );
+  assert.deepEqual(out.eligible, []);
+  assert.deepEqual(out.refused, { origin: [4] });
+});
+
+test('machineGrantOutlook: needs:definition refuses ahead of trust (gate order preserved)', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(5, ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:definition'])],
+    unattendedPolicy,
+    [],
+  );
+  assert.deepEqual(out.refused, { 'needs-definition': [5] });
+});
+
+test('machineGrantOutlook: refused ids aggregate per failedKey in input order alongside eligibles', () => {
+  const out = machineGrantOutlook(
+    [
+      outlookRecord(6, ['by:code-health', 'ready', 'risk:low', 'size:low']),
+      outlookRecord(7, ['ready', 'risk:low', 'size:low']),
+      outlookRecord(8, ['ready', 'risk:low', 'size:low']),
+    ],
+    unattendedPolicy,
+    [
+      { key: 'producer:code-health|low', verdict: 'clean' },
+      { key: 'human:human|low', verdict: 'clean' },
+    ],
+  );
+  assert.deepEqual(out.eligible, [6]);
+  assert.deepEqual(out.refused, { origin: [7, 8] });
+});
+
+test('machineGrantOutlook: a non-unattended ceiling refuses everything under ceiling (caller guard backstop)', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(9, ['by:code-health', 'ready', 'risk:low', 'size:low'])],
+    { ceiling: 'trusted', grantOriginationEnabled: true },
+    cleanCodeHealthRow,
+  );
+  assert.deepEqual(out.refused, { ceiling: [9] });
 });

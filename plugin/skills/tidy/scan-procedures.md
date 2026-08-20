@@ -49,7 +49,7 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 → Collect each as: `[plan] {filename} — {recommendation}`
 
-## Step 4.5: Audit Git Worktrees and Build Branches
+## Step 4.5: Audit Git Worktrees, Build Branches, and Artifact Residue
 
 **Working-directory discipline:** every `git` command in this step (and in any dispatched parallel agent) MUST be anchored with `git -C "{REPO_ROOT}"` (or run after `cd "{REPO_ROOT}"`). `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before any agent fires. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`. CWD does not propagate reliably across parallel agents — without the anchor, branch deletions and worktree removals can land in the wrong checkout.
 
@@ -66,6 +66,8 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {merge-base} --scope repo --n
 Each `kind: worktree` finding is one candidate — every worktree beyond the main working tree, `subject` the path, `evidence` reporting locked/unlocked state, branch, and reaper-domain membership. This replaces `git worktree list` as this step's worktree enumeration one-for-one. If the results block reports `ran: false` for this probe, treat worktrees as **`unknown`** for this run, not clean — an empty `findings` array under `ran: false` must never be read as "no worktrees."
 
 Each `kind: branch` finding is a **remote-tracking** branch (of the integration branch's own remote — `origin` by default) already merged into the integration branch and not yet deleted. This does **not** replace the local `build/*` scan below — it is a narrower, differently-shaped catch: it never surfaces an unmerged branch (the probe filters to `--merged` only, so an unmerged `build/*` branch is invisible to it — exactly the case the "Unmerged changes" row needs), and it never surfaces a branch that was only ever merged locally, e.g. via `_shared/scratch-worktree.md` §5's `git push . <sha>:{integration-branch}` pattern, which is this repo's own dominant merge shape for worktree-derived branches and leaves no remote-tracking ref at all. Fold its findings in as an **additional** repo-wide check for stray already-merged remote branches (of any name, not just `build/*`), never as a substitute for the scan below.
+
+Each `kind: artifact` finding is aged QA-artifact residue (an aged dir under `.claude-tweaks/artifacts/`, or a legacy pre-relocation `screenshots/`/`traces/` root) — collect as `[git] {subject} — {evidence} — Delete` when `remedy: auto`, or `— Delete (judgment)` when `remedy: record`.
 
 **Build branches (local, any merge state):** Run `git -C "{REPO_ROOT}" branch --list "build/*"`. The CLI above has no equivalent for this — it can only ever report merged, remote-tracking branches, so a local-only or still-unmerged `build/*` branch (including one being actively worked on) is outside its domain entirely.
 
@@ -331,7 +333,12 @@ Scan recent git history for recurring findings across review summaries and wrap-
 
 When 3+ specs have shipped (`git log --all --oneline --grep="wrap-up" --since="8 weeks ago"`, or the same commit window this step's own scan above already searched), include a brief project health summary in the tidy report:
 
-1. **Velocity** — count shipped (git log for wrap-up/merge commits) vs. `ready`-or-building vs. `backlog`/`parked` (the latter two from Step 1's facet counts, when Step 1 is in scope)
+1. **Velocity** — count shipped (git log for wrap-up/merge commits) vs. `ready`-or-building vs.
+   `backlog`/`parked`. The shipped count is this step's own git-log scan (self-contained, per this
+   step's opening line); the other three are Step 1's facet counts, an opportunistic enrichment
+   included only when Step 1 already ran in this same tidy invocation (`patterns` scope run alone
+   never triggers Step 1 to satisfy this — `#205`: this bullet is additive to Step 5.5's
+   self-containment, not evidence against it)
 2. **Recurring themes** — conventions worth codifying if they appear in 3+ specs' wrap-up reflections
 3. **Convention candidates** — suggest: "This pattern shows up in {N} specs — consider adding to CLAUDE.md: `{pattern}`"
 

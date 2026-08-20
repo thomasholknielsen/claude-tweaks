@@ -63,7 +63,7 @@ Rewrite the record's body into six sections, in this literal shape (`spec-templa
 {...}
 ```
 
-`## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, and `## Gotchas` are the core of the record body template `spec-template.md` documents — Current State, Deliverables, and Acceptance Criteria are the structural minimum (`_shared/work-record.md`'s spec-shaped-body check re-verifies exactly these three are present and non-empty before the authorization gate will grant anything); Technical Approach and Gotchas can stay brief for a small record. `### Key Files` is populated from whichever files the shaped Technical Approach names — every file path the composed Technical Approach section references belongs here, one bullet per path, in `spec-template.md`'s `- \`{path}\` — {what changes}` format; this is what `/flow`, `/dispatch`, and `/help` read for cross-spec file-overlap detection (`bin/lib/issues/grouping.js`'s `extractKeyFilesSection`) — omitting it silently disables that detection for this record (see Cross-spec conflict detection in `flow/multi-spec.md`). The template's fuller section list (Overview, Non-Goals, Prerequisites, and so on) is decomposition-mode scaffolding for multi-record output — a single shaped record doesn't need it.
+`## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, and `## Gotchas` are the core of the record body template `spec-template.md` documents — Current State, Deliverables, and Acceptance Criteria are the structural minimum (`_shared/work-record.md`'s spec-shaped-body check re-verifies exactly these three are present and non-empty before the authorization gate will grant anything); Technical Approach and Gotchas can stay brief for a small record. `### Key Files` lists every file path the composed Technical Approach section references, plus — when the work renames a contract surface — every consumer file the rename-grep in `spec-template.md`'s `### Key Files` guidance turns up. One bullet per path, in `spec-template.md`'s `- \`{path}\` — {what changes}` format. This is what `/flow`, `/dispatch`, and `/help` read for cross-spec file-overlap detection (`bin/lib/issues/grouping.js`'s `extractKeyFilesSection`) — omitting it silently disables that detection for this record (see Cross-spec conflict detection in `flow/multi-spec.md`). The template's fuller section list (Overview, Non-Goals, Prerequisites, and so on) is decomposition-mode scaffolding for multi-record output — a single shaped record doesn't need it.
 
 Absorb the record's existing content into whichever section it belongs in — a human-filed or captured record's raw text usually becomes Current State plus Deliverables context, with Acceptance Criteria freshly written since raw captures rarely state them explicitly. A record already filed in this shape — every `by:code-health`/`by:harness-health`/`by:journey-health`/`by:docs-health` record is spec-shaped and agent-sized by construction, per `_shared/work-record.md`'s born-ready rule — needs near-zero translation: verify the sections are present and non-empty and move on rather than rewriting content that's already correct.
 
@@ -100,7 +100,27 @@ Backend/infra records omit the `Design-intent:` line entirely — it only applie
 Surface: backend
 ```
 
-These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header; the canonical field and value reference lives in `spec-template.md`.
+These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header. Values, for reference:
+
+| `Surface:` | Meaning |
+|---|---|
+| `web` | Web page / responsive web UI |
+| `mobile` | Native app surface — SwiftUI, UIKit, Compose, React Native, Flutter (not a web page merely viewed on a phone) |
+| `desktop` | Desktop app UI (takes the design pipeline's web track) |
+| `backend` | Server/API/data-layer work, no rendered UI |
+| `infra` | Infrastructure/tooling/config work, no rendered UI |
+| `terminal` | CLI/TUI surface — help text, output formatting, prompts, exit codes |
+
+| `Design-intent:` | Meaning |
+|---|---|
+| `bold` | Eye-catching, confident |
+| `quiet` | Restrained, refined |
+| `minimal` | Strip to essence |
+| `delightful` | Personality, micro-interactions |
+| `onboarding` | First-run flows, empty states |
+| `none` | No specific creative direction |
+
+`spec-template.md` stays canonical for the full metadata-block field set these two tables slice — including `Design-seed:`/`Visual-reference:`/`Parent:`, which shaping mode never writes. The `Design-intent:` one-liners above restate `design-pre-steps.md`'s Step 2.5c `AskUserQuestion` descriptions; keep both tables in sync by hand if either enum ever changes.
 
 ### Stamp scoring and stage labels
 
@@ -220,4 +240,4 @@ For a comma-list batch, render one row per shaped element, in list order, and pr
 
 Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block: the "Shaping mode — one record shaped in place" row of its Situation table for a single record, the "Shaping mode — multiple records shaped in place" row for a comma-list batch (its recommended command lists every successfully shaped record, in the order given). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), or under the `next` form's headless posture (`next-mode.md`), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable; `next-mode.md` has nobody present to read a rendered Next Actions block anyway.
 
-`/specify` adds `ready`, `risk:*`/`size:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.
+`/specify` adds `ready`, `risk:*`/`size:*` (when unstamped), and Type (when absent), removes `parked` on promotion — and, as the one removal carve-out, strips `ready`/`risk:*`/`size:*`/`ceremony:*`/`solution:unjustified` from a record bearing the parent marker (`parent-issue` label / `facets.isParentIssue`) when `SKILL.md` case 1's parent-record guard fires: cleanup of a past mis-shape, reported in output, never prompted — and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.

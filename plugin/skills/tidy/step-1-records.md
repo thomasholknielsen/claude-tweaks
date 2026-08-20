@@ -311,12 +311,18 @@ fetch uses returns exactly zero of this shape's population — silently, with no
 No fetch-limit or truncation warning applies, unlike the API-paging twin: `queryRecords` reads the
 whole `specs/` directory every call.
 
-The 30-day window matches the `github-issues` scope's own closed-record set, so the two drivers
-report the same population rather than diverging by store. It reads `closed-at:`, which
-`closeRecord` stamps — **and deliberately keeps every record whose `closedAt` is absent or
-unparseable.** A record closed by a hand-edited `closed: true` with no timestamp is precisely the
-un-dispositioned, nobody-remembers-it case this backstop exists for, so the bound fails open,
-toward surfacing; filtering on a missing timestamp would drop the shape's best population.
+The 30-day window nominally matches the `github-issues` scope's own closed-record set. It reads
+`closed-at:`, which `closeRecord` stamps — **and deliberately keeps every record whose `closedAt`
+is absent or unparseable**, regardless of age. A record closed by a hand-edited `closed: true`
+with no timestamp is precisely the un-dispositioned, nobody-remembers-it case this backstop exists
+for, so the bound fails open, toward surfacing; filtering on a missing timestamp would drop the
+shape's best population. **`#205`: this makes "same population" true only for the timestamped
+majority** — `gh issue list` always stamps a real `closedAt` on a closed issue, so the
+`github-issues` twin has no equivalent fail-open case and its 30-day cutoff is strict. A
+hand-closed local record with no timestamp can surface here at any age; its `github-issues`
+counterpart cannot. The population this shape actually catches skews toward exactly that
+untimestamped set — `closeRecord`-closed records (the common path) always get a timestamp and so
+are excluded past 30 days like the other driver.
 
 → Collect each as: `[acceptance-gap] {id}: {title} — closed with no acceptance disposition — recommend /claude-tweaks:demo {id}`
 

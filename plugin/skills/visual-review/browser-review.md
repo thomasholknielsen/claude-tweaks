@@ -21,7 +21,7 @@ Derive a kebab-case session name from the review target: `pricing-page-review`, 
 All screenshots in this skill are annotated and written to:
 
 ```
-screenshots/browse/<session>/<NN>_<description>.png
+.claude-tweaks/artifacts/screenshots/browse/<session>/<NN>_<description>.png
 ```
 
 `<NN>` is a zero-padded sequence number per session (`01_landing`, `02_pricing`, ...). Annotated screenshots overlay numbered markers tied to the most recent `snapshot` refs — write findings using those overlay numbers, never spatial language like "the button on the right."
@@ -57,7 +57,7 @@ Before starting the review steps, check whether QA data is available from a rece
 
 > **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations below are independent and should run concurrently.
 
-1. **Find the latest QA run directory:** Glob for `screenshots/qa/*/report.json` and take the most recent by timestamp prefix.
+1. **Find the latest QA run directory:** Glob for `.claude-tweaks/artifacts/screenshots/qa/*/report.json` and take the most recent by timestamp prefix.
 2. **Read `report.json`:** Extract `page_inventories`, `caveats`, `findings`, and `stories` (for screenshot directories).
 3. **Collect screenshots:** List screenshot files across story subdirectories in the QA run directory.
 
@@ -190,8 +190,8 @@ Present findings from the review in a single structure that serves as both the r
 **Performance:** LCP {value} | CLS {value} | INP {value} | TTFB {value} | FCP {value}
 **First Impression:** {The honest 5-second reaction in 1-2 sentences. Keep the raw tone.}
 **Interaction Feel:** Speed: {snappy/acceptable/sluggish} | Feedback: {clear/inconsistent/missing} | Transitions: {smooth/janky/none}
-**Screenshots:** {paths under screenshots/browse/<session>/}
-**Trace (if failure):** {path under traces/<session>/ — omit if no failure}
+**Screenshots:** {paths under .claude-tweaks/artifacts/screenshots/browse/<session>/}
+**Trace (if failure):** {path under .claude-tweaks/artifacts/traces/<session>/ — omit if no failure}
 **QA context:** {QA run dir, stories covering this page, QA status — or "No QA data"}
 ```
 

@@ -18,6 +18,7 @@ const { probeForge } = require('./lib/residue/probes/forge');
 const { probeSuite } = require('./lib/residue/probes/suite');
 const { probeRelease } = require('./lib/residue/probes/release');
 const { probePipelineRuns } = require('./lib/residue/probes/pipeline-runs');
+const { probeArtifacts } = require('./lib/residue/probes/artifacts');
 const { renderOutstanding } = require('./lib/residue/render');
 const { filterResultsByScope } = require('./lib/residue/scope-filter');
 
@@ -41,9 +42,16 @@ function parseArgs(argv) {
 }
 
 function runner(cwd) {
-  return (argv) => {
+  // `opts` lets a caller pass extra `execFileSync` options (e.g. `timeout`)
+  // for a specific command without changing every other call through this
+  // shared seam — see `probes/branches.js`'s `git remote prune` call, the
+  // first command through here to contact a remote and therefore the first
+  // that needs a bound. The existing catch-all below already treats a
+  // timeout kill the same as any other failure (returns null), so no new
+  // error handling is needed at this seam.
+  return (argv, opts = {}) => {
     try {
-      return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
     } catch {
       return null;
     }
@@ -73,7 +81,7 @@ function main() {
   }
   const cwd = process.cwd();
   const run = runner(cwd);
-  const git = (args) => run(['git', ...args]);
+  const git = (args, execOpts) => run(['git', ...args], execOpts);
   const scope = resolveScope({ base: opts.base, run: git });
 
   const manifest = readProjectManifest(cwd);
@@ -116,6 +124,7 @@ function main() {
     suiteResult,
     probeRelease({ scope, manifest, run }),
     probePipelineRuns({ cwd }),
+    probeArtifacts({ cwd, run: git }),
   ], opts.scope);
 
   if (opts.json) {

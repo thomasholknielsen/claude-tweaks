@@ -3,6 +3,8 @@ files:
   - plugin/bin/lib/issues/backlog.js
   - plugin/bin/lib/issues/record.js
   - plugin/bin/lib/issues/facet-shape.js
+  - plugin/bin/fetch-sub-issues.js
+  - plugin/skills/_shared/trust-table.md
   - plugin/skills/backlog/overview-mode.md
   - plugin/skills/backlog/SKILL.md
 ---
@@ -18,15 +20,15 @@ files:
 
 ### 1. Read the funnel header — bare `/claude-tweaks:backlog`
 - **Action:** Run the skill with no lens argument and read the header block at the top of the report.
-- **Should feel:** Like a process gauge, not a report — six stages in pipeline order (`captured ▶ scored ▶ shaped ▶ granted ▶ dispatchable ▶ in flight`), a count per stage, and a fully-qualified command under each actionable stage.
+- **Should feel:** Like a process gauge, not a report — six stages in pipeline order (`captured ▶ prioritized ▶ specified ▶ granted ▶ dispatchable ▶ in flight`), a count per stage, and a fully-qualified command under each actionable stage.
 - **Should understand:** The buckets are mutually exclusive (`funnelBuckets` in `plugin/bin/lib/issues/backlog.js` — first-match-wins precedence: live bot work outranks stage labels; a granted-but-blocked record shows as `granted`, never `dispatchable`). The header *is* the counts — there is no separate summary paragraph.
-- **Red flags:** A record id in the header; a Critical/Risk-Value/Cleanup table rendering without a lens argument; a record missing from every funnel population, or counted in two of them (the six header stages alone do not sum to the open queue — parked, not-planned, and parents are annotation-line populations, not header columns); a decomposition parent counted in the `scored`, `shaped`, `granted`, or `dispatchable` stage; a per-step "running"/"passed" narration line (the narration allowance permits only one opening line plus failure/degradation lines).
+- **Red flags:** A record id in the header; a Critical/Risk-Value/Cleanup table rendering without a lens argument; a record missing from every funnel population, or counted in two of them (the six header stages alone do not sum to the open queue — parked, not-planned, and parents are annotation-line populations, not header columns); a decomposition parent counted in the `prioritized`, `specified`, `granted`, or `dispatchable` stage; a per-step "running"/"passed" narration line (the narration allowance permits only one opening line plus failure/degradation lines).
 
 ### 2. Read the annotation lines — trust, parked/not-planned, and parents
 - **Action:** Look immediately beneath the header. At most three lines can appear: a trust consequence line (only when some class verdict is `mixed`, e.g. `trust: clean, except human:human|low (mixed) → merges below stay PR-gated`), `parked N · not-planned M → /claude-tweaks:tidy owns these` (only when non-zero), and `parents N → close-out via /claude-tweaks:wrap-up's verification brief or /claude-tweaks:demo, not /claude-tweaks:specify` (only when non-zero).
 - **Should feel:** Silent when clean — no `trust: clean` line, nothing about parked or parents when there are none.
-- **Should understand:** The full trust table moved behind `/claude-tweaks:backlog overview trust` (uncapped, unchanged contract); `insufficient-evidence` cells render nothing in bare mode. `not-planned` counts open records carrying the `wontfix` label (`facets.notPlanned`). `parents` counts decomposition-parent records, which are never `ready` and are not agent-sized work — their close-out is the parent-gate path, never `/claude-tweaks:specify`.
-- **Red flags:** More than three annotation lines; a rendered trust table in bare mode; a consequence line for an `insufficient-evidence` cell.
+- **Should understand:** The full trust table moved behind `/claude-tweaks:backlog overview trust` (uncapped, unchanged contract); `insufficient-evidence` cells render nothing in bare mode. `not-planned` counts open records carrying the `wontfix` label (`facets.notPlanned`). `parents` counts decomposition-parent records, which are never `ready` and are not agent-sized work — their close-out is the parent-gate path, never `/claude-tweaks:specify`. Feeding this line, the trust fetch's sub-issue enumeration is batched (`bin/fetch-sub-issues.js`, probe-gated aliased GraphQL) and session-cached, so repeat invocations in a session skip it; a parent whose data can't be fetched fails the trust read loudly with no verdict rendered — an undercount is never silently graded (`_shared/trust-table.md`'s error ladder).
+- **Red flags:** More than three annotation lines; a rendered trust table in bare mode; a consequence line for an `insufficient-evidence` cell; a trust verdict rendered after the fetch reported a failed parent.
 
 ### 3. Drill into a lens — `/claude-tweaks:backlog overview trust` (or `critical` / `risk-value` / `cleanup`)
 - **Action:** Re-run with an explicit lens argument when a population needs detail.
