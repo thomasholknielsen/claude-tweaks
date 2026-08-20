@@ -1,0 +1,5 @@
+# Open Items — skill-authoring interaction style: option descriptions state consequences (#659)
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | wrap-up | suite — test suite exit 7 (residue sweep, `--scope blast-radius`) — `not ok 2556 - resolvePrStateAsync: does not block the event loop (real concurrency, not execFileSync in disguise)` in `tests/bin-lib/reconcile/pr-state.test.js`, a file this record's diff never touches. Independently re-run in isolation twice this session (once during /review's re-verification, once via residue.js's own suite run): `node --test tests/bin-lib/reconcile/pr-state.test.js` passes 7/7 both times. A timing-assertion test (`expected concurrent execution well under 3x150ms=450ms, took ~474ms`) is inherently sensitive to machine load from concurrent sibling sessions tonight — matches CLAUDE.md's documented "failure count varies run-to-run on byte-identical code tracks machine load" pattern. | deferred | Auto-routed to backlog (defer-reason: genuinely-larger) — staged/ledger-record-pr-state-timing.md, pending Review Console Queue-writes approval |

@@ -42,9 +42,17 @@ Row form, one per key, all values verbatim from the `--all` snapshot — the tra
 `{key}` — {value} ({source}) · default: {default} — {summary}
 ```
 
-**Null-default keys:** when a key's envelope carries `default: null`, render its default cell as `default: no default` — consumers read a `null` default as "this key has no default", not literal `null`. The derived-default keys (`integration-model`, `merge-verification`) keep their own special case below instead of this rule.
+**Null-default keys:** when a key's envelope carries `default: null`, render its default cell as `default: no default` — consumers read a `null` default as "this key has no default", not literal `null`. The derived-default keys keep their own special case below instead of this rule.
 
-**Derived-default keys special case:** when `integration-model` or `merge-verification` appears in this section (i.e. `source: policy`, someone set it explicitly), its default cell renders as computed rather than the schema's literal `default` — neither is a static value. `integration-model` renders `computed (forge detection)`, since the real default is `detectIntegrationModel()`'s forge-detection result (see `_shared/integration-model.md` for the resolution ladder). `merge-verification` renders `computed (derivation ladder)`, since the real default is `deriveMergeVerification()`'s result (see `_shared/policy-schema-coverage.md`'s `merge-verification` coverage block for the derivation ladder).
+**Derived-default keys special case:** when a key from `_shared/policy-schema.md`'s Derived-default keys list (Shape A or Shape B — that file's canonical membership, never re-enumerated here) appears in this section (i.e. `source: policy`, someone set it explicitly), its default cell renders as computed rather than the schema's literal `default` — neither shape's real default is a static value: Shape A carries no static default at all, and Shape B's static default is only the in-loop derivation's base, masked by the explicit set the same way.
+
+| Key (shape) | Default cell renders | Real default | Derivation prose |
+|---|---|---|---|
+| `integration-model` (A) | `computed (forge detection)` | `detectIntegrationModel()`'s forge-detection result | `_shared/integration-model.md`'s resolution ladder |
+| `merge-verification` (A) | `computed (derivation ladder)` | `deriveMergeVerification()`'s result | `_shared/policy-schema-coverage.md`'s `merge-verification` coverage block |
+| `housekeeping-auto-merge` (B) | `computed (derived from autonomy)` | `deriveHousekeepingAutoMerge()`'s result | `_shared/policy-schema.md`'s Shape B paragraph |
+
+A key added to either shape's list there is covered by this rule automatically — state only its own `computed (…)` wording when it's added, never a new hardcoded name check here.
 
 **Zero set keys:** when no levers diverge from defaults, render the single line `No levers diverge from defaults.`, then — since the levers that govern what the pipeline may do without a human are exactly what a fresh project's owner needs to see — render the core-tier levers still on `source: default`, grouped by `category`, each row `` `{key}` — {default} — {summary} `` (advanced-tier defaults stay section 4's business).
 
@@ -61,16 +69,18 @@ When ALL four lists are empty, render exactly one line: `Policy config issues: n
 
 ### 3. Notable defaults
 
-Core-tier keys still on `source: default` where an available probe signal (Gather, above) argues otherwise. Advanced-tier keys are never "notable" — this section is core-tier only. A key whose envelope carries `invalid: true` is excluded from candidacy here regardless of tier — it's section 2's business (the file holds a bad line for that key), not a notable default.
+Core-tier keys still on `source: default` where an available signal argues otherwise — one of Gather's three probes, or the snapshot-intrinsic source below. Advanced-tier keys are never "notable" — this section is core-tier only. A key whose envelope carries `invalid: true` is excluded from candidacy here regardless of tier — it's section 2's business (the file holds a bad line for that key), not a notable default.
 
 One line per finding: lever + proposed value + why. For example: an unset `integration-model` plus a GitHub remote → propose `pr-first`; `autonomy: supervised` plus standing `auto:*` grants → propose reviewing the ceiling; `project-maturity: greenfield` plus a populated pipelines directory → propose a later stage.
 
-Each finding line carries two distinct text sources, in this order: the "why" clause (what the probe observed — e.g. "a GitHub remote") comes from the probe signal itself; the lever's meaning text (what the key does) comes from the key's own `summary` field in the snapshot — never re-derived or paraphrased.
+**A fourth finding source — snapshot-intrinsic, so always available** (no probe, no `gh`, no network): any core-tier key that carries a non-null static `default` (Shape B only — Shape A's derived-default keys hold no static default at all, so their snapshot `default` is always `null`, already covered by the Null-default keys rule above and by probe 1) and is on `source: default`, whose snapshot `value` differs from that static `default`, is itself a finding — the Shape B derived-default signal (`_shared/policy-schema.md`). Propose the snapshot `value` (the already-derived answer, never re-derived here); the why clause names the basis the derivation reads, e.g. `housekeeping-auto-merge` unset with `value: true`/`default: false` → propose `true`, why: "derived from `autonomy: {resolved autonomy value}`". This never promotes the key into section 1 — `source` still decides section membership, unchanged by this finding.
+
+Each finding line carries two distinct text sources, in this order: the "why" clause (what the probe observed, or — for the snapshot-intrinsic source above — the derivation's own basis) comes from that signal itself; the lever's meaning text (what the key does) comes from the key's own `summary` field in the snapshot — never re-derived or paraphrased.
 
 Two zero-finding cases, each rendering its own line — never silently skipped:
 
-- At least one probe ran but none argued against a default → render `No notable defaults.`
-- Every probe was skipped (per Gather's skip-on-absence rules) → render `No notable defaults — no project signals available.`
+- At least one probe ran, and no source argued against a default → render `No notable defaults.`
+- Every probe was skipped (per Gather's skip-on-absence rules) and the snapshot-intrinsic source found no divergence → render `No notable defaults — no project signals available.`
 
 ### 4. Advanced tier
 

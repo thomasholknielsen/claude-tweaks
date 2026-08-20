@@ -1,4 +1,4 @@
-// bin/lib/model-profiles/tests/resolve.test.js
+// tests/bin-lib/model-profiles/resolve.test.js
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');

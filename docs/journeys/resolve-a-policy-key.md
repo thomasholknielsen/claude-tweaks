@@ -54,6 +54,7 @@ files:
 
 ## Origin
 - Created during build of #329 (policy resolver CLI); step 3 and the alias red-flag in step 2 updated during build of #332 (policy-key naming convention + rename program — `review-severity-floor` → `review-auto-apply-ceiling`, seven identity aliases); step 5 added during build of #602, when the hook's own read path (`isWorktreeAlwaysOn`/`rawValue` in `plugin/bin/lib/policy.js`) became alias-aware
+- No step change during build of #194 (Phase 2 doc-convention wiring) — five new keys (`doc-convention-{tutorial,how-to,reference,explanation,journey}`) were registered following `doc-convention-adr`'s exact existing shape, so step 4's `--all` snapshot already covers them with no new mechanism to demonstrate
 - Corrected during build of #682 — step 5's `rawValue` helper was replaced by `resolveWorktreeAlways` (exposing `{on, matchedKey}`, consumed by both the PreToolUse gate and `session-start.js`'s new unconditional verdict banner, IL-133); step 5 updated to name the current function.
 - Path-swept during build of #418 — the payload moved into `plugin/`, so every step's command and every code citation gained the `plugin/` prefix. No step's behavior, expectation, or red flag changed.
 - Related specs: #328 (parent — policy read-path family), #602 (`worktree.always` → `worktree-always`, hook read path), #334 (run-config direct reads onto `--run`), #682 (`resolveWorktreeAlways` + session-start verdict banner)

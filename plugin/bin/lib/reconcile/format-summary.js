@@ -144,14 +144,16 @@ function formatItemSkippedLine(result) {
 }
 
 // One line per top-level `result.skipped` entry (index.js's shape:
-// `{check, reason}` or `{check, reason, count}`) — see the header comment
-// for why these render individually rather than folding into the per-item
-// aggregate above.
+// `{check, reason}`, `{check, reason, count}`, or `{check, reason, names}` —
+// #848's non-canonical-run-dir entry, the one shape here that names concrete
+// directories rather than a count) — see the header comment for why these
+// render individually rather than folding into the per-item aggregate above.
 function formatCheckSkipLines(result) {
   if (!Array.isArray(result.skipped)) return [];
   return result.skipped.map((e) => {
     const countSuffix = e.count > 1 ? ` x${e.count}` : '';
-    return `skipped: ${e.check} — ${e.reason}${countSuffix}`;
+    const namesSuffix = Array.isArray(e.names) && e.names.length ? `: ${e.names.join(', ')}` : '';
+    return `skipped: ${e.check} — ${e.reason}${countSuffix}${namesSuffix}`;
   });
 }
 

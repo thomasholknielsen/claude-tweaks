@@ -2,9 +2,25 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { probeWorktrees, extractPid } = require('../../../plugin/bin/lib/residue/probes/worktrees');
 const { probeBranches } = require('../../../plugin/bin/lib/residue/probes/branches');
+const { filterResultsByScope } = require('../../../plugin/bin/lib/residue/scope-filter');
 
 function stubRunner(responses) {
   return (args) => (Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null);
+}
+
+// Same as stubRunner, but also records every call's args (and any execFileSync
+// options passed alongside them) so a test can assert ordering (the prune
+// must run before the `--merged` read) and per-call options (e.g. `timeout`).
+function recordingRunner(responses) {
+  const calls = [];
+  const runner = (args, opts) => {
+    calls.push(args.join(' '));
+    runner.optsByCall.push(opts);
+    return Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null;
+  };
+  runner.calls = calls;
+  runner.optsByCall = [];
+  return runner;
 }
 
 const SCOPE = {
@@ -158,6 +174,107 @@ test('the integration branch itself is never a finding, even when passed bare', 
   });
   const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'main', run });
   assert.ok(!findings.some((f) => f.subject === 'origin/main'), 'deleting the integration branch would be catastrophic');
+});
+
+// #499: probeBranches tagged every merged-but-undeleted remote branch except
+// scope.headBranch as scope:'blast-radius' unconditionally, with no way to
+// tell "this run's own worktree branch" apart from an unrelated, separately-
+// completed session's merged branch. `probeWorktrees` already draws this
+// contrast correctly (a fallthrough worktree is 'observed', never
+// 'blast-radius') — this probe had no equivalent contrast. Mirrors that
+// fix: a merged branch not matching scope.headBranch is 'observed'.
+test('a merged branch belonging to an unrelated run is observed, not blast-radius', () => {
+  const run = stubRunner({ 'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old' });
+  const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  const stale = findings.find((f) => f.subject === 'origin/worktree-old');
+  assert.strictEqual(stale.scope, 'observed', 'a branch this run did not produce is observed, never blast-radius, mirroring probeWorktrees');
+});
+
+// AC: a repo state with 2+ merged-but-undeleted branches belonging to
+// unrelated runs, and 0 belonging to the invoking run, produces zero
+// blast-radius-scoped branch findings under --scope blast-radius.
+test('multiple merged branches from unrelated runs produce zero blast-radius findings', () => {
+  const run = stubRunner({
+    'branch -r --format=%(refname:short) --merged origin/main':
+      'origin/main\norigin/worktree-flow-464\norigin/worktree-record-174',
+  });
+  const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.strictEqual(findings.length, 2, 'both unrelated merged branches are still reported');
+  assert.ok(findings.every((f) => f.scope !== 'blast-radius'), 'none of them qualify as this run\'s own blast radius');
+  assert.deepStrictEqual(
+    filterResultsByScope([{ ran: true, reason: null, findings }], 'blast-radius')[0].findings,
+    [],
+    '--scope blast-radius drops every finding once none carry scope:blast-radius',
+  );
+});
+
+// #663: `probeBranches` used to read `--merged` against whatever stale
+// `refs/remotes/origin/*` entries the local checkout already had, with no
+// fetch/prune first. A branch merged and already deleted upstream (auto-
+// deleted on merge, or cleaned up by a sibling tidy pass) still showed up as
+// "merged, not deleted" — a fix-now attempt against it then 422s.
+test('a prune runs before the merged-branch read, and a since-pruned branch produces no finding', () => {
+  const run = recordingRunner({
+    'remote prune origin': 'Pruning origin\n * [pruned] origin/worktree-old',
+    // Reflects what git itself returns AFTER a real prune removed the stale
+    // tracking ref — the branch this run is regression-testing is simply
+    // absent from the merged list once pruned.
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
+  });
+  const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.deepStrictEqual(findings, [], 'the stale ref was pruned before the merged read, so it never appears');
+  assert.deepStrictEqual(run.calls, [
+    'remote prune origin',
+    'branch -r --format=%(refname:short) --merged origin/main',
+  ], 'prune must run before the merged-branch read, on the same injected run seam');
+});
+
+// #663 follow-up (review finding): the prune call is the first command on
+// this probe's run seam to contact a remote at all, so it needs an explicit
+// timeout — an unbounded `execFileSync` could hang the whole probe on a
+// slow/black-holed remote. The local-only merged-branch read has no such
+// risk and must stay unbounded.
+test('the prune call carries an explicit timeout; the local merged-branch read does not', () => {
+  const run = recordingRunner({
+    'remote prune origin': '',
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
+  });
+  probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.deepStrictEqual(run.calls, [
+    'remote prune origin',
+    'branch -r --format=%(refname:short) --merged origin/main',
+  ]);
+  assert.strictEqual(run.optsByCall[0] && run.optsByCall[0].timeout, 15000, 'prune call must pass an explicit timeout');
+  assert.strictEqual(run.optsByCall[1], undefined, 'the local-only merged-branch read must not carry a timeout option');
+});
+
+test('a prune failure degrades to the unpruned read rather than aborting the probe', () => {
+  // No 'remote prune origin' entry in the map -> stubRunner returns null,
+  // simulating a network failure / offline prune.
+  const run = stubRunner({
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
+  });
+  const { ran, findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.strictEqual(ran, true, 'a prune failure degrades, it does not abort the probe');
+  const stale = findings.find((f) => f.subject === 'origin/worktree-old');
+  assert.ok(stale, 'still returns the finding it would have returned unpruned');
+  assert.match(stale.evidence, /unpruned-read/, 'tagged so a consumer (fix-now) knows deletion may 422');
+});
+
+test('the degrade tag lives in evidence only — it never mints a duplicate finding id', () => {
+  const prunedRun = stubRunner({
+    'remote prune origin': '',
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
+  });
+  const degradedRun = stubRunner({
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
+  });
+  const pruned = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run: prunedRun });
+  const degraded = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run: degradedRun });
+  const prunedFinding = pruned.findings.find((f) => f.subject === 'origin/worktree-old');
+  const degradedFinding = degraded.findings.find((f) => f.subject === 'origin/worktree-old');
+  assert.strictEqual(prunedFinding.id, degradedFinding.id, 'same finding whether pruned or degraded — id excludes evidence');
+  assert.notStrictEqual(prunedFinding.evidence, degradedFinding.evidence, 'evidence text differs to carry the degrade tag');
 });
 
 // #225: a locked worktree's evidence must distinguish a live session from an

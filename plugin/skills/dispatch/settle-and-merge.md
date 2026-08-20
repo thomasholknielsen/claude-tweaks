@@ -6,6 +6,15 @@ Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the
 
 **MCP path, file-wide.** Every label read/edit and comment operation in this file that isn't called out individually below (e.g. the `gh issue view --json labels` / `gh issue edit --remove-label` pair in Settle step 3, and the failure-comment post in step 5) uses the standard CRUD mapping from `_shared/github-write-transport.md`: `issue_write` (update mode) for label edits, `add_issue_comment` for comments, `issue_read` for reads. The one call site with special MCP-path handling — the retry-ceiling comment fetch (step 4 below) — already has its own dedicated note.
 
+This blanket mapping also covers the `gh` calls the Auto-merge gate's acceptance-labeling step
+delegates to per member (`wrap-up/verification-brief.md`'s Routing section onward, and its
+Parent-Gate Procedure in `wrap-up/verification-brief-parent-gate.md`) — `#205`: neither of those
+files states its own MCP path, and every `gh` call either one issues (`gh issue view --json
+labels`/`--json comments`, `gh issue comment`, `gh issue edit --add-label`) is one of the three
+standard shapes this paragraph already names — `issue_read`, `add_issue_comment`, `issue_write`.
+No separate mapping table entry is needed for them; a gh-absent group auto-merge gate resolves
+the same way the rest of this file does.
+
 ## Step 6: Settle — on pipeline failure
 
 A group is dispatched as **two** sequential Task calls (Step 5). This procedure runs inside whichever of them handles the outcome being settled — the first call (`build,test`) when that call hits a HARD-GATE, the second (`review,polish,wrap-up`) on any path that reaches wrap-up — against that call's own record(s), never in dispatch's main thread.
@@ -19,8 +28,8 @@ claimed by this run at all, so step 1 below's ownership check will correctly fin
 release (skip is the right outcome there, not an error). The one thing this case adds: **when
 `DISPATCH_HEADLESS=1` was set on this Task call's invocation** (`dispatch/task-prompt.md`'s first
 template — set only for a `next`-form firing, where nobody is present to read the contest stop
-directly), read `headless-self-report.md` in this skill's directory and follow its dedup-and-file
-procedure, using failing-check-name `flow-step-2.8-claim-contest` and the contest stop message as
+directly), read `_shared/headless-self-report.md` and follow its dedup-and-file
+procedure (caller = `dispatch`), using failing-check-name `flow-step-2.8-claim-contest` and the contest stop message as
 the diagnostic body. This is the one Settle branch that runs *before* any release/classification
 logic, since there is nothing to release or classify — it is a pre-flight stop, not a build/test
 failure. When `DISPATCH_HEADLESS` is unset (a human-present dispatch form), skip this — the
