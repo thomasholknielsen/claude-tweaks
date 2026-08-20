@@ -63,6 +63,8 @@ The engine's real output shape is plainer than the per-section shapes below: `re
 |---|---|---|---|
 | 13 | doc | docs/api.md | Document new /auth/refresh endpoint |
 
+A `[{genre}-convention]` row (see the Configuration updates section below for its full render shape) also renders inside this section on a D2 `conflict` outcome for one of the four core Diátaxis genres — e.g. `#13a  how-to-convention  docs/guides/  — this repo's how-to guides disagree with the plugin's convention`, keyed against that genre's own `doc-convention-{genre}` policy key. It blocks every `[doc]` row for that same genre from the same run until answered.
+
 #### Journey updates (from the Journeys curation row)
 
 | # | Type | Target | Change |
@@ -75,7 +77,7 @@ The engine's real output shape is plainer than the per-section shapes below: `re
 |---|---|---|---|
 | 15 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
-An `[adr-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below. Render it as:
+A `[{genre}-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — this is the general row shape `_shared/existing-convention-detection.md` collects for **any** genre whose Detection is `active` (`_shared/diataxis-genre-templates.md`), not an ADR-specific one; `[adr-convention]` below is the canonical worked instance. A `[journey-convention]` row also renders here on a `conflict` `/claude-tweaks:journeys` Step 2 staged during this run (`journeys/SKILL.md`'s Step 2 auto-mode branch) — journeys is not part of `/claude-tweaks:wrap-up`'s curation engine, so this is the one row type in this section sourced from a different skill's staged file rather than a curation row's own scan; it resolves identically once it reaches here. Render it as:
 
 ```
 #16  adr-convention  docs/decisions/  — this repo's decision records disagree with the plugin's convention
@@ -89,7 +91,7 @@ An `[adr-convention]` row renders inside this section but carries its own three-
      3  Keep project form — resolve from this repo             -> doc-convention-adr: project
 ```
 
-Omit the `project skill` line when detection found none. "Approve all" leaves this row unanswered and blocks every `[adr]` row from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
+A Diátaxis-genre instance (Tutorial/How-To/Reference/Explanation, surfaced in Documentation updates above rather than here) renders identically, substituting the genre name and its own `doc-convention-{genre}` key — e.g. `how-to-convention  docs/guides/  — this repo's how-to guides disagree with the plugin's convention`, with the same three numbered options against `doc-convention-how-to`. Omit the `project skill` line when detection found none. "Approve all" leaves any `[{genre}-convention]` row unanswered and blocks every `[doc]`/`[adr]` row for that same genre from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
 
 #### Reference repairs (from the Broken references curation row)
 
