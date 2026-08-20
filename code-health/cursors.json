@@ -58,5 +58,9 @@
   "evals": {
     "lastSweptMs": 1787195280128,
     "lastHash": "fba75af5cab0942df992a97ae1b4774e78961f88"
+  },
+  "evals/assertions": {
+    "lastSweptMs": 1787195540471,
+    "lastHash": "2d570d4ccd8fe15f9c797ff0b2b2d592517d063c"
   }
 }
