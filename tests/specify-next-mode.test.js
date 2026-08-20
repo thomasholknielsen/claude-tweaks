@@ -106,7 +106,12 @@ test('next-mode.md states the solution-baked handling: needs:definition, comment
   assert.ok(NEXT_MODE_FLAT.includes('needs:definition'), 'needs:definition stamp missing from solution-baked handling');
   assert.ok(NEXT_MODE_FLAT.includes('/claude-tweaks:specify #{n}'), 'paste-ready interactive-route command missing');
   assert.ok(NEXT_MODE_FLAT.includes('routed: needs:definition #{n}'), 'routing release reason string missing');
-  assert.ok(NEXT_MODE_FLAT.includes('do **not** file a Failure self-report') || NEXT_MODE_FLAT.includes('do not file a Failure self-report') || NEXT_MODE_FLAT.includes('do not\n     file a Failure self-report') || NEXT_MODE_FLAT.includes('End the firing as a success'), 'success-exit framing for the routed path missing');
+  // Both halves of the framing are required together (AC 1: "release, log
+  // the decision, and end the firing as a success"): the routed path must
+  // both declare success AND explicitly disclaim a Failure self-report —
+  // either alone is a weaker assertion than the AC.
+  assert.ok(NEXT_MODE_FLAT.includes('End the firing as a success'), 'success-exit declaration for the routed path missing');
+  assert.ok(NEXT_MODE_FLAT.includes('do **not** file a Failure self-report'), 'explicit not-a-failure disclaimer for the routed path missing');
 });
 
 test('shaping-mode.md stamps ready + shaped:headless atomically in one compose-then-write-once call for next-mode entries', () => {
@@ -141,10 +146,15 @@ test('next-mode.md eligibility predicate still excludes needs:definition and par
   assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must still exclude needs:definition and parked — this is #967\'s own loop-guard invariant, re-asserted here since #968\'s guard depends on it staying true');
 });
 
-test('_shared/work-record.md declares shaped:headless exactly once, with writer and readers named', () => {
+test('_shared/work-record.md declares shaped:headless in its taxonomy and permission matrix, with writer and readers named', () => {
   const WORK_RECORD_FLAT = readFlat('plugin/skills/_shared/work-record.md');
   const occurrences = (WORK_RECORD_FLAT.match(/shaped:headless/g) || []).length;
-  assert.ok(occurrences >= 1, 'shaped:headless must be declared in work-record.md');
+  // Two occurrences by design: the taxonomy row's declaration and the
+  // permission-matrix row's Adds column both name the label — this is the
+  // established pattern every label family in this file follows (see e.g.
+  // `demo:pending`), not duplication to collapse. A count outside [1, 3]
+  // signals either a missing declaration or an unexpected third restatement.
+  assert.ok(occurrences >= 1 && occurrences <= 3, `shaped:headless must be declared in work-record.md's taxonomy and permission matrix, found ${occurrences} occurrence(s)`);
   assert.ok(WORK_RECORD_FLAT.includes('Writer: `/specify` `next` mode only'), 'writer must be named');
   assert.ok(WORK_RECORD_FLAT.includes('grant gate'), 'grant-gate reader must be named');
   assert.ok(WORK_RECORD_FLAT.includes('/backlog attention'), '/backlog attention reader must be named');

@@ -283,7 +283,10 @@ unparseable output to either verdict.
      success: the loop-guard invariant — the `needs:definition` label
      itself — is intact, so the record is already out of `next`'s
      eligibility and no reprocessing loop is possible. Continue with steps
-     3-5 and end the firing as a success, just without the comment. Do not
+     3-5 and end the firing as a success, just without the comment — but
+     note the comment-post failure itself in step 4's decision log below, so
+     a human reading the audit trail later knows the record was routed
+     silently, without the explanatory comment reaching the issue. Do not
      conflate this with step 1's stamp-failure case above: only a failed
      *stamp* turns this path into a shaping-stage failure.
   3. Release the claim with reason `routed: needs:definition #{n}` (see

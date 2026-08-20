@@ -200,7 +200,7 @@ Immediately after each record's write lands — the `gh issue edit`/`writeRecord
 - **`work-backend: local-files`:** `readRecord(path)` (`bin/lib/issues/local-store.js`), re-reading from disk.
 
 Assert, against the re-fetched result:
-- `ready` is present, plus every scoring label this record's stamp step (above) added or already carried (`risk:*`, `size:*`, `ceremony:*`, Type).
+- `ready` is present, plus every scoring label this record's stamp step (above) added or already carried (`risk:*`, `size:*`, `ceremony:*`, Type). When this pass was entered via the `next` form's headless posture, `shaped:headless` is present too — the atomicity guarantee above is only as good as this check catching a partial write of the two-flag call.
 - The five spec-shaped sections (`## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, `## Gotchas`) plus `## Original request` are all present in the re-fetched body.
 - No unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) survived into the written body (these exact literals — assertion targets, not composed-body mentions — see the placeholder-token rule above).
 - `parked` is absent from the re-fetched labels — the stamp step above always removes it on promotion.
