@@ -106,12 +106,9 @@ first. That ordering is the output; it is what makes a partial run useful when o
 
 ### Logging a drop
 
-Every drop writes one line to the run's `decisions.md`, in the entry schema
-`skills/_shared/auto-decision-log.md` defines:
-
-```
-- {STATUS} {HH:MM:SS} — {step or location}: {short action}. {detail line if needed}. Reversibility: {high|med|low}{; commit ref or stage path}.
-```
+Every drop writes one line to the run's `decisions.md`, in the Entry schema
+`skills/_shared/auto-decision-log.md`'s "## Entry schema" section defines — cited here, not
+restated.
 
 Concretely, under a `## /research` heading:
 
