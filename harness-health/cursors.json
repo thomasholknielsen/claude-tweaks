@@ -70,5 +70,9 @@
   "skill:work-record-facet-rename": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1787255227564
+  },
+  "skill:reconcile-check-contract": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1787259416121
   }
 }
