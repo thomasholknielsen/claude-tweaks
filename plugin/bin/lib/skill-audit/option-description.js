@@ -25,12 +25,9 @@ const path = require('node:path');
 const DESCRIPTION_FIELD = /`description`:\s*`"((?:[^"\\]|\\.)*)"`/g;
 
 function extractDescriptionFields(markdown) {
-  const lines = markdown.split('\n');
   const out = [];
-  lines.forEach((line, idx) => {
-    DESCRIPTION_FIELD.lastIndex = 0;
-    let m;
-    while ((m = DESCRIPTION_FIELD.exec(line)) !== null) {
+  markdown.split('\n').forEach((line, idx) => {
+    for (const m of line.matchAll(DESCRIPTION_FIELD)) {
       out.push({ line: idx + 1, text: m[1] });
     }
   });
