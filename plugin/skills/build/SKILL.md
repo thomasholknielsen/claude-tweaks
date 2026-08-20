@@ -234,6 +234,8 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 
 If the simplifier makes changes, commit them separately.
 
+**If the `/claude-tweaks:simplify` dispatch itself fails transiently** (not a simplification finding — the dispatch call erroring out), see `failure-recovery.md`'s **Anything else** row: verify actual state (`git diff`, `git log`) before redoing, then retry rather than improvising.
+
 ### Common Step 4: Handle Blocked Work
 
 If any part of the plan is blocked (missing infrastructure, unresolved dependencies, pending external work):
