@@ -48,3 +48,28 @@ test('writeStagedItem: no extension on source writes id with no extension; overw
   assert.equal(r.file, path.join(runDir, 'staged', 'leftover-my-slug'));
   assert.equal(fs.readFileSync(r.file, 'utf8'), 'second\n');
 });
+
+// With `mainRoot: null` passed *explicitly* (not `undefined`), `resolveTarget`'s
+// `if (mainRoot)` guard is falsy, so the `rootReal !== gitRoot` domain comparison
+// never runs — the `.git`-is-a-FILE check on its own is the only thing standing
+// between a linked-worktree (or submodule) run dir and a false `ok: true`.
+test('resolveTarget: with mainRoot explicitly null, the .git-is-a-FILE check alone gates a linked worktree', () => {
+  const wtRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'si-nullroot-wt-'));
+  const wt = path.join(wtRoot, '.claude', 'worktrees', 'wt');
+  const wtRun = path.join(wt, '.claude-tweaks', 'pipelines', 'run-a');
+  fs.mkdirSync(wtRun, { recursive: true });
+  fs.writeFileSync(path.join(wt, '.git'), 'gitdir: ../../../.git/worktrees/wt\n');
+  assert.deepEqual(resolveTarget({ runDir: wtRun, mainRoot: null }), { ok: false, reason: 'not-anchored' });
+
+  const mainRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'si-nullroot-main-'));
+  const main2 = path.join(mainRoot2, 'main');
+  const mainRun = path.join(main2, '.claude-tweaks', 'pipelines', 'run-b');
+  fs.mkdirSync(mainRun, { recursive: true });
+  fs.mkdirSync(path.join(main2, '.git'));
+  assert.equal(resolveTarget({ runDir: mainRun, mainRoot: null }).ok, true);
+
+  const orphanRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'si-nullroot-orphan-'));
+  const orphanRun2 = path.join(orphanRoot2, 'run-c');
+  fs.mkdirSync(orphanRun2, { recursive: true });
+  assert.deepEqual(resolveTarget({ runDir: orphanRun2, mainRoot: null }), { ok: false, reason: 'not-anchored' });
+});
