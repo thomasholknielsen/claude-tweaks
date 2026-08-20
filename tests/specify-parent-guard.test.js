@@ -74,3 +74,8 @@ test('shaping-mode.md territory line carries the parent-guard removal carve-out'
   assert.ok(src.includes('as the one removal carve-out'), 'territory-line carve-out clause missing from shaping-mode.md');
   assert.ok(src.includes('record bearing the parent marker'), 'parent-marker scoping missing from shaping-mode.md carve-out');
 });
+
+test('next-mode.md names the shaping-time guard as the backstop for unlabeled legacy parents', () => {
+  const src = readFlat('plugin/skills/specify/next-mode.md');
+  assert.ok(src.includes('shaping-time backstop'), 'backstop sentence missing from next-mode.md');
+});

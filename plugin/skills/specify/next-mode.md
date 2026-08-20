@@ -79,8 +79,13 @@ check happens at the Claim step below. `ready` and `parent-issue` are
 excluded because they are not this skill's job at all — a `ready` record
 is already shaped (nothing left for `next` to do), and a `parent-issue` is
 a decomposition summary, never itself a shaping target
-(`_shared/work-record.md`'s Structure family). The other two exclusions
-are content judgments, not mechanical ones, and each rules out headless
+(`_shared/work-record.md`'s Structure family). That exclusion is
+label-only and selection-time; an unlabeled legacy parent (a
+`## Leaves`-table body with no `parent-issue` label) passes it —
+`SKILL.md` case 1's parent-record guard is the shaping-time backstop that
+still refuses it here, headlessly, without repair. The other two
+exclusions are content judgments, not mechanical ones, and each rules out
+headless
 shaping for a different reason: **`needs:definition`** marks "a genuine
 open choice with no tradeoff made yet, rather than a single clear ask"
 (`_shared/work-record.md`'s Definition family) — an undecided record
