@@ -64,7 +64,14 @@ test('session-evaluation.md documents its four consumer parameters (rubric, temp
 
 test('session-evaluation.md still documents the filedRecords/dismissedFingerprints watermark payload', () => {
   assert.match(SESSION_EVAL, /filedRecords,\s*\/\/ the record numbers this run actually filed/);
-  assert.match(SESSION_EVAL, /dismissedFingerprints,\s*\/\/ fingerprints of findings the human declined/);
+  assert.match(
+    SESSION_EVAL,
+    /dismissedFingerprints,\s*\/\/ bin\/lib\/declined-learning\/store\.js's\s*\/\/ listDeclinedFingerprints\(\{ source: 'feedback' \}\)/,
+  );
+  assert.match(
+    SESSION_EVAL,
+    /Filtered to source: 'feedback' so a reflect-sourced\s*\/\/ decline never suppresses a feedback finding/,
+  );
 });
 
 // --- 3. SKILL.md: --full at all three sites (table row, argument-hint frontmatter, $ARGUMENTS intro line) ---
