@@ -31,12 +31,14 @@ approximate it (#689).
 
 **Pattern:** `{skill}-spec-{N1}-{N2}…` for a multi-spec run (see `flow/multi-spec.md`'s "Shared
 worktree" section for how `{N1}…` is assembled), or the record's own slug for a single-record
-run. Either source can carry characters `EnterWorktree` rejects — a `/`-separated branch-name
-convention, an ad hoc `+` join, spaces, a `#` from an issue reference — so **sanitize whichever
-slug is derived, every time, before it reaches `EnterWorktree`.** Use
-`bin/lib/worktree/name.js`'s `sanitizeWorktreeName()`: it maps every character outside
-`[A-Za-z0-9._-]` to `-`, collapses runs of `-` to one, and caps the result at 64 chars — the same
-rule stated above, as one canonical, unit-tested implementation rather than three independently
+run. Either source can carry characters within a segment that `EnterWorktree` rejects — an ad
+hoc `+` join, spaces, a `#` from an issue reference — so **sanitize whichever slug is derived,
+every time, before it reaches `EnterWorktree`.** A `/`-separated branch-name convention (e.g.
+`flow/spec-{N1}-{N2}`) is fine as-is: `/` is the valid segment delimiter, not a character to
+strip (#814). Use `bin/lib/worktree/name.js`'s `sanitizeWorktreeName()`: within each
+`/`-segment it maps every character outside `[A-Za-z0-9._-]` to `-`, collapses runs of `-` to
+one, preserves `/` as the segment delimiter, and caps the result at 64 chars — the same rule
+stated above, as one canonical, unit-tested implementation rather than three independently
 re-derived regexes.
 
 ## Procedure
