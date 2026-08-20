@@ -27,6 +27,13 @@
 // here, on screen or confirm: #664 deliberately scoped the destructive
 // tie-break to prune-remote — archive's deletes are local-only and
 // recoverable from origin.
+//
+// A screen failure forfeits the WHOLE pass, the archive-tag aging sweep
+// included — deliberate (#1083 review): it matches the family's check-level
+// fail-closed posture, tag aging has a TAG_AGE_DAYS-wide window so one
+// forfeited pass costs nothing, and running the sweep inside a check the
+// orchestrator reports as skipped would mean actions with no reported
+// entries.
 'use strict';
 
 const { runGit } = require('../hooks/git-exec');
@@ -132,10 +139,7 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr, resolvePrBu
 
   // Collect in-scope branches (with their committerDate/tip) first — the
   // screen is one bulk call (#1083, adopting #1082's screen-then-confirm).
-  // NO preferOpen here, on screen or confirm: #664 deliberately scoped the
-  // destructive tie-break to prune-remote (see pickGoverningPr's census
-  // comment) — archive's deletes are local-only and recoverable from origin,
-  // and this restructure changes evidence acquisition only.
+  // No preferOpen, screen or confirm — deliberate; see the module header (#664 census).
   const candidates = [];
   for (const line of refs.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
     const [branch, committerDate, tip] = line.split('\t');
@@ -158,9 +162,16 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr, resolvePrBu
     // even when cherry-equivalent' test), so cherryEquivalent: true here is a
     // documented sentinel that never reaches the cherry-driven branches.
     if (screenPr && screenPr.state === 'OPEN') {
+      // Provisional verdict on screen evidence, through the UNCHANGED decision
+      // table — same shape as prune-remote's screen fast path. Falling through
+      // (provisional.action !== 'skip') is never expected for an OPEN-screened
+      // branch (decideArchive checks OPEN before cherryEquivalent), but is
+      // deliberately NOT a silent skip: it drops to the normal cherry path below.
       const provisional = decideArchive({ branch, tipAgeDays, cherryEquivalent: true, prState: screenPr });
-      entries.push({ name: branch, kind: 'branch', action: 'skip', reason: provisional.reason });
-      continue;
+      if (provisional.action === 'skip') {
+        entries.push({ name: branch, kind: 'branch', action: provisional.action, reason: provisional.reason });
+        continue;
+      }
     }
 
     const cherryEquivalent = isCherryEquivalent(root, integration, branch);

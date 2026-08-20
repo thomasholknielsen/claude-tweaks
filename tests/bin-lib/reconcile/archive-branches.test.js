@@ -320,11 +320,27 @@ test('screen: all-skip pass makes zero per-branch resolver calls, one bulk call,
   git(dir, 'checkout', 'main');
   git(dir, 'cherry-pick', 'build/eq');
 
+  // A second in-scope branch, screened null (the deleted-ref blind spot),
+  // young (~2 days) and NOT cherry-equivalent to main — its provisional
+  // verdict is 'skip' (too-young) off decideArchive's age check alone, via
+  // the normal per-branch cherry path (a git-only op), never a gh call.
+  // Pins that a provisional-skip branch makes no per-branch gh call
+  // regardless of which fast path (OPEN screen vs. too-young age) produced it.
+  const recent = new Date(Date.now() - 2 * DAY).toISOString();
+  git(dir, 'checkout', '-b', 'build/young2');
+  fs.writeFileSync(path.join(dir, 'y2.txt'), 'y2\n');
+  git(dir, 'add', 'y2.txt');
+  execFileSync('git', ['commit', '-m', 'young2'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: recent, GIT_AUTHOR_DATE: recent },
+  });
+  git(dir, 'checkout', 'main');
+
   let bulkCalls = 0; let confirmCalls = 0;
   const resolvePrBulk = (root, branches) => {
     bulkCalls += 1;
-    assert.deepEqual(branches, ['build/eq']);
-    return new Map([['build/eq', OPEN_PR_1083]]);
+    assert.deepEqual([...branches].sort(), ['build/eq', 'build/young2']); // order-insensitive: both arrive in the one call
+    return new Map([['build/eq', OPEN_PR_1083], ['build/young2', null]]);
   };
   const resolvePr = () => { confirmCalls += 1; return null; };
   const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk });
@@ -333,6 +349,8 @@ test('screen: all-skip pass makes zero per-branch resolver calls, one bulk call,
   const entry = r.entries.find((e) => e.name === 'build/eq');
   assert.deepEqual(entry, { name: 'build/eq', kind: 'branch', action: 'skip', reason: 'pr-open' });
   assert.match(git(dir, 'branch', '--list', 'build/eq'), /build\/eq/); // still exists locally
+  const entry2 = r.entries.find((e) => e.name === 'build/young2');
+  assert.deepEqual(entry2, { name: 'build/young2', kind: 'branch', action: 'skip', reason: 'too-young' });
 });
 
 test('screen-delete candidate confirms per-branch; confirm OPEN -> skip pr-open, branch survives', () => {
@@ -373,6 +391,25 @@ test('screen-delete candidate: confirm MERGED-without-cherry never applies (cher
   assert.deepEqual(entry, { name: 'build/eq3', kind: 'branch', action: 'delete', reason: 'cherry-equivalent' });
   assert.strictEqual(git(dir, 'branch', '--list', 'build/eq3').trim(), ''); // deleted
   assert.strictEqual(git(dir, 'tag', '--list', 'archive/build%2feq3').trim(), ''); // delete path, not tag-and-delete: no tag
+
+  // MERGED-without-cherry-never-applies half: confirm returns MERGED (not
+  // null) for a cherry-equivalent candidate — cherry true still governs
+  // (decideArchive checks cherryEquivalent before the nothingLanded branch),
+  // so the outcome is identical to the null-confirm case above: delete.
+  git(dir, 'checkout', '-b', 'build/eq3b');
+  fs.writeFileSync(path.join(dir, 'b3b.txt'), 'b3b\n');
+  git(dir, 'add', 'b3b.txt');
+  git(dir, 'commit', '-m', 'change3b');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/eq3b');
+
+  const resolvePrBulkMerged = () => new Map([['build/eq3b', null]]);
+  const resolvePrMerged = () => MERGED_PR_1083;
+  const r2 = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: resolvePrMerged, resolvePrBulk: resolvePrBulkMerged });
+  const entry2 = r2.entries.find((e) => e.name === 'build/eq3b');
+  assert.deepEqual(entry2, { name: 'build/eq3b', kind: 'branch', action: 'delete', reason: 'cherry-equivalent' });
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/eq3b').trim(), ''); // deleted
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/build%2feq3b').trim(), ''); // delete path, not tag-and-delete: no tag
 });
 
 test('aged tag-and-delete candidate: confirm MERGED downgrades to merged-pr-without-cherry-equivalence skip', () => {
@@ -451,6 +488,13 @@ test('per-candidate confirm failure skips that branch (gh-absent/network-failure
   assert.strictEqual(r.failure, null);
   const entry = r.entries.find((e) => e.name === 'build/eq4');
   assert.deepEqual(entry, { name: 'build/eq4', kind: 'branch', action: 'skip', reason: 'network-failure' });
+});
+
+test('archiveBranches source order: OPEN-screened fast path precedes isCherryEquivalent in the branch loop', () => {
+  const src = fs.readFileSync(require.resolve('../../../plugin/bin/lib/reconcile/archive-branches'), 'utf8');
+  const openIdx = src.indexOf("screenPr.state === 'OPEN'");
+  const cherryIdx = src.indexOf('isCherryEquivalent(root', openIdx);
+  assert.ok(openIdx > -1 && cherryIdx > openIdx, 'OPEN screen check must come before the cherry call so OPEN branches skip cherry');
 });
 
 // AC6: index wiring
