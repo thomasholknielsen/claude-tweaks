@@ -5,6 +5,7 @@ files:
   - plugin/skills/feedback/session-evaluation.md
   - plugin/skills/wrap-up/review-console.md
   - plugin/skills/wrap-up/upstream-feedback.md
+  - plugin/bin/lib/declined-learning/store.js
 ---
 
 # File Upstream Feedback in Batch
@@ -34,14 +35,14 @@ files:
 - **URL:** same session
 - **Action:** Leave one candidate's box unchecked, and reply in the next message naming a different candidate by title with a requested change instead of checking or unchecking it.
 - **Should feel:** Safe to be selective — nothing gets filed by default, and correcting a draft doesn't mean starting the whole batch over.
-- **Should understand:** The unchecked candidate's local `upstream-candidate` issue gets a comment — "Declined via /claude-tweaks:feedback batch review, {date}" — and stays open for a future run; nothing is silently dropped. The named-edit candidate re-drafts and re-renders for a fresh confirmation.
-- **Red flags:** A declined candidate's local issue closing or losing its label; an edit request being ignored or silently applied without a fresh confirmation.
+- **Should understand:** The unchecked candidate's local `upstream-candidate` issue gets a comment — "Declined via /claude-tweaks:feedback batch review, {date}" — and stays open for a future run; nothing is silently dropped. In addition, the candidate's fingerprint (`bin/lib/feedback/file-feedback.js`'s `computeFingerprint(draft)`) is now recorded in the declined-learning store (`bin/lib/declined-learning/store.js`, `source: 'feedback'`) — every bare `/feedback` run's watermark payload reads the store fresh, so the same finding re-surfacing in a later session's judge dispatch carries a "previously declined" signal instead of arriving as a brand-new, unrecognized finding. The named-edit candidate re-drafts and re-renders for a fresh confirmation.
+- **Red flags:** A declined candidate's local issue closing or losing its label; an edit request being ignored or silently applied without a fresh confirmation; a declined candidate's fingerprint missing from the store on a later re-check.
 
 ### 3. Approve staged items from the Wrap-Up Review Console — terminal
 - **URL:** the Review Console rendered at the end of `/claude-tweaks:wrap-up` (or `/claude-tweaks:flow`'s consolidated multi-spec console)
 - **Action:** Review the console's `Upstream feedback` section (staged during the run's upstream curation). At `supervised`/`trusted` autonomy, a plain "Approve all" resolves every staged `U#` row to its *declined* default — nothing is filed, and there are zero further `AskUserQuestion` calls. To file any of them, choose Override: it renders the same chunked `multiSelect` confirmation(s) as Step 2, one call per group of up to 4, every option unchecked. The only path that files without a checkbox is the `unattended`-only `consoleAutoResolve` short-circuit, where every `U#` row auto-resolves to filed.
 - **Should feel:** Safe by default — walking away from the console never publishes anything outward; filing is always an act the maintainer performs, either by checking a box under Override or by having deliberately set the `unattended` ceiling beforehand.
-- **Should understand:** Each row was staged earlier in this same run, before the console ever rendered — `/claude-tweaks:wrap-up`'s upstream curation step already drafted and scrubbed it (the same "stage, never file during the run" rule Step 1's `--queue` gather follows). A declined row is logged as declined in the run's `decisions.md`, never silently dropped. Whichever path files it, filing invokes `/claude-tweaks:feedback --pre-confirmed`, which re-reads the staged file fresh and diffs it against the exact snapshot the console rendered before filing; on drift, that one item falls back to a normal confirm showing the diff. The scrub itself always reruns as a separate safety net either way.
+- **Should understand:** Each row was staged earlier in this same run, before the console ever rendered — `/claude-tweaks:wrap-up`'s upstream curation step already drafted and scrubbed it (the same "stage, never file during the run" rule Step 1's `--queue` gather follows). A declined row is logged as declined in the run's `decisions.md`, never silently dropped, and its fingerprint is recorded in the declined-learning store the same way Step 2a's `--queue`-path decline is. Whichever path files it, filing invokes `/claude-tweaks:feedback --pre-confirmed`, which re-reads the staged file fresh and diffs it against the exact snapshot the console rendered before filing; on drift, that one item falls back to a normal confirm showing the diff. The scrub itself always reruns as a separate safety net either way.
 - **Red flags:** A `U#` row filing under a human-answered "Approve all" (that is the `consoleAutoResolve` exception, not this path); a declined row leaving no decline entry in `decisions.md`; the drift check not catching staged content that changed since rendering; the scrub not rerunning on the content that's actually about to be filed.
 
 ## Origin
@@ -50,3 +51,4 @@ files:
 - Related specs: #290 (sibling — batches Q#/M# the same way, U# carved out to this sub-issue)
 - Updated during build of #509 (bare invocation now also runs the session evaluation; both gathers feed the one batch)
 - Corrected during build of #674/#675 — Step 3 had described "Approve all" as filing every `U#` row by default; the console's actual default has been *declined* since #350, with filing reached via Override or the `unattended`-only `consoleAutoResolve` short-circuit.
+- Updated during build of #849 — declining a candidate (Step 2a or Step 3) now also records its fingerprint in the declined-learning store, consumed by a later bare `/feedback` run's watermark payload.

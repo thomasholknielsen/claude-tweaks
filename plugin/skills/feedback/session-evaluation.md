@@ -100,10 +100,11 @@ consumer key `feedback`), the payload is:
   issueUrls,               // the URLs Step 8's `gh issue create` calls produced for this run's
                            // Gather-2-sourced findings, in filing order — what the Skip check
                            // above points a later invocation at instead of re-evaluating
-  dismissedFingerprints,   // fingerprints of findings the human declined at Step 7, if
-                           // tracked; nothing in this skill currently tracks declined-
-                           // finding fingerprints, so this is an empty array today, not
-                           // an invented data source
+  dismissedFingerprints,   // bin/lib/declined-learning/store.js's
+                           // listDeclinedFingerprints({ source: 'feedback' }) — every fingerprint
+                           // a human declined at Step 7 across every /feedback run to date, not
+                           // just this one. Filtered to source: 'feedback' so a reflect-sourced
+                           // decline never suppresses a feedback finding by accident.
 }
 ```
 
