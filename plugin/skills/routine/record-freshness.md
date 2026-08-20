@@ -128,7 +128,7 @@ Stop with the state and both recovery paths:
 
 > **BLOCKED — a record for `{PREFIXED_NAME}` is committed on `{ref}` but is not in this checkout.**
 >
-> upstream: template v`{upstream.template_version}`, schedule `{upstream.schedule}`, branch `{upstream.branch or "unpinned"}`, routine_id `{upstream.routine_id}`
+> upstream: template v`{upstream.template_version}`, {`schedule` `{upstream.schedule}`, or, when `upstream.cadence` is `once`, `run_once_at` `{upstream.run_once_at}`}, branch `{upstream.branch or "unpinned"}`, routine_id `{upstream.routine_id}`
 > local: absent — this checkout is `{behind}` commit(s) behind `{ref}`
 >
 > Creating now would mint a second live routine for this project+skill, and `RemoteTrigger` has
