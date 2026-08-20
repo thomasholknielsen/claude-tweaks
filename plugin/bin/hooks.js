@@ -46,6 +46,18 @@ function isDirectory(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
 
+// #280: the one signal that distinguishes "harness-isolation left a real run
+// dir trapped in this worktree" from "an ordinary stray directory that
+// happens to sit under .claude-tweaks/pipelines/". A bare `mkdir` produces a
+// directory too — that must never match — so the bar is that a pipeline step
+// actually WROTE to it: one of the three files every initialized run dir
+// carries at least one of (decisions.md from Manifesto/standalone-fallback
+// init, run-state.json from a hook write, config.yml from the Manifesto).
+function isInitializedRunDir(dir) {
+  return ['decisions.md', 'run-state.json', 'config.yml']
+    .some((marker) => fs.existsSync(path.join(dir, marker)));
+}
+
 // Resolves an explicit `--run <path>` argument, validating it's a real
 // directory, or falls back to ctxLib.resolveRunDir when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
@@ -92,6 +104,26 @@ function resolveRunArg(args, cwd, env) {
       };
     }
     if (!wtDetect.isAnchoredUnderRoot(resolved, mainRoot)) {
+      // #280: the general case above (a bare or stray worktree-local
+      // directory) stays rejected — that's the [IL-96]/[IL-127] shadow this
+      // anchoring check exists to prevent. The one narrow exception: a
+      // session whose harness refused every write to the main checkout for
+      // the whole session has no anchored copy to name at all, so its run
+      // dir was legitimately initialized worktree-local as the only
+      // available option (the incident this record documents). Adopt it
+      // ONLY when (a) it is already an INITIALIZED run dir — not merely a
+      // directory that exists, the same bar `isInitializedRunDir` states —
+      // and (b) no same-named run dir already exists under the main
+      // checkout, which would make that copy the authoritative one instead.
+      // Both conditions must hold: an ordinary run with no worktree-local
+      // dir at all never has (a), so it can never spuriously match this
+      // fallback ([IL-127]'s own acceptance criterion).
+      const mainCandidate = path.join(mainRoot, '.claude-tweaks', 'pipelines', path.basename(resolved));
+      if (isInitializedRunDir(resolved) && !isDirectory(mainCandidate)) {
+        return {
+          runDir: resolved, invalidRunArg: null, rest, explicit: true, worktreeLocalFallback: true,
+        };
+      }
       return {
         runDir: null,
         invalidRunArg: `${candidate} (exists, but not anchored under the main checkout at ${mainRoot} — refusing a worktree-relative shadow run dir; see resolve-run-dir)`,
@@ -111,8 +143,18 @@ async function main(argv) {
     // below — without it, this always fell through to resolveRunDir's
     // "newest non-terminal run" fallback, which a stale never-closed run
     // could win over the run genuinely making this call.
-    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const {
+      runDir, invalidRunArg, rest, worktreeLocalFallback,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     const worktreeArg = rest[0];
+    if (worktreeLocalFallback) {
+      // #280: surfaced, not silent — a worktree-local run dir was adopted
+      // because no main-checkout anchored copy exists for it. Distinct from
+      // the ordinary "worktree recorded" line so a reader can tell this run's
+      // audit trail is degraded (run-dir lives only in this worktree until
+      // merge) rather than assuming the everyday anchored path was taken.
+      process.stdout.write(`claude-tweaks: --run ${runDir} resolved via the worktree-local fallback (#280) — no anchored copy exists under the main checkout; this run's state lives only in this worktree until merge.\n`);
+    }
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — worktree not recorded\n`);
     } else if (runDir && worktreeArg) {
