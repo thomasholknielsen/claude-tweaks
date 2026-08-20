@@ -31,6 +31,7 @@ Target: {repo-relative path of the file the fix edits — one line per file when
 Invariant: {one sentence — the property the edit establishes, stated so it can be re-derived without the diff; e.g. "the `rel` assignment normalizes separators to posix before comparison" — one line per `Target:` line, in the same order, when the diff touches several files}
 Finding: {severity} {category} — {the finding text as logged}
 Staged-at: {short sha of the worktree HEAD at staging time}
+Ledger: {docs/plans/{feature}-ledger.md}#{item-number}
 
 diff --git a/{path} b/{path}
 --- a/{path}
@@ -46,6 +47,16 @@ patches "against the cumulative pipeline state," so `Target:` must be an explici
 path — cumulative drift stays resolvable only when the fallback knows which file to open — and it
 must resolve inside the worktree root: the console rejects an absolute path or a `..`-escaping
 value (route to step 4) before opening anything.
+
+`Ledger:` names the exact open items ledger row this finding was also appended to — the staging
+site assigns the ledger item's number first (`_shared/ledger-format.md`'s Item Numbering), then
+composes this preamble referencing it, so the two writes always agree on one number. Present
+whenever the staging site also appends the finding to a ledger file (every current site does);
+omitted only for a proposal that has no corresponding ledger row by design. The console apply
+procedure below uses this field to write its outcome back to the named row — see "Write-back to
+the ledger" — closing the gap `_shared/ledger-format.md`'s Resolve Gate documents for Phase 2/3
+routing but that, before this field existed, the console's own apply step had no mechanical way to
+honor for a staged finding it applies directly.
 
 ## Staging-time gate
 
@@ -126,6 +137,27 @@ order the console lists them:
 Both consoles' `--dry-run` modes (`wrap-up/review-console.md`, `flow/multispec-review-console.md`)
 print each of these outcomes as a preview line and execute nothing — no `git apply`, no `--check`,
 no edit — consistent with the consoles' own dry-run bullets.
+
+### Write-back to the ledger
+
+The console apply log entry above (`decisions.md`) is never the only record of an outcome — when
+the preamble carries a `Ledger:` field, the same apply step also updates that exact row in
+`docs/plans/{feature}-ledger.md` (`_shared/ledger-format.md`'s Ledger File Format), in the same
+pass, before moving to the next staged item:
+
+| Outcome (numbered above) | Ledger Status | Ledger Resolution |
+|---|---|---|
+| 1. Fast path applied | `fixed` | commit hash from the apply commit |
+| 2. Stale diff re-derived | `fixed` | commit hash from the apply commit |
+| 2. Invariant already held (dropped) | `fixed` | `{commit or phase} (already satisfied)` |
+| 4. Cannot re-derive | `open` (unchanged) | `—` (unchanged) |
+
+A `.patch` staged before this field existed carries no `Ledger:` line — the write-back step is
+then a no-op for that item (expand-contract read-side tolerance; nothing to update, nothing
+errors). This is what closes the gap: without it, an applied finding's resolution lived only in
+`decisions.md`, and the ledger file's own Status column kept reporting `open` for work that was
+actually done — the drift a manual audit of six pipeline runs' ledgers found in 2026-08-18 (19 of
+20 `open`-marked items were already resolved elsewhere).
 
 ## Anti-patterns
 
