@@ -120,7 +120,7 @@ These are plain body-metadata lines, not YAML frontmatter — capitalized keys, 
 | `onboarding` | First-run flows, empty states |
 | `none` | No specific creative direction |
 
-`spec-template.md` stays canonical for the full metadata-block field set this table is a slice of — including `Design-seed:`/`Visual-reference:`/`Parent:`, which shaping mode never writes — and for `Design-intent:`'s own `AskUserQuestion` wording (`design-pre-steps.md`'s Step 2.5c, the source of the one-line semantics above). Keep this table in sync by hand if either enum ever changes.
+`spec-template.md` stays canonical for the full metadata-block field set these two tables slice — including `Design-seed:`/`Visual-reference:`/`Parent:`, which shaping mode never writes. The `Design-intent:` one-liners above restate `design-pre-steps.md`'s Step 2.5c `AskUserQuestion` descriptions; keep both tables in sync by hand if either enum ever changes.
 
 ### Stamp scoring and stage labels
 
