@@ -7,6 +7,18 @@ function stubRunner(responses) {
   return (args) => (Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null);
 }
 
+// Same as stubRunner, but also records every call's args so a test can assert
+// ordering (the prune must run before the `--merged` read).
+function recordingRunner(responses) {
+  const calls = [];
+  const runner = (args) => {
+    calls.push(args.join(' '));
+    return Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null;
+  };
+  runner.calls = calls;
+  return runner;
+}
+
 const SCOPE = {
   ran: true, reason: null, base: 'a1b2c3d', headBranch: 'worktree-feat',
   branches: ['main', 'worktree-feat', 'worktree-old'],
@@ -158,6 +170,56 @@ test('the integration branch itself is never a finding, even when passed bare', 
   });
   const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'main', run });
   assert.ok(!findings.some((f) => f.subject === 'origin/main'), 'deleting the integration branch would be catastrophic');
+});
+
+// #663: `probeBranches` used to read `--merged` against whatever stale
+// `refs/remotes/origin/*` entries the local checkout already had, with no
+// fetch/prune first. A branch merged and already deleted upstream (auto-
+// deleted on merge, or cleaned up by a sibling tidy pass) still showed up as
+// "merged, not deleted" — a fix-now attempt against it then 422s.
+test('a prune runs before the merged-branch read, and a since-pruned branch produces no finding', () => {
+  const run = recordingRunner({
+    'remote prune origin': 'Pruning origin\n * [pruned] origin/worktree-old',
+    // Reflects what git itself returns AFTER a real prune removed the stale
+    // tracking ref — the branch this run is regression-testing is simply
+    // absent from the merged list once pruned.
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
+  });
+  const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.deepStrictEqual(findings, [], 'the stale ref was pruned before the merged read, so it never appears');
+  assert.deepStrictEqual(run.calls, [
+    'remote prune origin',
+    'branch -r --format=%(refname:short) --merged origin/main',
+  ], 'prune must run before the merged-branch read, on the same injected run seam');
+});
+
+test('a prune failure degrades to the unpruned read rather than aborting the probe', () => {
+  // No 'remote prune origin' entry in the map -> stubRunner returns null,
+  // simulating a network failure / offline prune.
+  const run = stubRunner({
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
+  });
+  const { ran, findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.strictEqual(ran, true, 'a prune failure degrades, it does not abort the probe');
+  const stale = findings.find((f) => f.subject === 'origin/worktree-old');
+  assert.ok(stale, 'still returns the finding it would have returned unpruned');
+  assert.match(stale.evidence, /unpruned-read/, 'tagged so a consumer (fix-now) knows deletion may 422');
+});
+
+test('the degrade tag lives in evidence only — it never mints a duplicate finding id', () => {
+  const prunedRun = stubRunner({
+    'remote prune origin': '',
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
+  });
+  const degradedRun = stubRunner({
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
+  });
+  const pruned = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run: prunedRun });
+  const degraded = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run: degradedRun });
+  const prunedFinding = pruned.findings.find((f) => f.subject === 'origin/worktree-old');
+  const degradedFinding = degraded.findings.find((f) => f.subject === 'origin/worktree-old');
+  assert.strictEqual(prunedFinding.id, degradedFinding.id, 'same finding whether pruned or degraded — id excludes evidence');
+  assert.notStrictEqual(prunedFinding.evidence, degradedFinding.evidence, 'evidence text differs to carry the degrade tag');
 });
 
 // #225: a locked worktree's evidence must distinguish a live session from an
