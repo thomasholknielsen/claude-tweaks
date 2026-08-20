@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.103.0 — Merged-PR batch: worktree-always gate verb-aware read-only allowlist + delete-only push exemption (#658); non-canonical run-dir timestamps surfaced in reconcile, dash format pinned at mint (#848); /help acceptance-queue local-files twin (#203); anchored-staged-path invariant hoisted into pipeline-run-dir.md (#737); specify option-block cost/effort/churn admissibility rule (#639); design-wrapper explore layout-scope render-set widened
+
+Merged-PR batch: worktree-always gate verb-aware read-only allowlist + delete-only push exemption (#658); non-canonical run-dir timestamps surfaced in reconcile, dash format pinned at mint (#848); /help acceptance-queue local-files twin (#203); anchored-staged-path invariant hoisted into pipeline-run-dir.md (#737); specify option-block cost/effort/churn admissibility rule (#639); design-wrapper explore layout-scope render-set widened.
+
 ## v6.102.0 — Headless shaping unit: specify next mode with framing-check guard and shaped:headless label (#967, #968), grant-gate oversight floor for shaped:headless records (#969), specify routine template + fleet row 9 (#970); dispatch local-merge resume question-string template (#545); help policy mode renders Shape-B derived defaults as computed (#636); build plan-authoring checks extracted to sub-file (ceiling breach)
 
 Headless shaping unit: specify next mode with framing-check guard and shaped:headless label (#967, #968), grant-gate oversight floor for shaped:headless records (#969), specify routine template + fleet row 9 (#970); dispatch local-merge resume question-string template (#545); help policy mode renders Shape-B derived defaults as computed (#636); build plan-authoring checks extracted to sub-file (ceiling breach).
