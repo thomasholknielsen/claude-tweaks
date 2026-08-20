@@ -7,7 +7,7 @@ argument-hint: "[refine|overview|grant|attention] [critical|risk-value|cleanup|t
 
 # Backlog — Refine Labels and Understand the Queue
 
-Four modes over the same open work-record backlog: `refine` ensures every record carries the right `priority:*`/`**Related:**`/grant labels (a write sweep, human-confirmed); `overview` renders a distribution picture and recommends what to build next (read-only); `grant` is the headless machine-grant sweep (`work-backend: github-issues` only, opt-in); `attention` is a read-only, ranked discovery list of every open record carrying `needs:definition` or `solution:unjustified`. Sits outside the main brainstorm-to-build chain, feeding judgment and authorization into it rather than gating it:
+Four modes over the same open work-record backlog: `refine` ensures every record carries the right `priority:*`/`**Related:**`/grant labels (a write sweep, human-confirmed); `overview` renders a distribution picture and recommends what to build next (read-only); `grant` is the headless machine-grant sweep (`work-backend: github-issues` only, opt-in); `attention` is a read-only, ranked discovery list of every open record carrying `needs:definition`, `solution:unjustified`, or an ungranted `shaped:headless` spec. Sits outside the main brainstorm-to-build chain, feeding judgment and authorization into it rather than gating it:
 
 ```
 capture / code-health / harness-health / journey-health / docs-health   (file records)
@@ -32,7 +32,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
 - You want a synthesized read of what's in the backlog — narrative + thematic clusters, a critical/risk-value/cleanup/trust view, or a recommendation for what to build next — `overview` mode.
 - You want a copy-pasteable hand-off block to parallelize shaping or building a chosen batch across terminals — `overview` mode.
 - A scheduled Routine (or a human standing in for one) needs to sweep the `ready` queue and machine-grant every record whose gate chain fully clears, with no per-record decision to answer — `grant` mode, `github-issues` only, and only once a project has deliberately opted into the `autonomy: unattended` ceiling plus its `grant-origination-enabled` policy key.
-- You want one ranked list of every open record carrying `needs:definition` or `solution:unjustified`, with a per-row recommended action — `attention` mode, `github-issues` only.
+- You want one ranked list of every open record carrying `needs:definition`, `solution:unjustified`, or an ungranted `shaped:headless` spec, with a per-row recommended action — `attention` mode, `github-issues` only.
 
 Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:specify`'s job), claiming records (`/claude-tweaks:flow`'s Step 2.8 job) or building anything (`/claude-tweaks:dispatch`'s hand-off to `/flow`), or filing/closing records.
 
@@ -44,7 +44,7 @@ Not for: shaping record bodies or stamping `risk:*`/`size:*` (`/claude-tweaks:sp
 - `refine` → the write/labeling-sweep mode. Read `refine-mode.md` in this skill's directory for the full procedure.
 - `overview` → the read-only distribution + recommendation mode. Read `overview-mode.md` in this skill's directory for the full procedure.
 - `grant` → the headless machine-grant mode. Read `grant-mode.md` in this skill's directory for the full procedure. This is `/dispatch next`'s headless-unit shape applied to granting: no `AskUserQuestion` decides any individual grant — the gate chain (`bin/lib/issues/grant-gate.js`) decides, mechanically, per record.
-- `attention` → the read-only, `github-issues`-only discovery mode over `needs:definition`/`solution:unjustified` records. Read `attention-mode.md` in this skill's directory for the full procedure.
+- `attention` → the read-only, `github-issues`-only discovery mode over `needs:definition`/`solution:unjustified` records and ungranted `shaped:headless` specs. Read `attention-mode.md` in this skill's directory for the full procedure.
 - `critical` / `risk-value` / `cleanup` / `trust` → lens sub-arguments, valid only under `overview` (or bare, which is `overview`). Invalid under `refine`, `grant`, and `attention` — report the conflict and stop rather than silently ignoring it.
 - `--budget <n>` → caps LLM-bound processing in `refine` (the priority/Related synthesis pass and the grant-check pass, independently, default 40 each) and in `grant` (the grant-check pass over gate-1-3-cleared candidates, default 40, same as refine's own grant-check budget); caps table row rendering in `overview` (default 20). No effect on `attention`, which is entirely mechanical (no per-record LLM reads) and bounds itself via each fetch's own `--limit 200`.
 - `--origin <origin>` → filters `refine`'s grant-sweep worklist by `facets.origin` (`code-health|harness-health|journey-health|docs-health|capture|human`, where `human` selects records with no `by:*` label). No effect on `overview`, `grant` (`grant` mode's own origin gate already excludes every `human`-origin record unconditionally — see Grant semantics in `_shared/work-record.md`), `attention`, or on `refine`'s priority/Related sweep.
@@ -62,11 +62,21 @@ Read the project's `work-backend` config key (per `_shared/work-record-config.md
 
 **`grant` mode (`github-issues` only):** run the Detection Ladder as a hard gate before any `gh` command. Under `work-backend: local-files`, **stop this mode completely** with the identical wording and identical scope as `refine`'s grant sub-stage stop above (same rationale: no headless consumer acts on a local grant, this holds with no exception when no interactive human is present, and it is not superseded by any auto-mode convention). There is no partial-proceed here the way `refine` has a priority/Related sub-stage to fall back to — `grant` mode's *entire* job is granting, so the stop is the whole mode's behavior for this turn, exactly like `/claude-tweaks:dispatch`'s own `work-backend: local-files` Preflight stop.
 
-**`attention` mode (`github-issues` only):** run the Detection Ladder as a hard gate before any `gh` command. Under `work-backend: local-files`, **stop this mode completely** — there is no local-files fetch implemented (both label queries this mode runs are `gh issue list` calls with no local-files analog); tell the user this mode isn't available under `local-files` and that `/claude-tweaks:help` still surfaces the same two flags per-record via its own Definition/Framing flags in the Needs Attention table.
+**`attention` mode (`github-issues` only):** run the Detection Ladder as a hard gate before any `gh` command. Under `work-backend: local-files`, **stop this mode completely** — there is no local-files fetch implemented (all three label queries this mode runs are `gh issue list` calls with no local-files analog); tell the user this mode isn't available under `local-files` and that `/claude-tweaks:help`'s Needs Attention table still surfaces the `needs:definition`/`solution:unjustified` pair per-record via its own Definition/Framing flags, but has no equivalent flag for the `shaped:headless (no grant)` type — a known gap, not parity.
 
 ## Workflow
 
 Read `refine-mode.md` in this skill's directory for the full `refine` procedure, `overview-mode.md` for the full `overview` procedure, `grant-mode.md` for the full `grant` procedure, or `attention-mode.md` for the full `attention` procedure, per the resolved mode from Input above.
+
+## Routine Configuration
+
+`/backlog` ships a routine template (`skills/backlog/routine-template.yml`) whose prompt is `/claude-tweaks:backlog grant` — the headless machine-grant form, the only one of this skill's modes a scheduled Routine ever fires (the rest are human-only, per the Component-Skill Contract below). It is the conditional grant unit in `routine/fleet.md`'s fleet composition table, scheduled weekdays in the off-peak window between the finder routines and the dispatch drain. Instantiate it for the current project with:
+
+```
+/claude-tweaks:routine create backlog
+```
+
+Scheduling it does not make it grant anything. Every firing is a cheap no-op — report nothing, exit clean — until a human has set **both** `autonomy: unattended` and `grant-origination-enabled: true` in `.claude-tweaks/policy.yml` (`grant-mode.md` Step 0). That two-key opt-in is the security boundary this skill's Anti-Patterns table describes; the routine only becomes live once a human turns both keys on.
 
 ## Next Actions
 
@@ -92,7 +102,7 @@ When situational filtering leaves **zero** lines, or the report's closing `Next:
 **`/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to}`** — skips re-selection, claims and builds them directly (recommended) — omit this line entirely if nothing was granted this run
 **`/claude-tweaks:backlog grant`** — sweep anything still eligible since this run's --budget cap or new ready records (recommended) — bold and suffix `(recommended)` only when the dispatch line above is omitted
 
-No "set up a routine" line yet — `skills/backlog/routine-template.yml` doesn't exist (the companion sub-issue blocked on this one ships it; see this record's Non-Goals). Once it lands, add the analogous line here the same way `dispatch/SKILL.md`'s Next Actions offers `/claude-tweaks:routine create dispatch`.
+`/claude-tweaks:routine create backlog` — instantiate this sweep as a live weekday scheduled Routine (see Routine Configuration above) — omit this line when the project's `autonomy` ceiling is below `unattended` or `grant-origination-enabled` is unset, since the routine would only ever fire a no-op until a human turns both keys on
 
 **After `attention`:** render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 

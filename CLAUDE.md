@@ -84,7 +84,7 @@ claude --plugin-dir ./plugin        # Local development — load the payload sub
 
 Per-suite test invocations, the `plugin/bin/*.js` CLIs (the four health sweeps plus the standalone CLIs listed there), and the evals harness commands are in `docs/plugin-structure.md`.
 
-A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken.
+A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken. That tolerance applies only to counts **you ran yourself**: never accept a subagent's self-reported pass/fail numbers as a run, and never reconcile a mismatch against them as flake — a fabricated report is indistinguishable from load here, so re-run centrally and require dispatched agents to quote raw command output rather than summarize it.
 
 ### Subagent Contract (v4.2+)
 

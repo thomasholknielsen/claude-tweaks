@@ -23,6 +23,14 @@ test('at least one routine-template.yml exists to validate', () => {
   assert.ok(templates.length >= 1, 'expected at least one skills/*/routine-template.yml to exist');
 });
 
+test('specify/routine-template.yml is present in the scanned template set (#970)', () => {
+  const templates = findTemplates();
+  assert.ok(
+    templates.some((p) => p.endsWith(path.join('specify', 'routine-template.yml'))),
+    'expected plugin/skills/specify/routine-template.yml to be discovered by findTemplates() — a later glob/enumeration refactor must not silently drop it'
+  );
+});
+
 for (const templatePath of findTemplates()) {
   const skillName = path.basename(path.dirname(templatePath));
 
