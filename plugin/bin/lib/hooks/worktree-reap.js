@@ -311,14 +311,19 @@ function reapWorktrees({ cwd, integration, dryRun = false, now = Date.now() } = 
 // Null means nothing resolved. The caller reaps nothing rather than measuring
 // against a guess — the per-consumer fallback recorded for this consumer in
 // `_shared/integration-branch.md`'s table.
-function resolveIntegrationBranch(repoRoot) {
+// `cache` (optional): { integrationBranch: Map<repoRoot, name|null>, ... } — same opt-in,
+// per-invocation shape `run-integrity.js`'s deriveBranch takes. The policy short-circuit runs
+// BEFORE any cache lookup regardless: a project with an `integration-branch` policy value never
+// spawns `git rev-parse` at all, cache or no cache. Omitted, this spawns fresh every call. See #381.
+function resolveIntegrationBranch(repoRoot, cache) {
   if (!repoRoot) return null;
   const fromPolicy = policy.readIntegrationBranch(repoRoot);
   if (fromPolicy) return fromPolicy;
+  if (cache && cache.integrationBranch.has(repoRoot)) return cache.integrationBranch.get(repoRoot);
   const { stdout, failure } = runGit(['rev-parse', '--abbrev-ref', 'origin/HEAD'], repoRoot);
-  if (failure || !stdout) return null;
-  const name = stdout.trim().replace(/^origin\//, '');
-  return name || null;
+  const name = failure || !stdout ? null : stdout.trim().replace(/^origin\//, '') || null;
+  if (cache) cache.integrationBranch.set(repoRoot, name);
+  return name;
 }
 
 // Is this worktree path held by a live session right now? The one predicate
