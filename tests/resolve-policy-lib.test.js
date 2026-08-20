@@ -153,6 +153,24 @@ test('boolean coercion through the #602 alias: a worktree.always line resolves w
   assert.strictEqual(result['worktree-always']['renamed-from'], 'worktree.always');
 });
 
+test('review-auto-apply-prose-exempt defaults to true (source: default) when unset', () => {
+  const result = resolvePolicyKeys(['review-auto-apply-prose-exempt'], { policyRaw: null, runConfigRaw: null });
+  assert.deepStrictEqual(result['review-auto-apply-prose-exempt'], { value: true, source: 'default' });
+});
+
+test('review-auto-apply-prose-exempt: false in policy.yml resolves to native boolean false', () => {
+  const result = resolvePolicyKeys(['review-auto-apply-prose-exempt'], { policyRaw: 'review-auto-apply-prose-exempt: false\n' });
+  assert.deepStrictEqual(result['review-auto-apply-prose-exempt'], { value: false, source: 'policy' });
+});
+
+test('review-auto-apply-prose-exempt: run-config (config.yml) wins over policy.yml, same precedence as review-auto-apply-ceiling', () => {
+  const result = resolvePolicyKeys(['review-auto-apply-prose-exempt'], {
+    policyRaw: 'review-auto-apply-prose-exempt: false\n',
+    runConfigRaw: 'review-auto-apply-prose-exempt: true\n',
+  });
+  assert.deepStrictEqual(result['review-auto-apply-prose-exempt'], { value: true, source: 'run-config' });
+});
+
 test('a key with no schema default, absent everywhere, resolves to value: null, source: "default"', () => {
   const result = resolvePolicyKeys(['integration-branch', 'review-effort-floor'], { policyRaw: '' });
   assert.deepStrictEqual(result['integration-branch'], { value: null, source: 'default' });

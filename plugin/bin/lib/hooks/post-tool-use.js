@@ -1,7 +1,10 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + skill-invocation ledger (log tier, see ./skill-invocation.js) + AskUserQuestion ledger (log tier, see logAskUserQuestion below).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + ad-hoc-session run-dir stamping (log tier, see stampAdHocRunDir below) + skill-invocation ledger (log tier, see ./skill-invocation.js) + AskUserQuestion ledger (log tier, see logAskUserQuestion below).
 'use strict';
+const fs = require('fs');
+const path = require('path');
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
+const runDirResolve = require('./run-dir-resolve');
 const skillInvocation = require('./skill-invocation');
 // These three call sites are informational (commit breadcrumbs, plugin-version
 // detection), not policy decisions — every failure kind resolves to "skip this
@@ -360,6 +363,68 @@ function resolveCreatedWorktreePath(ctx) {
   return match ? match.path : null;
 }
 
+// Ad-hoc-session run-dir stamping (#500, log-tier bookkeeping only — never
+// surfaces a message to the operator). An ad-hoc worktree dev session (one
+// that implements a change directly at the user's request, outside any
+// /claude-tweaks:build or /claude-tweaks:flow pipeline) has no run dir until
+// /claude-tweaks:wrap-up eventually creates one for its own reflect pass —
+// so any wd-deny/gate-denial/contract-violation/ask-user-question incurred
+// BEFORE that point has nowhere to log to (appendEvent no-ops without a
+// runDir: bin/lib/hooks/context.js's `path.join(runDir, ...)` throws on a
+// null runDir, caught by its own best-effort try/catch). Stamping a
+// lightweight run dir here, at EnterWorktree time, closes that gap:
+// appendEvent starts working from the very next hook call in this session.
+// skills/reflect/full-mode.md's Friction Lens documents the read side.
+//
+// Fires only when this session owns NO run dir yet (`ctx.ownedRun.dir` is
+// null) — a formal pipeline invocation that already resolved or minted its
+// own run dir before creating the worktree (`PIPELINE_RUN_DIR` set, or an
+// earlier `record-worktree` call in this same session) is left alone; this
+// never creates a second, competing run dir for a session that already has
+// one. Collision avoidance relies entirely on `resolveRun`'s own
+// newest-first, session-scoped selection (context.js) — no explicit
+// hand-off code is needed here: once a LATER formal run dir is stamped for
+// this same session (`record-worktree`, run by a formal skill that starts
+// after this ad-hoc mint), it sorts newer and wins every subsequent
+// resolution for the rest of the session, exactly as if this ad-hoc stamp
+// had never happened. The ad-hoc dir itself is left behind, unowned by
+// nobody currently active — the Friction Lens's fallback read (`worktree`
+// field match, not session-id match) is what finds it again later.
+function stampAdHocRunDir(ctx) {
+  if (ctx.input.tool_name !== 'EnterWorktree') return;
+  if (ctx.ownedRun && ctx.ownedRun.dir) return; // this session already owns a run dir — nothing to stamp
+  const sessionId = ctx.input.session_id;
+  if (typeof sessionId !== 'string' || !sessionId) return; // no identity to stamp ownership against
+  try {
+    const worktreePath = resolveCreatedWorktreePath(ctx);
+    if (!worktreePath) return;
+    // Deliberately NOT process.env — a stray PIPELINE_RUN_DIR left over from
+    // an unrelated earlier command in this shell must never redirect this
+    // stamp onto someone else's run dir.
+    const result = runDirResolve.resolve({ cwd: ctx.cwd, env: {}, create: true, standalone: 'adhoc' });
+    if (!result.ok) return;
+    // Review finding (#500): a same-second sibling session minting against the
+    // same worktree collides on this dir name (second-granularity timestamp).
+    // Never let this stamp clobber a DIFFERENT session's already-written
+    // ownership — writeRunState's patch-wins-on-conflict merge would otherwise
+    // silently reassign the dir mid-session.
+    const existing = ctxLib.readRunState(result.path);
+    if (existing && typeof existing.sessionId === 'string' && existing.sessionId && existing.sessionId !== sessionId) return;
+    const written = ctxLib.writeRunState(result.path, { worktree: path.resolve(worktreePath), status: 'active', sessionId });
+    if (!written) {
+      // writeRunState failed (I/O error). The mint above already touched
+      // decisions.md, which isUnadoptedMint (context.js) treats as evidence
+      // this dir was "adopted" — so leaving it behind with no run-state.json
+      // would sit as a mis-attributable "unowned" fallback candidate for a
+      // totally different session (the #721 cross-contamination shape).
+      // Best-effort: remove the mint rather than leave that trap behind.
+      try { fs.rmdirSync(path.join(result.path, 'staged')); } catch { /* best-effort */ }
+      try { fs.unlinkSync(path.join(result.path, 'decisions.md')); } catch { /* best-effort */ }
+      try { fs.rmdirSync(result.path); } catch { /* best-effort */ }
+    }
+  } catch { /* never break a session over bookkeeping */ }
+}
+
 // Log-tier breadcrumb, gated on ctx.ownedRun.dir exactly like the commit
 // breadcrumbs in run() below — never a durable trace when no run dir
 // resolves. `result` distinguishes "checked, clean" from "checked, stale"
@@ -540,6 +605,14 @@ function run(ctx) {
     const versionBumpNudge = checkPluginVersionBump(recentByDir);
     if (versionBumpNudge) return versionBumpNudge;
   }
+
+  // Ad-hoc-session run-dir stamping (log tier, side effect only — no
+  // message). Runs before the staleness check below so a formal pipeline's
+  // own record-worktree call (should one race this same EnterWorktree
+  // event some other way) is never shadowed; in practice the two never
+  // compete, since stampAdHocRunDir no-ops the instant ctx.ownedRun.dir is
+  // already set.
+  stampAdHocRunDir(ctx);
 
   // EnterWorktree staleness backstop (warn tier) — deliberately NOT gated on
   // ctx.runDir (matches this file's other nudges); its own log-tier

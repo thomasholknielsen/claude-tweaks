@@ -1,4 +1,4 @@
-// bin/lib/issues/tests/grouping.test.js
+// tests/bin-lib/issues/grouping.test.js
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');

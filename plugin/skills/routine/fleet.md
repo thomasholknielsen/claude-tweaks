@@ -7,7 +7,7 @@ This mode is a loop over the existing CREATE/UPDATE procedure (`create-and-updat
 
 ## Fleet composition table
 
-Two buckets, named explicitly (never restated elsewhere as a bare list, per this project's cardinality-drift rule — this table is the one place the fleet's membership is enumerated):
+Buckets, named explicitly in the `Bucket` column below (never restated elsewhere as a bare list, per this project's cardinality-drift rule — this table is the one place the fleet's membership is enumerated; anything that needs to name the fleet's composition links here instead of copying it). The phrasing is deliberately count-free: a literal bucket or row count, restated here or anywhere else, is the exact drift this rule exists to prevent.
 
 | # | Bucket | Entry | Source template | `focus` override | Cron (UTC) | PREFIXED_NAME |
 |---|---|---|---|---|---|---|
@@ -19,15 +19,16 @@ Two buckets, named explicitly (never restated elsewhere as a bare list, per this
 | 6 | Generalist sweep | docs-health | `skills/docs-health/routine-template.yml` | n/a | `15 6 * * *` | `{REPO_SLUG}-docs-health-daily` |
 | 7 | Generalist sweep | journey-health | `skills/journey-health/routine-template.yml` | n/a | `30 6 * * *` | `{REPO_SLUG}-journey-health-daily` |
 | 8 | Generalist sweep | harness-health | `skills/harness-health/routine-template.yml` | n/a | `45 6 * * *` | `{REPO_SLUG}-harness-health-daily` |
-| 9 | Grant unit (conditional) | backlog grant | `skills/backlog/routine-template.yml` | n/a | `0 9 * * 1-5` | `{REPO_SLUG}-backlog-grant-weekdays` |
-| 10 | Dispatch drain | dispatch | `skills/dispatch/routine-template.yml` | n/a | `0 10 * * 1-5` | `{REPO_SLUG}-dispatch-weekdays` |
-| 11 | Tidy | tidy weekly | `skills/tidy/routine-template.yml` | n/a | `0 11 * * 0` | `{REPO_SLUG}-tidy-weekly` |
+| 9 | Shaping unit | specify | `skills/specify/routine-template.yml` | n/a | `0 8 * * 1-5` | `{REPO_SLUG}-specify-weekdays` |
+| 10 | Grant unit (conditional) | backlog grant | `skills/backlog/routine-template.yml` | n/a | `0 9 * * 1-5` | `{REPO_SLUG}-backlog-grant-weekdays` |
+| 11 | Dispatch drain | dispatch | `skills/dispatch/routine-template.yml` | n/a | `0 10 * * 1-5` | `{REPO_SLUG}-dispatch-weekdays` |
+| 12 | Tidy | tidy weekly | `skills/tidy/routine-template.yml` | n/a | `0 11 * * 0` | `{REPO_SLUG}-tidy-weekly` |
 
 `{REPO_SLUG}` is `create-and-update.md` CREATE Step 2's own derivation (lowercased, non-`[a-z0-9]` runs collapsed to `-`, trimmed) — resolve it once per fleet run and reuse it across every row.
 
-**Stagger rationale (the exact defaults, settled here — not implementer-invented at some later point, per the parent record's Acceptance Criteria):** rows 1-8 (vertical finders + generalist sweeps) sit in the 05:00-07:00 UTC early-morning window at 15-minute offsets — cheap, read-only sweeps that don't compete with each other for the same repo state. Row 9 (grant unit) sits at 09:00, after the finders have had time to file anything new but before the dispatch drain would otherwise claim records nobody has reviewed. Row 10 (dispatch drain) sits at 10:00, after the grant unit so freshly-granted `auto:build`/`auto:merge` records are visible to it the same morning. Row 11 (tidy) is weekly, Sunday 11:00, clear of every daily/weekday row above.
+**Stagger rationale (the exact defaults, settled here — not implementer-invented at some later point, per the parent record's Acceptance Criteria):** the vertical finders and generalist sweeps sit in the 05:00-07:00 UTC early-morning window at 15-minute offsets — cheap, read-only sweeps that don't compete with each other for the same repo state. The shaping unit sits at 08:00, after the finder window so overnight-filed records are visible to the firing, and before the grant unit so the one record each firing shapes is grantable the same morning. The grant unit sits at 09:00, after the shaping unit has had a chance to turn a record into `ready` but before the dispatch drain would otherwise claim records nobody has reviewed. The dispatch drain sits at 10:00, after the grant unit so freshly-granted `auto:build`/`auto:merge` records are visible to it the same morning. Tidy is weekly, Sunday 11:00, clear of every daily/weekday entry above.
 
-**Naming deviates from `create-and-update.md`'s standard `{REPO_SLUG}-{routine_name}` derivation for rows 1-4 only** — code-health's `routine_name` (`code-health-daily`) is fixed across all five code-health instances (rows 1-5), so reusing it verbatim would collide four times over. Rows 1-4 use `{REPO_SLUG}-code-health-{focus}` instead (dropping the `-daily` suffix, since a focus-scoped routine isn't the daily generalist). Row 5 (the generalist) keeps the standard derivation unchanged — `{REPO_SLUG}-code-health-daily` is exactly what a standalone `/claude-tweaks:routine create code-health` would also produce, so a project that already ran that command before ever running `fleet on` gets that routine *adopted into* the fleet on first reconcile (Idempotent reconcile, below), not duplicated. Rows 6-11 use the standard derivation unchanged, one instance per template.
+**Naming deviates from `create-and-update.md`'s standard `{REPO_SLUG}-{routine_name}` derivation for rows 1-4 only** — code-health's `routine_name` (`code-health-daily`) is fixed across all five code-health instances (rows 1-5), so reusing it verbatim would collide four times over. Rows 1-4 use `{REPO_SLUG}-code-health-{focus}` instead (dropping the `-daily` suffix, since a focus-scoped routine isn't the daily generalist). Row 5 (the generalist) keeps the standard derivation unchanged — `{REPO_SLUG}-code-health-daily` is exactly what a standalone `/claude-tweaks:routine create code-health` would also produce, so a project that already ran that command before ever running `fleet on` gets that routine *adopted into* the fleet on first reconcile (Idempotent reconcile, below), not duplicated. Rows 6-12 use the standard derivation unchanged, one instance per template.
 
 **Composition, not exhaustiveness.** A repo missing a template (e.g. a fork of this plugin that dropped `journey-health/`) gets a **partial fleet**: provision every row whose template exists, skip the rest, and name each skipped row plus the skill it belongs to in the summary — never a refusal, never silence (per this sub-issue's own Deliverables).
 
@@ -48,7 +49,7 @@ One structured message, the bookend "begin stop" for this action (`_shared/auto-
    ### Fleet Config (Manifesto)
    | Lever | Current | Meaning |
    |---|---|---|
-   | autonomy | supervised | Ceiling on autonomous action — 'unattended' + the opt-in below are both required to provision the grant unit (row 9) |
+   | autonomy | supervised | Ceiling on autonomous action — 'unattended' + the opt-in below are both required to provision the grant unit |
    | grant-origination-enabled | false | The reserved second opt-in `_shared/autonomy-ceiling.md` names — a human sets this deliberately, no skill ever writes it except this Manifesto |
    | auto-merge-max-lines / auto-merge-max-files | 40 / 2 | Consumed by assess-agent-autonomy/dispatch/the grant gate — this Manifesto persists them, never validates their semantics |
    | merge-sensitive-paths | (none) | Same — persisted only |
@@ -79,17 +80,17 @@ Fleet routines are scheduled Routines — the exact case CLAUDE.md's Cloud Parit
 
 ## Step 3 — Conditional grant-unit provisioning
 
-Row 9 (backlog grant) provisions **only when both** `autonomy: unattended` **and** `grant-origination-enabled: true` hold after Step 1 — "the unattended keys," exactly these two fields, no third, no paraphrase (per this sub-issue's own Deliverables wording).
+The grant unit (backlog grant) provisions **only when both** `autonomy: unattended` **and** `grant-origination-enabled: true` hold after Step 1 — "the unattended keys," exactly these two fields, no third, no paraphrase (per this sub-issue's own Deliverables wording).
 
-- **Both set** → row 9 provisions like every other row in Step 4's loop.
-- **Either unset** → skip row 9 entirely; the summary states plainly that the grant unit was withheld and names which policy change(s) would enable it (e.g. "grant unit withheld — set `autonomy: unattended` and `grant-origination-enabled: true` in `.claude-tweaks/policy.yml` to enable").
-- **Downgrade on re-run** — a prior `fleet on` provisioned row 9 (both keys were set then), and this Manifesto pass now reads `supervised` (or `grant-origination-enabled: false`): row 9's existing record is not silently left running unexplained. Pause row 9's live routine via the `pause` action's `RemoteTrigger update {"enabled": false}` call (`create-and-update.md`'s PAUSE section) and note "paused — autonomy downgraded to {ceiling}" in the summary. This is **harmless-by-construction** even before the pause takes effect: `bin/lib/issues/grant-gate.js`'s own gate chain re-checks the ceiling on every firing and denies every candidate at `supervised` (Gate 0, per `grant-mode.md`'s own contract) — a still-live but downgraded grant unit fires, finds nothing it's allowed to grant, and reports a clean no-op. State this explicitly in the summary so the human doesn't read "still live" as still-dangerous.
+- **Both set** → the grant unit provisions like every other row in Step 4's loop.
+- **Either unset** → skip the grant unit entirely; the summary states plainly that it was withheld and names which policy change(s) would enable it (e.g. "grant unit withheld — set `autonomy: unattended` and `grant-origination-enabled: true` in `.claude-tweaks/policy.yml` to enable").
+- **Downgrade on re-run** — a prior `fleet on` provisioned the grant unit (both keys were set then), and this Manifesto pass now reads `supervised` (or `grant-origination-enabled: false`): the grant unit's existing record is not silently left running unexplained. Pause the grant unit's live routine via the `pause` action's `RemoteTrigger update {"enabled": false}` call (`create-and-update.md`'s PAUSE section) and note "paused — autonomy downgraded to {ceiling}" in the summary. This is **harmless-by-construction** even before the pause takes effect: `bin/lib/issues/grant-gate.js`'s own gate chain re-checks the ceiling on every firing and denies every candidate at `supervised` (Gate 0, per `grant-mode.md`'s own contract) — a still-live but downgraded grant unit fires, finds nothing it's allowed to grant, and reports a clean no-op. State this explicitly in the summary so the human doesn't read "still live" as still-dangerous.
 
 ## Step 4 — Per-routine provisioning loop
 
 For every row in the composition table whose source template exists on disk (Composition, not exhaustiveness — above), and that Step 3 didn't withhold:
 
-1. **Resolve `PREFIXED_NAME`** from the table (row 5-11 via `create-and-update.md` CREATE Step 2's standard derivation; rows 1-4 via this file's own `{REPO_SLUG}-code-health-{focus}` naming — both above).
+1. **Resolve `PREFIXED_NAME`** from the table (row 5-12 via `create-and-update.md` CREATE Step 2's standard derivation; rows 1-4 via this file's own `{REPO_SLUG}-code-health-{focus}` naming — both above).
 2. **Idempotent reconcile marker check** (this is the loop's create-vs-update fork, and the "fleet marker" decision rule, fixed here): run `record-freshness.md` Steps F1-F2 for `{PREFIXED_NAME}.yml`, exactly as `create-and-update.md` CREATE Step 3 does.
    - `presence: none` (no local or upstream record) → before treating this as a fresh create, check for a **name collision**: call `RemoteTrigger {action: "list"}` once per fleet run (reuse across every row in this loop — don't re-list per row), filter to triggers whose `job_config.ccr.session_context.sources[].git_repository.url` matches this project's resolved repo URL (same filter as `create-and-update.md` CREATE Step 4 source (b)) **and** whose `name` equals this row's `PREFIXED_NAME`. A match here is a routine created by hand (or by a tool other than this skill) that happens to collide with the fleet's deterministic name — **detected and reported, never adopted or overwritten**: skip this row, note the collision in the summary ("`{PREFIXED_NAME}` already exists as a live routine not tracked by any record — rename it or remove it before re-running `fleet on`"), and move to the next row. No match → proceed to CREATE below.
 
@@ -133,7 +134,7 @@ One consolidated report, closing the Manifesto's begin-stop with an end-of-actio
 |---|---|---|---|---|
 | 1 | dead-code | Created | 05:00 UTC daily | {url} |
 | ... | ... | ... | ... | ... |
-| 9 | backlog grant | Withheld — set autonomy: unattended + grant-origination-enabled: true to enable | — | — |
+| 10 | backlog grant | Withheld — set autonomy: unattended + grant-origination-enabled: true to enable | — | — |
 | — | (missing template) | Skipped — {skill} has no routine-template.yml | — | — |
 
 Status is one of: `Created`, `Updated (drift)`, `Reconciled, no drift`, `Withheld — {reason}`, `Collision — {PREFIXED_NAME} already exists, not tracked by any record`, `Skipped — {skill} has no routine-template.yml`, `BLOCKED — record exists upstream only, not in this checkout`.
@@ -255,12 +256,12 @@ fleet-marked and *is* in scope for pausing, same as any other fleet member.)
 
 | Pattern | Why It Fails |
 |---|---|
-| Re-deriving repo URL / `REPO_SLUG` / environment per row | `create-and-update.md` CREATE Steps 2 and 4 resolve these once per project, not per routine — a fleet with 11 rows makes 11x the `RemoteTrigger`/git calls for values that don't change across rows |
+| Re-deriving repo URL / `REPO_SLUG` / environment per row | `create-and-update.md` CREATE Steps 2 and 4 resolve these once per project, not per routine — a fleet with 12 rows makes 12x the `RemoteTrigger`/git calls for values that don't change across rows |
 | Comparing `template_version` to decide drift | IL-89 — a version string proves nothing about content. Re-render the prompt and compare bytes (Step 4's RECONCILE) |
 | Treating a `presence: none` + live-routine-name-match as "adopt it" | The routine wasn't created by this skill (no record exists) — adopting it silently could overwrite a hand-tuned prompt with no way to recover it (`RemoteTrigger` has no delete-and-restore). Report the collision; never touch it |
-| Provisioning row 9 because `autonomy: unattended` alone is set | The reserved second opt-in (`grant-origination-enabled`) is deliberately a separate human decision — `_shared/autonomy-ceiling.md`'s whole point is that the ceiling alone never authorizes a machine-originated grant |
+| Provisioning the grant unit because `autonomy: unattended` alone is set | The reserved second opt-in (`grant-origination-enabled`) is deliberately a separate human decision — `_shared/autonomy-ceiling.md`'s whole point is that the ceiling alone never authorizes a machine-originated grant |
 | Silently deleting or pausing a downgraded grant-unit routine | Deletion has no undo (`RemoteTrigger` has no delete API to call in the first place, at claude.ai/code/routines this is a manual step) — pause when the verb exists, otherwise surface prominently, never act unprompted beyond what Step 3 documents |
-| Re-prompting per row for schedule/environment/confirm | Fleet mode's whole point is one deliberate action — the Manifesto (Step 1) and the batch preview (Step 4.3) are the only confirmation points; 11 separate `AskUserQuestion` calls would defeat "one-action provisioning" |
+| Re-prompting per row for schedule/environment/confirm | Fleet mode's whole point is one deliberate action — the Manifesto (Step 1) and the batch preview (Step 4.3) are the only confirmation points; 12 separate `AskUserQuestion` calls would defeat "one-action provisioning" |
 | Treating a missing template as a fleet-wide failure | Composition, not exhaustiveness — provision what exists, name what's missing, never refuse the whole fleet over one absent template |
 | Deleting (or offering to delete) routines from `fleet off` | Deletion has no API and no undo — `fleet off` is pause-based precisely so durable state survives; deletion is a human act at claude.ai/code/routines (IL-69) |
 | Pausing a routine that is not fleet-marked | A hand-created routine sharing a skill under a name outside the composition table is someone else's infrastructure — membership is the composition-table `PREFIXED_NAME` intersection, never a skill-name match. (Row 5's standard-derivation name is the one deliberate exception — adopted, not treated as someone else's.) |

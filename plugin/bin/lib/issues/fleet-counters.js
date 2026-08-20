@@ -86,4 +86,4 @@ function deriveFleetCounters(input, nowMs) {
   };
 }
 
-module.exports = { WEEK_MS, weeklyWindow, GRANT_AUDIT_RE, fleetPosture, deriveFleetCounters };
+module.exports = { WEEK_MS, weeklyWindow, GRANT_AUDIT_RE, fleetPosture, deriveFleetCounters, isMachineGrant };

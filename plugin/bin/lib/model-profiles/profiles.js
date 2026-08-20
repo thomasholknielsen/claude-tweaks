@@ -140,8 +140,16 @@ function resolve(profile, opts = {}) {
   const failedModels = opts.failedModels || new Set();
   if (failedModels.has(model)) {
     const tier = nextViableModel(model, failedModels);
-    ({ model, effort } = { ...PROFILES[tier] });
-    source = 'degraded:session-failure';
+    // #841 item 2: nextViableModel floors at the current tier itself when
+    // there is nowhere lower to fall back to (the current tier IS 'fast',
+    // whose own model is also failed) — that floored/no-change case must
+    // not claim `source`, matching this function's own "last stage that
+    // CHANGED the result" invariant. A genuine step-down (a different tier)
+    // still claims it, same as before.
+    if (tier !== profileOfModel(model)) {
+      ({ model, effort } = { ...PROFILES[tier] });
+      source = 'degraded:session-failure';
+    }
   }
 
   return { model, effort, source, effortLine: effortLine(effort) };

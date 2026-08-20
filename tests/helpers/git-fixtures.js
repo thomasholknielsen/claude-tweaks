@@ -10,9 +10,10 @@
 // change to how these fixtures are built (e.g. a `git worktree add` flag
 // change) only needs to land once.
 //
-// Only tests/hooks-worktree-detect.test.js consumes this today. The
+// tests/hooks-worktree-detect.test.js consumes all of it;
+// tests/hooks-dispatcher.test.js consumes `linkedWorktreeOf` only. The
 // duplication described in the review finding also recurs in
-// tests/hooks-pre-tool-use.test.js, tests/hooks-dispatcher.test.js,
+// tests/hooks-pre-tool-use.test.js, the rest of tests/hooks-dispatcher.test.js,
 // tests/hooks-session-start.test.js, and tests/policy.test.js, but migrating
 // those is out of scope here — no task in this plan claims them for this
 // finding, and this task's own scope is tests/hooks-worktree-detect.test.js.

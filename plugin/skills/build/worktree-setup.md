@@ -51,6 +51,34 @@ re-derived regexes.
    **Skip when already stamped by `/flow` (re-read cut).** When this invocation received `MERGE_CHECK_PASSED=true UPSTREAM_SHA={sha}` from `/flow`'s Step 2.5 (per `flow/validation.md`'s "Memo stamp" note), resolve `$UPSTREAM` the same way `_shared/worktree-setup.md`'s `## Pre-flight divergence check` does and compare `git rev-parse "$UPSTREAM"` against the stamped `{sha}`. A match means `/flow` already ran this exact check moments ago in this same run — skip the fetch and the divergence prompt entirely, and proceed straight to Step 2. A mismatch (the ref moved since the stamp — rare, but possible under a slow Manifesto or materialize step) or a missing stamp (standalone `/claude-tweaks:build`, no `/flow` parent) runs the full check below — **fail-open, never fail-skip**: an absent or stale stamp is not a reason to skip the safety check, only a matching one is.
 
    Otherwise, run `_shared/worktree-setup.md`'s `## Pre-flight divergence check` in full — the same procedure `/flow`'s own Step 2.5 runs (`flow/validation.md`), consolidated into one canonical copy rather than two independently maintained ones.
+1.5. **Stale same-name branch check** (#767) — the branch/worktree name derived in "## Worktree
+   name derivation" above is deterministic per record/spec-slug, so a second consecutive attempt
+   on the same record (its first attempt closed unmerged — a prior HARD-GATE stop, a closed PR, a
+   manually abandoned run) reuses the *identical* name. Before invoking `EnterWorktree`, check
+   whether that name is already taken locally:
+   ```bash
+   git worktree prune
+   git branch --list "{name}"
+   ```
+   - **No match** — nothing to do, proceed to Step 2.
+   - **Match, and `git worktree list` shows a worktree directory still attached to it** — this is
+     unexpected: Step 2.8's claim (`flow/claim-targets.md`) already establishes no other live run
+     holds this record, so an attached worktree here means either a claim/worktree desync or a
+     worktree left behind outside the pipeline's own bookkeeping. Do not delete anything — fall
+     through to Step 2 and let `EnterWorktree` surface its own "branch already exists" failure, so
+     the existing **Branch already exists** row in "## If worktree creation fails" below handles it
+     with a human-visible choice, rather than this check silently guessing.
+   - **Match, no attached worktree** — a stale leftover from a prior closed-unmerged attempt, safe
+     to remove (nothing references it, and the claim above already rules out a live sibling):
+     `git branch -D "{name}"`. Log: `AUTO {time} — Stale same-name branch check: removed stale
+     local branch {name} (no attached worktree) before creating a fresh one. Reversibility: high
+     (the branch's commits, if any survive on a still-open remote PR for the same name, are not
+     touched by this delete — only the local ref).`
+
+   This closes the collision at its root — `EnterWorktree` never encounters the stale name — so
+   neither `local-merge`'s non-force-push rejection nor `pr-first`'s branch-reuse ordering (see
+   `_shared/pr-early-run-lifecycle.md`'s Step 1 note) is ever relied on as the actual protection;
+   both were previously incidental side effects, not a designed safety net (#767's Current State).
 2. Invoke `/superpowers:using-git-worktrees` to create an isolated workspace — the name passed
    through it to `EnterWorktree` is the sanitized name from "## Worktree name derivation" above,
    never the raw branch/record slug

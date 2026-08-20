@@ -107,10 +107,11 @@ function rangeMembers(haystack) {
   return members;
 }
 
-function changelogCoverage(changelogText, version, records) {
-  const entry = parseChangelogVersions(changelogText).find((e) => e.version === version);
-  if (!entry) return { entryFound: false, named: [], missing: [...records] };
-  const haystack = `${entry.title}\n${entry.body}`;
+// Digit-boundary + range-aware "which of these record numbers does this text name"
+// check — the matcher `changelogCoverage` uses against a single changelog entry's
+// title+body, and that `unnamed-records.js`'s release gate reuses verbatim against
+// both a release summary and the newest changelog entry (`#768`).
+function recordsNamedIn(haystack, records) {
   const ranges = rangeMembers(haystack);
   const named = [];
   const missing = [];
@@ -119,7 +120,14 @@ function changelogCoverage(changelogText, version, records) {
     if (re.test(haystack) || ranges.has(n)) named.push(n);
     else missing.push(n);
   }
-  return { entryFound: true, named, missing };
+  return { named, missing };
+}
+
+function changelogCoverage(changelogText, version, records) {
+  const entry = parseChangelogVersions(changelogText).find((e) => e.version === version);
+  if (!entry) return { entryFound: false, named: [], missing: [...records] };
+  const haystack = `${entry.title}\n${entry.body}`;
+  return { entryFound: true, ...recordsNamedIn(haystack, records) };
 }
 
 function releaseStatus(deps, { ref = 'HEAD', merge, records } = {}) {
@@ -163,6 +171,6 @@ function formatBackfillSection(result, { merge } = {}) {
 }
 
 module.exports = {
-  iterBumpCommits, findBumpCommits, carryingBump, changelogCoverage, releaseStatus,
+  iterBumpCommits, findBumpCommits, carryingBump, changelogCoverage, recordsNamedIn, releaseStatus,
   formatStatusLine, formatBackfillSection, isBadRefValue, MANIFEST, CHANGELOG,
 };

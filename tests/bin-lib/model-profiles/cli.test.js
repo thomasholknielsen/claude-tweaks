@@ -204,3 +204,38 @@ test('record-failure rejects a model name that is not a real family alias, and r
   const { failurePath } = require('../../../plugin/bin/lib/model-profiles/session-failures');
   fs.rmSync(failurePath(sessionId), { force: true });
 });
+
+// #841 item 3: the recovery-path CLI surface for the session-failure blacklist.
+test('clear-failures clears a recorded blacklist — a subsequent resolution is unaffected', () => {
+  const dir = tmpProject(null);
+  const sessionId = `cli-test-${process.pid}-clear`;
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
+  execFileSync('node', [CLI, 'record-failure', 'fable'], { cwd: dir, env, encoding: 'utf8' });
+  const before = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.strictEqual(before.source, 'degraded:session-failure');
+  const out = JSON.parse(execFileSync('node', [CLI, 'clear-failures'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.deepStrictEqual(out, { cleared: true, sessionId });
+  const after = JSON.parse(execFileSync('node', [CLI, 'frontier'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.strictEqual(after.model, 'fable');
+  assert.strictEqual(after.source, 'default');
+});
+
+test('clear-failures with no CLAUDE_CODE_SESSION_ID exits 1 naming the problem', () => {
+  const dir = tmpProject(null);
+  const env = { ...process.env };
+  delete env.CLAUDE_CODE_SESSION_ID;
+  assert.throws(
+    () => execFileSync('node', [CLI, 'clear-failures'], { cwd: dir, env, encoding: 'utf8' }),
+    (e) => e.status === 1 && /CLAUDE_CODE_SESSION_ID/.test(String(e.stderr)),
+  );
+});
+
+test('clear-failures on a session with no blacklist is a harmless no-op', () => {
+  const dir = tmpProject(null);
+  const sessionId = `cli-test-${process.pid}-clear-absent`;
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: sessionId };
+  const { failurePath } = require('../../../plugin/bin/lib/model-profiles/session-failures');
+  fs.rmSync(failurePath(sessionId), { force: true });
+  const out = JSON.parse(execFileSync('node', [CLI, 'clear-failures'], { cwd: dir, env, encoding: 'utf8' }));
+  assert.deepStrictEqual(out, { cleared: true, sessionId });
+});

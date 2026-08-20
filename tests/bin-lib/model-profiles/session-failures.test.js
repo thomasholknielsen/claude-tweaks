@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {
-  failurePath, readFailedModels, recordFailure,
+  failurePath, readFailedModels, recordFailure, invalidateFailures,
 } = require('../../../plugin/bin/lib/model-profiles/session-failures');
 
 function cleanup(sessionId) {
@@ -114,4 +114,111 @@ test('two session ids never share a file', () => {
   assert.deepStrictEqual(readFailedModels(idB), new Set());
   cleanup(idA);
   cleanup(idB);
+});
+
+// #841 item 1: recordFailure now serializes its read-modify-write behind a
+// mkdir-based lock (see session-failures.js's acquireLock/releaseLock),
+// closing the lost-update race between two concurrent recordFailure calls
+// for two different models. Proving genuine concurrency deterministically
+// within one single-threaded process isn't possible, so these tests prove
+// the two properties that combine to close the race instead: (1) the lock
+// is held across the whole read-modify-write critical section (acquired
+// before the read, released only after the rename), and (2) a lock already
+// held by someone else is honored — a second recordFailure blocks until it
+// is free rather than racing past it.
+test('recordFailure acquires the lock before reading and releases it only after the rename', () => {
+  const id = `sf-test-lock-order-${process.pid}`;
+  cleanup(id);
+  const p = failurePath(id);
+  const lockDir = `${p}.lock`;
+  const realReadFileSync = fs.readFileSync;
+  const realRenameSync = fs.renameSync;
+  const order = [];
+  const readSpy = mock.method(fs, 'readFileSync', (target, ...rest) => {
+    if (target === p) order.push('read');
+    return realReadFileSync.call(fs, target, ...rest);
+  });
+  const renameSpy = mock.method(fs, 'renameSync', (from, to) => {
+    order.push('rename');
+    return realRenameSync.call(fs, from, to);
+  });
+  try {
+    recordFailure(id, 'fable');
+  } finally {
+    readSpy.mock.restore();
+    renameSpy.mock.restore();
+  }
+  // The read (inside readFailedModels) and the rename both ran while the
+  // lock directory could not have been held by anyone else, and the lock
+  // directory itself must be gone again once recordFailure returns.
+  assert.deepStrictEqual(order, ['read', 'rename']);
+  assert.ok(!fs.existsSync(lockDir), 'lock directory must be released after recordFailure returns');
+  cleanup(id);
+});
+
+test('a lock already held by another writer is honored — recordFailure waits for it, never races past it', () => {
+  // recordFailure's own poll loop blocks this process's main thread
+  // synchronously (Atomics.wait), so a same-process setTimeout could never
+  // fire while it's running. A real, independent OS process releasing the
+  // lock genuinely runs concurrently with that blocked thread, which a
+  // same-process timer cannot.
+  const { spawn } = require('node:child_process');
+  const id = `sf-test-lock-contend-${process.pid}`;
+  cleanup(id);
+  const lockDir = `${failurePath(id)}.lock`;
+  fs.mkdirSync(lockDir); // simulate a concurrent recordFailure already holding the lock
+  const releaser = spawn(
+    process.execPath,
+    ['-e', `setTimeout(() => { try { require('fs').rmdirSync(${JSON.stringify(lockDir)}); } catch {} }, 30)`],
+    { stdio: 'ignore' },
+  );
+  releaser.on('error', () => {}); // best-effort helper — a spawn failure just makes this test time out, not crash
+  try {
+    const start = Date.now();
+    recordFailure(id, 'opus', { lockTimeoutMs: 2000, lockPollMs: 5 });
+    assert.ok(Date.now() - start < 2000, 'must have acquired the lock once released, not fallen through to the 2s timeout');
+  } finally {
+    releaser.kill();
+  }
+  assert.deepStrictEqual(readFailedModels(id), new Set(['opus']));
+  cleanup(id);
+});
+
+test('recordFailure degrades to unlocked (never throws, never hangs past the timeout) when the lock cannot be acquired', () => {
+  const id = `sf-test-lock-timeout-${process.pid}`;
+  cleanup(id);
+  const lockDir = `${failurePath(id)}.lock`;
+  fs.mkdirSync(lockDir); // held forever for this test — never released
+  const start = Date.now();
+  assert.doesNotThrow(() => recordFailure(id, 'sonnet', { lockTimeoutMs: 50, lockPollMs: 10 }));
+  assert.ok(Date.now() - start < 2000, 'must degrade near the short timeout, not the 2s production default');
+  // The write still happens (best-effort, unlocked) — the model is recorded
+  // even though the lock could never be acquired.
+  assert.deepStrictEqual(readFailedModels(id), new Set(['sonnet']));
+  fs.rmdirSync(lockDir);
+  cleanup(id);
+});
+
+// #841 item 3: the recovery path — deletes the blacklist so a session
+// wrongly (or no-longer-relevantly) degraded can resume resolving normally
+// before the credit-exhaustion window naturally rolls over.
+test('invalidateFailures deletes the blacklist file', () => {
+  const id = `sf-test-invalidate-${process.pid}`;
+  cleanup(id);
+  recordFailure(id, 'fable');
+  assert.deepStrictEqual(readFailedModels(id), new Set(['fable']));
+  invalidateFailures(id);
+  assert.deepStrictEqual(readFailedModels(id), new Set());
+  assert.ok(!fs.existsSync(failurePath(id)));
+});
+
+test('invalidateFailures tolerates an already-absent file, never throws', () => {
+  const id = `sf-test-invalidate-absent-${process.pid}`;
+  cleanup(id);
+  assert.doesNotThrow(() => invalidateFailures(id));
+});
+
+test('invalidateFailures is a no-op with no session id', () => {
+  assert.doesNotThrow(() => invalidateFailures(undefined));
+  assert.doesNotThrow(() => invalidateFailures(''));
 });

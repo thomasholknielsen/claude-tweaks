@@ -43,12 +43,15 @@ point, never a mechanical replay (Step 3).
   ↳ trust: producer:harness-health / elevated — insufficient-evidence
 
 Accepted defaults, paste-ready (Step 5's Grant-rows mechanics, `bot:blocked`→`auto:build` branch —
-bootstrap comment lives there, not repeated here):
+bootstrap comment lives there, not repeated here). Write every re-authorize row's action to
+`/tmp/backlog-refine-actions-reauthorize.json` (one `{issue, addLabels, removeLabels}` object per
+row — `addLabels: ["auto:build"], removeLabels: ["bot:blocked"]` for every row in this lane, per
+record `issue`), then apply the whole lane in one call (`bin/apply-refine-labels.js` — batch
+`gh issue edit`/`gh issue comment` dispatch from a structured actions file, #844):
 
 ```bash
 ── Re-authorize ──
-# Terminal — #118
-gh issue edit 118 --remove-label bot:blocked --add-label auto:build
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" /tmp/backlog-refine-actions-reauthorize.json --run "$PIPELINE_RUN_DIR"
 ```
 
 Re-authorizing grants `auto:build` only, never `auto:merge` — restoring that too requires an
@@ -71,12 +74,13 @@ visible, never as a permanent fixture.
   ↳ trust: producer:capture / low — clean, 62% coverage
 
 Accepted defaults, paste-ready (Step 5's Grant-rows mechanics — bootstrap comment lives there, not
-repeated here):
+repeated here). Write every grant row's action to `/tmp/backlog-refine-actions-grant.json`
+(`addLabels: ["auto:build"]`, or `["auto:build", "auto:merge"]` when `RECOMMEND_MERGE` was also
+`true`, per record `issue`), then apply the whole lane in one call:
 
 ```bash
 ── Grant ──
-# Terminal — #124
-gh issue edit 124 --add-label auto:build --add-label auto:merge
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" /tmp/backlog-refine-actions-grant.json --run "$PIPELINE_RUN_DIR"
 ```
 
 **Trust consequence line.** Rendered under a Re-authorize or Grant row only when the Trust signal
@@ -138,13 +142,14 @@ spec-shape re-check immediately before Step 4).
 | 2 | #205: {title} | ready → flag back (not spec-shaped) | missing/empty: `## Acceptance Criteria` |
 
 Accepted defaults, paste-ready (Step 5's Flag-back-rows mechanics — bootstrap comment lives there,
-not repeated here):
+not repeated here). Write every flag-back row's action to `/tmp/backlog-refine-actions-flagback.json`
+(`removeLabels: ["ready"], commentFile: "/tmp/backlog-refine-flagback-{issue}.md"` per record —
+the per-record flagback body file is still written exactly as before, just referenced by path
+instead of pasted as its own `gh issue comment` line), then apply the whole lane in one call:
 
 ```bash
 ── Flag-back ──
-# Terminal — #201
-gh issue edit 201 --remove-label ready
-gh issue comment 201 --body-file /tmp/backlog-refine-flagback-201.md
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" /tmp/backlog-refine-actions-flagback.json --run "$PIPELINE_RUN_DIR"
 ```
 
 ## Priority
@@ -180,12 +185,14 @@ lane above get a full Priority-lane row below.
 | 2 | #16: {title} | (none) → Add **Related:** #23 | {synthesis rationale} |
 
 Accepted defaults, paste-ready (Step 5's Priority/Related-rows mechanics — bootstrap comment lives
-there, not repeated here):
+there, not repeated here). Write every priority row's action to
+`/tmp/backlog-refine-actions-priority.json` (`addLabels: ["priority:{tier}"]` per record — a
+Related-only row with no priority tier omits `addLabels` and only sets whatever the Related body
+rewrite needs, per that row's own mechanics), then apply the whole lane in one call:
 
 ```bash
 ── Priority ──
-# Terminal — #123
-gh issue edit 123 --add-label priority:high
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" /tmp/backlog-refine-actions-priority.json --run "$PIPELINE_RUN_DIR"
 ```
 
 Rows also carry Step 2's non-binding tier guess in the Evidence column — the old `Suggested Tier`
@@ -216,7 +223,11 @@ Records with no other lane render their own row:
 | 1 | #420: {title} | (none) → Wire blocked-by #419 | Flagged by this run's dependency-mismatch detection — prose cites #419 but resolved blockers were empty |
 
 Accepted defaults, paste-ready (Step 5's Dependency-repair-rows mechanics, both `work-links`
-branches — not repeated here):
+branches — not repeated here). This lane's `work-links: body-text` mechanic is a **body rewrite**
+(`--body-file` on `gh issue edit`), not a label/comment action — `apply-refine-labels.js`'s actions
+contract (`addLabels`/`removeLabels`/`commentFile`) doesn't cover that shape, so this lane keeps
+its own per-record paste-ready form rather than a forced batch call (#844: batching a body-rewrite
+`gh` shape is out of scope for this CLI's first version):
 
 ```bash
 ── Dependency repair ──
