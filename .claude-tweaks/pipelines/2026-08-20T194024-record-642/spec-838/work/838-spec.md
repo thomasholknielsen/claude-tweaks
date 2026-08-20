@@ -1,7 +1,7 @@
 ---
 record: 838
 origin: human
-risk: medium
+risk: low
 size: medium
 ceremony: standard
 grants: [build, merge]
@@ -50,3 +50,11 @@ PR-early run lifecycle: pr object missing at wrap-up, no push, no degrade log
 Context: Run 2026-08-17T164729-record-81's build phase (pr-first, github-issues backend) left run-state.json with no `pr` object at wrap-up time — the branch was never pushed and no draft PR was opened, with no degrade-warning log line in decisions.md either.
 
 Scope: Investigate whether build/worktree-setup.md Step 6 actually ran for this record, and whether pr-early-run-lifecycle.md's Step 2 push-failure logging can silently swallow a failure (possibly a transient GitHub GraphQL 503 outage — the same 503s appeared independently later in this same session's wrap-up `gh` calls, then cleared on retry).
+
+## Investigation findings (this build)
+
+- The archived run directory `.claude-tweaks/pipelines/archive/2026-08-17T164729-record-81/` still exists (git-tracked), but only carries the committed `spec-{N}/work/{N}-spec.md` files (per `.gitignore`'s un-ignore rules for `work/`) — `decisions.md`, `run-state.json`, and `manifest.yml` were never committed (gitignored by design) and are gone from this archived copy, so the specific failure signature for that historical run (transient 503 vs. Step 6 never running vs. an agent skipping the log instruction) cannot be forensically recovered from repo history alone.
+- `build/worktree-setup.md` Step 6 (which calls `pr-early-run-lifecycle.md`) was added in commit `806f46af` (2026-08-14T15:40:26+02:00) — well before record #81's run (2026-08-17T16:47:29+02:00). `pr-early-run-lifecycle.md`'s Step 2 push-failure logging text existed at that same commit and was unchanged through the run. So this is not a "run predates a since-shipped fix" case — the logging instruction already existed and, per the evidence, was not followed (or the failure occurred at a point this run's decisions.md never captured).
+- Since `decisions.md`/`run-state.json` writes for a prose-driven step depend on an executing agent actually following the instruction (no code enforces it), the durable fix is to (a) reduce the odds a transient failure is ever silently swallowed by making the degrade-warning log line explicitly mandatory rather than a soft "log to decisions.md" aside, and (b) reduce the odds a transient 5xx/503 reaches the failure path at all via one bounded, fast retry (15s) — distinct from `_shared/github-rate-limit.md`'s 45-90s rate-limit-specific backoff, since a 503 outage is a different signature that self-heals faster and isn't covered by that file's recognition taxonomy.
+
+Defer-reason: n/a — evidence for the historical run is unrecoverable, but the systemic gap (prose-only logging that can be silently skipped) is real and fixed in this build regardless of which exact failure mode occurred for record #81.
