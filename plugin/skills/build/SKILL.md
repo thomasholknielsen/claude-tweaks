@@ -125,6 +125,8 @@ The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
 
 **Degrade-clause convention check:** before a plan task writes a new "when X is unavailable, do Y" clause into a skill or `_shared/` contract, grep `plugin/skills/_shared/` for the same unavailability condition (`gh absent`, `no MCP fallback`, `MCP transport`, and the like) and cite whatever established convention already covers it, inline, rather than restating the behaviour uncited. An uncited degrade clause reads to a reviewer as a fresh, unsupported exception to the file's general transport policy, and the review cycle spent adjudicating that is pure waste — the convention already existed. (Same check applies in Design Step 3 below.)
 
+**Size-headroom check:** when a plan task appends to a `skills/_shared/*.md` or `SKILL.md` file already within ~10% of the 40 KB ceiling, measure `wc -c` against the ceiling on the merge base and name the split up front in the plan, rather than discovering the overflow at test time. (Same check applies in Design Step 3 below.)
+
 Proceed to **Common Step 2**.
 
 ---

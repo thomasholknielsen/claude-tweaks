@@ -223,13 +223,30 @@ were composed at run start (Step 3 above) and the phase checklist reflects which
 exited as of each best-effort `gh pr edit` (Phase-checklist update above), not necessarily every
 phase this run actually completed.
 
-1. Re-run the Phase-checklist update procedure above once more, unconditionally — idempotent
+1. **Merge-size probe (#641).** Run `node plugin/bin/merge-size-probe.js --integration-branch {integration-branch}`
+   against this run's branch. It predicts, via `git merge-tree --write-tree`, the post-merge size
+   of every branch-touched `skills/_shared/*.md`/`SKILL.md` file — a branch that is green alone
+   (`tests/bin-lib/skill-audit/context-cost.test.js` only sees the working tree) can still tip a
+   shared file over the 40 KB ceiling once merged with a concurrent sibling's own additions, a
+   failure that today only surfaces inside the merge sequence itself. A non-empty `overflow` never
+   blocks this merge — this section invents no new pipeline stop
+   (`_shared/auto-mode-contract.md`'s strict rule) — it discloses at **warn** tier in the run
+   summary (a visible line, not a silent log entry), one per file: `merge-size-probe: {path}
+   predicted at {bytes} B, {over} B over the 40 KB ceiling once merged with {integration-branch}`,
+   and logs `AUTO {time} — PR-early run lifecycle: merge-size probe predicted {n} file(s) over
+   ceiling post-merge; disclosed in run summary. Reversibility: n/a (prediction only).` This is a
+   prediction against `{integration-branch}` as of probe time, not a guarantee — a sibling that
+   merges after the probe but before this branch does can still produce a fresh overflow the
+   probe never saw. A probe failure (unresolvable ref, a real merge conflict) degrades like any
+   other best-effort step here: log a warning and continue — the merge sequence surfaces a real
+   conflict on its own.
+2. Re-run the Phase-checklist update procedure above once more, unconditionally — idempotent
    (a phase whose own update already landed re-flips the same rows to the same values); this is
    the final catch-all for any phase whose own best-effort update silently failed.
-2. Read the record's current title (`gh issue view {n} --json title -q .title` for the
+3. Read the record's current title (`gh issue view {n} --json title -q .title` for the
    lowest-numbered record). If it no longer matches the PR's own title (the record was retitled
    after PR creation), refresh it: `gh pr edit {pr-number} --repo {owner}/{repo} --title "{current record title} (#{n})"`.
-3. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
+4. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
 
 Best-effort, like the phase-checklist update it extends — a failed `gh pr edit` here logs a
 warning and the merge proceeds; a stale title/checklist is cosmetic, never a merge blocker.
