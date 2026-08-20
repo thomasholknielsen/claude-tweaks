@@ -8,7 +8,7 @@ files:
 
 # Routine Fleet On
 
-**Persona:** Project operator who wants the self-maintaining posture — scheduled finders filing records, health sweeps, and the dispatch drain — provisioned in one deliberate action instead of eleven separate `/claude-tweaks:routine create` walkthroughs.
+**Persona:** Project operator who wants the self-maintaining posture — scheduled finders filing records, health sweeps, and the dispatch drain — provisioned in one deliberate action instead of twelve separate `/claude-tweaks:routine create` walkthroughs.
 **Goal:** Run `/claude-tweaks:routine fleet on` once and end with the fleet's routines live (or reconciled) on staggered cadences, with the grant unit provisioned only if the two autonomy keys are already deliberately set.
 
 ## Steps
