@@ -176,7 +176,9 @@ instead of the canonicalization step that follows; it produces the same
 `/tmp/tidy-acceptance-gap-sub-issues.json` by the older, verbatim REST path. **Exit 3** — the
 GraphQL call itself failed (network/API error, or a missing-repository response) — the run fails
 loud: report no `[acceptance-gap]` rows at all, naming the failed parents from the command's
-stderr. **Exit 0** — continue to the retry ladder below.
+stderr. **Exit 1 or 2** — a malformed invocation or a missing `gh`/unresolvable repo: an
+environment or transcription bug, not a data outcome — stop and surface the CLI's stderr rather
+than reading the (empty) batch file. **Exit 0** — continue to the retry ladder below.
 
 The batch envelope's `retry` array names parents the probe could not resolve in one page — a
 missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true
@@ -449,7 +451,10 @@ GraphQL field is unavailable on this host — run the Fallback block below for *
 instead of the composing step that follows; it produces the same `/tmp/tidy-parent-gates.json` by
 the older, verbatim REST path. **Exit 3** — the GraphQL call itself failed (network/API error, or
 a missing-repository response) — the run fails loud: report no `[parent-gate]` rows at all, naming
-the failed parents from the command's stderr. **Exit 0** — continue to the composing step below.
+the failed parents from the command's stderr. **Exit 1 or 2** — a malformed invocation or a
+missing `gh`/unresolvable repo: an environment or transcription bug, not a data outcome — stop and
+surface the CLI's stderr rather than reading the (empty) batch file. **Exit 0** — continue to the
+composing step below.
 
 The batch envelope's `retry` array names parents the probe could not resolve in one page — a
 missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true

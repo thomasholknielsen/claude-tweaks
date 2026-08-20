@@ -60,7 +60,9 @@ function parseRepo(url) {
 const realDeps = {
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
-  runner: (args) => execFileSync('gh', args, { encoding: 'utf8' }),
+  // 30s bound: a 50-alias GraphQL batch outweighs the 5s single-call convention
+  // (gh-api-module-pattern's "bound every remote-contacting call" rule).
+  runner: (args) => execFileSync('gh', args, { encoding: 'utf8', timeout: 30000 }),
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
 };
