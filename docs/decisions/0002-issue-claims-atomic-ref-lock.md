@@ -1,4 +1,4 @@
-# 2. Issue claiming uses atomic refs/claims/* ref creation as the lock primitive
+# 0002. Issue claiming uses atomic refs/claims/* ref creation as the lock primitive
 
 - **Status:** superseded — the lock moved to a create-only / sha-conditional blob write (`claims/issue-<n>.json` on the `claims-registry` branch) with #241's transport unification; the `refs/claims/*` keyspace was retired and its read-compat window closed with #247
 - **Date:** 2026-07-04
