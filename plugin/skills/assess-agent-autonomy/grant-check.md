@@ -71,6 +71,7 @@ Otherwise, read the body content directly — don't just trust the risk/size lab
   `TBD`/`TODO`/`<!-- ambiguity:` marker, is not this mode's job to catch — that's
   `/claude-tweaks:backlog refine`'s own Step 3.5 body-shape re-verification, which runs after this mode
   regardless of its output.
+- Does the record carry `shaped:headless` (#968 — no human reviewed the spec body, only `/specify`'s headless `next` unit)? Content-derived confidence is inherently weaker here than on a human-shaped record, since nobody has validated the spec text itself against the actual codebase. Weigh ambiguity toward `RECOMMEND_BUILD: false` in this case — this is a judgment nudge, not a hard rule: `evaluateGrantGate`'s own gate 5 (`grant-gate.js`) already hard-denies a `shaped:headless` record whose risk or size is `medium`+ regardless of what this step recommends, so this paragraph only affects the narrower population that clears that gate (risk and size both `low`) but still carries some content-level ambiguity this step can weigh.
 
 ## Step 3: Render
 

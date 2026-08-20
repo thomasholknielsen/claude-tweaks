@@ -13,7 +13,10 @@ cite this file rather than restating it.
 A patch is staged mid-pipeline, in a worktree whose HEAD advances several more times before the
 console runs — `/simplify`, polish, `/test` fix waves, later specs in a multi-spec run. Staleness
 is therefore structural, not an edge case: the literal diff bytes are the least durable part of
-the proposal. Two things went wrong in run 2026-08-16T164927 that this contract closes: a staged
+the proposal. This is `_shared/reverify-before-write.md`'s pattern applied to a staged diff
+specifically: the console is a long-lived human-confirmation gate, so the console apply step
+below never trusts the diff bytes as still-true — it re-derives from the `Invariant:` line
+against the current tree instead of assuming the snapshot staging captured still holds. Two things went wrong in run 2026-08-16T164927 that this contract closes: a staged
 diff was malformed and nobody noticed until `git apply` failed at the console ("No valid patches
 in input"), and a well-formed diff went stale because `/simplify` legitimately restructured the
 target lines after staging. Both surfaced only at the console, where the one-line fix had to be
@@ -62,11 +65,10 @@ honor for a staged finding it applies directly.
 
 Immediately after composing the file, and before logging it as staged, run — from the worktree,
 the same tree the diff was composed against. `$STAGE_PATH` is the staged file's **absolute**
-path under the run directory resolved per `_shared/pipeline-run-dir.md`'s Anchoring section
-(`$RUN_ROOT/.claude-tweaks/pipelines/{run-id}/staged/…` — the main checkout, never a
-worktree-relative shadow); the command runs with cwd = the **worktree root** the diff was
-composed against — always the `-C` form below, never a bare `git apply --check` from whatever cwd
-happens to be current (a bare form validates against the wrong tree silently):
+anchored path, per the staged-file invariant whose single owner is `_shared/pipeline-run-dir.md`'s
+Anchoring section; the command runs with cwd = the **worktree root** the diff was composed
+against — always the `-C` form below, never a bare `git apply --check` from whatever cwd happens
+to be current (a bare form validates against the wrong tree silently):
 
 ```bash
 git -C "$WORKTREE" apply --check "$STAGE_PATH"

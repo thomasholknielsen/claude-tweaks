@@ -1,0 +1,57 @@
+# Multi-Spec Boundary Freshness Check
+
+Loaded by `/claude-tweaks:flow`'s multi-spec Execution loop (`multi-spec.md`'s boundary-freshness bullet) — runs at each spec boundary, spec 2 onward: after spec N-1's pipeline completes, fails, or is skipped under `MULTISPEC_KEEP_GOING`, and before spec N's per-spec scaffold step. Spec 1 is covered by the shared worktree's creation-time catch-up (`skills/build/worktree-setup.md` Step 4), and the end-of-run finish keeps its own re-check (`multi-spec.md`'s Shared-worktree Step 3). This file covers only the gap between those endpoints: a long-running batch during which origin can ship work that invalidates the remaining specs' premises. Two observed incidents motivate it: #856 (the v6.95.0 `plugin/` subtree cutover merged *cleanly* into an in-flight batch, caught only by an improvised KEPT-PROMPT) and batch #967–970 (135 commits of drift resolved only at PR-merge time, commit `9126efb7`).
+
+Resolve `{integration-branch}` via `skills/_shared/integration-branch.md`'s canonical ladder — the **full** ladder, the same resolution `_shared/worktree-setup.md`'s Post-creation catch-up uses, never the Pre-flight divergence check's narrower policy-then-`@{upstream}` resolution (that file warns that cross-using the two reintroduces bugs, and inside the shared worktree `@{upstream}` names the run's own pushed branch). The fetch/merge command text below deliberately mirrors that file's catch-up commands; the control flow — skip-on-fetch-failure, behind-count gate, conditional merge — is this file's own. Merge mechanics, conflict resolution (`_shared/git-discipline.md`), and the fail-open posture follow `_shared/worktree-setup.md` — cited, not restated (its own Anti-patterns table forbids restating).
+
+## The check
+
+1. `git fetch origin {integration-branch}`. On fetch failure, **skip this boundary's check entirely** and log the distinct fail-open entry to the parent `decisions.md` — `AUTO {time} — Boundary freshness check (before spec {N}): git fetch failed ({reason}) — check skipped this boundary. Reversibility: n/a (no merge attempted).` — per `_shared/worktree-setup.md`'s fail-open principle (a reader must be able to tell "checked, clean" from "check didn't run"). Never compute the behind-count against a stale ref, where a false zero would be indistinguishable from a genuine clean no-op.
+2. `BEHIND=$(git rev-list --count "HEAD..origin/{integration-branch}")` — `0` → silent no-op. Write nothing (log-only-when-changed, mirroring `worktree-setup.md`'s convention and the Pre-flight Verify Sweep's clean case).
+3. `BEHIND > 0` → compute three path sets:
+   - **Incoming** — `git diff --name-status "HEAD...origin/{integration-branch}"` (three-dot: the incoming side only). A rename entry (`R{score}`, tab-separated old and new path) contributes **both** paths.
+   - **Run-modified** — `git diff --name-only "$(git merge-base --end-of-options HEAD "origin/{integration-branch}")..HEAD"`. The merge-base isolates the run's own side even after an earlier boundary merge landed upstream commits in the branch. `manifest.yml`'s `baseSha` is deliberately not used here: it is only written under `MULTISPEC_CURATION_DEFER=1`, and after the first boundary merge it would count merged-in upstream files as run-modified — false-positive escalations.
+   - **Remaining Key Files** — the `### Key Files` paths of specs N..last, from Validation Step 3's pre-flight collection (`bin/preflight-records.js`, whose per-record `keyFiles` arrays are clean paths via `extractKeyFiles`). Completed specs' files are not in this set. When the pre-flight collection is no longer in context at this boundary (a long batch, a context compaction), re-derive it with the same command rather than recalling it — `node "${CLAUDE_PLUGIN_ROOT}/bin/preflight-records.js" {remaining record ids}`, reading `.records[].keyFiles` — never compute the intersection against a remembered or partial set: an empty oracle silently merges exactly the drift this check exists to catch.
+4. **Overlap formula:** `incoming ∩ (run-modified ∪ remaining-Key-Files) ≠ ∅` — exact-path equality after rename expansion, no prefix matching; either intersection alone escalates. This is a plain path-set intersection over git output — not `groupByFileOverlap` (`bin/lib/issues/grouping.js`), which is record-keyed and solves a different problem.
+5. **No overlap** → `git merge origin/{integration-branch}`. On success, one `AUTO` entry in the **parent** run directory's `decisions.md` — `AUTO {time} — Boundary freshness check (before spec {N}): shared branch advanced from {before short} to {after short} ({K} commit(s) from origin/{integration-branch}). Reversibility: med (merge commit {sha}; the run's own commits precede it).` — the same log-only-when-changed convention as `worktree-setup.md`'s correction entries. On conflict → `git merge --abort` to restore the clean tree, then escalate below — git overruled the heuristic, and the gate must open on a clean tree exactly like the overlap path's.
+6. **Overlap** → escalate below, *before* merging, so the decision point sees a clean tree.
+
+The Key Files oracle is **best-effort**: a spec's declared Key Files are a proxy for what its build will actually touch, so a false negative is possible — the pre-finish re-check (`multi-spec.md`'s Shared-worktree Step 3) remains the backstop. The behind-count likewise assumes an append-only integration branch (this project's standing git discipline); a rewritten remote history surfaces as divergence or conflict at merge time rather than being silently mis-counted — the count is a screen, not a proof.
+
+## Escalation — run-level HARD-GATE
+
+This gate is enumerated in `_shared/auto-mode-contract.md`'s "What `auto` does NOT silence" HARD-GATE row — a registered HARD-GATE, not a new mid-flow stop category. It fires even in `auto` mode. `MULTISPEC_KEEP_GOING` does not bypass it: keep-going skips past a *failed spec*, but boundary drift invalidates every remaining spec equally — skipping ahead dodges nothing. (The check itself also runs at every boundary regardless of whether the prior spec completed, failed, or was skipped.)
+
+Call `AskUserQuestion`:
+
+- `question`: `"origin/{integration-branch} moved {BEHIND} commit(s) and the incoming diff overlaps this run's work — how do you want to proceed?"`, `header`: `"Boundary drift"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Merge + re-validate premises (Recommended)"`, `description`: `"Merge, then check each remaining spec's Key Files and stated assumptions against the new tip; surface what broke."`
+- Option 2 — `label`: `"Merge and continue as-is"`, `description`: `"The drift is benign — merge and proceed without re-validation."`
+- Option 3 — `label`: `"Stop the run"`, `description`: `"Stop remaining specs per multispec-failure-handling.md; completed specs' commits stay in the shared branch."`
+
+**On option 1:** merge, then re-read each remaining spec's `### Key Files` and stated assumptions against the new tip, write one verdict line per remaining spec to the parent `decisions.md`, and when anything broke, surface it as a follow-up decision within this same open gate (fix the spec / skip it / stop the run) — no new stop class. **On option 2:** merge and continue. **On option 3:** stop per `multispec-failure-handling.md`.
+
+A merge performed under option 1 or 2 that itself conflicts is resolved per `_shared/git-discipline.md`'s merge-conflict procedure — the human is already present at the gate; never reset or discard.
+
+**Logging is both-entries, not either-or:** any merge that advances the branch writes the check's step 5 `AUTO` entry, and the gate's resolution additionally writes its own entry per `_shared/auto-decision-log.md`'s schema.
+
+## Interplay
+
+- **Merge-then-suite** (`multi-spec.md`'s Shared-worktree Step 3 sequencing rule) is structurally satisfied: the check runs at the boundary, when no spec's build or suite is in flight.
+- **Test attribution:** spec N's `/test` failures appearing after a boundary merge may come from merged upstream code — attribute against the drift-merge `decisions.md` entry, not the Pre-flight Verify Sweep's ledger baseline (which predates the merged commits), before re-diagnosing.
+- **Batch curation:** boundary merges put upstream commits inside the shared branch's history — `multispec-batch-curation.md`'s batch diff derives from `git merge-base`, not `manifest.yml`'s `baseSha`, for exactly this reason (byte-identical when no boundary merge landed).
+- **Pre-finish rebase:** `multi-spec.md`'s Shared-worktree Step 3 rebases onto the new tip before finishing so the branch stays fast-forward-mergeable — boundary merges put merge commits in the branch before that step runs; a rebase simply drops the already-merged upstream commits, so the interaction is benign, but the branch Step 3 operates on now contains merge commits rather than a linear run of spec commits.
+
+## Worked example — the #856 signature
+
+Mid-batch, origin shipped the v6.95.0 restructuring that moved `skills/**` to `plugin/skills/**`. The incoming `--name-status` set is rename-heavy — `R100`-class entries pairing each old `skills/...` path with its new `plugin/skills/...` path. The in-flight specs' Key Files name the **old** paths, so under the rename rule (both paths contribute to the incoming set) `incoming ∩ remaining-Key-Files` is non-empty and the gate fires — even though `git merge` itself would have completed cleanly. A naive incoming set that kept only each rename's *new* path would miss the intersection entirely; the rename rule is what makes this check catch the incident that motivated it.
+
+## Anti-patterns
+
+| Pattern | Why it fails |
+|---|---|
+| Skipping the boundary check because `reconcile` ran recently | Reconcile advances the main checkout's ref; the shared worktree's branch and the remaining specs' premises are what drift — the check is about them |
+| Computing `BEHIND` after a failed fetch | A stale ref's false zero is indistinguishable from a genuine clean no-op — skip and log distinctly instead |
+| Using `manifest.yml`'s `baseSha` for the run-modified set | After the first boundary merge it counts merged-in upstream files as run-modified — false-positive escalations |
+| Treating a clean `git merge` as proof the premises hold | #856 merged clean while invalidating every in-flight spec's assumed paths — overlap, not merge success, is the signal |
+| Logging a "sweep clean" entry for a zero-behind boundary | Log-only-when-changed — a no-op entry per boundary is noise that buries the real corrections |

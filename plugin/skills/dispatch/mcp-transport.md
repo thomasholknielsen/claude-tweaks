@@ -9,7 +9,7 @@ deleted `d83f0720`, and referred to by that short name for the rest of this file
 whole chain against a live cloud run and flipped Preflight's check 2 from a hard gate to a branch.
 CRUD mappings throughout are per `_shared/github-write-transport.md`. Settle and the Auto-merge gate
 have their own MCP notes in `settle-and-merge.md`; the self-report block's MCP mapping lives with
-that block, in `headless-self-report.md`.
+that block, in `_shared/headless-self-report.md`.
 
 ---
 

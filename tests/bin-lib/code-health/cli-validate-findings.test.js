@@ -267,16 +267,16 @@ test('applyConfidenceFloor passes when criterionFloor is undefined (no floor set
 // version of this comment implying full coverage existed elsewhere. What IS
 // exercised for real, without gh, via a locally-seeded health-state branch:
 // the read side of cursor/run persistence, in
-// bin/lib/code-health/tests/cli-nextslice.test.js (cursors) and
-// bin/lib/code-health/tests/churn-v2.test.js (runs); and the write path's own
+// tests/bin-lib/code-health/cli-nextslice.test.js (cursors) and
+// tests/bin-lib/code-health/churn-v2.test.js (runs); and the write path's own
 // git/gh mechanics (blob/tree/commit/ref calls), via trivial synthetic
-// mutators, in bin/lib/health-core/tests/durable-state.test.js's fake-runner
+// mutators, in tests/bin-lib/health-core/durable-state.test.js's fake-runner
 // tests. Neither of those covers the actual per-run merge semantics
 // (selective per-swept-area cursor update, remembered-delta merge, run
 // append) that cmdValidateFindings's mutator performs — that logic is now
 // extracted as the pure buildValidateFindingsUpdate (bin/lib/code-health/cache.js)
 // and unit tested directly in
-// bin/lib/code-health/tests/build-validate-findings-update.test.js.
+// tests/bin-lib/code-health/build-validate-findings-update.test.js.
 test('validate-findings: a real run with --slice still succeeds when durable persistence cannot complete', () => {
   const root = tmp();
   // Use areaId '.' so the slice path is root itself (which exists).
@@ -363,7 +363,7 @@ test('validate-findings: --dry-run with --slice writes neither cursors nor cache
 // durable cursor already shows an unchanged hash) is still verified for real,
 // without gh, via a locally-seeded health-state branch: see
 // 'next-slice returns null when the only slice has an unchanged hash' in
-// bin/lib/code-health/tests/cli-nextslice.test.js.
+// tests/bin-lib/code-health/cli-nextslice.test.js.
 
 // ── Risk filter (min-risk) ────────────────────────────────────────────────────
 

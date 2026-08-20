@@ -97,6 +97,7 @@ The bracketed field is **always last** — after the existing optional `{; commi
 - **Keys are literal:** copy lever names from `POLICY_KEYS` (`bin/lib/policy-schema.js`) verbatim; never paraphrase.
 - **List-valued levers** render the configured comma-joined string truncated at 60 chars with `…`; an unset list renders `[]`.
 - **Table-cell rendering:** inside any markdown table cell the field renders as an inline code span (backticks), which neutralizes `|` and brackets — e.g. `` `[lever: scope-creep=add-to-plan (policy)]` `` as a suffix in the cell that carries the entry's detail.
+- **One trailing annotation clause, optional:** after the semicolon-separated `key=value (source)` list, a logging site may append exactly one more semicolon-separated free-text clause — not a second `key=value` pair — when it needs to name *how* a lever was applied, not just its value. Example (`review/step3-routing.md`'s prose-exempt bump, #660): `[lever: review-auto-apply-ceiling=low (default); prose-exempt bump applied]`.
 
 Worked examples:
 
@@ -159,19 +160,7 @@ that every existing `staged/` writer already goes through this CLI; several pre-
 `test/SKILL.md`'s `test-fix-*.patch`, `reflect/SKILL.md`'s `reflect-*.md`) and migrate on their own
 schedule.
 
-**Under `worktree-always: true`, before a worktree exists for this run.** Every standalone-auto skill (`_shared/pipeline-run-dir.md`'s step 4 allowlist: `/tidy`, `/init`, `/capture`, `/dispatch`, `/backlog`) writes its own `decisions.md` directly against the main checkout — there is no per-run worktree the way a `/build`/`/flow` pipeline has one. The `worktree-always` PreToolUse gate blocks `Edit`/`Write`/`NotebookEdit` there, so the Read+Write pattern above is denied. Use `bin/log-decision.js` (above) or a Bash append instead — the gate's Bash coverage is the `cp`/`mv`/`tee` shapes only, not a Node process or output redirection (see CLAUDE.md's Hooks section):
-
-```bash
-HEADING="## /{skill-name}"
-if [ ! -f "$RUN_DIR/decisions.md" ] || ! grep -qF "$HEADING" "$RUN_DIR/decisions.md" 2>/dev/null; then
-  printf '%s\n' "$HEADING" >> "$RUN_DIR/decisions.md"
-fi
-cat >> "$RUN_DIR/decisions.md" <<'EOF'
-AUTO 14:32:14 — {step or location}: {short action}. Reversibility: high.
-EOF
-```
-
-This produces the identical entry format (Entry schema, above) and end state as the Read+Write pattern — it's a mechanical substitution for *how* the write lands under this specific policy condition, not a different log format. A skill already running inside a `/flow`/`/build`-created worktree is unaffected and keeps using the Read+Write pattern — the worktree already satisfies the gate.
+**Regardless of worktree state.** `bin/log-decision.js` (above) is the sole append path for `decisions.md` — unconditional, regardless of whether the session sits in a worktree or the main checkout. The run directory is always anchored to the main checkout (`_shared/pipeline-run-dir.md`'s Anchoring section); a worktree session's `Edit`/`Write`/heredoc/redirect attempts against a file under it are refused by the harness regardless of whether a worktree exists for this run — worktree existence was never the deciding factor, and there is no separate append shape for the worktree case.
 
 ## Reading the log (for /wrap-up Review Console)
 

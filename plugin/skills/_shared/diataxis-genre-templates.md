@@ -10,14 +10,14 @@ What each genre claims about placement and naming, and whether a doc-creating pa
 
 | Genre | Owns filename | Detection | Aliases to glob | Project-skill keywords |
 |---|---|---|---|---|
-| Tutorial | no | Phase 2 | — | — |
-| How-To | no | Phase 2 | — | — |
-| Reference | no | Phase 2 | — | — |
-| Explanation | no | Phase 2 | — | — |
-| Journey | `docs/journeys/{journey-name}.md` | Phase 2 | `docs/journeys/` | — |
+| Tutorial | no | **active** | `docs/tutorials/`, `docs/getting-started/` | `tutorial`, `getting started`, `onboarding` |
+| How-To | no | **active** | `docs/guides/`, `docs/how-to/`, `docs/howto/` | `how-to`, `guide`, `runbook` |
+| Reference | no | **active** | `docs/reference/`, `docs/api/` | `reference`, `api docs` |
+| Explanation | no | **active** | `docs/explanation/`, `docs/concepts/`, `docs/architecture/` | `explanation`, `architecture`, `concept` |
+| Journey | `docs/journeys/{journey-name}.md` | **active** | `docs/journeys/` | — |
 | ADR | `docs/decisions/NNNN-{kebab-slug}.md` | **active** | `docs/decisions/`, `docs/adr/`, `docs/rfcs/` | `adr`, `architecture decision`, `decision record` |
 
-A row marked `Phase 2` declares intent only — **no consumer reads it yet**, and nothing should behave as though one does. Wiring a row means adding its consumer and its `doc-convention.{genre}` key in the same change.
+A row marked `Phase 2` declares intent only — **no consumer reads it yet**, and nothing should behave as though one does. Wiring a row means adding its consumer and its `doc-convention-{genre}` key in the same change. Every row above is now wired: the four core Diátaxis genres by `wrap-up/docs-health-integration.md`'s D2 check, Journey by `journeys/SKILL.md` Step 2, ADR by `wrap-up/adr-curation.md` (Phase 1, #187).
 
 ## Tutorial
 
@@ -174,6 +174,8 @@ Migrated from `_shared/decision-records.md`, which retains the ADR gate (hard-to
 ```
 
 `Status` is `accepted` for a decision being recorded after the fact. If a later ADR overturns this one, change its status to `superseded by NNNN` rather than deleting it.
+
+The `{NNNN}` in the H1 is the same zero-padded 4-digit value as the `{NNNN}` in the filename convention above — not two independent numbering schemes that happen to share a placeholder name. `# 12. {Title}` is non-conformant; `# 0012. {Title}` is correct.
 
 ## Journey
 

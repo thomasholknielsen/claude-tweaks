@@ -1,4 +1,4 @@
-// bin/lib/wrap-up/tests/cli.test.js — the CLI's own composition: argument
+// tests/bin-lib/wrap-up/cli.test.js — the CLI's own composition: argument
 // parsing, the --since resolution and its error path, and the reflog-to-ops
 // rendering path. None of that is reachable from the three module suites,
 // which each feed their unit hand-made inputs.

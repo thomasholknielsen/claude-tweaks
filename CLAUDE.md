@@ -11,7 +11,7 @@ A Claude Code plugin containing markdown skill files that guide Claude through a
 | Runtime | Claude Code plugin system + Node 18+ (for the statusline) |
 | Content | Markdown (SKILL.md files with YAML frontmatter); Node modules under `plugin/bin/` |
 | Dependencies | Superpowers plugin (`/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`, `/superpowers:systematic-debugging`), code-simplifier plugin (`code-simplifier:code-simplifier` subagent), agent-browser (optional), git CLI (optional — statusline git segment only), gh CLI (optional — default transport for `work-backend: github-issues`: work-record system, the four health-sweep skills' issue filing, /tidy and /help's PR/issue scans. Not required since 6.24.0 — a `gh`-absent env (typically cloud Routine sandbox) routes the same CRUD via `_shared/github-write-transport.md`'s MCP path, with `_shared/issue-claims.md`'s file-blob lock standing in for the ref-level one) |
-| Test runner | `node --test tests/` (built-in, no external deps) |
+| Test runner | `node --test` (built-in, no external deps; invoked via `npm test`) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
 ## Structure
@@ -52,6 +52,10 @@ Invocation: `node plugin/bin/release.js <minor|patch> "<summary>"` from clean `m
 
 All hook registrations route through `plugin/bin/hooks.js <event>` — one dispatcher, one module per event in `plugin/bin/lib/hooks/`. The full contract — tiered posture, run-dir resolution and ownership, the never-break-a-session invariant, and its consumers — is in `docs/hooks.md`. Read it before touching `plugin/bin/hooks.js`, `plugin/bin/lib/hooks/`, or `plugin/hooks/hooks.json`.
 
+### Reconcile
+
+Adding a new `bin/lib/reconcile/` convergence check touches multiple registration sites — the full procedure is in `docs/reconcile-checks.md`. Read it before touching `bin/lib/reconcile/` or `bin/hooks.js`'s `reconcile` command.
+
 ## Philosophy
 
 - **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
@@ -84,7 +88,7 @@ claude --plugin-dir ./plugin        # Local development — load the payload sub
 
 Per-suite test invocations, the `plugin/bin/*.js` CLIs (the four health sweeps plus the standalone CLIs listed there), and the evals harness commands are in `docs/plugin-structure.md`.
 
-A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken.
+A `npm test` failure count that varies run-to-run on byte-identical code tracks machine load (sibling agents/sessions running concurrently), not a regression — re-run only the affected file(s) in isolation (`node --test path/to/file.test.js`) before concluding anything is actually broken. That tolerance applies only to counts **you ran yourself**: never accept a subagent's self-reported pass/fail numbers as a run, and never reconcile a mismatch against them as flake — a fabricated report is indistinguishable from load here, so re-run centrally and require dispatched agents to quote raw command output rather than summarize it.
 
 ### Subagent Contract (v4.2+)
 

@@ -1,4 +1,4 @@
-// bin/lib/wrap-up/tests/facts.test.js — exercises gatherFacts against a real
+// tests/bin-lib/wrap-up/facts.test.js — exercises gatherFacts against a real
 // temp git repo (not a stubbed runner) because the facts it reads — renames,
 // deletes, a CLAUDE.md section diff — are exactly the shapes git's own diff
 // machinery can produce but a hand-written stub would have to fake correctly
