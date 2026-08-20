@@ -660,6 +660,17 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
     if (!otherWorktrees.has(real)) otherWorktrees.set(real, dir);
   }
 
+  // #861: this run's assigned worktree is a linked worktree of some main
+  // checkout — mainCheckoutRoot(assigned) resolves it via the fs-only
+  // gitdir-pointer check (no git spawn needed, since `assigned`'s own `.git`
+  // is always the worktree-marker FILE). Used below to tell "wrong location
+  // WITHIN this project" (still a discipline violation) apart from "a
+  // completely unrelated git repository" (never was this project's business
+  // to enforce discipline over) — the guard used to conflate the two,
+  // denying a commit in an out-of-repo scratch fixture repo the same as one
+  // in the wrong in-project checkout.
+  const mainRoot = safeReal(wtDetect.mainCheckoutRoot(assigned));
+
   for (const target of commandGitTargets || []) {
     const top = toplevel(target.dir);
     if (!top) continue; // cannot prove the target -> allow
@@ -673,6 +684,21 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
         ctxLib.appendEvent(ctx.runDir, 'wd-ambiguous', { matched: actual });
       }
       continue;
+    }
+    if (mainRoot) {
+      // actual's OWN main-checkout root: for a repo that is genuinely part of
+      // this project (the main checkout itself, or another of its linked
+      // worktrees), this resolves to the same mainRoot as `assigned`. For a
+      // foreign repo (e.g. a scratch fixture repo elsewhere), it resolves to
+      // that repo's own root instead — provably a different repository, so
+      // this gate has nothing to enforce there. An unresolvable actualMainRoot
+      // is unprovable, not a match, and also allows here (ambiguity -> allow).
+      // Checked AFTER otherWorktrees so a genuinely sibling worktree (already
+      // provably this project's own, via its live run-state record) is never
+      // reclassified as foreign merely because its own mainCheckoutRoot lookup
+      // is inconclusive.
+      const actualMainRoot = safeReal(wtDetect.mainCheckoutRoot(actual));
+      if (actualMainRoot !== mainRoot) continue;
     }
     if (target.action === 'push') {
       ctxLib.appendEvent(ctx.runDir, 'wd-push-mismatch', { expected: assigned, actual, command: command.slice(0, 200) });
