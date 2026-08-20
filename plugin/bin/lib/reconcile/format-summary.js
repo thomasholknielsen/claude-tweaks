@@ -39,14 +39,26 @@
 // entries fold into the aggregated per-item skip line. `verb` is the
 // taken-line's leading word; multiple categories may legitimately share the
 // same verb (e.g. "archived" for both run dirs and branches) since each
-// renders on its own line.
+// renders on its own line. `kindFilter` narrows a field that mixes more than
+// one entry shape in the same array — `result.branches` interleaves
+// archive-branches.js's own `kind: 'branch'` entries (action `delete` /
+// `tag-and-delete` / `skip`) with its `kind: 'tag'` aging entries (action
+// `aged-out` / `skip`), so one CATEGORIES row per kind keeps a tag's
+// `aged-out` action from being silently dropped (it matches neither the
+// branch row's takenActions nor skipActions) and keeps a tag's `skip`
+// reason out of the branch row's aggregated skip count.
 const CATEGORIES = [
   { key: 'worktrees', unit: 'worktree', verb: 'reaped', takenActions: ['reaped'], skipActions: ['skipped'] },
   { key: 'claims', unit: 'claim', verb: 'released', takenActions: ['released'], skipActions: ['skipped'] },
   { key: 'runs', unit: 'run dir', verb: 'archived', takenActions: ['archived'], skipActions: ['skipped'] },
-  { key: 'branches', unit: 'branch', verb: 'archived', takenActions: ['delete', 'tag-and-delete'], skipActions: ['skip'] },
+  { key: 'branches', unit: 'branch', verb: 'archived', takenActions: ['delete', 'tag-and-delete'], skipActions: ['skip'], kindFilter: (e) => e.kind !== 'tag' },
+  { key: 'branches', unit: 'tag', verb: 'aged out', takenActions: ['aged-out'], skipActions: ['skip'], kindFilter: (e) => e.kind === 'tag' },
   { key: 'remoteBranches', unit: 'remote branch', verb: 'pruned', takenActions: ['delete'], skipActions: ['skip'] },
 ];
+
+function scopedEntries(cat, arr) {
+  return cat.kindFilter ? arr.filter(cat.kindFilter) : arr;
+}
 
 function pluralize(unit, n) {
   return n === 1 ? unit : `${unit}s`;
@@ -68,10 +80,9 @@ function formatRedTipLine(redTip) {
 }
 
 function formatConsoleReadyLine(console_) {
-  if (console_ && Array.isArray(console_.ready) && console_.ready.length) {
-    return `console: ${console_.ready.length} ${pluralize('item', console_.ready.length)} ready to execute`;
-  }
-  return null;
+  const ready = console_ && console_.ready;
+  if (!Array.isArray(ready) || ready.length === 0) return null;
+  return `console: ${ready.length} ${pluralize('item', ready.length)} ready to execute`;
 }
 
 // Aggregates every PER-ITEM skip (an item that WAS examined, within a check
@@ -80,7 +91,7 @@ function formatConsoleReadyLine(console_) {
 function collectItemSkips(result) {
   const order = [];
   const byKey = new Map();
-  function add(reason, unit, count) {
+  function add(reason, unit) {
     const key = `${reason}${unit}`;
     let entry = byKey.get(key);
     if (!entry) {
@@ -88,18 +99,18 @@ function collectItemSkips(result) {
       byKey.set(key, entry);
       order.push(entry);
     }
-    entry.count += count;
+    entry.count += 1;
   }
 
   for (const cat of CATEGORIES) {
     const arr = result[cat.key];
     if (!Array.isArray(arr)) continue;
-    for (const e of arr) {
-      if (cat.skipActions.includes(e.action)) add(e.reason, cat.unit, 1);
+    for (const e of scopedEntries(cat, arr)) {
+      if (cat.skipActions.includes(e.action)) add(e.reason, cat.unit);
     }
   }
   if (result.console && Array.isArray(result.console.skipped)) {
-    for (const e of result.console.skipped) add(e.reason, 'console item', 1);
+    for (const e of result.console.skipped) add(e.reason, 'console item');
   }
   return order;
 }
@@ -110,27 +121,23 @@ function formatItemSkippedLine(result) {
   const total = skips.reduce((sum, e) => sum + e.count, 0);
 
   const distinctUnits = new Set(skips.map((e) => e.unit));
-  const overallUnit = distinctUnits.size === 1 ? pluralize([...distinctUnits][0], total) : 'items';
+  const overallUnit = distinctUnits.size === 1 ? pluralize(skips[0].unit, total) : 'items';
 
   // Group by reason; a reason spanning more than one unit gets one
   // parenthesized breakdown segment per unit instead of one merged count —
-  // the disambiguation the issue text calls for.
+  // the disambiguation the issue text calls for. Entries are already one per
+  // (reason, unit) pair, so a reason with more than one entry is exactly the
+  // multi-unit case.
   const byReason = new Map();
   for (const e of skips) {
     if (!byReason.has(e.reason)) byReason.set(e.reason, []);
     byReason.get(e.reason).push(e);
   }
   const parts = [];
-  for (const [reason, entries] of byReason) {
-    const units = new Set(entries.map((e) => e.unit));
-    if (units.size > 1) {
-      for (const unit of units) {
-        const count = entries.filter((e) => e.unit === unit).reduce((s, e) => s + e.count, 0);
-        parts.push(`${reason} (${unit}) ${count}`);
-      }
-    } else {
-      const count = entries.reduce((s, e) => s + e.count, 0);
-      parts.push(`${reason} ${count}`);
+  for (const entries of byReason.values()) {
+    const needsUnit = entries.length > 1;
+    for (const e of entries) {
+      parts.push(needsUnit ? `${e.reason} (${e.unit}) ${e.count}` : `${e.reason} ${e.count}`);
     }
   }
   return `skipped: ${total} ${overallUnit} (${parts.join(', ')})`;
@@ -143,8 +150,7 @@ function formatItemSkippedLine(result) {
 function formatCheckSkipLines(result) {
   if (!Array.isArray(result.skipped)) return [];
   return result.skipped.map((e) => {
-    const count = e.count || 1;
-    const countSuffix = count > 1 ? ` x${count}` : '';
+    const countSuffix = e.count > 1 ? ` x${e.count}` : '';
     return `skipped: ${e.check} — ${e.reason}${countSuffix}`;
   });
 }
@@ -166,7 +172,7 @@ function formatSummary(result) {
   for (const cat of CATEGORIES) {
     const arr = result[cat.key];
     if (!Array.isArray(arr) || arr.length === 0) continue;
-    const taken = arr.filter((e) => cat.takenActions.includes(e.action));
+    const taken = scopedEntries(cat, arr).filter((e) => cat.takenActions.includes(e.action));
     if (taken.length) lines.push(`${cat.verb}: ${taken.length} ${pluralize(cat.unit, taken.length)}`);
   }
 
