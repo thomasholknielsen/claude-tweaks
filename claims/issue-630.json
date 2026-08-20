@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "record-630",
-  "sessionId": "36e8d0e7-34bd-4a17-84ca-8d876919e4f2",
-  "claimedAt": "2026-08-20T05:23:59.713Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "correcting wrong run-id used at initial claim (record-630 -> full ISO run-id)",
+  "releasedAt": "2026-08-20T05:24:36.972Z"
 }
