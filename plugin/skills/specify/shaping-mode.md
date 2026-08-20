@@ -100,7 +100,27 @@ Backend/infra records omit the `Design-intent:` line entirely — it only applie
 Surface: backend
 ```
 
-These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header; the canonical field and value reference lives in `spec-template.md`.
+These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header. Values, for reference:
+
+| `Surface:` | Meaning |
+|---|---|
+| `web` | Web page / responsive web UI |
+| `mobile` | Native app surface — SwiftUI, UIKit, Compose, React Native, Flutter (not a web page merely viewed on a phone) |
+| `desktop` | Desktop app UI (takes the design pipeline's web track) |
+| `backend` | Server/API/data-layer work, no rendered UI |
+| `infra` | Infrastructure/tooling/config work, no rendered UI |
+| `terminal` | CLI/TUI surface — help text, output formatting, prompts, exit codes |
+
+| `Design-intent:` | Meaning |
+|---|---|
+| `bold` | Eye-catching, confident |
+| `quiet` | Restrained, refined |
+| `minimal` | Strip to essence |
+| `delightful` | Personality, micro-interactions |
+| `onboarding` | First-run flows, empty states |
+| `none` | No specific creative direction |
+
+`spec-template.md` stays canonical for the full metadata-block field set this table is a slice of — including `Design-seed:`/`Visual-reference:`/`Parent:`, which shaping mode never writes — and for `Design-intent:`'s own `AskUserQuestion` wording (`design-pre-steps.md`'s Step 2.5c, the source of the one-line semantics above). Keep this table in sync by hand if either enum ever changes.
 
 ### Stamp scoring and stage labels
 
