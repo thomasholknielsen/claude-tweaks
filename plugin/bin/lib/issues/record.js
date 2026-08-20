@@ -48,6 +48,7 @@ const LABELS = {
   DEMO_APPROVED: 'demo:approved',
   DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
   PARENT_ISSUE: 'parent-issue',
+  SHAPED_HEADLESS: 'shaped:headless',
 };
 
 // F8 from the program promise register — type:* label descriptions home
@@ -278,6 +279,7 @@ function parseRecordFacets(labels) {
   const names = normalizeLabelNames(labels);
 
   const facets = sharedFacetDefaults();
+  facets.shapedHeadless = false; // GitHub-only facet (headless `next` is github-issues only) — deliberately not in the shared facet-shape.js, so the local-files driver carries no meaningless default for it.
   let effortFallback = null;
 
   for (const name of names) {
@@ -332,6 +334,10 @@ function parseRecordFacets(labels) {
     }
     if (name === LABELS.PARENT_ISSUE) {
       facets.isParentIssue = true;
+      continue;
+    }
+    if (name === LABELS.SHAPED_HEADLESS) {
+      facets.shapedHeadless = true;
       continue;
     }
     // Read-side family:parent fallback — PERMANENT cross-project support (other repos' records keep family:parent labels); removable only at a major version that drops pre-rename repo support. [IL-85]

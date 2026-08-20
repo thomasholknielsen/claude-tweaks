@@ -573,6 +573,25 @@ test('parseRecordFacets defaults isParentIssue to false', () => {
   assert.strictEqual(parseRecordFacets([{ name: 'ready' }]).isParentIssue, false);
 });
 
+test('parseRecordFacets: shaped:headless sets shapedHeadless: true', () => {
+  const facets = parseRecordFacets(['shaped:headless']);
+  assert.strictEqual(facets.shapedHeadless, true);
+});
+
+test('parseRecordFacets: shapedHeadless defaults to false when absent', () => {
+  const facets = parseRecordFacets(['ready']);
+  assert.strictEqual(facets.shapedHeadless, false);
+});
+
+test('parseRecordFacets: shaped:headless alongside an unrelated third label family leaves every other facet unchanged (orthogonal-category rule)', () => {
+  const facets = parseRecordFacets(['shaped:headless', 'risk:high', 'bot:blocked']);
+  assert.strictEqual(facets.shapedHeadless, true);
+  assert.strictEqual(facets.risk, 'high');
+  assert.strictEqual(facets.bot.blocked, true);
+  assert.strictEqual(facets.bot.inProgress, false);
+  assert.strictEqual(facets.stage, 'backlog');
+});
+
 // --- Defer-reason vocabulary (_shared/deferral-gate.md, #620) ---
 
 test('DEFER_REASONS is the frozen six-value closed vocabulary, in contract order', () => {
