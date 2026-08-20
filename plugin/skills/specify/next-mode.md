@@ -255,8 +255,8 @@ unparseable output to either verdict.
      `## Release` below — this is the third reason string that section's
      table now documents) and `--remove-in-progress`.
   4. Log the decision (per `_shared/auto-decision-log.md`'s schema when a
-     run dir resolves — see `## Release`'s existing note on the
-     Routine-no-run-dir fallback, unchanged by this guard).
+     run dir resolves — the Routine-no-run-dir fallback (`## Shape` below
+     elaborates), unchanged by this guard).
   5. **End the firing as a success.** This is not a failure — do **not**
      file a Failure self-report. The triage itself is the productive
      output of this firing.
@@ -278,15 +278,15 @@ external `Skill(skill: "claude-tweaks:specify", args: "#{n} --chained")`
 call (the shape `/claude-tweaks:capture`'s born-ready chain uses to invoke
 this skill from *outside*, which does not apply here).
 
-Fetch the record's full content before handing off — the Claim step's
-live re-read above fetched `labels` only, to keep the claim race window as
-short as possible, but `shaping-mode.md`'s "Preserve the original request"
-precondition needs the record's title and body verbatim, the same fetch
-shape `SKILL.md`'s resolve-input case 1 already performs:
-
-```bash
-gh issue view {n} --json number,title,body,url,labels
-```
+Reuse the record's full content already fetched by `## Framing Guard`
+above — that section's `gh issue view {n} --json number,title,body,url,labels`
+call already satisfies `shaping-mode.md`'s "Preserve the original request"
+precondition (the record's title and body verbatim, the same fetch shape
+`SKILL.md`'s resolve-input case 1 performs), so no second live fetch runs
+here. (The Claim step's own live re-read, earlier, fetched `labels` only,
+to keep the claim race window as short as possible — that is a different,
+narrower fetch than this one, which is why Framing Guard's fetch, not
+Claim's, is what this step reuses.)
 
 Read `shaping-mode.md` in this skill's directory and follow its procedure
 directly against the record fetched above, under the same headless posture
