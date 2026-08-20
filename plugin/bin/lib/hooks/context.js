@@ -229,8 +229,8 @@ function resolveRunDir(cwd, env, sessionId) {
 // A binding match yields 'mine' even when the run records no sessionId —
 // binding outranks incomplete identity.
 //
-// A caller in a live worktree of a DIFFERENT repo than the binding
-// classifies 'foreign' — both trees provably exist and differ.
+// A caller in any live worktree other than the one recorded in the binding
+// classifies 'foreign' — same repo or different, both trees provably exist and differ.
 //
 // Authoritative semantics table: .claude-tweaks/pipelines/2026-08-20T185022-spec-1098/work/1098-spec.md
 // (committed on this branch).
