@@ -36,8 +36,11 @@ Phase 1 guarantees a run directory (see `_shared/pipeline-run-dir.md` for the re
    node -e "const p=require('/tmp/wrap-up-leftover-payload.json');
      require('fs').writeFileSync(process.argv[1],
        'Title: ' + p.title + '\nType: ' + p.type + '\nLabels: ' + ((p.labels.concat(process.argv[3]==='true'?['needs:definition']:[]).join(', ')) || 'none') + '\nDefer-reason: ' + process.argv[2] + '\n\n' + p.body)" \
-     "/tmp/wrap-up-leftover-${SLUG}.md" "$DEFER_REASON" "$NEEDS_DEFINITION"
-   node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "$RUN_DIR" --id "leftover-${SLUG}" --file "/tmp/wrap-up-leftover-${SLUG}.md"
+     "/tmp/wrap-up-leftover-${CLAUDE_CODE_SESSION_ID}-${SLUG}.md" "$DEFER_REASON" "$NEEDS_DEFINITION"
+   ```
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "$RUN_DIR" --id "leftover-${SLUG}" --file "/tmp/wrap-up-leftover-${CLAUDE_CODE_SESSION_ID}-${SLUG}.md"
    ```
 
    `$DEFER_REASON` is the section's vocabulary value from the fix-exhaust gate above (`_shared/deferral-gate.md`'s "Where the reason lives" — a keyed header line, located by key, never by position). `$NEEDS_DEFINITION` is `'true'` on the `openQuestion` landing state, else `'false'`. Bootstrap any `risk:*`/`size:*`/`ready`/`needs:definition` labels per `_shared/label-bootstrap.md` at creation time (the console does this today for `parked`).
