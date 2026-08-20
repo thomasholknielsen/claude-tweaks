@@ -58,6 +58,62 @@ test('reconcile-background: a second call within the freshness window is a no-op
   assert.equal(secondRaw, firstRaw, 'a second call inside the freshness window must not touch the status file at all');
 });
 
+// Review finding: two sessions starting within the same short window could
+// each independently spawn an overlapping reconcile-background pass — the
+// lock is what actually prevents that (session-start.js's spawn-decision TTL
+// gate is best-effort, not a mutex). A pre-existing lock held by a live pid
+// (this test process's own pid, guaranteed alive for the duration of the
+// call) must make the CLI skip entirely: no status-file touch, lock left
+// untouched (not released by the loser).
+test('reconcile-background: a lock already held by a live process is never taken over — no status-file write, lock left in place', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-bg-locked-'));
+  git(['init', '-q', '--initial-branch=main'], dir);
+  git(['config', 'user.email', 't@e.com'], dir);
+  git(['config', 'user.name', 'T'], dir);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'x');
+  git(['add', 'a.txt'], dir);
+  git(['commit', '-q', '-m', 'seed'], dir);
+
+  const lockDir = path.join(dir, '.claude-tweaks');
+  fs.mkdirSync(lockDir, { recursive: true });
+  const lockFile = path.join(lockDir, 'reconcile-background.lock');
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid, startedAt: Date.now() }));
+
+  const result = execFileSync('node', [HOOKS, 'reconcile-background'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(result.trim(), 'claude-tweaks: reconcile-background complete (already running)');
+
+  const statusPath = path.join(dir, '.claude-tweaks', 'reconcile-background-status.json');
+  assert.equal(fs.existsSync(statusPath), false, 'a losing process must not write the status file at all');
+  assert.equal(fs.existsSync(lockFile), true, 'a losing process must not release the winner\'s lock');
+});
+
+// A dead-pid lock (simulated by a pid no live process can plausibly hold —
+// see worktree-reap.js's own isPidAlive contract) must be reclaimed, and the
+// pass must complete and clean up its own lock afterward — no orphaned
+// .lock file left behind on the success path.
+test('reconcile-background: a stale (dead-pid) lock is reclaimed; a completed pass leaves no lock file behind', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-bg-stale-lock-'));
+  git(['init', '-q', '--initial-branch=main'], dir);
+  git(['config', 'user.email', 't@e.com'], dir);
+  git(['config', 'user.name', 'T'], dir);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'x');
+  git(['add', 'a.txt'], dir);
+  git(['commit', '-q', '-m', 'seed'], dir);
+
+  const lockDir = path.join(dir, '.claude-tweaks');
+  fs.mkdirSync(lockDir, { recursive: true });
+  const lockFile = path.join(lockDir, 'reconcile-background.lock');
+  // PID 999999 is not a real process on any of this project's test runners.
+  fs.writeFileSync(lockFile, JSON.stringify({ pid: 999999, startedAt: Date.now() }));
+
+  const result = execFileSync('node', [HOOKS, 'reconcile-background'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(result.trim(), 'claude-tweaks: reconcile-background complete');
+
+  const statusPath = path.join(dir, '.claude-tweaks', 'reconcile-background-status.json');
+  assert.equal(fs.existsSync(statusPath), true, 'a reclaimed lock must still let the pass run and report');
+  assert.equal(fs.existsSync(lockFile), false, 'the lock must be released once the pass completes');
+});
+
 // Task 10 review Important #3: pin the FAST_CHECKS/BACKGROUND_CHECKS
 // partition invariant — a future check added to reconcile/index.js's
 // ALL_CHECKS that isn't also added to exactly one of these two lists must

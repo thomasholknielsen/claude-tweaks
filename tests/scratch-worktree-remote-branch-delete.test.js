@@ -108,21 +108,20 @@ test('pr-first-merge.md Step 5 also never uses git push origin --delete, and tol
   assert.match(step5, /Tolerate "reference\s*\n?\s*does not exist"/);
 });
 
-// --- 4. cleanup-procedures.md Section C step 6: cites Step 5, never duplicates it ---
+// --- 4. cleanup-procedures.md Section C steps 5-6: route through teardown-run, never
+// duplicate the delete command inline (#594 folded these into `bin/hooks.js teardown-run`,
+// which implements pr-first-merge-post-merge.md's Step 5 mechanism internally) ---
 
-test('cleanup-procedures.md Section C step 6 cites pr-first-merge.md Step 5 rather than duplicating the delete command', () => {
+test('cleanup-procedures.md Section C steps 5-6 invoke teardown-run rather than duplicating the delete command', () => {
   const sectionC = CLEANUP_PROCEDURES_EXECUTION.indexOf('## C. Git Worktree');
   const sectionD = CLEANUP_PROCEDURES_EXECUTION.indexOf('## D. Ephemeral dev server');
   assert.ok(sectionC > 0 && sectionD > sectionC, 'Section C must exist and precede Section D');
   const section = CLEANUP_PROCEDURES_EXECUTION.slice(sectionC, sectionD);
-  assert.match(
-    section,
-    /`_shared\/pr-first-merge-post-merge\.md`'s `## Step 5: Delete the remote\s*\n?\s*branch` against `\{branch\}`/,
-  );
+  assert.match(section, /bin\/hooks\.js"\s+teardown-run --run "\$RUN_DIR"/);
   assert.doesNotMatch(
     section,
     /git\/refs\/heads/,
-    'Section C must cite Step 5, never duplicate its literal gh api ref-delete command',
+    'Section C must delegate to teardown-run, never duplicate its literal gh api ref-delete command',
   );
 });
 

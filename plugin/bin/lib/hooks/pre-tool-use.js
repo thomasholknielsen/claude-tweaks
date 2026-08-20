@@ -70,10 +70,11 @@ function toPosix(p) {
 }
 
 // The single machine-readable statement of what the worktree-always gate
-// covers. `skills/_shared/policy-schema.md`'s `worktree-always` row is its
-// prose counterpart, and tests/hooks-gate-coverage.test.js asserts the two
-// agree — so widening this constant fails a test until that row is updated.
-// Every other skill file cites that row rather than restating the list.
+// covers. `skills/_shared/policy-schema-coverage.md`'s `worktree-always`
+// coverage block is its prose counterpart, and tests/hooks-gate-coverage.test.js
+// asserts the two agree — so widening this constant fails a test until that
+// block is updated. Every other skill file cites that block rather than
+// restating the list.
 //
 // Why the binding exists: this set was widened twice on 2026-07-20 (push in
 // c8f929e1, cp/mv/tee in cab6142b) and no commit swept the prose describing
@@ -86,7 +87,7 @@ const GATE_COVERAGE = Object.freeze({
   tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
   gitActions: Object.freeze(['commit', 'push']),
   bashWriteShapes: WRITE_SHAPES,
-  // These have their own prose-binding block — skills/_shared/policy-schema.md's
+  // These have their own prose-binding block — skills/_shared/policy-schema-coverage.md's
   // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins
   // the two) — deliberately separate from the worktree-always block above,
   // so widening either gate never requires touching the other's prose.
@@ -612,7 +613,7 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       `claude-tweaks: this project requires an isolated worktree for ` +
       `${GATE_COVERAGE.tools.join('/')}, git ${GATE_COVERAGE.gitActions.join('/')}, and Bash ` +
       `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
-      `see _shared/policy-schema.md's worktree-always coverage block; exempt: ` +
+      `see _shared/policy-schema-coverage.md's worktree-always coverage block; exempt: ` +
       `${GATE_COVERAGE.exemptions.paths.join(', ')} and an allowlisted (${GATE_COVERAGE.exemptions.commit}) commit) ` +
       `(policy: worktree-always in .claude-tweaks/policy.yml). You're currently working in ` +
       `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
@@ -660,6 +661,15 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
     if (!otherWorktrees.has(real)) otherWorktrees.set(real, dir);
   }
 
+  // #861: this run's assigned worktree is a linked worktree of some main
+  // checkout — mainCheckoutRoot(assigned) resolves it via the fs-only
+  // gitdir-pointer check (no git spawn needed, since `assigned`'s own `.git`
+  // is always the worktree-marker FILE). The loop below compares it against
+  // each target's own main-checkout root; the guard used to skip that step,
+  // and so denied a commit in an out-of-repo scratch fixture repo exactly as
+  // it denied one in the wrong in-project checkout.
+  const mainRoot = safeReal(wtDetect.mainCheckoutRoot(assigned));
+
   for (const target of commandGitTargets || []) {
     const top = toplevel(target.dir);
     if (!top) continue; // cannot prove the target -> allow
@@ -673,6 +683,21 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
         ctxLib.appendEvent(ctx.runDir, 'wd-ambiguous', { matched: actual });
       }
       continue;
+    }
+    if (mainRoot) {
+      // actual's OWN main-checkout root: for a repo that is genuinely part of
+      // this project (the main checkout itself, or another of its linked
+      // worktrees), this resolves to the same mainRoot as `assigned`. For a
+      // foreign repo (e.g. a scratch fixture repo elsewhere), it resolves to
+      // that repo's own root instead — provably a different repository, so
+      // this gate has nothing to enforce there. An unresolvable actualMainRoot
+      // is unprovable, not a match, and also allows here (ambiguity -> allow).
+      // Checked AFTER otherWorktrees so a genuinely sibling worktree (already
+      // provably this project's own, via its live run-state record) is never
+      // reclassified as foreign merely because its own mainCheckoutRoot lookup
+      // is inconclusive.
+      const actualMainRoot = safeReal(wtDetect.mainCheckoutRoot(actual));
+      if (actualMainRoot !== mainRoot) continue;
     }
     if (target.action === 'push') {
       ctxLib.appendEvent(ctx.runDir, 'wd-push-mismatch', { expected: assigned, actual, command: command.slice(0, 200) });

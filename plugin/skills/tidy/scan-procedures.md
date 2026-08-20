@@ -53,7 +53,7 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 **Working-directory discipline:** every `git` command in this step (and in any dispatched parallel agent) MUST be anchored with `git -C "{REPO_ROOT}"` (or run after `cd "{REPO_ROOT}"`). `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before any agent fires. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`. CWD does not propagate reliably across parallel agents — without the anchor, branch deletions and worktree removals can land in the wrong checkout.
 
-**Reconcile first:** before any probe below, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile` — converges `{REPO_ROOT}` toward origin (`bin/lib/reconcile`, #407) so this step's worktree/branch audit reads already-current state instead of racing a stale mirror, the same placement `dispatch/SKILL.md` Step 2 uses for its own queue pull. Log the JSON result to this run's `decisions.md`. A non-empty `console.ready` array names answered consoles this sweep is well-placed to close out — follow `_shared/console-execution.md` for each before continuing.
+**Reconcile first:** before any probe below, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile --json` — converges `{REPO_ROOT}` toward origin (`bin/lib/reconcile`, #407) so this step's worktree/branch audit reads already-current state instead of racing a stale mirror, the same placement `dispatch/SKILL.md` Step 2 uses for its own queue pull. `--json` is required here, not the plain `reconcile` default (#638's compact summary) — this step parses the result's `console.ready` array below. Log the JSON result to this run's `decisions.md`. A non-empty `console.ready` array names answered consoles this sweep is well-placed to close out — follow `_shared/console-execution.md` for each before continuing.
 
 **Worktrees and merged remote branches — shared probe.** Run, anchored at `{REPO_ROOT}`:
 
@@ -199,83 +199,21 @@ execute only after Step 6 batch approval — breaking a lock is never autonomous
 
 → Collect each as: `[claim] claims/issue-{n}.json — {status} — {recommendation}`
 
-### Backstop: missed `parked` restoration
+### Backstops: issue-claim audit-trail integrity checks
 
-Find materialized build-time headers (`flow/materialize.md`) that recorded `parked-at-shaping:
-true` but never got the restoration finished — a defense-in-depth flag for a mutation that
-silently failed at claim release (`wrap-up/cleanup-procedures-execution.md` Section E, step 7), same shape
-as the `bot:in-progress` missed-removal backstop below. Both checks below are flagged only —
-recommendations execute after Step 6 batch approval, same as every other Step 4.7 mutation.
+**Extracted — read `issue-claims-backstops.md` in this skill's directory.** That file carries all
+four Step 4.7 backstop scans in full: missed `parked` restoration, missed `bot:in-progress`
+removal, empty `decisions.md` on a completed standalone run, and preserved-but-unfiled upstream
+feedback drafts — each one's find/gh command, per-match fields, and collection line. Nothing of
+their procedures remains here — these headings survive so an external reference naming any of the
+four by name still resolves in one hop. The `[unfiled]` collection tag from the fourth backstop
+still routes via this file's own Collection routing table below.
 
-Materialized headers are committed, never gitignored (`flow/materialize.md`'s "Committed as
-audit trail" section), so they survive on disk at `.claude-tweaks/pipelines/**/work/*-spec.md`
-(single-record runs) and `.claude-tweaks/pipelines/**/spec-*/work/*-spec.md` (multi-record
-runs) — in both live and archived (`.claude-tweaks/pipelines/archive/`) run directories:
-
-```bash
-cd "{RUN_ROOT}" && find .claude-tweaks/pipelines -path "*/work/*-spec.md" 2>/dev/null | while read -r header; do
-  grep -q "^parked-at-shaping: true$" "$header" || continue
-  n=$(grep -m1 "^record:" "$header" | sed 's/^record: *//')
-  [ -z "$n" ] && continue
-  gh issue view "$n" --json state,labels,closedByPullRequestsReferences
-done
-```
-
-(`closedByPullRequestsReferences` is a native `gh issue view --json` field — no raw GraphQL
-needed; the issue-side mirror of `closingIssuesReferences`, which `_shared/github-pr-scan.md`
-already reads from the PR side via `gh pr view --json`.)
-
-For each result: flag as a likely missed restoration when the issue is `OPEN`, its labels do
-not include `parked`, `closedByPullRequestsReferences` is empty (no linked PR, open or
-merged — a linked PR means the outcome was `merged:`/`pr-opened:`, where skipping restoration
-is correct behavior, not a missed one), and it has no active claim (cross-reference against
-this step's own claim listing above — blob classified `'live'` for `claims/issue-{n}.json`).
-Recommend the same `gh issue edit {n} --add-label parked` command the release step itself
-would run.
-
-→ Collect each as: `[claim] issue #{n} — materialized header {path} has parked-at-shaping: true, no parked label, no active claim, no linked PR — likely missed parked restoration`
-
-### Backstop: missed `bot:in-progress` removal
-
-```bash
-cd "{REPO_ROOT}" && gh issue list --label bot:in-progress --state open --json number,title -q '.[] | "\(.number) \(.title)"'
-```
-
-For each result, cross-reference against this step's own claim listing above: flag as a likely
-missed removal when the issue carries `bot:in-progress` but has no active claim (`claimed &&
-!stale`) for its number. Recommend the same `gh issue edit {n} --remove-label bot:in-progress`
-command the release step itself would run.
-
-→ Collect each as: `[claim] issue #{n} — bot:in-progress present, no active claim — likely missed bot:in-progress removal`
-
-### Backstop: empty decisions.md on a completed standalone run
-
-Same audit-trail-integrity concern as the two backstops above, applied to every standalone-auto
-run directory on disk — this includes the human-gate skills' runs (`/claude-tweaks:backlog`,
-`/claude-tweaks:dispatch`), but also `/tidy`'s own past
-standalone-auto firings, `/claude-tweaks:init`, and `/claude-tweaks:capture` (the full
-standalone-auto allowlist per `_shared/pipeline-run-dir.md`'s step 4 — all five skills use the
-identical `{ISO-timestamp}-{skill-name}-standalone` naming, and the glob below has no
-skill-name filter, so it matches all of them equally). A `worktree-always`-blocked or otherwise
-silently-skipped log write leaves no trace anywhere except an empty file:
-
-```bash
-cd "{RUN_ROOT}" && find .claude-tweaks/pipelines -maxdepth 1 -type d -name "*-standalone" 2>/dev/null | while read -r RUN_DIR; do
-  STATUS=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(process.argv[1]+'/run-state.json','utf8')).status)}catch(e){console.log('unknown')}" "$RUN_DIR")
-  [ "$STATUS" = "clean" ] || continue
-  SIZE=$(wc -c < "$RUN_DIR/decisions.md" 2>/dev/null || echo 0)
-  [ "$SIZE" -eq 0 ] && echo "$RUN_DIR"
-done
-```
-
-A standalone-auto run whose `run-state.json` reports `clean` (completed) but whose `decisions.md`
-is empty means either the skill that ran there took auto-decisions with no audit trail (forbidden
-per `_shared/auto-decision-log.md`'s Anti-Patterns table) or the run genuinely made zero
-auto-decisions (legitimate — e.g. a `/backlog refine` session where every row was flagged back). File
-state alone can't distinguish the two; flag for manual review rather than auto-resolving either
-way.
-
-→ Collect each as: `[claim] {run-dir} — clean standalone run, empty decisions.md — possible skipped audit-log write (manual review)`
+The dispatcher inlines `issue-claims-backstops.md` **whole** into the Issue Claims agent's
+prompt, **after** this file's own Step 4.7 section above (the primary claim listing, "Backstops"
+heading included, ending here) — the same order the two files stood in before the split, which is
+what keeps `issue-claims-backstops.md`'s own "this step's own claim listing above" references
+literally true in the assembled prompt.
 
 ## Step 4.8: Audit GitHub PRs and Issues
 
@@ -287,7 +225,7 @@ aren't even sufficient to redo item 1's classification below (no `updatedAt`, `i
 `reviewDecision`, or `url`), so this step still fetches PRs itself and keeps its full procedure
 below unchanged.
 
-Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus `_shared/github-pr-scan-acceptance.md`'s **`acceptance-gap`** and **`parent-gate`** scopes (extracted from the first file — #204). The dispatcher inlines all three scope sections (the `repo-wide` findings table, the `acceptance-gap` procedure, and the `parent-gate` procedure), `github-pr-scan.md`'s Output Contract, and `_shared/forge-detection.md`'s Detection Ladder into this agent's prompt. Each scope section goes in **whole** — the `acceptance-gap` and `parent-gate` sections' `work-links` resolution and fetch-limit sub-sections are part of the procedure, not preamble around it. Both of those scopes branch on `work-links: body-text` vs `native`, and an agent given only the branches and no way to resolve the key silently takes the first-listed one: on a `native` repo that returns zero sub-issues from every parent, so every sub-issue re-enters `acceptance-gap` as a false row and `parent-gate` emits nothing at all. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
+Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope, plus `_shared/github-pr-scan-acceptance.md`'s **`acceptance-gap`** and **`parent-gate`** scopes (extracted from the first file — #204). The dispatcher inlines all three scope sections (the `repo-wide` findings table, the `acceptance-gap` procedure, and the `parent-gate` procedure), `github-pr-scan.md`'s Output Contract, and `_shared/forge-detection.md`'s Detection Ladder into this agent's prompt. Each scope section goes in **whole** — the `acceptance-gap` and `parent-gate` sections' `work-links` resolution and fetch-limit sub-sections are part of the procedure, not preamble around it. Both of those scopes branch on `work-links: body-text` vs `native`, and an agent given only the branches and no way to resolve the key silently takes the first-listed one: on a `native` repo that returns zero sub-issues from every parent, so every sub-issue re-enters `acceptance-gap` as a false row and `parent-gate` emits nothing at all. The detection ladder makes this fail-open — skip with a single info row when the repo has no GitHub remote or `gh` is unauthenticated/the repo is unreachable (checks 1 and 3, hard gates on either transport). `gh` being unavailable alone (check 2) no longer skips this step's `repo-wide` scope wholesale — per `_shared/github-pr-scan.md`'s Transport section, its issue-backed items (3, 5, 6, 7, 8) route through MCP and its PR-backed items (1, 2, 4, 9, and item 10's PR cross-check) degrade individually. The `acceptance-gap` and `parent-gate` scopes below are unaffected by this change (out of scope for #172 — both are entirely issue-backed, per that same Transport section) and still hard-skip on `gh`-absence via check 2.
 
 The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above) or a suggested `/claude-tweaks:backlog refine` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy — Shapes 1, 2, 3, 4, 5, and 5.5 of `step-1-records.md`) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 
@@ -348,6 +286,14 @@ That is why `[doctor]` routes to **Yours ({N})** and **never** **Approve ({N})**
 
 → Collect each as: `[doctor] {id} ({severity}) — {summary} — {fix}`
 
+## Step 4.95: Calibration Read-Out
+
+Main thread, parallel with the agent batch — report-only, no action drill, matching `[doctor]`'s surface-or-suppress posture.
+
+Invoke `node "${CLAUDE_PLUGIN_ROOT}/bin/calibration-report.js"` and render its output verbatim under **Yours ({N})** — no action drill, no mutations.
+
+→ Collect as: `[calibration] {rendered report text}`
+
 ## Step 5: Record Sizing Review
 
 For `ready` records not yet claimed — `facets.bot.inProgress === false` (from Step 1's already-fetched facets under `work-backend: github-issues`; every `ready` local record qualifies, since the local driver carries no bot state) — fetch each body and check sizing:
@@ -400,8 +346,9 @@ Patterns and health observations are informational — they surface systemic iss
 | Collection prefix | Renders in Step 6 report | Notes |
 |---|---|---|
 | `[backlog]`, `[parked]`, `[unsynced]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[pr]`, `[gh-issue]`, `[parent-gate]`, `[claim]` | **Approve ({N})** (or **Applied automatically** when the tier auto-applied it) | Each row gets a pre-filled recommendation carrying its exact executable action. Some of these tags also emit non-mutating outcomes on individual findings — `[backlog]`/`[parked]`/`[plan]` Keep rows land in **Clean:** instead; `[backlog]`/`[parked]` Promote and `[doc]`'s "Run `/claude-tweaks:specify`" outcome land in **Yours ({N})**; `[pr]` awaiting-review and unarmed-ungranted outcomes land in **Yours ({N})**; `[claim]` Release and both missed-restoration backstops (`parked` / `bot:in-progress`) are staged, executable actions here, but `[claim]` Manual review outcomes (unreadable/unparseable blobs, empty-`decisions.md` backstop) land in **Yours ({N})** and Keep (live claim, issue open) lands in **Clean:** — the destination follows the actual routing outcome (`step-6-auto.md`'s Bucket mapping), never the tag alone. |
-| `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[acceptance-gap]`, `[sizing]` | **Yours ({N})** | Auto (no-op, always surfaced) at every aggressiveness tier — no mutation exists to stage; each finding carries its own paste-ready command. |
+| `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[acceptance-gap]`, `[sizing]`, `[unfiled]` | **Yours ({N})** | Auto (no-op, always surfaced) at every aggressiveness tier — no mutation exists to stage; each finding carries its own paste-ready command. |
 | `[pattern]` | **Yours ({N})** | Informational; presented as items in Yours. |
 | `[doctor]` | **Yours ({N})** | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** **Approve ({N})**, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
+| `[calibration]` | **Yours ({N})** | Report-only, surface-or-suppress, never applied — matches `[doctor]`'s semantics. No action drill. |
 | `[health]` | **Yours ({N})** — each line carries the finding's own follow-up command (e.g. the matching `/claude-tweaks:*-health` skill or the file to review) | Project-level observations. |
 | Keep / nothing-to-report scans (any tag above) | **Clean:** (counted) | Never itemized rows. |

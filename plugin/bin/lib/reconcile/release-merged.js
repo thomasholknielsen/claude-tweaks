@@ -76,17 +76,18 @@ function shouldSkipClaimRead(entry, cachedSha) {
   return entry.sha === cachedSha;
 }
 
-// Shared by ghApi and ghApiAsync below — both catch blocks classified a
-// caught exec error identically (ENOENT = no `gh` binary, anything else =
-// network-failure); one classifier instead of two copies that could drift.
+// Shared by ghApi and ghApiAsync below — delegates to claim-store.js's
+// classifyGhApiError (already imported below as `claimStore`) rather than a
+// third copy of the same ENOENT-vs-everything-else classification pr-state.js
+// and preflight.js also needed (review finding: 5 near-identical copies).
 function classifyGhExecError(e) {
-  return e && e.code === 'ENOENT' ? 'gh-absent' : 'network-failure';
+  return claimStore.classifyGhApiError(e).failure === 'gh-absent' ? 'gh-absent' : 'network-failure';
 }
 
 function ghApi(args) {
   try {
     const stdout = execFileSync('gh', ['api', ...args], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS,
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, windowsHide: true,
     });
     return { stdout, failure: null };
   } catch (e) {
@@ -97,7 +98,7 @@ function ghApi(args) {
 // Raw `gh` runner for the shared write path below (ghApi prepends `api` and
 // swallows failures; writeTombstoneShared composes its own argv and needs the throw).
 function ghRunner(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS });
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, windowsHide: true });
 }
 
 function repoSlugOf(repoRoot) {
@@ -143,7 +144,7 @@ function readClaim(repoSlug, name, api = ghApi) {
 // calling code is structured.
 async function ghApiAsync(args) {
   try {
-    const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS });
+    const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true });
     return { stdout, failure: null };
   } catch (e) {
     return { stdout: null, failure: classifyGhExecError(e) };

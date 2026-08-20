@@ -1,7 +1,7 @@
 ---
 name: wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
-argument-hint: "[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>]"
+argument-hint: "[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>] [cleanup-only]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -21,7 +21,7 @@ Lifecycle: `/claude-tweaks:review` → **`/claude-tweaks:wrap-up`** — last ste
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>]` — see Overview and the Phase sections below for what each token resolves to.
+`$ARGUMENTS` is parsed as `[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>] [--doc-budget <n>] [cleanup-only]` — see Overview, the Flags subsection below, and the Phase sections for what each token resolves to.
 
 ## Overview
 
@@ -65,6 +65,7 @@ Flags (`--dry-run`, `--skill-budget <n>`, `--doc-budget <n>`) may appear anywher
 #### Flags
 
 - **`--dry-run`** — run the full analysis (reflection, the Phase 2 engine pass, leftover routing, the Review Console's auto-merge verdict) but make no commits, no file deletions or archival, and no `gh issue create` / `gh issue edit` / `gh issue comment` / `git merge` / `git push` calls — the three `gh` shapes cover both Phase 4's acceptance labeling and the auto-merge branch's own copy of it. Console and summary tables render as previews of what *would* happen instead of records of what *did*. Passed through to the engine, where it suppresses the telemetry append. See `review-console.md`'s "Dry-run mode" section and Phase 4's execution note below. Most useful for validating a `/claude-tweaks:dispatch`- or Routine-driven `auto`-mode wrap-up before letting it merge and push for real.
+- **`cleanup-only`** (#298) — a teardown-only mode threaded down from `/claude-tweaks:flow {target} wrap-up cleanup-only` (never typed standalone in practice, but parsed the same way regardless of caller). Skips Phase 1 (ESTABLISH/reflection), Phase 2 (ROUTE), Phase 3 (SETTLE), and Phase 4's decide/execute/hand-off logic entirely — runs only `cleanup-procedures.md`'s cleanup items (A-E). Section C's teardown-ordering invariant and step 3.5's transitional guard still run **unconditionally**, exactly as they do in a full pipeline — `[IL-116]`'s constraint is a floor `cleanup-only` is never permitted to relax, not a cost it exists to shave off. Exists so a `/claude-tweaks:dispatch` first-call-failure teardown (`dispatch/two-call-gate.md` §5) can reach the sanctioned worktree/branch/claim teardown route without paying for — or getting stuck on — a full reflection pass and Step 5's un-answerable nothing-left-behind ledger gate over a group that failed at `build,test` and has nothing built to reflect on yet.
 - **`--skill-budget <n>`** — override the Skills row's default domain-overlap skill-read cap (top ~5, or top ~2 under a `fast-lane` ceremony profile) for this invocation only. Passed to the engine as `--skill-budget n`.
 - **`--doc-budget <n>`** — override the Docs row's default domain-overlap doc-read cap (top ~3, or top ~1 under a `fast-lane` ceremony profile) for this invocation only. Passed to the engine as `--doc-budget n`.
 
@@ -238,12 +239,12 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 
 Empty-console fast path: skip the console entirely and proceed to the report when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` has zero entries, `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes, memory updates, or upstream feedback proposals are pending). Unconditional bookkeeping rows — run-dir archival — do not count as cleanup actions for that test; archival executes regardless.
 
-**Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, and the Auto-merge short-circuit — when **either** holds. Once a real stop will actually render (i.e. neither the Auto-resolution short-circuit nor the Empty-console fast path resolved and returned), also read `review-console-interactive.md` for the full console template with every section table (including the conditionally-rendered Low-confidence, Contested findings, and Reference repairs sections), override/stop semantics, and the sort-order requirement:
+**Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, and the Auto-merge short-circuit's applicability check — when **either** holds. Once a real stop will actually render (i.e. neither the Auto-resolution short-circuit nor the Empty-console fast path resolved and returned), also read `review-console-interactive.md` for the full console template with every section table (including the conditionally-rendered Low-confidence, Contested findings, and Reference repairs sections), override/stop semantics, and the sort-order requirement:
 
 - The console runs: a run directory exists (always, after Phase 1), `MULTISPEC_REVIEW_DEFER` is unset, and the empty-console fast path above does not apply; **or**
 - This run has a materialized header (`${RUN_DIR}/work/*-spec.md`) whose issue carries a live `auto:merge` label (re-fetch via `gh issue view --json labels`).
 
-The second condition exists because the **Auto-merge short-circuit** lives in `review-console.md`, not in this file — it is not part of the console rendering it precedes. Without it, a run that qualified for the empty-console fast path would silently skip its authorized auto-merge. In practice the fast path cannot fire on such a run — it requires "no cleanup actions apply," and a run with a materialized header is a pipeline run whose worktree row always applies — so this is a belt-and-braces guard against a latent ordering hazard, not a live bug.
+The second condition exists because the **Auto-merge short-circuit**'s applicability check lives in `review-console.md`, not in this file — it is not part of the console rendering it precedes. Without it, a run that qualified for the empty-console fast path would silently skip its authorized auto-merge. In practice the fast path cannot fire on such a run — it requires "no cleanup actions apply," and a run with a materialized header is a pipeline run whose worktree row always applies — so this is a belt-and-braces guard against a latent ordering hazard, not a live bug. The full procedure itself is a further lazy-load, one level deeper: `review-console.md`'s Auto-merge short-circuit heading only points at `auto-merge-short-circuit.md` — that file loads only for the run that actually clears the condition above, not for every run that clears the fast path.
 
 ### The phase-trace report (formerly Step 9)
 

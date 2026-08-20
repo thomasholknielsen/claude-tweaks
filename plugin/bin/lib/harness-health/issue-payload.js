@@ -18,7 +18,11 @@ const { buildRelatedBlocks } = require('../issues/related-blocks');
 const ASSET_TYPE_LABELS = { skill: 'Skill', rule: 'Rule', 'claude-md': 'CLAUDE.md', 'design-artifact': 'Design Context', memory: 'Memory' };
 const CATEGORY_LABELS = { drift: 'drift', 'template-conformance': 'structure', 'best-practice': 'best-practice' };
 
-function toIssuePayload(finding) {
+// verifiedAsOf (#117): the sha the sweep read this repo at, resolved ONCE per
+// run by the caller (bin/harness-health.js, via health-core/read-commit.js)
+// and threaded through here — never resolved inside this function. See
+// specShapedBody's own verifiedAsOf doc in record.js for why.
+function toIssuePayload(finding, verifiedAsOf) {
   const isNewSkill = finding.kind === 'new-skill';
   const assetLabel = ASSET_TYPE_LABELS[finding.assetType] || finding.assetType;
   const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;
@@ -50,6 +54,7 @@ function toIssuePayload(finding) {
     deliverables,
     acceptanceCriteria: finding.description,
     filedBy: '/claude-tweaks:harness-health',
+    verifiedAsOf,
   });
 
   let title;

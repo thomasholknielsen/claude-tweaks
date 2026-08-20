@@ -23,9 +23,8 @@
 // never from a positional path argument.
 'use strict';
 const fs = require('fs');
-const path = require('path');
 const { execFileSync } = require('child_process');
-const { resolvePolicyKeys, detectIntegrationModel, POLICY_KEYS } = require('./lib/policy-schema');
+const { detectIntegrationModel, POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
 const { deriveMergeVerification } = require('./lib/merge-verification');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 
@@ -34,15 +33,11 @@ function fail(msg) {
   process.exit(1);
 }
 
-function repoRoot() {
-  try {
-    return execFileSync('git', ['rev-parse', '--show-toplevel'], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    return process.cwd();
-  }
+function gitRoot(args) {
+  return execFileSync('git', args, {
+    stdio: ['ignore', 'pipe', 'ignore'],
+    encoding: 'utf8',
+  });
 }
 
 function readFileSafe(filePath) {
@@ -107,13 +102,9 @@ function main(argv) {
     }
   }
 
-  const root = repoRoot();
-  const policyRaw = readFileSafe(path.join(root, '.claude-tweaks', 'policy.yml'));
   // A run dir without a config.yml is not an error — the Manifesto may not
   // have written one yet; readFileSafe's null simply means no overlay.
-  const runConfigRaw = runDir === null ? null : readFileSafe(path.join(runDir, 'config.yml'));
-
-  const result = resolvePolicyKeys(keys, { policyRaw, runConfigRaw });
+  const { root, policyRaw, result } = resolvePolicyConfig({ git: gitRoot, readFile: readFileSafe, runDir, keys });
 
   // integration-model has no static schema default (skills/_shared/integration-
   // model.md) — an absent value (not a typo'd/invalid one; `invalid: true`
@@ -129,7 +120,7 @@ function main(argv) {
   // merge-verification (#559) has no static schema default either — an absent
   // value (never an invalid one; `invalid: true` stays visible) is derived by
   // bin/lib/merge-verification.js's four-branch ladder, whose prose statement
-  // of record is skills/_shared/policy-schema.md's coverage block.
+  // of record is skills/_shared/policy-schema-coverage.md's coverage block.
   if (keys.includes('merge-verification')) {
     const entry = result['merge-verification'];
     if (entry && entry.source === 'default' && !entry.invalid) {

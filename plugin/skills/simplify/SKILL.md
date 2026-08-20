@@ -34,7 +34,7 @@ Run the code-simplifier subagent on recently changed files. Catches complexity t
 
 1. **File paths** — specific files or directories to simplify
 2. **Record/spec reference** (`#N`, or legacy bare spec number) — scope to files changed for that record
-3. **No arguments** — use `git diff --name-only` against the base branch or recent commits
+3. **No arguments** — resolve scope per `_shared/scope-resolution.md`'s deterministic fallback ladder, stating which rung resolved it in the run's opening line
 
 ```
 /claude-tweaks:simplify                       → simplify all recently changed files
@@ -64,12 +64,12 @@ If no files are in scope, state: "No changed files to simplify." and stop.
 
 ## Step 2: Run Code Simplifier
 
-Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), `[Use: Standard]` (resolve via `node plugin/bin/resolve-profile.js standard`, contract § Model Selection), and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
+Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), `[Use: Standard]` (resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`, contract § Model Selection), and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
 
 ```
 SCOPE (required):
 - Files to simplify: {space-separated relative paths from Step 1}
-- Constraints: preserve all behavior; never expand scope beyond the listed files.
+- Constraints: preserve all behavior; never expand scope beyond the listed files. Do not run `git commit`, `git merge`, `git push`, or any other git mutation — edit the working tree only and return control; the caller commits (Step 4's "Note on committing").
 
 OUTPUT FORMAT (required):
 First reply line MUST be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.

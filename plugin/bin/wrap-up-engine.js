@@ -344,15 +344,11 @@ function main() {
       // be determined at all (not a repo, an unreadable ancestor, an
       // unparseable .git file) — misdiagnosing this as a worktree-shadow
       // rejection would send a reader hunting for the wrong problem.
-      process.stderr.write(
-        `wrap-up-engine.js: could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read\n`,
-      );
+      process.stderr.write(`wrap-up-engine.js: ${wtDetect.unanchoredRunDirNoRepoMessage(cwd)}\n`);
       process.exit(2);
     }
     if (!wtDetect.isAnchoredUnderRoot(path.resolve(args.runDir), mainRoot)) {
-      process.stderr.write(
-        `wrap-up-engine.js: --run-dir ${args.runDir} resolves outside the main checkout (${mainRoot}) — refusing a worktree-relative shadow run dir; see resolve-run-dir\n`,
-      );
+      process.stderr.write(`wrap-up-engine.js: ${wtDetect.unanchoredRunDirShadowMessage(args.runDir, mainRoot)}\n`);
       process.exit(2);
     }
   }

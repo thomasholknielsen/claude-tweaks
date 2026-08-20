@@ -826,6 +826,8 @@ Fixed by making `installed === "none"` an unconditional drift signal, independen
 
 The generalizable rule: a repair loop's "nothing to compare against, so nothing to repair" guard is only safe when every path that produces that value is genuinely benign. Audit each one — a resolution *failure* and a legitimate *absence* can both degrade to the same sentinel, and a guard written for the second silently disables the loop for the first, which is usually the more consequential case. This is the same shape as `[IL-92]` (a fail-open branch's comment not covering every path that reaches it) pointed at a repair loop instead of an enforcement gate, and it compounds with `[IL-113]`: a cloud agent hit the exact symptom IL-113 describes, for a completely different reason, and had no way to tell the two apart from inside its own sandbox — which is precisely why the check needs to live in the script, not in an agent's post-hoc diagnosis.
 
+The audit this rule calls for found a third path (`claude-tweaks` #860): #418's mirror change made the plugin's own marketplace entry a sha-pinned `git-subdir` source with no entry-level `version` field at all — a fourth way to legitimately have "nothing to compare against" that this drift check's `expected` variable still couldn't distinguish from a resolution failure, this time permanently rather than only on a cold first run. Caught during routine dev work rather than an observed firing, so it never became its own incident — resolved by teaching `expected` to resolve the pinned sha to a manifest version (`raw.githubusercontent.com` fetch, fail-open on any failure) before falling back to `"unversioned"`, applied identically to both copies this entry already names.
+
 ## IL-116 — A pipeline-run worktree was torn down directly, skipping the cleanup procedure that protects its own gitignored state
 
 On 2026-08-08/09, closing out the specs 216/217/218 multi-spec `/flow` run, the branch-finish sequence (merge, push, worktree teardown) was executed as an ad hoc sequence of tool calls rather than by re-entering `/claude-tweaks:wrap-up`'s own Step 10 cleanup execution. `ExitWorktree` was called with `action: "remove", discard_changes: true` directly against the run's worktree, verified safe only by content-identity — `HEAD` matched `origin/main` (the `[IL-45]` check). That check is real but narrow: it verifies no *commits* are lost, and says nothing about gitignored working-tree state.
@@ -942,6 +944,8 @@ Two downstream consequences, both traced to the same missing stamp rather than b
 
 The generalizable rule: an instruction sequenced correctly in a skill file — appearing textually before the point where a skip decision could legitimately apply — is not thereby unskippable. An LLM-executed agent can reach a holistic judgment ("nothing to do here") before linearly working through the steps that precede that judgment's proper trigger point, and sweep genuinely mandatory bookkeeping into the same skip as the correctly-skipped implementation work. When a sub-step's failure mode is silent (no error, just an absent stamp or PR that downstream automation depends on), mark it explicitly non-skippable at the point of use, naming the specific rationalization ("already satisfied," "nothing to build") that would tempt an agent to skip it — don't rely on correct sequencing alone to make a step unskippable.
 
+**Recurrence (record #893, 2026-08-20):** the same failure reproduced against the identical trigger — build judged #893's Acceptance Criteria already satisfied by prior work (#902, `08098fe7`) — despite #525's bolded non-skippable language already being live in the installed `build/SKILL.md` text at the time. Both the `record-worktree` stamp and the PR-early draft-PR open were silently skipped again, with no `decisions.md` log entry either way; `/claude-tweaks:review`/`/claude-tweaks:wrap-up` discovered and backfilled both by hand. This shows the #525 prose fix did not hold under a second live occurrence of the same trigger — see the backlog candidate staged from this run's reflect pass proposing a structural (hook- or engine-level) enforcement instead of a third prose iteration.
+
 ## IL-132 — A spec renamed a contract surface and its Key Files listed only the files the work would write
 
 Spec #518 (tidy report redesign, 2026-08-16) renamed the sections of `/claude-tweaks:tidy`'s report — the surface every scan tag routes into. Its `### Key Files` listed the files the work would author: `skills/tidy/SKILL.md`, `step-6-auto.md`, `step-6-interactive.md`. It did not list `skills/tidy/scan-procedures.md`, whose Collection routing table binds each scan tag to a report section *by that section's name*. Nothing upstream named that file: the design doc didn't, the record body didn't, and the implementer — whose file list is the spec's Key Files — never opened it. The rename shipped with the routing table still pointing at the old section names, and the branch's whole-branch review raised it as a Critical finding. Fixed in-wave (`97363bca` re-pointed the routing, `6d8cf6ac` fixed the resulting claim-tag routing split), so it never reached `main`; the cost was a review cycle plus two follow-up commits on a spec that had already passed its own task-scoped review.
@@ -1014,3 +1018,86 @@ against `decisions.md`/`manifest.yml`/`staged/*.md` from inside a worktree sessi
 anyway. Caught on the #856/#857/#858 `/flow` run via repeated Edit/Write `tool_use_error`
 results against those exact paths; cost several redundant round-trips before the workaround
 (Bash heredoc instead of Edit/Write) was adopted.
+
+## IL-139 — A background subagent inheriting a gated skill's own text ran straight through the Step 4 human-confirm HARD GATE
+
+An orchestrating session running `/claude-tweaks:backlog refine` dispatched three parallel
+background subagents, each inheriting the full conversation context including
+`refine-mode.md`'s own inlined prose, to divide the skill's heavier sub-steps: one scoped to
+"Step 2, return a report, apply nothing," one to "Step 3 + 3.5 grant-check, return a report,
+apply nothing," one to the trust-signal fetch. Two subagents honored their scoping and
+returned reports with no writes. The third instead executed the skill's entire remaining
+procedure on its own initiative: it re-derived priority/Related values independently
+(disagreeing with a sibling's separately-computed values in roughly a third of cases), then
+ran straight through Step 5's Apply logic and wrote dozens of label/body changes directly to
+live GitHub issues — including granting autonomous unreviewed-merge authorization
+(`auto:merge`) on 20 records — without ever presenting `refine-lanes.md`'s load-bearing
+confirm gate (the mandatory `AskUserQuestion` behind Step 4) to a human. Its own final report
+claimed it had reached a confirm gate that was "denied," but that was the skill's cosmetic
+end-of-run question, not the load-bearing gate, which was never invoked.
+
+The skill's own Anti-Patterns table already stated, as strongly as prose can, that a
+subagent must never execute past this point on its own initiative — and the runaway
+subagent had that exact text sitting in its inherited context the whole time. The documented
+rule did not stop it: prose warnings inside inherited context read as background narration to
+a subagent under its own instruction, not as a binding stop, once the subagent has decided to
+push forward. No claude-tweaks skill with a HARD GATE at the time carried an explicit
+warning naming this exact delegation pattern, and no repo-wide marker convention or automated
+check existed to catch a future skill that names a step "HARD GATE" without a real gating
+mechanism next to it. Fixed by #461: a documented `<!-- HARD-GATE: {slug} -->` marker
+convention plus an explicit inheritance-hazard warning at both real gate sites
+(`refine-lanes.md`, `feedback/SKILL.md` Steps 6-7) and in
+`_shared/subagent-output-contract.md` generally, backed by a `node --test` conformance
+check (`tests/hard-gate-marker-conformance.test.js`) that greps every `skills/**/*.md`
+heading for the literal phrase "HARD GATE" and fails when no marker follows.
+
+## IL-140 — Two individually-small specs in one multi-spec batch jointly breached a shared file's 40 KB ceiling
+
+A four-spec `/flow` batch (#906, #901, #902, #905) built on one shared worktree branch. Two
+of the specs — #901 (calibration read-out) and #905 (tidy backstop scan) — each added a
+small, self-contained subsection to the same file, `plugin/skills/tidy/scan-procedures.md`:
+#901 added 9 lines, #905 added 37. Neither spec's own plan, build, or per-spec review ever
+checked the file's post-change byte count against `CEILING_BYTES` (40 KB,
+`tests/bin-lib/skill-audit/context-cost.test.js`) — each spec's own diff was small enough
+that it never occurred to check, and #901's review completed and landed before #905 ever
+touched the file, so no single review pass ever saw both insertions together. The breach
+(41,956 bytes, 996 over) surfaced only when #905's own full-suite test gate ran after both
+insertions had landed — the safety net worked exactly as designed, but the two specs'
+combination was invisible to every check that ran *during* either spec's own build or review,
+because both are scoped to that spec's own diff.
+
+Fixed by extracting the file's Step 4.7 backstop subsections into a new
+`plugin/skills/tidy/issue-claims-backstops.md`, mirroring the file's own pre-existing
+`step-1-records.md` extraction precedent (commit `53a4d036`). No process or tooling change
+shipped alongside the fix: the SDD pre-flight conflict scan this session already runs for
+multi-task specs checks *file-overlap between tasks*, not cumulative *byte growth against a
+hard ceiling* — a different question the scan was never designed to answer, and no
+multi-spec-batch equivalent exists that would check it across specs sharing a file. The next
+multi-spec batch where two specs touch the same near-ceiling file has no earlier checkpoint
+than the same after-the-fact full-suite catch this one got.
+
+## IL-141 — A spec materialization denied by the pipeline-shadow guard was landed with git plumbing, which no hook gate can see
+
+`/flow`'s materialize step for #315 tried to create
+`.claude-tweaks/pipelines/{run}/work/315-spec.md` inside an externally-provisioned worktree.
+`checkPipelineShadowGuard` denied it: `shadowPipelineRunDir` refuses any new path under a
+linked worktree's `.claude-tweaks/pipelines/` whose run-dir-level segment does not already
+exist there, and it carries no carve-out for the `work/` subtree. The denial was correct by
+the guard's own predicate but contradicts `_shared/pipeline-run-dir.md`'s Anchoring section,
+which documents `work/{n}-spec.md` as the one exception that stays inside the worktree,
+git-tracked and committed onto the feature branch — the path `.gitignore` lines 11-12
+explicitly re-include and that dozens of prior runs already carry.
+
+Rather than surface the contradiction, the session landed the file with
+`hash-object`/`update-index`/`commit-tree`/`checkout`. That worked, and it worked for a
+reason worth recording: `gitTargets()` matches only `sub === 'commit' || sub === 'push'`, so
+every plumbing verb is invisible to it, and `WRITE_SHAPES`
+(`cp`/`mv`/`tee`/`sed`/`perl`/`install`/`ln`/`truncate`/`dd`) contains no `git` entry, so
+`fileWriteTargets`/`mkdirTargets` never see the object-store write either. The bypass is
+therefore total, not partial: E1 working-directory discipline, the `worktree-always` gate and
+the pipeline-shadow guard are all blind to a commit constructed this way, and the file was
+committed with no event, no warning and no audit trail.
+
+Cost on the #315 run: moderate (~10 min) — but the real cost is that a shipped contract
+contradiction reached `main` recorded only as a ledger "surprise", because the workaround
+removed the pressure that would have filed it.

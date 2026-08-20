@@ -182,4 +182,23 @@ function isAnchoredUnderRoot(p, root) {
   return false;
 }
 
-module.exports = { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot, isAnchoredUnderRoot };
+// The two --run-dir/--run anchoring-guard error strings, shared by every call
+// site that pairs a mainCheckoutRoot()/isAnchoredUnderRoot() check with a
+// diagnostic (hooks.js's resolveRunArg, materialize.js, wrap-up-engine.js) —
+// extracted after the same two strings were verbatim-duplicated across all
+// three, a drift risk this project's own IL-93 already names for guards of
+// this shape (review finding). Pure — no I/O of their own, so each caller's
+// own I/O/deps-injection seam for testability is untouched; callers still
+// resolve `mainRoot`/`isAnchored` themselves and prefix the returned string
+// with their own program name / candidate-path framing.
+function unanchoredRunDirNoRepoMessage(cwd) {
+  return `could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read`;
+}
+function unanchoredRunDirShadowMessage(runDirArg, mainRoot) {
+  return `--run-dir ${runDirArg} resolves outside the main checkout (${mainRoot}) — refusing a worktree-relative shadow run dir; see resolve-run-dir`;
+}
+
+module.exports = {
+  nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot, isAnchoredUnderRoot,
+  unanchoredRunDirNoRepoMessage, unanchoredRunDirShadowMessage,
+};

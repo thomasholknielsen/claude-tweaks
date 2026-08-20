@@ -6,7 +6,7 @@ The synthesis step below — composing (Initial Mode) or patching (Update Mode) 
 
 **Output template.** Initial Mode returns the full composed CLAUDE.md body (per this file's section structure below); Update Mode returns one or more patches, each a `{section, before-excerpt, after-text, rationale}` block — the main thread applies each patch via Edit and commits, exactly as it already does for every other generated/patched file in this skill.
 
-**Resolution.** `node plugin/bin/resolve-profile.js frontier --unattended` in every headless context (a scheduled Routine's `/init` run); a plain interactive run omits `--unattended` and lets the resolver's own interactive-context precondition apply. No init-specific interactivity check is added — the resolver's existing gate is the single mechanism, here as everywhere else. Degrades to Capable per the resolver's own preconditions (cap exhausted, stance below `default`), logged in its `source`; this file never re-enumerates those preconditions. The dispatch structure — bundle assembly, singleton call, main-thread apply — never branches on which model the resolver returns; only the model differs.
+**Resolution.** `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" frontier --unattended` in every headless context (a scheduled Routine's `/init` run); a plain interactive run omits `--unattended` and lets the resolver's own interactive-context precondition apply. No init-specific interactivity check is added — the resolver's existing gate is the single mechanism, here as everywhere else. Degrades to Capable per the resolver's own preconditions (cap exhausted, stance below `default`), logged in its `source`; this file never re-enumerates those preconditions. The dispatch structure — bundle assembly, singleton call, main-thread apply — never branches on which model the resolver returns; only the model differs.
 
 CLAUDE.md is a self-improvement surface in the same sense as `/wrap-up`'s curation — its output compounds across every future session in the project, which is what justifies Frontier's premium here.
 
@@ -78,7 +78,7 @@ How to execute any task here. These apply project-wide unless a more specific ru
 
 ## claude-tweaks Pipeline
 
-**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No phase-plan files; skip `/superpowers:writing-plans`.
+**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No multi-phase plan files (`*-P1.md`, `*-P2.md`, …); a single plan per spec via `/superpowers:writing-plans`, stopped before its execution-choice offer, is expected and normal.
 
 **Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or a backlog work-record ref.
 

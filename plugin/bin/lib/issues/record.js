@@ -65,6 +65,14 @@ const TYPE_LABELS = [
 const FP_RE_WORK = /<!--\s*work-fingerprint:\s*([^\s>]+)\s*-->/;
 const FP_RE_LEGACY = /<!--\s*(?:code-health|harness-health|journey-health)-fingerprint:\s*([^\s>]+)\s*-->/;
 
+// Freshness stamp (#117): the commit each health-sweep skill actually read at
+// filing time, threaded through specShapedBody's verifiedAsOf param as a
+// plain body-metadata line — same convention as Origin:/Defer-reason:, never
+// YAML frontmatter. A full or abbreviated git sha, hex only. Line-anchored
+// (/m) so prose elsewhere in the body mentioning a commit never matches.
+const VERIFIED_AS_OF_RE = /^Verified-as-of: ([0-9a-f]{7,40})[ \t]*$/mi;
+const SHA_SHAPE_RE = /^[0-9a-f]{7,40}$/i;
+
 // Line-anchored 'Blocked by #N' dependency declarations (multiline).
 const DEP_RE = /^Blocked by #(\d+)\b/gm;
 
@@ -231,6 +239,19 @@ function extractFingerprint(body) {
   if (work) return work[1];
   const legacy = FP_RE_LEGACY.exec(body);
   return legacy ? legacy[1] : null;
+}
+
+// body -> the git sha the sweep read when it filed this issue, or null when
+// absent (a pre-#117 issue, or a body that was never run through
+// specShapedBody's verifiedAsOf param). Consumers (e.g. bin/materialize.js)
+// diff this against current HEAD to say something actionable about drift —
+// see [IL-71]: presence of a fresh stamp bounds drift, it never establishes
+// correctness, so a consumer still must not skip verification just because
+// this reads recent.
+function extractVerifiedAsOf(body) {
+  if (typeof body !== 'string' || !body) return null;
+  const m = VERIFIED_AS_OF_RE.exec(body);
+  return m ? m[1].toLowerCase() : null;
 }
 
 // Accepts either bare label-name strings or {name} objects (gh's own shape).
@@ -415,9 +436,10 @@ function parseDependencyAssumptions(body) {
 }
 
 // { header?, currentState, deliverables, acceptanceCriteria?, openQuestion?, filedBy,
-//   provenance?: { origin?, deferReason? }, footer?: string | null } -> body string.
-// Additive over the original shape: a call passing none of provenance/footer/openQuestion
-// (and a non-empty header) composes byte-identical output — the four health-suite
+//   provenance?: { origin?, deferReason? }, footer?: string | null, verifiedAsOf?: string }
+//   -> body string.
+// Additive over the original shape: a call passing none of provenance/footer/openQuestion/
+// verifiedAsOf (and a non-empty header) composes byte-identical output — the four health-suite
 // builders are the regression oracle (tests/health-filing-parity.test.js). Exactly one
 // of acceptanceCriteria/openQuestion must be supplied: openQuestion is the composer's
 // needs:definition variant, rendering `## Open Question` in place of Acceptance
@@ -430,7 +452,18 @@ function parseDependencyAssumptions(body) {
 // header is the slot for producer-specific leading lines (e.g. `Trigger: {condition}`)
 // and may be empty/omitted — the one relaxation from the original, needed because the
 // openQuestion variant's canonical call carries no header.
-function specShapedBody({ header, currentState, deliverables, acceptanceCriteria, openQuestion, filedBy, provenance, footer } = {}) {
+// verifiedAsOf (#117): the git sha the caller itself read the repo at, right before
+// composing this body — a plain `Verified-as-of: {sha}` metadata line, rendered before
+// Origin:/Defer-reason: (extracted by extractVerifiedAsOf, above). Validated against a
+// bare hex-sha shape so an obviously wrong value (a date, a branch name) fails loud here
+// rather than filing a stamp nothing can compare against. The caller MUST resolve this
+// value itself, at read time — never pass a value this function re-derives or that was
+// resolved earlier than the read that produced currentState/deliverables, or a queued
+// finding filed later stamps a commit it never actually looked at (worse than no stamp —
+// see the Gotchas in issue #117).
+function specShapedBody({
+  header, currentState, deliverables, acceptanceCriteria, openQuestion, filedBy, provenance, footer, verifiedAsOf,
+} = {}) {
   const isEmpty = (value) => value === undefined || value === null || value === ''
     || (Array.isArray(value) && value.length === 0);
   const hasAC = !isEmpty(acceptanceCriteria);
@@ -448,11 +481,15 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
       throw new Error(`specShapedBody: ${name} is required and must be non-empty`);
     }
   }
+  if (!isEmpty(verifiedAsOf) && !SHA_SHAPE_RE.test(verifiedAsOf)) {
+    throw new Error(`specShapedBody: verifiedAsOf must be a git commit sha (got "${verifiedAsOf}")`);
+  }
   const { origin, deferReason } = provenance || {};
   if (deferReason !== undefined) oneOf('deferReason', deferReason, DEFER_REASONS);
   const block = (v) => (Array.isArray(v) ? v.join('\n\n') : v);
   const parts = [];
   if (!isEmpty(header)) parts.push(header);
+  if (!isEmpty(verifiedAsOf)) parts.push(`Verified-as-of: ${verifiedAsOf.toLowerCase()}`);
   if (!isEmpty(origin)) parts.push(`Origin: ${origin}`);
   if (deferReason !== undefined) parts.push(`Defer-reason: ${deferReason}`);
   parts.push('## Current State', block(currentState), '## Deliverables', block(deliverables));
@@ -468,7 +505,7 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
 
 module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, DEFER_REASONS, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
-  FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, normalizeLabelNames, parseRecordFacets,
+  FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, extractVerifiedAsOf, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
 };

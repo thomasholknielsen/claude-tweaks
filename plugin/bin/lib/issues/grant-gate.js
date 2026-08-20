@@ -133,9 +133,21 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   // call needs was already independently verified by gates 1-3 above, so this
   // call is confirmatory, not a new judgment.
   const permitted = permittedGrants({ ceiling, row, grantOriginationEnabled: pol.grantOriginationEnabled });
+  let autoMerge = permitted.grants.bornAuthorized.granted === true;
+
+  // Global merge-lane circuit breaker (#311) — a second, independent,
+  // additive floor checked AFTER every gate above already cleared. It never
+  // routes through deny() (which denies `grant` too): tripped state gates
+  // origination of new auto:merge grants only, leaving `grant` (auto:build
+  // origination) exactly as gates 1-5 already decided. See
+  // bin/lib/issues/merge-lane-breaker.js and
+  // skills/_shared/autonomy-ceiling.md's "Revocation" section.
+  const breakerTripped = pol.mergeLaneBreakerTripped === true;
+  if (breakerTripped) autoMerge = false;
+
   return {
     grant: true,
-    autoMerge: permitted.grants.bornAuthorized.granted === true,
+    autoMerge,
     failedKey: null,
     reason: 'all floors clear',
     snapshot: {
@@ -151,6 +163,7 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
       keyFilesChecked: keyFiles.length,
       dailyGrantCap: hasCap ? pol.dailyGrantCap : null,
       grantsIssuedToday: hasCap ? (pol.grantsIssuedToday || 0) : null,
+      ...(breakerTripped ? { mergeLaneBreakerTripped: true } : {}),
     },
   };
 }

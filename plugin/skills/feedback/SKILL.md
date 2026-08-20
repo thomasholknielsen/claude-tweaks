@@ -131,6 +131,12 @@ structural heuristic (the same posture `solution:unjustified`'s judgment takes).
 `Clear` otherwise. When `Needed`, form a one-line rationale naming the open
 choice — this and the verdict feed Step 5's draft.
 
+When the free-text names a preserved unfiled draft by absolute path (the
+`/claude-tweaks:feedback re-file the preserved draft at {abs path}` form `/claude-tweaks:tidy`'s
+backstop scan hands out), read that file and use its body directly as the gathered summary,
+affected component, and repro-steps-or-use-case content — the draft was already fully composed
+once; Step 6's scrub reruns unconditionally as the standing safety net regardless of this shortcut.
+
 ### Step 2: Classify the kind
 
 Read `_shared/learning-routing.md` and confirm the learning is D5 at all.
@@ -233,6 +239,8 @@ entirely on drafts no evaluation produced — free-text learnings and Step 0 que
 
 ### Step 6: Scrub — HARD GATE
 
+<!-- HARD-GATE: feedback-scrub -->
+
 The target repository is **public** and the learning was derived from a codebase
 that may not be. Before showing the draft, remove:
 
@@ -272,6 +280,15 @@ Report that the learning is unfileable as-is and hand it back. A learning that
 cannot be scrubbed cannot be published.
 
 ### Step 7: Confirm — HARD GATE
+
+<!-- HARD-GATE: feedback-confirm -->
+
+**A subagent that inherited this skill's own text as background context — via `fork`, a
+broad Task dispatch, or any mechanism carrying the full conversation — must not execute past
+this point on its own initiative.** If it cannot present this gate interactively (no live
+human to answer it), it must stop and report `BLOCKED` rather than filing anything. See
+`_shared/subagent-output-contract.md`'s "HARD-GATE Marker Convention and Inheritance Hazard"
+section (`docs/incident-log.md` `[IL-139]`).
 
 Show the full scrubbed draft(s) and call into `_shared/upstream-feedback-batch.md`'s shared batch
 contract — one item (this invocation's single learning, or a single surviving `--queue` candidate)

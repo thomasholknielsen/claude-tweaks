@@ -4,7 +4,7 @@ QA parallel dispatch + agent prompt templates — Phase 3. Read `qa-procedures.m
 
 This phase dispatches qa-agent subagents in parallel — one per story, bounded by `MAX_PARALLEL` and tier dependencies from Phase 2. Each agent owns a single `agent-browser` session named after the story id (kebab-case). One session per agent — never share a session across parallel stories.
 
-> **Parallel execution:** Dispatch each tier's stories as parallel Task agents — each runs independently against its own `agent-browser` session and returns a `RESULT:` summary line (plus optional `TRACE:` line and `REPORT_JSON` comment). Assemble results after all agents in the tier complete. Follow the subagent contract in `skills/_shared/subagent-output-contract.md`: inline the prompt template below verbatim per agent (no references to sibling files), pick `[Use: Standard]` (qa-agent work is browser-driven step execution, not deep analysis — resolve via `node plugin/bin/resolve-profile.js standard`, contract § Model Selection), and treat the agent's first reply line as its status (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`).
+> **Parallel execution:** Dispatch each tier's stories as parallel Task agents — each runs independently against its own `agent-browser` session and returns a `RESULT:` summary line (plus optional `TRACE:` line and `REPORT_JSON` comment). Assemble results after all agents in the tier complete. Follow the subagent contract in `skills/_shared/subagent-output-contract.md`: inline the prompt template below verbatim per agent (no references to sibling files), pick `[Use: Standard]` (qa-agent work is browser-driven step execution, not deep analysis — resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`, contract § Model Selection), and treat the agent's first reply line as its status (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`).
 >
 > **Working directory discipline:** Resolve `{SCREENSHOT_PATH}` and `{TRACES_BASE}` to absolute paths *before* substituting them into each agent's prompt — relative paths cannot reach the agent's working directory reliably. The dispatch also anchors the working directory by inlining a "Working directory" line at the top of each agent's prompt body (see templates below).
 >
@@ -92,17 +92,18 @@ Execute this user story and report results using the agent-browser CLI.
 
 Instructions:
 - Open the session: `agent-browser --session {story.id} open {story.url}`
-- If `Auth (vault)` is present, run `agent-browser --session {story.id} auth use <vault-name>` immediately after `open` and before the first interactive step.
+- Start trace recording immediately after `open`: `agent-browser --session {story.id} trace start` (a trace can only be saved for the interval after recording started — there is no retroactive capture).
+- If `Auth (vault)` is present, run `agent-browser --session {story.id} auth login <vault-name>` immediately after `trace start` and before the first interactive step.
 - If a `Viewport` is set, run `agent-browser --session {story.id} set viewport <w> <h>`.
-- If `Setup` is present, execute its steps first, using the same step semantics as the Steps loop below (locator-first, snapshot-fallback, annotated screenshot). Setup failures are treated like any other step failure (capture trace, stop, report).
+- If `Setup` is present, execute its steps first, using the same step semantics as the Steps loop below (locator-first, snapshot-fallback, annotated screenshot). Setup failures are treated like any other step failure (save trace, stop, report).
 - For each step in the steps array sequentially:
   - Use semantic locators (role/name, testid, text, label, placeholder) — never CSS or `@eN` refs from prior snapshots.
-  - For action steps: try the locator first; if it fails, take a snapshot (`snapshot -i -c`) and resolve the target from the fresh tree.
-  - For verify-only steps: snapshot and evaluate the assertion.
-  - Take an annotated screenshot after each step: `screenshot --annotate --filename {SCREENSHOT_PATH}/<NN>_<step>.png`.
+  - For action steps: execute locator and action in one command — `find <locator> <value> <action> [text]` (e.g. `find role button click --name "Submit"`, `find label "Email" fill "user@example.com"`). The action argument is mandatory: a bare `find` with no action defaults to CLICKING the element, so never run `find` as an existence probe. If the command errors with element-not-found, take a snapshot (`snapshot -i -c`) and resolve the target from the fresh tree.
+  - For verify-only and `assert_visible` steps: snapshot (`snapshot -i -c`) and evaluate the assertion against the tree — never an action-less `find`.
+  - Take an annotated screenshot after each step: `screenshot --annotate {SCREENSHOT_PATH}/<NN>_<step>.png` (path is positional — there is no `--filename` flag).
 - On any step failure (assertion mismatch, locator unrecoverable, navigation timeout, console error blocking the flow):
-  - Capture a trace BEFORE closing the session:
-    `agent-browser --session {story.id} trace save {TRACES_BASE}/{story.id}/{ISO-timestamp}.zip`
+  - Save the trace BEFORE closing the session:
+    `agent-browser --session {story.id} trace stop {TRACES_BASE}/{story.id}/{ISO-timestamp}.zip`
   - Include the trace path in the failure report.
   - If `Teardown` is present, execute its steps now, before closing the session.
   - Then close the session: `agent-browser --session {story.id} close`.
@@ -145,9 +146,10 @@ Execute this user story and report results using the agent-browser CLI.
 {story.workflow}
 
 Instructions:
-- Open the session, apply auth (vault preferred, legacy fallback), follow the workflow steps sequentially.
-- Take an annotated screenshot after each significant step into {SCREENSHOT_PATH}.
-- On any failure: `agent-browser --session <session> trace save {TRACES_BASE}/<session>/<timestamp>.zip`, then `close`. Include the trace path in the report.
+- Open the session, run `agent-browser --session <session> trace start` immediately after `open` (traces are record-then-stop — no retroactive capture), apply auth (vault preferred via `auth login <vault-name>`, legacy fallback), follow the workflow steps sequentially.
+- Act on elements via `find <locator> <value> <action> [text]` — the action argument is mandatory (a bare `find` defaults to clicking); assertions go through `snapshot -i -c`, never an action-less `find`.
+- Take an annotated screenshot after each significant step: `screenshot --annotate {SCREENSHOT_PATH}/<NN>_<step>.png` (path is positional — no `--filename` flag).
+- On any failure: `agent-browser --session <session> trace stop {TRACES_BASE}/<session>/<timestamp>.zip`, then `close`. Include the trace path in the report.
 - On success: `agent-browser --session <session> close` at the end.
 - **Status line (required, line 1 of your reply):** emit exactly one of `DONE` | `DONE_WITH_CONCERNS` | `NEEDS_CONTEXT` | `BLOCKED`. Mapping:
   - `PASS` → `DONE`

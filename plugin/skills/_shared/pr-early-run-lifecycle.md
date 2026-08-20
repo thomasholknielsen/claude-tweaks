@@ -63,6 +63,17 @@ gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,s
   unexpected precondition this file does not need to specially handle beyond not erroring.
 - **No match**: fall through to creation.
 
+**Why a stale-branch collision can't reach this step (#767).** This procedure runs against
+whatever branch name `build/worktree-setup.md` Step 2 already created — and that step's own Step
+1.5 (Stale same-name branch check) removes a leftover same-name local branch from a prior
+closed-unmerged attempt *before* `EnterWorktree` ever creates the new one. Before that check
+existed, a same-name retry risked reopening the CLOSED PR found above (this step) ahead of Step
+2's push, then having that push rejected non-fast-forward — leaving a reopened PR pointing at
+stale content with no automatic re-close. With the collision closed at its root, the branch this
+step queries is always freshly created, so `gh pr list --head {branch}` only ever matches a PR
+this exact run itself opened (resume case) — the CLOSED-match reopen branch above still exists for
+that legitimate resume, just never for a same-name-collision retry anymore.
+
 ### Step 2: Push the branch
 
 ```bash
@@ -206,6 +217,13 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
 `decisions.md` and the phase continues — the next phase's own checklist update naturally
 re-flips every row still unchecked from prior phases, since it reads the live body fresh each
 time rather than tracking a local diff.
+
+**Multi-spec runs share one PR.** A dispatch bundle or a `/flow` multi-spec run has multiple
+records built on the same branch behind the same draft PR, so this procedure's checklist rows
+are **cumulative across every spec in the run, never reset per spec** — see
+`flow/multispec-pr-checklist.md` for the full rationale and the per-spec status source
+(`manifest.yml`'s `specs[].status`) a maintainer should read instead when they need spec-level,
+not run-level, granularity.
 
 ## Pre-merge title/description refresh
 

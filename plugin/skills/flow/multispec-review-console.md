@@ -18,7 +18,7 @@ After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stop
 
 0. If `MULTISPEC_CURATION_DEFER=1`, run the batch pass first — `multispec-batch-curation.md`. It writes to the parent's `decisions.md`/`staged/`/`engine-state.json`, covered by steps 2-3.
 1. Read `manifest.yml` to enumerate per-spec subdirectories, in spec execution order.
-2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents (including any `staged/leftover-*.md` queue-write proposals — see Queue writes below) for the prose-aggregated sections (Auto-applied, Pending review, Low-confidence findings, Contested findings, Cleanup actions, Issue closures, Translated briefs, Queue writes, Memory updates, Upstream feedback). This read is unconditional: a spec with no `engine-state.json` (its wrap-up never reached Phase 2 — e.g. it failed before that point) still contributes every prose-aggregated row and a Not run/Failed footer row; it simply contributes nothing to the engine call in step 3 below. ALSO read the parent run dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as freeform-issue translations and any parent-level leftover proposals).
+2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents (including any `staged/leftover-*.md` queue-write proposals — see Queue writes below) for the prose-aggregated sections (Auto-applied, Pending review, Low-confidence findings, Contested findings, Cleanup actions, Issue closures, Translated briefs, Queue writes, Memory updates, Upstream feedback). This read is unconditional: a spec with no `engine-state.json` (its wrap-up never reached Phase 2 — e.g. it failed before that point) still contributes every prose-aggregated row and a Not run/Failed footer row; it simply contributes nothing to the engine call in step 3 below. ALSO read the parent run dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as freeform-issue translations and any parent-level leftover proposals). Staged files are written via `bin/stage-item.js` (`_shared/auto-decision-log.md`'s "Staged proposal files" section) — this console is a reader, never a writer, of `staged/`.
 3. Invoke the engine for the five engine-rendered sections — Skill updates, Documentation updates, Journey updates, Configuration updates, Reference repairs — using one repeated `--spec-state` flag per spec with an `engine-state.json` present, in the spec execution order from step 1:
 
    ```bash
@@ -117,7 +117,7 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 6. Apply config updates (docs, CLAUDE.md, rules)
 7. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
 8. Execute Cleanup actions rows in order — dev-server teardown (no dependency) may run any time; branch-finish (row 16 in this example) must complete before any per-spec claim-release/grant-removal/label-cleanup row runs, since those rows read branch-finish's outcome for the release reason and `$LINK`. Under `pr-first`, "Approve all, leave PR open" skips the branch-finish merge attempt entirely (the PR stays as-is) and every per-spec row below waits for `merged` evidence instead, same as any other `pending-review` outcome (`_shared/pr-first-merge.md`'s Outcome vocabulary — the reconciler completes cleanup later). This is "Shared teardown" below, gated on the visible rows above rather than running unconditionally.
-9. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
+9. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included) — routes through `bin/lib/reconcile/archive-merged.js`'s `archiveRunDir` (or `wrap-up/cleanup-procedures-execution.md` Section B's manual equivalent, applied once per `spec-{N}/` subdirectory rather than once at the top level), never a plain recursive move: every git-tracked `spec-{N}/work/` subtree moves via `git mv` before the gitignored rest (`spec-{N}/config.yml`, `decisions.md`, `staged/`) moves via plain `mv` into its own `archive/{run-id}/spec-{N}/`, then the parent-level `manifest.yml`/`config.yml`/`decisions.md` move the same way (#593 — a multi-spec parent whose `spec-{N}/work/` subtrees skip `git mv` resurrects those tracked files at the pre-archive path on the next checkout, the same failure mode the single-spec path already guards against)
 
 ## On override (option 2)
 
@@ -151,6 +151,22 @@ These steps appear as visible, numbered Cleanup actions rows in the console temp
 4. **Remove grants** — pass `--remove-grants` for each issue released with a `merged:` or `pr-opened:` outcome (strips `auto:build`/`auto:merge`, best-effort per label); omit it for `abandoned:` (the grant is the standing retry request). See "Grant revocation" in `_shared/issue-claims.md`.
 5. **Remove `bot:in-progress`; restore `parked` if applicable** — see "Per-issue label cleanup" below.
 6. **Remove the shared worktree** — `wrap-up/cleanup-procedures-execution.md` Section C step 4; the run occupies exactly one (`multi-spec.md`'s "Shared worktree"). Per that Section's Teardown ordering invariant: only once steps 2-5 above have completed — step 3's claim release reads each spec's materialized header from inside this worktree — and only via `ExitWorktree`, never a raw `git worktree remove` nor a `cd`-then-remove compound. Run `close-run` first (Section C step 3.6) if the parent run dir is not already closed. Skip when the branch-finish outcome left work pending: `pr-first`'s "leave PR open" (no merge attempted) or `local-merge`'s "kept as-is" — the worktree stays for that continued work, mirroring Section C step 3's own skip.
+7. **Branch + remote-ref cleanup, once the shared worktree is gone (#594).** Run:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" teardown-run --run "$MULTISPEC_PARENT_DIR" \
+     --merged  # or --abandoned when the branch was discarded, not merged
+   ```
+
+   `teardown-run` composes the archival + local-branch-delete + remote-branch-delete mechanics
+   `cleanup-procedures-execution.md` Section C uses for a single-spec run — target
+   `$MULTISPEC_PARENT_DIR` (the run occupies exactly one worktree/branch for the whole multi-spec
+   run, recorded on the parent, never a per-spec `$PIPELINE_RUN_DIR`). Called after step 6 above,
+   not before: `teardown-run`'s own worktree-removal step would otherwise skip (the worktree is
+   still locked to this session at that point) — harmless either way, but the local branch delete
+   would fail outright if attempted while the branch is still checked out in the (not-yet-removed)
+   worktree, since git refuses to delete a checked-out branch. Skip when step 6 itself skipped
+   (work left pending).
 
 ### Per-issue label cleanup
 
@@ -159,6 +175,8 @@ Applies identically from "Shared teardown" step 5 above, regardless of whether i
 ## On stop (option 3)
 
 Halt before applying. Leave the parent run dir intact. User resumes with `/claude-tweaks:flow {specs} review-console` (a dedicated resume step that re-reads the same parent dir and re-presents the console).
+
+**Logging the terminal decision:** At the consolidated terminal-decision point (when Approve all + merge / Approve all, leave PR open / Override / Stop is chosen), log the same `AUTO {time} — Review Console: terminal decision {…}. Reversibility: n/a.` line (per `wrap-up/review-console-interactive.md`'s format) to the parent run's `decisions.md`.
 
 ## Empty-console fast path
 

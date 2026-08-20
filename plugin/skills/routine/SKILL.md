@@ -1,7 +1,7 @@
 ---
 name: routine
 description: Use to create, update, or check status of a Claude Code cloud Routine for a claude-tweaks skill — instantiates a project-agnostic template into a live, scheduled routine. Keywords - routine, schedule, cron, cloud agent, recurring, automation.
-argument-hint: "<create|update|status> <skill>|--all|<fleet on|status|off> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
+argument-hint: "<create|update|status|pause|resume> <skill>|--all|<fleet on|status|off> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -22,7 +22,7 @@ template + resolved project/account values -> RemoteTrigger create/update -> .cl
 - You want that routine's config captured as a versioned, reproducible project artifact — not something that only exists in claude.ai's UI.
 - You're setting up the same kind of routine (e.g. code-health) in a new project and want it created the same way every time, without re-answering `/schedule`'s interactive questions from scratch.
 
-Not for: one-off or exploratory routines you don't want templated (use `/schedule` directly). Not a replacement for `/schedule`'s `list`/`run` conveniences or for deleting a routine — deletion has no API and always happens at claude.ai/code/routines.
+Supports both recurring and one-off (single-fire, auto-disabling) cadences for a templated routine — the CREATE Customize path's cadence picker (`schedule-resolution.md` 5b-i) offers "One-off" alongside the recurring options. A one-off run does not count against the account's daily routine-run cap, unlike a recurring one. Not for: an ad hoc, exploratory routine you don't want captured as a versioned project artifact at all (use `/schedule` directly for that — a throwaway session, no `.claude-tweaks/routines/*.yml` record). Not a replacement for `/schedule`'s `list`/`run` conveniences or for deleting a routine — deletion has no API and always happens at claude.ai/code/routines.
 
 ## Input
 
@@ -32,13 +32,15 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 |---|---|
 | `create <skill>` | Instantiate `<skill>`'s routine template into a live routine for the current project. Routes to the UPDATE workflow automatically if an instantiated record already exists for this project+skill combination. |
 | `update <skill>` | Re-sync an existing routine against its (possibly changed) template. |
+| `pause <skill>` | Pause `<skill>`'s live routine — a single-field `RemoteTrigger update` setting `enabled: false`, nothing else reassembled or changed. Reversible via `resume`. |
+| `resume <skill>` | Resume `<skill>`'s paused routine — the same single-field call, `enabled: true`. |
 | `status <skill>` | Show the instantiated record for `<skill>` alongside live routine state. |
 | `status --all` | Bulk drift check across every instantiated record in the project (`.claude-tweaks/routines/*.yml`), regardless of skill — no `<skill>` argument. The only entry point that can discover a record whose named skill no longer exists at all (renamed/retired), since every other path here starts from a skill name and checks that skill's own template file forward. See STATUS Step 1's `--all` branch for the full verdict table. |
 | `fleet on` | Turn on the self-maintaining posture in one action: a Manifesto collecting the human-owned policy levers, then provisioning (or reconciling, on a re-run) every routine in the fleet composition table — vertical finders, generalist sweeps, the conditional grant unit, the dispatch drain, and tidy. See `fleet.md` in this skill's directory. |
 | `fleet status` | One aggregated read-only screen for the fleet: fleet-marked routine table (schedule, last firing, health), the per-class trust table, and the weekly counters (firings, findings, grants split human/machine, merges, revocations) with each counter's source and blind spots named inline. See `fleet.md`'s Fleet status section. |
-| `fleet off` | Pause-based shutdown of every fleet-marked routine — durable state (records, rotation cursors, wontfix suppressions, trust history) survives. Never deletes; never touches non-fleet routines. With no pause verb landed (#213), reports the deletion-vs-keep tradeoff per routine and performs no destructive action. See `fleet.md`'s Fleet off section. |
+| `fleet off` | Pause-based shutdown of every fleet-marked routine — durable state (records, rotation cursors, wontfix suppressions, trust history) survives. Never deletes; never touches non-fleet routines. Pauses each fleet-marked routine via the `pause` action above. See `fleet.md`'s Fleet off section. |
 | `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body (on `create`, when an environment was already resolved) or a text preview (on `create`, when none was — no browser session opens, no body exists to assemble); never make a `create`/`update` call or open a guided-creation browser session (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
-| `--defaults` (combine with `create` or `update`) | On `create`: skip Step 5's interactive cadence picker (use the template's own `default_schedule.cron_expression` verbatim) and Step 7's interactive confirm (proceed straight to creation once the body is assembled, or straight to the guided-creation flow if none was). On `update`: skip Step 3's schedule re-resolution entirely (keep the record's existing `schedule` field untouched — no cadence picker at all) and Step 5's interactive confirm (proceed straight to Step 6 once the body is assembled). Either way, for non-interactive/batch use. Environment still resolves via Step 4's normal sources (`--environment`, the cache, or its two fallback lookups); if none yields a value, `--defaults` does **not** suppress guided creation's own browser session (opening a browser and creating live, billed infrastructure is a bigger commitment than the batch-confirm callers like `/init` Step 15 already cover — Step 7's preview is still shown as a non-blocking report either way). |
+| `--defaults` (combine with `create` or `update`) | On `create`: skip Step 5's interactive cadence picker (use the template's own `default_schedule.cron_expression` verbatim — always recurring, since a template's `default_schedule` has no one-off form) and Step 7's interactive confirm (proceed straight to creation once the body is assembled, or straight to the guided-creation flow if none was). On `update`: skip Step 3's schedule re-resolution entirely (keep the record's existing cadence fields — `cadence` plus whichever of `schedule`/`run_once_at` it carries — untouched, no cadence picker at all) and Step 5's interactive confirm (proceed straight to Step 6 once the body is assembled). Either way, for non-interactive/batch use. Environment still resolves via Step 4's normal sources (`--environment`, the cache, or its two fallback lookups); if none yields a value, `--defaults` does **not** suppress guided creation's own browser session (opening a browser and creating live, billed infrastructure is a bigger commitment than the batch-confirm callers like `/init` Step 15 already cover — Step 7's preview is still shown as a non-blocking report either way). |
 | `--branch <name>` (combine with `create`/`update`) | Pin the branch the routine audits — substituted into the kernel's `{{TARGET_BRANCH}}` placeholder, skipping every other source in CREATE Step 5.5's precedence. Use it when the repo's active development branch isn't its GitHub default (a `dev` → `staging` → `main` model), which is otherwise the case a routine gets wrong; `integration-branch` in `.claude-tweaks/policy.yml` is the durable form of the same answer. |
 | `--environment <id>` (combine with `--defaults`, or standalone) | Use this environment ID directly in Step 4, skipping every other resolution source. |
 | `--refresh-environment` (combine with `create`/`update`) | Bypass the environment cache and Step 4's `RemoteTrigger`-backed lookups (both source (a) and source (b)) — go straight to asking the user directly which environment to use, then overwrite `.claude-tweaks/routine-environment-cache.yml` with the freshly chosen value. Use this to correct a stale or wrongly-inferred cached/inferred environment without already knowing its raw ID. Mutually exclusive in effect with `--environment <id>` — if both are passed, `--environment` wins (it already skips every other source, including this one) and no prompt occurs. |
@@ -46,16 +48,17 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 
 ## Workflow
 
-Resolve the mode from `$ARGUMENTS` (`create` | `update` | `status` | `fleet on` | `fleet status` | `fleet off`), then read exactly one procedure file from this skill's directory. The modes are mutually exclusive, and `status --all` — the form `/claude-tweaks:init`'s Update Mode fires in bulk — has no use for CREATE's or UPDATE's body at all.
+Resolve the mode from `$ARGUMENTS` (`create` | `update` | `pause` | `resume` | `status` | `fleet on` | `fleet status` | `fleet off`), then read exactly one procedure file from this skill's directory. The modes are mutually exclusive, and `status --all` — the form `/claude-tweaks:init`'s Update Mode fires in bulk — has no use for CREATE's or UPDATE's body at all.
 
 | Mode | Read | Covers |
 |---|---|---|
 | `create <skill>` | `create-and-update.md` | CREATE Steps 0-9. Its Step 3 idempotency check routes to UPDATE automatically — same file, no second read. |
 | `update <skill>` | `create-and-update.md` | UPDATE Steps 0-7. UPDATE reuses CREATE's Steps 1, 2, 4, 5.5, and 6 by name, which is why the two modes share one file rather than splitting into two that would each read the other. |
+| `pause <skill>` / `resume <skill>` | `create-and-update.md` | PAUSE / RESUME — a single-field `RemoteTrigger update` (`{"enabled": false}` / `{"enabled": true}`). Reuses CREATE/UPDATE's record-resolution steps by name; no schedule or body reassembly. |
 | `status <skill>` / `status --all` | `status.md` | STATUS Steps 1-3.5, including the `--all` bulk-enumeration branch. Needs nothing from CREATE or UPDATE. |
 | `fleet on / status / off` | `fleet.md` | Steps 1-5 (Manifesto, cloud-parity check, conditional grant-unit provisioning, per-routine provisioning loop, summary). Its provisioning loop itself reads `create-and-update.md` per row — same CREATE/UPDATE procedure, parameterized by `fleet.md`'s own composition table rather than a single skill argument. `fleet status` and `fleet off` are the two companion sections in the same file (aggregated dashboard; pause-based shutdown). |
 
-`create` and `update` additionally read `schedule-resolution.md` for CREATE Step 5's sub-steps (5a's cron-to-cadence classification, 5b-5d's interactive picker). `update --defaults` skips schedule re-resolution entirely and never reads it; `status` never reaches it at all.
+`create` and `update` additionally read `schedule-resolution.md` for CREATE Step 5's sub-steps (5a's cron-to-cadence classification, 5b-5d's interactive picker — 5b-i splits recurring vs. one-off before 5b-ii's four recurring options, both within `AskUserQuestion`'s 4-option-per-question cap). `update --defaults` skips schedule re-resolution entirely and never reads it; `status` never reaches it at all.
 
 **Every mode** reads `record-freshness.md` before touching `.claude-tweaks/routines/*.yml` — including `fleet on`'s per-row reconcile check (`fleet.md` Step 4), which runs it once per composition-table row via the same F1-F2 sub-steps CREATE Step 3 uses. Those records are a committed artifact, so the branch they are committed to — not the working checkout — is where one actually lives; reading the checkout directly reports drift that does not exist and, at CREATE Step 3, mints a duplicate live routine that `RemoteTrigger` cannot delete (#190). It is its own file precisely because every mode needs it and `status --all` must not be made to load `create-and-update.md` to get it. The check is fail-open: offline, no remote, or no branch resolved all degrade to the pre-#190 working-checkout read, so the skill stays fully usable without a network.
 
@@ -69,13 +72,21 @@ Steps 0-9 live in `create-and-update.md` in this skill's directory; Step 5's own
 
 Steps 0-7 live in `create-and-update.md` in this skill's directory, after the CREATE section.
 
+### PAUSE `<skill>`
+
+Steps 1-3 live in `create-and-update.md` in this skill's directory, after the UPDATE section — a single-field `RemoteTrigger update` (`{"enabled": false}`) reusing CREATE/UPDATE's record-resolution steps by name.
+
+### RESUME `<skill>`
+
+Same file, immediately after PAUSE — the mirror call (`{"enabled": true}`).
+
 ### STATUS `<skill>`
 
 Steps 1-3.5, including the `--all` branch, live in `status.md` in this skill's directory.
 
 ### FLEET `on / status / off`
 
-Steps 1-5 live in `fleet.md` in this skill's directory: the Manifesto (policy levers), a cloud-parity honesty check, conditional grant-unit provisioning (gated on the two unattended keys), a per-routine provisioning loop over the fleet composition table (driving CREATE/UPDATE per row, with its own idempotent reconcile marker rule), and a consolidated summary. Re-running `fleet on` is the reconcile path — there is no separate verb. `fleet status` (aggregation over `status.md`'s per-routine STATUS, the shared trust render, and `bin/lib/issues/fleet-counters.js`) and `fleet off` (pause-based shutdown; no-pause-verb fallback reports deletion-vs-keep and performs no destructive action) live in the same file.
+Steps 1-5 live in `fleet.md` in this skill's directory: the Manifesto (policy levers), a cloud-parity honesty check, conditional grant-unit provisioning (gated on the two unattended keys), a per-routine provisioning loop over the fleet composition table (driving CREATE/UPDATE per row, with its own idempotent reconcile marker rule), and a consolidated summary. Re-running `fleet on` is the reconcile path — there is no separate verb. `fleet status` (aggregation over `status.md`'s per-routine STATUS, the shared trust render, and `bin/lib/issues/fleet-counters.js`) and `fleet off` (pause-based shutdown — pauses every fleet-marked routine via the `pause` action) live in the same file.
 
 ## Next Actions
 

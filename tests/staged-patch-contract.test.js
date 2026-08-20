@@ -22,10 +22,23 @@ test('contract file exists with its three named sections', () => {
   for (const h of ['## Artifact format', '## Staging-time gate', '## Console apply with description fallback']) {
     assert.equal(text.split('\n').filter((l) => l === h).length, 1, `${h} stated exactly once`);
   }
-  for (const field of ['Target:', 'Invariant:', 'Finding:', 'Staged-at:']) {
+  for (const field of ['Target:', 'Invariant:', 'Finding:', 'Staged-at:', 'Ledger:']) {
     assert.ok(text.includes(field), `contract names the ${field} preamble field`);
   }
   assert.match(text, /git apply --check/);
+});
+
+// #879: a staged review/reflect finding applied at the console must write its outcome back to
+// the ledger file itself, not only to decisions.md — the drift a manual six-ledger audit found.
+test('contract documents ledger write-back on apply, distinct from the decisions.md log', () => {
+  const text = fs.readFileSync(CONTRACT, 'utf8');
+  assert.equal(text.split('\n').filter((l) => l === '### Write-back to the ledger').length, 1, 'write-back subsection stated exactly once');
+  const section = text.slice(text.indexOf('### Write-back to the ledger'));
+  assert.match(section, /\|\s*1\.\s*Fast path applied\s*\|\s*`fixed`\s*\|/, 'fast-path apply maps to Status fixed');
+  assert.match(section, /\|\s*2\.\s*Stale diff re-derived\s*\|\s*`fixed`\s*\|/, 'stale-diff re-derive maps to Status fixed');
+  assert.match(section, /\|\s*4\.\s*Cannot re-derive\s*\|\s*`open`/, 'unresolved outcome leaves ledger Status open');
+  assert.ok(section.includes('lived only in'), 'section names decisions.md-only as the gap this closes');
+  assert.ok(section.includes("ledger file's own Status column"), 'section names the ledger file Status column as the fix');
 });
 
 // Every site that writes a `.patch` under staged/ must cite the contract; the console apply
@@ -34,6 +47,7 @@ const STAGING_SITES = [
   ['review', 'step3-routing.md', /staged\/review-\{n\}\.patch/],
   ['test', 'SKILL.md', /staged\/test-fix-\{n\}\.patch/],
   ['_shared', 'multi-agent-coordination.md', /staged\/review-unconfirmed-\{n\}\.patch/],
+  ['deepen', 'SKILL.md', /staged\/deepen-collapse-\{n\}\.patch/],
 ];
 for (const [dir, file, anchor] of STAGING_SITES) {
   test(`${dir}/${file} still stages a .patch and cites _shared/staged-patch.md`, () => {
@@ -56,6 +70,24 @@ for (const [dir, file] of CONSOLE_SITES) {
     assert.match(text, /Invariant:/, 'must name the description fallback field');
   });
 }
+
+test('review/step3-routing.md assigns the ledger row before staging the patch and cites the Ledger: field', () => {
+  const text = read('review', 'step3-routing.md');
+  assert.ok(text.includes('Ledger first, then the patch'), 'ordering rule present');
+  assert.ok(text.includes('`Ledger:`'), 'cites the Ledger: preamble field');
+});
+
+test('_shared/ledger-format.md states the write-back contract and the Phase 1 external-resolution re-check', () => {
+  const text = read('_shared', 'ledger-format.md');
+  assert.ok(text.includes('Write-back contract'), 'write-back contract paragraph present');
+  assert.ok(text.includes('Re-check before attempting a fresh fix'), 'Phase 1 re-check step present');
+  assert.ok(text.includes('misdiagnosis'), 'misdiagnosis-correction pattern named');
+});
+
+test('ledger/SKILL.md mentions the Phase 1 re-check in its Resolve Gate summary', () => {
+  const text = read('ledger', 'SKILL.md');
+  assert.ok(text.includes('re-check'), 'Resolve Gate summary names the re-check step');
+});
 
 test('the fallback procedure heading is stated once — only in the contract', () => {
   const walk = (dir, acc = []) => {

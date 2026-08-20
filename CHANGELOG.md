@@ -39,6 +39,48 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.101.0 — Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#633); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale
+
+Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#633); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale.
+
+## v6.100.2 — Merged-PR batch: CLAUDE.md/template writing-plans contradiction narrowed to multi-phase files (#643); stray NUL byte stripped from initiative-budget.js + payload UTF-8 conformance guard (#859); eval fixtures frozen at pre-6.48.0 policy shape (#631); ADR-0010 stale Consequences bullet fix
+
+Merged-PR batch: CLAUDE.md/template writing-plans contradiction narrowed to multi-phase files (#643); stray NUL byte stripped from initiative-budget.js + payload UTF-8 conformance guard (#859); eval fixtures frozen at pre-6.48.0 policy shape (#631); ADR-0010 stale Consequences bullet fix.
+
+## v6.100.1 — Merged-PR batch: worktree gate same-command shell-variable resolution (#630); cloud-setup drift check resolves sha-pinned catalog entries (#860 follow-up); backlog overview needsYou overlay skips parent records (#766); Shape 2 prose-only trigger false-premise guard; IL-141/IL-115 citation fixes
+
+Merged-PR batch: worktree gate same-command shell-variable resolution (#630); cloud-setup drift check resolves sha-pinned catalog entries (#860 follow-up); backlog overview needsYou overlay skips parent records (#766); Shape 2 prose-only trigger false-premise guard; IL-141/IL-115 citation fixes.
+
+## v6.100.0 — Merged-PR batch: reconcile compact default output + --json (#638); worktree PreToolUse guard over-match fix (#861); worktree-always write-shape docs (#640); RENAMED_KEYS conformance pin (#629); auto-mode severity ceiling vocabulary (#332); capture duplicate-CLI cross-session signal (#789); archiveRunDir engine-state residue (#893); resolve-profile session-failure blacklist follow-ups parked (#841); ledger post-hoc drift fast-lane (#879); tidy scan-procedures gh-absent description fix (#172 follow-up); EnterWorktree retry branch-collision fast-lane; verify-mode entry-grammar dedup
+
+Merged-PR batch: reconcile compact default output + --json (#638); worktree PreToolUse guard over-match fix (#861); worktree-always write-shape docs (#640); RENAMED_KEYS conformance pin (#629); auto-mode severity ceiling vocabulary (#332); capture duplicate-CLI cross-session signal (#789); archiveRunDir engine-state residue (#893); resolve-profile session-failure blacklist follow-ups parked (#841); ledger post-hoc drift fast-lane (#879); tidy scan-procedures gh-absent description fix (#172 follow-up); EnterWorktree retry branch-collision fast-lane; verify-mode entry-grammar dedup.
+
+## v6.99.0 — Dispatch batch: routine pause/resume + sampling floor for the trust ladder (#213, #310); github-pr-scan MCP fallback (#172); Section E ownership-check fix (#226); Impeccable Rule 5 fail/skip prose (#206); mutation-probe discipline for test tasks (#250); residue-probe header restoration + wrap-up prose fixes (#229); docs/donts.md IL-nn dedup + grammar fix (#244); multi-spec.md #724 budget fix
+
+Dispatch batch: routine pause/resume + sampling floor for the trust ladder (#213, #310); github-pr-scan MCP fallback (#172); Section E ownership-check fix (#226); Impeccable Rule 5 fail/skip prose (#206); mutation-probe discipline for test tasks (#250); residue-probe header restoration + wrap-up prose fixes (#229); docs/donts.md IL-nn dedup + grammar fix (#244); multi-spec.md #724 budget fix.
+
+## v6.98.1 — Windows: hide console windows on the reconcile lib's own gh/git spawns — completes the v6.98.0 fix (#931, PR #955)
+
+Windows: hide console windows on the reconcile lib's own gh/git spawns — completes the v6.98.0 fix (#931, PR #955).
+
+## v6.98.0 — Windows: hide console windows on background reconcile git subprocesses — ends the WT window storm; blast-radius CLI (#888), transport-aware autonomy gathers (#889), verify.js runner (#892), calibration readers + report (#901), run-archival enumeration + archive-run verb (#902), tidy unfiled-drafts backstop (#905), reversibility-tiered console patch display (#906)
+
+Windows: hide console windows on background reconcile git subprocesses — ends the WT window storm; blast-radius CLI (#888), transport-aware autonomy gathers (#889), verify.js runner (#892), calibration readers + report (#901), run-archival enumeration + archive-run verb (#902), tidy unfiled-drafts backstop (#905), reversibility-tiered console patch display (#906).
+
+## v6.97.0 — Review objective-audit batch — SKILL.md dispatcher split, dispatch-template lazy-load fix, collision-free scratch dirs, build-review-context + review-coordination CLIs, verify-pass stamp, low-tier single-read; design-detect.js extraction, /deepen objective fruits, scope-resolution ladder, ledger ops-triage contract
+
+Review objective-audit batch — SKILL.md dispatcher split, dispatch-template lazy-load fix, collision-free scratch dirs, build-review-context + review-coordination CLIs, verify-pass stamp, low-tier single-read; design-detect.js extraction, /deepen objective fruits, scope-resolution ladder, ledger ops-triage contract.
+
+### also carried in this build
+
+Records #552 (merge `31850b64`) and #890 (merge `68bea79e`) reached `main` under v6.97.0 without
+a bump of their own — the release step that would have written them up never ran, so the build
+that first carried them is numbered for other work. Backfilled after the fact.
+
+## v6.96.0 — Reconcile() latency reduction, fast-lane transcript-judge extraction, backlog trust-signal + merge-lane circuit breaker, and an 8-finding pre-release review-fix batch
+
+Reconcile() latency reduction, fast-lane transcript-judge extraction, backlog trust-signal + merge-lane circuit breaker, and an 8-finding pre-release review-fix batch.
+
 ## v6.95.0 — Cut plugin payload over to plugin/ with git-subdir marketplace source
 
 Cut plugin payload over to plugin/ with git-subdir marketplace source.

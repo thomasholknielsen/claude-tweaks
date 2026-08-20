@@ -16,7 +16,12 @@ const GIT_DISCIPLINE = read('plugin', 'skills', '_shared', 'git-discipline.md');
 const WORKTREE_SETUP = read('plugin', 'skills', 'build', 'worktree-setup.md');
 const BUILD_SKILL = read('plugin', 'skills', 'build', 'SKILL.md');
 const TEST_SKILL = read('plugin', 'skills', 'test', 'SKILL.md');
-const REVIEW_SKILL = read('plugin', 'skills', 'review', 'SKILL.md');
+// /review's Step 7 (phase exit) lives in the code-mode-steps.md sub-file since the #887
+// dispatcher split — concatenate so this asserts against the text wherever it lives.
+const REVIEW_SKILL =
+  read('plugin', 'skills', 'review', 'SKILL.md') +
+  '\n' +
+  read('plugin', 'skills', 'review', 'code-mode-steps.md');
 const STEPS_AND_GATES = read('plugin', 'skills', 'flow', 'steps-and-gates.md');
 const WRAP_EXEC = read('plugin', 'skills', 'wrap-up', 'execution-and-verification.md');
 const HOOKS_JS = read('plugin', 'bin', 'hooks.js');
@@ -124,7 +129,7 @@ test('every phase-exit citation (build, test, review, polish via steps-and-gates
   for (const [label, text] of [
     ['build/SKILL.md', BUILD_SKILL],
     ['test/SKILL.md', TEST_SKILL],
-    ['review/SKILL.md', REVIEW_SKILL],
+    ['review/SKILL.md + code-mode-steps.md', REVIEW_SKILL],
     ['flow/steps-and-gates.md (polish)', STEPS_AND_GATES],
   ]) {
     assert.match(text, /_shared\/git-discipline\.md/, `${label} must cite the phase-exit push rule`);

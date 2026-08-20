@@ -6,107 +6,54 @@ present on every group member) stays a hard binary gate in `dispatch/SKILL.md` i
 
 ## Step 1: Gather
 
-> **Parallel execution:** Use parallel tool calls aggressively — the merge-base-and-diff call
-> (below) and reading this project's `merge-sensitive-paths`/`auto-merge-max-lines`/`auto-merge-max-files`
-> config are independent read-only operations and should run concurrently; only the threshold
-> comparison at the end of this step depends on both of their outputs. Note the qualifier: it is
-> the **single** call deriving `$MERGE_BASE` and the diff together that runs concurrently with the
-> config read. Do not split that call in two — `$MERGE_BASE` would be empty in the second shell,
-> and an empty base makes `git diff --numstat` report a zero-file blast radius that clears every
-> threshold silently.
-
 The calling agent has just finished this run's build, test, and review — the diff and review
-verdict are already in its own context. Confirm rather than re-derive where possible. `$MERGE_BASE`
-is the commit this run's worktree branched from — the same base the pipeline's own build started
-from.
+verdict are already in its own context. Confirm rather than re-derive where possible. The merge
+base is the commit this run's worktree branched from — the same base the pipeline's own build
+started from.
 
-- **If the caller passed `--base <ref>`** (see Input — e.g. one of dispatch's per-group Task calls,
-  which ran `/flow` inside its dispatching session's worktree, often already knows this value), use it directly:
-  `MERGE_BASE="<ref>"`. Skip the derivation below entirely.
+- **If the caller passed `--base <ref>`** (see Input — e.g. one of dispatch's per-group Task
+  calls, which ran `/flow` inside its dispatching session's worktree, often already knows this
+  value), pass it through to the CLI below as `--base <ref>` and skip integration-branch
+  resolution entirely — it names a merge-base commit, not a branch.
 
-- **Otherwise**, resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md`.
-  `--base <ref>` short-circuits that ladder entirely rather than being a rank of it — it names a
-  merge-base commit, not a branch, so a caller that already knows the merge base
-  (one of dispatch's per-group Task calls, running inside the worktree its dispatching session set up) passes it and skips
-  resolution entirely.
+- **Otherwise**, resolve `INTEGRATION_BRANCH` per `skills/_shared/integration-branch.md` and pass
+  it as `--integration-branch`. If nothing resolves — no `origin` remote, no `gh` auth, an
+  offline or detached runner — stop here. This is the `could-not-gather` case (see
+  `_gather-resilience.md`'s Could-not-gather section — the same shape `grant-check`/
+  `failure-check`'s Step 1 use, minus the MCP-fallback parameter this mode has no equivalent
+  for), not a hard crash. Render Step 3 directly: `VERDICT: needs-human` / `RATIONALE: {name the
+  specific resolution failure, e.g. "could not resolve this project's integration branch"}`, and
+  skip the rest of this mode's procedure.
 
-  If nothing resolves — no `origin` remote, no `gh` auth, an offline or detached runner — stop
-  here. This is the "inconclusive read" case `SKILL.md`'s Error Handling already covers, not a hard crash.
-  Render Step 3 directly: `VERDICT: needs-human` / `RATIONALE: {name the specific resolution
-  failure, e.g. "could not resolve this project's integration branch"}`, and skip the rest of this
-  mode's procedure.
-
-Substitute the resolved branch **literally** where `{integration-branch}` appears below, and issue
-the derivation and the diff as **one** Bash call. Each Bash invocation gets a fresh shell, so
-`MERGE_BASE` assigned in one call is empty in the next — and the two commands fail in opposite
-directions on an empty value. `git merge-base "" HEAD` exits 128 with `fatal: Not a valid object
-name`, which is loud. `git diff --numstat ""..HEAD` reads `..HEAD` as `HEAD..HEAD` and returns
-**zero lines with exit 0** — a blast radius of 0 files and 0 lines, which clears every
-`auto-merge-max-*` threshold and verdicts `auto-merge`. Splitting these blocks turns a
-resolution failure into an unconditional approval, which is the failure class this whole
-procedure exists to prevent.
-
-  Measuring from the integration branch rather than the GitHub default is what makes blast radius
-  mean the record's own change. Against a branch that diverged long ago, the merge base is ancient
-  and the diff spans every commit since the fork — which reads as an enormous change and returns
-  `needs-human` for a reason that looks legitimate and isn't (#132).
+The whole gather — merge-base resolution, the numstat diff, this project's
+`merge-sensitive-paths`/`auto-merge-max-lines`/`auto-merge-max-files` config, and the
+classification (`bin/lib/issues/blast-radius.js`) — is one CLI call, substituting the resolved
+branch literally for `{integration-branch}` (or `--base <ref>` when the caller supplied one):
 
 ```bash
-MERGE_BASE=$(git merge-base {integration-branch} HEAD)
-git diff --numstat "$MERGE_BASE"..HEAD | node -e "
-const fs = require('fs');
-let input = '';
-process.stdin.on('data', d => input += d);
-process.stdin.on('end', () => {
-  const files = input.trim().split('\\n').filter(Boolean).map(line => {
-    const [additions, deletions, ...pathParts] = line.split('\\t');
-    return { path: pathParts.join('\\t'), additions: parseInt(additions), deletions: parseInt(deletions) };
-  });
-  fs.writeFileSync('/tmp/assess-merge-files-${N}.json', JSON.stringify(files));
-});
-"
+node "${CLAUDE_PLUGIN_ROOT}/bin/blast-radius.js" --integration-branch {integration-branch}
 ```
 
-Read this project's own configured `merge-sensitive-paths`/`auto-merge-max-lines`/
-`auto-merge-max-files` directly — this skill reads its own config, the same way
-`skills/dispatch/SKILL.md`'s existing Configuration section reads `dispatch-retry-ceiling` and
-friends directly rather than expecting a caller to pre-fetch and pass them. This read is
-independent of the `$MERGE_BASE`/diff-derivation chain above (see the parallel-execution note) and
-can be issued as a concurrent tool call:
+It prints one JSON object: `mergeBase` (the resolved base commit), `config`
+(`mergeSensitivePaths` list plus the two `autoMergeMax*` numbers, resolved from this project's
+policy by the CLI itself), and `summary` (`implLines`/`implFiles`/`testLines`/`testFiles`/
+`sensitiveFilesTouched`) — everything Step 2 weighs.
 
-```bash
-CONFIG_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge-sensitive-paths auto-merge-max-lines auto-merge-max-files)
-MERGE_SENSITIVE_PATHS_CSV=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '1p')   # line 1: merge-sensitive-paths
-AUTO_MERGE_MAX_LINES=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '2p')         # line 2: auto-merge-max-lines
-AUTO_MERGE_MAX_FILES=$(printf '%s\n' "$CONFIG_VALUES" | sed -n '3p')         # line 3: auto-merge-max-files
-```
+**A non-zero exit is a resolution failure, not a zero-radius diff.** The CLI hard-fails —
+stderr, no JSON — when the merge base cannot be resolved, so a resolution failure can never be
+read as a 0-file blast radius that clears every threshold (the silent-approval hazard the
+previous multi-command shell choreography here guarded against with prose alone, #888). On a
+non-zero exit, render Step 3 directly: `VERDICT: needs-human` / `RATIONALE: {the CLI's stderr
+line}` — the same could-not-gather handling as the unresolvable integration branch case above.
 
-`merge-sensitive-paths` is a single line, comma-separated glob list (e.g.
-`merge-sensitive-paths: bin/hooks.js,skills/_shared/*.md,.claude-tweaks/policy.yml`) — split on `,`
-and trim whitespace; an empty resolution means the key is unset and the list is `[]` (see
-`_shared/work-record.md`'s Config keys
-table). `auto-merge-max-lines`/`auto-merge-max-files` come back already defaulted by the resolver,
-so both are always concrete numbers.
-
-Then compute the blast-radius summary:
-
-```bash
-node -e "
-  const { classifyDiffFiles, blastRadiusSummary } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/blast-radius.js');
-  const files = require('/tmp/assess-merge-files-${N}.json'); // [{path, additions, deletions}]
-  const sensitivePaths = process.argv[1] ? process.argv[1].split(',').map((s) => s.trim()).filter(Boolean) : [];
-  const classified = classifyDiffFiles(files, sensitivePaths);
-  console.log(JSON.stringify(blastRadiusSummary(classified)));
-" "$MERGE_SENSITIVE_PATHS_CSV" > /tmp/assess-merge-blast-radius-${N}.json
-```
-
-(`$MERGE_SENSITIVE_PATHS_CSV` is the comma-separated value captured from the resolver call above, e.g.
-`"bin/hooks.js,skills/_shared/*.md"` — passed as a positional arg, not an env var expected from a
-caller, since this skill reads its own config rather than depending on one.)
+Measuring from the integration branch rather than the GitHub default is what makes blast radius
+mean the record's own change. Against a branch that diverged long ago, the merge base is ancient
+and the diff spans every commit since the fork — which reads as an enormous change and returns
+`needs-human` for a reason that looks legitimate and isn't (#132).
 
 ## Step 2: Judge
 
-- **Sensitive-path hit is a hard floor.** If `sensitiveFilesTouched` is non-empty, render
+- **Sensitive-path hit is a hard floor.** If the CLI summary's `sensitiveFilesTouched` is non-empty, render
   `needs-human` immediately — do not weigh anything else. No content judgment overrides this.
 - **An agent-instruction file is `needs-human` unless a refutation attempt clears it.** An
   agent-instruction file is any file this project's harness loads as *instruction* rather than as
@@ -126,9 +73,9 @@ caller, since this skill reads its own config rather than depending on one.)
   name one comes up empty. If you can name any candidate — including one you are unsure about —
   render `needs-human`. A correction can be factually true and independently verifiable and still
   change what agents infer; truth is not the test, behavior delta is.
-- **Weigh `blastRadiusSummary.implLines`/`implFiles` against the project's configured
+- **Weigh the summary's `implLines`/`implFiles` against the CLI-reported
   `auto-merge-max-lines`/`auto-merge-max-files` — but only once the diff is judged to carry behavior
-  change at all.** `blastRadiusSummary` reports whole-diff totals; there is no per-hunk breakdown
+  change at all.** The CLI's `summary` reports whole-diff totals; there is no per-hunk breakdown
   to weigh, which is why the judgment below is deliberately a binary on the whole diff rather than
   an attempt to size some behavior-carrying fraction of it. Size proxies review burden, not risk:
   a large diff in which every hunk is the same

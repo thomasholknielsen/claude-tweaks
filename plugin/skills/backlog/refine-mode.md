@@ -127,6 +127,12 @@ If `.prioritySlice.remaining > 0`, state it plainly in the report: "`{remaining}
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
+### Merge-lane circuit breaker reset offer (at this sub-stage's start)
+
+Read `merge-lane-reset.md` in this skill's directory and follow it, before the grant-sweep below
+runs — a best-effort breaker read (#311) and, only when tripped, the one `AskUserQuestion` that is
+the sole path back to a clear breaker.
+
 Bound the grant-check LLM pass independently of Step 2's budget. Read `.grantSlice.selected` and
 `.grantSlice.remaining` (already bounded to `--budget`, default 40, by Step 1's compute block) and
 `.blocked` from `/tmp/backlog-refine-worklist.json` — no separate script runs here. Below, `selected`
@@ -173,73 +179,8 @@ states that plainly in the report — not repeated here.
 
 ### Trust signal (advisory, `github-issues` only)
 
-Gate on the `{resolved-ceiling}` value Step 1 already resolved: fetch and render this run's trust
-table only when `{resolved-ceiling}` is `trusted` or higher, **or** `--trust` was passed (see
-`SKILL.md`'s Input). Below `trusted` with no `--trust`, skip everything else in this section —
-`_shared/trust-table.md`'s Fetch section, including its per-parent branches and its `git log`
-read, never runs this session — Trust evidence is omitted from the report for this run, and Step
-4's footer renders the skip wording given there instead of the ceiling-description wording. On this
-skip path, delete or ignore any pre-existing `/tmp/backlog-refine-trust.json` left over from an
-earlier run in the same environment (`rm -f /tmp/backlog-refine-trust.json`, or simply never read
-it) — this run must never render a stale trust table left behind by a prior `--trust` invocation.
-
-When fetching: run `_shared/trust-table.md`'s Fetch section in full (including its
-`backlog-fetch-limit` resolution, its `work-links` resolution — which decides which of the two
-parent-issue branches to run — and its truncation warning), then look up each worklist record's
-class. `{resolved-ceiling}` and `{resolved-window}` below are the literal values Step 1 already
-resolved — do not re-run `resolve-policy.js` here, and do not `export` them in an earlier Bash call
-and read `process.env` here: shell environment does not survive between Bash calls and never
-reaches a subagent, so that expansion always resolves empty and this block would report
-`supervised` on a repo configured for `trusted`. It is the same hazard, and the same fix, as the
-`backlog-fetch-limit` substitution in the Fetch section this step already cites. The failure is
-quiet and in the safe direction, which is exactly why it needs stating: nothing errors, the console
-simply renders a false claim about live policy.
-
-This trust block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section above — it must never shell its own separate `git log` call, or its verdicts could silently disagree with the trust table this same run just rendered from the identical underlying evidence.
-`{resolved-window}` reaches the script as a `process.argv` arg after `--`, never spliced into the
-JS source — a value containing a quote character would otherwise break out of the string literal,
-the same reason `code-health/focus-mode.md`'s F1 block passes its own values that way.
-
-```bash
-node -e "
-  const fs = require('fs');
-  const root = process.env.CLAUDE_PLUGIN_ROOT;
-  const { trustRows, riskBand, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
-  const { resolveProvenance } = require(root + '/bin/lib/issues/provenance.js');
-  const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
-  const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
-  const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
-  const policy = { 'trust-revert-window-days': process.argv[1] };
-  const rows = new Map(trustRows(issues, gitLog, Date.now(), policy).map((r) => [r.key, r]));
-  const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });
-  const out = {};
-  for (const issue of issues.filter((i) => i.state === 'OPEN')) {
-    const { kind, source } = resolveProvenance({ labels: issue.labels, body: issue.body });
-    const row = rows.get(kind + ':' + source + '|' + riskBand(issue.labels));
-    const permitted = permittedGrants({ ceiling, row });
-    // Fallback to the flat keys: repo-HEAD skill text can run against an older
-    // installed build's autonomy.js (no grants key yet). Remove with #647's
-    // transitional twin (see bin/lib/issues/autonomy.js module header).
-    const gBornReady = (permitted.grants || {}).bornReady || { granted: permitted.bornReady, reason: permitted.reason };
-    out[issue.number] = {
-      ceiling,
-      provenance: row ? row.provenance : kind + ':' + source,
-      band: riskBand(issue.labels),
-      verdict: row ? row.verdict : 'no-cell',
-      coverage: row ? row.coverage : null,
-      bornReady: gBornReady.granted,
-      reason: gBornReady.reason,
-    };
-  }
-  console.log(JSON.stringify(out));
-" -- "{resolved-window}" > /tmp/backlog-refine-trust.json
-```
-
-**This signal never changes what the gate recommends.** `/claude-tweaks:assess-agent-autonomy`'s
-`grant-check` remains the sole source of the Recommended column — it reads *this record's* content,
-where trust describes *this record's class*, and a class verdict is not evidence about a specific
-record's shape. Trust rides along as context for the human making the batch decision. The one thing
-the ceiling does change is described in Step 3.6.
+Read `trust-signal.md` in this skill's directory and follow it — the ceiling-gated trust-table
+fetch/render this sub-stage advises with, and how it never changes what the gate recommends.
 
 ## Step 3.5: Body-shape re-verification (before granting)
 
@@ -310,9 +251,13 @@ rule, and the confirm gate (`<!-- refine-confirm-gate -->`).
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line; the closing summary below is the report, not narration.)*
 
-**Pre-write reverify (every write below).** Row confirmation happened at Step 4's `AskUserQuestion` render, which may have sat unanswered for hours — long enough for a concurrent session to grant, claim, or flag back the same record. Immediately before writing any row below (priority/related, grant, flag-back — never dependency-repair, which wires a `blocked-by` link and isn't this same race), re-fetch that record's live labels (`gh issue view "$ISSUE" --json labels -q '.labels[].name'`) and compare against the row's own premise — the facets already captured at Step 1's fetch (`{tmp-faceted-file}`, not re-derived), projected as: `ready` ↔ `facets.stage === 'ready'`, `auto:build` ↔ `facets.grants.build`, `bot:in-progress` ↔ `facets.bot.inProgress`. A fetch failure (network error, non-zero `gh` exit) is treated the same as a mismatch — fail closed: skip the write, log it as `AUTO … skipped …` with `{what changed}` = `live-state fetch failed: {error}`, and report it — never write on an unread premise. A grant row whose live labels lost `ready`, or a flag-back row whose live labels gained `risk:*`/`size:*`/`auto:build`/`bot:in-progress` since Step 1, has had its premise invalidated by a concurrent write: drop it from this write, log an `AUTO … skipped …` line (per the template below), and skip the `gh edit`/`writeRecord` calls below for that row. Flag-back reverify checks labels only — Step 3.5's body-shape downgrade signal isn't re-checked, so a body fixed between Step 1 and Step 5 can still draw a stale downgrade comment (narrower, separately-scoped from the label race above). A priority/related row has no grant/`ready` gate to invalidate — re-fetch and compare its current `priority:*`/`**Related:**` state the same way: a genuine no-op needs no log line (not an anomaly); when a concurrent write already set a different value, log an `AUTO … skipped …` line and drop the write rather than overwrite a fresher decision.
+**Pre-write reverify (every write below).** Row confirmation happened at Step 4's `AskUserQuestion` render, which may have sat unanswered for hours — long enough for a concurrent session to grant, claim, or flag back the same record. Immediately before writing any row below (priority/related, grant, flag-back — never dependency-repair, which wires a `blocked-by` link and isn't this same label race; its own body-text write path has a separate body reverify below), re-fetch that record's live labels (`gh issue view "$ISSUE" --json labels -q '.labels[].name'`) and compare against the row's own premise — the facets already captured at Step 1's fetch (`{tmp-faceted-file}`, not re-derived), projected as: `ready` ↔ `facets.stage === 'ready'`, `auto:build` ↔ `facets.grants.build`, `bot:in-progress` ↔ `facets.bot.inProgress`. A fetch failure (network error, non-zero `gh` exit) is treated the same as a mismatch — fail closed: skip the write, log it as `AUTO … skipped …` with `{what changed}` = `live-state fetch failed: {error}`, and report it — never write on an unread premise. A grant row whose live labels lost `ready`, or a flag-back row whose live labels gained `risk:*`/`size:*`/`auto:build`/`bot:in-progress` since Step 1, has had its premise invalidated by a concurrent write: drop it from this write, log an `AUTO … skipped …` line (per the template below), and skip the `gh edit`/`writeRecord` calls below for that row. Flag-back reverify checks labels only — Step 3.5's body-shape downgrade signal isn't re-checked, so a body fixed between Step 1 and Step 5 can still draw a stale downgrade comment (narrower, separately-scoped from the label race above). A priority/related row has no grant/`ready` gate to invalidate — re-fetch and compare its current `priority:*`/`**Related:**` state the same way: a genuine no-op needs no log line (not an anomaly); when a concurrent write already set a different value, log an `AUTO … skipped …` line and drop the write rather than overwrite a fresher decision.
 
 Local-files driver: the equivalent re-read is `readRecord(path).facets` immediately before `writeRecord` — same skip-on-mismatch rule, since a concurrent session's edit to the tracked file is exactly the same class of stale-premise race as a concurrent GitHub label write; a `readRecord` failure (missing/corrupt file) skips the same way — don't write.
+
+**Body pre-write reverify (Related rows and dependency-repair's body-text append only).** Both of these writes rewrite the record's full body — `gh issue edit "$ISSUE" --body-file` (Related rows, below) and the `work-links: body-text` `Blocked by #N` append (dependency-repair, below) — from the body captured at Step 1's fetch (`{tmp-faceted-file}`'s `body` field for `$ISSUE`), which can be just as stale by Step 5's write as the labels the reverify above guards, across the same long-lived confirm gate. Unlike the label reverify, a body mismatch isn't a small enum to diff field-by-field: immediately before either write, re-fetch the record's live body (`gh issue view "$ISSUE" --json body -q .body`) and compare it verbatim against the Step 1-fetched premise; any difference — a sibling `/specify` reshape, another session's own `Blocked by #N` append, a human editing the issue directly — means the write's premise no longer holds. Skip the write rather than overwriting it, log it with the same `AUTO … skipped …` template as the label reverify (below), `{what changed}` = `record body changed since Step 1 fetch`, and fold it into the same `skipped` tally bucket — a body mismatch is the same class of stale-premise race as a label mismatch, so it reuses the label reverify's log line and tally bucket as-is rather than inventing a parallel one; the generic `{what changed}` text is enough here, since (unlike a label diff) there is no small enum of possible prior/new values to name — "what changed" for a full-body diff is just that the premise is stale, not a value pair. A fetch failure (network error, non-zero `gh` exit) is treated the same as a mismatch — fail closed, same as the label reverify: skip the write, log it as `AUTO … skipped …` with `{what changed}` = `live-state fetch failed: {error}` (reusing the label reverify's own fetch-failure wording verbatim, not the mismatch case's `record body changed since Step 1 fetch` text above), and report it.
+
+Local-files driver: the equivalent re-read is `readRecord(path).body` immediately before either write — same skip-on-mismatch rule and log line, since a concurrent session's edit to the tracked file is exactly the same class of stale-premise race; a `readRecord` failure (missing/corrupt file) skips the same way — don't write.
 
 **General rule.** Any batch-confirm-then-apply flow with a long-lived `AskUserQuestion` gate between building a row's premise and writing it needs this same pre-write reverify — the gate's wait time is unbounded and nothing else in this plugin guards the window. `/claude-tweaks:tidy`'s Step 6 auto-apply table already applies the identical rule to its own gated `[parent-gate]` finding (`skills/tidy/step-6-auto.md`, which re-verifies the gate before acting rather than trusting the scan's own snapshot) — same shape, not new.
 
@@ -344,7 +289,7 @@ git commit -m "Backlog Refine: set priority:$TIER on {id}"
 
 A record carrying `facets.unsynced === true` (Step 1's local fallback fold-in) has no `$ISSUE` GitHub number to edit even under `work-backend: github-issues` — it exists only as a local `specs/{id}-{slug}.md` file (its `.path`, from `queryRecords`). For these records, regardless of the project-wide driver, take the local-files branch above instead: `writeRecord` against the record's own `.path`, then `git add`/`git commit` the same way.
 
-For every record the `**Related:**` decision resolved to apply, replace the existing `**Related:** {...}` line in the body (github: `gh issue edit "$ISSUE" --body-file`, rewriting the fetched body with the line replaced; local-files, and any `facets.unsynced === true` record regardless of driver: `writeRecord` with the updated body against the record's `.path`, followed by the same `git add`/`git commit` step).
+For every record the `**Related:**` decision resolved to apply, replace the existing `**Related:** {...}` line in the body (github: `gh issue edit "$ISSUE" --body-file`, rewriting the fetched body with the line replaced; local-files, and any `facets.unsynced === true` record regardless of driver: `writeRecord` with the updated body against the record's `.path`, followed by the same `git add`/`git commit` step). Run the body pre-write reverify above immediately before this write — a mismatch skips it rather than overwriting.
 
 **Grant rows:** When Step 4 resolved to `"Grant auto:build only, hold merge"` (Option 3 of the confirm gate, `refine-lanes.md`), skip every `auto:merge` grant below for the remainder of this session — apply `auto:build`/re-authorize exactly as the Grant lane recommended, but never the `gh issue edit "$ISSUE" --add-label auto:merge` line, regardless of what the row's own Recommended column said. This is a session-wide override, not a per-row judgment call — it doesn't change what Step 3 recommended or what the Grant lane displayed, only what Step 5 writes.
 
@@ -378,7 +323,7 @@ Stripping `bot:blocked` in the same edit as the grant matters: without it, the r
 
 - Refine runs the detection itself — it does not consume overview's output. After Step 1's fetch (which already carries `,body`), and after performing the same `work-links: native` blocked-by attachment overview's Step 3 specifies (one aliased `buildNativeDependencyQuery` call over the fetched candidates; per-node failures attach nothing), run `findUnresolvedDependencyProse` via the same `{ flags }` output shape. Attaching native blockers first means already-natively-wired records resolve non-empty and are never flagged for re-wiring. The same per-node failure narration line applies here — when any alias in an otherwise-successful batch failed, render one failure-only narration line naming exactly those ids (e.g. `blocker data incomplete for #12, #40 — node fetch failed; they rank on body-text fallback this run`) — and probe unavailability or whole-fetch failure degrades to the body-text fallback with one failure-only narration line, never a hard stop (restated here at point of use rather than left to the cross-reference). Under `work-links: body-text`, no attachment is needed — the body fallback resolves canonical lines on its own. Offer the mode-aware repair as a new confirmable item type in the existing Step 4 lanes + confirm gate — surfaced and applied exactly like every other write in this step, never bypassing or altering when the gate fires or that it blocks until confirmed.
 - **`work-links: native`**: wire the native blocked-by link via the same dependency API `/claude-tweaks:specify`'s Step 4 linking uses.
-- **`work-links: body-text`**: append a canonical line-start `Blocked by #N` line to the record body (`gh issue edit --body-file` under `github-issues`; `writeRecord` + `git add`/`git commit` under `local-files`, same as the Related-line path above).
+- **`work-links: body-text`**: append a canonical line-start `Blocked by #N` line to the record body (`gh issue edit --body-file` under `github-issues`; `writeRecord` + `git add`/`git commit` under `local-files`, same as the Related-line path above). Run the body pre-write reverify above immediately before this write, the same as the Related-line path — a mismatch skips it. The `work-links: native` path above writes no body text, so it has nothing for this reverify to guard.
 - **Never write both representations for one edge.**
 
 **Flag-back rows:** For every row flagged back — Step 3.5's auto-downgrade, a row missing risk/size accepted as recommended, or a human override in Step 4 — remove `ready` and post a comment. Step 3.5's downgrade always uses its exact wording above; every other flag-back uses a shorter comment: `Flagged back by /claude-tweaks:backlog refine: {reason}. Re-add 'ready' once addressed.`, where `{reason}` is `needs scoring` for the recommended case or the human's own free-text reason for an explicit override.
@@ -389,8 +334,8 @@ gh issue comment "$ISSUE" --body-file /tmp/backlog-refine-flagback-${ISSUE}.md
 ```
 
 Check each write's own result before logging it — a non-zero exit from any `gh`/`writeRecord` call
-above is a failure, not a success, regardless of which lane produced it (the reverify fetch above
-is not a write; it follows the skip rule instead). Log every action to this
+above is a failure, not a success, regardless of which lane produced it (a reverify fetch above
+is not itself a write; it follows its own skip rule instead). Log every action to this
 run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md`) via the matching
 template below, success, failure, or skipped-before-write:
 

@@ -26,9 +26,58 @@ test('a cd on its own line, preceded by an unrelated statement joined only by a 
   );
 });
 
-test('a shell-variable cd on its own line, preceded by an unrelated statement, is unresolvable — no target (never falls back to the stale cwd)', () => {
+test('a shell-variable cd on its own line, preceded by an unrelated statement, resolves via the same-command assignment (no fallback to the stale cwd — the assignment IS the proof)', () => {
   assert.deepStrictEqual(
     gitTargets('MKT="/wt/spec-1"\ncd "$MKT" && git commit -m "x"', '/repo'),
+    [{ action: 'commit', dir: '/wt/spec-1' }],
+  );
+});
+
+test('a cd referencing a variable with no same-command assignment stays unresolvable', () => {
+  assert.deepStrictEqual(
+    gitTargets('cd "$SOME_VAR" && git commit -m "x"', '/repo'),
+    [],
+  );
+});
+
+test('fileWriteTargets resolves a same-command literal assignment substituted into a write target', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/private/tmp/foo; sed -i "" -e "s/x/y/" "$SP/file.md" && grep -c x "$SP/file.md"', '/repo'),
+    [{ action: 'edit', file: '/private/tmp/foo/file.md' }],
+  );
+});
+
+test('a dynamic/unresolvable assignment value is never chained — target stays unresolvable', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=$(pwd); sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
+    [],
+  );
+});
+
+test('a later re-assignment of the same name overrides the earlier one', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/a; SP=/b; sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
+    [{ action: 'edit', file: '/b/file.md' }],
+  );
+});
+
+test('a later re-assignment to an unresolvable value drops the earlier mapping — no stale substitution', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/a; SP=$(pwd); sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
+    [],
+  );
+});
+
+test('a single-quoted $NAME reference is never substituted — real bash does not expand inside single quotes', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets("SP=/private/tmp/foo; sed -i '' -e 's/x/y/' '$SP/file.md'", '/repo'),
+    [],
+  );
+});
+
+test('a single-quoted $NAME cd target is never substituted, mirroring the write-target case', () => {
+  assert.deepStrictEqual(
+    gitTargets('MKT="/wt/spec-1"\ncd \'$MKT\' && git commit -m "x"', '/repo'),
     [],
   );
 });
@@ -267,7 +316,7 @@ test('fileWriteTargets: a tee argument formed by a quoted prefix glued to an unr
 // mkdirTargets — deliberately NOT part of WRITE_SHAPES/fileWriteTargets (#692):
 // widening WRITE_SHAPES would also widen the worktree-always Bash-write gate's
 // coverage, which tests/hooks-gate-coverage.test.js pins against
-// skills/_shared/policy-schema.md's prose. The pipeline-shadow guard needs its
+// skills/_shared/policy-schema-coverage.md's prose. The pipeline-shadow guard needs its
 // own, separate mkdir target parser instead.
 test('mkdirTargets: resolves a plain absolute target', () => {
   assert.deepStrictEqual(mkdirTargets('mkdir /worktree/.claude-tweaks/pipelines/x', '/repo'), [

@@ -1,6 +1,6 @@
 # Design Mode — polish
 
-Invoked via `/claude-tweaks:design-wrapper polish <spec> [--dry-run]`. Returns `{mode, result: "ok", commands_invoked, files_modified}` or `{mode, skipped, ...}` to caller. **First wrapper mode that modifies code** — unless `--dry-run` is passed, see Step 8.
+Invoked via `/claude-tweaks:design-wrapper polish <spec> [--dry-run]`. Returns `{mode, result: "ok" | "anomaly", commands_invoked, files_modified}` (`anomaly` — see Step 6.5 — when `commands_invoked` is non-empty but `files_modified`'s `git diff` evidence is empty) or `{mode, skipped, ...}` to caller. **First wrapper mode that modifies code** — unless `--dry-run` is passed, see Step 8.
 
 ## When this runs
 
@@ -118,6 +118,17 @@ Read `Design-intent:` from the record's body-metadata line (lifted into the mate
 
 **No declined-recommendation suppression in polish.** Declined-recommendation tracking applies to `survey` mode only — `polish` always honors the explicit `design-intent:` declaration. The user changes intent dispatch behavior by editing the record's `Design-intent:` body-metadata line (lifted into the materialized header — spec 20 — at the next materialization), not by declining recommendations.
 
+### Step 6.5: Verify against git diff evidence (#886)
+
+`commands_invoked` is a claim — this step checks it against what actually landed on disk before the output leaves this mode. Skip this step entirely when `commands_invoked` is empty (nothing was claimed to run — the empty-`commands_invoked` output shape below already covers that case) or when running under Step 8's `--dry-run` short-circuit (nothing was actually dispatched, so there is nothing to diff).
+
+Run `git diff --stat -- <files>`, scoped to the union of every `files` entry across `commands_invoked` (not the full working-tree diff — a change elsewhere in the tree from an unrelated concurrent process must not mask a genuine no-op here, and must not be misattributed to this dispatch either). Set `files_modified` from `git diff --name-only` over that same scoped set — the actual observed diff, not a narrated list — so `files_modified` is always ground truth from here on, never a claim.
+
+- **Non-empty diff** — proceed to Step 7 normally. `result` stays `"ok"`.
+- **Empty diff** (`commands_invoked` non-empty, `git diff --stat` over the scoped file set shows nothing) — this is the anomaly this step exists to catch. Set `result: "anomaly"` (never `"ok"` — a caller must not read this as a clean success) and add a top-level `anomaly` field: `"commands_invoked non-empty but git diff shows zero changes across the scoped files — verify this is expected (already-conformant code, a command that legitimately found nothing to change) rather than a dispatch that silently no-op'd."` The wording is evidence-neutral by design: an empty diff after a real dispatch is *usually* the record already being conformant, not fabricated output, but the status must still be distinct and visible every time — never silently folded back into `"ok"` on the assumption of the benign case. `commands_invoked`, `staged_suggestions`, and `decision_summary` are still computed and returned unchanged; only `result` and the new `anomaly` field change.
+
+If `git diff --stat`/`git diff --name-only` itself fails (non-git directory, git error, mid-rebase state) — the same fallback-failure class Step 2 already handles — treat as the empty-diff anomaly case above rather than silently trusting the narrated `files_modified`: a diff command that cannot run provides no evidence either way, and "no evidence" must not read as "verified."
+
 ### Step 7: Build `decision_summary`
 
 When `commands_invoked` is non-empty, build a single-sentence summary for the caller to log to the auto-decision log: `"Dispatched {N} Impeccable commands on {M} files — {category list}."` where `N` is the total count of entries in `commands_invoked`, `M` is the count of unique files across all invoked commands, and `{category list}` is built by grouping `commands_invoked` entries by their `category` field, semicolon-separated, in the order refinement-set, suggestion-driven, intent-driven — skip any category with zero entries:
@@ -194,7 +205,24 @@ Or, when no commands ran (skip from preconditions, or zero files in scope, or no
 
 Note `decision_summary` is absent from the empty-`commands_invoked` case above — there is nothing to log.
 
-`polish` is the **first wrapper mode that modifies code** — unless invoked with `--dry-run` (Step 8), in which case `dry_run: true` is present and `files_modified` is always `[]`. Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty. When `decision_summary` is present *and* `dry_run` is absent, callers must also append it to the auto-decision log (see `_shared/auto-mode-card.md`). When `staged_suggestions` is non-empty *and* `dry_run` is absent, callers must also write one file per entry to `{run-dir}/staged/` and log a `STAGED` entry per entry to `decisions.md` (see `_shared/auto-decision-log.md`) — otherwise the suggestion is silently dropped instead of surfacing at the Wrap-Up Review Console. A `dry_run: true` response is a preview only — callers must not log or stage anything from it.
+Or, when Step 6.5 catches the empty-diff anomaly (`commands_invoked` non-empty but nothing landed):
+
+```json
+{
+  "mode": "polish",
+  "result": "anomaly",
+  "commands_invoked": [
+    { "command": "/impeccable:impeccable polish", "files": ["..."], "category": "refinement-set" }
+  ],
+  "files_modified": [],
+  "anomaly": "commands_invoked non-empty but git diff shows zero changes across the scoped files — verify this is expected (already-conformant code, a command that legitimately found nothing to change) rather than a dispatch that silently no-op'd.",
+  "decision_summary": "Dispatched 1 Impeccable commands on 1 files — refinement-set: polish."
+}
+```
+
+Note `decision_summary` is absent from the empty-`commands_invoked` case above — there is nothing to log.
+
+`polish` is the **first wrapper mode that modifies code** — unless invoked with `--dry-run` (Step 8), in which case `dry_run: true` is present and `files_modified` is always `[]`. Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty. When `decision_summary` is present *and* `dry_run` is absent, callers must also append it to the auto-decision log (see `_shared/auto-mode-card.md`). When `staged_suggestions` is non-empty *and* `dry_run` is absent, callers must also write one file per entry to `{run-dir}/staged/` and log a `STAGED` entry per entry to `decisions.md` (see `_shared/auto-decision-log.md`) — otherwise the suggestion is silently dropped instead of surfacing at the Wrap-Up Review Console. A `dry_run: true` response is a preview only — callers must not log or stage anything from it. **When `result: "anomaly"` (Step 6.5), the caller must render it distinctly from a clean `"ok"` result** — surface the `anomaly` text in the pipeline's failure/warning surface (`/flow`'s ledger, per `_shared/auto-decision-log.md`'s entry schema — an `AUTO` entry is wrong here since nothing was verified as landed; log a `KEPT-PROMPT`-shaped note instead) rather than treating the response as a successful polish pass; `decision_summary`, if present, must not be silently appended to the auto-decision log as if the dispatch were confirmed to have worked.
 
 ## Anti-Patterns
 

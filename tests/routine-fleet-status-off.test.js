@@ -15,8 +15,7 @@ test('fleet.md carries the status and off sections', () => {
 
 test('fleet off pins never-delete and non-fleet scope (AC3/AC6)', () => {
   assert.ok(/never\s+deletes anything/i.test(fleet));
-  assert.ok(fleet.includes('no destructive'));
-  assert.ok(fleet.includes('deletion-vs-keep'));
+  assert.ok(fleet.includes('no delete API to call in the first place'));
   assert.ok(fleet.includes('never touches a routine that is not fleet-marked'));
 });
 

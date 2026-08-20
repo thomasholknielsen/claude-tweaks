@@ -14,7 +14,10 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const MERGE = read('plugin', 'skills', '_shared', 'pr-first-merge.md');
 const MERGE_POST_MERGE = read('plugin', 'skills', '_shared', 'pr-first-merge-post-merge.md');
 const SETTLE = read('plugin', 'skills', 'dispatch', 'settle-and-merge.md');
-const CONSOLE = read('plugin', 'skills', 'wrap-up', 'review-console.md');
+// #552: the fast-lane merge mechanics (pr-first/local-merge branches, the
+// #299 fix, and the Step 4.1 post-merge citation below) moved out of
+// review-console.md into its own lazy-loaded sub-file.
+const AUTO_MERGE = read('plugin', 'skills', 'wrap-up', 'auto-merge-short-circuit.md');
 const WORKTREE_MERGE = read('plugin', 'skills', 'flow', 'worktree-merge.md');
 const TASK_PROMPT = read('plugin', 'skills', 'dispatch', 'task-prompt.md');
 const TWO_CALL_GATE = read('plugin', 'skills', 'dispatch', 'two-call-gate.md');
@@ -79,17 +82,17 @@ test('settle-and-merge.md keeps a local-merge fallback section, explicitly scope
   );
 });
 
-test('review-console.md fast-lane routes pr-first through the shared procedure and states the #299 fix', () => {
-  assert.match(CONSOLE, /run `_shared\/pr-first-merge\.md`'s\s*\n?\s*procedure now/);
-  assert.match(CONSOLE, /#299:/);
+test('auto-merge-short-circuit.md fast-lane routes pr-first through the shared procedure and states the #299 fix', () => {
+  assert.match(AUTO_MERGE, /run `_shared\/pr-first-merge\.md`'s\s*\n?\s*procedure now/);
+  assert.match(AUTO_MERGE, /#299:/);
   assert.match(
-    CONSOLE,
+    AUTO_MERGE,
     /a defect that simply cannot\s*\n?\s*recur once there is no checkout resolution step to get wrong/,
   );
 });
 
-test("review-console.md's retained local-merge branch reads the worktree path from run-state.json, not $RUN_DIR directly", () => {
-  const parts = CONSOLE.split('**`integration-model: local-merge`:**');
+test("auto-merge-short-circuit.md's retained local-merge branch reads the worktree path from run-state.json, not $RUN_DIR directly", () => {
+  const parts = AUTO_MERGE.split('**`integration-model: local-merge`:**');
   const localMergeSection = parts[parts.length - 1];
   assert.ok(localMergeSection, 'local-merge branch must exist');
   assert.match(localMergeSection.slice(0, 4000), /require\('\$RUN_DIR\/run-state\.json'\)\.worktree/);
@@ -164,7 +167,7 @@ test('Step 4 runs the release-status check before reconcile and stages — never
 test('the three local-merge fallback sections route the post-merge release-status check to Step 4.1 (#678)', () => {
   assert.match(SETTLE, /pr-first-merge-post-merge\.md` Step 4\.1/);
   assert.match(WORKTREE_MERGE, /pr-first-merge-post-merge\.md` Step 4\.1/);
-  assert.match(CONSOLE, /pr-first-merge-post-merge\.md` Step 4\.1/);
+  assert.match(AUTO_MERGE, /pr-first-merge-post-merge\.md` Step 4\.1/);
 });
 
 test('/flow closing reports carry the release-status line verbatim (#678)', () => {

@@ -180,5 +180,16 @@ terminal decision.
 > Filing publishes privately-derived content to a public repository. The body shown is already
 > scrubbed; a checked item files it via `/claude-tweaks:feedback --pre-confirmed`.
 
-Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
+Below each table, the patch display is tiered by the item's recorded reversibility:
+
+- **`reversibility: low` / `med`** — show the full patch / diff inline: the user approves exactly what will change where the revert is expensive.
+- **`reversibility: high`** — show one line, `{#} {target} — {summary}`, plus a paste-ready view command on its own line: `cat "{absolute stagePath}"`. `{summary}` is the finding's own `summary` field on an engine run, or the item's `STAGED`/`AUTO` line description under the prose fallback.
+- Resolve an item's reversibility in this order: the item's own recorded field (staged-file preamble), then its `decisions.md` entry — correlated by `stagePath` basename, unique per staged file and present in both the console row's Disposition cell and the `STAGED` line — and only with neither recorded, fall back to the full patch (fail toward showing more). An item with no `stagePath` at all also renders in full regardless of tier — the view-command tier only exists where there is a file to view.
+
+Worked examples, one per tier (fictional data, like every example above):
+
+    #5  CLAUDE.md — Trim the Commands section (reversibility: med)
+        {full diff rendered inline here}
+    #13 docs/api.md — Document new /auth/refresh endpoint (reversibility: high)
+        cat "/Users/dev/project/.claude-tweaks/pipelines/2026-05-16T143207-spec-42/staged/wrap-up-doc-1.md"
 ```

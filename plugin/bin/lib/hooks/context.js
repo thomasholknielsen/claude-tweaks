@@ -43,6 +43,21 @@ function isUnadoptedMint(dir, state) {
 // unfiltered .sort().reverse() would rank it first and shadow live runs.
 const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T/;
 
+// #208: archived-is-terminal invariant, reader side. An archived run-id must never reach the
+// isUnadoptedMint/status inspection below regardless of what its resurrected active-side
+// run-state.json (if any) claims — that data is exactly the untrustworthy resurrected shell
+// described in the record's Current State. Fails OPEN on a read error other than "doesn't
+// exist" (a permission error, e.g.) — never silently suppress a genuinely unfinished run over
+// an unrelated read failure (this record's AC4); the caller reports it exactly as it would
+// have before this filter existed.
+function isArchivedRunId(root, runId) {
+  try {
+    return fs.statSync(path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 // Lazily yields each candidate run dir (newest-first) paired with its
 // already-read state, reading run-state.json for one dir at a time instead
 // of mapping every candidate up front — callers that only need the first
@@ -79,9 +94,23 @@ function* iterRunDirsWithState(cwd) {
     .sort()
     .reverse();
   for (const name of names) {
+    if (isArchivedRunId(root, name)) continue;
     const dir = path.join(base, name);
     const state = readRunState(dir);
     if (state && state.status === 'clean') continue;
+    // Defense in depth (#593): a stray top-level dir left behind by a
+    // filesystem-only (non-git-aware) archival move — pre-fix, or any future
+    // regression that reintroduces one — still has no local run-state.json
+    // (or a stale non-terminal one, e.g. resurrected by `git checkout` after
+    // `work/` was git-mv'd out from under it), but its archive twin at
+    // archive/{name}/ may already carry a terminal run-state.json — the real
+    // signal this run is done. Checked at the SHARED iterator level (not
+    // just session-start.js, which has no branching logic of its own) so
+    // every caller of this generator benefits: resolveRun's fallback scan,
+    // the reconciler's archiveMerged pass, and session-start's unfinished-run
+    // report all stop treating an already-archived run as still-open.
+    const archiveState = readRunState(path.join(base, 'archive', name));
+    if (archiveState && archiveState.status === 'clean') continue;
     yield { dir, state };
   }
 }

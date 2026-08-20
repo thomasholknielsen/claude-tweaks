@@ -94,7 +94,7 @@ function fetchCheckRuns(repoRoot, sha) {
         `repos/{owner}/{repo}/commits/${sha}/check-runs`,
         '-q', '.check_runs[] | {id: .id, name: .name, conclusion: .conclusion}',
       ],
-      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: FETCH_TIMEOUT_MS },
+      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: FETCH_TIMEOUT_MS, windowsHide: true },
     );
   } catch (e) {
     if (e && e.code === 'ENOENT') return { ok: false, reason: 'gh-absent' };

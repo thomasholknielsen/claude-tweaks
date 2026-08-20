@@ -108,7 +108,7 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 
 > **Parallel execution:** Dispatch independent browser walks as parallel Task agents — each opens its own session, runs its ops, and returns a per-session result. Assemble results after all agents complete.
 >
-> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. [Use: Standard] — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-profile mechanical extraction. Upgrade to Capable only if the walk requires synthesis of subjective UX judgment. Resolve via `node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
+> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. [Use: Standard] — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-profile mechanical extraction. Upgrade to Capable only if the walk requires synthesis of subjective UX judgment. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection).
 >
 > **Output template:** a browse walk that reports issues/findings uses `_shared/subagent-output-contract.md`'s
 > Template A; one that reports navigation locations/references uses its Template B. Read that file

@@ -265,6 +265,15 @@ replaces the ceiling-description footer:
 
 <!-- refine-confirm-gate -->
 
+This is the load-bearing HARD GATE for this skill: every label/body write below depends on a
+human resolving it first. **A subagent that inherited this skill's own text as background
+context — via `fork`, a broad Task dispatch, or any mechanism carrying the full
+conversation — must not execute past this point on its own initiative.** If it cannot present
+this gate interactively (no live human to answer it), it must stop and report `BLOCKED` rather
+than proceeding to Step 5's Apply logic. See `_shared/subagent-output-contract.md`'s
+"HARD-GATE Marker Convention and Inheritance Hazard" section for the general rule and the
+incident this codifies (`docs/incident-log.md` `[IL-139]`).
+
 Then one `AskUserQuestion`:
 
 - `question`: `"Apply these label changes, or override specific items?"`, `header`: `"Backlog refine"`, `multiSelect`: `false`

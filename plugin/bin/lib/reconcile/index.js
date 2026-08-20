@@ -40,7 +40,7 @@ const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-
 // `_shared/integration-model.md`).
 async function reconcile(opts = {}) {
   const dryRun = !!opts.dryRun;
-  const checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
+  let checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
   const cwd = opts.cwd || process.cwd();
   const result = { mirror: null, redTip: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [] };
 
@@ -66,7 +66,7 @@ async function reconcile(opts = {}) {
     }
   }
 
-  const integration = resolveIntegrationBranch(root);
+  const integration = resolveIntegrationBranch(root, opts.cache);
   if (!integration) {
     result.skipped.push({ check: 'all', reason: 'no-remote' });
     return result;
@@ -96,19 +96,30 @@ async function reconcile(opts = {}) {
     return result;
   }
 
-  // GitHub-health preflight — every check below this point is network-
-  // dependent under pr-first (mirror/red-tip/console/release/remote-prune
-  // hit GitHub directly; archive/archive-branches/reap all call
-  // resolvePrState, also a gh call) — so a single upfront failure/timeout
-  // (~2s) skips the whole requested set in one entry, instead of each check
-  // separately accumulating its own 5-10s timeout (#820). Called via
+  // GitHub-health preflight — every check EXCEPT mirror is network-dependent
+  // under pr-first (red-tip/console/release/remote-prune hit GitHub
+  // directly; archive/archive-branches/reap all call resolvePrState, also a
+  // gh call) — so a single upfront failure/timeout (~2s) skips the whole
+  // gh-dependent subset in one entry, instead of each check separately
+  // accumulating its own 5-10s timeout (#820). `mirror` is pure git
+  // (mirror-ff.js never shells to `gh`) and is deliberately excluded from
+  // this gate: a rate-limited/degraded GitHub REST API must not also block a
+  // local fast-forward that git alone can still complete (review finding —
+  // this gate previously skipped mirror too, a regression from before this
+  // check existed). Narrowing `checks` (rather than an extra `&& ghOk` guard
+  // on every dispatch line below) means every existing `checks.includes(...)`
+  // check downstream stays correct with no further changes. Called via
   // require(...).ghHealthCheck() rather than a module-load-time destructure
   // so a test's `require('./preflight').ghHealthCheck = fn` monkeypatch
   // actually reaches this call site.
-  const health = require('./preflight').ghHealthCheck();
-  if (!health.ok) {
-    result.skipped.push({ check: checks.join(','), reason: `preflight-${health.reason}` });
-    return result;
+  const ghDependentChecks = checks.filter((c) => c !== 'mirror');
+  if (ghDependentChecks.length) {
+    const health = require('./preflight').ghHealthCheck();
+    if (!health.ok) {
+      result.skipped.push({ check: ghDependentChecks.join(','), reason: `preflight-${health.reason}` });
+      checks = checks.filter((c) => c === 'mirror');
+      if (!checks.length) return result;
+    }
   }
 
   // Overall wall-clock ceiling for the rest of this pass (#820, D4) — bounds

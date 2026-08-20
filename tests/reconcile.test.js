@@ -12,6 +12,7 @@ const { mirrorFastForward } = require('../plugin/bin/lib/reconcile/mirror-ff');
 const { decideReap } = require('../plugin/bin/lib/reconcile/reap-merged');
 const { decideRelease } = require('../plugin/bin/lib/reconcile/release-merged');
 const { decideArchive, readConsoleState } = require('../plugin/bin/lib/reconcile/archive-merged');
+const { formatSummary } = require('../plugin/bin/lib/reconcile/format-summary');
 const { isWorktreeLocked } = require('../plugin/bin/lib/hooks/worktree-reap');
 const { reconcile } = require('../plugin/bin/lib/reconcile');
 
@@ -334,6 +335,95 @@ test('archiveRunDir: the old run dir is removed once empty — a later iterRunDi
   assert.deepStrictEqual([...iterRunDirsWithState(root)], []);
 });
 
+test('archiveRunDir: enumeration archives files the fixed list never named (engine-state.json, extra.txt)', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir, runId } = runDirFixture();
+  fs.writeFileSync(path.join(runDir, 'engine-state.json'), '{}');
+  fs.writeFileSync(path.join(runDir, 'extra.txt'), 'hello\n');
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, true);
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(path.join(archiveDir, 'engine-state.json')));
+  assert.ok(fs.existsSync(path.join(archiveDir, 'extra.txt')));
+  assert.ok(!fs.existsSync(runDir));
+});
+
+test('archiveRunDir: movedEntries reflects the real enumerated set, not a fixed list', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir } = runDirFixture();
+  fs.writeFileSync(path.join(runDir, 'engine-state.json'), '{}');
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, true);
+  assert.ok(Array.isArray(result.movedEntries));
+  assert.ok(result.movedEntries.includes('work'));
+  assert.ok(result.movedEntries.includes('config.yml'));
+  assert.ok(result.movedEntries.includes('engine-state.json'));
+  // Never a hardcoded name that wasn't actually present in this fixture.
+  assert.ok(!result.movedEntries.includes('manifest.yml'));
+});
+
+test('archiveRunDir: a run dir with no work/ still archives cleanly', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir, runId } = runDirFixture();
+  fs.rmSync(path.join(runDir, 'work'), { recursive: true, force: true });
+  git(['add', '-u'], root);
+  git(['commit', '-q', '-m', 'remove work for fixture'], root);
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, true);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(path.join(archiveDir, 'config.yml')));
+});
+
+test('archiveRunDir: re-running over a partially-archived dir is idempotent', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir, runId } = runDirFixture();
+
+  const first = archiveRunDir(root, runDir);
+  assert.strictEqual(first.ok, true);
+  // runDir is gone after a clean archival — re-run against the same (now
+  // nonexistent) path exercises the fs.existsSync guards' no-op behavior.
+  const second = archiveRunDir(root, runDir);
+  assert.strictEqual(second.ok, true);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(path.join(archiveDir, 'config.yml')));
+});
+
+test('archiveRunDir: a git-tracked non-work file in the run dir refuses with reason tracked-entry', () => {
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir } = runDirFixture();
+  fs.writeFileSync(path.join(runDir, 'tracked-stray.md'), 'oops\n');
+  git(['add', path.relative(root, path.join(runDir, 'tracked-stray.md'))], root);
+  git(['commit', '-q', '-m', 'accidentally track a stray file'], root);
+
+  const result = archiveRunDir(root, runDir);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.reason, 'tracked-entry');
+  // Refusal is total — nothing else got moved either.
+  assert.ok(fs.existsSync(path.join(runDir, 'config.yml')));
+  assert.ok(fs.existsSync(path.join(runDir, 'tracked-stray.md')));
+});
+
+test('archiveRunDir: an unreadable run dir returns reason readdir-failed instead of throwing', () => {
+  // Review finding #902: a TOCTOU between the existsSync guard and the
+  // readdirSync enumeration (dir deleted/permission-changed in between)
+  // must not crash the caller — hooks.js's archive-run verb has no
+  // try/catch of its own around this call.
+  const { archiveRunDir } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { root, runDir } = runDirFixture();
+  fs.chmodSync(runDir, 0o000);
+  try {
+    const result = archiveRunDir(root, runDir);
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.reason, 'readdir-failed');
+  } finally {
+    fs.chmodSync(runDir, 0o755);
+  }
+});
+
 // --- isOrphanedMint / archiveOrphanedMint: dispatch-minted dirs that never got adopted by flow ---
 
 function bareRepoRoot() {
@@ -547,7 +637,18 @@ test('reconcile(): red-tip requested alone (no mirror/remote-prune) skips rather
 
 // --- hooks.js verb: garbage-stdin invariant + JSON shape (AC5) ---
 
-test('reconcile verb: garbage stdin still exits 0 and prints valid JSON', () => {
+// An isolated `pr-first` repo with no remote — every check skips as
+// `no-remote`, so the verb's output shape is exercised without any live
+// state being reachable.
+function noRemoteFixture(slug) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), slug));
+  git(['init', '-q'], dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  return dir;
+}
+
+test('reconcile verb: garbage stdin still exits 0 and prints valid JSON with --json', () => {
   // Always an isolated fixture cwd, never the ambient process cwd — a bare
   // `reconcile` with no cwd override would run for real against whatever
   // repo the test runner happens to be in (this project's own, under `npm
@@ -556,21 +657,94 @@ test('reconcile verb: garbage stdin still exits 0 and prints valid JSON', () => 
   // safe when it happened once during authoring, but a test must not rely
   // on that — it must never reach live state in the first place.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-garbage-'));
-  const r = runHook(['reconcile'], { input: '%%%not json%%%', cwd: dir });
+  const r = runHook(['reconcile', '--json'], { input: '%%%not json%%%', cwd: dir });
   assert.strictEqual(r.code, 0);
   assert.doesNotThrow(() => JSON.parse(r.stdout));
   assert.deepStrictEqual(JSON.parse(r.stdout).skipped, [{ check: 'all', reason: 'no-repo' }]);
 });
 
-test('reconcile verb: --dry-run is accepted and never mutates on a no-remote fixture', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-hook-'));
-  git(['init', '-q'], dir);
-  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
-  const r = runHook(['reconcile', '--dry-run'], { cwd: dir });
+test('reconcile verb: --dry-run --json is accepted and never mutates on a no-remote fixture', () => {
+  const dir = noRemoteFixture('ct-recon-hook-');
+  const r = runHook(['reconcile', '--dry-run', '--json'], { cwd: dir });
   assert.strictEqual(r.code, 0);
   const parsed = JSON.parse(r.stdout);
   assert.deepStrictEqual(parsed.skipped, [{ check: 'all', reason: 'no-remote' }]);
+});
+
+test('reconcile verb: --json output is byte-for-byte JSON.stringify(out) + "\\n" (#638)', () => {
+  const dir = noRemoteFixture('ct-recon-json-shape-');
+  const r = runHook(['reconcile', '--dry-run', '--json'], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.stdout);
+  assert.strictEqual(r.stdout, JSON.stringify(parsed) + '\n');
+});
+
+test('reconcile verb: no --json (new default) prints a compact summary, not the raw JSON census (#638)', () => {
+  const dir = noRemoteFixture('ct-recon-compact-default-');
+  const r = runHook(['reconcile', '--dry-run'], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  assert.throws(() => JSON.parse(r.stdout), 'default output must not be a parseable JSON object');
+  assert.match(r.stdout, /^skipped: all — no-remote\n$/);
+});
+
+test('reconcile verb: compact default on a fixture with actions taken + a mix of skip reasons matches the aggregated format (#638)', () => {
+  const result = {
+    mirror: { state: 'behind', action: 'fast-forwarded' },
+    redTip: null,
+    worktrees: null,
+    claims: [{ issueNumber: 1, action: 'released' }, { issueNumber: 2, action: 'released' }],
+    runs: [
+      { runDir: 'r1', action: 'archived' },
+      { runDir: 'x1', action: 'skipped', reason: 'no-worktree' },
+      { runDir: 'x2', action: 'skipped', reason: 'no-worktree' },
+      { runDir: 'y1', action: 'skipped', reason: 'move-failed' },
+      { runDir: 'z1', action: 'skipped', reason: 'pr-open' },
+    ],
+    branches: null,
+    remoteBranches: null,
+    console: null,
+    skipped: [{ check: 'red-tip', reason: 'no-integration-ref' }],
+  };
+  const summary = formatSummary(result);
+  assert.strictEqual(summary, [
+    'mirror: fast-forwarded',
+    'released: 2 claims',
+    'archived: 1 run dir',
+    'skipped: 4 run dirs (no-worktree 2, move-failed 1, pr-open 1)',
+    'skipped: red-tip — no-integration-ref',
+  ].join('\n'));
+});
+
+test('reconcile verb: compact default separates branch entries from archive-branches.js\'s interleaved tag-aging entries in result.branches (#638)', () => {
+  // archive-branches.js pushes both kind:'branch' and kind:'tag' entries into
+  // the same result.branches array — a tag's own 'aged-out' action must not
+  // be dropped (it matches neither the branch row's takenActions nor
+  // skipActions), and a 'delete-failed' skip reason shared by both kinds
+  // must disambiguate by unit rather than merging into one branch-labeled
+  // count.
+  const result = {
+    mirror: null,
+    redTip: null,
+    worktrees: null,
+    claims: null,
+    runs: null,
+    branches: [
+      { name: 'worktree-record-1', kind: 'branch', action: 'delete', reason: 'cherry-equivalent' },
+      { name: 'worktree-record-2', kind: 'branch', action: 'skip', reason: 'too-young' },
+      { name: 'worktree-record-3', kind: 'branch', action: 'skip', reason: 'delete-failed' },
+      { name: 'archive/worktree-record-9', kind: 'tag', action: 'aged-out', reason: '> 90d' },
+      { name: 'archive/worktree-record-10', kind: 'tag', action: 'skip', reason: 'delete-failed' },
+    ],
+    remoteBranches: null,
+    console: null,
+    skipped: null,
+  };
+  const summary = formatSummary(result);
+  assert.strictEqual(summary, [
+    'archived: 1 branch',
+    'aged out: 1 tag',
+    'skipped: 3 items (too-young 1, delete-failed (branch) 1, delete-failed (tag) 1)',
+  ].join('\n'));
 });
 
 test('reconcile(): returns a thenable (async contract) even when every check stays synchronous internally', async () => {
@@ -585,24 +759,61 @@ test('reconcile(): returns a thenable (async contract) even when every check sta
 
 // --- preflight (#820): one upfront gh-health check gates the whole set ---
 
+// Writes .claude-tweaks/policy.yml via `seedDir` (commit + push), then pulls
+// it into `mainDir` — so mainDir ends up both carrying the policy file AND
+// clean/current with origin (classifyMirror reports 'dirty' over 'current'
+// for ANY uncommitted change, tracked or not, which a direct writeFileSync
+// straight into mainDir's working tree would trigger and mask mirror's real
+// result under test).
+function writePolicyViaSeedAndPull(seedDir, mainDir, contents) {
+  fs.mkdirSync(path.join(seedDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, '.claude-tweaks', 'policy.yml'), contents);
+  git(['add', '.claude-tweaks'], seedDir);
+  git(['commit', '-q', '-m', 'policy'], seedDir);
+  git(['push', '-q', 'origin', 'main'], seedDir);
+  git(['pull', '-q', 'origin', 'main'], mainDir);
+}
+
 test('reconcile(): a failing GitHub-health preflight skips every requested check in one entry, never per-check timeouts (D1)', async () => {
-  const { mainDir } = pairedFixture();
+  const { seedDir, mainDir } = pairedFixture();
   // pairedFixture()'s origin is a bare local repo, not a GitHub remote, so
   // resolveIntegrationModel's forge-detection fallback would otherwise land
   // on local-merge (no gh-backed repo to detect) — force pr-first explicitly
   // so this test actually reaches the preflight, per the same pattern used
   // above at policy.yml: 'integration-model: pr-first\n'.
-  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
 
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const original = preflight.ghHealthCheck;
   preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
   try {
     const r = await reconcile({ cwd: mainDir, checks: ['mirror', 'release'] });
-    assert.equal(r.mirror, null);
+    // mirror is pure git (mirror-ff.js never shells to `gh`) and is
+    // deliberately excluded from the preflight gate — it still runs despite
+    // a failing GitHub-health check, and pairedFixture()'s mainDir is a
+    // fresh clone already current with origin (review finding: this gate
+    // previously skipped mirror too).
+    assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
     assert.equal(r.claims, null);
-    assert.deepEqual(r.skipped, [{ check: 'mirror,release', reason: 'preflight-github-unreachable' }]);
+    assert.deepEqual(r.skipped, [{ check: 'release', reason: 'preflight-github-unreachable' }]);
+  } finally {
+    preflight.ghHealthCheck = original;
+  }
+});
+
+test('reconcile(): checks: ["mirror"] alone never calls the GitHub-health preflight at all', async () => {
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const original = preflight.ghHealthCheck;
+  let called = false;
+  preflight.ghHealthCheck = () => { called = true; return { ok: false, reason: 'github-unreachable' }; };
+  try {
+    const r = await reconcile({ cwd: mainDir, checks: ['mirror'] });
+    assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
+    assert.deepEqual(r.skipped, []);
+    assert.equal(called, false, 'a mirror-only request has no gh-dependent check, so preflight must never run');
   } finally {
     preflight.ghHealthCheck = original;
   }
@@ -887,9 +1098,8 @@ test('reconcile(): a real (non-short-circuited) pass stamps lastRunAt for the ne
 // AC1: reconcile() degrades within ~2s via the preflight when GitHub is
 // unreachable, instead of accumulating every check's own 5-10s timeout.
 test('AC1: a preflight failure resolves in well under the old per-check-timeout sum', async () => {
-  const { mainDir } = pairedFixture();
-  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const original = preflight.ghHealthCheck;
   preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
@@ -901,8 +1111,10 @@ test('AC1: a preflight failure resolves in well under the old per-check-timeout 
     preflight.ghHealthCheck = original;
   }
   const elapsed = Date.now() - start;
-  // Functional assertion: preflight gate produces exactly the expected skip entry
-  assert.deepEqual(r.skipped, [{ check: 'mirror,release,remote-prune,console', reason: 'preflight-github-unreachable' }]);
+  // Functional assertion: preflight gate produces exactly the expected skip
+  // entry — mirror is excluded (pure git, no `gh` dependency) and still runs.
+  assert.deepEqual(r.skipped, [{ check: 'release,remote-prune,console', reason: 'preflight-github-unreachable' }]);
+  assert.deepEqual(r.mirror, { state: 'current', action: 'none' });
   // Secondary timing assertion: the preflight-gated failure resolves quickly
   assert.ok(elapsed < 2500, `preflight-gated failure took ${elapsed}ms, expected well under 2.5s`);
 });

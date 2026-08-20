@@ -70,8 +70,9 @@ error-avoidance. It exists to keep the decision log accurate: an unconditional c
 
 The one canonical statement of how much CI verification a merge waits for — every citing site
 applies it here, none restates it. The lever is `merge-verification` (`_shared/policy-schema.md`'s
-key row and coverage block own its meaning and derivation); this step owns what a merge site
-*does* with the resolved value. Resolve it once, from the run's own config overlay:
+key row and `_shared/policy-schema-coverage.md`'s coverage block own its meaning and derivation);
+this step owns what a merge site *does* with the resolved value. Resolve it once, from the run's
+own config overlay:
 
 ```bash
 MERGE_VERIFICATION=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-verification)
@@ -114,7 +115,7 @@ Classify from the JSON, in this order:
 - Any entry with `status` not `COMPLETED` (or `conclusion` null while `status: IN_PROGRESS`/`QUEUED`/`PENDING`)
   → **pending**.
 - An **empty rollup** → depends on the lever: under `merge-when-green` or `wait` the repo has PR CI
-  by construction (`_shared/policy-schema.md`'s coverage block derives those values only when a
+  by construction (`_shared/policy-schema-coverage.md`'s coverage block derives those values only when a
   `pull_request`-triggered workflow exists, and an explicit value is a statement that CI is
   expected), so an empty rollup means the checks have not *reported yet* — GitHub populates it
   seconds after a push, not instantly — and reads as **pending**, never green; under `off` it is
@@ -137,7 +138,7 @@ must not lean on it. That is why the pending column below keys on `mergeStateSta
 |---|---|---|---|
 | `merge-when-green` | Step 3 as written — arm/merge (identical outcome when checks are already green) | `mergeStateStatus: BLOCKED` → Step 3 as written — arm `--auto` (the forge holds it; outcome `armed`). Any other value (`CLEAN`, `UNSTABLE`, `BEHIND`, `UNKNOWN`, …) → arming would merge immediately: **degrade to the `wait` row** — never to an immediate merge | Red path |
 | `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`); if `headRefOid` changed since the first read or `state` is no longer `OPEN`, re-enter this step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`) — never merge blind; otherwise merge via Step 3's immediate `--merge` form | **Bounded watch** below | Red path |
-| `off` | Step 3 as written (today's behavior, unchanged) | Step 3 as written (today's behavior — this is the #540-shaped race the lever exists to close; a repo derives `off` only when it has no PR CI or a non-default integration branch, `_shared/policy-schema.md`'s coverage block) | Step 3 as written; the red read is logged for the summary |
+| `off` | Step 3 as written (today's behavior, unchanged) | Step 3 as written (today's behavior — this is the #540-shaped race the lever exists to close; a repo derives `off` only when it has no PR CI or a non-default integration branch, `_shared/policy-schema-coverage.md`'s coverage block) | Step 3 as written; the red read is logged for the summary |
 
 **Bounded watch (`wait`, and `merge-when-green` when arming would not hold) — 15 minutes, fixed.**
 Not a policy key: `merge-when-green` (arming) is the no-wait path, `wait` is its fallback, and a

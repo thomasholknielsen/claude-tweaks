@@ -28,6 +28,10 @@ The `{feature}` name matches the execution plan or spec topic. One ledger per pi
 
 Items are numbered sequentially starting at 1. New items always get the next available number. Numbers are never reused — if item 3 is resolved, the next item is still 4.
 
+### De-duplication on Append
+
+Before appending, check existing items for semantic duplicates. If an item with the same phase and a substantially similar description already exists, skip the add and note "Duplicate — matches item #{N}" in the writing skill's own output — never silently skip.
+
 ## Status Lifecycle
 
 ```
@@ -41,6 +45,8 @@ observation          (informational, non-blocking — e.g., QA caveats)
 **Terminal statuses:** `fixed`, `deferred`, `accepted`, `acknowledged`, `observation` — these items are resolved and will not block the pipeline.
 
 **Non-terminal status:** `open` — these items block pipeline completion.
+
+**Resolution-text requirements.** `open` moves only to a terminal status, and only with resolution text (`observation` excepted). Terminal statuses are final — a wrong fix gets a new item, never a reopen. Per status: `fixed` includes the commit hash or file reference; `deferred` includes origin, affected files, and the trigger for when to revisit; `accepted` includes the stated reason why this is acceptable.
 
 User-facing "Drop" choice in the resolve gate maps to status `accepted` with reason `dropped per user` (see this file's Resolve Gate section, Phase 3, for the full disposition table).
 
@@ -56,7 +62,7 @@ Skill     ::= "build" | "test" | "review" | "reflect" | "wrap-up" | "ops" | "flo
 Qualifier ::= "ops" | "skill" | "hindsight" | "qa"
 ```
 
-The qualifier adds specificity when a skill produces multiple finding types, but is optional. Downstream filters (Wrap-Up Review Console, `/tidy` cross-spec scans) parse the phase string by splitting on `/` — keep the format strict.
+The qualifier adds specificity when a skill produces multiple finding types, but is optional. Downstream filters (e.g. the Wrap-Up Review Console) parse the phase string by splitting on `/` — keep the format strict.
 
 | Phase | Source | Typical Items |
 |-------|--------|---------------|
@@ -98,11 +104,15 @@ The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 a
 
 **The pipeline cannot complete with unresolved items.** This is a hard gate.
 
+**Write-back contract.** Whatever procedure decides an `open` item's disposition — this gate's own Phase 1/2/3, a staged finding applied at the Review Console (`_shared/staged-patch.md`'s Write-back to the ledger), or an agent catching and correcting its own earlier misdiagnosis of an item later in the same run — updates that item's Status/Resolution columns in the ledger **file** at the point the decision is made. `decisions.md` is the audit trail of *why*; the ledger file is the source of truth for *what state the item is in*. A same-run misdiagnosis correction (an earlier read of an item turns out wrong, and a later step in this same run establishes the real disposition) is not a new item and not a reopen of a terminal one — it is the first terminal write for that item; log the correction to `decisions.md` for the record, but the ledger file itself only ever shows the corrected, final status.
+
 ---
 
 ### Phase 1 — Exhaust fixes (agent, silent)
 
-For each item with status `open`, attempt to fix it now. **The default is fix; defer is the exception.** Whether an item qualifies for fix-now, and which reasons for skipping a fix are never legitimate, are defined once in `_shared/deferral-gate.md` (its Fix-now criteria and Bad reasons to skip a fix sections) — apply that gate here exactly as written there. If the item qualifies, fix it, commit it, update status to `fixed` with the commit hash. Do this BEFORE presenting anything to the user.
+**Re-check before attempting a fresh fix.** An item can already be resolved outside this run — the commit/issue/PR reference in its own Item text (or the `Ledger:` back-reference on a staged patch that already applied per `_shared/staged-patch.md`) may point at something that landed since this item was appended: a self-contained follow-up PR, a backlog issue filed by an earlier Phase 2/3 pass and since closed, or a Review Console apply this same run already logged. Check each `open` item's cited reference (`gh pr view` / `gh issue view` on any `#N` it names, or a `git log --grep` on any commit hash it names) before spending a fix attempt on it: already merged/closed/applied → skip straight to updating status (`fixed` with the resolving commit/PR, or the terminal status the closed reference itself establishes) and move to the next item, exactly as if Phase 1 had fixed it. This is the mechanism that covers a low-confidence finding deliberately left `open` for human attention that later gets fixed in a separate PR outside this gate's own view — no live auto-sync is needed (the fix is inherently post-hoc), only that this gate stops proposing a redundant fix (or a redundant Phase 2 drill question) for work that is already done.
+
+For each remaining item with status `open`, attempt to fix it now. **The default is fix; defer is the exception.** Whether an item qualifies for fix-now, and which reasons for skipping a fix are never legitimate, are defined once in `_shared/deferral-gate.md` (its Fix-now criteria and Bad reasons to skip a fix sections) — apply that gate here exactly as written there. If the item qualifies, fix it, commit it, update status to `fixed` with the commit hash. Do this BEFORE presenting anything to the user.
 
 ---
 
