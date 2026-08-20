@@ -418,6 +418,19 @@ function buildNativeDependencyQuery(numbers) {
   return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
 }
 
+// candidate parent-issue numbers -> one batched, aliased GraphQL query requesting
+// each parent's native subIssues connection (work-links: native). first:100 covers
+// GitHub's documented per-parent sub-issue cap in one page; pageInfo.hasNextPage is
+// requested so callers can detect a raised cap instead of silently truncating.
+// Same alias/null conventions as buildNativeDependencyQuery above.
+function buildNativeSubIssuesQuery(numbers) {
+  if (!Array.isArray(numbers) || numbers.length === 0) return null;
+  const fields = numbers
+    .map((n) => `i${n}: issue(number:${n}){ number subIssues(first:100){ nodes{ number } pageInfo{ hasNextPage } } }`)
+    .join('\n      ');
+  return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
+}
+
 // one candidate's parsed aliased response value (the { number, blockedBy: { nodes } }
 // shape buildNativeDependencyQuery's query produces per alias) -> true when at least
 // one blockedBy node is still OPEN. Mirrors parseDependencies' role for the
@@ -517,4 +530,5 @@ module.exports = {
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, extractVerifiedAsOf, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
+  buildNativeSubIssuesQuery,
 };
