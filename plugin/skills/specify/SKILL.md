@@ -106,6 +106,14 @@ Entered from Resolve-the-input case 2 (design doc path), case 3 (topic matching 
 
 Read `decomposition-mode.md` in this skill's directory for the full procedure — Steps 1 through 9, including Step 2.5 (design pre-steps) and Step 2.5d (diagram suggestion). Step numbering there is unchanged from before the split, so cross-references naming a step by number still resolve. It delegates onward to `record-creation.md` (Steps 3-4), `red-team.md` (Step 5), and `design-pre-steps.md` (Step 2.5) exactly as before. When Step 9 completes, continue at `## Next Actions` below. Shaping mode's own procedure never runs on this path.
 
+## Routine Configuration
+
+`/specify` ships a routine template (`skills/specify/routine-template.yml`) whose prompt is `/claude-tweaks:specify next` — the headless selection form (#967). Instantiate it for the current project with:
+
+```
+/claude-tweaks:routine create specify
+```
+
 ## Next Actions
 
 Rendered for both modes — this is the one block that straddles them, which is why it stays in `SKILL.md` rather than moving into either mode file.

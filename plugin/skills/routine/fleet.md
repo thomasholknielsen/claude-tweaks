@@ -7,7 +7,7 @@ This mode is a loop over the existing CREATE/UPDATE procedure (`create-and-updat
 
 ## Fleet composition table
 
-Two buckets, named explicitly (never restated elsewhere as a bare list, per this project's cardinality-drift rule — this table is the one place the fleet's membership is enumerated):
+Six buckets, named explicitly (never restated elsewhere as a bare list, per this project's cardinality-drift rule — this table is the one place the fleet's membership is enumerated):
 
 | # | Bucket | Entry | Source template | `focus` override | Cron (UTC) | PREFIXED_NAME |
 |---|---|---|---|---|---|---|
