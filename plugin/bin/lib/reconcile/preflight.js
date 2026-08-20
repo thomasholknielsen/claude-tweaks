@@ -8,7 +8,7 @@ const { classifyGhApiError } = require('../issues/claim-store');
 const PREFLIGHT_TIMEOUT_MS = 2000;
 
 function defaultRunner(args, timeoutMs) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: timeoutMs });
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: timeoutMs, windowsHide: true });
 }
 
 // -> { ok: boolean, reason: null | 'gh-absent' | 'github-unreachable' }

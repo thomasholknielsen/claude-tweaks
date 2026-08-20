@@ -162,6 +162,25 @@ target, exactly as before this CLI existed.
   this run's identity, left to expire via the claim's own TTL rather than dropped silently. The
   CLI already attempted the all-or-abort release — nothing further to release here. Gather
   liveness evidence (below) and render the contest card using the reported `holder`.
+- **3 (in-flight variant, #315)** — stdout instead carries `{inFlight: [{issue, link}], released,
+  releaseFailed}` when the stopped target's blob was a `pr-opened:` tombstone whose linked PR
+  `gh pr view` still reports `OPEN` (`_shared/issue-claims.md`'s in-flight detection, ported from
+  `claim-engine.js`'s `tombstoneInFlightPr` into this CLI's own claim loop) — a build for this
+  issue already exists, not a competing claim. There is no `holder` to report; skip the
+  liveness-evidence steps below and render instead:
+
+  ```markdown
+  ## Flow: Claim in-flight
+
+  #{target} already has an open PR ({link}) from a prior build — not re-claiming.
+  Next: resolve or merge that PR before dispatching a fresh build.
+  ```
+
+  No `AskUserQuestion` — same as the contest card, the pipeline cannot proceed with a target
+  already mid-build. **Known gap:** this renders as a stop, matching the contest card's blocking
+  behavior, but does not yet route into Step 6's resume/merge-decision machinery for an open-PR
+  run (the "settle the existing build" framing the issue that added this check described) — that
+  hook-in is unimplemented.
 - **4** — transient `gh` failure, same fail-fast/all-or-abort shape as exit 3: stdout carries
   `{transient: [{issue, error}], released, releaseFailed}`, release already attempted. Render the
   transient-failure card below.
@@ -237,15 +256,16 @@ The `released` array's write (default mode, no `--keep-going`) uses the reason
 Failure-posture table — the CLI's own `ABORT_REASON`, not something this flow step writes itself.
 
 **`--keep-going`** — the CLI never exits 3 or 4; a per-target contest or transient failure is
-downgraded to a `skipped` entry in the exit-0 JSON envelope (`{issue, reason: 'contested', holder}`
-or `{issue, reason: 'transient', error}`) and the CLI proceeds to the remaining targets rather than
-releasing and aborting — consistent with `--keep-going`'s existing meaning elsewhere in flow
+downgraded to a `skipped` entry in the exit-0 JSON envelope (`{issue, reason: 'contested', holder}`,
+`{issue, reason: 'transient', error}`, or, for a pr-opened tombstone whose linked PR is still open
+(#315), `{issue, reason: 'in-flight', link}`) and the CLI proceeds to the remaining targets rather
+than releasing and aborting — consistent with `--keep-going`'s existing meaning elsewhere in flow
 (`multi-spec.md`): continue past a per-target failure rather than aborting the whole run. Drop each
 skipped target from the target list for Step 3 onward. For a `reason: 'contested'` entry, gather
 liveness evidence (steps 1-5 above) and render the contest card using that entry's `holder`; for a
-`reason: 'transient'` entry, render the transient-failure card below. Each renders as one
-informational block per skipped target, not a pipeline stop, since the run proceeds with the
-remainder.
+`reason: 'transient'` entry, render the transient-failure card below; for a `reason: 'in-flight'`
+entry, render the in-flight card above using that entry's `link`. Each renders as one informational
+block per skipped target, not a pipeline stop, since the run proceeds with the remainder.
 
 **A transient `gh` failure during claim (exit 4, not a classification-based contest)** — a network
 timeout, a transport error, or any other unclassified failure the CLI hit while reading, writing,

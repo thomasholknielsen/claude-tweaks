@@ -8,6 +8,15 @@ Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — 
 
 Extracted to `_shared/forge-detection.md` (the re-read cut: a consumer needing only the three-check gate no longer has to load this file's full 39 KB to get it). This heading stays as a stub so existing section references still resolve in one hop. Every scope section below still runs behind this ladder exactly as before — read `forge-detection.md` for the checks, the skip-row format, the fail-open posture, and the transport-aware check-2 note.
 
+## Transport (gh-absent fallback)
+
+`forge-detection.md`'s check 2 ("`gh` present → proceed via the `gh` CLI. `gh` absent → a consumer with a documented MCP fallback proceeds via that path instead of stopping") applies to every scope section below, at **item granularity**, not scope granularity — every scope here mixes issue-backed and PR-backed calls, so a scope-wide skip would still throw away the half that has a real fallback:
+
+- **Issue-backed items** (`gh issue list`, `gh issue view`, `gh api .../contents/...` reads of committed blobs) — route through `_shared/github-write-transport.md`'s CRUD mapping (`list_issues` / `issue_read`) when `gh` is absent. These items run exactly as documented, on either transport.
+- **PR-backed items** (`gh pr list`, `gh pr view`, `gh pr checks`, the review-thread `gh api graphql` query, `gh api repos/.../commits`) — `_shared/github-write-transport.md`'s CRUD mapping covers issues, not pull requests, so there is no MCP fallback for these. When `gh` is absent, that item degrades **individually**: emit its own finding row noting the skip (`{prefix} PR scan skipped (item) / no MCP fallback for PR reads`, using the scope's own Output Contract prefix) and continue with the rest of the scope's items rather than skipping the whole scope. A scope whose items are entirely PR-backed (`current-pr`) therefore still degrades per-item with an explicit, documented message instead of a blanket skip at check 2 — the outcome for that scope's data is the same, but the routing decision is explicit and item-scoped rather than an implicit whole-scope short-circuit.
+
+This is the same posture `/tidy` Step 4.7 already applies to its own `gh`-absent case (`tidy/scan-procedures.md`) — one shared rule stated once here, not restated per scope below.
+
 ## Staleness Thresholds
 
 Keyed on `updatedAt`. Same scale as /tidy's backlog-record audit:
@@ -20,7 +29,7 @@ Keyed on `updatedAt`. Same scale as /tidy's backlog-record audit:
 
 ## Scope: `current-pr` (consumed by /help Stage 4.5)
 
-Deep scan of the current branch's PR only, plus one cheap repo-wide count.
+Deep scan of the current branch's PR only, plus one cheap repo-wide count. Every item below is PR-backed (see Transport above) — on `gh`-absent, this scope has no issue-backed item to fall back to, so it degrades per-item rather than resolving to a blanket "GitHub scan skipped" at check 2: item 1 emits `[pr] PR scan skipped (item) / no MCP fallback for PR reads` and items 2-4 are skipped as a consequence (each depends on item 1's PR number or is the same class of call).
 
 1. **PR lookup** — `gh pr view --json number,title,isDraft,reviewDecision,statusCheckRollup,closingIssuesReferences,url`. Non-zero exit means no PR for the current branch → emit one info row (`No open PR for current branch`), then run item 4 only.
 2. **Unresolved review threads** — resolve `{owner}` and `{repo}` via `gh repo view --json owner,name -q '.owner.login + " " + .name'`, `{number}` from item 1, then run exactly:
@@ -37,6 +46,8 @@ Emit `[pr]` rows per the Output Contract.
 ## Scope: `repo-wide` (consumed by /tidy Step 4.8)
 
 Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, `by:journey-health`-labelled issues, and `by:docs-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/step-1-records.md`).
+
+**Transport split (see Transport above):** items 3, 5, 6, 7, and 8 are issue-backed (`gh issue list`) and run unchanged on either transport. Items 1, 2, 4, 9, and 10 are PR-backed (`gh pr list`/`gh pr checks`/`gh api graphql`/`gh api repos/.../commits`) — on `gh`-absent, each degrades individually per the rule above rather than the whole scope skipping; item 10's claims-registry read (its first fetch) is issue-adjacent, not PR-backed, and already has a documented MCP path via `_shared/issue-claims.md`'s "List all claims", so only item 10's second (`bot:in-progress` list — issue-backed, routes via MCP too) and third (`gh pr list --state all`, PR-backed — degrades) fetches split the same way.
 
 > **Parallel execution:** Use parallel tool calls aggressively — items 1, 3, 4, 5, 6, 7, 8, and the initial fetches of items 9 and 10 below, plus each open PR's own review-thread query in item 2, are independent gh/bash calls with no dependency on one another and should run concurrently. Item 9's per-candidate thread/link fetches and item 10's per-issue claim-blob reads depend on their own item's earlier filter step, so only those later sub-steps are sequential.
 
@@ -253,6 +264,8 @@ Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findin
 
 Three cheap counts for the dashboard's Triage Queue section. This scope exists so `/help` never hand-writes its own query for these numbers — see the fix this closes: Stage 4.6 previously computed "pending authorization" without excluding `bot:blocked` records, so a blocked record counted as both pending AND blocked on the same dashboard.
 
+**Transport split (see Transport above):** items 1 and 2 are issue-backed and run unchanged on either transport. Item 3's commits-endpoint query has no MCP equivalent — on `gh`-absent it degrades individually (omit the "Auto-merged this week" line rather than the whole scope).
+
 1. **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: matches `/claude-tweaks:backlog refine`'s own `ready`-queue pull (`skills/backlog/refine-mode.md`), which tiers no health-skill origin specially — every `ready` record, with or without a `by:*` label, is in scope.
 
    ```bash
@@ -295,19 +308,26 @@ Render as three lines: `Pending authorization: **{N}** records awaiting your dec
 Extracted to `_shared/github-pr-scan-acceptance.md` (#204 — this file was approaching the 40 KB
 ceiling). This heading stays as a stub so existing section references still resolve in one hop.
 Read that file's own `acceptance-queue` scope section — it runs behind this file's Detection
-Ladder and reports per this file's Output Contract below, exactly as before the split.
+Ladder and Transport rule (above) and reports per this file's Output Contract below, exactly as
+before the split. Its calls are entirely issue-backed (`gh issue list`), so on `gh`-absent they
+route through `_shared/github-write-transport.md`'s `list_issues` mapping unchanged, with no
+per-item PR degrade needed.
 
 ## Scope: `acceptance-gap` (consumed by /tidy Step 4.8)
 
 Extracted to `_shared/github-pr-scan-acceptance.md` (#204). Same stub convention as
 `acceptance-queue` above — read that file's `acceptance-gap` scope section, behind this file's
-Detection Ladder, reporting per this file's Output Contract below.
+Detection Ladder and Transport rule (above), reporting per this file's Output Contract below.
+Its calls are entirely issue-backed (`gh issue list`, `gh api .../sub_issues`), so on `gh`-absent
+they route through `_shared/github-write-transport.md`'s mapping unchanged.
 
 ## Scope: `parent-gate` (consumed by /tidy Step 4.8)
 
 Extracted to `_shared/github-pr-scan-acceptance.md` (#204). Same stub convention as the two scopes
-above — read that file's `parent-gate` scope section, behind this file's Detection Ladder,
-reporting per this file's Output Contract below.
+above — read that file's `parent-gate` scope section, behind this file's Detection Ladder and
+Transport rule (above), reporting per this file's Output Contract below. Its calls are entirely
+issue-backed (`gh issue list`, `gh api .../sub_issues`), so on `gh`-absent they route through
+`_shared/github-write-transport.md`'s mapping unchanged.
 
 ## Output Contract
 

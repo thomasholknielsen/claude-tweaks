@@ -101,14 +101,14 @@ $RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── decisions.md        ← Run-level audit log (freeform-issue translations log here)
 ├── staged/             ← Run-level staged items (translation-{issue}.md) — read by the consolidated console
 └── spec-{N}/           ← Per-record subdirectory (one per record; `work/{N}-spec.md` holds the materialized file — see `materialize.md`)
-    ├── config.yml      ← Copy of the parent's, written when the parent scaffolds this subdirectory (see below)
+    ├── config.yml      ← Copy of the parent's, written by the per-spec scaffolding step below ("Scaffold the per-spec subdirectory")
     ├── decisions.md
     └── staged/
 ```
 
 The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
 
-**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written by `/flow` in the same step that creates the subdirectory (Step 3). Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec (observed on the #678 run: `review-auto-apply-ceiling` read `default` from `spec-678/` while the parent held `run-config: medium`). A mid-run in-place lever edit (the ceremony escape hatch) lands in the spec's own copy and scopes to that spec — intended.
+**Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written immediately before that spec's pipeline starts. Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec. The step that writes it, its ordering rule, and the `#678`/`#925` history behind it are under "Scaffold the per-spec subdirectory" below.
 
 `manifest.yml` lists the records in execution order plus their status as the run progresses — written exclusively through `node plugin/bin/hooks.js spec-status` (see "Phase-progress banner and per-spec completion summary" below); nothing else writes this file. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — so `multispec-batch-curation.md`'s registry pass has a stable pre-batch baseline to read back rather than re-deriving it after N specs' worth of commits have landed:
 
@@ -145,6 +145,8 @@ This does not replace each spec's own `/test` gate — every spec still runs ver
 
 Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
 
+**Scaffold the per-spec subdirectory before exporting its `PIPELINE_RUN_DIR`** — read `multispec-config-scaffold.md` in this skill's directory for the concrete `mkdir`/`cp`/`touch` step, its ordering rule, and why the parent-level Manifesto (Step 3) does not itself perform this copy (`#678`; `#925`).
+
 For each per-spec invocation, `/flow` exports these environment variables (the last is conditional on the caller, not always set):
 
 | Variable | Value | Purpose |
@@ -175,6 +177,10 @@ When `worktree` is specified, a sequential run uses **one shared worktree for th
 Why shared, not per-record: sequential records in one run are one logical unit of work on one base. Per-record worktrees would each branch from that base and need N separate merges unable to see each other's commits — the divergence/stale-base problem worktrees exist to avoid. One branch accumulates the records in dependency order and merges back as a single reconciled changeset.
 
 > Separate-terminal parallel runs (`/flow #42 worktree` in each terminal) are different — those are N independent single-record runs and each correctly gets its own worktree. See `worktree-merge.md`.
+
+## PR phase-checklist convention (shared PR)
+
+A multi-spec run shares one PR (`_shared/pr-early-run-lifecycle.md`); its checklist rows are **cumulative and run-level, never reset per spec**. Read `multispec-pr-checklist.md` in this skill's directory for the rationale and the per-spec status source.
 
 ## Failure handling (default vs `keep-going`)
 

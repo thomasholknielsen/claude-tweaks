@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { toIssuePayload } = require('../../../plugin/bin/lib/journey-health/issue-payload');
-const { extractFingerprint } = require('../../../plugin/bin/lib/issues/record');
+const { extractFingerprint, extractVerifiedAsOf } = require('../../../plugin/bin/lib/issues/record');
 
 function finding(overrides = {}) {
   return {
@@ -193,4 +193,17 @@ test('toIssuePayload body omits "Also affects" when relatedSections is an empty 
 test('toIssuePayload for a self-review (non-coverage) finding never renders "Also affects"', () => {
   const payload = toIssuePayload(finding());
   assert.ok(!payload.body.includes('Also affects:'));
+});
+
+// ── freshness stamp (#117) ──────────────────────────────────────────────────
+
+test('toIssuePayload with no verifiedAsOf argument omits the stamp (existing callers unaffected)', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(!payload.body.includes('Verified-as-of:'));
+});
+
+test('toIssuePayload threads verifiedAsOf through to the composed body', () => {
+  const payload = toIssuePayload(finding(), 'abc1234');
+  assert.ok(payload.body.includes('Verified-as-of: abc1234'));
+  assert.strictEqual(extractVerifiedAsOf(payload.body), 'abc1234');
 });

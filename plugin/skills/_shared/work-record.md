@@ -343,6 +343,27 @@ Readers accept the legacy `<!-- code-health-fingerprint: {fingerprint} -->` mark
 the migration window (read both, emit only `work-fingerprint`). `bin/lib/issues/record.js`'s
 `extractFingerprint` implements the dual read; when both markers are present, the new one wins.
 
+## Freshness stamp
+
+Records filed by the four health-sweep skills also carry the commit the sweep actually read, as
+a plain body-metadata line:
+
+```
+Verified-as-of: {git sha}
+```
+
+Composed by `bin/lib/issues/record.js`'s `specShapedBody` (`verifiedAsOf` param — rendered above
+`Origin:`/`Defer-reason:`, validated as a bare hex sha so a date or a branch name fails loud at
+compose time) and read back by that module's `extractVerifiedAsOf`. **The producer resolves the
+value itself, at the moment it reads the repo** — once per sweep run, threaded through every
+finding that run files — never re-derived at issue-create time: a finding queued and filed later
+would otherwise stamp a commit it never looked at, which reads as authoritative freshness that
+isn't real. The line is optional — a producer that doesn't stamp, or a checkout where git is
+unavailable, simply omits it, and no structural check may start demanding it. What a consumer
+does with the stamp is `flow/materialize.md`'s Freshness-stamp drift section; a fresh stamp
+bounds drift, it never establishes correctness, so `[IL-71]`'s re-verification instruction stays
+in force regardless.
+
 ## Type
 
 The canonical Type enum is `bug | feature | task`. Two expressions, governed by the
@@ -374,7 +395,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 | `/capture` | Files raw backlog records (`by:capture`, Type only) |
 | `/specify` | Shapes records to spec shape; decomposes designs into parent + `ready` sub-issues; seeds `## Cross-Spec Promises` on the parent for decompositions of 4 or more sub-issues |
 | `/backlog` | `refine` mode is the human gate — grants `auto:build`/`auto:merge` over the `ready` queue, and suggests `priority:*`/`**Related:**` (human-confirmed). `overview` mode is read-only — distribution views plus a "what to build next" recommendation. `grant` mode is the one headless machine-grant path — see Grant semantics above and `backlog/grant-mode.md`. |
-| `/dispatch` | Queue consumer — claims authorized records, invokes `/flow`, settles (release / revoke / report); also files `by:dispatch`-labeled backlog records when its own headless `next` firing hits a Preflight failure with nobody present to see it (`skills/dispatch/SKILL.md`'s Preflight, "Headless self-report") |
+| `/dispatch` | Queue consumer — selects authorized records, mints the run directory, hands off to `/flow` (which claims its own named targets at Step 2.8), settles (release / revoke / report); also files `by:dispatch`-labeled backlog records when its own headless `next` firing hits a Preflight failure with nobody present to see it (`skills/dispatch/SKILL.md`'s Preflight, "Headless self-report") |
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
 | `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |

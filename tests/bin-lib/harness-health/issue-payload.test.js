@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { toIssuePayload } = require('../../../plugin/bin/lib/harness-health/issue-payload');
-const { extractFingerprint } = require('../../../plugin/bin/lib/issues/record');
+const { extractFingerprint, extractVerifiedAsOf } = require('../../../plugin/bin/lib/issues/record');
 
 function patchFinding(overrides = {}) {
   return {
@@ -275,4 +275,16 @@ test('an ordinary patch still renders Current/Proposed', () => {
   assert.match(payload.body, /\*\*Current:\*\*/);
   assert.match(payload.body, /\*\*Proposed:\*\*/);
   assert.ok(!payload.body.includes('Remove this content'));
+});
+
+// ── freshness stamp (#117) ──────────────────────────────────────────────────
+
+test('toIssuePayload with no verifiedAsOf argument omits the stamp (existing callers unaffected)', () => {
+  const payload = toIssuePayload(patchFinding());
+  assert.ok(!payload.body.includes('Verified-as-of:'));
+});
+
+test('toIssuePayload threads verifiedAsOf through to the composed body', () => {
+  const payload = toIssuePayload(patchFinding(), 'abc1234');
+  assert.strictEqual(extractVerifiedAsOf(payload.body), 'abc1234');
 });

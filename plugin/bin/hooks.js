@@ -16,6 +16,8 @@ const siblingSessions = require('./lib/hooks/sibling-sessions');
 const specStatusLib = require('./lib/flow/manifest');
 const resumeFreshness = require('./lib/hooks/resume-freshness');
 const wtDetect = require('./lib/hooks/worktree-detect');
+const { closeRunState } = require('./lib/hooks/close-run-state');
+const { teardownRun } = require('./lib/hooks/teardown-run');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -234,47 +236,22 @@ async function main(argv) {
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);
     } else if (runDir) {
-      const prev = ctxLib.readRunState(runDir);
-      const me = process.env.CLAUDE_CODE_SESSION_ID;
-      const foreignOwner = !!(prev && typeof prev.sessionId === 'string' && prev.sessionId && me && prev.sessionId !== me);
-      if (foreignOwner && !explicit) {
-        // The implicit fallback ("newest non-terminal run") landed on a run
-        // recorded by a DIFFERENT, still-active session — closing it here
-        // would silently disarm that session's E1/E2/E3 enforcement with no
-        // way for it to know (see CLAUDE.md's Hooks section). Refuse rather
-        // than act; pass an explicit --run if closing someone else's run is
-        // genuinely intended.
+      const r = closeRunState(runDir, { explicit, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
+      if (r.status === 'refused-foreign') {
         process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session — refusing to close it without an explicit --run\n`);
         return 0;
       }
-      if (foreignOwner) {
+      if (r.foreignOwner) {
         process.stdout.write(`claude-tweaks: closing run ${path.basename(runDir)} recorded by another session\n`);
       }
-      // Warn-tier check (#373): closing a run whose ledger never recorded a wrap-up
-      // invocation. Warn, never block — dispatch's close-before-merge is sanctioned,
-      // and a human-typed /claude-tweaks:wrap-up leaves no event at all (measured,
-      // #371 finding (e)), so absence is not proof the procedure was skipped.
-      let wrapupSeen = false;
-      try {
-        const rawEvents = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8');
-        for (const line of rawEvents.split('\n')) {
-          if (!line.trim()) continue;
-          try {
-            const ev = JSON.parse(line);
-            if (ev && ev.type === 'skill_invoked' && ev.skill === 'claude-tweaks:wrap-up') { wrapupSeen = true; break; }
-          } catch { /* skip garbage line */ }
-        }
-      } catch { /* no events.jsonl — treated the same as no wrap-up event */ }
-      if (!wrapupSeen) {
-        ctxLib.appendEvent(runDir, 'close-without-wrapup', {});
+      if (!r.wrapupSeen) {
         process.stdout.write(
           `claude-tweaks: closing run ${path.basename(runDir)} with no recorded wrap-up invocation — ` +
           'expected if wrap-up was run manually (typed slash commands leave no ledger event); ' +
           'otherwise consider /claude-tweaks:wrap-up before closing. Event recorded: close-without-wrapup.\n',
         );
       }
-      const result = ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
-      if (!result) {
+      if (!r.writeOk) {
         process.stdout.write(`claude-tweaks: failed to close run ${path.basename(runDir)} — run-state.json could not be written\n`);
       }
     } else {
@@ -284,6 +261,68 @@ async function main(argv) {
       // printed nothing and exited 0, indistinguishable from success.
       process.stdout.write('claude-tweaks: no pipeline run dir found — run not closed\n');
     }
+    return 0;
+  }
+  if (cmd === 'teardown-run') {
+    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const mode = argv.includes('--merged') ? 'merged' : (argv.includes('--abandoned') ? 'abandoned' : null);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not torn down\n`);
+    } else if (runDir) {
+      const result = teardownRun(runDir, { mode, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
+      process.stdout.write(`claude-tweaks: teardown-run ${path.basename(runDir)}\n${result.lines.map((l) => `  ${l}`).join('\n')}\n`);
+    } else {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — run not torn down\n');
+    }
+    return 0;
+  }
+  if (cmd === 'archive-run') {
+    const { archiveRunDir } = require('./lib/reconcile/archive-merged');
+    const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
+    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not archived\n`);
+      return 0;
+    }
+    if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — run not archived\n');
+      return 0;
+    }
+    const state = ctxLib.readRunState(runDir);
+    if (!state) {
+      process.stdout.write(
+        `claude-tweaks: ${path.basename(runDir)} has no readable run-state.json — not archived; ` +
+        'a state-less dir is reconcile\'s archiveOrphanedMint\'s job, not this verb\'s\n',
+      );
+      return 0;
+    }
+    if (NON_TERMINAL.has(state.status)) {
+      process.stdout.write(
+        `claude-tweaks: ${path.basename(runDir)} is ${state.status} — not archived; ` +
+        'run close-run first (or let the owning session finish)\n',
+      );
+      return 0;
+    }
+    const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
+    if (!mainRoot) {
+      process.stdout.write('claude-tweaks: could not resolve the main checkout root — run not archived\n');
+      return 0;
+    }
+    // Output below is informational human text, never parsed by any caller
+    // (skills/flow/multispec-review-console.md's parent-dir archival is a
+    // future caller of this verb, not a consumer of this stdout format).
+    // The "moved:" lines are read from archiveRunDir's own movedEntries
+    // return value — never a hardcoded guess at the run dir's shape, which
+    // is the exact fixed-list drift this whole record eliminates.
+    const result = archiveRunDir(mainRoot, runDir);
+    if (!result.ok) {
+      process.stdout.write(`claude-tweaks: archival refused — ${result.reason}\n`);
+      return 0;
+    }
+    for (const name of result.movedEntries) {
+      process.stdout.write(`moved: ${name}\n`);
+    }
+    process.stdout.write(`claude-tweaks: archived ${path.basename(runDir)}\n`);
     return 0;
   }
   if (cmd === 'check-resume-freshness') {

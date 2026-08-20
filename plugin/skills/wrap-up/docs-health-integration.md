@@ -39,7 +39,7 @@ For each doc in scope:
 Route surviving findings by `classification`:
 
 - **`additive`** → collect as `[doc] {file} — {description}` rows. In every mode they surface in the Review Console's own "Documentation updates" section (`review-console.md`), which owns the one terminal decision — applied at Phase 4's execution step exactly like any other approved doc edit.
-- **`restructural`** → file as a `by:docs-health` GitHub issue via the existing dedup/filing CLI machinery, scoped to exactly this run's touched-doc IDs instead of a `next-target` rotation pick:
+- **`restructural`** → file as a `by:docs-health` GitHub issue via the existing dedup/filing CLI machinery, scoped to exactly this run's touched-doc IDs instead of a `next-target` rotation pick. This index build is issue-backed (`gh issue list`), so on `gh`-absent it routes through `_shared/github-write-transport.md`'s `list_issues` mapping instead of running the command below — never invoke `validate-findings --issues` against a file this branch didn't write:
 
   ```bash
   gh issue list --label by:docs-health --state all --json number,state,labels,body --limit 500 > /tmp/wrapup-docs-health-issues-raw.json

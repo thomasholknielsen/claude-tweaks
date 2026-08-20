@@ -31,7 +31,7 @@ const POLICY_KEYS = [
   // integration branch requires. Like integration-model, deliberately no
   // static `default` — an absent value is derived by
   // bin/lib/merge-verification.js's four-branch ladder (stated once in
-  // skills/_shared/policy-schema.md's coverage block), wired through
+  // skills/_shared/policy-schema-coverage.md's coverage block), wired through
   // bin/resolve-policy.js. `wait` is explicit-config-only: the ladder never
   // derives it. Tier is `advanced` only because the core tier sits at its
   // enforced cap of 12 (tests/policy-schema-metadata.test.js); by the decision
@@ -497,7 +497,7 @@ function extractMapEntry(raw, topKey) {
 // remote at all (checked first, so a local-files project with no remote never
 // shells out to gh). Each check runs under a 5s timeout.
 function detectIntegrationModel(repoRoot) {
-  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8' };
+  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8', windowsHide: true };
   try {
     execFileSync('git', ['remote', 'get-url', 'origin'], opts);
   } catch {
@@ -526,6 +526,33 @@ function resolveIntegrationModel(repoRoot) {
   const entry = resolved['integration-model'];
   if (entry && entry.source !== 'default') return entry.value;
   return detectIntegrationModel(repoRoot);
+}
+
+// Shared root-resolution + policy.yml/config.yml read + resolvePolicyKeys
+// orchestration for bin/resolve-policy.js's CLI and
+// bin/lib/blast-radius-cli.js's resolveConfig — both independently
+// reimplemented this exact pathway before #916 (each resolving repo root via
+// `git rev-parse --show-toplevel`, falling back to `process.cwd()` on
+// failure, then reading `.claude-tweaks/policy.yml` and an optional
+// `{runDir}/config.yml` overlay). `git`/`readFile` stay caller-injected (the
+// fake-runner test seam blast-radius-cli.js already uses) rather than owned
+// here, since the two callers deliberately differ in read-fail-safe-vs-fail-
+// loud judgment (resolve-policy.js's `readFileSafe` swallows every read
+// error; blast-radius-cli.js's `defaultReadFile` swallows only ENOENT and
+// rethrows the rest) — only the orchestration around them is shared. `root`
+// is returned too since a caller such as resolve-policy.js's
+// integration-model default needs it independent of any resolved key.
+function resolvePolicyConfig({ git, readFile, runDir = null, keys }) {
+  let root;
+  try {
+    root = git(['rev-parse', '--show-toplevel']).trim();
+  } catch {
+    root = process.cwd();
+  }
+  const policyRaw = readFile(path.join(root, '.claude-tweaks', 'policy.yml'));
+  const runConfigRaw = runDir ? readFile(path.join(runDir, 'config.yml')) : null;
+  const result = resolvePolicyKeys(keys, { policyRaw, runConfigRaw });
+  return { root, policyRaw, runConfigRaw, result };
 }
 
 function auditPolicy(repoRoot) {
@@ -593,5 +620,5 @@ function auditPolicy(repoRoot) {
 
 module.exports = {
   POLICY_KEYS, POLICY_CATEGORIES, RENAMED_KEYS, auditPolicy, resolveValue, parseFlatLines, resolvePolicyKeys,
-  detectIntegrationModel, resolveIntegrationModel,
+  detectIntegrationModel, resolveIntegrationModel, resolvePolicyConfig,
 };

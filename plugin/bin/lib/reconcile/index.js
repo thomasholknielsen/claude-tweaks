@@ -66,7 +66,7 @@ async function reconcile(opts = {}) {
     }
   }
 
-  const integration = resolveIntegrationBranch(root);
+  const integration = resolveIntegrationBranch(root, opts.cache);
   if (!integration) {
     result.skipped.push({ check: 'all', reason: 'no-remote' });
     return result;

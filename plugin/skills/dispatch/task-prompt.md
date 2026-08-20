@@ -35,6 +35,10 @@ inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
 /superpowers:using-git-worktrees. Echo `pwd` and `git rev-parse --show-toplevel` before any
 commit and verify both resolve to that inherited worktree; if they resolve to the main
 checkout instead, STOP and report BLOCKED rather than committing.
+If your first commit is denied by the working-directory hook even though `pwd` and
+`git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
+assignment once with `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
+and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
@@ -51,7 +55,7 @@ One line per issue in this group that hit a HARD-GATE (omit if none):
 ISSUE #{n}: failed:{gate}
 
 [Use: Standard] -- this dispatch wraps build+test execution, not analysis; the pipeline's own
-steps select their own models as usual. Resolve via `node plugin/bin/resolve-profile.js standard`
+steps select their own models as usual. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`
 (contract § Model Selection).
 ```
 
@@ -94,6 +98,10 @@ the first call) -- you inherit it. Do NOT create, enter, or switch worktrees, an
 /superpowers:using-git-worktrees. Echo `pwd` and `git rev-parse --show-toplevel` before any
 commit and verify both resolve to that inherited worktree; if they resolve to the main
 checkout instead, STOP and report BLOCKED.
+If your first commit is denied by the working-directory hook even though `pwd` and
+`git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
+assignment once with `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
+and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
@@ -134,7 +142,7 @@ how long the PR has already existed.
 
 [Use: Standard] -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
 pipeline's own steps select their own models as usual. Resolve via
-`node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection).
 ```
 
 None of Templates A/B/C in `_shared/subagent-output-contract.md` fit an agent that executes pipeline stages rather than returning findings/locations/a yes-no, so these are their own minimal templates, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.

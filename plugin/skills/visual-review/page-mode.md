@@ -11,8 +11,9 @@ Open the session, navigate to the URL, take a snapshot and an annotated screensh
 
 ```
 agent-browser --session <session> open <url>
+agent-browser --session <session> trace start
 agent-browser --session <session> snapshot -i -c
-agent-browser --session <session> screenshot --annotate --filename screenshots/browse/<session>/01_landing.png
+agent-browser --session <session> screenshot --annotate screenshots/browse/<session>/01_landing.png
 agent-browser --session <session> vitals
 ```
 
@@ -21,10 +22,13 @@ Or as a single batch:
 ```
 agent-browser batch --session <session> \
   "open <url>" \
+  "trace start" \
   "snapshot -i -c" \
-  "screenshot --annotate --filename screenshots/browse/<session>/01_landing.png" \
+  "screenshot --annotate screenshots/browse/<session>/01_landing.png" \
   "vitals"
 ```
+
+(`trace start` begins Chrome DevTools trace recording — tracing is record-then-stop, so a later failure can only be saved if recording started here.)
 
 **Dispatcher column mapping (page-review use):** When assembling agent output into the Step 6 Report & Route table, map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = severity/impact (`critical` for broken page or failed health check, `high`/`medium` for major UX or perf issues, `low` for cosmetic, `info` for ideas), Path:Line = the page URL + overlay ref (`/pricing#[3]`, `/checkout#[7]`), Finding = the issue or idea (`Primary CTA at [3] competes visually with [5]` / `LCP 3.1s exceeds 2.5s threshold`), Evidence = the screenshot path + raw measurement (`screenshots/browse/pricing-review/02_above-fold.png; LCP 3.1s; persona: distracted mobile`). The dispatcher merges all agents' tables into the Step 6 Report & Route table, filling Source from the lens that produced each finding (Health / Performance / First Impression / Persona / Analyze / Reimagine).
 
@@ -32,7 +36,7 @@ agent-browser batch --session <session> \
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim below.
 >
-> **Model profile:** [Use: Standard] — per-page review agents run Steps 1-5 (health, first impressions, persona walk, structured analysis, reimagine) which require integration across snapshot, screenshot, vitals, and source context. Upgrade to Capable only when the page's "reimagine" pass is the primary deliverable and creative synthesis dominates the work. Resolve via `node plugin/bin/resolve-profile.js standard` (contract § Model Selection).
+> **Model profile:** [Use: Standard] — per-page review agents run Steps 1-5 (health, first impressions, persona walk, structured analysis, reimagine) which require integration across snapshot, screenshot, vitals, and source context. Upgrade to Capable only when the page's "reimagine" pass is the primary deliverable and creative synthesis dominates the work. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection).
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -81,7 +85,7 @@ Verify the page is functional before investing in a deeper review.
 - Blank or broken page rendering (visible in screenshot)
 - Missing assets (images, fonts, styles)
 
-If the page is broken or blank, run `trace save`, then `close`, then report immediately — no point continuing a visual review on a non-functional page.
+If the page is broken or blank, save the trace via `trace stop traces/<session>/<timestamp>.zip`, then `close`, then report immediately — no point continuing a visual review on a non-functional page.
 
 
 For vitals thresholds and how to report them, apply **Vitals interpretation (Step 1)** in
@@ -178,11 +182,11 @@ Set viewport to common breakpoints and re-capture an annotated screenshot at eac
 
 ```
 agent-browser --session <session> set viewport 375 667    # Mobile
-agent-browser --session <session> screenshot --annotate --filename screenshots/browse/<session>/<NN>_mobile.png
+agent-browser --session <session> screenshot --annotate screenshots/browse/<session>/<NN>_mobile.png
 agent-browser --session <session> set viewport 768 1024   # Tablet
-agent-browser --session <session> screenshot --annotate --filename screenshots/browse/<session>/<NN>_tablet.png
+agent-browser --session <session> screenshot --annotate screenshots/browse/<session>/<NN>_tablet.png
 agent-browser --session <session> set viewport 1280 800   # Desktop
-agent-browser --session <session> screenshot --annotate --filename screenshots/browse/<session>/<NN>_desktop.png
+agent-browser --session <session> screenshot --annotate screenshots/browse/<session>/<NN>_desktop.png
 ```
 
 Check for overflow, cramped layouts, or hidden content at each size. Only test responsive if the project is expected to support it — ask if unsure.

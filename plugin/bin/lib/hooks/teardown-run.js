@@ -1,0 +1,162 @@
+// bin/lib/hooks/teardown-run.js — `bin/hooks.js teardown-run --run <dir> [--merged|--abandoned]`
+// (#594). Composes five existing, separately-tested mechanics behind one subcommand instead of
+// the 4-5 hand-assembled commands a finished /flow run needed before this: (1) close-run's
+// terminal-state flip (close-run-state.js), (2) archive-merged.js's git-mv-and-commit archival,
+// (3) worktree-reap.js's lock/eligibility predicate for worktree removal, (4) a local branch
+// delete, (5) the remote ref delete `pr-first-merge-post-merge.md` Step 5 already specifies.
+//
+// Cardinal invariant (bin/hooks.js's own header comment): this is dispatched the same way
+// close-run is, so it never sets a non-zero exit and never throws past its own boundary — every
+// step is try/skip/report. A locked worktree, `--abandoned`, or a branch-name-matches-integration
+// guard all SKIP their step and report why; none of them abort the remaining steps, since a
+// locked worktree doesn't block branch/ref cleanup that doesn't depend on it.
+'use strict';
+const path = require('path');
+const { closeRunState } = require('./close-run-state');
+const { archiveRunDir } = require('../reconcile/archive-merged');
+const { runGit } = require('./git-exec');
+const { parseWorktreeList, isWorktreeLocked, resolveIntegrationBranch } = require('./worktree-reap');
+
+const GH_TIMEOUT_MS = 15000;
+
+// Injectable seam (gh-api-module-pattern): real `gh` shelled out to by default; a fixture test
+// passes a fake here instead of touching the network. Mirrors reconcile/release-merged.js's own
+// ghApi() shape (encoding, stdio, timeout) rather than inventing a second one.
+function defaultGhApiDelete(args) {
+  const cp = require('child_process');
+  try {
+    cp.execFileSync('gh', ['api', '--method', 'DELETE', ...args], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS,
+    });
+    return { ok: true };
+  } catch (e) {
+    const stderr = String((e && e.stderr) || (e && e.message) || '');
+    // Tolerate "reference does not exist" (already deleted — GitHub's own
+    // branch-protection auto-delete, or a re-run of this step) as success,
+    // per pr-first-merge-post-merge.md Step 5.
+    if (/reference does not exist/i.test(stderr)) return { ok: true, alreadyGone: true };
+    return { ok: false, error: stderr || 'gh api delete failed' };
+  }
+}
+
+function repoSlugOf(root) {
+  const remote = runGit(['remote', 'get-url', 'origin'], root);
+  if (remote.failure || !remote.stdout) return null;
+  const m = /[:/]([^/]+\/[^/]+?)(\.git)?$/.exec(remote.stdout);
+  return m ? m[1] : null;
+}
+
+// Branch registered for `worktreePath` in `git worktree list --porcelain`, or null when the
+// worktree isn't registered at all. Deliberately independent from run-integrity.js's own
+// deriveBranch — that one derives branch to build shipped-unclosed EVIDENCE and stays scoped to
+// that read-only advisory; this one is a plain lookup for a step about to actually mutate state.
+function branchOfWorktree(root, worktreePath) {
+  if (!worktreePath) return null;
+  const list = runGit(['worktree', 'list', '--porcelain'], root);
+  if (list.failure || list.stdout === null) return null;
+  for (const entry of parseWorktreeList(list.stdout)) {
+    if (entry.path === worktreePath) return entry.branch || null;
+  }
+  return null;
+}
+
+// `runDir` — the run directory (already resolved/anchored by the caller, same contract as
+// close-run). `opts.mode` — 'merged' | 'abandoned' | null (neither flag given — treated the same
+// as 'abandoned' for steps 4-5: skip branch/ref deletion rather than guess intent). `opts.deps`
+// — test seam for the gh call only; every git call goes through the real runGit (fixture repos
+// are real git repos, matching this codebase's existing convention for reconcile/archive tests).
+function teardownRun(runDir, opts = {}) {
+  const mode = opts.mode || null;
+  const sessionId = opts.sessionId || null;
+  const ghApiDelete = (opts.deps && opts.deps.ghApiDelete) || defaultGhApiDelete;
+  const root = path.resolve(runDir, '..', '..', '..'); // {root}/.claude-tweaks/pipelines/{run-id}
+  const lines = [];
+
+  // Read the worktree/branch this run recorded BEFORE Step 1 flips run-state.json to
+  // `{status:'clean', worktree:null}` and BEFORE Step 2 archives it out from under `runDir`
+  // entirely (archiveRunDir moves it to archive/{run-id}/run-state.json) — both destroy the very
+  // fields this needs, so this must run first regardless of read-order convenience.
+  const ctxLib = require('./context');
+  const prevState = ctxLib.readRunState(runDir) || {};
+  const worktreePath = typeof prevState.worktree === 'string' && prevState.worktree ? prevState.worktree : null;
+  const branch = branchOfWorktree(root, worktreePath) || (prevState && prevState.branch) || null;
+  const integration = resolveIntegrationBranch(root);
+  const isIntegrationBranch = !!(branch && integration && branch === integration);
+
+  // `explicit: false` here is deliberate, not a copy-paste of close-run's default: teardown-run
+  // has no "override the refusal" input of its own the way close-run's --run does (--run here
+  // just names which run to act on) — extending close-run's foreignOwner refusal means it applies
+  // unconditionally, the same shape as close-run's own implicit path. A foreign-owned run refuses
+  // the WHOLE teardown (no archive, no worktree removal, no branch/ref delete) rather than
+  // partially acting — tearing down another session's live run out from under it is the hazard.
+  const state = closeRunState(runDir, { explicit: false, sessionId });
+
+  if (state.status === 'refused-foreign') {
+    return { lines: ['state: refused — run recorded by another session; teardown-run does not override this'] };
+  }
+
+  // Step 1 (state).
+  if (!state.writeOk) {
+    lines.push('state: failed — run-state.json could not be written');
+  } else {
+    lines.push('state: closed' + (state.wrapupSeen ? '' : ' (no wrap-up event recorded)'));
+  }
+
+  // Step 2 (archive) — reuse archive-merged.js's git-mv-and-commit sequence verbatim rather than
+  // a second, divergent archival path.
+  const archived = archiveRunDir(root, runDir);
+  if (archived.ok) {
+    lines.push(`archive: moved to archive/${path.basename(runDir)}/`);
+  } else {
+    lines.push(`archive: skipped — ${archived.reason}`);
+  }
+
+  // Step 3 (worktree removal) — never forced; a locked worktree means either a live session
+  // (including this session's own ground, per [IL-58] — that removal path is ExitWorktree only)
+  // or an unresolvable state, and worktree-reap.js's predicates fail CLOSED either way.
+  if (!worktreePath) {
+    lines.push('worktree: skipped — no worktree recorded');
+  } else if (isWorktreeLocked(worktreePath, { cwd: root })) {
+    lines.push('worktree: skipped — worktree locked');
+  } else {
+    const rm = runGit(['worktree', 'remove', worktreePath], root);
+    if (rm.failure) lines.push('worktree: skipped — removal failed');
+    else lines.push(`worktree: removed ${worktreePath}`);
+  }
+
+  // Step 4 (local branch delete) — only under --merged.
+  if (mode !== 'merged') {
+    lines.push(`branch: skipped — ${mode === 'abandoned' ? 'abandoned' : 'no --merged/--abandoned given'}`);
+  } else if (!branch) {
+    lines.push('branch: skipped — no branch recorded');
+  } else if (isIntegrationBranch) {
+    lines.push(`branch: skipped — refusing to delete the integration branch (${branch})`);
+  } else {
+    const del = runGit(['branch', '-D', branch], root);
+    if (del.failure) lines.push(`branch: skipped — delete failed for ${branch}`);
+    else lines.push(`branch: deleted ${branch}`);
+  }
+
+  // Step 5 (remote ref delete) — same --merged-only gating as Step 4; never `git push --delete`
+  // (denied by worktree.always from the main checkout) — the contents/refs API only.
+  if (mode !== 'merged') {
+    lines.push(`remote ref: skipped — ${mode === 'abandoned' ? 'abandoned' : 'no --merged/--abandoned given'}`);
+  } else if (!branch) {
+    lines.push('remote ref: skipped — no branch recorded');
+  } else if (isIntegrationBranch) {
+    lines.push(`remote ref: skipped — refusing to delete the integration branch (${branch})`);
+  } else {
+    const slug = repoSlugOf(root);
+    if (!slug) {
+      lines.push('remote ref: skipped — could not resolve owner/repo');
+    } else {
+      const result = ghApiDelete([`repos/${slug}/git/refs/heads/${branch}`]);
+      if (result.ok) lines.push(`remote ref: deleted${result.alreadyGone ? ' (already gone)' : ''} refs/heads/${branch}`);
+      else lines.push(`remote ref: skipped — ${result.error}`);
+    }
+  }
+
+  return { lines };
+}
+
+module.exports = { teardownRun, branchOfWorktree, repoSlugOf, defaultGhApiDelete };

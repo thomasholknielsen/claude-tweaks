@@ -25,7 +25,11 @@ const MISLEADS_LABELS = {
   both: 'human engineer + coding agent',
 };
 
-function toIssuePayload(finding) {
+// verifiedAsOf (#117): the sha the sweep read this repo at, resolved ONCE per
+// run by the caller (bin/docs-health.js, via health-core/read-commit.js) and
+// threaded through here — never resolved inside this function. See
+// specShapedBody's own verifiedAsOf doc in record.js for why.
+function toIssuePayload(finding, verifiedAsOf) {
   const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;
   const misleadsLabel = MISLEADS_LABELS[finding.misleads] || finding.misleads;
 
@@ -43,6 +47,7 @@ function toIssuePayload(finding) {
     deliverables,
     acceptanceCriteria: finding.description,
     filedBy: '/claude-tweaks:docs-health',
+    verifiedAsOf,
   });
 
   const title = `Doc ${categoryLabel}: ${finding.target} — ${finding.section}`;

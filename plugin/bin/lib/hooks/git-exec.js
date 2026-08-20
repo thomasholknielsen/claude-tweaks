@@ -4,7 +4,13 @@
 // hand-copied verbatim in each of those files; a fix to the shared contract
 // now only needs to land once instead of being hunted down in every copy.
 'use strict';
-const { execFileSync } = require('child_process');
+// Property access at call time (`cp.execFileSync(...)`), not a destructured
+// const — a destructured binding snapshots child_process's execFileSync at
+// require time and is invisible to a test's `t.mock.method(cp, 'execFileSync', ...)`,
+// which mutates the property later. This module has no injectable-runner seam
+// (unlike the `gh api` modules under `bin/lib/`, per `gh-api-module-pattern`);
+// this is the minimum needed for a spawn-count test to observe these calls at all (#381).
+const cp = require('child_process');
 
 // Budget for one git query, sized from measurement rather than intuition (#134).
 //
@@ -88,8 +94,17 @@ function classify(err) {
 function runGit(args, cwd, opts = {}) {
   const timeout = resolveTimeout(opts);
   try {
-    const stdout = execFileSync('git', ['-C', cwd, ...args], {
+    const stdout = cp.execFileSync('git', ['-C', cwd, ...args], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout,
+      // Node defaults windowsHide to FALSE, which hands a child console
+      // process a console of its OWN whenever the parent has none to
+      // inherit. session-start.js's `reconcile-background` child is exactly
+      // that case (`detached: true`), so without this flag every git query
+      // the background pass makes flashes its own black console window on
+      // Windows — one per invocation, for the whole pass, which reads to the
+      // user as a runaway loop rather than routine janitorial work. Inert on
+      // POSIX, where the option is ignored.
+      windowsHide: true,
     });
     return { stdout: stdout.trim(), failure: null };
   } catch (err) {

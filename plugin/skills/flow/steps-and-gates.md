@@ -99,6 +99,8 @@ Run directory: {PIPELINE_RUN_DIR}
 
 Carrying `PIPELINE_RUN_DIR` in that note is load-bearing for any caller resuming this run: the resuming invocation must be handed this same directory (`_shared/pipeline-run-dir.md`'s resolution-order step 1), because a bare `/flow` invocation always creates a new one rather than finding this one.
 
+**`cleanup-only` produces this same branch even when `wrap-up` IS in the step list (#298).** The condition above is "`wrap-up` absent OR `cleanup-only` set" — not "`wrap-up` absent," full stop. A dispatch teardown-only call (`skills/dispatch/two-call-gate.md` §5) runs `wrap-up` in `cleanup-only` mode specifically to reach `cleanup-procedures.md`'s worktree/branch/claim teardown (`[IL-116]` forbids any other route) without dragging in Phase 1-4's reflection/routing/settle content or Step 5's un-answerable nothing-left-behind ledger gate. Do not conclude the ledger gate fires just because `wrap-up` ran this time — under `cleanup-only` it does not: render the identical `## Flow: Steps Complete` note above (ledger items stay `open`, Creative/Depth surveys skipped, no Pipeline Summary) even though `wrap-up` is present. A normal `/flow {target} wrap-up` call (no `cleanup-only`) is unaffected — this branch is additive to the existing `wrap-up`-absent condition, not a rewrite of it.
+
 **Auto-insert `test`:** If `review` is in the step list but `test` is not, auto-insert `test` before `review` and note: "Auto-inserted `test` before `review` — review gates on test passing." This ensures backward compatibility.
 
 **Polish bundled with re-verify:** If `polish` is in the step list, the re-verify gate runs automatically when polish modifies code. Users do not need to add a separate `re-verify` step. If a user includes the literal `re-verify` in the step list, treat it as a no-op (already bundled with polish) and note: "`re-verify` is bundled with `polish` — no separate step needed."
@@ -119,9 +121,12 @@ single record then runs the normal step pipeline
 (`build,test,review,polish,wrap-up`) against that file — the step pipeline
 and gates below are unchanged. Multiple
 records (`#A,#B`) run Multi-spec mode instead (see `multi-spec.md`), each
-materializing to its own file. `/flow` performs no selection, filtering, or
-claiming of its own; see `/claude-tweaks:dispatch` (selection + claiming) and
-`/claude-tweaks:backlog refine` (authorization) for that logic.
+materializing to its own file. `/flow` performs no selection or filtering of
+its own; see `/claude-tweaks:dispatch` (selection) and `/claude-tweaks:backlog
+refine` (authorization) for that logic. `/flow` does claim its own named
+targets at Step 2.8 (`claim-targets.md`), whether the invocation came from
+dispatch's hand-off or a human running `/flow #{n}` directly against any
+record carrying no live claim.
 
 ## Gate Behavior
 

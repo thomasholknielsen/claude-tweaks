@@ -1046,3 +1046,54 @@ convention plus an explicit inheritance-hazard warning at both real gate sites
 `_shared/subagent-output-contract.md` generally, backed by a `node --test` conformance
 check (`tests/hard-gate-marker-conformance.test.js`) that greps every `skills/**/*.md`
 heading for the literal phrase "HARD GATE" and fails when no marker follows.
+
+## IL-140 — Two individually-small specs in one multi-spec batch jointly breached a shared file's 40 KB ceiling
+
+A four-spec `/flow` batch (#906, #901, #902, #905) built on one shared worktree branch. Two
+of the specs — #901 (calibration read-out) and #905 (tidy backstop scan) — each added a
+small, self-contained subsection to the same file, `plugin/skills/tidy/scan-procedures.md`:
+#901 added 9 lines, #905 added 37. Neither spec's own plan, build, or per-spec review ever
+checked the file's post-change byte count against `CEILING_BYTES` (40 KB,
+`tests/bin-lib/skill-audit/context-cost.test.js`) — each spec's own diff was small enough
+that it never occurred to check, and #901's review completed and landed before #905 ever
+touched the file, so no single review pass ever saw both insertions together. The breach
+(41,956 bytes, 996 over) surfaced only when #905's own full-suite test gate ran after both
+insertions had landed — the safety net worked exactly as designed, but the two specs'
+combination was invisible to every check that ran *during* either spec's own build or review,
+because both are scoped to that spec's own diff.
+
+Fixed by extracting the file's Step 4.7 backstop subsections into a new
+`plugin/skills/tidy/issue-claims-backstops.md`, mirroring the file's own pre-existing
+`step-1-records.md` extraction precedent (commit `53a4d036`). No process or tooling change
+shipped alongside the fix: the SDD pre-flight conflict scan this session already runs for
+multi-task specs checks *file-overlap between tasks*, not cumulative *byte growth against a
+hard ceiling* — a different question the scan was never designed to answer, and no
+multi-spec-batch equivalent exists that would check it across specs sharing a file. The next
+multi-spec batch where two specs touch the same near-ceiling file has no earlier checkpoint
+than the same after-the-fact full-suite catch this one got.
+
+## IL-141 — A spec materialization denied by the pipeline-shadow guard was landed with git plumbing, which no hook gate can see
+
+`/flow`'s materialize step for #315 tried to create
+`.claude-tweaks/pipelines/{run}/work/315-spec.md` inside an externally-provisioned worktree.
+`checkPipelineShadowGuard` denied it: `shadowPipelineRunDir` refuses any new path under a
+linked worktree's `.claude-tweaks/pipelines/` whose run-dir-level segment does not already
+exist there, and it carries no carve-out for the `work/` subtree. The denial was correct by
+the guard's own predicate but contradicts `_shared/pipeline-run-dir.md`'s Anchoring section,
+which documents `work/{n}-spec.md` as the one exception that stays inside the worktree,
+git-tracked and committed onto the feature branch — the path `.gitignore` lines 11-12
+explicitly re-include and that dozens of prior runs already carry.
+
+Rather than surface the contradiction, the session landed the file with
+`hash-object`/`update-index`/`commit-tree`/`checkout`. That worked, and it worked for a
+reason worth recording: `gitTargets()` matches only `sub === 'commit' || sub === 'push'`, so
+every plumbing verb is invisible to it, and `WRITE_SHAPES`
+(`cp`/`mv`/`tee`/`sed`/`perl`/`install`/`ln`/`truncate`/`dd`) contains no `git` entry, so
+`fileWriteTargets`/`mkdirTargets` never see the object-store write either. The bypass is
+therefore total, not partial: E1 working-directory discipline, the `worktree-always` gate and
+the pipeline-shadow guard are all blind to a commit constructed this way, and the file was
+committed with no event, no warning and no audit trail.
+
+Cost on the #315 run: moderate (~10 min) — but the real cost is that a shipped contract
+contradiction reached `main` recorded only as a ledger "surprise", because the workaround
+removed the pressure that would have filed it.

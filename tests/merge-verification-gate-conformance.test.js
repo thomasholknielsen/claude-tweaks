@@ -48,7 +48,7 @@ test('checks-pending-timeout is defined only in the gate; other files at most ci
 test('merge-when-green appears outside the gate only as a lever value (#559 files) or a citation', () => {
   // The #559 lever files name the value as a lever, never the procedure; anything else naming
   // the value must cite the gate's file.
-  const LEVER_FILES = new Set(['_shared/policy-schema.md', 'flow/manifesto.md']);
+  const LEVER_FILES = new Set(['_shared/policy-schema.md', '_shared/policy-schema-coverage.md', 'flow/manifesto.md']);
   const offenders = [];
   for (const file of otherSkillFiles()) {
     const rel = path.relative(SKILLS, file);

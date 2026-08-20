@@ -14,6 +14,14 @@ node -e "
 "
 ```
 
+Follows `_gather-resilience.md`'s three-part shape: the MCP path uses `issue_read`'s
+**get_comments mode** (the same mapping `dispatch/settle-and-merge.md` step 4 already cites for
+its own comment fetch) in place of the `gh api` call above — the rest of this step consumes the
+same comment-body-string shape regardless of transport. The could-not-gather short-circuits
+(neither transport available, or the fetch itself fails) render Step 3 directly with
+`CLASSIFICATION: correctness` / `NOTIFY_NOW: false` and the specific gather/fetch failure named
+verbatim in `RATIONALE`.
+
 Read the actual failure output from the gate that failed (test output, review findings, error
 logs) — already in the calling agent's context from the run that just failed.
 
