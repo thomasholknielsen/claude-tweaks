@@ -26,6 +26,11 @@ const path = require('node:path');
 
 const REPO_ROOT = path.join(__dirname, '..');
 const MANIFESTO_PATH = path.join(REPO_ROOT, 'plugin', 'skills', 'flow', 'manifesto.md');
+// Absolute (REPO_ROOT-anchored) — reading must not depend on the process's
+// cwd (`node --test tests/manifesto-lever-conformance.test.js` from the repo
+// root vs. from inside tests/ must behave identically). `path.relative`
+// derives the repo-relative form used for SKIP_KEYS_BY_FILE keys and failure
+// messages from these at use time instead.
 const TARGET_FILES = [
   path.join(REPO_ROOT, 'plugin', 'skills', '_shared', 'auto-mode-contract.md'),
   path.join(REPO_ROOT, 'plugin', 'skills', 'flow', 'SKILL.md'),
@@ -52,6 +57,8 @@ function parseLeverNames(manifestoText) {
   });
 }
 
+const YAML_FENCE = '```yaml';
+
 // Locates the config.yml example block inside the "On approval (option 1)"
 // section and returns its ordered list of lever config keys, stopping
 // before the trailing per-run bookkeeping keys `spec:`/`created:` (which are
@@ -59,11 +66,12 @@ function parseLeverNames(manifestoText) {
 function parseConfigKeys(manifestoText) {
   const approvalIdx = manifestoText.indexOf('On approval (option 1)');
   assert.ok(approvalIdx !== -1, 'manifesto.md: "On approval (option 1)" section not found');
-  const fenceStart = manifestoText.indexOf('```yaml', approvalIdx);
+  const fenceStart = manifestoText.indexOf(YAML_FENCE, approvalIdx);
   assert.ok(fenceStart !== -1, 'manifesto.md: no ```yaml fence found after "On approval (option 1)"');
-  const fenceEnd = manifestoText.indexOf('```', fenceStart + 7);
+  const blockStart = fenceStart + YAML_FENCE.length;
+  const fenceEnd = manifestoText.indexOf('```', blockStart);
   assert.ok(fenceEnd !== -1, 'manifesto.md: unterminated ```yaml fence after "On approval (option 1)"');
-  const block = manifestoText.slice(fenceStart + 7, fenceEnd);
+  const block = manifestoText.slice(blockStart, fenceEnd);
   const keys = [];
   for (const rawLine of block.split('\n')) {
     const line = rawLine.trim();
@@ -76,10 +84,8 @@ function parseConfigKeys(manifestoText) {
   return keys;
 }
 
-// Escapes regex metacharacters defensively. Every lever config key is
-// kebab-case (`[a-z0-9-]+`) — none of these characters are regex
-// metacharacters outside a character class — so this is currently a no-op
-// on every real key, kept only as a guard against a future key shape.
+// A no-op on every key parseConfigKeys can return (it only yields
+// kebab-case, `[a-z0-9-]+`), kept as a guard against a future key shape.
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -116,7 +122,6 @@ test('manifesto-lever-conformance', async (t) => {
   const manifestoText = fs.readFileSync(MANIFESTO_PATH, 'utf8');
   const leverNames = parseLeverNames(manifestoText);
   const configKeys = parseConfigKeys(manifestoText);
-  const lengthsAgree = leverNames.length === configKeys.length;
 
   await t.test('numbering line and config.yml example agree on lever count', () => {
     // Self-check that both anchors are still being read correctly: the two
@@ -141,9 +146,9 @@ test('manifesto-lever-conformance', async (t) => {
   // confusing "missing key \"undefined\"" message on top of the real
   // failure already reported above. Skip them instead — the length
   // mismatch itself is the actionable failure.
-  if (!lengthsAgree) {
-    await t.test('per-file lever checks skipped — fix the lever count mismatch above first', (t) => {
-      t.skip('leverNames/configKeys length mismatch — see the length-agreement subtest above');
+  if (leverNames.length !== configKeys.length) {
+    await t.test('per-file lever checks skipped — fix the lever count mismatch above first', (skipped) => {
+      skipped.skip('leverNames/configKeys length mismatch — see the length-agreement subtest above');
     });
     return;
   }
@@ -151,8 +156,9 @@ test('manifesto-lever-conformance', async (t) => {
   // Positional zip — NOT a mechanical kebab-case transform of the lever
   // name. Lever 5's name is "Leftover routing" but its config key is
   // `leftover-default`, not `leftover-routing`; a naive transform would
-  // silently check for the wrong string.
-  const leverToKey = Object.fromEntries(leverNames.map((name, i) => [name, configKeys[i]]));
+  // silently check for the wrong string. Kept as pairs rather than an
+  // object so two levers sharing a name can't collapse into one check.
+  const leverPairs = leverNames.map((name, i) => [name, configKeys[i]]);
 
   for (const targetFile of TARGET_FILES) {
     const relPath = path.relative(REPO_ROOT, targetFile);
@@ -171,7 +177,7 @@ test('manifesto-lever-conformance', async (t) => {
       const anchorLine = anchorLines[0].replace(/\s+/g, ' ');
       const skipKeys = SKIP_KEYS_BY_FILE.get(relPath) ?? new Set();
 
-      for (const [name, key] of Object.entries(leverToKey)) {
+      for (const [name, key] of leverPairs) {
         if (skipKeys.has(key)) continue;
         // Word-boundary match, not `String.includes` — a bare substring
         // test is non-discriminating (e.g. `'model-stance'.includes('mode')`
