@@ -24,19 +24,19 @@ test('names the exact exempt glob set', () => {
 
 test('states the bump is one tier above the resolved ceiling, capped at medium', () => {
   assert.ok(/one severity tier above/.test(md), 'must state the bump direction (one tier above)');
-  assert.ok(/capped/.test(md), 'must state the bump is capped');
-  assert.ok(md.includes('never reaches `high`') || md.includes('never reach `high`') || md.includes("never reaches \`high\`"),
+  assert.ok(md.includes('`none`→`low`, `low`→`medium`, `medium`→`medium`'), 'must state the literal bump ladder');
+  assert.ok(md.includes('never reaches `high`') || md.includes('never reach `high`'),
     'must state the bump never reaches high/critical');
 });
 
 test('a fix spanning an exempt and a non-exempt path gets no bump', () => {
-  assert.ok(/not eligible for the bump|no bump|not.*eligible/i.test(md), 'must state a mixed-path fix does not receive the bump');
+  assert.ok(md.includes('is not eligible for the bump'), 'must state a mixed-path fix does not receive the bump');
 });
 
-test('resolves off restores plain-ceiling behavior with no bump', () => {
-  assert.ok(md.includes('resolves `off`'), 'must explicitly state the off case');
+test('resolves false restores plain-ceiling behavior with no bump', () => {
+  assert.ok(md.includes('resolves `false`'), 'must explicitly state the false case');
   assert.ok(/plain,? unbumped `review-auto-apply-ceiling`|routes on the plain ceiling/.test(md),
-    'must state that off routes on the plain, unbumped ceiling');
+    'must state that false routes on the plain, unbumped ceiling');
 });
 
 test('the bumped AUTO log entry names the bump, distinguishing it from a plain ceiling-driven entry', () => {
