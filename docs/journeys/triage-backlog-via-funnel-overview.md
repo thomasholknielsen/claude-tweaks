@@ -3,6 +3,8 @@ files:
   - plugin/bin/lib/issues/backlog.js
   - plugin/bin/lib/issues/record.js
   - plugin/bin/lib/issues/facet-shape.js
+  - plugin/bin/fetch-sub-issues.js
+  - plugin/skills/_shared/trust-table.md
   - plugin/skills/backlog/overview-mode.md
   - plugin/skills/backlog/SKILL.md
 ---
@@ -25,8 +27,8 @@ files:
 ### 2. Read the annotation lines — trust, parked/not-planned, and parents
 - **Action:** Look immediately beneath the header. At most three lines can appear: a trust consequence line (only when some class verdict is `mixed`, e.g. `trust: clean, except human:human|low (mixed) → merges below stay PR-gated`), `parked N · not-planned M → /claude-tweaks:tidy owns these` (only when non-zero), and `parents N → close-out via /claude-tweaks:wrap-up's verification brief or /claude-tweaks:demo, not /claude-tweaks:specify` (only when non-zero).
 - **Should feel:** Silent when clean — no `trust: clean` line, nothing about parked or parents when there are none.
-- **Should understand:** The full trust table moved behind `/claude-tweaks:backlog overview trust` (uncapped, unchanged contract); `insufficient-evidence` cells render nothing in bare mode. `not-planned` counts open records carrying the `wontfix` label (`facets.notPlanned`). `parents` counts decomposition-parent records, which are never `ready` and are not agent-sized work — their close-out is the parent-gate path, never `/claude-tweaks:specify`.
-- **Red flags:** More than three annotation lines; a rendered trust table in bare mode; a consequence line for an `insufficient-evidence` cell.
+- **Should understand:** The full trust table moved behind `/claude-tweaks:backlog overview trust` (uncapped, unchanged contract); `insufficient-evidence` cells render nothing in bare mode. `not-planned` counts open records carrying the `wontfix` label (`facets.notPlanned`). `parents` counts decomposition-parent records, which are never `ready` and are not agent-sized work — their close-out is the parent-gate path, never `/claude-tweaks:specify`. Feeding this line, the trust fetch's sub-issue enumeration is batched (`bin/fetch-sub-issues.js`, probe-gated aliased GraphQL) and session-cached, so repeat invocations in a session skip it; a parent whose data can't be fetched fails the trust read loudly with no verdict rendered — an undercount is never silently graded (`_shared/trust-table.md`'s error ladder).
+- **Red flags:** More than three annotation lines; a rendered trust table in bare mode; a consequence line for an `insufficient-evidence` cell; a trust verdict rendered after the fetch reported a failed parent.
 
 ### 3. Drill into a lens — `/claude-tweaks:backlog overview trust` (or `critical` / `risk-value` / `cleanup`)
 - **Action:** Re-run with an explicit lens argument when a population needs detail.
