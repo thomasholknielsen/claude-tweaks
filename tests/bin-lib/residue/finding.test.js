@@ -37,6 +37,13 @@ test('validateFinding accepts a well-formed finding', () => {
   assert.deepStrictEqual(validateFinding(makeFinding(BRANCH)), []);
 });
 
+test('validateFinding(null) returns a non-throwing error array', () => {
+  const errors = validateFinding(null);
+  assert.ok(Array.isArray(errors));
+  assert.ok(errors.length > 0);
+  assert.ok(errors.some((e) => e.includes('id')), `expected an id error, got ${JSON.stringify(errors)}`);
+});
+
 test('KINDS and REMEDIES are frozen', () => {
   assert.ok(Object.isFrozen(KINDS) && Object.isFrozen(REMEDIES));
 });

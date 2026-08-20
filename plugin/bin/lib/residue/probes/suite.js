@@ -17,7 +17,9 @@ function probeSuite({ scope, run } = {}) {
   if (result.timedOut) return { ran: false, reason: 'test command timed out', findings: [] };
   if (result.code === 0) return { ran: true, reason: null, findings: [] };
 
-  const failing = String(result.stdout || '').split('\n').filter((l) => l.startsWith('not ok')).slice(0, 5);
+  const allFailing = String(result.stdout || '').split('\n').filter((l) => l.startsWith('not ok'));
+  const failing = allFailing.slice(0, 5);
+  const truncated = allFailing.length > failing.length ? ` (+${allFailing.length - failing.length} more)` : '';
   return {
     ran: true,
     reason: null,
@@ -26,7 +28,7 @@ function probeSuite({ scope, run } = {}) {
       scope: 'blast-radius',
       subject: `test suite exit ${result.code}`,
       remedy: 'record',
-      evidence: failing.length ? failing.join('; ') : `test command exited ${result.code}`,
+      evidence: failing.length ? `${failing.join('; ')}${truncated}` : `test command exited ${result.code}`,
     })],
   };
 }

@@ -84,6 +84,12 @@ function probeWorktrees({ scope, isPidAlive = defaultIsPidAlive } = {}) {
     // for a worktree that is, definitionally, still in active use by this
     // very run. `probeBranches` already excludes the equivalent self
     // reference via `scope.headBranch`; mirror it here.
+    // `scope.headBranch` is null under a detached HEAD (`git branch
+    // --show-current` returns empty), which would defeat this exclusion —
+    // but every plugin-provisioned worktree (native `EnterWorktree` or the
+    // git-fallback `git worktree add -b <branch>`) always checks out a named
+    // branch, never detaches HEAD, so this gap is unreachable in practice for
+    // a worktree this probe could ever be running inside of (#227).
     if (scope.headBranch && wt.branch === scope.headBranch) continue;
     const reaped = wt.path.includes(REAPER_DOMAIN);
     findings.push(makeFinding({
