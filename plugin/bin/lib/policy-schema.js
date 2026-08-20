@@ -11,6 +11,11 @@ const PROFILE_NAMES = Object.keys(PROFILES);
 
 const POLICY_CATEGORIES = ['autonomy-trust', 'pipeline-behavior', 'merge-safety', 'health-sweeps', 'models', 'housekeeping'];
 
+// A `type: 'boolean'` entry's value — in policy.yml examples, routing-table prose, and
+// tests — must use the literal strings 'true'/'false', never 'on'/'off': resolveValue()
+// below does a strict string match and silently falls back to the entry's `default` on
+// any other spelling (#660 caught this on review, before merge, for a first-draft lever
+// documented with on/off wording that isValidValue() would have rejected).
 const POLICY_KEYS = [
   { key: 'worktree-always', type: 'boolean', default: false, summary: "Every covered edit and commit must happen inside a linked worktree — the hook denies it elsewhere.", category: 'pipeline-behavior', tier: 'core' },
   // One key, two value classes since #331: plain 'subagent'/'batched' are
