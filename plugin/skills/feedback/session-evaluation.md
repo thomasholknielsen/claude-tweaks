@@ -49,10 +49,11 @@ consumer key `feedback`), the payload is:
   bytesAtDispatch,
   evaluatedAt,
   filedRecords,            // the record numbers this run actually filed, from Step 8
-  dismissedFingerprints,   // fingerprints of findings the human declined at Step 7, if
-                           // tracked; nothing in this skill currently tracks declined-
-                           // finding fingerprints, so this is an empty array today, not
-                           // an invented data source
+  dismissedFingerprints,   // bin/lib/declined-learning/store.js's
+                           // listDeclinedFingerprints({ source: 'feedback' }) — every fingerprint
+                           // a human declined at Step 7 across every /feedback run to date, not
+                           // just this one. Filtered to source: 'feedback' so a reflect-sourced
+                           // decline never suppresses a feedback finding by accident.
 }
 ```
 
