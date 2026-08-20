@@ -6,7 +6,8 @@
 // stdout); 2 on a malformed invocation (missing/unsafe args, unreadable
 // --file); 3 when the run dir is missing or not anchored under the main
 // checkout (a worktree-local shadow — _shared/pipeline-run-dir.md's
-// Anchoring section, [IL-127]). The printed path is the run dir's realpath,
+// Anchoring section, [IL-127]), or the staged file is unwritable. The
+// printed path is the run dir's realpath,
 // which can differ from the caller's --run input string (e.g. a /tmp path
 // resolves to /private/tmp on macOS) — a caller string-matching stdout
 // against its own $RUN_DIR should account for this.
