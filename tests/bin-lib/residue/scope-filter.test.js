@@ -1,4 +1,4 @@
-// bin/lib/residue/tests/scope-filter.test.js
+// tests/bin-lib/residue/scope-filter.test.js
 //
 // Covers the CLI --scope flag: it was parsed but never read (bin/residue.js
 // discarded `opts.scope` after assigning it), so `--scope repo` and

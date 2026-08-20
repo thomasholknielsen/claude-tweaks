@@ -2,7 +2,7 @@
 
 // Corpus-wide SKILL.md house-structure guard.
 //
-// The per-skill checks in bin/lib/{code,docs,harness,journey}-health/tests/
+// The per-skill checks in tests/bin-lib/{code,docs,harness,journey}-health/
 // skill-md.test.js cover four skills; skills/research has its own. That left
 // the rest of skills/*/SKILL.md with nothing enforcing docs/skill-authoring.md's documented
 // house structure at all. This file closes that gap: it applies the subset of

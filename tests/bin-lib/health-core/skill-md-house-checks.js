@@ -17,7 +17,7 @@
 // ordering assertion vacuous (see sectionIndex below).
 //
 // The corpus-wide counterpart lives in
-// bin/lib/skill-audit/tests/house-structure.test.js, which applies the subset
+// tests/bin-lib/skill-audit/house-structure.test.js, which applies the subset
 // of these rules that holds for every skill in skills/*/SKILL.md -- not just
 // the health four. It reuses sectionIndex and EMOJI_RE from here rather than
 // carrying a third copy.

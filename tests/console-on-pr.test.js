@@ -160,7 +160,7 @@ test('both review-console.md and multispec-review-console.md cite the shared int
   assert.match(mcSection, /_shared\/integration-model\.md/);
 });
 
-// The 40 KB per-lazy-loaded-sub-file ceiling — bin/lib/skill-audit/tests/context-cost.test.js
+// The 40 KB per-lazy-loaded-sub-file ceiling — tests/bin-lib/skill-audit/context-cost.test.js
 // already enforces this repo-wide, but pin it here too since this spec's own
 // edits are exactly what pushed both files toward it.
 test('review-console.md and multispec-review-console.md stay under the 40 KB sub-file ceiling', () => {
