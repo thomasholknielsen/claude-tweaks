@@ -144,3 +144,54 @@ test('verdict vocabulary: every return value is one of mine/foreign/indeterminat
   ]);
   for (const v of verdicts) assert.ok(['mine', 'foreign', 'indeterminate'].includes(v), `unexpected verdict ${v}`);
 });
+
+// F1 (#1098 final review): a relative caller cwd must never resolve against
+// the hook process's own cwd — it must fail closed to 'indeterminate' before
+// any repoInfo() call happens at all.
+test('indeterminate: caller cwd is relative (".") — must never resolve against the hook process\'s own cwd', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: '.' }, { sessionId: 's', worktree: wt }),
+    'indeterminate',
+  );
+});
+
+// F2 (#1098 final review): a binding that exists on disk but is a regular
+// file (not a directory) is not a provable worktree — must fail open to
+// 'indeterminate', never 'foreign'.
+test('indeterminate: binding exists on disk but is a regular file, not a directory', () => {
+  const main = gitRepo();
+  const wtA = linkedWorktreeOf(main);
+  const filePath = path.join(main, 'not-a-dir.txt');
+  fs.writeFileSync(filePath, 'x');
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: wtA }, { sessionId: 's', worktree: filePath }),
+    'indeterminate',
+  );
+});
+
+// F3 (#1098 final review): equal ids, no binding, caller outside any git
+// repo at all — the outside-any-repo fallback branch.
+test('indeterminate: equal ids, no binding, caller outside any git repo', () => {
+  const nonGit = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-clown-nongit-'));
+  assert.strictEqual(
+    classifyOwnership({ sessionId: 's', cwd: nonGit }, { sessionId: 's' }),
+    'indeterminate',
+  );
+});
+
+// F4 (#1098 final review): null-safety pins — must not throw.
+test('indeterminate: runState is null — must not throw', () => {
+  const main = gitRepo();
+  assert.strictEqual(classifyOwnership({ sessionId: 's', cwd: main }, null), 'indeterminate');
+});
+
+test('indeterminate: runState is undefined — must not throw', () => {
+  const main = gitRepo();
+  assert.strictEqual(classifyOwnership({ sessionId: 's', cwd: main }, undefined), 'indeterminate');
+});
+
+test('indeterminate: caller is null — must not throw', () => {
+  assert.strictEqual(classifyOwnership(null, { sessionId: 's' }), 'indeterminate');
+});

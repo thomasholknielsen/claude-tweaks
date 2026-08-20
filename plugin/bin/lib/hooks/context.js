@@ -222,12 +222,25 @@ function resolveRunDir(cwd, env, sessionId) {
 // `caller.cwd` must be absolute (same convention as findRunByWorktreePath's
 // pre-resolved target). This predicate only classifies — it enforces
 // nothing; consumers (#1012, #1099) own what each verdict does.
+//
+// runState fields read — exactly two, nothing else: `sessionId` and
+// `worktree`.
+//
+// A binding match yields 'mine' even when the run records no sessionId —
+// binding outranks incomplete identity.
+//
+// A caller in a live worktree of a DIFFERENT repo than the binding
+// classifies 'foreign' — both trees provably exist and differ.
+//
+// Authoritative semantics table: .claude-tweaks/pipelines/2026-08-20T185022-spec-1098/work/1098-spec.md
+// (committed on this branch).
 function classifyOwnership(caller, runState) {
   const callerId = caller && typeof caller.sessionId === 'string' && caller.sessionId ? caller.sessionId : null;
   const ownerId = runState && typeof runState.sessionId === 'string' && runState.sessionId ? runState.sessionId : null;
   if (callerId && ownerId && callerId !== ownerId) return 'foreign';
   const cwd = caller && typeof caller.cwd === 'string' && caller.cwd ? caller.cwd : null;
   if (!cwd) return 'indeterminate';
+  if (!path.isAbsolute(cwd)) return 'indeterminate'; // relative input must never resolve against the hook process's own cwd
   const binding = runState && typeof runState.worktree === 'string' && runState.worktree ? runState.worktree : null;
   const info = wtDetect.repoInfo(cwd);
   if (info.indeterminate) return 'indeterminate';
@@ -235,9 +248,12 @@ function classifyOwnership(caller, runState) {
     // repoInfo already realpaths its answer; worktreeMatches realpaths the
     // recorded side — a caller anywhere inside the recorded worktree
     // resolves to that worktree's root and matches here.
+    // second and third args intentionally identical — repoInfo's answer is already canonical
     if (info.repoRoot && worktreeMatches({ worktree: binding }, info.repoRoot, info.repoRoot)) return 'mine';
     if (!info.repoRoot || !info.isLinkedWorktree) return 'indeterminate'; // outside any repo, or main checkout — cannot prove foreign
-    try { fs.realpathSync(binding); } catch { return 'indeterminate'; } // binding gone from disk — fail open
+    const real = wtDetect.safeReal(binding);
+    if (!real) return 'indeterminate'; // binding gone from disk — fail open
+    try { if (!fs.statSync(real).isDirectory()) return 'indeterminate'; } catch { return 'indeterminate'; }
     return 'foreign'; // caller is in a different live worktree than a binding that provably exists
   }
   if (!callerId || !ownerId) return 'indeterminate'; // no binding and incomplete identity
