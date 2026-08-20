@@ -25,6 +25,8 @@ How this repo writes Node modules that shell to `gh`. Two shipped instances defi
 
 URL *path* placeholders (`repos/{owner}/{repo}/…`) are a fourth thing: always substituted, no flag involved. Never collapse these into "always -F for owner/repo" — that generalization is exactly what shipped #610's bug, with a plan-authored test pinning the wrong flag.
 
+`gh api graphql` is where two of these rows collide: a `String!` variable needs `-f`, and `-f` never expands `{owner}`/`{repo}`, so the placeholder mechanism is simply unavailable to a GraphQL variable. Resolve the slug locally instead — `plugin/bin/lib/hooks/git-exec.js`'s `repoSlugOf` parses it out of `remote get-url origin` and is shared by `reconcile/pr-state.js` and `reconcile/release-merged.js` (#1082) — and pass it as `-f owner=…`/`-f name=…`. `claim-targets.js`'s `gh repo view --json nameWithOwner` form is for a seam holding a `gh` runner but no repo root; `hooks/teardown-run.js`'s inline copy of the same regex predates the shared helper and is not license for a fourth.
+
 ## Batching and failure posture
 
 - Resolve everything up front in one call where the API allows it (aliased GraphQL: one `i{N}: issue(number:{N}){ databaseId }` per distinct number); throw on a partial result rather than returning a partial map.
