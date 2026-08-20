@@ -1,0 +1,160 @@
+// bin/lib/hooks/sweep-shadow.js — pure logic behind `node bin/hooks.js
+// sweep-shadow --run <anchored-run-dir> --worktree <path>` (#738).
+//
+// Promotes curation-engine.md §4's post-fan-out shadow sweep from a 29-line
+// bash snippet embedded in that skill's prose to a unit-testable JS module,
+// mirroring how run-dir-resolve.js already replaced an equivalent hand-
+// written snippet (#692). Reproduces the documented bash exactly:
+//
+//   RUN_ROOT=$(node hooks.js resolve-run-dir --root-only)
+//   RUN_DIR=$( [ -n "$PIPELINE_RUN_DIR" ] && cd "$PIPELINE_RUN_DIR" 2>/dev/null && pwd -P )
+//   WT=$( [ -n "$WORKTREE" ] && cd "$WORKTREE" 2>/dev/null && pwd -P )
+//   ... (see curation-engine.md §4 for the full reference snippet this
+//   module is the JS mirror of, until that prose is updated to cite this
+//   module instead of restating the snippet)
+//
+// A judge running inside a linked worktree can resolve the run dir
+// RELATIVELY and write its staged proposal into the worktree's own shadow
+// of `.claude-tweaks/pipelines/{run-id}/staged/` instead of the anchored
+// run directory. This sweep relocates anything left behind there — never
+// `work/`, whose materialized `{n}-spec.md` legitimately lives in the
+// worktree and reaches the main checkout by merge.
+'use strict';
+const fs = require('fs');
+const path = require('path');
+
+// Mirrors the bash `cd "$X" 2>/dev/null && pwd -P` idiom: resolves symlinks
+// and returns the canonical absolute path only when `p` is a real,
+// existing directory. Anything else (unset, missing, not a directory)
+// returns null — the same "stale/unset — fall through to the diagnostic"
+// shape the reference snippet's own `[ -n ... ] && cd ... && pwd -P` chain
+// produces on failure (an empty string).
+function realDir(p) {
+  if (typeof p !== 'string' || !p) return null;
+  let real;
+  try { real = fs.realpathSync(p); } catch { return null; }
+  try { return fs.statSync(real).isDirectory() ? real : null; } catch { return null; }
+}
+
+// Given the full destination path (no suffix yet), finds the first free
+// `.shadow-dup[-N]` slot — mirrors the bash `dest="$dest.shadow-dup"; n=1;
+// while [ -e "$dest" ]; do dest="...shadow-dup-$n"; n=$((n+1)); done` loop.
+// A repeated collision therefore never overwrites an earlier, still-pending
+// copy: the first collision lands at `.shadow-dup`, the second at
+// `.shadow-dup-1`, and so on.
+function nextDupPath(destPath) {
+  const first = `${destPath}.shadow-dup`;
+  if (!fs.existsSync(first)) return first;
+  let n = 1;
+  let candidate = `${destPath}.shadow-dup-${n}`;
+  while (fs.existsSync(candidate)) {
+    n += 1;
+    candidate = `${destPath}.shadow-dup-${n}`;
+  }
+  return candidate;
+}
+
+// opts: { runRoot, pipelineRunDir, worktree }
+// `runRoot` is the anchored main-checkout root (resolve-run-dir --root-only's
+// own return value, or wtDetect.mainCheckoutRoot(cwd) called in-process —
+// the CLI wiring in hooks.js does the latter). `pipelineRunDir`/`worktree`
+// are the raw PIPELINE_RUN_DIR/WORKTREE values as given — normalized here,
+// not by the caller.
+//
+// Returns { lines, diagnostic }: `lines` is one string per action, in the
+// same wording the bash snippet echoed (so a caller substituting a JS call
+// for the CLI/bash form sees byte-identical output); `diagnostic` is true
+// iff any line is a tooling-failure diagnostic (every such line is
+// prefixed `sweep:` — the same rule curation-engine.md §4 states for what
+// gets logged `AUTO`/ledger-itemized rather than treated as a clean sweep).
+function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
+  const runDir = realDir(pipelineRunDir);
+  const wt = realDir(worktree);
+
+  if (!runDir || !wt) {
+    return { lines: ['sweep: PIPELINE_RUN_DIR or WORKTREE unset/missing — not swept'], diagnostic: true };
+  }
+
+  let root;
+  try { root = fs.realpathSync(runRoot); } catch { root = runRoot; }
+  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+
+  if (!runDir.startsWith(rootWithSep)) {
+    return { lines: [`sweep: ${runDir} is not under ${root} — not swept`], diagnostic: true };
+  }
+
+  const rel = runDir.slice(rootWithSep.length);
+  const shadow = path.join(wt, rel);
+
+  let shadowReal = null;
+  try { shadowReal = fs.realpathSync(shadow); } catch { /* shadow doesn't exist — fine, treated as not-same-path */ }
+  const samePath = shadowReal !== null && shadowReal === runDir;
+
+  const lines = [];
+  if (samePath) return { lines, diagnostic: false }; // running from the main checkout — clean no-op, matches the `-ef` guard
+
+  // ---- staged/ relocation ----
+  const shadowStaged = path.join(shadow, 'staged');
+  let stagedIsDir = false;
+  try { stagedIsDir = fs.statSync(shadowStaged).isDirectory(); } catch { /* no shadow staged/ — nothing to sweep */ }
+  if (stagedIsDir) {
+    const entries = fs.readdirSync(shadowStaged).sort();
+    for (const base of entries) {
+      const f = path.join(shadowStaged, base);
+      let lst;
+      try { lst = fs.lstatSync(f); } catch { continue; } // vanished between readdir and lstat — nothing to report
+      if (!lst.isFile()) {
+        // Catches both a symlink (bash `-L`) and a directory/other non-regular
+        // entry (bash `! -f`) in one check: lstat's isFile() is false for
+        // both, since it never follows a symlink and a directory isn't a
+        // regular file either way.
+        lines.push(`sweep: skipped ${base} — not a regular file`);
+        continue;
+      }
+      const dest = path.join(runDir, 'staged', base);
+      if (fs.existsSync(dest)) {
+        const dupDest = nextDupPath(dest);
+        try {
+          fs.renameSync(f, dupDest);
+          lines.push(`collision: ${base} (kept as ${path.basename(dupDest)})`);
+        } catch {
+          lines.push(`sweep: FAILED to move ${base} — still in the shadow`);
+        }
+      } else {
+        try {
+          fs.renameSync(f, dest);
+          lines.push(`relocated: ${base}`);
+        } catch {
+          lines.push(`sweep: FAILED to move ${base} — still in the shadow`);
+        }
+      }
+    }
+    try {
+      fs.rmdirSync(shadowStaged);
+    } catch {
+      lines.push(`sweep: shadow staged/ not empty after sweep — inspect ${shadowStaged}`);
+    }
+  }
+
+  // ---- stray shadow decisions.md ----
+  const shadowDecisions = path.join(shadow, 'decisions.md');
+  let decisionsLstat = null;
+  try { decisionsLstat = fs.lstatSync(shadowDecisions); } catch { /* none — nothing to relocate */ }
+  if (decisionsLstat && decisionsLstat.isFile()) {
+    // lstat().isFile() is already false for a symlink (it never follows),
+    // so this one check subsumes the bash pair `[ -f ... ] && [ ! -L ... ]`.
+    const content = fs.readFileSync(shadowDecisions, 'utf8');
+    const entryLines = content.split('\n').filter((l) => l.startsWith('- '));
+    if (entryLines.length) {
+      fs.appendFileSync(path.join(runDir, 'decisions.md'), entryLines.join('\n') + '\n');
+      lines.push('relocated: decisions.md (entries appended)');
+    } else {
+      lines.push('sweep: shadow decisions.md had no entries — dropped');
+    }
+    fs.unlinkSync(shadowDecisions);
+  }
+
+  return { lines, diagnostic: lines.some((l) => l.startsWith('sweep:')) };
+}
+
+module.exports = { sweepShadow };
