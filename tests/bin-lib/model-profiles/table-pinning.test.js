@@ -52,7 +52,7 @@ const EFFORT_TEMPLATE = '[Effort: {level} — apply {level}-level reasoning dept
 
 test('the section cites the resolver CLI and the effortLine template shape', () => {
   const section = modelSelectionSection();
-  assert.match(section, /node plugin\/bin\/resolve-profile\.js/);
+  assert.match(section, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/resolve-profile\.js"/);
   assert.match(section, /\[Use: \{Profile\}\]/);
   assert.ok(section.includes(EFFORT_TEMPLATE),
     'the Dispatching paragraph must publish effortLine\'s literal template');

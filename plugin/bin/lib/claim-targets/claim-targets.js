@@ -22,6 +22,7 @@
 const claimStore = require('../issues/claim-store');
 const { classifyClaimBlob, claimPayload, releasePayload } = require('../issues/claims');
 const { ensureLabelPayload } = require('../issues/labels');
+const { tombstoneInFlightPr } = require('../issues/claim-engine');
 
 const BOT_IN_PROGRESS = 'bot:in-progress';
 const BOT_IN_PROGRESS_DESC = 'Bot state: an agent currently holds the claim on this record';
@@ -30,7 +31,8 @@ const ABORT_REASON = 'never-started: file-overlap group partial claim';
 const USAGE = 'usage: claim-targets.js --run-id <id> --targets <n,n,...> [--keep-going] [--help]\n'
   + '  exit 0 = all claimed (or, with --keep-going, partial)\n'
   + '  exit 2 = malformed invocation or missing dependency\n'
-  + '  exit 3 = contested (holder JSON on stdout)\n'
+  + '  exit 3 = contested, or a pr-opened tombstone whose linked PR is still open\n'
+  + '           (contested: {contested:[{issue,holder}], ...}; in-flight: {inFlight:[{issue,link}], ...})\n'
   + '  exit 4 = transient gh failure\n';
 
 function errText(e) {
@@ -159,6 +161,10 @@ function run(argv, deps) {
     return 2;
   }
   if (!repoSlug) { deps.stderr(`claim-targets: could not resolve repo slug (empty)\n${USAGE}`); return 2; }
+  // `tombstoneInFlightPr` (#315 review follow-up) validates a tombstone's
+  // `link` against this exact owner/repo before ever calling `deps.gh` —
+  // split once here rather than re-parsing `repoSlug` per target.
+  const [repoOwner, repoName] = repoSlug.split('/');
 
   const claimedThisRun = [];
   const alreadyOwned = [];
@@ -185,6 +191,21 @@ function run(argv, deps) {
 
     const content = read.absent ? null : read.content;
     const classified = classifyClaimBlob(content, deps.now());
+
+    // A `pr-opened:` tombstone whose linked PR is still open means a build
+    // already completed for this issue and is awaiting merge — reclaiming
+    // (and re-building) here would race that open PR (#315). Gate this
+    // ahead of the reclaimable branch below since a tombstone is otherwise
+    // always reclaimable; every other tombstone reason, and any failure in
+    // the check itself, falls straight through unchanged (fail open) —
+    // see `tombstoneInFlightPr`'s own doc comment in claim-engine.js.
+    if (classified.state === 'tombstone') {
+      const inFlight = tombstoneInFlightPr(content, deps.gh, repoOwner, repoName);
+      if (inFlight) {
+        if (opts.keepGoing) { skipped.push({ issue, reason: 'in-flight', link: inFlight.link }); continue; }
+        return abort({ inFlight: [{ issue, link: inFlight.link }] }, 3);
+      }
+    }
 
     // Only a readable blob carries an identity — 'absent' has no content and
     // 'unreadable' has nothing parseable.

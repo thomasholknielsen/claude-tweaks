@@ -96,6 +96,15 @@ function runGit(args, cwd, opts = {}) {
   try {
     const stdout = cp.execFileSync('git', ['-C', cwd, ...args], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout,
+      // Node defaults windowsHide to FALSE, which hands a child console
+      // process a console of its OWN whenever the parent has none to
+      // inherit. session-start.js's `reconcile-background` child is exactly
+      // that case (`detached: true`), so without this flag every git query
+      // the background pass makes flashes its own black console window on
+      // Windows — one per invocation, for the whole pass, which reads to the
+      // user as a runaway loop rather than routine janitorial work. Inert on
+      // POSIX, where the option is ignored.
+      windowsHide: true,
     });
     return { stdout: stdout.trim(), failure: null };
   } catch (err) {

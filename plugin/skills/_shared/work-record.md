@@ -343,6 +343,27 @@ Readers accept the legacy `<!-- code-health-fingerprint: {fingerprint} -->` mark
 the migration window (read both, emit only `work-fingerprint`). `bin/lib/issues/record.js`'s
 `extractFingerprint` implements the dual read; when both markers are present, the new one wins.
 
+## Freshness stamp
+
+Records filed by the four health-sweep skills also carry the commit the sweep actually read, as
+a plain body-metadata line:
+
+```
+Verified-as-of: {git sha}
+```
+
+Composed by `bin/lib/issues/record.js`'s `specShapedBody` (`verifiedAsOf` param — rendered above
+`Origin:`/`Defer-reason:`, validated as a bare hex sha so a date or a branch name fails loud at
+compose time) and read back by that module's `extractVerifiedAsOf`. **The producer resolves the
+value itself, at the moment it reads the repo** — once per sweep run, threaded through every
+finding that run files — never re-derived at issue-create time: a finding queued and filed later
+would otherwise stamp a commit it never looked at, which reads as authoritative freshness that
+isn't real. The line is optional — a producer that doesn't stamp, or a checkout where git is
+unavailable, simply omits it, and no structural check may start demanding it. What a consumer
+does with the stamp is `flow/materialize.md`'s Freshness-stamp drift section; a fresh stamp
+bounds drift, it never establishes correctness, so `[IL-71]`'s re-verification instruction stays
+in force regardless.
+
 ## Type
 
 The canonical Type enum is `bug | feature | task`. Two expressions, governed by the

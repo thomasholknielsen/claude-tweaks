@@ -84,6 +84,8 @@ and that file's auto-resolve path invoke the same procedure.
 
 Halt before applying. Leave the run directory intact. User resumes with `/claude-tweaks:wrap-up resume` (re-reads the same run directory and re-presents the console).
 
+**Logging the terminal decision:** Immediately after the terminal `AskUserQuestion` resolves (when Approve all / Approve all + merge / Override / Stop is chosen), log `AUTO {time} — Review Console: terminal decision {approve-all|approve-all-merge|leave-pr-open|override|stop}. Reversibility: n/a.` to `decisions.md`, naming whichever of the four options (three under `local-merge`) was chosen.
+
 ## Hard requirements
 
 - The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run at Phase 4's execution step, and every queue-write, memory-update, and upstream-feedback proposal. Silently dropping any item is forbidden.

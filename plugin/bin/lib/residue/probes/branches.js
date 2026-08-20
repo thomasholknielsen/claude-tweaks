@@ -1,3 +1,22 @@
+// bin/lib/residue/probes/branches.js — merged-remote-branch detection for
+// the residue sweep (flags a remote branch already merged into the
+// integration branch, safe to delete).
+//
+// The exclusion logic is the hazard here, not the merge check itself: the
+// findings loop's filter chain (`name === remoteRef`, `!startsWith(remotePrefix)`,
+// `endsWith('/HEAD')`, the self-`headBranch` skip) can silently stop matching
+// without ever throwing — it just quietly returns fewer findings, or none.
+// `[IL-111]`: `resolveRemoteRef` once received a BARE branch name (`main`)
+// from `_shared/integration-branch.md`'s resolution ladder, derived the
+// prefix `main/` from it, and no `git branch -r --merged` output can ever
+// start with that prefix — so `remotePrefix` matched nothing and the probe
+// reported `{ran: true, findings: []}` ("ran and found nothing") forever,
+// looking clean while a real, merged, safe-to-delete remote branch sat
+// unreported. An exclusion that silently stops matching produces no error —
+// just a catastrophic recommendation. Any future change to `resolveRemoteRef`
+// or the filter chain below must be re-verified against a live `--merged`
+// query, not just the test suite: every test at the time of the incident
+// hardcoded `origin/main` and stayed green throughout.
 'use strict';
 
 const { makeFinding } = require('../finding');

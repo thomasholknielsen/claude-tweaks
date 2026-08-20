@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { toIssuePayload } = require('../../../plugin/bin/lib/docs-health/issue-payload');
-const { extractFingerprint } = require('../../../plugin/bin/lib/issues/record');
+const { extractFingerprint, extractVerifiedAsOf } = require('../../../plugin/bin/lib/issues/record');
 
 function finding(overrides = {}) {
   return {
@@ -180,4 +180,16 @@ test('toIssuePayload title reflects the depth-mismatch category', () => {
 test('toIssuePayload title reflects the findability category', () => {
   const payload = toIssuePayload(finding({ category: 'findability' }));
   assert.ok(payload.title.startsWith('Doc findability:'), payload.title);
+});
+
+// ── freshness stamp (#117) ──────────────────────────────────────────────────
+
+test('toIssuePayload with no verifiedAsOf argument omits the stamp (existing callers unaffected)', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(!payload.body.includes('Verified-as-of:'));
+});
+
+test('toIssuePayload threads verifiedAsOf through to the composed body', () => {
+  const payload = toIssuePayload(finding(), 'abc1234');
+  assert.strictEqual(extractVerifiedAsOf(payload.body), 'abc1234');
 });

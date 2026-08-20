@@ -2,9 +2,11 @@
 // bin/claim-targets.js — group-claim CLI on the shared claim store.
 //   node bin/claim-targets.js --run-id <id> --targets <n,n,...> [--keep-going] [--help]
 // Exit 0 = all claimed (or, with --keep-going, partial); 2 = malformed
-// invocation or missing dependency; 3 = contested (holder JSON on stdout);
-// 4 = transient gh failure. See bin/lib/claim-targets/claim-targets.js for
-// the full contract and skills/_shared/issue-claims.md for the protocol.
+// invocation or missing dependency; 3 = contested, or a pr-opened tombstone
+// whose linked PR is still open (JSON on stdout — {contested:[...]} or
+// {inFlight:[{issue,link}]}); 4 = transient gh failure. See
+// bin/lib/claim-targets/claim-targets.js for the full contract and
+// skills/_shared/issue-claims.md for the protocol.
 'use strict';
 
 const os = require('os');

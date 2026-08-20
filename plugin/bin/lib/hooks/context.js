@@ -98,6 +98,19 @@ function* iterRunDirsWithState(cwd) {
     const dir = path.join(base, name);
     const state = readRunState(dir);
     if (state && state.status === 'clean') continue;
+    // Defense in depth (#593): a stray top-level dir left behind by a
+    // filesystem-only (non-git-aware) archival move — pre-fix, or any future
+    // regression that reintroduces one — still has no local run-state.json
+    // (or a stale non-terminal one, e.g. resurrected by `git checkout` after
+    // `work/` was git-mv'd out from under it), but its archive twin at
+    // archive/{name}/ may already carry a terminal run-state.json — the real
+    // signal this run is done. Checked at the SHARED iterator level (not
+    // just session-start.js, which has no branching logic of its own) so
+    // every caller of this generator benefits: resolveRun's fallback scan,
+    // the reconciler's archiveMerged pass, and session-start's unfinished-run
+    // report all stop treating an already-archived run as still-open.
+    const archiveState = readRunState(path.join(base, 'archive', name));
+    if (archiveState && archiveState.status === 'clean') continue;
     yield { dir, state };
   }
 }

@@ -13,7 +13,7 @@ the main checkout. On a project with `worktree-always: true` set
 (`.claude-tweaks/policy.yml`), the PreToolUse gate denies some of the writes those two steps
 may still need to make from there — any write whose target isn't already inside a linked git
 worktree. Exactly what counts as a covered write is stated once, canonically, in
-`skills/_shared/policy-schema.md`'s `worktree-always` coverage block. This file cites that
+`skills/_shared/policy-schema-coverage.md`'s `worktree-always` coverage block. This file cites that
 block rather than restating it, per CLAUDE.md's own rule against duplicating it (`[IL-93]`:
 five files once restated an earlier, narrower version of that list, and all five went stale
 the next time the gate widened without a matching prose sweep). Check that block, not this
@@ -187,6 +187,23 @@ reaper (`bin/lib/hooks/worktree-reap.js`) can later collect an abandoned worktre
 `{REPO_ROOT}/.claude/worktrees/` alone. A `.worktrees/`-domain worktree (the git-fallback
 path) has no reaper at all and must be torn down explicitly every time, or it accumulates
 silently — and would itself become a `kind: worktree` finding on the next residue sweep.
+
+**`ExitWorktree` does not operate on a `.worktrees/`-domain worktree either — confirmed
+against the tool's own contract, not inferred.** `ExitWorktree`'s scope is explicit: "This
+tool ONLY operates on worktrees created by EnterWorktree in this session. It will NOT touch:
+Worktrees you created manually with `git worktree add` … Worktrees from a previous session
+(even if created by EnterWorktree then)." A `.worktrees/`-domain worktree is, by `[ADR-0004]`'s
+own definition, exactly the `git worktree add` (git-fallback) case — so `ExitWorktree` called
+against one is a **no-op**: it reports no active worktree session and changes nothing on disk,
+the same as calling it with no `EnterWorktree` session active at all. This closes the open
+question this section previously left untested: `git-fallback` worktrees have neither a reaper
+(above) nor a working `ExitWorktree` path — `finishing-a-development-branch`'s own
+`git worktree remove` is the only teardown that actually works on them. (Verified 2026-08-19
+by reading the tool's own current schema description via a live session — not a destructive
+invocation against a real `.worktrees/`-domain worktree, since constructing one to test against
+would itself violate this session's own no-new-worktree constraint. If this tool's contract
+text ever changes, re-verify against actual invocation rather than assuming this note still
+holds.)
 
 ## 7. Shell constraint
 

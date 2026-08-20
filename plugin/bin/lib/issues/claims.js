@@ -79,8 +79,20 @@ function isStale(claim, now) {
 //                  cross-transport collision this unification closes: only
 //                  one create-only write can land, GitHub rejects the other.
 //   'unreadable' — file exists but isn't valid claim JSON. Fails closed to
-//                  *not* reclaimable — a claim you cannot read is not yours
-//                  to break (mirrors `isStale`'s unparseable-date posture).
+//                  *not* reclaimable — an unprovable claim must not be
+//                  released: a blob you cannot parse might still be a live,
+//                  legitimate lock (a partial write, a format this reader
+//                  doesn't yet know), and reclaiming it on a guess risks the
+//                  exact double-build this lock exists to prevent. Fails
+//                  closed the same way `isStale`'s unparseable-date case
+//                  does, for the identical reason. The domain rule this
+//                  lock keyspace is built on — one arbiter (the GitHub API)
+//                  covers every concurrency topology, and only a positively
+//                  provable release condition (tombstone or expired TTL) may
+//                  reclaim a claim — is `docs/decisions/0002-issue-claims-atomic-ref-lock.md`
+//                  (superseded by the create-only/conditional-update blob
+//                  scheme below, but still the decision record for this
+//                  module and its `_shared/issue-claims.md` contract).
 //   'tombstone'  — a past claim already released (`released: true`).
 //                  Reclaimable via a conditional-update write (`sha` = the
 //                  blob's current sha, from the same read).

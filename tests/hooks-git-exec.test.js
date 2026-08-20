@@ -135,3 +135,37 @@ test('the default budget has real headroom over the peak measured under load', (
   assert.ok(DEFAULT_TIMEOUT_MS >= PEAK_MEASURED_MS * 3,
     `budget ${DEFAULT_TIMEOUT_MS}ms must be >=3x the ${PEAK_MEASURED_MS}ms peak measured under load`);
 });
+
+// Windows console-window storm. Node's `windowsHide` defaults to FALSE, so a
+// child console process is given a console of its own whenever the parent has
+// no console for it to inherit. session-start.js spawns `reconcile-background`
+// with `detached: true`, which is exactly that case — so on Windows every git
+// invocation the background pass made appeared as its own visible console
+// window. Measured on a real Windows 11 machine: one black window every 1-2s
+// for the entire pass (a `PseudoConsoleWindow` with `visible=True`, caught
+// owning `git push origin --delete <branch>`), reading to the user as a
+// runaway loop. runGit is the single funnel every reconcile/hooks git query
+// passes through, so pinning the flag here covers all of its call sites at
+// once rather than one spawn site at a time.
+test('runGit: passes windowsHide, so a console-less parent spawns no visible console window', () => {
+  const cp = require('child_process');
+  const original = cp.execFileSync;
+  // git-exec.js destructures execFileSync at require time, so the stub has to
+  // be installed BEFORE a fresh copy of the module is loaded — hence the
+  // require.cache eviction rather than a plain property assignment. The
+  // second eviction in `finally` makes sure no later test (or test file
+  // sharing this process) inherits the stubbed instance.
+  const modPath = require.resolve('../plugin/bin/lib/hooks/git-exec');
+  let seenOpts = null;
+  cp.execFileSync = (_file, _args, opts) => { seenOpts = opts; return ''; };
+  try {
+    delete require.cache[modPath];
+    require(modPath).runGit(['rev-parse', '--show-toplevel'], process.cwd());
+  } finally {
+    cp.execFileSync = original;
+    delete require.cache[modPath];
+  }
+  assert.ok(seenOpts, 'the stub must have observed the spawn at all');
+  assert.strictEqual(seenOpts.windowsHide, true,
+    'without windowsHide:true every git child of a console-less parent allocates its own visible console window on Windows');
+});

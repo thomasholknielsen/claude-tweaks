@@ -5,6 +5,7 @@ files:
   - plugin/bin/lib/claim-targets/claim-targets.js
   - plugin/bin/lib/issues/claim-store.js
   - plugin/skills/_shared/issue-claims.md
+  - plugin/bin/lib/issues/claim-engine.js
 ---
 
 # Act on a Contested Claim at the Start of a Run
@@ -12,7 +13,7 @@ files:
 **Persona:** claude-tweaks user typing `/claude-tweaks:flow #{n}` on a repo where another session — their own second terminal, a teammate's machine, or a scheduled dispatch firing — may already be building the same record.
 **Goal:** When the run stops before it starts because the record is already claimed, learn within one screen whether the holder is actually alive, and take the one next step that fits — rather than guessing between waiting, reclaiming, and re-running.
 **Entry point:** Typing `/claude-tweaks:flow #{n}` (or `/claude-tweaks:flow "#{n},#{m}"`) in a project whose work records live on GitHub.
-**Success state:** The run either claims every named target and proceeds to the Config Manifesto, or stops with a card that names the holder, states a live / stale / remote verdict, and gives exactly one next step — leaving no worktree and no empty run directory behind.
+**Success state:** The run either claims every named target and proceeds to the Config Manifesto, or stops with a card that names why — a contest card carrying the holder and a live / stale / remote verdict, or an in-flight card carrying the open PR a prior build already produced — and in either case gives exactly one next step, leaving no worktree and no empty run directory behind.
 
 ## Steps
 
@@ -35,7 +36,14 @@ files:
 - **Action:** Read the holder line (run id, session, host, claimed-at, expiry), then the paragraph beneath it — exactly one of Live sibling, Remote holder, or Stale holder.
 - **Should feel:** Diagnosed, not stonewalled — the card answers "is anyone actually working on this?", not merely "it is locked".
 - **Should understand:** The verdict is evidence-based and read-only — a host comparison, a match against the existing worktrees, and how recently the holding session last wrote its transcript. A missing artifact counts as evidence, so a verdict always renders and the lookup never blocks.
-- **Red flags:** The card rendering with no verdict; the run hanging while it gathers evidence; a Stale-holder verdict recommending a reclaim even though a worktree for the holding run still exists; the card asking the user to choose something when there is nothing to choose between.
+- **Red flags:** The *contest* card rendering with no verdict (the in-flight card of Step 3b legitimately has none); the run hanging while it gathers evidence; a Stale-holder verdict recommending a reclaim even though a worktree for the holding run still exists; the card asking the user to choose something when there is nothing to choose between.
+
+### 3b. Distinguish an in-flight build from a contest — terminal
+- **URL:** the `## Flow: Claim in-flight` block, rendered in place of the Config Manifesto
+- **Action:** Read the PR link on the card, open that PR, and resolve or merge it — nothing about this record is contested, so there is no holder to wait on and no claim to sweep.
+- **Should feel:** Like being told the work already exists, not like being locked out.
+- **Should understand:** The record's claim blob is a released `pr-opened:` tombstone, and its linked PR is still open — a prior build finished and is awaiting merge. Reclaiming would start a second build racing that PR, so the run stops instead. Any other tombstone reason, a missing or foreign-repo `link`, or a failed liveness check all fall through to the ordinary reclaim (fail open) — this stop only fires on positive evidence of an open PR for this same repo.
+- **Red flags:** An in-flight card for a PR that is already merged or closed; a `link` pointing at another repository being followed at all; the run reclaiming and rebuilding a record whose PR is still open.
 
 ### 4. Follow the verdict's own next step — terminal, or another session
 - **URL:** the `Next:` clause of whichever verdict rendered
@@ -53,4 +61,5 @@ files:
 
 ## Origin
 - Created during build of #722 (holder-liveness verdict in the claim-contest card) — the claim stop and its card already existed, but the card's only guidance was "wait for the claim to expire", so there was no decision to document; the live / stale / remote verdict and its per-verdict next step are what this journey covers.
-- Related specs: #720, #721, #722, #723
+- Extended during build of #315 (in-flight claim detection) — a `pr-opened:` tombstone with a still-open PR became a fourth claim-time outcome alongside live / stale / remote, with its own card and next step.
+- Related specs: #720, #721, #722, #723, #315

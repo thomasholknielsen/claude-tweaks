@@ -267,7 +267,7 @@ test('fileWriteTargets: a tee argument formed by a quoted prefix glued to an unr
 // mkdirTargets — deliberately NOT part of WRITE_SHAPES/fileWriteTargets (#692):
 // widening WRITE_SHAPES would also widen the worktree-always Bash-write gate's
 // coverage, which tests/hooks-gate-coverage.test.js pins against
-// skills/_shared/policy-schema.md's prose. The pipeline-shadow guard needs its
+// skills/_shared/policy-schema-coverage.md's prose. The pipeline-shadow guard needs its
 // own, separate mkdir target parser instead.
 test('mkdirTargets: resolves a plain absolute target', () => {
   assert.deepStrictEqual(mkdirTargets('mkdir /worktree/.claude-tweaks/pipelines/x', '/repo'), [

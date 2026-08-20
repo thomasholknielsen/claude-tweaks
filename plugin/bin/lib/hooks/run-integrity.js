@@ -161,4 +161,4 @@ function checkRunIntegrity(runDir, opts = {}) {
   }
 }
 
-module.exports = { checkRunIntegrity };
+module.exports = { checkRunIntegrity, NON_TERMINAL };
