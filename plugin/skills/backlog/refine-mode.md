@@ -259,7 +259,7 @@ Local-files driver: the equivalent re-read is `readRecord(path).facets` immediat
 
 Local-files driver: the equivalent re-read is `readRecord(path).body` immediately before either write — same skip-on-mismatch rule and log line, since a concurrent session's edit to the tracked file is exactly the same class of stale-premise race; a `readRecord` failure (missing/corrupt file) skips the same way — don't write.
 
-**General rule.** Any batch-confirm-then-apply flow with a long-lived `AskUserQuestion` gate between building a row's premise and writing it needs this same pre-write reverify — the gate's wait time is unbounded and nothing else in this plugin guards the window. `/claude-tweaks:tidy`'s Step 6 auto-apply table already applies the identical rule to its own gated `[parent-gate]` finding (`skills/tidy/step-6-auto.md`, which re-verifies the gate before acting rather than trusting the scan's own snapshot) — same shape, not new.
+**General rule.** This is an instance of `_shared/reverify-before-write.md`'s pattern: any batch-confirm-then-apply flow with a long-lived `AskUserQuestion` gate between building a row's premise and writing it needs the same pre-write reverify. `/claude-tweaks:tidy`'s Step 6 auto-apply table (`skills/tidy/step-6-auto.md`) applies the identical rule to its own gated `[parent-gate]` finding — same shape, not new.
 
 **Priority/Related rows:** For every record the priority decision resolved to apply:
 
