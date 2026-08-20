@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-20T060622-record-758",
-  "sessionId": "7c67a755-aaba-4fd6-ae38-5e02c0186b6a",
-  "claimedAt": "2026-08-20T06:08:31.141Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: build-blocked-main-checkout-required",
+  "releasedAt": "2026-08-20T06:17:41.935Z"
 }
