@@ -99,7 +99,7 @@ for spec in $PLUGIN_SPECS; do
       try {
         const rawBase = declared.source.url.replace(/^https:\/\/github\.com\//, "https://raw.githubusercontent.com/");
         const rawUrl = rawBase + "/" + declared.source.sha + "/" + declared.source.path + "/.claude-plugin/plugin.json";
-        const atSha = JSON.parse(require("child_process").execSync("curl -fsSL " + JSON.stringify(rawUrl), { encoding: "utf8", timeout: 10000 }));
+        const atSha = JSON.parse(require("child_process").execFileSync("curl", ["-fsSL", rawUrl], { encoding: "utf8", timeout: 10000 }));
         if (atSha && atSha.version) expected = atSha.version;
       } catch {
         // Network failure, missing manifest at that path, or unexpected shape: fall through to
