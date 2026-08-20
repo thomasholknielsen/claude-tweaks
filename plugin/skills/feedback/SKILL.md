@@ -68,10 +68,14 @@ gh issue list --label upstream-candidate --state open --json number,title,body,l
 full backlog — while still bounding the read per `[IL-67]`; if the count returned equals the
 limit, state this in the summary rather than silently treating it as complete.)
 
-**Gather 2 — session evaluation.** Read `session-evaluation.md` in this skill's directory and run
-its judge dispatch (or its self-assessment degradation) against `_shared/feedback-objectives.md`'s
-rubric. Each returned finding becomes one merged-batch item; a `NOT EVALUATED` block is not a
-finding — session-evaluation.md's own rule — and never enters the batch. The two gathers are
+**Gather 2 — session evaluation.** Read `session-evaluation.md` in this skill's directory. Before
+dispatch, its **Skip check** runs first (on the transcript-resolved branch, `--full` not passed):
+when the resolved transcript hasn't grown since the last stamped evaluation, skip the judge
+dispatch entirely and report the prior stamp's `issueUrls` instead of re-evaluating — see that
+section for the full check and its self-assessment exemption. Otherwise, run the judge dispatch
+(or its self-assessment degradation) against `_shared/feedback-objectives.md`'s rubric. Each
+returned finding becomes one merged-batch item; a `NOT EVALUATED` block is not a finding —
+session-evaluation.md's own rule — and never enters the batch. The two gathers are
 failure-isolated in both directions: a judge dispatch that errors or returns nothing usable
 degrades to `session-evaluation.md`'s self-assessment path (noted in the run summary) and never
 aborts the run — Gather 1's queue candidates proceed through the batch regardless — and a Gather

@@ -67,6 +67,27 @@ test('session-evaluation.md still documents the filedRecords/dismissedFingerprin
   assert.match(SESSION_EVAL, /dismissedFingerprints,\s*\/\/ fingerprints of findings the human declined/);
 });
 
+// --- 2b. #701: skip-before-dispatch check + the sessionId/findingsFiled/issueUrls payload fields ---
+
+test('session-evaluation.md documents the #701 Skip check section', () => {
+  assert.match(SESSION_EVAL, /## Skip check \(before dispatch\) — #701/);
+  assert.match(SESSION_EVAL, /isTranscriptUnchanged\(watermark, currentBytes\)/);
+});
+
+test('session-evaluation.md Skip check explicitly exempts self-assessment (not silent)', () => {
+  assert.match(SESSION_EVAL, /Self-assessment is exempted, explicitly \(not an oversight\)/);
+});
+
+test('session-evaluation.md watermark payload documents sessionId/findingsFiled/issueUrls', () => {
+  assert.match(SESSION_EVAL, /sessionId,\s*\/\/ \$CLAUDE_CODE_SESSION_ID at dispatch time/);
+  assert.match(SESSION_EVAL, /findingsFiled,\s*\/\/ count of Gather-2-sourced findings/);
+  assert.match(SESSION_EVAL, /issueUrls,\s*\/\/ the URLs Step 8's `gh issue create` calls produced/);
+});
+
+test('SKILL.md Gather 2 paragraph points to the Skip check before describing dispatch', () => {
+  assert.match(SKILL, /its \*\*Skip check\*\* runs first/);
+});
+
 // --- 3. SKILL.md: --full at all three sites (table row, argument-hint frontmatter, $ARGUMENTS intro line) ---
 
 test('SKILL.md frontmatter argument-hint includes --full', () => {
