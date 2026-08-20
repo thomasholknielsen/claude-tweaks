@@ -21,7 +21,7 @@ If the run aborted early (one spec hit a HARD-GATE, no `keep-going`), still run 
 
 Run once, against the union of every completed spec's changed files:
 
-1. **Scope** — `git diff --name-only` from `manifest.yml`'s `baseSha` to the current worktree `HEAD` (covers every completed spec's commits on the shared branch — see `multi-spec.md`'s "Shared worktree" section for why one branch accumulates every spec).
+1. **Scope** — `git diff --name-only` from `$(git merge-base HEAD "origin/{integration-branch}")` to the current worktree `HEAD`, `{integration-branch}` per `skills/_shared/integration-branch.md`'s ladder (covers every completed spec's commits on the shared branch — see `multi-spec.md`'s "Shared worktree" section for why one branch accumulates every spec). The merge-base equals `manifest.yml`'s `baseSha` when no boundary freshness merge (`multispec-freshness.md`) landed, and correctly excludes merged-in upstream commits when one did.
 2. **Ledger phase** — `wrap-up` (same phase tag the per-spec call would have used).
 3. **Seed context** — the aggregated Key Learnings sections from every completed spec's `/claude-tweaks:review` summary, concatenated in spec execution order.
 4. **`--source wrap-up`** — same as the per-spec call.
@@ -34,8 +34,10 @@ If any insight is "Implement now", the reflect skill handles it before returning
 Run once, against the **parent** run directory — never any `spec-{N}/` — so its `engine-state.json` and row records can't collide with (or be silently skipped by) any per-spec engine state:
 
 ```bash
+INTEGRATION_BRANCH=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch)
+[ -n "$INTEGRATION_BRANCH" ] || INTEGRATION_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's@^origin/@@')
 node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" plan --run-dir "$MULTISPEC_PARENT_DIR" \
-  --base "$(yq '.multispec.baseSha' "$MULTISPEC_PARENT_DIR/manifest.yml")" \
+  --base "$(git merge-base HEAD "origin/${INTEGRATION_BRANCH}")" \
   --ceremony "{ceremony-profile from config.yml}" --signals '{...}'
 ```
 
