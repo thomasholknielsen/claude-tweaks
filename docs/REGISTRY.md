@@ -18,6 +18,7 @@
 | docs/skill-graph.md | Every skill-to-skill relationship/edge (single source of truth) | `plugin/skills/**/SKILL.md`, `plugin/skills/_shared/*.md`, `plugin/skills/**/routine-template.yml` |
 | docs/donts.md | Full Don'ts rule list (extracted from CLAUDE.md's `## Don'ts`, which now holds only a pointer) | CLAUDE.md `## Don'ts` |
 | docs/hooks.md | Hook dispatcher contract — tiered posture, run-dir resolution and ownership, never-break-a-session invariant, consumers (extracted from CLAUDE.md's `### Hooks`, which now holds only a pointer) | `plugin/bin/hooks.js`, `plugin/bin/lib/hooks/**`, `plugin/hooks/hooks.json`, `plugin/bin/lib/reconcile/**` |
+| docs/reconcile-checks.md | Reconcile dispatcher contract — dispatch order and why it's significant, the fast/background check split, the full "adding a new check" registration procedure (extracted from `docs/hooks.md`'s inventory-only reconcile coverage; `CLAUDE.md`'s `### Reconcile` pointer) | `plugin/bin/lib/reconcile/**` |
 | docs/incident-log.md | Post-mortems behind each `[IL-nn]`-tagged Don't in CLAUDE.md | CLAUDE.md `## Don'ts`, docs/donts.md |
 | docs/shipped-versions.tsv | Authoritative record of every shipped version + date | `plugin/.claude-plugin/plugin.json`, `CHANGELOG.md` |
 | docs/decisions/*.md | Architecture Decision Records — hard-to-reverse, surprising trade-offs | *(no auto-detect — written deliberately by /wrap-up's ADR gate)* |
