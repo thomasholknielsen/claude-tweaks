@@ -33,7 +33,7 @@ Call `AskUserQuestion`:
 
 A merge performed under option 1 or 2 that itself conflicts is resolved per `_shared/git-discipline.md`'s merge-conflict procedure — the human is already present at the gate; never reset or discard.
 
-**Logging is both-entries, not either-or:** any merge that advances the branch writes the `worktree-setup.md`-format `AUTO` entry, and the gate's resolution additionally writes its own entry per `_shared/auto-decision-log.md`'s schema.
+**Logging is both-entries, not either-or:** any merge that advances the branch writes the check's step 5 `AUTO` entry, and the gate's resolution additionally writes its own entry per `_shared/auto-decision-log.md`'s schema.
 
 ## Interplay
 
