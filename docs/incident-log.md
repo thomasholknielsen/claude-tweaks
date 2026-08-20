@@ -826,6 +826,8 @@ Fixed by making `installed === "none"` an unconditional drift signal, independen
 
 The generalizable rule: a repair loop's "nothing to compare against, so nothing to repair" guard is only safe when every path that produces that value is genuinely benign. Audit each one — a resolution *failure* and a legitimate *absence* can both degrade to the same sentinel, and a guard written for the second silently disables the loop for the first, which is usually the more consequential case. This is the same shape as `[IL-92]` (a fail-open branch's comment not covering every path that reaches it) pointed at a repair loop instead of an enforcement gate, and it compounds with `[IL-113]`: a cloud agent hit the exact symptom IL-113 describes, for a completely different reason, and had no way to tell the two apart from inside its own sandbox — which is precisely why the check needs to live in the script, not in an agent's post-hoc diagnosis.
 
+The audit this rule calls for found a third path (`claude-tweaks` #860): #418's mirror change made the plugin's own marketplace entry a sha-pinned `git-subdir` source with no entry-level `version` field at all — a fourth way to legitimately have "nothing to compare against" that this drift check's `expected` variable still couldn't distinguish from a resolution failure, this time permanently rather than only on a cold first run. Caught during routine dev work rather than an observed firing, so it never became its own incident — resolved by teaching `expected` to resolve the pinned sha to a manifest version (`raw.githubusercontent.com` fetch, fail-open on any failure) before falling back to `"unversioned"`, applied identically to both copies this entry already names.
+
 ## IL-116 — A pipeline-run worktree was torn down directly, skipping the cleanup procedure that protects its own gitignored state
 
 On 2026-08-08/09, closing out the specs 216/217/218 multi-spec `/flow` run, the branch-finish sequence (merge, push, worktree teardown) was executed as an ad hoc sequence of tool calls rather than by re-entering `/claude-tweaks:wrap-up`'s own Step 10 cleanup execution. `ExitWorktree` was called with `action: "remove", discard_changes: true` directly against the run's worktree, verified safe only by content-identity — `HEAD` matched `origin/main` (the `[IL-45]` check). That check is real but narrow: it verifies no *commits* are lost, and says nothing about gitignored working-tree state.
@@ -1099,3 +1101,24 @@ committed with no event, no warning and no audit trail.
 Cost on the #315 run: moderate (~10 min) — but the real cost is that a shipped contract
 contradiction reached `main` recorded only as a ledger "surprise", because the workaround
 removed the pressure that would have filed it.
+
+## IL-142 — An uncommented deliberately-incomplete test fixture read as a bug by an automated reviewer
+
+During #500's own `/claude-tweaks:review`, one lens agent (Test Quality, 3f-A) flagged
+`tests/hooks-post-tool-use-adhoc-rundir.test.js:91-94`'s "never throws on an unresolvable
+worktree path — returns `{}` rather than crashing" test as a "high" severity bug: a
+"malformed context object" whose expected return value supposedly didn't match actual
+behavior. The test's context object deliberately omits the top-level `cwd` field — that
+incompleteness is the entire point of the test (it proves `stampAdHocRunDir`/`run()` fail
+open rather than throwing on an unresolvable worktree path) — but nothing in the test says
+so. A reviewer with no more context than the file itself reasonably read an intentional
+design choice as an oversight.
+
+Refuted only by independently tracing the actual code path (`ctx.cwd` undefined →
+`resolveCreatedWorktreePath` returns `null` → `stampAdHocRunDir` returns early → `run()`
+falls through to `return {}` at line 604, exactly matching the test's own assertion) — a
+direct-verification pass that cost roughly 10 minutes and would have been unnecessary with a
+one-line comment on the fixture.
+
+Cost on the #500 run: moderate (~10 min) — one direct-verification pass to confirm a
+false-positive "high" severity finding before it could be staged or acted on.

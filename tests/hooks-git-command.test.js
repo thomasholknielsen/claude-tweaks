@@ -26,9 +26,58 @@ test('a cd on its own line, preceded by an unrelated statement joined only by a 
   );
 });
 
-test('a shell-variable cd on its own line, preceded by an unrelated statement, is unresolvable — no target (never falls back to the stale cwd)', () => {
+test('a shell-variable cd on its own line, preceded by an unrelated statement, resolves via the same-command assignment (no fallback to the stale cwd — the assignment IS the proof)', () => {
   assert.deepStrictEqual(
     gitTargets('MKT="/wt/spec-1"\ncd "$MKT" && git commit -m "x"', '/repo'),
+    [{ action: 'commit', dir: '/wt/spec-1' }],
+  );
+});
+
+test('a cd referencing a variable with no same-command assignment stays unresolvable', () => {
+  assert.deepStrictEqual(
+    gitTargets('cd "$SOME_VAR" && git commit -m "x"', '/repo'),
+    [],
+  );
+});
+
+test('fileWriteTargets resolves a same-command literal assignment substituted into a write target', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/private/tmp/foo; sed -i "" -e "s/x/y/" "$SP/file.md" && grep -c x "$SP/file.md"', '/repo'),
+    [{ action: 'edit', file: '/private/tmp/foo/file.md' }],
+  );
+});
+
+test('a dynamic/unresolvable assignment value is never chained — target stays unresolvable', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=$(pwd); sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
+    [],
+  );
+});
+
+test('a later re-assignment of the same name overrides the earlier one', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/a; SP=/b; sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
+    [{ action: 'edit', file: '/b/file.md' }],
+  );
+});
+
+test('a later re-assignment to an unresolvable value drops the earlier mapping — no stale substitution', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets('SP=/a; SP=$(pwd); sed -i "" -e "s/x/y/" "$SP/file.md"', '/repo'),
+    [],
+  );
+});
+
+test('a single-quoted $NAME reference is never substituted — real bash does not expand inside single quotes', () => {
+  assert.deepStrictEqual(
+    fileWriteTargets("SP=/private/tmp/foo; sed -i '' -e 's/x/y/' '$SP/file.md'", '/repo'),
+    [],
+  );
+});
+
+test('a single-quoted $NAME cd target is never substituted, mirroring the write-target case', () => {
+  assert.deepStrictEqual(
+    gitTargets('MKT="/wt/spec-1"\ncd \'$MKT\' && git commit -m "x"', '/repo'),
     [],
   );
 });
@@ -306,4 +355,50 @@ test('mkdirTargets: an unresolvable target (variable, backtick, tilde) yields no
 
 test('mkdirTargets: a non-mkdir command yields no target', () => {
   assert.deepStrictEqual(mkdirTargets('cp a b', '/repo'), []);
+});
+
+// #590: env-prefixed and path-qualified git invocations bypass the
+// `t[0] !== 'git'` check the same way a bare `git commit`/`git push` proves a
+// target — a real shell treats these shapes identically.
+test('an env-var-prefixed git commit still resolves a target', () => {
+  assert.deepStrictEqual(gitTargets('FOO=1 git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('a path-qualified git commit still resolves a target', () => {
+  assert.deepStrictEqual(gitTargets('/usr/bin/git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('env-wrapped git (with and without env\'s own flags/assignments) still resolves a target', () => {
+  assert.deepStrictEqual(gitTargets('env git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env -i git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env FOO=1 git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('env-prefixed/path-qualified git push resolves too, not just commit', () => {
+  assert.deepStrictEqual(gitTargets('FOO=1 git push origin main', '/repo'), [{ action: 'push', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('/usr/bin/git push origin main', '/repo'), [{ action: 'push', dir: '/repo' }]);
+});
+
+test('env-var-prefix and path-qualification compose: both together still resolve a target', () => {
+  assert.deepStrictEqual(gitTargets('FOO=1 /usr/bin/git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env FOO=1 /usr/bin/git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('an executable merely ending in "git"-like text but not the literal git basename is not mistaken for git', () => {
+  assert.deepStrictEqual(gitTargets('/usr/bin/mygit commit -m "x"', '/repo'), []);
+});
+
+test('a bare unrelated NAME=value prefix on a non-git command still yields nothing', () => {
+  assert.deepStrictEqual(gitTargets('FOO=bar npm test', '/repo'), []);
+});
+
+test('an env-var-prefixed cd changes the effective cwd, matching real bash — a following bare commit targets the new dir', () => {
+  // Verified empirically: `FOO=1 cd /x` really does change the shell's cwd
+  // (cd is a regular, not a POSIX "special", builtin — it has no subprocess
+  // to scope the assignment to, so cd still runs against the current shell).
+  assert.deepStrictEqual(gitTargets('FOO=1 cd /var && git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/var' }]);
+});
+
+test('an env-WRAPPED cd (as opposed to env-var-PREFIXED) does not change cwd, matching real bash — env execs a nonexistent "cd" binary and errors, so a following bare commit still targets the stale cwd', () => {
+  assert.deepStrictEqual(gitTargets('env cd /var; git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
 });

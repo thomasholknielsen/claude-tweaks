@@ -49,7 +49,17 @@ rendered UI). Append this fixed sentence to every batch question's text:
 
 ## Declining an item
 
-An unchecked item is logged as declined, never silently dropped:
+An unchecked item is logged as declined, never silently dropped. **First, in every branch
+below:** compute the item's fingerprint via `bin/lib/feedback/file-feedback.js`'s
+`computeFingerprint(draft)` (the same fingerprint `/feedback`'s own filing step would have
+embedded had this item been checked instead) and record the decline via
+`bin/lib/declined-learning/store.js`'s `recordDecline(fingerprint, { reason, source: 'feedback' })`
+— `reason` is the user's stated reason when the caller collected one (the wrap-up/multi-spec
+console path below), or the literal string `'declined, no reason given'` otherwise. A decline
+write failure degrades open exactly like a watermark write failure (`_shared/transcript-judge.md`'s
+"On a write failure" line) — log it as a one-line note and continue; never abort the batch over it.
+
+Then, per branch:
 
 - **`/feedback --queue` (direct invocation):** post a comment on that item's local
   `upstream-candidate` issue — `"Declined via /claude-tweaks:feedback batch review, {date}"` —

@@ -71,7 +71,20 @@ Otherwise, analyze what was built and identify journeys it enables or modifies �
 
 ## Step 2: Create New Journey Files
 
-For each new journey identified, create a file at `docs/journeys/{journey-name}.md` using the template + key principles in `journey-template.md` in this skill's directory. The template covers frontmatter, persona/goal/entry-point/success-state framing, the per-step structure (URL / Action / Should feel / Should understand / Red flags), and the Origin trailer.
+**Existing-convention check, before writing.** Read `doc-convention-journey` via the canonical read path (`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" doc-convention-journey` — `_shared/policy-schema.md`) and branch on the JSON envelope, the same pattern `wrap-up/adr-curation.md` Step 3 uses for the `adr` genre: `source: "policy"` means the key is set, so use the recorded value and skip detection entirely; `source: "default"` means it is unset, so read `_shared/existing-convention-detection.md` and run its procedure for the `journey` genre against `docs/journeys/` (its declared alias in `_shared/diataxis-genre-templates.md`'s Genre declarations table). A `plugin` outcome (no existing convention, or fewer than 3 files) proceeds silently — this is the common case, since journeys are plugin-native and prior art is unlikely.
+
+On a `conflict` outcome, this **is** the approval gate `/claude-tweaks:journeys` previously lacked — but a naming-convention question is not a HARD-GATE, so it must not become a new mid-flow stop under `auto` mode (`_shared/auto-mode-contract.md`). Route by whether a pipeline run directory is active, the same split Step 3.5 below already uses for self-review issues:
+
+- **Auto mode (`$PIPELINE_RUN_DIR` set)** — stage the conflict to `staged/journeys-convention.md` (one file per run; a genre-generic `[journey-convention]` row per `wrap-up/console-template.md`'s render template) and continue this run using the plugin's default path — do not block the write. Append to the auto-decision log under the `## /journeys` heading in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`):
+
+  ```
+  - STAGED {HH:MM:SS} — Step 2: journey naming convention conflict ({plugin form} vs {found form}, {N} existing). Stage path: staged/journeys-convention.md. Reversibility: high.
+  ```
+
+  The Wrap-Up Review Console picks this row up alongside any other `[{genre}-convention]` rows from the same run, resolves it via the same three-way prompt `adr-curation.md` uses, and writes `doc-convention-journey: {plugin|project}` to `.claude-tweaks/policy.yml` (`wrap-up/execution-and-verification.md`'s Genre convention resolution step) — including, on a `Migrate` answer, renaming this run's own newly-created journey files as part of that batch.
+- **Interactive mode, or invoked standalone with no `$PIPELINE_RUN_DIR`** — there is no Review Console downstream to route through, so ask directly via `AskUserQuestion` (per this skill's own Interaction style, above) before writing anything: `question`: `"This repo's existing journey files disagree with the plugin's naming convention. Which form should new journeys use?"`, options `Conform forward (Recommended)` (`doc-convention-journey: plugin`), `Keep project form` (`doc-convention-journey: project`, resolve the actual filename from the found grammar per `_shared/existing-convention-detection.md`'s evidence-split table), `Migrate` (rename existing journey files to the plugin's form as one itemized batch, same procedure as `wrap-up/execution-and-verification.md`'s Genre convention resolution step). Record the answer directly to `.claude-tweaks/policy.yml` as `doc-convention-journey: {plugin|project}`.
+
+For each new journey identified, create a file at the resolved path (`docs/journeys/{journey-name}.md` under the plugin form, or the resolved project-form filename once known — the plugin form for this run when a conflict was staged rather than resolved) using the template + key principles in `journey-template.md` in this skill's directory. The template covers frontmatter, persona/goal/entry-point/success-state framing, the per-step structure (URL / Action / Should feel / Should understand / Red flags), and the Origin trailer.
 
 ## Step 3: Update Existing Journey Files
 

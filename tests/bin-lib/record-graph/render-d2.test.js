@@ -1,4 +1,4 @@
-// bin/lib/record-graph/tests/render-d2.test.js
+// tests/bin-lib/record-graph/render-d2.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { renderD2 } = require('../../../plugin/bin/lib/record-graph/render-d2');

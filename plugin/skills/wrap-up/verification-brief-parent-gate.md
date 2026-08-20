@@ -188,6 +188,15 @@ For the group gate the set's size is the difference between the eager gate firin
 at all: count only the sub-issue in hand and a group holding two or more sub-issues of one parent
 evaluates `incomplete` on every one of them, labeling nothing — not the sub-issues, not the parent.
 
+**Ruling (`#205`): stays a prose contract, not a shared helper.** A fifth caller inherits the
+"default to `{the sub-issue in hand}`, never `{}`" rule above with nothing to catch a wrong value
+if it passes one — the risk this table exists to flag. Given only three callers exist today, each
+already reading this table before writing its own `$CLOSING_SUB_ISSUES` line, and a shared helper
+would mean threading a new call through every one of them for a hazard the default clause already
+closes (an omitted set can no longer silently label nothing — see above), the cost doesn't clear
+the bar yet. Revisit as a real code change once a fourth sub-issue-side caller is added, when the
+table stops being small enough to audit by eye on every new caller.
+
 **The gate still fires once per parent.** The group gate's later invocations for the same
 parent re-fetch the parent's labels (**Enumerate the parent's sub-issues** above does this
 per invocation), read `gated`, and no-op — one brief and one `demo:pending`, never a second.
@@ -288,11 +297,16 @@ a parent that may already be partially applied, before even composing it above. 
 comment landed but whose label add failed still reads `due`, so `/tidy`'s `Open parent gate`
 action re-enters this section for that parent on every future run. Fetch the parent's comments
 (`gh issue view $PARENT_NUM --json comments`, the same lookup `/claude-tweaks:demo`'s Step 1
-already does) and test whether **any** of them contains a `## Verification Brief` heading — every
-comment on the parent, not just the most recent one, which a human reply or a bot notification
-will routinely have displaced (this population is long-lived open records that other people
-comment on, so a most-recent-only test reports "no brief" on a parent that plainly has one, and
-posts a duplicate).
+already does) and test whether **any** of them contains a `## Verification Brief` heading **with
+a `### Confirmed` section** — every comment on the parent, not just the most recent one, which a
+human reply or a bot notification will routinely have displaced (this population is long-lived
+open records that other people comment on, so a most-recent-only test reports "no brief" on a
+parent that plainly has one, and posts a duplicate). The `### Confirmed` requirement matches
+`execution-and-verification.md`'s verify check exactly (`#205`) — a hand-written comment that
+merely quotes the `## Verification Brief` heading, with no `### Confirmed` section, no longer
+counts as "already posted" here: skipping the real post on that input would leave the record
+`demo:pending` with a brief that then fails verification, which is worse than the rare double-post
+this guard exists to avoid.
 
 If a brief is already present, the recovery is to **skip the comment entirely and apply only the
 missing label**:

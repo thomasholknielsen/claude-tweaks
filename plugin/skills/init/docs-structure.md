@@ -113,7 +113,7 @@ docs/
     deployment.md
     monitoring.md
     migration-guide.md
-  decisions/               ← ADRs (0001-chose-postgres.md) — written by /wrap-up's Decision records curation row per the ADR gate in `_shared/decision-records.md`
+  decisions/               ← ADRs (e.g. 0001-{kebab-slug}.md) — written by /wrap-up's Decision records curation row per the ADR gate in `_shared/decision-records.md`
   journeys/                ← already exists
   plans/                   ← already exists
   diagrams/                ← generated on demand by /claude-tweaks:visualize, not created by /init
@@ -212,6 +212,8 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
    | `decisions/*.md` | ADR |
    | `journeys/*.md` | Journey |
 
+5.5. **Audit genre-convention collisions (read-only).** For each genre whose Detection is `active` in `skills/_shared/diataxis-genre-templates.md`'s Genre declarations table (Tutorial, How-To, Reference, Explanation, Journey, ADR), glob that genre's declared alias directories under `docs/` and run `_shared/existing-convention-detection.md`'s procedure against whatever's found — the same detection ADR already runs, applied here as a one-time survey rather than gated behind a specific write. This step **never writes anything and never scaffolds a directory** — it is a read-only report, the one exception to every other doc-creating path's behavior in this file. Skip a genre entirely when its `doc-convention-{genre}` policy key is already set (per `_shared/policy-schema.md`) — the question was already answered elsewhere, and re-raising it here would be the same forbidden re-ask `_shared/existing-convention-detection.md`'s "When this runs" section rules out. Fold each `conflict` outcome into the assessment as a new finding kind, alongside stale/thin/misplaced/missing (step 4): "Convention conflict — `docs/decisions/` has 16 files as `ADR-NNN-{slug}.md`; the plugin's convention is `NNNN-{kebab-slug}.md`." Each becomes its own backlog work record in step 8 below (`### Resolve {genre} naming convention`), pointing at the found grammar and file count so whoever picks it up doesn't need to re-scan — never resolved by `/init` itself, and never a reason to rename, migrate, or scaffold anything here.
+
 6. **Present batch:**
 
    ```
@@ -238,7 +240,7 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
 
 7. **Create `docs/REGISTRY.md`** with approved entries (existing docs only — missing docs are not added until they're created).
 
-8. **Capture doc work as backlog work records** — For each finding from the assessment (stale, thin, misplaced, missing), file a backlog work record (`_shared/work-record.md`; no `by:*` label — an `Origin: /init doc registry (Phase 8.5)` body line records provenance instead, same convention `wrap-up/leftover-routing.md` uses) with the Phase 2 context baked in:
+8. **Capture doc work as backlog work records** — For each finding from the assessment (stale, thin, misplaced, missing, convention conflict), file a backlog work record (`_shared/work-record.md`; no `by:*` label — an `Origin: /init doc registry (Phase 8.5)` body line records provenance instead, same convention `wrap-up/leftover-routing.md` uses) with the Phase 2 context baked in:
 
    ```markdown
    ### Refresh docs/api.md — missing 5 endpoints

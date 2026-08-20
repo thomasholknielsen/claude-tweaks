@@ -264,19 +264,44 @@ when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
 Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines `_shared/forge-detection.md`'s Detection Ladder plus that file's `triage-queue` scope section and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Origin-agnostic: every `ready` record counts toward pending authorization regardless of origin (health-filed, captured, or human-filed, with or without a `by:*` label) — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull, which tiers no health-skill origin specially.
 
-## Stage 4.7: Acceptance Queue (GitHub)
+## Stage 4.7: Acceptance Queue
 
 Cheap list only — the walkthrough stays `/claude-tweaks:demo`'s job, not `/help`'s. `/demo` no
 longer sweeps the `demo:pending` backlog itself (it resolves only the items you name — this
 session's own recall-detected work, one explicit `#N`, or an explicit `#N,#M` list taken one at
 a time — never a scan), so this stage is the sole discovery surface for which records are
-outstanding. Skip silently (same fail-open detection ladder as
-Stage 4.5/4.6) when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
+outstanding, on either driver.
 
-Scan per `_shared/github-pr-scan-acceptance.md`, **`acceptance-queue`** scope (extracted from
+`work-backend: github-issues`: skip silently (same fail-open detection ladder as Stage 4.5/4.6)
+when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote. Scan per
+`_shared/github-pr-scan-acceptance.md`, **`acceptance-queue`** scope (extracted from
 `_shared/github-pr-scan.md` — #204). The dispatcher inlines `_shared/forge-detection.md`'s
 Detection Ladder plus that file's `acceptance-queue` scope section and one-line render format into
 this agent's prompt — subagents cannot read sibling files.
+
+`work-backend: local-files`: no Detection Ladder or `gh` call — read the local record store
+directly, the same `queryRecords` (`bin/lib/issues/local-store.js`) primitive Stage 1's Conflict
+detection sub-section already uses. `demo:pending` (`facets.acceptance === 'pending'`) persists
+independent of open/closed state, exactly as it does under `github-issues`, so this needs the same
+open-plus-closed merge `tidy/step-1-records.md`'s Shape 7/8 already use for the same reason:
+`queryRecords`'s default is open-only, and `{ closed: true }` does not mean "open and closed" —
+it means "closed only" (`bin/lib/issues/local-store.js`'s own comment on this behavior) — so both
+calls run and their results merge:
+
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const records = [
+    ...queryRecords('specs', { acceptance: 'pending' }),
+    ...queryRecords('specs', { acceptance: 'pending', closed: true }),
+  ];
+  console.log(JSON.stringify(records.map((r) => ({ id: r.id, title: r.title }))));
+"
+```
+
+Render as the same one-line format as the `github-issues` scope: `Awaiting sign-off: **{N}
+records** — #{id1} ({title1}), #{id2} ({title2}), ... — run /demo #{id1},#{id2},... to review them
+all` (a single ref when `{N}` is 1: `run /demo #{id1}`) — omit entirely when the count is 0.
 
 ## Stage 4.8: Trust Table (GitHub)
 

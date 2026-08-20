@@ -21,10 +21,19 @@ const { installWrapper, buildWrapperSource } = require('../plugin/bin/install-st
 // the two causes can never again be confused for each other.
 const SPAWN_TIMEOUT_MS = 30_000;
 
-function runWrapper(scriptPath, tmpHome) {
+// extraEnv lets a test opt into setting CLAUDE_CONFIG_DIR (or other vars) explicitly.
+// The base env always deletes any ambient CLAUDE_CONFIG_DIR first — this repo's own
+// dev sessions commonly run under a real CLAUDE_CONFIG_DIR (a synthetic account
+// directory with its own real plugin cache), and letting that leak through here
+// would make CLAUDE_CONFIG_DIR-oblivious tests resolve against that real cache
+// instead of the fake tmpHome/.claude tree they set up.
+function runWrapper(scriptPath, tmpHome, extraEnv = {}) {
+  const env = { ...process.env, HOME: tmpHome };
+  delete env.CLAUDE_CONFIG_DIR;
+  Object.assign(env, extraEnv);
   const result = spawnSync(process.execPath, [scriptPath], {
     encoding: 'utf8',
-    env: { ...process.env, HOME: tmpHome },
+    env,
     timeout: SPAWN_TIMEOUT_MS,
   });
   assert.ok(
@@ -118,10 +127,12 @@ test('installWrapper restores 0o755 when re-run over an existing, non-executable
 // `process.pid` to stdout: if the wrapper truly runs it in-process, that PID
 // must equal the wrapper's own process (the PID spawnSync reports as the
 // child it launched), not a second, different PID from a grandchild spawn.
-function fakeCacheWithTarget(tmpHome, version, targetContents) {
+// configRoot is the directory that directly contains `plugins/cache/...` —
+// i.e. what the wrapper's CACHE constant resolves to (either `<home>/.claude`
+// or a CLAUDE_CONFIG_DIR value).
+function fakeCacheAt(configRoot, version, targetContents) {
   const targetDir = path.join(
-    tmpHome,
-    '.claude',
+    configRoot,
     'plugins',
     'cache',
     'claude-tweaks-marketplace',
@@ -131,6 +142,10 @@ function fakeCacheWithTarget(tmpHome, version, targetContents) {
   );
   fs.mkdirSync(targetDir, { recursive: true });
   fs.writeFileSync(path.join(targetDir, 'claude-tweaks-statusline.js'), targetContents);
+}
+
+function fakeCacheWithTarget(tmpHome, version, targetContents) {
+  fakeCacheAt(path.join(tmpHome, '.claude'), version, targetContents);
 }
 
 test('the wrapper runs the cached statusline in-process (no second Node spawn) when the target exports main()', () => {
@@ -194,6 +209,92 @@ test('installWrapper creates the target directory recursively when it does not e
 
   assert.ok(fs.existsSync(binDir));
   assert.ok(fs.statSync(binDir).isDirectory());
+
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+});
+
+// Regression (#633): the wrapper used to hardcode its cache root via
+// os.homedir() + '.claude', ignoring CLAUDE_CONFIG_DIR entirely — so a
+// session running under a non-default account still ran whatever version
+// was cached under the real $HOME, not that account's own cache. Two
+// distinct fake caches (one under HOME/.claude, one under a separate
+// CLAUDE_CONFIG_DIR) prove which one the wrapper actually resolves.
+test('the wrapper resolves the cache root from CLAUDE_CONFIG_DIR when set, ignoring HOME/.claude', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-cfgdir-home-'));
+  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-cfgdir-acct-'));
+  const wrapperPath = installWrapper(tmpHome);
+
+  fakeCacheAt(path.join(tmpHome, '.claude'), '1.0.0', [
+    "module.exports = { main: async () => { process.stdout.write('DEFAULT'); } };",
+    '',
+  ].join('\n'));
+  fakeCacheAt(configDir, '2.0.0', [
+    "module.exports = { main: async () => { process.stdout.write('CONFIG_DIR'); } };",
+    '',
+  ].join('\n'));
+
+  const result = runWrapper(wrapperPath, tmpHome, { CLAUDE_CONFIG_DIR: configDir });
+
+  assert.strictEqual(result.status, 0, `expected exit 0, got status=${result.status} stderr=${result.stderr}`);
+  assert.strictEqual(
+    result.stdout.trim(),
+    'CONFIG_DIR',
+    'expected the wrapper to run the version cached under CLAUDE_CONFIG_DIR, not HOME/.claude',
+  );
+
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+  fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+test('a CLAUDE_CONFIG_DIR value with a trailing slash resolves the same cache root as the same value without one', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-cfgdir-trail-'));
+  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-cfgdir-trailacct-'));
+  const wrapperPath = installWrapper(tmpHome);
+
+  fakeCacheAt(configDir, '3.0.0', [
+    "module.exports = { main: async () => { process.stdout.write('TRAILING_SLASH_OK'); } };",
+    '',
+  ].join('\n'));
+
+  const result = runWrapper(wrapperPath, tmpHome, { CLAUDE_CONFIG_DIR: `${configDir}/` });
+
+  assert.strictEqual(result.status, 0, `expected exit 0, got status=${result.status} stderr=${result.stderr}`);
+  assert.strictEqual(
+    result.stdout.trim(),
+    'TRAILING_SLASH_OK',
+    'expected a trailing-slash CLAUDE_CONFIG_DIR to resolve identically to the non-trailing-slash form',
+  );
+
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+  fs.rmSync(configDir, { recursive: true, force: true });
+});
+
+// Negative control (per the issue's own Gotchas note): confirm the fallback
+// path still resolves HOME/.claude, rather than assuming the ambient shell
+// happens to have CLAUDE_CONFIG_DIR unset — runWrapper explicitly deletes it,
+// and empty / whitespace-only values must also fall through to the default.
+test('CLAUDE_CONFIG_DIR unset, empty, or whitespace-only falls back to HOME/.claude unchanged', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-cfgdir-blank-'));
+  const wrapperPath = installWrapper(tmpHome);
+
+  fakeCacheWithTarget(tmpHome, '4.0.0', [
+    "module.exports = { main: async () => { process.stdout.write('HOME_DEFAULT'); } };",
+    '',
+  ].join('\n'));
+
+  for (const extraEnv of [{}, { CLAUDE_CONFIG_DIR: '' }, { CLAUDE_CONFIG_DIR: '   ' }]) {
+    const result = runWrapper(wrapperPath, tmpHome, extraEnv);
+    assert.strictEqual(
+      result.status,
+      0,
+      `expected exit 0 for CLAUDE_CONFIG_DIR=${JSON.stringify(extraEnv.CLAUDE_CONFIG_DIR)}, got status=${result.status} stderr=${result.stderr}`,
+    );
+    assert.strictEqual(
+      result.stdout.trim(),
+      'HOME_DEFAULT',
+      `expected fallback to HOME/.claude for CLAUDE_CONFIG_DIR=${JSON.stringify(extraEnv.CLAUDE_CONFIG_DIR)}`,
+    );
+  }
 
   fs.rmSync(tmpHome, { recursive: true, force: true });
 });
