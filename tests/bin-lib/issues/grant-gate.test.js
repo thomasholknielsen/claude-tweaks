@@ -228,6 +228,7 @@ test('#969 AC1: shaped:headless + risk:medium denies with shaped-headless-floor'
   assert.equal(result.failedKey, 'shaped-headless-floor');
   assert.equal(result.snapshot.risk, 'medium');
   assert.equal(result.snapshot.size, 'low');
+  assert.equal(result.snapshot.floorReason, 'risk');
 });
 
 test('#969 AC1: shaped:headless + size:medium denies with shaped-headless-floor', () => {
@@ -239,6 +240,7 @@ test('#969 AC1: shaped:headless + size:medium denies with shaped-headless-floor'
   });
   assert.equal(result.grant, false);
   assert.equal(result.failedKey, 'shaped-headless-floor');
+  assert.equal(result.snapshot.floorReason, 'size');
 });
 
 test('#969 AC2: shaped:headless + risk:low + size:low is not denied by this rule (later gates still apply)', () => {

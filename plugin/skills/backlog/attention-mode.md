@@ -9,9 +9,17 @@ not) and Acceptance Queue (awaiting sign-off), which cover different concerns.
 
 ## Step 1: Fetch
 
-Two separate `gh issue list` calls — `--label` ANDs multiple values passed to the same flag, so a
-single call with both labels would return only records carrying both (nearly always empty), not
-either:
+Three `gh issue list` calls. `--label` ANDs multiple values passed to the same flag, which cuts
+both ways here, so the two shapes are deliberate and must not be normalized into each other:
+
+- The first two fetches (`needs:definition`, `solution:unjustified`) are each their own
+  **single-label** call precisely because of that AND — one call passing both labels would return
+  only records carrying both (nearly always empty), not either. Never merge them into one call.
+- The third fetch (`ready` + `shaped:headless`) passes **two labels to one call on purpose** — it
+  wants exactly the AND: records carrying both. **Do not "fix" it by splitting it into separate
+  `--label ready` / `--label shaped:headless` calls** — the rationale above is about the first two
+  fetches only, and splitting this one silently widens it to every `ready` record plus every
+  `shaped:headless` record, which is not what this classification is.
 
 ```bash
 gh issue list --state open --label needs:definition --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-needs-definition.json
@@ -19,7 +27,7 @@ gh issue list --state open --label solution:unjustified --json number,title,crea
 gh issue list --state open --label ready --label shaped:headless --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-shaped-headless.json
 ```
 
-If either fetch returns exactly `200` results, state that in the rendered output — the same
+If any fetch returns exactly `200` results, state that in the rendered output — the same
 "may be more, here's the count" convention `/claude-tweaks:help`'s own fetches use — rather than
 silently treating it as complete. The `shaped-headless` fetch additionally needs `auto:build`
 excluded, done in Step 2's merge script (below) rather than via a `gh` query flag — `gh issue
@@ -28,14 +36,18 @@ doing set logic in the `node -e` merge step rather than the `gh` query.
 
 ## Step 2: Merge and dedupe
 
-Merge by issue number. A record's number appearing in both fetches is not assumed impossible —
-no automated path stamps both labels today, but a human can always add either label directly, so
-the merge must not assume the two fetches are disjoint. When a number appears in both, render
-**one row** for it: `Type` reads `needs:definition + solution:unjustified`, and `Recommended
-action` concatenates both remedies (`needs:definition`'s redirect action first, then
-`solution:unjustified`'s grant-or-evidence action, semicolon-separated). A record can in principle
-carry all three — e.g. `needs:definition` + `shaped:headless` (a headlessly-shaped record whose
-own guard routed it to `needs:definition` — #968's Framing Guard) — the same one-row-per-number,
+Merge by issue number. A record's number appearing in more than one fetch is not assumed
+impossible — no automated path stamps two of these labels together today, but a human can always
+add any of them directly, so the merge must not assume the three fetches are disjoint. When a
+number appears in more than one, render **one row** for it: `Type` joins the matched types with
+` + ` (e.g. `needs:definition + solution:unjustified`), and `Recommended action` concatenates
+each matched type's remedy in that same order, semicolon-separated (`needs:definition`'s redirect
+action first, then `solution:unjustified`'s grant-or-evidence action, then
+`shaped:headless (no grant)`'s grant action). A record can in principle carry all three — e.g.
+`needs:definition` + `shaped:headless`, a combination reachable only when a human adds one of the
+two labels to a record that already carries the other, never from any #968/#969 automated path
+(the Framing Guard's `solution-baked` route stamps `needs:definition` and skips `shaping-mode.md`
+entirely, so it never applies `shaped:headless`) — the same one-row-per-number,
 concatenated-action convention applies; `types` is always rendered in fetch order
 (`needs:definition`, `solution:unjustified`, `shaped:headless (no grant)`) for a deterministic
 Type column.
@@ -125,4 +137,4 @@ empty table, and omit the "Pick up next" line.
 | A single `gh issue list --label needs:definition --label solution:unjustified` call | `--label` ANDs multiple values within one call — this returns only records carrying both, nearly always empty |
 | Granting, closing, or shaping anything from this mode | Read-only, like `overview` — the recommended actions are for the human to run, never executed here |
 | Inventing a third ranking scheme | Reuse `/claude-tweaks:dispatch`'s existing priority-band-then-age ordering |
-| Two rows for a record carrying both labels | Dedupe by issue number and render one row with a concatenated Type/Recommended action |
+| A separate row per matched type for a record carrying two or three of the classifications | Dedupe by issue number and render one row with a concatenated Type/Recommended action, however many types matched |

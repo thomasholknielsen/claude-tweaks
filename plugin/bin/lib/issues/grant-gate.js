@@ -129,7 +129,7 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   if (facets.shapedHeadless === true) {
     const provenanceFloor = exceedsOversightFloor(facets, { riskFloor: 'medium', sizeFloor: 'medium' });
     if (provenanceFloor.exceeds) {
-      return deny('shaped-headless-floor', `record was shaped headlessly (no human review) and exceeds the fixed medium provenance floor (reason: ${provenanceFloor.reason}) — run /claude-tweaks:backlog refine to grant it`, { classKey, verdict, risk: facets.risk, size: facets.size });
+      return deny('shaped-headless-floor', `record was shaped headlessly (no human review) and exceeds the fixed medium provenance floor (reason: ${provenanceFloor.reason}) — run /claude-tweaks:backlog refine to grant it`, { classKey, verdict, risk: facets.risk, size: facets.size, floorReason: provenanceFloor.reason });
     }
   }
   const hasCap = typeof pol.dailyGrantCap === 'number' && pol.dailyGrantCap > 0;
