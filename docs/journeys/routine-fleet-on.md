@@ -2,6 +2,7 @@
 files:
   - plugin/skills/routine/fleet.md
   - plugin/skills/routine/SKILL.md
+  - plugin/skills/specify/routine-template.yml
   - plugin/skills/backlog/routine-template.yml
   - plugin/bin/lib/policy-schema.js
 ---
@@ -32,4 +33,4 @@ files:
 
 ## Outcome
 
-The fleet is live: finders file records overnight, the grant unit (if unlocked) grants within its gate chain and daily cap, the dispatch drain builds what is granted, and tidy sweeps weekly — self-merging its own green housekeeping PRs wherever `autonomy` sits at `trusted`/`unattended` with `housekeeping-auto-merge` unset, staging them otherwise. Checking on it is `fleet status` (routine health, trust table, weekly counters); turning the posture off again is `fleet off` — pause-based, pausing every fleet-marked routine's `enabled` flag via a single-field `RemoteTrigger update` while every durable state (records, rotation cursors, wontfix suppressions, trust history) survives. See `docs/journeys/routine-fleet-status-and-off.md`.
+The fleet is live: finders file records overnight, the shaping unit turns one of them into a `ready` spec each weekday morning (stamping `shaped:headless` — nobody reviewed that spec body), the grant unit (if unlocked) grants within its gate chain and daily cap — where a `shaped:headless` record additionally faces a fixed `medium` provenance floor on both risk and size, so a machine-shaped record above that floor is held for `/claude-tweaks:backlog refine` rather than auto-granted — the dispatch drain builds what is granted, and tidy sweeps weekly — self-merging its own green housekeeping PRs wherever `autonomy` sits at `trusted`/`unattended` with `housekeeping-auto-merge` unset, staging them otherwise. Checking on it is `fleet status` (routine health, trust table, weekly counters); turning the posture off again is `fleet off` — pause-based, pausing every fleet-marked routine's `enabled` flag via a single-field `RemoteTrigger update` while every durable state (records, rotation cursors, wontfix suppressions, trust history) survives. See `docs/journeys/routine-fleet-status-and-off.md`.

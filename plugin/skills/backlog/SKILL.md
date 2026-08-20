@@ -68,6 +68,16 @@ Read the project's `work-backend` config key (per `_shared/work-record-config.md
 
 Read `refine-mode.md` in this skill's directory for the full `refine` procedure, `overview-mode.md` for the full `overview` procedure, `grant-mode.md` for the full `grant` procedure, or `attention-mode.md` for the full `attention` procedure, per the resolved mode from Input above.
 
+## Routine Configuration
+
+`/backlog` ships a routine template (`skills/backlog/routine-template.yml`) whose prompt is `/claude-tweaks:backlog grant` — the headless machine-grant form, the only one of this skill's modes a scheduled Routine ever fires (the rest are human-only, per the Component-Skill Contract below). It is the conditional grant unit in `routine/fleet.md`'s fleet composition table, scheduled weekdays in the off-peak window between the finder routines and the dispatch drain. Instantiate it for the current project with:
+
+```
+/claude-tweaks:routine create backlog
+```
+
+Scheduling it does not make it grant anything. Every firing is a cheap no-op — report nothing, exit clean — until a human has set **both** `autonomy: unattended` and `grant-origination-enabled: true` in `.claude-tweaks/policy.yml` (`grant-mode.md` Step 0). That two-key opt-in is the security boundary this skill's Anti-Patterns table describes; the routine only becomes live once a human turns both keys on.
+
 ## Next Actions
 
 **After `refine`:** render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
@@ -92,7 +102,7 @@ When situational filtering leaves **zero** lines, or the report's closing `Next:
 **`/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to}`** — skips re-selection, claims and builds them directly (recommended) — omit this line entirely if nothing was granted this run
 **`/claude-tweaks:backlog grant`** — sweep anything still eligible since this run's --budget cap or new ready records (recommended) — bold and suffix `(recommended)` only when the dispatch line above is omitted
 
-No "set up a routine" line yet — `skills/backlog/routine-template.yml` doesn't exist (the companion sub-issue blocked on this one ships it; see this record's Non-Goals). Once it lands, add the analogous line here the same way `dispatch/SKILL.md`'s Next Actions offers `/claude-tweaks:routine create dispatch`.
+`/claude-tweaks:routine create backlog` — instantiate this sweep as a live weekday scheduled Routine (see Routine Configuration above) — omit this line when the project's `autonomy` ceiling is below `unattended` or `grant-origination-enabled` is unset, since the routine would only ever fire a no-op until a human turns both keys on
 
 **After `attention`:** render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
