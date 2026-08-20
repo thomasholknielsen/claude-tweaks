@@ -27,6 +27,7 @@ How this repo extracts a recurring cross-skill rule into a new `plugin/skills/_s
 ## Gotchas
 
 - **A dormant forward reference may already name the future contract.** Check for commented-out or "pending #N" references to the contract file before assuming every consumer starts from zero.
+- **A dormant forward reference must be discharged once its follow-up lands, not just left as a pointer.** The other half of the bullet above: when the follow-up record actually ships the fix, its own change must rewrite the "filed separately as #N" placeholder into the real resolution — a contract file asserting a gap is still open after the record that closes it has landed is itself a drift the next reader has to re-discover (#435).
 - **The live label/edge may already exist from a reverted build** — verify current state before writing, never trust a spec's carrier list as fact in a multi-session repo.
 - **Launcher commands and journeys carry the vocabulary too** — a citation swept into skill prose can leave a journey or a paste-ready command still naming the retired clause.
 
