@@ -27,6 +27,7 @@ const { execFileSync } = require('child_process');
 const { detectIntegrationModel, POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
 const { deriveMergeVerification } = require('./lib/merge-verification');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
+const wtDetect = require('./lib/hooks/worktree-detect');
 
 function fail(msg) {
   process.stderr.write(`resolve-policy: ${msg}\n`);
@@ -88,6 +89,19 @@ function main(argv) {
     // The one nested-block key has no scalar form.
     fail('--values does not support model-profiles (no scalar form) — use the JSON output');
     return;
+  }
+  // #1065: anchored-or-outside guard — runs after the flag-conflict checks
+  // (their precedence is unchanged) and before the existence check and any
+  // config.yml read. The raw runDir string is kept downstream, so the
+  // pre-existing "does not exist" message echoes the value as given.
+  if (runDir !== null) {
+    const anchor = wtDetect.checkRunDirAnchoredOrOutside(runDir, process.cwd());
+    if (!anchor.ok) {
+      fail(anchor.reason === 'foreign-checkout'
+        ? wtDetect.unanchoredRunDirShadowMessage(runDir, anchor.mainRoot, '--run')
+        : wtDetect.unanchoredRunDirNoRepoMessage(process.cwd()));
+      return;
+    }
   }
   if (runDir !== null) {
     let isDirectory = false;
