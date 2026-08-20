@@ -11,6 +11,7 @@
 
 const { execFileSync } = require('child_process');
 const link = require('./lib/issues/link');
+const { invalidateSnapshot } = require('./lib/issues/record-snapshot');
 
 const USAGE = 'usage: link-records.js [--parent <n> --subs <n,n,...>] [--blocked-by "<dependent:blocker>,..."] [--repo owner/name] [--help]\n       at least one of --parent+--subs or --blocked-by is required\n';
 
@@ -52,6 +53,7 @@ const realDeps = {
   runner: link.defaultRunner,
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  invalidateSnapshot,
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
 };
@@ -90,6 +92,11 @@ function run(argv, deps = realDeps) {
   const subIssues = hasSubs
     ? link.linkSubIssues({ owner, repo, parent: opts.parent, subs: opts.subs, ids, runner: deps.runner })
     : { ok: [], failed: [] };
+  // A successful sub_issues link write changes the same parent/sub-issue facts
+  // _shared/trust-table.md's native branch caches in the session-scoped sub-issues
+  // snapshot — invalidate it so the next read re-fetches instead of serving a stale
+  // set for the rest of the TTL (#1097).
+  if (subIssues.ok.length > 0) deps.invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID);
   const blockedBy = link.linkBlockedBy({ owner, repo, edges: opts.blockedBy, ids, runner: deps.runner });
   const idsObj = {}; for (const [n, id] of ids) idsObj[String(n)] = id;
   deps.stdout(JSON.stringify({ repo: `${owner}/${repo}`, ids: idsObj, subIssues, blockedBy }, null, 2) + '\n');

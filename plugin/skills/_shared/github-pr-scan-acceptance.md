@@ -161,12 +161,13 @@ node -e "
 ```
 
 Run the batched fetch — one CLI call resolving every parent's sub-issues at once
-(`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), xargs-fed
-so an empty parent list still runs the CLI validly (its zero-positional contract prints an empty
-envelope rather than erroring):
+(`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), invoked via
+command substitution rather than an `xargs` pipe so an empty parent list still invokes it validly
+(its zero-positional contract prints an empty envelope rather than erroring) and the CLI's own exit
+status survives instead of being replaced by the pipe's:
 
 ```bash
-node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))" | xargs node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" > /tmp/tidy-gap-sub-issues-batch.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))") > /tmp/tidy-gap-sub-issues-batch.json
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
@@ -440,7 +441,7 @@ sub-issues API instead, via the same batched aliased-GraphQL probe with a per-pa
 that the `acceptance-gap` scope above uses:
 
 ```bash
-node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))" | xargs node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" > /tmp/tidy-parentgate-sub-issues-batch.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/tidy-parentgate-sub-issues-batch.json
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`

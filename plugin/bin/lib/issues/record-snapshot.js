@@ -67,10 +67,12 @@ function writeSnapshot(filePath, records) {
   fs.writeFileSync(filePath, JSON.stringify(records));
 }
 
-// Deletes both the record snapshot and its companion git-log dump for a
-// session, tolerating either already being absent. Called after any
-// `gh issue create`/`edit`/`close` (or the MCP equivalent) — see
-// _shared/github-write-transport.md's note on the CRUD mapping table.
+// Deletes the record snapshot, its companion git-log dump, and the sub-issues
+// snapshot for a session, tolerating any of the three already being absent.
+// Called after any `gh issue create`/`edit`/`close` (or the MCP equivalent) —
+// see _shared/github-write-transport.md's note on the CRUD mapping table —
+// and after a sub_issues link write (bin/link-records.js), which changes the
+// same parent/sub-issue facts the sub-issues snapshot caches.
 function invalidateSnapshot(sessionId) {
   for (const p of [snapshotPath(sessionId), gitLogPath(sessionId), subIssuesPath(sessionId)]) {
     if (!p) continue;

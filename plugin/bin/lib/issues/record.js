@@ -419,10 +419,12 @@ function buildNativeDependencyQuery(numbers) {
 }
 
 // candidate parent-issue numbers -> one batched, aliased GraphQL query requesting
-// each parent's native subIssues connection (work-links: native). first:100 covers
-// GitHub's documented per-parent sub-issue cap in one page; pageInfo.hasNextPage is
-// requested so callers can detect a raised cap instead of silently truncating.
-// Same alias/null conventions as buildNativeDependencyQuery above.
+// each parent's native subIssues connection (work-links: native). first:100 is the
+// connection page size requested, not a claim about any platform-side cap on
+// sub-issue count; pageInfo.hasNextPage is the actual guard callers must honor —
+// it fires whenever a parent has more sub-issues than fit in one page, whatever
+// that cap turns out to be, so a truncated page is never mistaken for a complete
+// one. Same alias/null conventions as buildNativeDependencyQuery above.
 function buildNativeSubIssuesQuery(numbers) {
   if (!Array.isArray(numbers) || numbers.length === 0) return null;
   const fields = numbers

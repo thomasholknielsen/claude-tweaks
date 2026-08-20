@@ -141,18 +141,16 @@ if [ -n "$SUBSNAP" ] && node -e "
   process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
 " "$SUBSNAP" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
   cp "$SUBSNAP" /tmp/trust-table-sub-issues.json
+  echo SUBSNAP_FRESH
+else
+  echo SUBSNAP_STALE
 fi
 ```
 
-When the block above wrote `/tmp/trust-table-sub-issues.json` (the snapshot was fresh), skip
-straight to the git-log section below — the fetch and retry ladder that follow are unnecessary.
-Otherwise, run the batched fetch — one CLI call resolving every parent's sub-issues at once
-(`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), xargs-fed
-so an empty parent list still runs the CLI validly (its zero-positional contract prints an empty
-envelope rather than erroring):
+Branch on the printed token, never on whether the file appears to exist — `/tmp/trust-table-sub-issues.json` can already be present and stale from an earlier run, so the token is the only observable signal (mirrors the git-log block's both-branches-observable precedent later in this file). When the block above printed `SUBSNAP_FRESH`, `/tmp/trust-table-sub-issues.json` was just written from the snapshot — skip straight to the git-log section below, the fetch and retry ladder that follow are unnecessary. When it printed `SUBSNAP_STALE`, run the batched fetch instead — one CLI call resolving every parent's sub-issues at once (`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), invoked via command substitution rather than an `xargs` pipe so an empty parent list still invokes it validly (its zero-positional contract prints an empty envelope rather than erroring) and the CLI's own exit status survives instead of being replaced by the pipe's:
 
 ```bash
-node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))" | xargs node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" > /tmp/trust-table-sub-issues-batch.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/trust-table-sub-issues-batch.json
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
@@ -209,14 +207,19 @@ before the batched probe existed:
 
 ```bash
 : > /tmp/trust-table-sub-issue-numbers.jsonl
+: > /tmp/trust-table-sub-issue-failures.txt
 node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-sub-issue-numbers.jsonl
+  gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-sub-issue-numbers.jsonl || echo "$N" >> /tmp/trust-table-sub-issue-failures.txt
 done
 
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 node -e "
   const fs = require('fs');
+  const failures = fs.readFileSync('/tmp/trust-table-sub-issue-failures.txt', 'utf8').trim().split('\n').filter(Boolean);
+  if (failures.length) {
+    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write /tmp/trust-table-sub-issues.json or the session snapshot on an undercounted set');
+  }
   const parents = require('/tmp/trust-table-parent-issues.json');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + parents.length + ' parent-issue records (the configured backlog-fetch-limit) — older parent issues were dropped, so their sub-issues may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
@@ -228,6 +231,13 @@ node -e "
   if (subSnapPath) fs.writeFileSync(subSnapPath, JSON.stringify(subIssueNumbers));
 "
 ```
+
+The `while read` loop's own exit code can't surface a failed per-parent `gh api` call — the loop
+itself always exits 0 — so each iteration appends its own parent number to
+`/tmp/trust-table-sub-issue-failures.txt` on failure, and the assembly step reads that file
+**before** touching either output file. A non-empty failures file throws, naming every failed
+parent, before either `/tmp/trust-table-sub-issues.json` or the session snapshot is written — this
+branch feeds both, and an undercounted set would otherwise cache silently for the whole TTL.
 
 The error ladder, end to end: the batched alias resolves the common case in one call; a missing
 alias or a truncated `hasNextPage` page joins `retry` rather than ever being read as "no
