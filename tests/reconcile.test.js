@@ -719,8 +719,9 @@ test('reconcile verb: compact default separates branch entries from archive-bran
   // archive-branches.js pushes both kind:'branch' and kind:'tag' entries into
   // the same result.branches array — a tag's own 'aged-out' action must not
   // be dropped (it matches neither the branch row's takenActions nor
-  // skipActions), and a tag's 'skip' reason must not be mislabeled as a
-  // branch skip in the aggregated skipped line.
+  // skipActions), and a 'delete-failed' skip reason shared by both kinds
+  // must disambiguate by unit rather than merging into one branch-labeled
+  // count.
   const result = {
     mirror: null,
     redTip: null,
@@ -730,6 +731,7 @@ test('reconcile verb: compact default separates branch entries from archive-bran
     branches: [
       { name: 'worktree-record-1', kind: 'branch', action: 'delete', reason: 'cherry-equivalent' },
       { name: 'worktree-record-2', kind: 'branch', action: 'skip', reason: 'too-young' },
+      { name: 'worktree-record-3', kind: 'branch', action: 'skip', reason: 'delete-failed' },
       { name: 'archive/worktree-record-9', kind: 'tag', action: 'aged-out', reason: '> 90d' },
       { name: 'archive/worktree-record-10', kind: 'tag', action: 'skip', reason: 'delete-failed' },
     ],
@@ -741,7 +743,7 @@ test('reconcile verb: compact default separates branch entries from archive-bran
   assert.strictEqual(summary, [
     'archived: 1 branch',
     'aged out: 1 tag',
-    'skipped: 2 items (too-young (branch) 1, delete-failed (tag) 1)',
+    'skipped: 3 items (too-young 1, delete-failed (branch) 1, delete-failed (tag) 1)',
   ].join('\n'));
 });
 
