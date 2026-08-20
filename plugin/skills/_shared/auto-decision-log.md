@@ -154,7 +154,10 @@ proposal at `<path>` into `<run-dir>/staged/<id><ext>` (extension taken from `<p
 item-id shape `_shared/console-on-pr.md`'s "Item ID scheme" assigns at render time; a caller
 staging a new proposal composes its own descriptive id (e.g. `leftover-{slug}`,
 `polish-suggestion-{n}`) — the console re-keys rows to `{kind}-{n}` only when it renders them, not
-when they are written.
+when they are written. This binds new and migrated call sites going forward — it is not a claim
+that every existing `staged/` writer already goes through this CLI; several pre-date it (e.g.
+`test/SKILL.md`'s `test-fix-*.patch`, `reflect/SKILL.md`'s `reflect-*.md`) and migrate on their own
+schedule.
 
 **Under `worktree-always: true`, before a worktree exists for this run.** Every standalone-auto skill (`_shared/pipeline-run-dir.md`'s step 4 allowlist: `/tidy`, `/init`, `/capture`, `/dispatch`, `/backlog`) writes its own `decisions.md` directly against the main checkout — there is no per-run worktree the way a `/build`/`/flow` pipeline has one. The `worktree-always` PreToolUse gate blocks `Edit`/`Write`/`NotebookEdit` there, so the Read+Write pattern above is denied. Use `bin/log-decision.js` (above) or a Bash append instead — the gate's Bash coverage is the `cp`/`mv`/`tee` shapes only, not a Node process or output redirection (see CLAUDE.md's Hooks section):
 
