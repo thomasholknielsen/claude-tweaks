@@ -456,21 +456,47 @@ test('dry-run still confirms candidates and reports final reasons; nothing delet
   assert.strictEqual(git(dir, 'tag', '--list', 'archive/build%2faged3').trim(), '');
 });
 
-test('screen failure is check-level: network -> pr-screen-failed, gh-absent -> gh-absent, zero per-branch work', () => {
+test('screen failure degrades to per-branch skips; tag-aging sweep still runs', () => {
   const dir = makeRepo();
   git(dir, 'checkout', '-b', 'build/anybranch');
   fs.writeFileSync(path.join(dir, 'z.txt'), 'z\n');
   git(dir, 'add', 'z.txt');
   git(dir, 'commit', '-m', 'z');
   git(dir, 'checkout', 'main');
+  // An aged archive/* tag — wholly gh-independent — must still be swept in
+  // the same pass despite the screen failure (#1083 review, reproduced).
+  const ancient = new Date(Date.now() - 91 * DAY).toISOString();
+  execFileSync('git', ['tag', '-a', '-m', 'ancient', 'archive/old-tag'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: ancient, GIT_AUTHOR_DATE: ancient },
+  });
 
   let confirmCalls = 0;
   const resolvePr = () => { confirmCalls += 1; return null; };
   const net = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk: () => 'network-failure' });
-  assert.deepEqual(net, { entries: [], failure: 'pr-screen-failed' });
-  const absent = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk: () => 'gh-absent' });
-  assert.deepEqual(absent, { entries: [], failure: 'gh-absent' });
+  assert.strictEqual(net.failure, null);
+  assert.deepEqual(net.entries.find((e) => e.name === 'build/anybranch'), { name: 'build/anybranch', kind: 'branch', action: 'skip', reason: 'network-failure' });
+  assert.strictEqual(net.entries.find((e) => e.name === 'archive/old-tag' && e.kind === 'tag').action, 'aged-out');
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/old-tag').trim(), '');
   assert.equal(confirmCalls, 0);
+
+  // Recreate the branch + an aged tag for the gh-absent variant.
+  git(dir, 'checkout', '-b', 'build/anybranch2');
+  fs.writeFileSync(path.join(dir, 'z2.txt'), 'z2\n');
+  git(dir, 'add', 'z2.txt');
+  git(dir, 'commit', '-m', 'z2');
+  git(dir, 'checkout', 'main');
+  execFileSync('git', ['tag', '-a', '-m', 'ancient2', 'archive/old-tag2'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: ancient, GIT_AUTHOR_DATE: ancient },
+  });
+
+  const absent = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk: () => 'gh-absent' });
+  assert.strictEqual(absent.failure, null);
+  assert.deepEqual(absent.entries.find((e) => e.name === 'build/anybranch2'), { name: 'build/anybranch2', kind: 'branch', action: 'skip', reason: 'gh-absent' });
+  assert.strictEqual(absent.entries.find((e) => e.name === 'archive/old-tag2' && e.kind === 'tag').action, 'aged-out');
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/old-tag2').trim(), '');
+  assert.equal(confirmCalls, 0); // zero per-branch gh work across both passes
 });
 
 test('per-candidate confirm failure skips that branch (gh-absent/network-failure reason), pass completes', () => {
