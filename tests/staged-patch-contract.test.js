@@ -140,6 +140,14 @@ test('pipeline-run-dir.md Anchoring section states the staged-file invariant exa
   assert.ok(section.includes('post-fan-out shadow sweep'), 'names the shadow-sweep remedy by name');
 });
 
+test('staged-patch.md Staging-time gate cites the pipeline-run-dir.md staged-file invariant instead of restating it', () => {
+  const text = fs.readFileSync(CONTRACT, 'utf8');
+  const gate = text.slice(text.indexOf('## Staging-time gate'), text.indexOf('## Console apply with description fallback'));
+  assert.ok(gate.includes(CITATION_PHRASE), 'Staging-time gate cites the staged-file invariant');
+  assert.ok(!gate.includes('worktree-relative shadow'), 'Staging-time gate no longer restates the shadow phrase');
+  assert.match(gate, /\*\*absolute\*\*/, 'still names the path as absolute (kept, not part of the restatement being removed)');
+});
+
 // ---- Live discrimination probe: the mechanism the contract's prose relies on ----
 // Spawn env hardened against a global commit.gpgsign=true or template hook affecting the
 // fixture; every spawn (setup and probes) is bounded so a hang fails fast and names itself.
