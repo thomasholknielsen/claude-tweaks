@@ -76,6 +76,28 @@ function shouldAgeTag(dateIso, nowMs) {
   return nowMs - t > TAG_AGE_DAYS * 24 * 60 * 60 * 1000;
 }
 
+// branch name -> a flat (no '/'), injective tag suffix. Minimal percent-
+// encoding: '/' -> '%2f' and a literal '%' -> '%25' (escaped so an
+// already-percent-encoded-looking substring in the branch name, e.g.
+// `a%2fb`, can never be mistaken for an encoded slash); every other
+// character — including '-' — passes through unchanged. An earlier version
+// of this function doubled literal '-' to '--' before the slash
+// substitution: that scheme was NOT actually injective (a literal '-'
+// immediately adjacent to a '/' collapses run-length information —
+// `encodeArchiveTagSuffix('ab-/cd')` and `encodeArchiveTagSuffix('ab/-cd')`
+// both produced `'ab---cd'`), which — combined with the tag-creation call
+// site's `-f` force flag — could silently overwrite one branch's archive
+// tag with another's. Percent-encoding avoids the whole class: '%' is
+// escaped first (single pass, so the escape itself is never re-scanned),
+// so every '%' surviving in the output unambiguously starts one of exactly
+// two fixed 3-character sequences, and no other character ever produces a
+// spurious '%' or '/'. '%' is valid in a git ref component (verified: git
+// accepts `archive/build%2ffoo`; rejects tilde-based alternatives outright).
+// Never returns a string containing '/'. See #548.
+function encodeArchiveTagSuffix(branch) {
+  return branch.replace(/[%/]/g, (ch) => '%' + ch.charCodeAt(0).toString(16));
+}
+
 // Cherry equivalence: every commit on the branch is patch-equivalent to one
 // already on the integration branch (`git cherry` lines all start with '-';
 // empty output = no unique commits at all). A cherry failure fails closed.
@@ -116,10 +138,10 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
     }
     if (decision.action === 'tag-and-delete') {
       // Annotated + force-created: -f also fixes the retry dead-end where a
-      // pre-existing archive/{branch} tag from an earlier failed pass would
-      // permanently block archival — the tag is simply recreated at the
-      // same tip.
-      const tag = runGit(['tag', '-a', '-f', '-m', `archive of ${branch}`, `archive/${branch}`, tip], root);
+      // pre-existing archive/{encoded-branch} tag from an earlier failed
+      // pass would permanently block archival — the tag is simply recreated
+      // at the same tip.
+      const tag = runGit(['tag', '-a', '-f', '-m', `archive of ${branch}`, `archive/${encodeArchiveTagSuffix(branch)}`, tip], root);
       if (tag.failure) {
         entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'tag-failed' }); // fail closed: never delete untagged
         continue;
@@ -151,4 +173,4 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
   return { entries, failure: null };
 }
 
-module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS, isCherryEquivalent };
+module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS, isCherryEquivalent, encodeArchiveTagSuffix };
