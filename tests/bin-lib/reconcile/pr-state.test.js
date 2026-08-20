@@ -162,10 +162,7 @@ test('preferOpen with no OPEN PR in the set: behavior unchanged (MERGED wins)', 
 function graphqlResponse(entries) {
   const repository = {};
   entries.forEach((e, i) => {
-    repository['b' + i] = e === null ? null : {
-      name: 'x', target: { oid: 'deadbeef' },
-      associatedPullRequests: { nodes: e.prs },
-    };
+    repository['b' + i] = e === null ? null : { associatedPullRequests: { nodes: e.prs } };
   });
   return JSON.stringify({ data: { repository } });
 }
@@ -178,7 +175,7 @@ test('resolvePrStatesBulk: complete map, tie-break parity with resolvePrState (p
   const r = resolvePrStatesBulk('/tmp', ['reused', 'merged-only', 'gone'], { preferOpen: true, runner, repoSlug: 'o/r' });
   assert.equal(calls.length, 1);
   assert.ok(calls[0].includes('-f') && calls[0].includes('owner=o') && calls[0].includes('name=r'), 'owner/name must travel via -f (never -F: #610 type-coercion)');
-  assert.ok(!calls[0].some((a, i) => a === '-F'), 'no -F flags in the bulk GraphQL argv');
+  assert.ok(!calls[0].includes('-F'), 'no -F flags in the bulk GraphQL argv');
   const queryArg = calls[0].find((a) => a.startsWith('query='));
   assert.match(queryArg, /"refs\/heads\/reused"/);
   assert.equal(r.get('reused').number, 11);        // preferOpen: OPEN governs
@@ -198,7 +195,7 @@ test('resolvePrStatesBulk: default tie-break (no preferOpen) matches resolvePrSt
 test('resolvePrStatesBulk: chunking at BULK_CHUNK with sequential short-circuit on chunk failure', () => {
   const branches = Array.from({ length: BULK_CHUNK * 2 + 20 }, (_, i) => 'br-' + i);
   let call = 0;
-  const runner = (args) => {
+  const runner = () => {
     call += 1;
     if (call === 2) { const e = new Error('boom'); e.code = 'ETIMEDOUT'; throw e; }
     return graphqlResponse(Array.from({ length: BULK_CHUNK }, () => null));
