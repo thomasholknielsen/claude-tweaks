@@ -48,11 +48,13 @@ function parseRepo(url) {
 
 function isPosInt(n) { return Number.isInteger(n) && n > 0; }
 
+function hasItems(arr) { return Array.isArray(arr) && arr.length > 0; }
+
 function validateAction(a, i) {
   if (!a || typeof a !== 'object') return `action[${i}]: not an object`;
   if (!isPosInt(a.issue)) return `action[${i}]: issue must be a positive integer`;
-  const hasAdd = Array.isArray(a.addLabels) && a.addLabels.length > 0;
-  const hasRemove = Array.isArray(a.removeLabels) && a.removeLabels.length > 0;
+  const hasAdd = hasItems(a.addLabels);
+  const hasRemove = hasItems(a.removeLabels);
   const hasComment = typeof a.commentFile === 'string' && a.commentFile.trim() !== '';
   if (!hasAdd && !hasRemove && !hasComment) return `action[${i}] (#${a.issue}): must set addLabels, removeLabels, or commentFile`;
   return null;
@@ -127,8 +129,8 @@ function run(argv, deps = realDeps) {
   const failed = [];
   for (const action of actions) {
     try {
-      const hasAdd = Array.isArray(action.addLabels) && action.addLabels.length > 0;
-      const hasRemove = Array.isArray(action.removeLabels) && action.removeLabels.length > 0;
+      const hasAdd = hasItems(action.addLabels);
+      const hasRemove = hasItems(action.removeLabels);
       if (hasAdd || hasRemove) {
         const editArgs = ['issue', 'edit', String(action.issue), '--repo', repoFlag];
         for (const l of action.addLabels || []) editArgs.push('--add-label', l);
