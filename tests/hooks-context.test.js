@@ -79,6 +79,29 @@ test('listRunDirs and resolveRunDir return empty/null when only archive/ exists'
   assert.strictEqual(ctx.resolveRunDir(project, {}), null);
 });
 
+// #848: a dash-less mint (`date -u +%Y%m%dT%H%M%S` instead of the canonical
+// `+%Y-%m-%dT%H%M%S`) is invisible to RUN_ID_RE — findNonCanonicalRunDirs is
+// the surfacing half, so a caller (reconcile) can report it instead of
+// silently omitting the run from every enumeration forever.
+test('findNonCanonicalRunDirs finds a dash-less run-dir name', () => {
+  const project = tmpProject();
+  mkRun(project, '20260817T173343-spec-764');
+  assert.deepStrictEqual(ctx.findNonCanonicalRunDirs(project), ['20260817T173343-spec-764']);
+});
+
+test('findNonCanonicalRunDirs ignores canonical run-dirs, archive/, and unrelated directories', () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-spec-1', { status: 'active' });
+  mkRun(project, 'archive');
+  fs.mkdirSync(path.join(project, '.claude-tweaks', 'pipelines', 'not-a-run-dir'), { recursive: true });
+  assert.deepStrictEqual(ctx.findNonCanonicalRunDirs(project), []);
+});
+
+test('findNonCanonicalRunDirs returns [] when the pipelines dir does not exist', () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
+  assert.deepStrictEqual(ctx.findNonCanonicalRunDirs(bare), []);
+});
+
 test('listRunDirsWithState returns each non-terminal dir paired with its already-read state', () => {
   const project = tmpProject();
   const a = mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted', worktree: '/wt/a' });
