@@ -3,6 +3,7 @@ files:
   - plugin/skills/flow/multispec-freshness.md
   - plugin/skills/flow/multi-spec.md
   - plugin/skills/flow/multispec-batch-curation.md
+  - plugin/skills/_shared/auto-mode-contract.md
 ---
 
 # Respond to Multi-Spec Boundary Drift
