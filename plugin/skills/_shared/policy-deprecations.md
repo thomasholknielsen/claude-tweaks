@@ -34,6 +34,17 @@ Now: reports as retirement — same audit/init/resolver behavior as the entries 
 
 Removal condition: the shared predicate above, with `{key}` = `section-confirmation`.
 
+## `unattended-tier` (renamed to `autonomy`, #288)
+
+Now: migrates at read — `'on'` maps to `autonomy`'s `'unattended'` value; any other value
+(including `'off'`) null-migrates, falling through to `autonomy`'s schema default (`supervised`),
+since `'off'` never unlocked anything the default doesn't already match. `auditPolicy` reports the
+stray line under `renamedKeys` with the suggested replacement. The merge shipped in commit
+`6cf63a1d` ("Merge unattended-tier into the autonomy ceiling — core lever code"), first released as
+v6.76.0 (2026-08-11, per `docs/shipped-versions.tsv`), under parent tracking issue #288.
+
+Removal condition: the shared predicate above, with `{key}` = `unattended-tier`.
+
 ## `review-severity-floor` (renamed to `review-auto-apply-ceiling`, #332)
 
 Now: migrates at read — identity `migrate`, enum semantics unchanged, `renamed-from` attribution. Renamed because the value is the *maximum* severity auto-applied (`medium` → Low and Medium auto-apply, High staged), i.e. a ceiling, and the `-floor` suffix collided with `review-effort-floor`, which is a genuine floor. `auditPolicy` reports the stray line under `renamedKeys` with the suggested replacement; a file setting both keys follows the resolver's uniform alias rule (new key wins).

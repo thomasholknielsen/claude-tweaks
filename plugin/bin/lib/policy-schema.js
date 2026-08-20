@@ -165,6 +165,8 @@ function migrateExecutionAlways(value) {
 // stray line); the resolver treats the old key's line as contributing nothing
 // and a request for the retired name as unknown-key.
 const RENAMED_KEYS = [
+  // Merged into the autonomy ceiling in #288, first shipped v6.76.0. Removal
+  // condition in skills/_shared/policy-deprecations.md.
   {
     key: 'unattended-tier',
     replacedBy: 'autonomy',
