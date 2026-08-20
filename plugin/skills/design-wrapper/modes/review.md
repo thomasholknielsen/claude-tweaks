@@ -435,7 +435,7 @@ command for a **human** to run; this mode never invokes either — the wrapper w
 every condition.
 
 Log one line per file written to `decisions.md`, per `../../_shared/auto-decision-log.md`:
-`STAGED {time} — review Step 5.5: decisions finding from {provider} on {file} staged at staged/{filename}. Remedy: {remedy}. Surface at Review Console.`
+`STAGED {time} — review Step 5.5: decisions finding from {provider} on {file} staged at staged/{filename}. Remedy: {remedy}. Reversibility: high (staged only). Surface at Review Console.`
 
 If a stage write fails, surface a one-time skip and continue (Step 5's cache-write recovery rule);
 the finding still renders in the summary, and `decisions_staged` counts only files actually written.
