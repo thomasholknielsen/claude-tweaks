@@ -75,6 +75,37 @@ test('curation-engine.md §3 stagePath row requires the absolute anchored path a
   assert.match(row, /reject/i);
 });
 
+// #737: each consumer site words its citation naturally for its own sentence rather than
+// pasting one reused literal phrase into two grammatically different slots (a category error —
+// #737 review finding: a path being equated to an invariant reads wrong). Checking a set of
+// short, independent, whitespace-normalized keywords is both grammar-agnostic and immune to
+// this file's own line-wrapping (curation-engine.md keeps each paragraph as one physical line,
+// but the check is written the same defensive way as its sibling in staged-patch-contract.test.js
+// so both stay correct even if that changes).
+const normWS = (s) => s.replace(/\s+/g, ' ');
+function citesStagedFileInvariant(text) {
+  const n = normWS(text);
+  return n.includes('staged-file invariant')
+    && n.includes('_shared/pipeline-run-dir.md')
+    && n.includes('Anchoring section')
+    && n.includes('single owner');
+}
+
+test('curation-engine.md §3/§4 cite the pipeline-run-dir.md staged-file invariant instead of restating it', () => {
+  const row = ENGINE.split('\n').find((l) => l.startsWith('| `findings[].stagePath` |'));
+  assert.ok(citesStagedFileInvariant(row), '§3 stagePath row cites the staged-file invariant');
+  assert.ok(!row.includes('$RUN_ROOT/.claude-tweaks/pipelines/{run-id}'), '§3 row no longer restates the literal anchored path pattern');
+
+  const s4 = ENGINE.slice(ENGINE.indexOf('## 4. Parallel dispatch'));
+  const verifyPara = s4.slice(s4.indexOf('**Judge self-verification'), s4.indexOf('**Post-fan-out shadow sweep'));
+  assert.ok(citesStagedFileInvariant(verifyPara), '§4 judge self-verification paragraph cites the staged-file invariant');
+  assert.ok(!verifyPara.includes("lands in the worktree's *shadow* of `.claude-tweaks/pipelines/…`, not in the anchored run directory"), '§4 no longer restates the shadow-vs-anchored mechanism explanation');
+  // Procedure-specific mentions of "absolute" (the ABS_STAGE_DIR self-verification instruction,
+  // the payload-validation prose) are untouched by this task and must still be present.
+  assert.match(verifyPara, /literal absolute/);
+  assert.match(verifyPara, /absolute path spelled out/);
+});
+
 test('curation-engine.md §4 documents the post-fan-out shadow sweep verbatim, scoped to staged/ never work/', () => {
   const s4 = ENGINE.slice(ENGINE.indexOf('## 4. Parallel dispatch'));
   assert.ok(s4.includes('```bash\n' + SWEEP_SNIPPET + '\n```'), 'sweep snippet present byte-for-byte inside a bash fence');
