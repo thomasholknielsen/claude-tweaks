@@ -1,9 +1,10 @@
 'use strict';
 const { precheck } = require('./precheck.js');
+const { unnamedRecordsGate } = require('./unnamed-records.js');
 const { bumpManifest, stubChangelogEntry, RELEASE_FILES } = require('./compose.js');
 const { mirrorRelease } = require('./mirror.js');
 
-function runRelease(deps, { part, summary, date, dryRun, log }) {
+function runRelease(deps, { part, summary, date, dryRun, log, allowUnnamed = [] }) {
   const branch = deps.git(['branch', '--show-current']).trim();
   if (branch !== 'main') throw new Error(`releases run from main; current branch is "${branch}"`);
   if (deps.git(['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
@@ -14,6 +15,20 @@ function runRelease(deps, { part, summary, date, dryRun, log }) {
   if (!result.ok) {
     const lines = result.conflicts.map((c) => `  - ${c.source}: ${c.detail} claims v${c.version}`);
     throw new Error(`version collision on v${version}:\n${lines.join('\n')}\nSuggested renumber: v${result.suggested}. Resolve and re-run.`);
+  }
+
+  // Prevention companion to `status.js`'s post-merge detection (#678/#768): refuse to
+  // bump while a merge since the last bump remains unnamed in the summary/CHANGELOG.
+  // `--dry-run` reports rather than aborts (AC3) — a preview must not itself block on
+  // a gap it exists to surface.
+  const gate = unnamedRecordsGate(deps, { summary, allow: allowUnnamed });
+  if (gate.unnamed.length > 0) {
+    const list = gate.unnamed.map((n) => `#${n}`).join(', ');
+    const since = gate.lastBump ? `v${gate.lastBump.version}` : '(no prior release)';
+    const message = `unnamed merges since ${since}: ${list}\n` +
+      'Name them in the summary, backfill CHANGELOG.md\'s newest entry, or pass --allow-unnamed <n,m> to override deliberately.';
+    if (dryRun) log(`[dry-run] release gate: ${message}`);
+    else throw new Error(`release gate: ${message}`);
   }
 
   const [manifestPath, changelogPath, shippedPath] = RELEASE_FILES;
@@ -38,7 +53,10 @@ function runRelease(deps, { part, summary, date, dryRun, log }) {
   if (JSON.stringify(staged) !== JSON.stringify(expected)) {
     throw new Error(`staged set is not exactly the release trio: ${staged.join(', ')}`);
   }
-  deps.git(['commit', '-m', `Release v${version} — ${summary}`]);
+  const allowNote = gate.allowed.length > 0
+    ? `\n\nallow-unnamed: ${gate.allowed.map((n) => `#${n}`).join(', ')}`
+    : '';
+  deps.git(['commit', '-m', `Release v${version} — ${summary}${allowNote}`]);
   // The marketplace pins the payload subdirectory at a commit, so the mirror needs
   // the release commit's sha — read after the commit lands, never before, or the
   // pin names the previous release. Reading it here rather than after the push is

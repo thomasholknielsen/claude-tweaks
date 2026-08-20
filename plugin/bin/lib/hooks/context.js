@@ -210,6 +210,18 @@ function resolveRunDir(cwd, env, sessionId) {
   return resolveRun(cwd, env, sessionId).dir;
 }
 
+// Shared by findRunByWorktreePath/findRunsByWorktreePath below: does this
+// run-state's recorded `worktree` match targetPath? Realpath-canonicalizes
+// both sides where they exist on disk (recorded assignments are already
+// absolute; a torn-down worktree's path may no longer resolve, so the raw
+// string is kept as a fallback comparison rather than failing the match).
+function worktreeMatches(state, target, targetPath) {
+  if (!state || typeof state.worktree !== 'string' || !state.worktree) return false;
+  let recorded = state.worktree;
+  try { recorded = fs.realpathSync(recorded); } catch { /* keep recorded form */ }
+  return recorded === target || state.worktree === targetPath;
+}
+
 // Reverse lookup: which non-terminal run holds this worktree path as its
 // recorded assignment? Canonicalizes both sides via realpath where the paths
 // exist (recorded assignments are already absolute; the caller resolves a
@@ -220,12 +232,32 @@ function findRunByWorktreePath(cwd, targetPath) {
   let target = targetPath;
   try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
   for (const { dir, state } of iterRunDirsWithState(cwd)) {
-    if (!state || typeof state.worktree !== 'string' || !state.worktree) continue;
-    let recorded = state.worktree;
-    try { recorded = fs.realpathSync(recorded); } catch { /* keep recorded form */ }
-    if (recorded === target || state.worktree === targetPath) return { runDir: dir, state };
+    if (worktreeMatches(state, target, targetPath)) return { runDir: dir, state };
   }
   return null;
+}
+
+// Plural sibling of findRunByWorktreePath (#500): every non-terminal run
+// dir — not just the first — assigned to this worktree path, newest first.
+// Exists for the reflect Friction Lens's ad-hoc-session fallback
+// (skills/reflect/full-mode.md): a worktree dev session that never reached a
+// formal pipeline can leave behind more than one lightweight ad-hoc run dir
+// (post-tool-use.js's stampAdHocRunDir, one per EnterWorktree that found no
+// owned run yet) before a later /claude-tweaks:wrap-up finally reads them —
+// a single first-match lookup would silently drop every ad-hoc run but the
+// newest. `excludeDir`, when given, omits that one directory from the
+// result (the caller's own primary/current run dir, already read via its
+// normal path — never double-counted as a second source here).
+function findRunsByWorktreePath(cwd, targetPath, excludeDir) {
+  if (typeof targetPath !== 'string' || !targetPath) return [];
+  let target = targetPath;
+  try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
+  const out = [];
+  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+    if (excludeDir && path.resolve(dir) === path.resolve(excludeDir)) continue;
+    if (worktreeMatches(state, target, targetPath)) out.push({ runDir: dir, state });
+  }
+  return out;
 }
 
 // True synchronous sleep (no CPU-spinning) for writeRunState's lock retry
@@ -318,6 +350,27 @@ function writeRunState(runDir, patch) {
   }
 }
 
+// events.jsonl scan for skill_invoked / claude-tweaks:wrap-up events; missing
+// file or unreadable -> null (indeterminate). Shared by run-integrity.js's
+// checkRunIntegrity and close-run-state.js's closeRunState — the single
+// reader for the paired appendEvent writer above (#380).
+const WRAP_UP_SKILL = 'claude-tweaks:wrap-up';
+function scanWrapupEvents(runDir) {
+  let raw;
+  try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
+  let any = false;
+  let wrapup = false;
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (!ev || ev.type !== 'skill_invoked') continue;
+    any = true;
+    if (ev.skill === WRAP_UP_SKILL) wrapup = true;
+  }
+  return { any, wrapup };
+}
+
 function appendEvent(runDir, type, data, attribution) {
   try {
     // Derived/trusted fields (ts, type) spread LAST so they always win —
@@ -340,5 +393,5 @@ function appendEvent(runDir, type, data, attribution) {
 
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
-  readRunState, writeRunState, appendEvent, findRunByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
+  readRunState, writeRunState, appendEvent, scanWrapupEvents, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
 };
