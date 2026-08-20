@@ -170,8 +170,9 @@ classifier from rule 4 per `_shared/learning-routing.md`. Do not file.
 
 Derive the `--search` keywords from the affected component name **only** — never from the
 free-text symptom/summary, since that text is draft-derived and has not yet passed Step 6's scrub
-criteria below. A component name (a skill, contract, or CLI name from this project's own public docs) is
-inherently public vocabulary and carries no privacy risk on its own — this is what keeps
+criteria below. A component name (a skill, contract, or CLI name from the claude-tweaks plugin's own
+public documentation — never a name drawn from the reporting project) is inherently public
+vocabulary and carries no privacy risk on its own — this is what keeps
 draft-derived, potentially-private text from ever reaching the public search API before the scrub
 gate runs:
 
@@ -179,8 +180,17 @@ gate runs:
 gh issue list --repo thomasholknielsen/claude-tweaks --search '<component>' --state all --limit 10 --json number,title,state,url
 ```
 
+When the affected component resolved to Step 1's `"unclear / general"` fallback, there is no
+public-safe keyword to search on: **skip the search entirely** and say so in the report — never
+fall back to the summary text this step just ruled out. Step 8's fingerprint-marker dedup still
+runs and remains the authoritative duplicate check.
+
 Show any plausible matches and ask whether to file anyway, comment on the
-existing issue instead (then stop), or cancel.
+existing issue instead (then stop), or cancel. A component-name-only search is a coarse screen,
+not a reliable duplicate check — a busy component's ten most relevant issues need not include an
+actual duplicate. That is acceptable because the authoritative dedup runs later: `bin/file-feedback.js`
+matches the fingerprint marker exactly at Step 8 and reports `dedup-hit` without filing. Treat a
+no-match here as "nothing obvious to show the human", never as proof the report is new.
 
 **Inside Step 0's batch loop** (non-interactive), this three-way ask does not run. A match
 instead becomes the drafted item's dedup flag — `**possible duplicate:** #{N}` per
