@@ -149,7 +149,10 @@ existence-independent (the walk-up runs against whichever ancestor directory exi
 hold for a path about to be created as well as one that already exists. The run-directory
 argument reaches the check through the CLI's own `deps` seam where the binary has one — a guard
 added later that reads `process.cwd()` or `worktree-detect` directly re-opens the hole the seam
-exists to close. **A new `bin/*.js` that accepts a run-directory argument owes one of these two
+exists to close — a rule scoped to the pipeline-owned binaries above: the two resolver CLIs have
+no run-dir/cwd `deps` seam at all (their injectable seams serve policy-resolution, not path
+handling), so their guard calls `worktree-detect` directly and their tests spawn the real binary
+against real fixture repos instead. **A new `bin/*.js` that accepts a run-directory argument owes one of these two
 guards** (`[IL-127]`) — the strict rule by default; anchored-or-outside only when a documented
 legitimate outside-repo use exists, as it did for the two resolver CLIs (#1065).
 

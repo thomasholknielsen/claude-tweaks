@@ -103,12 +103,13 @@ function main(argv) {
   // #1065: anchored-or-outside guard — reject a worktree-shadow run dir
   // before any policy read or tally I/O. Outside-any-checkout paths (the
   // journey's /tmp demo, tmp-fixture tests) stay accepted with no flag; the
-  // raw runDir string is kept for all downstream use.
+  // raw runDir string is kept for all downstream use — the reject message
+  // names the realpath-resolved candidate instead.
   if (runDir !== undefined) {
     const anchor = wtDetect.checkRunDirAnchoredOrOutside(runDir, process.cwd());
     if (!anchor.ok) {
       fail(anchor.reason === 'foreign-checkout'
-        ? wtDetect.unanchoredRunDirShadowMessage(runDir, anchor.mainRoot)
+        ? wtDetect.unanchoredRunDirShadowMessage(anchor.resolved, anchor.mainRoot)
         : wtDetect.unanchoredRunDirNoRepoMessage(process.cwd()));
       return;
     }

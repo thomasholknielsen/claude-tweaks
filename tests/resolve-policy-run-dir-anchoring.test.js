@@ -56,6 +56,7 @@ test('reject: bare relative --run from linked-worktree cwd, before any config re
   const res = runCli(['--run', path.join('.claude-tweaks', 'pipelines', 'r1'), 'autonomy'], wt);
   assert.strictEqual(res.status, 1);
   assert.match(res.stderr, /--run .*resolves outside the main checkout/);
+  assert.ok(res.stderr.includes(path.join(fs.realpathSync(wt), '.claude-tweaks', 'pipelines', 'r1')), res.stderr);
   assert.strictEqual(res.stdout, '', 'no JSON — rejected before resolution');
 });
 
@@ -65,6 +66,7 @@ test('reject: absolute --run inside a linked worktree', () => {
   const res = runCli(['--run', path.join(wt, '.claude-tweaks', 'pipelines', 'r1'), 'autonomy'], main);
   assert.strictEqual(res.status, 1);
   assert.match(res.stderr, /resolves outside the main checkout/);
+  assert.ok(res.stderr.includes(path.join(fs.realpathSync(wt), '.claude-tweaks', 'pipelines', 'r1')), res.stderr);
 });
 
 test('reject: --run inside an unrelated second repo (AC 10)', () => {

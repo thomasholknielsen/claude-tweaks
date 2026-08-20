@@ -45,9 +45,8 @@ test('accept: --run-dir outside any checkout (journey shape) — tally readable/
   const res = runCli(['frontier', '--run-dir', outside], main);
   assert.strictEqual(res.status, 0, res.stderr);
   const out = JSON.parse(res.stdout);
-  if (out.model === 'fable') {
-    assert.ok(fs.existsSync(path.join(outside, 'frontier-tally.log')), 'tally written outside as before');
-  }
+  assert.strictEqual(out.model, 'fable', 'fixture preconditions must resolve frontier to fable');
+  assert.ok(fs.existsSync(path.join(outside, 'frontier-tally.log')), 'tally written outside as before');
 });
 
 test('reject: bare relative --run-dir from linked-worktree cwd — exit 1, no tally anywhere', () => {
@@ -57,6 +56,7 @@ test('reject: bare relative --run-dir from linked-worktree cwd — exit 1, no ta
   assert.strictEqual(res.status, 1);
   assert.match(res.stderr, /resolves outside the main checkout/);
   assert.match(res.stderr, /--run-dir /);
+  assert.ok(res.stderr.includes(path.join(fs.realpathSync(wt), '.claude-tweaks', 'pipelines', 'r1')), res.stderr);
   assert.ok(!fs.existsSync(path.join(wt, '.claude-tweaks', 'pipelines', 'r1', 'frontier-tally.log')), 'reject fires before any tally I/O');
 });
 
@@ -66,6 +66,7 @@ test('reject: absolute --run-dir inside a linked worktree', () => {
   const res = runCli(['standard', '--run-dir', path.join(wt, '.claude-tweaks', 'pipelines', 'r1')], main);
   assert.strictEqual(res.status, 1);
   assert.match(res.stderr, /resolves outside the main checkout/);
+  assert.ok(res.stderr.includes(path.join(fs.realpathSync(wt), '.claude-tweaks', 'pipelines', 'r1')), res.stderr);
 });
 
 test('reject: --run-dir inside a genuinely unrelated second repo (AC 10)', () => {
