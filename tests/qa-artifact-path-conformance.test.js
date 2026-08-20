@@ -33,6 +33,9 @@ test('visual-review browser-review reader glob matches the writer prefix', () =>
   const md = read('plugin/skills/visual-review/browser-review.md');
   assert.ok(md.includes('`' + PREFIX + '/*/report.json`'),
     'browser-review must glob report.json under ' + PREFIX);
+  const withoutPrefixed = md.split(PREFIX).join('');
+  assert.ok(!withoutPrefixed.includes('screenshots/qa'),
+    'no bare screenshots/qa remains once the prefixed form is removed');
 });
 
 test('traces base shares the artifacts home', () => {
