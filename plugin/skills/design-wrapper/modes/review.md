@@ -125,6 +125,14 @@ findings, and the distinction lives in `parsed`, never in the finding count.
 
 ### Step 3.8: Dispatch project-local craft critics
 
+> **Track carve-outs:** This step has six lettered sub-steps (a)-(f) forming a sequential gating
+> chain — a later sub-step's correctness can depend on an earlier one (e.g. (c) Availability gates
+> whether a critic dispatches at all). A spec/task brief adding or modifying a track's behavior here
+> must state which of (a)-(f) were checked and which need a carve-out — e.g. "checked (a) through
+> (f), carve-out needed at: (c), (d)" — not just the one sub-step the author already has in mind.
+> Naming only that one risks silently missing an earlier gating sub-step and breaking a track's
+> availability or dispatch without anyone noticing (#672).
+
 The finishing review above judges the render against Impeccable's own direction contract. This step
 asks a different question of a different reviewer: do the changed files meet the *project-local craft
 principles* the record's track has wired — the curated roster in `../critics.md` — and does the
