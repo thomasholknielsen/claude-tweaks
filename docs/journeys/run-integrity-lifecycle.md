@@ -4,6 +4,8 @@ files:
   - plugin/bin/lib/hooks/run-integrity.js
   - plugin/bin/lib/hooks/pre-tool-use.js
   - plugin/bin/lib/hooks/session-start.js
+  - plugin/bin/lib/hooks/close-run-state.js
+  - plugin/bin/lib/hooks/context.js
   - plugin/bin/hooks.js
 ---
 
