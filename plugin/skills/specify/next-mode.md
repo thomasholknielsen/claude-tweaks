@@ -59,18 +59,46 @@ exit or a contested-claim exit (below) is NOT a failure and files nothing.
 Per `_shared/record-queue-fetch.md`'s `work-backend: github-issues` fetch:
 open records carrying none of `ready`, `needs:definition`, `parked`,
 `parent-issue`, and holding no live claim per `_shared/issue-claims.md`'s
-Reading claim state.
+Reading claim state. `ready` and `parent-issue` are excluded because they
+are not this skill's job at all — a `ready` record is already shaped
+(nothing left for `next` to do), and a `parent-issue` is a decomposition
+summary, never itself a shaping target (`_shared/work-record.md`'s
+Structure family). The other two exclusions are content judgments, not
+mechanical ones, and each rules out headless shaping for a different
+reason: **`needs:definition`** marks "a genuine open choice with no
+tradeoff made yet, rather than a single clear ask" (`_shared/work-record.md`'s
+Definition family) — an undecided record cannot be born-ready, and a
+headless firing has nobody present to make the decision it's waiting on,
+so shaping it would mean fabricating that human call. **`parked`** marks a
+record a human deliberately deferred; unattended shaping must not
+un-defer it on its own — promoting a `parked` record out of hold is
+exactly what shaping mode does (removes the label, per `shaping-mode.md`'s
+Stamp scoring and stage labels section), so leaving it un-promoted is the
+only safe default with nobody present to confirm the human's deferral has
+lapsed.
+
+`gh issue list` returns newest-first, so a fetch that hits the `--limit`
+cap silently drops the *oldest* open records — precisely the records
+`next`'s own oldest-first tie-break (Selection below) is designed to
+surface first (the same risk `dispatch/queue-pull-script.md`'s own `next`
+queue pull already guards against). Check the raw pre-filter fetch count
+against the cap, not the post-filter `eligible` count, which will rarely
+hit 500 exactly even when the raw fetch was truncated:
 
 ```bash
-gh issue list --state open --json number,title,labels,createdAt --limit 500 \
-  | node -e "
-    const records = JSON.parse(require('fs').readFileSync(0, 'utf8'));
-    const EXCLUDE = new Set(['ready', 'needs:definition', 'parked', 'parent-issue']);
-    const eligible = records.filter((r) =>
-      !r.labels.some((l) => EXCLUDE.has(l.name))
-    );
-    console.log(JSON.stringify(eligible));
-  " > /tmp/specify-next-candidates.json
+gh issue list --state open --json number,title,labels,createdAt --limit 500 > /tmp/specify-next-raw.json
+RAW_COUNT=$(node -e "console.log(require('/tmp/specify-next-raw.json').length)")
+if [ "$RAW_COUNT" -ge 500 ]; then
+  echo "Warning: the open-issue pull for /claude-tweaks:specify next returned exactly the --limit cap (500) — this repo may have more open records than fetched. gh issue list returns newest-first, so any records beyond the cap are the OLDEST ones, exactly what next's own oldest-first tie-break exists to surface first. Consider raising the cap, or filing this as a signal to re-triage the backlog down." >&2
+fi
+node -e "
+  const records = require('/tmp/specify-next-raw.json');
+  const EXCLUDE = new Set(['ready', 'needs:definition', 'parked', 'parent-issue']);
+  const eligible = records.filter((r) =>
+    !r.labels.some((l) => EXCLUDE.has(l.name))
+  );
+  console.log(JSON.stringify(eligible));
+" > /tmp/specify-next-candidates.json
 ```
 
 Then filter out any record already carrying a live or stale-but-unbroken
