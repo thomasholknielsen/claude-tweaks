@@ -128,16 +128,16 @@ retroactively once a step has already failed.
 ```
 agent-browser --session <name> trace start
 # ... steps ...
-agent-browser --session <name> trace stop traces/<session>/<timestamp>.zip   # on failure, BEFORE close
+agent-browser --session <name> trace stop .claude-tweaks/artifacts/traces/<session>/<timestamp>.zip   # on failure, BEFORE close
 ```
 
-Path convention: `traces/<session>/<timestamp>.zip`. On success, just `close` —
+Path convention: `.claude-tweaks/artifacts/traces/<session>/<timestamp>.zip`. On success, just `close` —
 recording ends with the session (`trace stop` without a path saves to a temp
 directory, which is residue, not a discard). The output is a Chrome DevTools
 trace: open it via Chrome DevTools → Performance → Load profile (there is no
 `trace view` subcommand).
 
-`traces/` is tooling residue, not project content — it belongs in `.gitignore`,
+`.claude-tweaks/artifacts/` is tooling residue, not project content — it belongs in `.gitignore` (init's suggested block covers it),
 and users manage retention/cleanup.
 
 ## Auth Vault

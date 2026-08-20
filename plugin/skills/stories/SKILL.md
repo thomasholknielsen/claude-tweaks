@@ -348,7 +348,7 @@ Judgment rules the numbered steps don't already state (mechanical rules live in 
 - Prefer verifiable assertions ("Verify at least 3 items visible") over vague ones ("Verify page looks right")
 - Use `depends_on` sparingly — only when story B literally cannot run without story A succeeding first
 - Don't generate stories for flows that require real credentials unless an Auth Vault entry exists or the user has agreed to save one
-- `traces/` and `screenshots/` are tooling residue, not project content — ensure both are gitignored (add the entries if missing), and never commit trace zips
+- `.claude-tweaks/artifacts/` (the screenshots/traces home) is tooling residue, not project content — ensure it is gitignored (init's suggested block covers it; add the entry if missing), and never commit trace zips
 
 ## Next Actions
 

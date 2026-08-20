@@ -22,7 +22,7 @@ Refine validates a sample of newly-written stories against the live app, capture
        - **Locator check (non-mutating):** search the **current snapshot** for an element matching the step's semantic locator (role + accessible name, testid, text, label, placeholder). Zero matches → record failure: `{ storyId, stepIndex, issue: "locator_unresolved", locator }`. More than one plausible match → record: `{ storyId, stepIndex, issue: "locator_ambiguous", locator, matchCount }` — flag for disambiguation. Exactly one → proceed. Never probe existence with an action-less `find` — a bare `find` with no action **clicks** the element, which mutates the very state being validated.
        - **Action execution:** run the step as one command — `agent-browser --session <story-id> find <locator> <value> <action> [text]` (e.g. `find role button click --name "Add to cart"`, `find label "Email" fill "user@example.com"`), or act on the matching `@eN` ref from the current snapshot (`click @eN`). If the command errors, record: `{ storyId, stepIndex, issue: "action_failed", action, error }`. Take a fresh snapshot after the action — refs regenerate every snapshot and are never reused across steps.
        - **Verify assertion:** If the step has `verify` or is `assert_visible`, evaluate against the post-action snapshot. If the expected element/text is not present, record: `{ storyId, stepIndex, issue: "assertion_mismatch", expected, actual }`.
-    e. **On any step failure:** save the trace before closing — `agent-browser --session <story-id> trace stop traces/<story-id>/<timestamp>.zip`. Attach the trace path to the failure record. Then close the session.
+    e. **On any step failure:** save the trace before closing — `agent-browser --session <story-id> trace stop .claude-tweaks/artifacts/traces/<story-id>/<timestamp>.zip`. Attach the trace path to the failure record. Then close the session.
     f. **On success:** `agent-browser --session <story-id> close` (recording ends with the session).
 
 3. Collect all validation failures into a FAILURES list. Each failure record includes the trace path when one was captured.
@@ -40,13 +40,13 @@ Refine validates a sample of newly-written stories against the live app, capture
       c. Regenerate ONLY the failed story with corrected semantic locators, actions, and assertions based on the live snapshot. For ambiguous locators, prefer adding `name` (for `role`-only locators), switching to `testid` if available, or scoping by an enclosing `role: region` / `role: form`.
       d. Rewrite the corrected story into the YAML file, replacing the draft version.
 
-6. Log the correction summary: "Refinement: {N} stories validated, {M} corrected. Trace files captured for {K} initial failures: traces/<story-id>/<timestamp>.zip."
+6. Log the correction summary: "Refinement: {N} stories validated, {M} corrected. Trace files captured for {K} initial failures: .claude-tweaks/artifacts/traces/<story-id>/<timestamp>.zip."
 
 ## 5c. Persistent Failure Handling and Tag Self-Heal
 
 7. If any stories still fail after the correction round:
     - Do NOT delete them. Keep them in the YAML.
-    - Add a YAML comment above the story: `# REFINEMENT_WARNING: This story failed automated validation. Manual review recommended. Trace: traces/<story-id>/<timestamp>.zip`
+    - Add a YAML comment above the story: `# REFINEMENT_WARNING: This story failed automated validation. Manual review recommended. Trace: .claude-tweaks/artifacts/traces/<story-id>/<timestamp>.zip`
     - Add tag `needs-review` to the story's tags array.
     - Log: "Refinement: {K} stories still failing after correction — tagged 'needs-review' for manual review. Traces are Chrome DevTools traces — open via Chrome DevTools → Performance → Load profile."
 

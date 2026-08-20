@@ -18,6 +18,7 @@ const { probeForge } = require('./lib/residue/probes/forge');
 const { probeSuite } = require('./lib/residue/probes/suite');
 const { probeRelease } = require('./lib/residue/probes/release');
 const { probePipelineRuns } = require('./lib/residue/probes/pipeline-runs');
+const { probeArtifacts } = require('./lib/residue/probes/artifacts');
 const { renderOutstanding } = require('./lib/residue/render');
 const { filterResultsByScope } = require('./lib/residue/scope-filter');
 
@@ -123,6 +124,7 @@ function main() {
     suiteResult,
     probeRelease({ scope, manifest, run }),
     probePipelineRuns({ cwd }),
+    probeArtifacts({ cwd, run: git }),
   ], opts.scope);
 
   if (opts.json) {
