@@ -62,10 +62,10 @@ honor for a staged finding it applies directly.
 
 Immediately after composing the file, and before logging it as staged, run — from the worktree,
 the same tree the diff was composed against. `$STAGE_PATH` is the staged file's **absolute**
-anchored path — the staged-file invariant `_shared/pipeline-run-dir.md`'s Anchoring section states as the single owner;
-the command runs with cwd = the **worktree root** the diff was composed against — always the
-`-C` form below, never a bare `git apply --check` from whatever cwd happens to be current (a bare
-form validates against the wrong tree silently):
+anchored path, per the staged-file invariant whose single owner is `_shared/pipeline-run-dir.md`'s
+Anchoring section; the command runs with cwd = the **worktree root** the diff was composed
+against — always the `-C` form below, never a bare `git apply --check` from whatever cwd happens
+to be current (a bare form validates against the wrong tree silently):
 
 ```bash
 git -C "$WORKTREE" apply --check "$STAGE_PATH"

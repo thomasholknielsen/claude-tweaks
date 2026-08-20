@@ -88,8 +88,8 @@ self-verification (`curation-engine.md` §4) both check against this same anchor
 before anything is logged as staged; the post-fan-out shadow sweep (`curation-engine.md`
 §4) is the routine remedy for a staged file that ends up in the shadow anyway.
 
-The `worktree-always` PreToolUse gate permits writes to this path from anywhere — see the
-one exemption in `_shared/policy-schema.md`. That exemption is file-write-only, so a
+The `worktree-always` PreToolUse gate permits writes to `work/{n}-spec.md` from anywhere — see
+the one exemption in `_shared/policy-schema.md`. That exemption is file-write-only, so a
 `git commit` issued from the main checkout is still denied.
 
 **The hook-level exemption above is necessary but not sufficient.** The Edit/Write/NotebookEdit
