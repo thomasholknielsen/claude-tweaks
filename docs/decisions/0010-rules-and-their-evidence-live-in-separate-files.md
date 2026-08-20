@@ -50,11 +50,13 @@ once existed; it costs nothing unread, and a rule removed in error is re-derived
 
 ## Consequences
 
-**Accepted.** `## Don'ts` landed at ~20 KB against the originating record's ~15 KB target. The
-remaining gap trades directly against that record's other criterion — every rule "still present and
-enforceable as a rule" — since reaching 15 KB across 90 rules means ~167 B each, at which point the
-specific rules (the `--since` boundary, the grep-anchoring ones) stop being actionable. #80 is left
-open rather than closed against a criterion it does not meet.
+**Accepted, superseded.** `## Don'ts` initially landed at ~20 KB within `CLAUDE.md` against the
+originating record's ~15 KB target, trading directly against that record's other criterion — every
+rule "still present and enforceable as a rule" — since reaching 15 KB across 90 rules means ~167 B
+each, at which point the specific rules (the `--since` boundary, the grep-anchoring ones) stop being
+actionable. #80 tracked this and closed as completed on 2026-08-04. `## Don'ts` has since been
+extracted entirely out of `CLAUDE.md` into `docs/donts.md` (now ~38 KB); `CLAUDE.md` retains only a
+pointer line.
 
 **Accepted.** Rule expiry is scoped to `assetType: claude-md`, because CLAUDE.md findings never
 auto-apply and that containment is what makes an empty `newString` safe. Rules under
