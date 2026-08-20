@@ -51,7 +51,20 @@ function listSlices(root) {
     if (!entry.isDirectory()) continue;
     if (SKIP_DIRS.has(entry.name)) continue;
     if (coveredTopLevel.has(entry.name)) continue;
-    candidates.push({ id: entry.name, path: path.join(root, entry.name) });
+    const absPath = path.join(root, entry.name);
+    // A dot-directory (.github, .vscode, .devcontainer, .husky, ...) that
+    // recursively contains zero SOURCE_EXTS files holds nothing for the
+    // code-health judge to read — emitting it as a rotation candidate just
+    // spends an audit slot on config/tooling files (YAML workflows, JSON
+    // settings) with no judgeable source (#133). Scoped to dot-directories
+    // specifically, not every directory with zero source files today: an
+    // ordinary (non-dot) empty directory keeps its place in the rotation on
+    // purpose (see splitOversized's "gains source files later" comment) —
+    // this check must not silently defeat that guarantee for the common
+    // case. A dot-directory that DOES hold real source (a hypothetical
+    // `.config/`) still passes through untouched.
+    if (entry.name.startsWith('.') && sourceFiles(absPath, { recursive: true }).length === 0) continue;
+    candidates.push({ id: entry.name, path: absPath });
   }
   candidates.push(...workspaceSlices);
   for (const candidate of candidates) splitOversized(candidate.id, candidate.path, slices);
