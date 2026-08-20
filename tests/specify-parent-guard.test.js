@@ -29,6 +29,19 @@ test('specify SKILL.md defines exactly the two documented detection tiers', () =
   assert.ok(src.includes('Tier 2 (legacy sniff)'), 'tier 2 definition missing');
   assert.ok(src.includes('driver-exclusive'), 'driver-exclusive label/facet clause missing');
   assert.ok(src.includes('line-anchored `## Leaves` heading'), 'line-anchored Leaves sniff definition missing');
+
+  // "and no others": scope the tier count to the guard paragraph itself
+  // (between the guard marker and the needs:definition redirect marker) so a
+  // third tier definition added anywhere in that paragraph is caught.
+  const guardIdx = src.indexOf('**Parent-record guard (before the `needs:definition` check');
+  const redirectIdx = src.indexOf('**`needs:definition` redirect (single-record path only).**');
+  const slice = src.slice(guardIdx, redirectIdx);
+  assert.strictEqual(
+    (slice.match(/\*\*[Tt]ier \d \(/g) || []).length,
+    2,
+    'guard must define exactly two tiers — a third tier definition needs a spec change'
+  );
+  assert.ok(slice.includes('two detection tiers'), 'guard must state it defines exactly two detection tiers');
 });
 
 test('specify SKILL.md tier-1 behavior: hard stop, static-prose leaves pointer, exact residue-strip set', () => {

@@ -83,14 +83,13 @@ a decomposition summary, never itself a shaping target
 label-only and selection-time; an unlabeled legacy parent (a
 `## Leaves`-table body with no `parent-issue` label) passes it —
 `SKILL.md` case 1's parent-record guard is the shaping-time backstop that
-still refuses it here, headlessly, without repair. The other two
-exclusions are content judgments, not mechanical ones, and each rules out
-headless
-shaping for a different reason: **`needs:definition`** marks "a genuine
-open choice with no tradeoff made yet, rather than a single clear ask"
-(`_shared/work-record.md`'s Definition family) — an undecided record
-cannot be born-ready, and a headless firing has nobody present to make the
-decision it's waiting on, so shaping it would mean fabricating that human
+still refuses it here, headlessly, without repair. The other two exclusions
+are content judgments, not mechanical ones, and each rules out headless
+shaping for a different reason: **`needs:definition`** marks "a genuine open
+choice with no tradeoff made yet, rather than a single clear ask"
+(`_shared/work-record.md`'s Definition family) — an undecided record cannot
+be born-ready, and a headless firing has nobody present to make the decision
+it's waiting on, so shaping it would mean fabricating that human
 call. **`parked`** marks a record a human deliberately deferred;
 unattended shaping must not un-defer it on its own — promoting a `parked`
 record out of hold is exactly what shaping mode does (removes the label,
@@ -329,6 +328,12 @@ here. (The Claim step's own live re-read, earlier, fetched `labels` only,
 to keep the claim race window as short as possible — that is a different,
 narrower fetch than this one, which is why Framing Guard's fetch, not
 Claim's, is what this step reuses.)
+
+Before following `shaping-mode.md`'s procedure below, apply `SKILL.md` case
+1's parent-record guard against the record's body already fetched above: a
+tier-2 hit resolves per the guard's headless branch — refuse without repair,
+no prompt; this firing reports the refusal as its outcome and exits cleanly,
+the same posture as the ineligible re-read exit above.
 
 Read `shaping-mode.md` in this skill's directory and follow its procedure
 directly against the record fetched above, under the same headless posture
