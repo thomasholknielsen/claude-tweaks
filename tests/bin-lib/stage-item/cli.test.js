@@ -64,10 +64,7 @@ test('cli: unsafe --id (path traversal) is rejected (exit 2), nothing written', 
 test('cli: a source file that does not exist is a malformed invocation (exit 2)', () => {
   const { main, runDir } = fixture();
   const { deps } = fakeDeps(main);
-  const code = run(['--run', runDir, '--id', 'review-2', '--file', '/no/such/file.patch'], {
-    ...deps,
-    readFile: () => { throw new Error('ENOENT'); },
-  });
+  const code = run(['--run', runDir, '--id', 'review-2', '--file', '/no/such/file.patch'], deps);
   assert.equal(code, 2);
 });
 
