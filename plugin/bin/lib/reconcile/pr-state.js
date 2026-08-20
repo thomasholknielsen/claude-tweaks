@@ -22,7 +22,7 @@
 const { execFileSync, execFile } = require('child_process');
 const { promisify } = require('util');
 const { classifyGhApiError } = require('../issues/claim-store');
-const { runGit, repoSlugOf } = require('../hooks/git-exec');
+const { repoSlugOf } = require('../hooks/git-exec');
 
 const execFileAsync = promisify(execFile);
 
@@ -134,8 +134,8 @@ function buildBulkQuery(branches) {
   return `query($owner:String!,$name:String!){\n  repository(owner:$owner,name:$name){\n    ${fields}\n  }\n}`;
 }
 
-function defaultBulkRunner(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: BULK_TIMEOUT_MS, windowsHide: true });
+function defaultBulkRunner(args, cwd) {
+  return execFileSync('gh', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: BULK_TIMEOUT_MS, windowsHide: true });
 }
 
 // The bulk screen (#1082): every requested branch's governing PR in
@@ -148,7 +148,7 @@ function defaultBulkRunner(args) {
 // genuinely no governing PR/ref (including a ref deleted after merge —
 // the probe-confirmed blind spot callers gate with per-branch confirms).
 function resolvePrStatesBulk(repoRoot, branches, opts = {}) {
-  const runner = opts.runner || defaultBulkRunner;
+  const runner = opts.runner || ((args) => defaultBulkRunner(args, repoRoot));
   const map = new Map();
   if (!Array.isArray(branches) || branches.length === 0) return map;
   const slug = opts.repoSlug || repoSlugOf(repoRoot);
@@ -158,13 +158,14 @@ function resolvePrStatesBulk(repoRoot, branches, opts = {}) {
     const chunk = branches.slice(at, at + BULK_CHUNK);
     let parsed;
     try {
-      const stdout = runner(['api', 'graphql', '-F', `owner=${owner}`, '-F', `name=${name}`, '-f', 'query=' + buildBulkQuery(chunk)]);
+      // -f, never -F: String! variables must not be type-coerced (#610's shipped bug shape)
+      const stdout = runner(['api', 'graphql', '-f', `owner=${owner}`, '-f', `name=${name}`, '-f', 'query=' + buildBulkQuery(chunk)]);
       parsed = JSON.parse(stdout);
     } catch (e) {
       return classifyExecError(e);
     }
     const repo = parsed && parsed.data && parsed.data.repository;
-    if (!repo || Array.isArray(parsed.errors) && parsed.errors.length > 0) return 'network-failure';
+    if (!repo || (Array.isArray(parsed.errors) && parsed.errors.length > 0)) return 'network-failure';
     for (let i = 0; i < chunk.length; i += 1) {
       const key = 'b' + i;
       if (!(key in repo)) return 'network-failure'; // incomplete alias set — never a silent null

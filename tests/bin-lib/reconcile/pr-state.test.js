@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { resolvePrState, resolvePrStateAsync, resolvePrStatesBulk } = require('../../../plugin/bin/lib/reconcile/pr-state');
+const { resolvePrState, resolvePrStateAsync, resolvePrStatesBulk, BULK_CHUNK } = require('../../../plugin/bin/lib/reconcile/pr-state');
 
 // resolvePrState/resolvePrStateAsync both shell to `gh pr list` — neither is
 // injectable (mirrors the module's pre-existing design), so tests intercept
@@ -177,6 +177,10 @@ test('resolvePrStatesBulk: complete map, tie-break parity with resolvePrState (p
   const runner = (args) => { calls.push(args); return graphqlResponse([{ prs: [merged, open] }, { prs: [merged] }, null]); };
   const r = resolvePrStatesBulk('/tmp', ['reused', 'merged-only', 'gone'], { preferOpen: true, runner, repoSlug: 'o/r' });
   assert.equal(calls.length, 1);
+  assert.ok(calls[0].includes('-f') && calls[0].includes('owner=o') && calls[0].includes('name=r'), 'owner/name must travel via -f (never -F: #610 type-coercion)');
+  assert.ok(!calls[0].some((a, i) => a === '-F'), 'no -F flags in the bulk GraphQL argv');
+  const queryArg = calls[0].find((a) => a.startsWith('query='));
+  assert.match(queryArg, /"refs\/heads\/reused"/);
   assert.equal(r.get('reused').number, 11);        // preferOpen: OPEN governs
   assert.equal(r.get('merged-only').number, 10);   // MERGED wins with no OPEN
   assert.equal(r.get('gone'), null);               // deleted/never-pushed ref -> null, still present in map
@@ -191,13 +195,13 @@ test('resolvePrStatesBulk: default tie-break (no preferOpen) matches resolvePrSt
   assert.equal(r.get('reused').number, 10);
 });
 
-test('resolvePrStatesBulk: chunking at 50 with sequential short-circuit on chunk failure', () => {
-  const branches = Array.from({ length: 120 }, (_, i) => 'br-' + i);
+test('resolvePrStatesBulk: chunking at BULK_CHUNK with sequential short-circuit on chunk failure', () => {
+  const branches = Array.from({ length: BULK_CHUNK * 2 + 20 }, (_, i) => 'br-' + i);
   let call = 0;
   const runner = (args) => {
     call += 1;
     if (call === 2) { const e = new Error('boom'); e.code = 'ETIMEDOUT'; throw e; }
-    return graphqlResponse(Array.from({ length: 50 }, () => null));
+    return graphqlResponse(Array.from({ length: BULK_CHUNK }, () => null));
   };
   const r = resolvePrStatesBulk('/tmp', branches, { runner, repoSlug: 'o/r' });
   assert.equal(r, 'network-failure');
@@ -213,6 +217,11 @@ test('resolvePrStatesBulk: degraded responses classify network-failure; missing 
   let spawned = 0;
   assert.equal(resolvePrStatesBulk('/tmp', [], { runner: () => { spawned += 1; return '{}'; }, repoSlug: 'o/r' }).size, 0);
   assert.equal(spawned, 0);
+});
+
+test('resolvePrStatesBulk: response missing an alias key classifies network-failure — never a silent null', () => {
+  const oneOfTwo = JSON.stringify({ data: { repository: { b0: null } } }); // b1 absent
+  assert.equal(resolvePrStatesBulk('/tmp', ['a', 'b'], { runner: () => oneOfTwo, repoSlug: 'o/r' }), 'network-failure');
 });
 
 test('resolvePrStatesBulk: unresolvable repo slug classifies network-failure (fail closed, no spawn)', () => {

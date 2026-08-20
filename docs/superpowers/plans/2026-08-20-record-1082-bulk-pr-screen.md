@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- `decideRemotePrune`'s source stays byte-identical except nothing — no change at all (AC4). The sentinel relies on its existing check order (OPEN before cherry), pinned by a new test, not by editing it.
+- `decideRemotePrune`'s source: no change at all (AC4). The sentinel relies on its existing check order (OPEN before cherry), pinned by a new test, not by editing it.
 - Per-branch entry `reason` vocabulary unchanged: `pr-open`, `no-merged-pr`, `not-cherry-equivalent`, `cherry-failed`, `merged-pr-cherry-equivalent`, `delete-failed`. Screen failure is check-level only (`pr-screen-failed` / `gh-absent`).
 - Every new spawn passes `windowsHide: true` (#931 regression class).
 - Never any search-index-backed lookup (`--search`, GraphQL `search`).
@@ -179,7 +179,7 @@ function resolvePrStatesBulk(repoRoot, branches, opts = {}) {
     const chunk = branches.slice(at, at + BULK_CHUNK);
     let parsed;
     try {
-      const stdout = runner(['api', 'graphql', '-F', `owner=${owner}`, '-F', `name=${name}`, '-f', 'query=' + buildBulkQuery(chunk)]);
+      const stdout = runner(['api', 'graphql', '-f', `owner=${owner}`, '-f', `name=${name}`, '-f', 'query=' + buildBulkQuery(chunk)]); // -f, never -F: String! variables must not be type-coerced (#610's shipped bug shape)
       parsed = JSON.parse(stdout);
     } catch (e) {
       return classifyExecError(e);
@@ -406,7 +406,7 @@ Everything after (`toDelete.length === 0` early return, batched push, fallback, 
 
 Run: `node --test tests/bin-lib/reconcile/prune-remote.test.js`
 
-**Pre-existing-test adaptation (required, do it in this same step):** the pre-existing `pruneRemote` tests inject `resolvePr` only. After Step 3, their screen falls to the default `resolvePrStatesBulk`, whose `repoSlugOf` returns null against the fixtures' file-path `origin` remotes — the whole check would skip as `'network-failure'` and those tests would break (and must never spawn real `gh` either). Update each pre-existing `pruneRemote(...)` call in the test file to also pass a permissive screen fake:
+**Pre-existing-test adaptation (required, do it in this same step):** the pre-existing `pruneRemote` tests inject `resolvePr` only. After Step 3, their screen falls to the default `resolvePrStatesBulk`, which would run for real: `repoSlugOf` happily parses a bogus `'owner/repo'` out of the fixtures' file-path `origin` remotes, so the default screen would spawn a live `gh api graphql` from tests. Update each pre-existing `pruneRemote(...)` call in the test file to also pass a permissive screen fake:
 
 ```js
 const permissiveScreen = (root, branches) => new Map(branches.map((b) => [b, { number: 99, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]));

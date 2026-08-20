@@ -37,12 +37,12 @@ function git(cwd, ...args) {
 }
 
 // Screen-then-confirm (#1082): every pre-existing test below injects only
-// `resolvePr` (the confirm step). Without a screen fake, `pruneRemote`
-// falls to the real `resolvePrStatesBulk`, whose `repoSlugOf` returns null
-// against these fixtures' file-path `origin` remotes — the whole check
-// would skip as `network-failure` before `resolvePr` is ever reached. This
-// permissive screen routes every branch down the candidate path so the
-// existing `resolvePr` fakes keep governing exactly as before.
+// `resolvePr` (the confirm step). Without an injected screen, the default
+// resolvePrStatesBulk would run for real: repoSlugOf happily parses a bogus
+// 'owner/repo' out of the fixture's file-path origin URL, so the default
+// screen would spawn a live `gh api graphql` from tests. Inject a permissive
+// fake so every branch takes the candidate path and each test's own
+// resolvePr fake keeps governing.
 const permissiveScreen = (root, branches) => new Map(branches.map((b) => [b, { number: 99, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]));
 
 // A clone wired to a real bare origin — push --delete must actually land.
@@ -541,6 +541,17 @@ test('screen-then-confirm: screen-MERGED candidate confirms per-branch; confirm 
   const entry = r.entries.find((e) => e.name === 'build/screened');
   assert.equal(entry.action, 'skip');
   assert.equal(entry.reason, 'pr-open');
+  assert.match(git(dir, 'ls-remote', '--heads', 'origin', 'build/screened'), /refs\/heads\/build\/screened/);
+});
+
+test('screen-then-confirm: screen-MERGED but confirm finds no PR -> skip no-merged-pr, ref survives', () => {
+  const dir = buildScreenFixture();
+  const resolvePrBulk = () => new Map([['build/screened', MERGED_PR]]);
+  const resolvePr = () => null;
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk, skipFetch: true });
+  const entry = r.entries.find((e) => e.name === 'build/screened');
+  assert.equal(entry.action, 'skip');
+  assert.equal(entry.reason, 'no-merged-pr');
   assert.match(git(dir, 'ls-remote', '--heads', 'origin', 'build/screened'), /refs\/heads\/build\/screened/);
 });
 
