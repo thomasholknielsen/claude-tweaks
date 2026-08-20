@@ -89,6 +89,18 @@ test('a file deleted by the merge (git show throws) is silently absent from meas
   assert.deepStrictEqual(out.overflow, []);
 });
 
+test('a git-show failure unrelated to deletion (e.g. object corruption) throws MergeSizeProbeError, never a false "no overflow"', () => {
+  const git = fakeGit({
+    diff: () => 'plugin/skills/_shared/damaged.md\n',
+    'merge-tree': () => `${TREE}\n`,
+    show: () => { throw new Error('fatal: unable to read blob object deadbeef'); },
+  });
+  assert.throws(
+    () => computeMergeSizeOverflow({ integrationBranch: 'main' }, { git }),
+    (err) => err instanceof MergeSizeProbeError && /git show .* failed/.test(err.message)
+  );
+});
+
 test('a real merge conflict (merge-tree exits non-zero) throws MergeSizeProbeError, never a false "no overflow"', () => {
   const git = fakeGit({
     diff: () => 'plugin/skills/build/SKILL.md\n',

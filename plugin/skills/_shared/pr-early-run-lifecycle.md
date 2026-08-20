@@ -223,8 +223,13 @@ were composed at run start (Step 3 above) and the phase checklist reflects which
 exited as of each best-effort `gh pr edit` (Phase-checklist update above), not necessarily every
 phase this run actually completed.
 
-1. **Merge-size probe (#641).** Run `node plugin/bin/merge-size-probe.js --integration-branch {integration-branch}`
-   against this run's branch. It predicts, via `git merge-tree --write-tree`, the post-merge size
+1. **Merge-size probe (#641).** First `git fetch origin {integration-branch}` — unlike `gh pr
+   merge --auto` below (server-side, no local checkout needed), this probe's `git merge-tree`
+   resolves a local ref, and a worktree can sit hours behind `origin/{integration-branch}`
+   without this fetch; skipping it would let the probe silently predict against a stale base,
+   compounding the race this step already discloses below. Then run `node
+   plugin/bin/merge-size-probe.js --integration-branch origin/{integration-branch}` against this
+   run's branch. It predicts, via `git merge-tree --write-tree`, the post-merge size
    of every branch-touched `skills/_shared/*.md`/`SKILL.md` file — a branch that is green alone
    (`tests/bin-lib/skill-audit/context-cost.test.js` only sees the working tree) can still tip a
    shared file over the 40 KB ceiling once merged with a concurrent sibling's own additions, a
@@ -235,11 +240,11 @@ phase this run actually completed.
    predicted at {bytes} B, {over} B over the 40 KB ceiling once merged with {integration-branch}`,
    and logs `AUTO {time} — PR-early run lifecycle: merge-size probe predicted {n} file(s) over
    ceiling post-merge; disclosed in run summary. Reversibility: n/a (prediction only).` This is a
-   prediction against `{integration-branch}` as of probe time, not a guarantee — a sibling that
-   merges after the probe but before this branch does can still produce a fresh overflow the
-   probe never saw. A probe failure (unresolvable ref, a real merge conflict) degrades like any
-   other best-effort step here: log a warning and continue — the merge sequence surfaces a real
-   conflict on its own.
+   prediction against freshly-fetched `origin/{integration-branch}` as of probe time, not a
+   guarantee — a sibling that merges after the probe but before this branch does can still produce
+   a fresh overflow the probe never saw. A probe failure (unresolvable ref, a real merge conflict)
+   degrades like any other best-effort step here: log a warning and continue — the merge sequence
+   surfaces a real conflict on its own.
 2. Re-run the Phase-checklist update procedure above once more, unconditionally — idempotent
    (a phase whose own update already landed re-flips the same rows to the same values); this is
    the final catch-all for any phase whose own best-effort update silently failed.

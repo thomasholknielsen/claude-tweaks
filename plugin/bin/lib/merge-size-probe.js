@@ -68,14 +68,22 @@ function writeMergeTree(git, integrationBranch, headRef) {
   return tree;
 }
 
+// git show exits 128 with a "does not exist in" stderr message when a path is
+// absent from the given tree -- the one failure mode this function treats as
+// "not a ceiling concern" rather than a probe failure (review #641: a bare
+// catch here previously swallowed every git-show error, including a real one
+// unrelated to deletion, as a silent false "nothing to measure").
+const PATH_NOT_IN_TREE = /does not exist/;
+
 function measureAtTree(git, tree, filePath) {
   try {
     const content = git(['show', `${tree}:${filePath}`]);
     return Buffer.byteLength(content, 'utf8');
-  } catch {
+  } catch (err) {
     // Deleted by the merge (e.g. this branch removed the file) -- not a
     // ceiling concern, so it's simply absent from `measured`, not an error.
-    return null;
+    if (PATH_NOT_IN_TREE.test(err.stderr || err.message || '')) return null;
+    throw new MergeSizeProbeError(`git show ${tree}:${filePath} failed: ${err.message}`);
   }
 }
 
