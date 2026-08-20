@@ -83,7 +83,20 @@ git -C "{worktree-path}" push origin {branch}
 Its own Bash call — never chained (the `worktree-always` gate denies a compound command whole,
 same as every other push in this plugin).
 
-**On failure** (network, auth, no `origin` remote, rejected non-fast-forward): stop here. Log to
+**On a transient-looking failure** (the error text names a 5xx/server error, a timeout, a reset
+connection, or otherwise names no auth/ref problem — e.g. GitHub's push-receive endpoint or its
+backing GraphQL API returning a `503`) — retry **once** after a 15-second wait, then treat a
+second failure exactly like any other failure below. This is a narrower, faster retry than
+`_shared/github-rate-limit.md`'s 45-90s window on purpose: that file's recognition taxonomy is
+scoped to rate-limit signatures (403/429), not a server-side 5xx/503 outage, which self-heals on
+a much shorter horizon and isn't a case that file's classification table covers — don't route
+this retry through it.
+
+**On failure** (network, auth, no `origin` remote, rejected non-fast-forward, or the retry above
+also failed): stop here. **This log line is mandatory, not optional — write it before moving on,
+even under time pressure or mid-incident; a run that skips it leaves a missing `pr` object with
+no diagnosable trail (#838's Current State: exactly this happened to run
+`2026-08-17T164729-record-81`, whose `decisions.md` carried no warning at all).** Log to
 `decisions.md`:
 
 `AUTO {time} — PR-early run lifecycle: push of {branch} to origin FAILED ({reason}); run proceeds local-only, no PR opened. Reversibility: n/a.`
@@ -161,9 +174,12 @@ gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {b
 `{record title}` — the lowest-numbered record's title for a bundle; `{n}` likewise the
 lowest-numbered record.
 
-**If creation fails, retry once.** If the retry also fails: log and continue local-only, same
-message shape as the push-failure log above (`reason` naming the `gh pr create` failure). The
-branch is already on origin from Step 2 either way.
+**If creation fails, retry once** — wait 15 seconds first when the failure looks transient (a
+5xx/server error or timeout, same signature as Step 2's push retry above), immediately otherwise.
+**If the retry also fails: log and continue local-only — this log line is mandatory, not
+optional, for the same reason Step 2's is (#838)** — same message shape as the push-failure log
+above (`reason` naming the `gh pr create` failure). The branch is already on origin from Step 2
+either way.
 
 ### Step 4: Record the PR
 
@@ -273,6 +289,7 @@ warning and the merge proceeds; a stale title/checklist is cosmetic, never a mer
 |---|---|
 | `integration-model: local-merge` | Skip this entire file — today's no-PR lifecycle. |
 | Push at run start fails | Local-only run, logged warning (Step 2 above), continue. Every later phase-exit push retries naturally. |
+| Push or `gh pr create` fails with a transient-looking (5xx/timeout) signature | One 15-second-backoff retry (Step 2/Step 3 above) before falling through to the corresponding row's degrade — a 503-class outage self-heals fast enough that most retries succeed without ever reaching a logged degrade. |
 | `gh pr create` fails twice | Local-only run (branch already pushed), logged warning, continue. |
 | `gh` absent | Same degrade as a push/create failure, distinguished reason: `_shared/github-write-transport.md`'s CRUD mapping carries no pull-request row, so there is no MCP fallback to attempt for PR creation (unlike issue operations, which do have one). Log `reason: gh-absent — no MCP fallback for pull requests`. |
 | `gh` absent at merge time (`_shared/pr-first-merge.md` Step 2.5) | The `merge-verification` lever is unenforceable without `gh` — proceed as `off` and disclose it at **warn** tier in the run summary (a visible line, not a silent log entry): `merge-verification: {resolved} unenforceable — gh absent; proceeded as off`. Same no-MCP-fallback reason as the row above. |
