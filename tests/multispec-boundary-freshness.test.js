@@ -21,7 +21,7 @@ function codeRegions(text) {
 test('multispec-freshness.md exists and cites the canonical fragments', () => {
   const text = fs.readFileSync(FRESHNESS, 'utf8');
   assert.match(text, /integration-branch\.md/, 'must cite the integration-branch ladder');
-  assert.match(text, /worktree-setup\.md/, 'must cite worktree-setup.md for merge mechanics');
+  assert.match(text, /_shared\/worktree-setup\.md/, 'must cite worktree-setup.md for merge mechanics');
   assert.match(text, /auto-mode-contract\.md/, 'must anchor the gate in the auto-mode contract');
 });
 
