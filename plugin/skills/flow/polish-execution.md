@@ -12,7 +12,13 @@ Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specifi
   - AUTO {HH:MM:SS} — Polish phase: {decision_summary} Files: {files_modified, comma-joined}. Reversibility: high (worktree file edits, revertible via git).
   ```
   This is one entry per polish-phase dispatch, not one per command — `decision_summary` already summarizes every command that ran. Skip this entirely when `commands_invoked` is empty (no `decision_summary` was returned, so there is nothing to log). No commit ref is included — polish's changes are uncommitted at this point (Impeccable edits the working tree directly; see `impeccable-cli.md`).
-- When `/design-wrapper polish` returns a non-empty `staged_suggestions`, write one file per entry to `{run-dir}/staged/polish-suggestion-{n}.md` and append one `STAGED` entry per entry to `decisions.md` under the same `## /flow` heading. **Branch on the entry's `kind`** — `polish.md` Step 5 stages for two different reasons and its output contract requires consumers to distinguish them; writing every entry as manual-only mislabels the other kind as a command that exists when none was named:
+- When `/design-wrapper polish` returns a non-empty `staged_suggestions`, compose the body for each
+  entry, write it to `/tmp/polish-suggestion-{n}.md`, and stage it via
+  `node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "$PIPELINE_RUN_DIR" --id "polish-suggestion-{n}" --file "/tmp/polish-suggestion-{n}.md"`
+  (`stage-item.js` takes the staged file's extension from `--file`'s own extension, so the temp path
+  must end in `.md` — this writes `{run-dir}/staged/polish-suggestion-{n}.md`, same filename as
+  before, now anchored the same way `bin/log-decision.js` anchors `decisions.md`), then append one
+  `STAGED` entry per entry to `decisions.md` under the same `## /flow` heading. **Branch on the entry's `kind`** — `polish.md` Step 5 stages for two different reasons and its output contract requires consumers to distinguish them; writing every entry as manual-only mislabels the other kind as a command that exists when none was named:
 
   | `kind` | Staged file body | `decisions.md` line |
   |---|---|---|
