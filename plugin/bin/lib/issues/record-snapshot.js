@@ -38,6 +38,12 @@ function gitLogPath(sessionId) {
   return path.join(os.tmpdir(), `ct-gitlog-${id}.txt`);
 }
 
+function subIssuesPath(sessionId) {
+  const id = resolveSessionId(sessionId);
+  if (!id) return null;
+  return path.join(os.tmpdir(), `ct-subissues-${id}.json`);
+}
+
 // Fresh iff the file exists and its mtime is younger than ttlSeconds. Any stat
 // failure (missing, unreadable) reads as not-fresh — the caller's job is then
 // to fetch and write a new one, never to error out over a cache miss.
@@ -66,7 +72,7 @@ function writeSnapshot(filePath, records) {
 // `gh issue create`/`edit`/`close` (or the MCP equivalent) — see
 // _shared/github-write-transport.md's note on the CRUD mapping table.
 function invalidateSnapshot(sessionId) {
-  for (const p of [snapshotPath(sessionId), gitLogPath(sessionId)]) {
+  for (const p of [snapshotPath(sessionId), gitLogPath(sessionId), subIssuesPath(sessionId)]) {
     if (!p) continue;
     try {
       fs.unlinkSync(p);
@@ -80,6 +86,7 @@ module.exports = {
   UNION_FIELDS,
   snapshotPath,
   gitLogPath,
+  subIssuesPath,
   isFresh,
   readSnapshot,
   writeSnapshot,
