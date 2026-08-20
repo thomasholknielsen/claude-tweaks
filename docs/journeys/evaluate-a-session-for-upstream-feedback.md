@@ -11,7 +11,7 @@ files:
 **Persona:** A developer using claude-tweaks in their own project who just finished a substantial working session — pipeline or ad hoc — and wants the plugin improved from what the session actually evidenced, not from what they happen to remember.
 **Goal:** Harvest everything the session evidences against the plugin's maintainer objectives — quantified where countable, each finding carrying a proposed fix — and file the keepers upstream, at the cost of exactly one confirmation stop.
 **Entry point:** A terminal with `/claude-tweaks:feedback` run bare (no free-text learning), any time during or after the session being evaluated.
-**Success state:** Every rubric objective has an explicit outcome (`NO FINDING`, `NOT EVALUATED — {reason}`, or findings), the avoidable-interactions count matches the transcript, and every surviving finding is filed or declined through one chunked confirmation — nothing filed without a checked box.
+**Success state:** Every rubric objective has an explicit outcome (`NO FINDING`, `NOT EVALUATED — {reason}`, or findings), the avoidable-interactions count matches the transcript, and every surviving finding is filed or declined through one chunked confirmation — nothing filed without a checked box. (A run the skip check short-circuits renders no per-objective blocks at all; its success state is the one-line pointer at the prior evaluation and its filings, described in Step 1.)
 
 ## Steps
 
@@ -19,8 +19,8 @@ files:
 - **URL:** `/claude-tweaks:feedback`
 - **Action:** Invoke with no arguments. The skill resolves the session transcript (`~/.claude/projects/<project-slug>/<session-id>.jsonl`) and dispatches one judge agent with the rubric and output template inlined; it also gathers any waiting `upstream-candidate` queue items into the same batch.
 - **Should feel:** Hands-off — after the invocation, nothing asks for input until the single confirmation at the end.
-- **Should understand:** The judge reads the main session's transcript only — work done inside dispatched Task agents is a named coverage gap, not silently included. When `$CLAUDE_CODE_SESSION_ID` is unset and several recent transcripts exist, the report names the file it chose (with mtime) and lists the siblings it ignored. A prior run against this same transcript left a watermark (byte offset); by default this invocation evaluates only the content since that offset, omitting findings the watermark already covers — pass `--full` to ignore the watermark, run the un-scoped judge over the whole transcript, and overwrite the watermark with the fresh result.
-- **Red flags:** A second `AskUserQuestion` appearing mid-flow; a transcript picked silently when siblings were modified within the last 24 hours; a re-run silently re-surfacing findings the watermark should have already covered with no `--full` passed.
+- **Should understand:** The judge reads the main session's transcript only — work done inside dispatched Task agents is a named coverage gap, not silently included. When `$CLAUDE_CODE_SESSION_ID` is unset and several recent transcripts exist, the report names the file it chose (with mtime) and lists the siblings it ignored. A prior run against this same transcript left a watermark (byte offset); by default this invocation evaluates only the content since that offset, omitting findings the watermark already covers — pass `--full` to ignore the watermark, run the un-scoped judge over the whole transcript, and overwrite the watermark with the fresh result. When that offset is already the transcript's *current* size — nothing new since the last stamped evaluation — no judge agent is dispatched at all rather than one dispatched to evaluate zero new bytes: the run reports `session evaluation unchanged since {evaluatedAt} — prior filings: {issue URLs, or "none"}` and contributes nothing to the batch. `--full` bypasses that skip too, and the self-assessment path (Step 4) is never skipped — with no transcript resolved there is nothing to compare against.
+- **Red flags:** A second `AskUserQuestion` appearing mid-flow; a transcript picked silently when siblings were modified within the last 24 hours; a re-run silently re-surfacing findings the watermark should have already covered with no `--full` passed; a judge agent dispatched against a transcript that has not grown since the last stamped evaluation, with no `--full` passed.
 
 ### 2. Read the evaluation — terminal
 - **URL:** same session, when the judge returns
@@ -48,5 +48,6 @@ files:
 - Steps 1-4 built in this session
 - Updated during build of #679 (`plugin/bin/lib/feedback/watermark.js` — evaluation watermark read/write) — Step 1 now documents the default incremental-since-watermark behavior and the `--full` override.
 - Updated while addressing #785 — terminal judge failure now degrades to self-assessment instead of dropping the evaluation (Step 4), and findings carry a one-line cost (Steps 2-3).
+- Updated during build of #701 (`session-evaluation.md`'s Skip check + the watermark's `issueUrls`/`findingsFiled`/`sessionId` payload fields) — Step 1 now documents that an unchanged transcript skips the judge dispatch outright and reports the prior stamp's filings, and the Success state names that outcome.
 - Related journeys: `file-upstream-feedback-in-batch` (the batch confirmation contract this flow shares)
 - Related specs: #679

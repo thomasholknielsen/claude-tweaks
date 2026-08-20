@@ -67,6 +67,27 @@ test('session-evaluation.md still documents the filedRecords/dismissedFingerprin
   assert.match(SESSION_EVAL, /dismissedFingerprints,\s*\/\/ fingerprints of findings the human declined/);
 });
 
+// --- 2b. #701: skip-before-dispatch check + the sessionId/findingsFiled/issueUrls payload fields ---
+
+test('session-evaluation.md documents the #701 Skip check section', () => {
+  assert.match(SESSION_EVAL, /## Skip check \(before dispatch\) — #701/);
+  assert.match(SESSION_EVAL, /isTranscriptUnchanged\(watermark, currentBytes\)/);
+});
+
+test('session-evaluation.md Skip check explicitly exempts self-assessment (not silent)', () => {
+  assert.match(SESSION_EVAL, /Self-assessment is exempted, explicitly \(not an oversight\)/);
+});
+
+test('session-evaluation.md watermark payload documents sessionId/findingsFiled/issueUrls', () => {
+  assert.match(SESSION_EVAL, /sessionId,\s*\/\/ \$CLAUDE_CODE_SESSION_ID at dispatch time/);
+  assert.match(SESSION_EVAL, /findingsFiled,\s*\/\/ count of Gather-2-sourced findings/);
+  assert.match(SESSION_EVAL, /issueUrls,\s*\/\/ the URLs Step 8's `gh issue create` calls produced/);
+});
+
+test('SKILL.md Gather 2 paragraph points to the Skip check before describing dispatch', () => {
+  assert.match(SKILL, /its \*\*Skip check\*\* runs first/);
+});
+
 // --- 3. SKILL.md: --full at all three sites (table row, argument-hint frontmatter, $ARGUMENTS intro line) ---
 
 test('SKILL.md frontmatter argument-hint includes --full', () => {
@@ -88,6 +109,14 @@ test('SKILL.md Input table has a --full row', () => {
     SKILL,
     /\| `--full` \| Presence-only, meaningful only for bare\/`--queue` invocation \(Step 0's session-evaluation gather\): ignore any existing watermark/,
   );
+});
+
+// session-evaluation.md's Skip check cites "SKILL.md's Input table" as the
+// authority for --full bypassing it; pin that the table actually says so, so
+// the citation can't point at text that never makes the claim.
+test('SKILL.md --full row states it bypasses the Skip check', () => {
+  assert.match(SKILL, /bypasses `session-evaluation\.md`'s Skip check/);
+  assert.match(SESSION_EVAL, /`--full` bypasses this check entirely \(SKILL\.md's Input\s+table\)/);
 });
 
 // A prior agent caught and fixed a gap where the Input table had --full but
