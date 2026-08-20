@@ -1,4 +1,4 @@
-// bin/lib/issues/tests/record-buckets.test.js
+// tests/bin-lib/issues/record-buckets.test.js
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');

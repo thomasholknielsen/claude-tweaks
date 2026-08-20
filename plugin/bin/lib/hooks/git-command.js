@@ -239,8 +239,19 @@ function forEachCommandSegment(command, cwd, handler) {
     if (!rawT.length) continue;
     if (updateAssignment(vars, rawT)) continue;
     const t = substituteVars(rawT, vars, singleQuoted);
-    if (t[0] === 'cd') {
-      effCwd = resolveCd(effCwd, t[1]);
+    // `FOO=1 cd /path` really does change the shell's cwd — a preceding
+    // assignment on a regular (non-special) builtin like `cd` is scoped only
+    // to that command's own execution environment, but `cd` has no
+    // subprocess to scope the env change to, so it still runs and changes
+    // the CURRENT shell's cwd (verified empirically; #590). `env cd /path`
+    // is the opposite case and deliberately NOT normalized here: `env` execs
+    // an external `cd` binary that does not exist on a normal system, so it
+    // errors and never changes cwd — normalizing it would fabricate a target
+    // for a shape that has no real effect.
+    let cdLead = 0;
+    while (cdLead < t.length && SIMPLE_ASSIGNMENT_RE.test(t[cdLead])) cdLead += 1;
+    if (t[cdLead] === 'cd') {
+      effCwd = resolveCd(effCwd, t[cdLead + 1]);
       continue;
     }
     handler(t, effCwd);
@@ -290,11 +301,40 @@ function skipGlobalFlags(t, i, dir) {
   return { index: i, dir, unprovable };
 }
 
+// Finds the index of the real `git` command word in a segment's raw token
+// array, looking past three equivalent shapes a real shell treats identically
+// to a bare `git` invocation (#590):
+//   - leading `NAME=value` assignment tokens: `FOO=1 git commit -m x`
+//   - the `env` builtin, plus ITS OWN leading flags/assignments, ahead of the
+//     real command: `env git commit -m x`, `env -i git commit -m x`,
+//     `env FOO=1 git commit -m x`
+//   - a directory-qualified executable ending in `/git`: `/usr/bin/git commit`
+// (any combination of the three also resolves, e.g. `FOO=1 /usr/bin/git …`
+// or `env FOO=1 /usr/bin/git …`.) Returns -1 when, after normalization, the
+// leading token still isn't `git` — ambiguity resolves to "not git" (allow),
+// the same never-fabricate-a-target posture as the rest of this module.
+function findGitLead(t) {
+  let i = 0;
+  while (i < t.length && SIMPLE_ASSIGNMENT_RE.test(t[i])) i += 1;
+  if (t[i] === 'env') {
+    i += 1;
+    // env's own flags (-i, etc.) and any NAME=value pairs preceding the real
+    // command — not full env-flag parsing (see #590's Gotchas: a narrower,
+    // deliberately scoped normalization, not a general env(1) implementation).
+    while (i < t.length && (SIMPLE_ASSIGNMENT_RE.test(t[i]) || (t[i] !== '-' && t[i].startsWith('-')))) i += 1;
+  }
+  if (i >= t.length) return -1;
+  const lead = t[i];
+  if (lead === 'git' || lead.endsWith('/git')) return i;
+  return -1;
+}
+
 function gitTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
-    if (t[0] !== 'git') return;
-    const { index: i, dir, unprovable } = skipGlobalFlags(t, 1, effCwd);
+    const lead = findGitLead(t);
+    if (lead === -1) return;
+    const { index: i, dir, unprovable } = skipGlobalFlags(t, lead + 1, effCwd);
     if (unprovable) return;
     if (dir === null) return; // cwd UNKNOWN and no provable -C — no target
     const sub = t[i];
