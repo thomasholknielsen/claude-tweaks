@@ -109,3 +109,50 @@ test('resolvePrStateAsync: does not block the event loop (real concurrency, not 
     wrapper.restore();
   }
 });
+
+test('preferOpen: an OPEN PR outranks a MERGED PR for destructive callers, whichever is newer', async () => {
+  // #664 / #570 review scenario: branch reused after its first PR merged.
+  const openNewer = [
+    { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' },
+  ];
+  const openOlder = [
+    { number: 12, state: 'OPEN', mergedAt: null, updatedAt: '2026-01-01T00:00:00Z' },
+    { number: 13, state: 'MERGED', mergedAt: '2026-02-01T00:00:00Z', updatedAt: '2026-02-01T00:00:00Z' },
+  ];
+  for (const [prs, expectedOpen] of [[openNewer, 11], [openOlder, 12]]) {
+    const wrapper = installGhWrapper(prs);
+    try {
+      assert.equal(resolvePrState('/tmp', 'some-branch', { preferOpen: true }).number, expectedOpen);
+    } finally {
+      wrapper.restore();
+    }
+  }
+});
+
+test('read-mostly consumers (no opts): MERGED still wins over a newer OPEN PR — explicit regression proof for reap/archive/release', async () => {
+  const prs = [
+    { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' },
+  ];
+  const wrapper = installGhWrapper(prs);
+  try {
+    assert.equal(resolvePrState('/tmp', 'some-branch').number, 10);
+    assert.equal((await resolvePrStateAsync('/tmp', 'some-branch')).number, 10);
+  } finally {
+    wrapper.restore();
+  }
+});
+
+test('preferOpen with no OPEN PR in the set: behavior unchanged (MERGED wins)', () => {
+  const prs = [
+    { number: 1, state: 'CLOSED', mergedAt: null, updatedAt: '2026-01-03T00:00:00Z' },
+    { number: 2, state: 'MERGED', mergedAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
+  ];
+  const wrapper = installGhWrapper(prs);
+  try {
+    assert.equal(resolvePrState('/tmp', 'some-branch', { preferOpen: true }).number, 2);
+  } finally {
+    wrapper.restore();
+  }
+});

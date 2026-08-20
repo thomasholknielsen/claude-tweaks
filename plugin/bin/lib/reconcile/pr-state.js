@@ -31,8 +31,20 @@ const PR_LIST_ARGS = ['pr', 'list', '--state', 'all', '--json', 'number,state,me
 // Multi-PR tie-break: merge is terminal, so any merged PR in the set wins
 // regardless of how many others exist for the same branch (a re-opened PR
 // after a first was closed unmerged, for instance).
-function pickGoverningPr(prs) {
+//
+// opts.preferOpen (#664): a destructive caller (prune-remote — a pushed,
+// unrecoverable deletion) opts in to the inverse priority: ANY open PR in
+// the set governs, whichever side is newer — an open PR is a do-not-touch
+// signal regardless of age, and decideRemotePrune skips on OPEN. The three
+// read-mostly consumers pass no opts and keep the merged-wins tie-break.
+function pickGoverningPr(prs, opts) {
   if (!Array.isArray(prs) || prs.length === 0) return null;
+  if (opts && opts.preferOpen) {
+    const open = prs.filter((pr) => pr.state === 'OPEN');
+    if (open.length > 0) {
+      return open.slice().sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+    }
+  }
   const merged = prs.find((pr) => pr.state === 'MERGED');
   if (merged) return merged;
   // Otherwise the most recently updated PR governs.
@@ -41,7 +53,7 @@ function pickGoverningPr(prs) {
 
 // Never use `gh pr list --search` — GitHub's search index lags fresh writes.
 // `--head {branch}` resolves against the REST list, which does not.
-function resolvePrState(repoRoot, branch) {
+function resolvePrState(repoRoot, branch, opts) {
   if (!branch) return null;
   let stdout;
   try {
@@ -59,9 +71,11 @@ function resolvePrState(repoRoot, branch) {
   } catch {
     return 'network-failure';
   }
-  return pickGoverningPr(prs);
+  return pickGoverningPr(prs, opts);
 }
 
+// Deliberately no opts/preferOpen here — no destructive async caller exists (#664); add it only when one does.
+//
 // Async twin of resolvePrState — a real (non-blocking) execFile, so a caller
 // can fan this out through gh-pool's runWithConcurrency the same way
 // release-merged.js already does for its issue-state reads (#820 review: the
