@@ -15,11 +15,15 @@ either:
 ```bash
 gh issue list --state open --label needs:definition --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-needs-definition.json
 gh issue list --state open --label solution:unjustified --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-solution-unjustified.json
+gh issue list --state open --label ready --label shaped:headless --json number,title,createdAt,labels --limit 200 > /tmp/backlog-attention-shaped-headless.json
 ```
 
 If either fetch returns exactly `200` results, state that in the rendered output — the same
 "may be more, here's the count" convention `/claude-tweaks:help`'s own fetches use — rather than
-silently treating it as complete.
+silently treating it as complete. The `shaped-headless` fetch additionally needs `auto:build`
+excluded, done in Step 2's merge script (below) rather than via a `gh` query flag — `gh issue
+list --label` only ANDs, it has no exclusion flag, matching this file's own established idiom of
+doing set logic in the `node -e` merge step rather than the `gh` query.
 
 ## Step 2: Merge and dedupe
 
@@ -28,18 +32,30 @@ no automated path stamps both labels today, but a human can always add either la
 the merge must not assume the two fetches are disjoint. When a number appears in both, render
 **one row** for it: `Type` reads `needs:definition + solution:unjustified`, and `Recommended
 action` concatenates both remedies (`needs:definition`'s redirect action first, then
-`solution:unjustified`'s grant-or-evidence action, semicolon-separated).
+`solution:unjustified`'s grant-or-evidence action, semicolon-separated). A record can in principle
+carry all three — e.g. `needs:definition` + `shaped:headless` (a headlessly-shaped record whose
+own guard routed it to `needs:definition` — #968's Framing Guard) — the same one-row-per-number,
+concatenated-action convention applies; `types` is always rendered in fetch order
+(`needs:definition`, `solution:unjustified`, `shaped:headless (no grant)`) for a deterministic
+Type column.
 
 ```bash
 node -e "
   const needsDefinition = require('/tmp/backlog-attention-needs-definition.json');
   const solutionUnjustified = require('/tmp/backlog-attention-solution-unjustified.json');
+  const shapedHeadless = require('/tmp/backlog-attention-shaped-headless.json')
+    .filter((r) => !r.labels.some((l) => l.name === 'auto:build'));
   const byNumber = new Map();
   for (const r of needsDefinition) byNumber.set(r.number, { ...r, types: ['needs:definition'] });
   for (const r of solutionUnjustified) {
     const existing = byNumber.get(r.number);
     if (existing) existing.types.push('solution:unjustified');
     else byNumber.set(r.number, { ...r, types: ['solution:unjustified'] });
+  }
+  for (const r of shapedHeadless) {
+    const existing = byNumber.get(r.number);
+    if (existing) existing.types.push('shaped:headless (no grant)');
+    else byNumber.set(r.number, { ...r, types: ['shaped:headless (no grant)'] });
   }
   console.log(JSON.stringify([...byNumber.values()]));
 " > /tmp/backlog-attention-merged.json
@@ -80,6 +96,7 @@ One markdown table, one row per record:
 |--------|------|-------|---------------------|
 | #{n} | needs:definition | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming |
 | #{n} | solution:unjustified | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to grant despite the flag (accept risk), or add evidence to Current State and re-run /claude-tweaks:specify #{n} first |
+| #{n} | shaped:headless (no grant) | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to grant (spec was headlessly shaped — no human has reviewed it) |
 | #{n} | needs:definition + solution:unjustified | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming; run /claude-tweaks:backlog refine #{n} to grant despite the flag (accept risk), or add evidence to Current State and re-run /claude-tweaks:specify #{n} first |
 
 Pick up next: #{n} "{title}" — {oldest/highest-priority reason}.
@@ -89,8 +106,11 @@ Pick up next: #{n} "{title}" — {oldest/highest-priority reason}.
 brainstorming`. `solution:unjustified` rows recommend `run /claude-tweaks:backlog refine #{n} to
 grant despite the flag (accept risk), or add evidence to Current State and re-run
 /claude-tweaks:specify #{n} first` — naming `/backlog refine` explicitly as the actual grant
-mechanism, since this mode itself performs no grant. The trailing "Pick up next" line names the
-single oldest/highest-priority record across both types — the same shape `overview` mode's own
+mechanism, since this mode itself performs no grant. `shaped:headless (no grant)` rows recommend
+`run /claude-tweaks:backlog refine #{n} to grant (spec was headlessly shaped — no human has
+reviewed it)` — naming `/backlog refine` explicitly, same as the `solution:unjustified` row,
+since this mode itself performs no grant. The trailing "Pick up next" line names the
+single oldest/highest-priority record across all types — the same shape `overview` mode's own
 "what to build next" recommendation uses.
 
 When the merged list is empty, render `Nothing needs attention — no open record carries
