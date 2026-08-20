@@ -111,6 +111,14 @@ test('SKILL.md Input table has a --full row', () => {
   );
 });
 
+// session-evaluation.md's Skip check cites "SKILL.md's Input table" as the
+// authority for --full bypassing it; pin that the table actually says so, so
+// the citation can't point at text that never makes the claim.
+test('SKILL.md --full row states it bypasses the Skip check', () => {
+  assert.match(SKILL, /bypasses `session-evaluation\.md`'s Skip check/);
+  assert.match(SESSION_EVAL, /`--full` bypasses this check entirely \(SKILL\.md's Input\s+table\)/);
+});
+
 // A prior agent caught and fixed a gap where the Input table had --full but
 // the frontmatter/intro line did not: pin all three sites together, not just
 // independently, so a future edit that touches only the table (or only the
