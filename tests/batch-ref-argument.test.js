@@ -22,7 +22,7 @@ const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
 test('specify argument-hint accepts a comma-separated record-ref list', () => {
   const hint = extractArgumentHint(read('plugin/skills/specify/SKILL.md'));
-  assert.ok(hint.startsWith('<#N[,#M...]|#A-#B|record-id[,id...]|'), `specify hint must open with the batch grammar, got: ${hint}`);
+  assert.ok(hint.startsWith('<next|#N[,#M...]|#A-#B|record-id[,id...]|'), `specify hint must open with the headless next form followed by the batch grammar, got: ${hint}`);
 });
 
 test('specify Input states the batch is shaping-mode-only, refs-only, sequential, and stops on any unresolvable element', () => {
