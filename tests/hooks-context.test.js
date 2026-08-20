@@ -230,6 +230,47 @@ test('appendEvent: derived ts/type always win over same-named keys in caller-sup
   assert.strictEqual(entry.reason, 'real-reason', 'non-colliding data fields are still preserved');
 });
 
+test('scanWrapupEvents: missing events.jsonl returns null', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-08-20T090000-spec-1', { status: 'active' });
+  assert.strictEqual(ctx.scanWrapupEvents(run), null);
+});
+
+test('scanWrapupEvents: unreadable dir returns null', () => {
+  assert.strictEqual(ctx.scanWrapupEvents('/nonexistent/run'), null);
+});
+
+test('scanWrapupEvents: no skill_invoked events returns any:false, wrapup:false', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-08-20T090001-spec-1', { status: 'active' });
+  fs.writeFileSync(path.join(run, 'events.jsonl'), JSON.stringify({ type: 'other', ts: '2026-08-01T09:00:00Z' }) + '\n');
+  assert.deepStrictEqual(ctx.scanWrapupEvents(run), { any: false, wrapup: false });
+});
+
+test('scanWrapupEvents: skill_invoked for a different skill returns any:true, wrapup:false', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-08-20T090002-spec-1', { status: 'active' });
+  const line = JSON.stringify({ type: 'skill_invoked', skill: 'claude-tweaks:build', ts: '2026-08-01T09:00:00Z' });
+  fs.writeFileSync(path.join(run, 'events.jsonl'), line + '\n');
+  assert.deepStrictEqual(ctx.scanWrapupEvents(run), { any: true, wrapup: false });
+});
+
+test('scanWrapupEvents: skill_invoked for claude-tweaks:wrap-up returns any:true, wrapup:true', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-08-20T090003-spec-1', { status: 'active' });
+  const line = JSON.stringify({ type: 'skill_invoked', skill: 'claude-tweaks:wrap-up', ts: '2026-08-01T09:00:00Z' });
+  fs.writeFileSync(path.join(run, 'events.jsonl'), line + '\n');
+  assert.deepStrictEqual(ctx.scanWrapupEvents(run), { any: true, wrapup: true });
+});
+
+test('scanWrapupEvents: malformed JSON lines are skipped, not fatal', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-08-20T090004-spec-1', { status: 'active' });
+  const wrapupLine = JSON.stringify({ type: 'skill_invoked', skill: 'claude-tweaks:wrap-up', ts: '2026-08-01T09:00:00Z' });
+  fs.writeFileSync(path.join(run, 'events.jsonl'), 'not json\n' + wrapupLine + '\n\n');
+  assert.deepStrictEqual(ctx.scanWrapupEvents(run), { any: true, wrapup: true });
+});
+
 test('writeRunState serializes concurrent writers under an effectively-unbounded lock budget — no lost updates under real cross-process concurrency (finding regression)', async () => {
   // Reproduces the exact shape the finding describes: many real OS
   // processes racing a read-modify-write against the same run-state.json,

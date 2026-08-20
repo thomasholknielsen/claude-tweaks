@@ -16,9 +16,11 @@
 // its schema metadata (summary/category/tier/type/default); mutually
 // exclusive with --values and takes no key arguments. Per-key errors
 // ({"error": "unknown-key"}) are data (exit 0). Invocation failures — zero
-// keys, or a --run dir that does not exist — exit 1 with a stderr message
-// and no JSON. Repo root comes from `git rev-parse --show-toplevel` at the
-// process cwd (cwd itself outside a git repo) — never from
+// keys, a --run dir that does not exist, or a --run path that resolves
+// inside a checkout other than the main checkout (#1065's anchored-or-outside
+// guard) — exit 1 with a stderr message and no JSON. Repo root comes from
+// `git rev-parse --show-toplevel` at the process cwd (cwd itself outside a
+// git repo) — never from
 // CLAUDE_PLUGIN_ROOT (observed unset in Bash tool environments, #170) and
 // never from a positional path argument.
 'use strict';
@@ -27,6 +29,7 @@ const { execFileSync } = require('child_process');
 const { detectIntegrationModel, POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
 const { deriveMergeVerification } = require('./lib/merge-verification');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
+const wtDetect = require('./lib/hooks/worktree-detect');
 
 function fail(msg) {
   process.stderr.write(`resolve-policy: ${msg}\n`);
@@ -88,6 +91,20 @@ function main(argv) {
     // The one nested-block key has no scalar form.
     fail('--values does not support model-profiles (no scalar form) — use the JSON output');
     return;
+  }
+  // #1065: anchored-or-outside guard — runs after the flag-conflict checks
+  // (their precedence is unchanged) and before the existence check and any
+  // config.yml read. The raw runDir string is kept downstream, so the
+  // pre-existing "does not exist" message echoes the value as given; the
+  // reject message here names the realpath-resolved candidate instead.
+  if (runDir !== null) {
+    const anchor = wtDetect.checkRunDirAnchoredOrOutside(runDir, process.cwd());
+    if (!anchor.ok) {
+      fail(anchor.reason === 'foreign-checkout'
+        ? wtDetect.unanchoredRunDirShadowMessage(anchor.resolved, anchor.mainRoot, '--run')
+        : wtDetect.unanchoredRunDirNoRepoMessage(process.cwd()));
+      return;
+    }
   }
   if (runDir !== null) {
     let isDirectory = false;

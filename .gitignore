@@ -5,6 +5,7 @@
 node_modules/
 /package-lock.json
 .DS_Store
+.claude-tweaks/artifacts/
 .claude-tweaks/pipelines/*
 !.claude-tweaks/pipelines/*/
 .claude-tweaks/pipelines/*/*

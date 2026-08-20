@@ -210,6 +210,59 @@ function resolveRunDir(cwd, env, sessionId) {
   return resolveRun(cwd, env, sessionId).dir;
 }
 
+// Ownership classification (#1098): composite identity — session id AND
+// worktree binding. Session-id equality is NOT sufficient evidence of
+// ownership: CLAUDE_CODE_SESSION_ID is shared across all subagents of a
+// session (measured 2026-08-20, #965), so N parallel siblings are
+// indistinguishable by it — only the worktree binding separates them.
+// Fail-open: unprovable evidence (deleted binding, indeterminate git answer,
+// caller outside any known checkout, missing cwd) degrades to
+// 'indeterminate', never 'foreign' — preserving resolveRun's documented
+// asymmetry: an unowned run may still be ours; a provably-foreign run never is.
+// `caller.cwd` must be absolute (same convention as findRunByWorktreePath's
+// pre-resolved target). This predicate only classifies — it enforces
+// nothing; consumers (#1012, #1099) own what each verdict does.
+//
+// runState fields read — exactly two, nothing else: `sessionId` and
+// `worktree`.
+//
+// A binding match yields 'mine' even when the run records no sessionId —
+// binding outranks incomplete identity.
+//
+// A caller in any live worktree other than the one recorded in the binding
+// classifies 'foreign' — same repo or different, both trees provably exist and differ.
+//
+// Authoritative semantics table: .claude-tweaks/pipelines/2026-08-20T185022-spec-1098/work/1098-spec.md
+// (committed on this branch).
+function classifyOwnership(caller, runState) {
+  const callerId = caller && typeof caller.sessionId === 'string' && caller.sessionId ? caller.sessionId : null;
+  const ownerId = runState && typeof runState.sessionId === 'string' && runState.sessionId ? runState.sessionId : null;
+  if (callerId && ownerId && callerId !== ownerId) return 'foreign';
+  const cwd = caller && typeof caller.cwd === 'string' && caller.cwd ? caller.cwd : null;
+  if (!cwd) return 'indeterminate';
+  if (!path.isAbsolute(cwd)) return 'indeterminate'; // relative input must never resolve against the hook process's own cwd
+  const binding = runState && typeof runState.worktree === 'string' && runState.worktree ? runState.worktree : null;
+  const info = wtDetect.repoInfo(cwd);
+  if (info.indeterminate) return 'indeterminate';
+  if (binding) {
+    // repoInfo already realpaths its answer; worktreeMatches realpaths the
+    // recorded side — a caller anywhere inside the recorded worktree
+    // resolves to that worktree's root and matches here.
+    // second and third args intentionally identical — repoInfo's answer is already canonical
+    if (info.repoRoot && worktreeMatches({ worktree: binding }, info.repoRoot, info.repoRoot)) return 'mine';
+    if (!info.repoRoot || !info.isLinkedWorktree) return 'indeterminate'; // outside any repo, or main checkout — cannot prove foreign
+    const real = wtDetect.safeReal(binding);
+    if (!real) return 'indeterminate'; // binding gone from disk — fail open
+    try { if (!fs.statSync(real).isDirectory()) return 'indeterminate'; } catch { return 'indeterminate'; }
+    return 'foreign'; // caller is in a different live worktree than a binding that provably exists
+  }
+  if (!callerId || !ownerId) return 'indeterminate'; // no binding and incomplete identity
+  // ids are both present and equal (different already returned foreign above)
+  if (info.isLinkedWorktree) return 'indeterminate'; // equal ids from inside a worktree prove nothing about an unbound run
+  if (info.repoRoot) return 'mine'; // main checkout + equal ids + no binding
+  return 'indeterminate'; // outside any repo
+}
+
 // Shared by findRunByWorktreePath/findRunsByWorktreePath below: does this
 // run-state's recorded `worktree` match targetPath? Realpath-canonicalizes
 // both sides where they exist on disk (recorded assignments are already
@@ -350,6 +403,27 @@ function writeRunState(runDir, patch) {
   }
 }
 
+// events.jsonl scan for skill_invoked / claude-tweaks:wrap-up events; missing
+// file or unreadable -> null (indeterminate). Shared by run-integrity.js's
+// checkRunIntegrity and close-run-state.js's closeRunState — the single
+// reader for the paired appendEvent writer above (#380).
+const WRAP_UP_SKILL = 'claude-tweaks:wrap-up';
+function scanWrapupEvents(runDir) {
+  let raw;
+  try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
+  let any = false;
+  let wrapup = false;
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (!ev || ev.type !== 'skill_invoked') continue;
+    any = true;
+    if (ev.skill === WRAP_UP_SKILL) wrapup = true;
+  }
+  return { any, wrapup };
+}
+
 function appendEvent(runDir, type, data, attribution) {
   try {
     // Derived/trusted fields (ts, type) spread LAST so they always win —
@@ -371,6 +445,6 @@ function appendEvent(runDir, type, data, attribution) {
 }
 
 module.exports = {
-  readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
-  readRunState, writeRunState, appendEvent, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
+  readStdin, parseInput, resolveRun, resolveRunDir, classifyOwnership, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
+  readRunState, writeRunState, appendEvent, scanWrapupEvents, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
 };

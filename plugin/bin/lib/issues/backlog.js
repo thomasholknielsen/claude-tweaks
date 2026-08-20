@@ -18,6 +18,7 @@
 const { execSync } = require('child_process');
 const { PRIORITIES, TIERS } = require('./record');
 const { blockersOf } = require('./ranking');
+const { evaluateGrantGate } = require('./grant-gate');
 
 // Urgency order shared by both bands (high first). Values are validated
 // against record.js's canonical PRIORITIES/TIERS vocabulary before this
@@ -160,8 +161,8 @@ function readyGrantedSubset(records) {
   return records.filter((r) => r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
 }
 
-// records[] -> { captured, scored, shaped, granted, dispatchable, inFlight,
-// parked, notPlanned, parents, needsYou }. The nine stage keys
+// records[] -> { captured, prioritized, specified, granted, dispatchable,
+// inFlight, parked, notPlanned, parents, needsYou }. The nine stage keys
 // (captured..parents) are mutually exclusive buckets over the post-merge
 // faceted set (github + unsynced); needsYou is a separate overlay, not a
 // bucket — see the overlay loop's comment below. Together they form the funnel
@@ -177,15 +178,17 @@ function readyGrantedSubset(records) {
 // body-text `parseDependencies` fallback), shared with rankNextToBuild so
 // both consumers agree on the same blocker for the same record (refs #514).
 // Only ids within the open input set count as blockers, since an out-of-set
-// blocker cannot be acted on from this report. Note `scored` here is a
-// different definition from splitScoredUnscored's: this funnel's scored
-// means ANY scoring signal has been applied (priority, risk, or size), where
-// splitScoredUnscored's scored means FULLY scored — both risk and size — for
-// the lens views. Deliberate, not drift: the funnel tracks "has triage
-// started?" while the lenses need "is there enough signal to rank on?".
+// blocker cannot be acted on from this report. `prioritized` keys on
+// f.priority ALONE — priority is refine's triage verdict, and the stage is
+// named for it. A record carrying only risk/size with no priority and no
+// `ready` stage is an anomaly (specify stamps risk/size and `ready` in one
+// atomic write, so its records never land here), and it falls to `captured`
+// so the funnel re-points it at refine rather than parking it in a stage
+// whose name it doesn't satisfy. Distinct from splitScoredUnscored, whose
+// `scored` means risk AND size — the lens views' "enough signal to rank on".
 function funnelBuckets(records) {
   const buckets = {
-    captured: [], scored: [], shaped: [], granted: [],
+    captured: [], prioritized: [], specified: [], granted: [],
     dispatchable: [], inFlight: [], parked: [], notPlanned: [], parents: [],
   };
   const openIds = new Set(records.map((r) => r.number ?? r.id).filter((n) => n != null));
@@ -202,8 +205,8 @@ function funnelBuckets(records) {
     else if (f.isParentIssue) buckets.parents.push(r);
     else if (f.stage === 'ready' && granted && inSetBlockers.length > 0) buckets.granted.push(r);
     else if (f.stage === 'ready' && granted) buckets.dispatchable.push(r);
-    else if (f.stage === 'ready') buckets.shaped.push(r);
-    else if (f.priority || f.risk || f.size) buckets.scored.push(r);
+    else if (f.stage === 'ready') buckets.specified.push(r);
+    else if (f.priority) buckets.prioritized.push(r);
     else buckets.captured.push(r);
   }
   // needsYou is an OVERLAY, never a tenth stage: every record above keeps its
@@ -213,7 +216,7 @@ function funnelBuckets(records) {
   // taxonomy shipped, solutionUnjustified since record #677 renamed
   // framing:baked -> solution:unjustified. A record carrying both facets yields
   // one entry with kind 'definition' — the hard gate dominates. needs:definition
-  // exclusion from the Shape paste block happens at RENDER, never here.
+  // exclusion from the Specify paste block happens at RENDER, never here.
   const needsYou = [];
   for (const r of records) {
     const f = r.facets;
@@ -232,6 +235,39 @@ function funnelBuckets(records) {
   }
   buckets.needsYou = needsYou;
   return buckets;
+}
+
+// (specifiedRecords, policy, trustRowsArray) -> the machine-grant outlook
+// overview's bare mode renders as the `specified` stage's config-aware
+// annotation. Runs evaluateGrantGate's FIRST PHASE only (gates 1-3 — ceiling,
+// opt-in, needs:definition, class trust, by:* origin — all pure): gate 4's
+// grant-check is an LLM judgment overview must never run, per its "entirely
+// mechanical" contract. So `eligible` means "will reach the grant unit's own
+// grant-check on a future firing", never "will be granted" — gates 4-5 can
+// still refuse. policy is evaluateGrantGate's own policy shape ({ ceiling,
+// grantOriginationEnabled } suffices for phase 1); trustRowsArray is
+// trustRows() output (bin/lib/issues/trust.js), keyed into the Map shape the
+// gate expects. Returns { eligible: [ids], refused: { [failedKey]: [ids] } },
+// ids in input order.
+function machineGrantOutlook(records, policy, trustRowsArray) {
+  const rows = Array.isArray(trustRowsArray) ? trustRowsArray : [];
+  const trustVerdicts = new Map(rows.map((row) => [row.key, row]));
+  const eligible = [];
+  const refused = {};
+  for (const r of records) {
+    const id = r.number ?? r.id;
+    const result = evaluateGrantGate({
+      record: { number: id, labels: r.labels, body: r.body, facets: r.facets },
+      policy,
+      trustVerdicts,
+    });
+    if (result.needsGrantCheck === true) {
+      eligible.push(id);
+    } else {
+      (refused[result.failedKey] = refused[result.failedKey] || []).push(id);
+    }
+  }
+  return { eligible, refused };
 }
 
 // ({ allRows, readyRows, priorityBudget, grantBudget }) -> the refine sweep's
@@ -276,6 +312,7 @@ module.exports = {
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
   funnelBuckets,
+  machineGrantOutlook,
   readyGrantedSubset,
   refineWorklist,
 };

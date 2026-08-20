@@ -13,7 +13,7 @@ Open the session, navigate to the URL, take a snapshot and an annotated screensh
 agent-browser --session <session> open <url>
 agent-browser --session <session> trace start
 agent-browser --session <session> snapshot -i -c
-agent-browser --session <session> screenshot --annotate screenshots/browse/<session>/01_landing.png
+agent-browser --session <session> screenshot --annotate .claude-tweaks/artifacts/screenshots/browse/<session>/01_landing.png
 agent-browser --session <session> vitals
 ```
 
@@ -24,13 +24,13 @@ agent-browser batch --session <session> \
   "open <url>" \
   "trace start" \
   "snapshot -i -c" \
-  "screenshot --annotate screenshots/browse/<session>/01_landing.png" \
+  "screenshot --annotate .claude-tweaks/artifacts/screenshots/browse/<session>/01_landing.png" \
   "vitals"
 ```
 
 (`trace start` begins Chrome DevTools trace recording — tracing is record-then-stop, so a later failure can only be saved if recording started here.)
 
-**Dispatcher column mapping (page-review use):** When assembling agent output into the Step 6 Report & Route table, map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = severity/impact (`critical` for broken page or failed health check, `high`/`medium` for major UX or perf issues, `low` for cosmetic, `info` for ideas), Path:Line = the page URL + overlay ref (`/pricing#[3]`, `/checkout#[7]`), Finding = the issue or idea (`Primary CTA at [3] competes visually with [5]` / `LCP 3.1s exceeds 2.5s threshold`), Evidence = the screenshot path + raw measurement (`screenshots/browse/pricing-review/02_above-fold.png; LCP 3.1s; persona: distracted mobile`). The dispatcher merges all agents' tables into the Step 6 Report & Route table, filling Source from the lens that produced each finding (Health / Performance / First Impression / Persona / Analyze / Reimagine).
+**Dispatcher column mapping (page-review use):** When assembling agent output into the Step 6 Report & Route table, map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = severity/impact (`critical` for broken page or failed health check, `high`/`medium` for major UX or perf issues, `low` for cosmetic, `info` for ideas), Path:Line = the page URL + overlay ref (`/pricing#[3]`, `/checkout#[7]`), Finding = the issue or idea (`Primary CTA at [3] competes visually with [5]` / `LCP 3.1s exceeds 2.5s threshold`), Evidence = the screenshot path + raw measurement (`.claude-tweaks/artifacts/screenshots/browse/pricing-review/02_above-fold.png; LCP 3.1s; persona: distracted mobile`). The dispatcher merges all agents' tables into the Step 6 Report & Route table, filling Source from the lens that produced each finding (Health / Performance / First Impression / Persona / Analyze / Reimagine).
 
 > **Parallel execution (conditional):** When the review covers 3+ independent pages (different URLs with no shared state or navigation dependency), dispatch page reviews as parallel Task agents. Each agent owns its own session, runs its own batch, and returns findings in the `| Severity | Path:Line | Finding | Evidence |` format (see the output template below). The dispatcher maps these rows into the Step 6 Report & Route table using the column mapping documented immediately above. When pages share state (form submission on page A affects page B) or there are fewer than 3 pages, review sequentially.
 >
@@ -46,9 +46,9 @@ agent-browser batch --session <session> \
 >
 > | Severity | Path:Line | Finding | Evidence |
 > |---|---|---|---|
-> | critical | /checkout#[7] | Submit button is disabled on valid input | screenshots/browse/checkout-review/03_form.png; INP 240ms; persona: returning user |
-> | medium | /pricing#[3] | Hero feels generic — pure black on white, no brand voice | screenshots/browse/pricing-review/01_landing.png |
-> | low | /dashboard#[12] | Tertiary CTA dominates visual weight over primary | screenshots/browse/dashboard-review/02_above-fold.png |
+> | critical | /checkout#[7] | Submit button is disabled on valid input | .claude-tweaks/artifacts/screenshots/browse/checkout-review/03_form.png; INP 240ms; persona: returning user |
+> | medium | /pricing#[3] | Hero feels generic — pure black on white, no brand voice | .claude-tweaks/artifacts/screenshots/browse/pricing-review/01_landing.png |
+> | low | /dashboard#[12] | Tertiary CTA dominates visual weight over primary | .claude-tweaks/artifacts/screenshots/browse/dashboard-review/02_above-fold.png |
 >
 > Severity scale: critical / high / medium / low / info
 > If no findings: return literal text "No findings."
@@ -85,7 +85,7 @@ Verify the page is functional before investing in a deeper review.
 - Blank or broken page rendering (visible in screenshot)
 - Missing assets (images, fonts, styles)
 
-If the page is broken or blank, save the trace via `trace stop traces/<session>/<timestamp>.zip`, then `close`, then report immediately — no point continuing a visual review on a non-functional page.
+If the page is broken or blank, save the trace via `trace stop .claude-tweaks/artifacts/traces/<session>/<timestamp>.zip`, then `close`, then report immediately — no point continuing a visual review on a non-functional page.
 
 
 For vitals thresholds and how to report them, apply **Vitals interpretation (Step 1)** in
@@ -182,11 +182,11 @@ Set viewport to common breakpoints and re-capture an annotated screenshot at eac
 
 ```
 agent-browser --session <session> set viewport 375 667    # Mobile
-agent-browser --session <session> screenshot --annotate screenshots/browse/<session>/<NN>_mobile.png
+agent-browser --session <session> screenshot --annotate .claude-tweaks/artifacts/screenshots/browse/<session>/<NN>_mobile.png
 agent-browser --session <session> set viewport 768 1024   # Tablet
-agent-browser --session <session> screenshot --annotate screenshots/browse/<session>/<NN>_tablet.png
+agent-browser --session <session> screenshot --annotate .claude-tweaks/artifacts/screenshots/browse/<session>/<NN>_tablet.png
 agent-browser --session <session> set viewport 1280 800   # Desktop
-agent-browser --session <session> screenshot --annotate screenshots/browse/<session>/<NN>_desktop.png
+agent-browser --session <session> screenshot --annotate .claude-tweaks/artifacts/screenshots/browse/<session>/<NN>_desktop.png
 ```
 
 Check for overflow, cramped layouts, or hidden content at each size. Only test responsive if the project is expected to support it — ask if unsure.

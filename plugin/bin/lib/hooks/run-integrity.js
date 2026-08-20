@@ -20,10 +20,10 @@ const fs = require('fs');
 const path = require('path');
 const { runGit } = require('./git-exec');
 const { parseWorktreeList, resolveIntegrationBranch } = require('./worktree-reap');
+const ctxLib = require('./context');
 
 const NON_TERMINAL = new Set(['active', 'interrupted']);
 const RUN_STATE_STATUSES = new Set(['active', 'interrupted', 'clean']);
-const WRAP_UP_SKILL = 'claude-tweaks:wrap-up';
 
 // run dirs live at {root}/.claude-tweaks/pipelines/{run-id} by anchoring
 // (_shared/pipeline-run-dir.md), so the repo root is three levels up.
@@ -118,23 +118,6 @@ function mergedEvidence(root, branch, integration) {
   return lines.every((l) => l.startsWith('-')) ? 'cherry' : false;
 }
 
-// events.jsonl scan; missing file or unreadable -> null (indeterminate).
-function scanSkillEvents(runDir) {
-  let raw;
-  try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
-  let any = false;
-  let wrapup = false;
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue;
-    let ev;
-    try { ev = JSON.parse(line); } catch { continue; }
-    if (!ev || ev.type !== 'skill_invoked') continue;
-    any = true;
-    if (ev.skill === WRAP_UP_SKILL) wrapup = true;
-  }
-  return { any, wrapup };
-}
-
 function checkRunIntegrity(runDir, opts = {}) {
   const cache = opts.cache;
   const evidence = { branch: null, merged: null, ledgerActive: null, wrapupInvoked: null };
@@ -149,7 +132,7 @@ function checkRunIntegrity(runDir, opts = {}) {
     if (!integration) return inProgress;
     evidence.merged = mergedEvidence(root, evidence.branch, integration);
     if (evidence.merged !== 'ancestor' && evidence.merged !== 'cherry') return inProgress;
-    const events = scanSkillEvents(runDir);
+    const events = ctxLib.scanWrapupEvents(runDir);
     if (!events) return inProgress;
     evidence.ledgerActive = events.any;
     evidence.wrapupInvoked = events.wrapup;
