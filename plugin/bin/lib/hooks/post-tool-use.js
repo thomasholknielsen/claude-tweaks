@@ -1,5 +1,6 @@
 // bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + ad-hoc-session run-dir stamping (log tier, see stampAdHocRunDir below) + skill-invocation ledger (log tier, see ./skill-invocation.js) + AskUserQuestion ledger (log tier, see logAskUserQuestion below).
 'use strict';
+const fs = require('fs');
 const path = require('path');
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
@@ -402,7 +403,25 @@ function stampAdHocRunDir(ctx) {
     // stamp onto someone else's run dir.
     const result = runDirResolve.resolve({ cwd: ctx.cwd, env: {}, create: true, standalone: 'adhoc' });
     if (!result.ok) return;
-    ctxLib.writeRunState(result.path, { worktree: path.resolve(worktreePath), status: 'active', sessionId });
+    // Review finding (#500): a same-second sibling session minting against the
+    // same worktree collides on this dir name (second-granularity timestamp).
+    // Never let this stamp clobber a DIFFERENT session's already-written
+    // ownership — writeRunState's patch-wins-on-conflict merge would otherwise
+    // silently reassign the dir mid-session.
+    const existing = ctxLib.readRunState(result.path);
+    if (existing && typeof existing.sessionId === 'string' && existing.sessionId && existing.sessionId !== sessionId) return;
+    const written = ctxLib.writeRunState(result.path, { worktree: path.resolve(worktreePath), status: 'active', sessionId });
+    if (!written) {
+      // writeRunState failed (I/O error). The mint above already touched
+      // decisions.md, which isUnadoptedMint (context.js) treats as evidence
+      // this dir was "adopted" — so leaving it behind with no run-state.json
+      // would sit as a mis-attributable "unowned" fallback candidate for a
+      // totally different session (the #721 cross-contamination shape).
+      // Best-effort: remove the mint rather than leave that trap behind.
+      try { fs.rmdirSync(path.join(result.path, 'staged')); } catch { /* best-effort */ }
+      try { fs.unlinkSync(path.join(result.path, 'decisions.md')); } catch { /* best-effort */ }
+      try { fs.rmdirSync(result.path); } catch { /* best-effort */ }
+    }
   } catch { /* never break a session over bookkeeping */ }
 }
 

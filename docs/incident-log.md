@@ -1101,3 +1101,24 @@ committed with no event, no warning and no audit trail.
 Cost on the #315 run: moderate (~10 min) — but the real cost is that a shipped contract
 contradiction reached `main` recorded only as a ledger "surprise", because the workaround
 removed the pressure that would have filed it.
+
+## IL-142 — An uncommented deliberately-incomplete test fixture read as a bug by an automated reviewer
+
+During #500's own `/claude-tweaks:review`, one lens agent (Test Quality, 3f-A) flagged
+`tests/hooks-post-tool-use-adhoc-rundir.test.js:91-94`'s "never throws on an unresolvable
+worktree path — returns `{}` rather than crashing" test as a "high" severity bug: a
+"malformed context object" whose expected return value supposedly didn't match actual
+behavior. The test's context object deliberately omits the top-level `cwd` field — that
+incompleteness is the entire point of the test (it proves `stampAdHocRunDir`/`run()` fail
+open rather than throwing on an unresolvable worktree path) — but nothing in the test says
+so. A reviewer with no more context than the file itself reasonably read an intentional
+design choice as an oversight.
+
+Refuted only by independently tracing the actual code path (`ctx.cwd` undefined →
+`resolveCreatedWorktreePath` returns `null` → `stampAdHocRunDir` returns early → `run()`
+falls through to `return {}` at line 604, exactly matching the test's own assertion) — a
+direct-verification pass that cost roughly 10 minutes and would have been unnecessary with a
+one-line comment on the fixture.
+
+Cost on the #500 run: moderate (~10 min) — one direct-verification pass to confirm a
+false-positive "high" severity finding before it could be staged or acted on.
