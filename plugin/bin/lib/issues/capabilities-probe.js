@@ -83,4 +83,4 @@ function probeCapabilities({ owner, repo, runner = defaultRunner } = {}) {
   return { types, subIssues: schema.subIssues, dependencies: schema.dependencies };
 }
 
-module.exports = { probeCapabilities };
+module.exports = { probeCapabilities, probeSchema };
