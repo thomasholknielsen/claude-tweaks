@@ -350,6 +350,27 @@ function writeRunState(runDir, patch) {
   }
 }
 
+// events.jsonl scan for skill_invoked / claude-tweaks:wrap-up events; missing
+// file or unreadable -> null (indeterminate). Shared by run-integrity.js's
+// checkRunIntegrity and close-run-state.js's closeRunState — the single
+// reader for the paired appendEvent writer above (#380).
+const WRAP_UP_SKILL = 'claude-tweaks:wrap-up';
+function scanWrapupEvents(runDir) {
+  let raw;
+  try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
+  let any = false;
+  let wrapup = false;
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (!ev || ev.type !== 'skill_invoked') continue;
+    any = true;
+    if (ev.skill === WRAP_UP_SKILL) wrapup = true;
+  }
+  return { any, wrapup };
+}
+
 function appendEvent(runDir, type, data, attribution) {
   try {
     // Derived/trusted fields (ts, type) spread LAST so they always win —
@@ -372,5 +393,5 @@ function appendEvent(runDir, type, data, attribution) {
 
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
-  readRunState, writeRunState, appendEvent, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
+  readRunState, writeRunState, appendEvent, scanWrapupEvents, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
 };
