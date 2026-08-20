@@ -14,7 +14,7 @@ function fixture() {
   fs.mkdirSync(runDir, { recursive: true });
   fs.mkdirSync(shadow, { recursive: true });
   fs.mkdirSync(path.join(main, '.git'));
-  fs.writeFileSync(path.join(path.dirname(path.dirname(shadow.split(path.sep + '.claude-tweaks')[0])), '.git'), 'gitdir: ../../../.git/worktrees/flow-spec-12\n');
+  fs.writeFileSync(path.join(main, '.claude', 'worktrees', 'flow-spec-12', '.git'), 'gitdir: ../../../.git/worktrees/flow-spec-12\n');
   const sourceFile = path.join(root, 'proposal.patch');
   fs.writeFileSync(sourceFile, 'diff --git a b\n+x\n');
   return { root, main, runDir, shadow, sourceFile };
