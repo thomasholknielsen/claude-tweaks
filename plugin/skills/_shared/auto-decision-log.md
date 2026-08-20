@@ -146,6 +146,16 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --sta
 
 Prefer it over composing the line by hand or via a scratch `node -e` at every AUTO/STAGED site.
 
+**Staged proposal files** (the `staged/` directory a `STAGED` entry points at) are written the
+same way — through a CLI, never a hand-rolled `fs.writeFileSync`:
+`bin/stage-item.js --run <run-dir> --id <kind>-<n> --file <path>` copies the caller-composed
+proposal at `<path>` into `<run-dir>/staged/<id><ext>` (extension taken from `<path>`), anchoring
+`--run` under the main checkout the same way `bin/log-decision.js` does. `<kind>-<n>` is the same
+item-id shape `_shared/console-on-pr.md`'s "Item ID scheme" assigns at render time; a caller
+staging a new proposal composes its own descriptive id (e.g. `leftover-{slug}`,
+`polish-suggestion-{n}`) — the console re-keys rows to `{kind}-{n}` only when it renders them, not
+when they are written.
+
 **Under `worktree-always: true`, before a worktree exists for this run.** Every standalone-auto skill (`_shared/pipeline-run-dir.md`'s step 4 allowlist: `/tidy`, `/init`, `/capture`, `/dispatch`, `/backlog`) writes its own `decisions.md` directly against the main checkout — there is no per-run worktree the way a `/build`/`/flow` pipeline has one. The `worktree-always` PreToolUse gate blocks `Edit`/`Write`/`NotebookEdit` there, so the Read+Write pattern above is denied. Use `bin/log-decision.js` (above) or a Bash append instead — the gate's Bash coverage is the `cp`/`mv`/`tee` shapes only, not a Node process or output redirection (see CLAUDE.md's Hooks section):
 
 ```bash
