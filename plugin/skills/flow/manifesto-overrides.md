@@ -4,7 +4,7 @@ This Override semantics table is loaded only when the Manifesto runs as an appro
 
 | Lever | Option | What changes |
 |---|---|---|
-| Mode | `hybrid` | Same as auto but skills still prompt when reversibility/confidence/severity floors fail |
+| Mode | `hybrid` | Same as auto but skills still prompt when reversibility/confidence floors or the severity ceiling fail |
 | Mode | `interactive` | Skips the Manifesto pipeline-wide; every skill presents decisions in-flow as today |
 | Scope-creep | `stop-and-ask` | Pipeline pauses inline when files outside plan are referenced |
 | Scope-creep | `drop` | Files outside plan are noted in `decisions.md` but not added |
