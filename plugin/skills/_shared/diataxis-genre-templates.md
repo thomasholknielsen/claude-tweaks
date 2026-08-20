@@ -175,6 +175,8 @@ Migrated from `_shared/decision-records.md`, which retains the ADR gate (hard-to
 
 `Status` is `accepted` for a decision being recorded after the fact. If a later ADR overturns this one, change its status to `superseded by NNNN` rather than deleting it.
 
+The `{NNNN}` in the H1 is the same zero-padded 4-digit value as the `{NNNN}` in the filename convention above — not two independent numbering schemes that happen to share a placeholder name. `# 12. {Title}` is non-conformant; `# 0012. {Title}` is correct.
+
 ## Journey
 
 Migrated from `journeys/journey-template.md`, which retains the key principles ("should feel" is the most important field; `files:` enables `/review`'s regression detection; one journey per goal; personas are specific people) and the `docs/journeys/{journey-name}.md` location convention. This is the literal skeleton only.

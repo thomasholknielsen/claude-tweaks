@@ -1,4 +1,4 @@
-# 6. Compute ceremony tiering in `/specify` Step 3, and stamp it as an always-explicit label
+# 0006. Compute ceremony tiering in `/specify` Step 3, and stamp it as an always-explicit label
 
 - **Status:** accepted
 - **Date:** 2026-07-20

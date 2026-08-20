@@ -1,4 +1,4 @@
-# 3. Roll out `worktree.always` via `/init`'s bootstrap opt-in, not a global default
+# 0003. Roll out `worktree.always` via `/init`'s bootstrap opt-in, not a global default
 
 > Note (2026-08-16, #602): the key discussed here was renamed `worktree.always` → `worktree-always`; the resolver and the hook accept both spellings via a `RENAMED_KEYS` alias (removal condition in `skills/_shared/policy-deprecations.md`). Body text below is preserved as written.
 
