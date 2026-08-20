@@ -243,10 +243,21 @@ only after the branch outcome is known (item 4, Git
 Worktree, completes first — the execution order of the canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
-`_shared/forge-detection.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
-skip — Section E exists specifically to write GitHub state (release claims, remove labels); if
-`gh` is unavailable there is nothing safe to degrade to. Report the specific failing check and
-stop before attempting any release.
+`_shared/forge-detection.md` (checks 1-3). Checks 1 (GitHub remote) and 3 (repo reachable) are
+hard gates on either transport — there is no meaningful degraded mode when the repo itself is
+unreachable; report the specific failing check and stop before attempting any release. Check 2
+(`gh` installed) does **not** gate on its own: Section E is a transport-aware consumer with a
+documented MCP fallback — step 4 below already routes a `gh`-absent release through the MCP
+tools per `_shared/github-write-transport.md`'s conditional-write pattern (claim tombstone) and
+CRUD mapping (label removal, release comment) — so per `_shared/forge-detection.md`'s own rule
+("a consumer with a documented MCP fallback... proceeds via that path instead of stopping"),
+`gh`-absence alone degrades to that path rather than stopping. **Decision:** this was ambiguous
+before 6.69.0 widened item 7's Condition (`cleanup-procedures.md`'s table) from "materialized
+header present" to "record-based work," which made a standalone `/wrap-up #N` run reach this
+gate far more often — but every write this section performs already has a documented MCP
+equivalent (see step 4), matching CLAUDE.md's Dependencies row (`gh`-absent env routes the same
+CRUD via `_shared/github-write-transport.md`'s MCP path). A genuine hard stop occurs only when
+checks 1 or 3 fail.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
    `/flow` releases all claims once after its consolidated Review Console and merge.
@@ -270,11 +281,19 @@ stop before attempting any release.
    under, for a singleton. (A multi-spec bundle is the one exception this single-spec Section E does
    not itself resolve — see the callout below.) A spec reaching this point through any other path
    (a human running `/flow #{issue}` directly, or a spec merely *derived from* an issue with no
-   live claim) resolves the same way. The CLI reads the blob at `claims/issue-${ISSUE}.json` on
-   `claims-registry` itself; a `runId` other than `$RUN_ID` means a successor holds the lock — it
-   exits `4`, writes nothing, posts nothing, and appends `AUTO — skipped release of issue
-   #{issue}: claim held by run {claim.runId}` to `decisions.md`; skip the remaining steps for
-   this issue — a successor owns it now.
+   live claim) resolves the same way. The CLI classifies the blob at `claims/issue-${ISSUE}.json`
+   on `claims-registry` before touching it (`classifyClaimBlob`, per `_shared/issue-claims.md`'s
+   "The lock" section), and the two outcomes that reach this step are not the same. **Absent**
+   (never claimed) or a **tombstone** (already released) — nothing is held, so the CLI proceeds
+   quietly to the release-and-comment path below and logs the ordinary `released claim on
+   #{issue} (...) — already released or swept` line; it never writes the "held by run" line
+   below. **Live or stale**, by contrast, is an actual outstanding lock — only then does a
+   `runId` other than `$RUN_ID` mean a successor holds it: the CLI exits `4`, writes nothing,
+   posts nothing, and appends `AUTO — skipped release of issue #{issue}: claim held by run
+   {claim.runId}` to `decisions.md`; skip the remaining steps for this issue — a successor owns
+   it now. (An unreadable/corrupt blob fails closed the same way, with `holder: unreadable`, per
+   `_shared/issue-claims.md`'s Failure posture table's "Claim write rejected, blob classified
+   `'unreadable'`" row — treated as live, so it also skips and logs.)
 
    **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
    `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" in `cleanup-procedures.md`) —
