@@ -4,14 +4,16 @@ files:
   - plugin/bin/lib/release-claim/release.js
   - plugin/bin/log-decision.js
   - plugin/bin/lib/log-decision/append.js
+  - plugin/bin/stage-item.js
+  - plugin/bin/lib/stage-item/write.js
 ---
 
-# Release a Claim and Log a Pipeline Decision
+# Release a Claim, Log a Pipeline Decision, and Stage a Proposal
 
-**Persona:** claude-tweaks skill author (or a maintainer of a project using the plugin) who wants proof that the release-claim and log-decision CLIs actually perform the read → classify → ownership → write sequence `_shared/issue-claims.md` and `_shared/auto-decision-log.md` document, rather than trusting the contract's prose.
-**Goal:** Watch one claim release resolve against a fake `gh` (own claim, foreign claim, already-released claim) and one decisions.md append land under the right heading — confirming both CLIs' exit codes and log output match what Section E, Shared teardown, and Settle actually invoke.
-**Entry point:** A terminal at the plugin checkout root (the repo that ships `plugin/bin/release-claim.js` and `plugin/bin/log-decision.js`).
-**Success state:** Three release outcomes (`released`, `skipped-not-owner`, `already-released`) each exit with their documented code, and one `decisions.md` file carries a schema-valid entry under a named `## /{skill}` heading.
+**Persona:** claude-tweaks skill author (or a maintainer of a project using the plugin) who wants proof that the release-claim, log-decision, and stage-item CLIs actually perform the read → classify → ownership → write sequence `_shared/issue-claims.md` and `_shared/auto-decision-log.md` document, rather than trusting the contract's prose.
+**Goal:** Watch one claim release resolve against a fake `gh` (own claim, foreign claim, already-released claim), one decisions.md append land under the right heading, and one staged proposal file land under `staged/` with the right name — confirming all three CLIs' exit codes and output match what Section E, Shared teardown, Settle, and the Wrap-Up Review Console's staging call sites actually invoke.
+**Entry point:** A terminal at the plugin checkout root (the repo that ships `plugin/bin/release-claim.js`, `plugin/bin/log-decision.js`, and `plugin/bin/stage-item.js`).
+**Success state:** Three release outcomes (`released`, `skipped-not-owner`, `already-released`) each exit with their documented code, one `decisions.md` file carries a schema-valid entry under a named `## /{skill}` heading, and one `staged/` file lands with the id-derived filename `stage-item.js` promises.
 
 ## Steps
 
@@ -29,7 +31,21 @@ files:
 - **Should understand:** Exit `3`, stderr names the shadow path and points at `_shared/pipeline-run-dir.md` — the CLI walks up from the run dir to the nearest `.git`; a `.git` FILE (the `gitdir:` pointer above) means a linked worktree of either domain (`.claude/worktrees/` or `.worktrees/`), never the main checkout, so it refuses rather than silently writing a second, orphaned `decisions.md`.
 - **Red flags:** Exit `0` and a `decisions.md` created under the shadow path — the guard has regressed to the domain-substring check it replaced.
 
-### 3. Release a claim you own, then one you don't — terminal, `plugin/bin/lib/release-claim/release.js` directly with an injected fake `gh` runner
+### 3. Stage a proposal file and inspect its name — terminal + a scratch run dir
+- **URL:** `mkdir -p /tmp/si-journey/.git && echo "proposal body" > /tmp/si-proposal.md && cd /tmp/si-journey && node "$PLUGIN_ROOT/bin/stage-item.js" --run /tmp/si-journey --id leftover-my-slug --file /tmp/si-proposal.md`
+- **Action:** Same cwd-inside-the-scratch-checkout discipline as step 1 — `stage-item.js` anchors `--run` the same way `log-decision.js` does. `--id` is the caller's own descriptive id (mirrors `_shared/console-on-pr.md`'s `{kind}-{n}` scheme, e.g. `leftover-{slug}`, `polish-suggestion-{n}` — the CLI itself accepts any safe filename stem, not only that exact shape); `--file` is a path the caller already composed the proposal body into.
+- **Should feel:** One command, no template engine — the CLI copies content, it doesn't compose it.
+- **Should understand:** stdout prints the written file's realpath (`/private/tmp/si-journey/staged/leftover-my-slug.md` on macOS — note `/private` even though `--run` was given as plain `/tmp/...`), and `cat` on that path shows `proposal body` unchanged. The extension (`.md`) came from `--file`'s own extension, not from `--id` — the same behavior every migrated call site (`wrap-up/leftover-routing.md`, `flow/polish-execution.md`) depends on to keep their `decisions.md` "Stage path:" lines accurate.
+- **Red flags:** A written file whose content differs from the source (a template/formatting step sneaking in); the extension not matching `--file`'s; a relative or `--run`-literal (non-realpath) path on stdout that a caller might string-match incorrectly.
+
+### 4. Watch the same anchoring guard refuse a shadow, and reject an unsafe `--id` — terminal
+- **URL:** `mkdir -p /tmp/si-journey/.claude/worktrees/wt && printf 'gitdir: ../../../.git/worktrees/wt\n' > /tmp/si-journey/.claude/worktrees/wt/.git && mkdir -p /tmp/si-journey/.claude/worktrees/wt/.claude-tweaks/pipelines/run-a && node plugin/bin/stage-item.js --run /tmp/si-journey/.claude/worktrees/wt/.claude-tweaks/pipelines/run-a --id smoke-1 --file /tmp/si-proposal.md; node plugin/bin/stage-item.js --run /tmp/si-journey --id "../../etc/passwd" --file /tmp/si-proposal.md`
+- **Action:** Run both commands — the first repeats step 2's worktree-shadow simulation against `stage-item.js`; the second targets a valid run dir but names an `--id` that would escape `staged/` via path traversal.
+- **Should feel:** Fail loud and specific on both — no partial write, no silent path-escape.
+- **Should understand:** The first exits `3` with the same shadow-path/anchoring message shape as `log-decision.js`'s (naming the shadow path, pointing at `_shared/pipeline-run-dir.md`). The second exits `2` — `--id` must be a plain filename stem (letters, digits, `.`, `_`, `-`, no separators); `../../etc/passwd` fails that check before any filesystem write is attempted, so nothing outside `staged/` is ever touched, whether or not the run dir itself is valid.
+- **Red flags:** Either command exiting `0`; a file appearing anywhere under `/tmp/si-journey/.claude/worktrees/wt/.claude-tweaks/pipelines/run-a/staged/` or outside `/tmp/si-journey/staged/` after these two calls.
+
+### 5. Release a claim you own, then one you don't — terminal, `plugin/bin/lib/release-claim/release.js` directly with an injected fake `gh` runner
 - **URL:** `node -e "const {releaseClaim}=require('./plugin/bin/lib/release-claim/release');const liveBlob=()=>({content:JSON.stringify({runId:'runA',sessionId:'s',claimedAt:new Date().toISOString(),ttlHours:72,host:'h'}),sha:'sha1'});let blob=liveBlob();const fakeGh=(args)=>{if(args[0]==='api'&&args[2]==='-q')return JSON.stringify({content:blob.content,sha:blob.sha});if(args[0]==='api'&&args[1]==='--method'&&args[2]==='PUT'){blob={content:'tombstone',sha:'sha2'};return '{}';}if(args[0]==='issue'&&args[1]==='comment')return '';throw new Error('unexpected '+args.join(' '));};const a=releaseClaim({owner:'acme',repo:'w',issueNumber:999,runId:'runA',reason:'merged: spec 999',runner:fakeGh});console.log('Run A:',a.outcome,a.calls.join(','));blob=liveBlob();const b=releaseClaim({owner:'acme',repo:'w',issueNumber:999,runId:'runB',reason:'merged: spec 999',runner:fakeGh});console.log('Run B:',b.outcome,'holder='+b.holder,b.calls.join(','));"`
 - **Action:** Run from the checkout root. The script wires an in-memory fake `gh` runner (mirroring `tests/bin-lib/release-claim/cli.test.js`'s `deps({...})` harness) into `releaseClaim` directly — no real `gh`, no network. It calls `releaseClaim` twice against the same live claim blob on issue #999: once as `runId: 'runA'` (the holder), once as `runId: 'runB'` (a different caller — the equivalent of a second pipeline run's `--run <run-dir>` producing a different `runId`, since the CLI derives `runId` from `basename(--run)`).
 - **Should feel:** Deterministic per caller — the same call means "release" for the owner and "no-op, someone else has this" for anyone else, with no ambiguity in between.
@@ -41,3 +57,4 @@ files:
 - All 3 steps built in this session
 - Path-swept during build of #418 — the payload moved into `plugin/`, so step 1's captured root, step 2's CLI path, and step 3's `require` all gained the `plugin/` prefix. No step's behavior, exit code, or red flag changed.
 - Related specs: #687, #688, #689, #690, #691, #692, #693 (same `flow` run, `2026-08-16T210742-spec-686-687-688-689-690-691-692-693`)
+- Extended during build of record #637 (`bin/stage-item.js` — the `staged/` writer half of the gap `bin/log-decision.js` left open, per that file's own header comment) — added steps 3-4 (staging a proposal, the shared anchoring guard plus the `--id` path-traversal guard) and renumbered the former step 3 (release-claim) to step 5; all 5 steps re-verified live in this session
