@@ -217,6 +217,61 @@ test('#366: riskFloor/sizeFloor default to \'high\' when policy omits them (medi
   assert.equal(result.failedKey, null);
 });
 
+test('#969 AC1: shaped:headless + risk:medium denies with shaped-headless-floor', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:medium', 'size:low', 'shaped:headless'] }),
+    policy: basePolicy(),
+    trustVerdicts: new Map([['producer:code-health|elevated', { verdict: 'clean', kind: 'producer' }]]),
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'shaped-headless-floor');
+});
+
+test('#969 AC1: shaped:headless + size:medium denies with shaped-headless-floor', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:medium', 'shaped:headless'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'shaped-headless-floor');
+});
+
+test('#969 AC2: shaped:headless + risk:low + size:low is not denied by this rule (later gates still apply)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'shaped:headless'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, true);
+  assert.equal(result.failedKey, null);
+});
+
+test('#969 AC3: no shaped:headless, same facets as the medium-risk case above, still grants (human-shaped path byte-identical)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:medium', 'size:low'] }),
+    policy: basePolicy(),
+    trustVerdicts: new Map([['producer:code-health|elevated', { verdict: 'clean', kind: 'producer' }]]),
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, true);
+  assert.equal(result.failedKey, null);
+});
+
+test('#969 AC4: shaped:headless + risk:high denies with oversight-floor, not shaped-headless-floor (existing key wins deny-fast)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:high', 'size:low', 'shaped:headless'] }),
+    policy: basePolicy(),
+    trustVerdicts: new Map([['producer:code-health|elevated', { verdict: 'clean', kind: 'producer' }]]),
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'oversight-floor');
+});
+
 test('AC2 key 8: fleet daily grant cap spent refuses', () => {
   const result = evaluateGrantGate({
     record: baseRecord(),
