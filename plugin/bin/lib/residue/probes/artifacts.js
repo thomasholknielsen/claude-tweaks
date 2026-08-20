@@ -39,7 +39,8 @@ const path = require('node:path');
 const { makeFinding } = require('../finding');
 const { mainCheckoutRoot } = require('../../hooks/worktree-detect');
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * DAY_MS;
 const ARTIFACT_ROOTS = [
   path.join('.claude-tweaks', 'artifacts', 'screenshots', 'qa'),
   path.join('.claude-tweaks', 'artifacts', 'screenshots', 'browse'),
@@ -48,6 +49,12 @@ const ARTIFACT_ROOTS = [
 const LEGACY_ROOTS = ['screenshots', 'traces'];
 const LEGACY_SHAPE_SUBDIRS = ['qa', 'browse'];
 const UNPROVEN_NOTE = '; git could not prove the tree untracked — remedy capped at record, never auto-deleted without ownership proof';
+
+// How a read failure is named in the probe-level `reason` — errno when the
+// error carries one, the error itself otherwise.
+function errLabel(err) {
+  return (err && err.code) || err;
+}
 
 // Recursive newest file under dir, as `{ mtimeMs, file }` — `file` is the
 // winner's path relative to `dir`. Both fields are null when dir contains no
@@ -87,10 +94,7 @@ function legacyShapeMatches(rel, base) {
   if (rel === 'screenshots') {
     return entries.some((entry) => entry.isDirectory() && LEGACY_SHAPE_SUBDIRS.includes(entry.name));
   }
-  for (const entry of entries) {
-    if (entry.isDirectory() && containsZip(path.join(base, entry.name))) return true;
-  }
-  return false;
+  return entries.some((entry) => entry.isDirectory() && containsZip(path.join(base, entry.name)));
 }
 
 function containsZip(dir) {
@@ -130,7 +134,7 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
       entries = fs.readdirSync(base, { withFileTypes: true });
     } catch (err) {
       if (err && err.code === 'ENOENT') continue; // per-root clean — never a probe failure
-      failed.push(`${rel} (${(err && err.code) || err})`);
+      failed.push(`${rel} (${errLabel(err)})`);
       continue;
     }
     for (const entry of entries) {
@@ -140,7 +144,7 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
       try {
         basis = ageBasisMs(dir);
       } catch (err) {
-        failed.push(`${path.join(rel, entry.name)} (${(err && err.code) || err})`);
+        failed.push(`${path.join(rel, entry.name)} (${errLabel(err)})`);
         continue;
       }
       const ageMs = now - basis.basisMs;
@@ -150,7 +154,7 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
         scope: 'observed',
         subject: path.join(rel, entry.name),
         remedy: 'auto',
-        evidence: `newest content ${Math.floor(ageMs / 86400000)}d old (newest: ${basis.file ?? 'no files — dir mtime'}) — aged past the 30-day retention window`,
+        evidence: `newest content ${Math.floor(ageMs / DAY_MS)}d old (newest: ${basis.file ?? 'no files — dir mtime'}) — aged past the 30-day retention window`,
       }));
     }
   }
@@ -162,7 +166,7 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
       stat = fs.statSync(base);
     } catch (err) {
       if (err && err.code === 'ENOENT') continue;
-      failed.push(`${rel} (${(err && err.code) || err})`);
+      failed.push(`${rel} (${errLabel(err)})`);
       continue;
     }
     if (!stat.isDirectory()) continue;
@@ -171,7 +175,7 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
     try {
       shaped = legacyShapeMatches(rel, base);
     } catch (err) {
-      failed.push(`${rel} (${(err && err.code) || err})`);
+      failed.push(`${rel} (${errLabel(err)})`);
       continue;
     }
     if (!shaped) continue; // not the plugin's layout — someone else's directory
@@ -183,7 +187,7 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
     try {
       basis = ageBasisMs(base);
     } catch (err) {
-      failed.push(`${rel} (${(err && err.code) || err})`);
+      failed.push(`${rel} (${errLabel(err)})`);
       continue;
     }
     const aged = now - basis.basisMs > THIRTY_DAYS_MS;
