@@ -35,14 +35,19 @@ const PR_LIST_ARGS = ['pr', 'list', '--state', 'all', '--json', 'number,state,me
 // opts.preferOpen (#664): a destructive caller (prune-remote — a pushed,
 // unrecoverable deletion) opts in to the inverse priority: ANY open PR in
 // the set governs, whichever side is newer — an open PR is a do-not-touch
-// signal regardless of age, and decideRemotePrune skips on OPEN. The three
-// read-mostly consumers pass no opts and keep the merged-wins tie-break.
+// signal regardless of age, and decideRemotePrune skips on OPEN. Every other
+// consumer passes no opts and keeps the merged-wins tie-break — including
+// archive-branches.js, whose deletes are local-only and recoverable from
+// origin, so it deliberately does not opt in (#664).
 function pickGoverningPr(prs, opts) {
   if (!Array.isArray(prs) || prs.length === 0) return null;
   if (opts && opts.preferOpen) {
     const open = prs.filter((pr) => pr.state === 'OPEN');
     if (open.length > 0) {
-      return open.slice().sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+      // Which OPEN PR is returned is unobservable to today's one caller
+      // (prune-remote reads only .state) — the recency sort is hygiene for
+      // a shared resolver, not load-bearing.
+      return open.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
     }
   }
   const merged = prs.find((pr) => pr.state === 'MERGED');
