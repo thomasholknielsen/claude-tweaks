@@ -155,20 +155,18 @@ function permittedGrants(input) {
 // capability. Decides whether an item's "why not fixed now" reason is one of the
 // categories skills/_shared/deferral-gate.md's floor mapping marks as clearing
 // the floor -- the only categories bookkeeping narrowing is allowed to auto-route
-// without asking. Two paths: a structured Defer-reason: value (exact member of
-// DEFER_REASONS) resolves from the mapping table below; anything else falls back
-// to the regex categories that predate the vocabulary, moved verbatim from the
-// retired unattended-tier.js -- same patterns, same logic, no behavior change.
+// without asking. Single path: a structured Defer-reason: value (exact member of
+// DEFER_REASONS) resolves from the mapping table below; anything else denies.
 // Was docs/superpowers/specs/2026-07-16-unattended-tier-design.md — deleted (652a97c4).
-//
-// Removal condition for the regex fallback (stated in the same words in
-// skills/_shared/deferral-gate.md's "Removal condition" section):
-// Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.
+// This once had a free-prose regex-fallback path for reasons predating the
+// structured vocabulary; removed at #696 once every deferral-gate consumer
+// stamped a structured Defer-reason: and the conformance test shipped clean
+// for a release.
 
 // Structured verdicts, per deferral-gate.md's floor mapping: blocked-external <->
 // the external-state group, needs-human-decision <-> the product/design group,
-// blocked-dependency <-> not-yet-built, genuinely-larger <-> scope expansion +
-// UNRELATED_TESTS_RE; tangential and pre-existing-outside-diff map to no group.
+// blocked-dependency <-> not-yet-built, genuinely-larger <-> scope expansion;
+// tangential and pre-existing-outside-diff map to no group.
 const STRUCTURED_FLOOR = Object.freeze({
   'tangential': false,
   'needs-human-decision': true,
@@ -178,44 +176,9 @@ const STRUCTURED_FLOOR = Object.freeze({
   'blocked-dependency': true,
 });
 
-const CATEGORY_PATTERNS = [
-  // External state: third-party data, prod traffic, approvals
-  /external state/i,
-  /third-party/i,
-  /prod(uction)? traffic/i,
-  /\bapprovals?\b/i,
-  // Product/design decision
-  /product( or design)? decision/i,
-  /design decision/i,
-  // Not-yet-built dependency
-  /not[ -]yet[ -]built/i,
-  // Scope expansion: breaks many tests, long rebuild
-  /scope expansion/i,
-  /expands? (pipeline )?scope/i,
-  /long rebuild/i,
-];
-
-// A bare regex can only match a digit run, not compare its magnitude, so the
-// '>10 unrelated tests' numeric threshold ledger/resolve-gate.md's Phase 1
-// actually requires (not merely "some tests") is checked separately from
-// CATEGORY_PATTERNS above. A bare 'breaks N unrelated tests' states the exact
-// count, so N must be strictly >10; a 'breaks more than N unrelated tests'
-// phrasing already asserts the count exceeds N, so N need only be >=10 (e.g.
-// "more than 10", resolve-gate.md's own wording) to guarantee it's >10.
-const UNRELATED_TESTS_RE = /breaks? (more than )?(\d+) unrelated tests/i;
-
 function clearsFloor(blockerReason) {
   if (typeof blockerReason !== 'string' || blockerReason.trim() === '') return false;
-  // Structured path first: an exact vocabulary member never reaches the regexes,
-  // so a free-prose reason that merely contains a vocabulary word still takes
-  // the regex path below.
-  if (DEFER_REASONS.includes(blockerReason)) return STRUCTURED_FLOOR[blockerReason] === true;
-  if (CATEGORY_PATTERNS.some((re) => re.test(blockerReason))) return true;
-  const testsMatch = UNRELATED_TESTS_RE.exec(blockerReason);
-  if (!testsMatch) return false;
-  const moreThan = Boolean(testsMatch[1]);
-  const count = Number(testsMatch[2]);
-  return moreThan ? count >= 10 : count > 10;
+  return DEFER_REASONS.includes(blockerReason) && STRUCTURED_FLOOR[blockerReason] === true;
 }
 
 // The bookkeeping capabilities the retired unattended-tier lever used to gate

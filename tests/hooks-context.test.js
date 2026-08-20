@@ -165,6 +165,31 @@ test('listRunDirs is derived from listRunDirsWithState (same dirs, same order)',
   assert.deepStrictEqual(ctx.listRunDirs(project), [b, a]);
 });
 
+test('findRunsByWorktreePath returns every non-terminal run assigned to the worktree, newest first', () => {
+  const project = tmpProject();
+  const older = mkRun(project, '2026-07-01T090000-record-500-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  const newer = mkRun(project, '2026-07-02T090000-record-500-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  mkRun(project, '2026-07-03T090000-other-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-b' });
+  const result = ctx.findRunsByWorktreePath(project, '/tmp/wt-a');
+  assert.deepStrictEqual(result.map((r) => r.runDir), [newer, older]);
+});
+
+test('findRunsByWorktreePath excludes excludeDir (the caller\'s own primary run dir)', () => {
+  const project = tmpProject();
+  const primary = mkRun(project, '2026-07-01T090000-spec-500', { status: 'active', worktree: '/tmp/wt-a' });
+  const adhoc = mkRun(project, '2026-07-02T060000-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  const result = ctx.findRunsByWorktreePath(project, '/tmp/wt-a', primary);
+  assert.deepStrictEqual(result.map((r) => r.runDir), [adhoc]);
+});
+
+test('findRunsByWorktreePath returns [] when nothing matches or the path is empty', () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-record-1-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, '/tmp/no-match'), []);
+  assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, ''), []);
+  assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, null), []);
+});
+
 test('writeRunState merges, stamps updatedAt; readRunState round-trips', () => {
   const project = tmpProject();
   const run = mkRun(project, '2026-07-01T090000-spec-1');
