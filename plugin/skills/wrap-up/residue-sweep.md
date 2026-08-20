@@ -70,10 +70,14 @@ does for every other ledger producer (build, test, review, reflect):
 
 ## `remedy: auto` findings and the scratch worktree
 
-A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a merged-but-undeleted
-branch, a claim blob for a closed issue, a missing release-triple entry, an un-archived pipeline
-run dir whose `run-state.json` reached `status: clean`) is naturally a Phase 1 fix-now candidate —
-its `Item` description should say so. When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
+A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a claim blob for a closed
+issue, a missing release-triple entry, an un-archived pipeline run dir whose `run-state.json`
+reached `status: clean`) is naturally a Phase 1 fix-now candidate — its `Item` description should
+say so. A merged-but-undeleted branch carries `remedy: auto` too, but never reaches here under
+this preamble's `--scope blast-radius` (above): `probeBranches` only ever tags a branch
+`scope: 'observed'` once it survives the `scope.headBranch` exclusion (#499), so it's filtered
+out before Phase 1 sees it — same as any other `observed` finding, and still visible under
+`--scope repo` (`/tidy`'s job, not this preamble's). When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
 applies it and the write is not legal from wherever this session currently sits, provision a
 worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own commit, then
 merge back, and record the resulting sha as that item's `fixed` resolution. This applies to the

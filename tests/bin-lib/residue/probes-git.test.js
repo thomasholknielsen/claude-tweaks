@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { probeWorktrees, extractPid } = require('../../../plugin/bin/lib/residue/probes/worktrees');
 const { probeBranches } = require('../../../plugin/bin/lib/residue/probes/branches');
+const { filterResultsByScope } = require('../../../plugin/bin/lib/residue/scope-filter');
 
 function stubRunner(responses) {
   return (args) => (Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null);
@@ -173,6 +174,38 @@ test('the integration branch itself is never a finding, even when passed bare', 
   });
   const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'main', run });
   assert.ok(!findings.some((f) => f.subject === 'origin/main'), 'deleting the integration branch would be catastrophic');
+});
+
+// #499: probeBranches tagged every merged-but-undeleted remote branch except
+// scope.headBranch as scope:'blast-radius' unconditionally, with no way to
+// tell "this run's own worktree branch" apart from an unrelated, separately-
+// completed session's merged branch. `probeWorktrees` already draws this
+// contrast correctly (a fallthrough worktree is 'observed', never
+// 'blast-radius') — this probe had no equivalent contrast. Mirrors that
+// fix: a merged branch not matching scope.headBranch is 'observed'.
+test('a merged branch belonging to an unrelated run is observed, not blast-radius', () => {
+  const run = stubRunner({ 'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old' });
+  const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  const stale = findings.find((f) => f.subject === 'origin/worktree-old');
+  assert.strictEqual(stale.scope, 'observed', 'a branch this run did not produce is observed, never blast-radius, mirroring probeWorktrees');
+});
+
+// AC: a repo state with 2+ merged-but-undeleted branches belonging to
+// unrelated runs, and 0 belonging to the invoking run, produces zero
+// blast-radius-scoped branch findings under --scope blast-radius.
+test('multiple merged branches from unrelated runs produce zero blast-radius findings', () => {
+  const run = stubRunner({
+    'branch -r --format=%(refname:short) --merged origin/main':
+      'origin/main\norigin/worktree-flow-464\norigin/worktree-record-174',
+  });
+  const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.strictEqual(findings.length, 2, 'both unrelated merged branches are still reported');
+  assert.ok(findings.every((f) => f.scope !== 'blast-radius'), 'none of them qualify as this run\'s own blast radius');
+  assert.deepStrictEqual(
+    filterResultsByScope([{ ran: true, reason: null, findings }], 'blast-radius')[0].findings,
+    [],
+    '--scope blast-radius drops every finding once none carry scope:blast-radius',
+  );
 });
 
 // #663: `probeBranches` used to read `--merged` against whatever stale
