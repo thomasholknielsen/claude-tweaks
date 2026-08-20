@@ -125,21 +125,33 @@ every PreToolUse gate at once rather than satisfying any of them (see the matchi
 
 A third guard sits at the **CLI-argument boundary** — the one path neither of the two above
 covers, a run directory handed to a binary explicitly on the command line rather than inherited
-or created. `bin/hooks.js` (`resolveRunArg`, `--run`), `bin/wrap-up-engine.js` (`main`,
-`--run-dir`) and `bin/materialize.js` (`run`, `--run-dir`) each resolve
-`mainCheckoutRoot()`/`isAnchoredUnderRoot()` from `bin/lib/hooks/worktree-detect.js` and refuse an
-unanchored value **before any filesystem write**, with exit code 2 (malformed invocation) and a
-message naming both the offending path and the resolved main checkout. Keep the two failure modes
-distinct in that message — "resolves outside the main checkout" (a worktree-relative shadow)
-versus "could not determine the git repository root" (no repo at all); collapsing them sends a
-reader hunting for the wrong problem. The check is existence-independent (`isAnchoredUnderRoot`
-walks up to whichever ancestor directory exists), so it holds for a path about to be created as
-well as one that already exists, and the run-directory argument reaches it through the CLI's own
-`deps` seam where the binary has one — a guard added later that reads `process.cwd()` or
-`worktree-detect` directly re-opens the hole the seam exists to close. **A new `bin/*.js` that
-accepts a run-directory argument owes this same guard** (`[IL-127]`); `bin/resolve-profile.js` and
-`bin/resolve-policy.js` are the known unguarded holdouts, tracked in #853 against a documented
-legitimate unanchored use.
+or created. Two rules live at this boundary, split by whether the binary has a documented
+legitimate run directory outside the repository:
+
+- **Pipeline-owned binaries** — `bin/hooks.js` (`resolveRunArg`, `--run`), `bin/wrap-up-engine.js`
+  (`main`, `--run-dir`), `bin/materialize.js` (`run`, `--run-dir`), and `bin/apply-refine-labels.js`
+  (`--run`) — have no such use: each resolves `mainCheckoutRoot()`/`isAnchoredUnderRoot()` from
+  `bin/lib/hooks/worktree-detect.js` and refuses any value not anchored under the main checkout
+  **before any filesystem write**, with exit code 2 (malformed invocation).
+- **Resolver CLIs with a documented sandbox use** — `bin/resolve-profile.js` (`--run-dir`) and
+  `bin/resolve-policy.js` (`--run`), whose journey and test invocations legitimately point outside
+  any checkout (`docs/journeys/resolve-dispatch-model-profile.md`'s `/tmp/mp-journey`) — apply the
+  **anchored-or-outside** rule via `worktree-detect.js`'s `checkRunDirAnchoredOrOutside()`: a
+  resolved path inside any git checkout must be anchored under the main checkout resolved from
+  cwd; a path outside any checkout is accepted as-is, no flag needed. Rejection exits 1, these
+  CLIs' documented invocation-failure code — a deliberate, stated deviation from the family's
+  exit 2.
+
+Both rules keep the two failure modes distinct in the message — "resolves outside the main
+checkout" (a worktree-relative shadow) versus "could not determine the git repository root" (no
+repo at all); collapsing them sends a reader hunting for the wrong problem — and both are
+existence-independent (the walk-up runs against whichever ancestor directory exists), so they
+hold for a path about to be created as well as one that already exists. The run-directory
+argument reaches the check through the CLI's own `deps` seam where the binary has one — a guard
+added later that reads `process.cwd()` or `worktree-detect` directly re-opens the hole the seam
+exists to close. **A new `bin/*.js` that accepts a run-directory argument owes one of these two
+guards** (`[IL-127]`) — the strict rule by default; anchored-or-outside only when a documented
+legitimate outside-repo use exists, as it did for the two resolver CLIs (#1065).
 
 `resolve-run-dir` above mirrors the snippet below; a citing skill step calls the command, not
 this snippet directly. Kept here as the canonical, executable reference implementation (and
