@@ -76,17 +76,26 @@ function shouldAgeTag(dateIso, nowMs) {
   return nowMs - t > TAG_AGE_DAYS * 24 * 60 * 60 * 1000;
 }
 
-// branch name -> a flat (no '/'), injective tag suffix. Reversible
-// path-flattening: escape every literal '-' as '--' first, then replace
-// every remaining single '/' with a single '-'. A naive `/`->`-`
-// substitution alone is not injective (`build/foo-bar` and `build/foo/bar`
-// both become `build-foo-bar`), which — combined with the tag-creation call
-// site's `-f` force flag — would silently overwrite one branch's archive tag
-// with another's. Escaping `-` first structurally rules that out: two
-// distinct branch names can never encode to the same suffix. Never returns a
-// string containing '/'. See #548.
+// branch name -> a flat (no '/'), injective tag suffix. Minimal percent-
+// encoding: '/' -> '%2f' and a literal '%' -> '%25' (escaped so an
+// already-percent-encoded-looking substring in the branch name, e.g.
+// `a%2fb`, can never be mistaken for an encoded slash); every other
+// character — including '-' — passes through unchanged. An earlier version
+// of this function doubled literal '-' to '--' before the slash
+// substitution: that scheme was NOT actually injective (a literal '-'
+// immediately adjacent to a '/' collapses run-length information —
+// `encodeArchiveTagSuffix('ab-/cd')` and `encodeArchiveTagSuffix('ab/-cd')`
+// both produced `'ab---cd'`), which — combined with the tag-creation call
+// site's `-f` force flag — could silently overwrite one branch's archive
+// tag with another's. Percent-encoding avoids the whole class: '%' is
+// escaped first (single pass, so the escape itself is never re-scanned),
+// so every '%' surviving in the output unambiguously starts one of exactly
+// two fixed 3-character sequences, and no other character ever produces a
+// spurious '%' or '/'. '%' is valid in a git ref component (verified: git
+// accepts `archive/build%2ffoo`; rejects tilde-based alternatives outright).
+// Never returns a string containing '/'. See #548.
 function encodeArchiveTagSuffix(branch) {
-  return branch.replace(/-/g, '--').replace(/\//g, '-');
+  return branch.replace(/[%/]/g, (ch) => '%' + ch.charCodeAt(0).toString(16));
 }
 
 // Cherry equivalence: every commit on the branch is patch-equivalent to one

@@ -84,13 +84,32 @@ test('encodeArchiveTagSuffix: the reported example does not collide', () => {
 test('encodeArchiveTagSuffix: adversarial pair constructed to collide under naive "/"->"-" substitution does not collide', () => {
   // Naive `branch.replace(/\//g, '-')` maps both of these to the same
   // string ('build-foo-bar') because one input already contains a literal
-  // '-' where the other's flattened '/' would land. Escaping '-' as '--'
-  // before flattening '/' keeps them distinguishable.
+  // '-' where the other's flattened '/' would land. Percent-encoding only
+  // '/' (and '%' itself) keeps '-' untouched entirely, so the two stay
+  // distinguishable.
   const a = encodeArchiveTagSuffix('build/foo-bar');
   const b = encodeArchiveTagSuffix('build/foo/bar');
   assert.notStrictEqual(a, b);
-  assert.strictEqual(a, 'build-foo--bar');
-  assert.strictEqual(b, 'build-foo-bar');
+  assert.strictEqual(a, 'build%2ffoo-bar');
+  assert.strictEqual(b, 'build%2ffoo%2fbar');
+});
+// A prior fix attempt for this same function ("escape literal '-' as '--',
+// then replace '/' with '-'") was itself not injective: a literal '-'
+// immediately adjacent to a '/' collapses the run-length information that
+// distinguishes the two cases. Caught in review (#548) before shipping —
+// pinned here so it can never silently regress.
+test('encodeArchiveTagSuffix: a literal "-" immediately adjacent to "/" does not collide (regression for a prior non-injective fix attempt)', () => {
+  const a = encodeArchiveTagSuffix('ab-/cd');
+  const b = encodeArchiveTagSuffix('ab/-cd');
+  assert.notStrictEqual(a, b);
+  assert.strictEqual(a, 'ab-%2fcd');
+  assert.strictEqual(b, 'ab%2f-cd');
+});
+test('encodeArchiveTagSuffix: a literal "%2f" substring does not collide with an actual encoded slash', () => {
+  assert.notStrictEqual(encodeArchiveTagSuffix('a%2fb'), encodeArchiveTagSuffix('a/b'));
+});
+test('encodeArchiveTagSuffix: a branch with no "/" or "%" passes through unchanged', () => {
+  assert.strictEqual(encodeArchiveTagSuffix('worktree-record-42'), 'worktree-record-42');
 });
 
 const { execFileSync } = require('child_process');
@@ -159,7 +178,7 @@ test('archiveBranches: unmerged aged branch gets archive tag then delete; young 
   const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
   assert.strictEqual(r.entries.find((e) => e.name === 'build/aged').action, 'tag-and-delete');
   assert.strictEqual(r.entries.find((e) => e.name === 'build/young').action, 'skip');
-  assert.match(git(dir, 'tag', '--list', 'archive/build-aged'), /archive\/build-aged/);
+  assert.match(git(dir, 'tag', '--list', 'archive/build%2faged'), /archive\/build%2faged/);
   assert.strictEqual(git(dir, 'branch', '--list', 'build/aged').trim(), '');
   assert.match(git(dir, 'branch', '--list', 'build/young'), /build\/young/);
 });
@@ -180,7 +199,7 @@ test('archiveBranches: same-pass survival — 120-day-old tip gets tagged AND th
   const entry = r.entries.find((e) => e.name === 'build/veryold');
   assert.strictEqual(entry.action, 'tag-and-delete');
   assert.strictEqual(git(dir, 'branch', '--list', 'build/veryold').trim(), ''); // branch gone
-  assert.match(git(dir, 'tag', '--list', 'archive/build-veryold'), /archive\/build-veryold/); // tag survives — not aged out in the same pass
+  assert.match(git(dir, 'tag', '--list', 'archive/build%2fveryold'), /archive\/build%2fveryold/); // tag survives — not aged out in the same pass
 });
 
 test('archiveBranches: retry idempotency — a pre-existing lightweight archive tag from an earlier failed pass is force-replaced, not a dead end', () => {
@@ -194,7 +213,7 @@ test('archiveBranches: retry idempotency — a pre-existing lightweight archive 
     env: { ...process.env, GIT_COMMITTER_DATE: old, GIT_AUTHOR_DATE: old },
   });
   const tip = git(dir, 'rev-parse', 'build/retry').trim();
-  git(dir, 'tag', `archive/build-retry`, tip); // pre-existing lightweight tag, same tip, from an earlier failed pass
+  git(dir, 'tag', `archive/build%2fretry`, tip); // pre-existing lightweight tag, same tip, from an earlier failed pass
   git(dir, 'checkout', 'main');
 
   const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
@@ -202,7 +221,7 @@ test('archiveBranches: retry idempotency — a pre-existing lightweight archive 
   assert.strictEqual(entry.action, 'tag-and-delete');
   assert.notStrictEqual(entry.reason, 'tag-failed');
   assert.strictEqual(git(dir, 'branch', '--list', 'build/retry').trim(), '');
-  assert.match(git(dir, 'tag', '--list', 'archive/build-retry'), /archive\/build-retry/);
+  assert.match(git(dir, 'tag', '--list', 'archive/build%2fretry'), /archive\/build%2fretry/);
 });
 
 // #548: the reported D/F-collision scenario. build/foo and build/foo/bar can
@@ -246,8 +265,8 @@ test('archiveBranches: build/foo archived-and-deleted, then unrelated build/foo/
   assert.strictEqual(git(dir, 'branch', '--list', 'build/foo/bar').trim(), '');
 
   // Two distinct, flat tags — neither a directory, both independently listable.
-  assert.match(git(dir, 'tag', '--list', 'archive/build-foo'), /archive\/build-foo$/m);
-  assert.match(git(dir, 'tag', '--list', 'archive/build-foo-bar'), /archive\/build-foo-bar/);
+  assert.match(git(dir, 'tag', '--list', 'archive/build%2ffoo'), /archive\/build%2ffoo$/m);
+  assert.match(git(dir, 'tag', '--list', 'archive/build%2ffoo%2fbar'), /archive\/build%2ffoo%2fbar/);
 });
 
 test('archiveBranches: archive/* tag older than 90 days is deleted, younger kept', () => {
