@@ -93,6 +93,30 @@ test('listSlices excludes .claude and .worktrees (other sessions\' live worktree
   assert.ok(!ids.includes('.worktrees'), '.worktrees must be excluded');
 });
 
+test('listSlices excludes a dot-directory with zero SOURCE_EXTS files (config dot-dirs)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  fs.mkdirSync(path.join(root, '.github', 'workflows'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.github', 'workflows', 'test.yml'), 'name: test\n');
+  fs.mkdirSync(path.join(root, '.vscode'));
+  fs.writeFileSync(path.join(root, '.vscode', 'settings.json'), '{}\n');
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.ok(ids.includes('src'), 'src should be included');
+  assert.ok(!ids.includes('.github'), '.github must be excluded — no SOURCE_EXTS files, only YAML');
+  assert.ok(!ids.includes('.vscode'), '.vscode must be excluded — no SOURCE_EXTS files, only JSON');
+});
+
+test('listSlices still includes a dot-directory that holds real SOURCE_EXTS source', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  fs.mkdirSync(path.join(root, '.config'));
+  fs.writeFileSync(path.join(root, '.config', 'index.js'), 'module.exports = {};\n');
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.ok(ids.includes('.config'), 'a dot-directory with real source must not be excluded');
+});
+
 test('listSlices slice.path is the absolute path', () => {
   const root = tmp();
   fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');

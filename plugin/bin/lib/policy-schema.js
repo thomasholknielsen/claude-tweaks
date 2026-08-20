@@ -11,6 +11,11 @@ const PROFILE_NAMES = Object.keys(PROFILES);
 
 const POLICY_CATEGORIES = ['autonomy-trust', 'pipeline-behavior', 'merge-safety', 'health-sweeps', 'models', 'housekeeping'];
 
+// A `type: 'boolean'` entry's value — in policy.yml examples, routing-table prose, and
+// tests — must use the literal strings 'true'/'false', never 'on'/'off': resolveValue()
+// below does a strict string match and silently falls back to the entry's `default` on
+// any other spelling (#660 caught this on review, before merge, for a first-draft lever
+// documented with on/off wording that isValidValue() would have rejected).
 const POLICY_KEYS = [
   { key: 'worktree-always', type: 'boolean', default: false, summary: "Every covered edit and commit must happen inside a linked worktree — the hook denies it elsewhere.", category: 'pipeline-behavior', tier: 'core' },
   // One key, two value classes since #331: plain 'subagent'/'batched' are
@@ -81,6 +86,7 @@ const POLICY_KEYS = [
   { key: 'leftover-default', type: 'enum', values: ['defer', 'backlog', 'drop'], default: 'defer', summary: "Decides what happens to loose ends found at the end of a run: leave them for later, file them as backlog, or drop them.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-fix-threshold', type: 'enum', values: ['lint-only', 'lint+type', 'lint+type+test'], default: 'lint+type', summary: "Sets how much a test pass auto-fixes before stopping — lint alone, lint and types, or lint, types, and tests.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'review-auto-apply-ceiling', type: 'enum', values: ['none', 'low', 'medium'], default: 'low', summary: "Sets the severity cutoff at or below which review findings are applied without asking — anything above it is staged or prompted.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'review-auto-apply-prose-exempt', type: 'boolean', default: true, summary: "Lets a prose-only fix auto-apply one severity tier above the ceiling instead of the plain ceiling — see step3-routing.md.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'moderate', summary: "Sets how boldly cleanup sweeps act on what they find — from keep-unless-certain to delete-unless-doubtful.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-mode', type: 'enum', values: ['default-on', 'default-off'], summary: "Sets whether a standalone build or an unattended cleanup run starts hands-off by default, without being asked each time.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'backlog-fetch-limit', type: 'integer', default: 1000, summary: "Caps how many backlog issues one scan pulls before warning that the list was truncated.", category: 'housekeeping', tier: 'advanced' },
@@ -139,9 +145,9 @@ const POLICY_KEYS = [
   // registration here is schema/audit only, deliberately shallow (#219): this
   // file checks model-profiles' row keys are real profile names, never the
   // shape of a row's own fields — that's the resolver's job, at resolve time.
-  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default', summary: "Shifts every dispatched agent's reasoning effort one notch cheaper or more rigorous, without changing which model tier is chosen.", category: 'models', tier: 'advanced' },
-  { key: 'frontier-run-cap', type: 'integer', default: 3, summary: "Caps how many top-tier model dispatches one pipeline run may use before falling back to a cheaper tier.", category: 'models', tier: 'advanced' },
-  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES, summary: "Sets the highest model tier a skill's own default may resolve to, without limiting a person's explicit choice.", category: 'models', tier: 'advanced' },
+  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default', summary: "Shifts every dispatched agent's reasoning effort one notch cheaper or more rigorous, without changing which model profile is chosen.", category: 'models', tier: 'advanced' },
+  { key: 'frontier-run-cap', type: 'integer', default: 3, summary: "Caps how many Frontier model dispatches one pipeline run may use before falling back to a cheaper profile.", category: 'models', tier: 'advanced' },
+  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES, summary: "Sets the highest model profile a skill's own default may resolve to, without limiting a person's explicit choice.", category: 'models', tier: 'advanced' },
   { key: 'model-profiles', type: 'map', keys: PROFILE_NAMES, summary: "Lets a project override which model and effort level each named profile resolves to, replacing the shipped table row by row.", category: 'models', tier: 'advanced' },
   // Read from /claude-tweaks:research's own `## Input` --mode= flag (IL-24:
   // that file is authoritative for the vocabulary, not this schema).
@@ -171,6 +177,8 @@ function migrateExecutionAlways(value) {
 // stray line); the resolver treats the old key's line as contributing nothing
 // and a request for the retired name as unknown-key.
 const RENAMED_KEYS = [
+  // Merged into the autonomy ceiling in #289, first shipped v6.76.0. Removal
+  // condition in skills/_shared/policy-deprecations.md.
   {
     key: 'unattended-tier',
     replacedBy: 'autonomy',

@@ -176,6 +176,8 @@ Policy introspection: resolve-policy --all metadata, /help policy mode, init del
 
 Tidy report redesign + reconcile-backed auto-apply (#517-#519), /feedback session-evaluation mode (#509), resume-to-merge confirmation gate (#531), Review Console lever attribution (#535), needs:definition taxonomy, /init Enhancement filter tokens for Steps 18-20 + step-range drift fix, and closed-issue plan cleanup.
 
+The reconcile-backed auto-apply work (#517-#519) also flips `tidy-aggressiveness`'s default from `conservative` to `moderate`: `/claude-tweaks:tidy` now auto-applies reversible git-tracked judgment cleanups (`local-files` deletes/absorbs/defers) that previously only staged for approval; outward-facing GitHub writes still stage regardless of aggressiveness. `conservative` remains available as an explicit opt-down in `.claude-tweaks/policy.yml`.
+
 ## v6.84.0 — Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec
 
 Merge #369 (policy.yml key fix), #484 (CLAUDE.md/rules size-budget check), #479 (SKILL.md ceiling early-warning tier), and archive record #368's spec.

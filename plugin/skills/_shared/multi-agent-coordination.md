@@ -6,7 +6,7 @@ This file is the single source of truth. Skills inline the relevant dispatch tem
 
 ## Why this exists
 
-The Subagent Contract (`subagent-output-contract.md`) describes how agents **format output** (Templates A/B/C, status protocol, model tiers). It does not describe how multiple agents **compose**. The following forces shape coordination:
+The Subagent Contract (`subagent-output-contract.md`) describes how agents **format output** (Templates A/B/C, status protocol, model profiles). It does not describe how multiple agents **compose**. The following forces shape coordination:
 
 1. **False positives in single-agent review** — one agent, even Capable, hallucinates findings. Cutting that requires N>1 with deterministic match rules.
 2. **Cross-lens disagreement is signal, not noise** — when two reviewer lenses contradict each other on the same line, the right move is one structured debate round, not silent suppression.
@@ -63,7 +63,7 @@ No outcome is "ask the user inline." Unconfirmed findings stage; the caller's Re
 ```
 {Same Template-A prompt sent to BOTH agents — identical scope, identical paths, identical output format.}
 
-[Use: Standard model — reproduction agent. Independent run; do not assume any prior context.]
+[Use: Standard] — reproduction agent. Independent run; do not assume any prior context.
 ```
 
 ### Decision-log entry format
@@ -204,7 +204,7 @@ Return findings as Template-A. For each finding, give:
 - Finding: the ambiguity, missing constraint, or assumption
 - Evidence: which phrasing or omission in the spec triggered the lens
 
-[Use: Standard model — {persona name} persona.]
+[Use: Standard] — {persona name} persona.
 ```
 
 ### Decision-log entry format

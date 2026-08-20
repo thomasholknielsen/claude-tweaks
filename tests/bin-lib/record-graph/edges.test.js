@@ -1,4 +1,4 @@
-// bin/lib/record-graph/tests/edges.test.js
+// tests/bin-lib/record-graph/edges.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { computeEdges } = require('../../../plugin/bin/lib/record-graph/edges');
