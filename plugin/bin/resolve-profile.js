@@ -17,12 +17,32 @@
 //
 // before retrying or reporting — see subagent-output-contract.md's Model
 // Selection section for when to call this.
+//
+// Recovery (#841 item 3): credit exhaustion is normally a usage window, not
+// permanent, so a session degraded early in a long window otherwise has no
+// documented way to clear it before the window naturally rolls over. Clear
+// the blacklist explicitly:
+//
+//   node bin/resolve-profile.js clear-failures
+//
+// or, equivalently, remove the underlying file directly:
+//
+//   rm "${TMPDIR:-/tmp}/ct-model-failures-${CLAUDE_CODE_SESSION_ID}.json"
+//
+// No TTL: unlike the sibling blacklist this module mirrors
+// (bin/lib/issues/record-snapshot.js, which has both a TTL and
+// invalidateSnapshot()), this stays explicit-clear-only for now — a
+// time-based expiry needs its own policy.yml key and schema default
+// (record-snapshot-ttl-seconds's own wiring), which is disproportionate for
+// this low-risk, session-scoped file. Revisit if explicit-clear proves too
+// manual in practice.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const { resolve, PROFILES } = require('./lib/model-profiles/profiles');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
-const { readFailedModels, recordFailure } = require('./lib/model-profiles/session-failures');
+const { readFailedModels, recordFailure, invalidateFailures } = require('./lib/model-profiles/session-failures');
+const wtDetect = require('./lib/hooks/worktree-detect');
 
 function fail(msg) {
   process.stderr.write(`resolve-profile: ${msg}\n`);
@@ -42,7 +62,7 @@ function main(argv) {
   const args = argv.slice(2);
   const profile = args.shift();
   if (!profile) {
-    fail('usage: resolve-profile.js <profile>|record-failure <model> [--stance <s>] [--unattended] [--run-dir <path>]');
+    fail('usage: resolve-profile.js <profile>|record-failure <model>|clear-failures [--stance <s>] [--unattended] [--run-dir <path>]');
     return;
   }
 
@@ -61,6 +81,14 @@ function main(argv) {
     return;
   }
 
+  if (profile === 'clear-failures') {
+    const sessionId = process.env.CLAUDE_CODE_SESSION_ID;
+    if (!sessionId) { fail('clear-failures requires CLAUDE_CODE_SESSION_ID to be set — nothing to clear'); return; }
+    invalidateFailures(sessionId);
+    process.stdout.write(`${JSON.stringify({ cleared: true, sessionId })}\n`);
+    return;
+  }
+
   let stance;
   let unattended = false;
   let runDir;
@@ -70,6 +98,21 @@ function main(argv) {
     else if (a === '--unattended') unattended = true;
     else if (a === '--run-dir') runDir = requireValue(args, '--run-dir');
     else { fail(`unknown argument "${a}"`); return; }
+  }
+
+  // #1065: anchored-or-outside guard — reject a worktree-shadow run dir
+  // before any policy read or tally I/O. Outside-any-checkout paths (the
+  // journey's /tmp demo, tmp-fixture tests) stay accepted with no flag; the
+  // raw runDir string is kept for all downstream use — the reject message
+  // names the realpath-resolved candidate instead.
+  if (runDir !== undefined) {
+    const anchor = wtDetect.checkRunDirAnchoredOrOutside(runDir, process.cwd());
+    if (!anchor.ok) {
+      fail(anchor.reason === 'foreign-checkout'
+        ? wtDetect.unanchoredRunDirShadowMessage(anchor.resolved, anchor.mainRoot)
+        : wtDetect.unanchoredRunDirNoRepoMessage(process.cwd()));
+      return;
+    }
   }
 
   let policy = {};

@@ -106,6 +106,8 @@ Sets the `Design-intent:` body-metadata line that Phase 3's `polish` mode will r
 
 **`--chained` (shaping mode's headless component invocation — see `SKILL.md`'s Input bullet and Component-Skill Contract):** never ask. Write `Design-intent: none` and skip both branches below entirely — the auto-mode policy resolve and the interactive fallback alike; the flag outranks both, run dir or no run dir. Log per `_shared/auto-decision-log.md` when a run directory resolves (`AUTO {time} — Step 2.5c: design-intent=none (--chained headless default). Reversibility: high.`), otherwise note it in the returned output only.
 
+**The `next` form (`specify/next-mode.md`) never reaches this step at all.** `next-mode.md`'s own Flag rejection step pre-resolves `Design-intent: none` before `shaping-mode.md` is ever entered — the same value this `--chained` branch produces, just resolved one file earlier. This step's branches never execute for a `next`-mode record; nothing here needs to special-case `next` beyond this note.
+
 **Auto mode:** resolve `design-intent` — `DESIGN_INTENT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" design-intent)`. Apply per the resolved value:
 
 - Value is one of `bold` / `quiet` / `minimal` / `delightful` / `onboarding` → write the `Design-intent:` body-metadata line directly. Log:

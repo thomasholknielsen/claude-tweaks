@@ -5,6 +5,9 @@
 // driver adds its own extra keys on top of sharedFacetDefaults() — parent/
 // blockedBy/type/unsynced/closed/closedAt are local-files-only and have no
 // analog in the label-derived shape, so they stay declared in local-store.js.
+// The same holds in the other direction: shapedHeadless is GitHub-only (the
+// headless `next` shaping unit is github-issues-only), so it stays declared in
+// record.js and the local-files shape carries no meaningless default for it.
 // Add a new shared facet key here, not independently in either driver.
 //
 // isParentIssue is shared: the GitHub driver derives it from the parent-issue

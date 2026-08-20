@@ -63,6 +63,17 @@ gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,s
   unexpected precondition this file does not need to specially handle beyond not erroring.
 - **No match**: fall through to creation.
 
+**Why a stale-branch collision can't reach this step (#767).** This procedure runs against
+whatever branch name `build/worktree-setup.md` Step 2 already created — and that step's own Step
+1.5 (Stale same-name branch check) removes a leftover same-name local branch from a prior
+closed-unmerged attempt *before* `EnterWorktree` ever creates the new one. Before that check
+existed, a same-name retry risked reopening the CLOSED PR found above (this step) ahead of Step
+2's push, then having that push rejected non-fast-forward — leaving a reopened PR pointing at
+stale content with no automatic re-close. With the collision closed at its root, the branch this
+step queries is always freshly created, so `gh pr list --head {branch}` only ever matches a PR
+this exact run itself opened (resume case) — the CLOSED-match reopen branch above still exists for
+that legitimate resume, just never for a same-name-collision retry anymore.
+
 ### Step 2: Push the branch
 
 ```bash
@@ -207,6 +218,13 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
 re-flips every row still unchecked from prior phases, since it reads the live body fresh each
 time rather than tracking a local diff.
 
+**Multi-spec runs share one PR.** A dispatch bundle or a `/flow` multi-spec run has multiple
+records built on the same branch behind the same draft PR, so this procedure's checklist rows
+are **cumulative across every spec in the run, never reset per spec** — see
+`flow/multispec-pr-checklist.md` for the full rationale and the per-spec status source
+(`manifest.yml`'s `specs[].status`) a maintainer should read instead when they need spec-level,
+not run-level, granularity.
+
 ## Pre-merge title/description refresh
 
 Unconditional `AUTO` step, never a stop (`_shared/auto-mode-contract.md`'s "What auto silences" —
@@ -216,13 +234,35 @@ were composed at run start (Step 3 above) and the phase checklist reflects which
 exited as of each best-effort `gh pr edit` (Phase-checklist update above), not necessarily every
 phase this run actually completed.
 
-1. Re-run the Phase-checklist update procedure above once more, unconditionally — idempotent
+1. **Merge-size probe (#641).** First `git fetch origin {integration-branch}` — unlike `gh pr
+   merge --auto` below (server-side, no local checkout needed), this probe's `git merge-tree`
+   resolves a local ref, and a worktree can sit hours behind `origin/{integration-branch}`
+   without this fetch; skipping it would let the probe silently predict against a stale base,
+   compounding the race this step already discloses below. Then run `node
+   plugin/bin/merge-size-probe.js --integration-branch origin/{integration-branch}` against this
+   run's branch. It predicts, via `git merge-tree --write-tree`, the post-merge size
+   of every branch-touched `skills/_shared/*.md`/`SKILL.md` file — a branch that is green alone
+   (`tests/bin-lib/skill-audit/context-cost.test.js` only sees the working tree) can still tip a
+   shared file over the 40 KB ceiling once merged with a concurrent sibling's own additions, a
+   failure that today only surfaces inside the merge sequence itself. A non-empty `overflow` never
+   blocks this merge — this section invents no new pipeline stop
+   (`_shared/auto-mode-contract.md`'s strict rule) — it discloses at **warn** tier in the run
+   summary (a visible line, not a silent log entry), one per file: `merge-size-probe: {path}
+   predicted at {bytes} B, {over} B over the 40 KB ceiling once merged with {integration-branch}`,
+   and logs `AUTO {time} — PR-early run lifecycle: merge-size probe predicted {n} file(s) over
+   ceiling post-merge; disclosed in run summary. Reversibility: n/a (prediction only).` This is a
+   prediction against freshly-fetched `origin/{integration-branch}` as of probe time, not a
+   guarantee — a sibling that merges after the probe but before this branch does can still produce
+   a fresh overflow the probe never saw. A probe failure (unresolvable ref, a real merge conflict)
+   degrades like any other best-effort step here: log a warning and continue — the merge sequence
+   surfaces a real conflict on its own.
+2. Re-run the Phase-checklist update procedure above once more, unconditionally — idempotent
    (a phase whose own update already landed re-flips the same rows to the same values); this is
    the final catch-all for any phase whose own best-effort update silently failed.
-2. Read the record's current title (`gh issue view {n} --json title -q .title` for the
+3. Read the record's current title (`gh issue view {n} --json title -q .title` for the
    lowest-numbered record). If it no longer matches the PR's own title (the record was retitled
    after PR creation), refresh it: `gh pr edit {pr-number} --repo {owner}/{repo} --title "{current record title} (#{n})"`.
-3. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
+4. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
 
 Best-effort, like the phase-checklist update it extends — a failed `gh pr edit` here logs a
 warning and the merge proceeds; a stale title/checklist is cosmetic, never a merge blocker.

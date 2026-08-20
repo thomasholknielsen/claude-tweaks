@@ -58,8 +58,10 @@ field the routine itself needs already resolved *before* invoking this procedure
 file — Step 4 only sets the deferred-invocation flag, it does not call this procedure directly).
 
 Takes: `project_slug`, `repo_url`, `routine_name` (the caller's already-derived `PREFIXED_NAME`),
-`cron_expression` (the caller's already-resolved schedule, e.g. from CREATE Step 5's cadence
-picker — always a raw 5-field UTC cron string, never a natural-language description), `instructions`
+exactly one of `cron_expression` (the caller's already-resolved recurring schedule, e.g. from
+CREATE Step 5's cadence picker — always a raw 5-field UTC cron string, never a natural-language
+description) or `run_once_at` (the caller's already-resolved one-off firing time, ISO 8601 UTC —
+from the same picker's 5b-i One-off branch), never both, `instructions`
 (the routine's prompt text — the caller's `RESOLVED_PROMPT`, i.e. the schema's canonical kernel
 block (`_shared/routine-template-schema.md`'s `## Standard prompt kernel`) with its
 `{{TARGET_BRANCH}}` placeholder already substituted and `{kickoff}` already spliced, both per CREATE
@@ -128,10 +130,17 @@ connectors caveat in step 6 below).
      400ms `wait` between chunks so the renderer can catch up before the next injection. A prompt
      at or under 500 characters fits in a single chunk, so the existing single-`type`-call
      behavior for small prompts is unchanged.
-   - Click the "Schedule" trigger tile, then click its "Custom" sub-tab (alongside Once / Hourly /
-     Daily / Weekdays / Weekly) — confirmed live that this reveals a raw "Cron expression" text
-     field, pre-filled with a default derived from whatever cadence tab was last active. Clear it
-     and type `cron_expression` verbatim.
+   - Click the "Schedule" trigger tile. If `cron_expression` was passed, click its "Custom" sub-tab
+     (alongside Once / Hourly / Daily / Weekdays / Weekly) — confirmed live that this reveals a raw
+     "Cron expression" text field, pre-filled with a default derived from whatever cadence tab was
+     last active. Clear it and type `cron_expression` verbatim. If `run_once_at` was passed instead,
+     click the "Once" sub-tab in that same row — its existence alongside Custom is confirmed live,
+     but the exact date/time field(s) it reveals were **not live-verified this pass** (unlike the
+     Custom sub-tab's cron field above); the reasonable expectation is a date picker and/or a
+     text field accepting the resolved UTC instant. Fill whatever the tab exposes with
+     `run_once_at`'s date and time components, verifying via a screenshot or accessibility-tree
+     read before clicking "Create" that the displayed value matches the resolved instant — do not
+     assume the field accepted a raw ISO 8601 paste without checking.
    - **Connectors caveat, not live-verified this pass:** if `connectors` is non-empty, the form's
      Connectors section has a "+ Add connector" control, but the exact picker/search mechanism for
      selecting a *specific* named connector was not exercised during this task's live verification

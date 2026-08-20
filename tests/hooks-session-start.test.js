@@ -594,3 +594,48 @@ test('verdict banner: a throw from policy.resolveWorktreeAlways is swallowed —
     policyMod.resolveWorktreeAlways = original;
   }
 });
+
+// #381: coalesce redundant git spawns across the stale-runs .map() and the
+// trailing reconcile() call within one SessionStart invocation. Deliberately
+// no policy.yml integration-branch override here (unlike run-integrity.test.js's
+// fixtureRepo()) — this test needs resolveIntegrationBranch to actually reach its
+// `git rev-parse --abbrev-ref origin/HEAD` spawn rather than short-circuiting on
+// the policy value, so the cache has something real to coalesce.
+function fixtureRepoNoPolicy() {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-spawn-')));
+  execFileSync('git', ['-C', root, 'init', '-q', '-b', 'trunk']);
+  execFileSync('git', ['-C', root, 'config', 'user.email', 't@example.com']);
+  execFileSync('git', ['-C', root, 'config', 'user.name', 'T']);
+  fs.writeFileSync(path.join(root, 'a.txt'), 'base\n');
+  execFileSync('git', ['-C', root, 'add', 'a.txt']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'base']);
+  const wt = path.join(root, '.claude', 'worktrees', 'feat');
+  execFileSync('git', ['-C', root, 'worktree', 'add', '-q', '-b', 'feat-branch', wt]);
+  return { root, wt };
+}
+
+test('AC1 (#381): one worktree-list spawn and one origin/HEAD spawn per SessionStart, not one per stale run', async (t) => {
+  const { root, wt } = fixtureRepoNoPolicy();
+  for (const name of ['2026-08-01T090000-spec-1', '2026-08-01T090100-spec-2', '2026-08-01T090200-spec-3']) {
+    const run = mkRun(root, name, { status: 'active', worktree: wt });
+    fs.writeFileSync(path.join(run, 'events.jsonl'), '');
+  }
+
+  const cp = require('child_process');
+  const realExecFileSync = cp.execFileSync;
+  const worktreeListCalls = [];
+  const originHeadCalls = [];
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    if (cmd === 'git' && Array.isArray(args)) {
+      if (args.includes('worktree') && args.includes('list')) worktreeListCalls.push(args);
+      if (args.includes('rev-parse') && args.includes('origin/HEAD')) originHeadCalls.push(args);
+    }
+    return realExecFileSync(cmd, args, opts);
+  });
+
+  await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: root });
+
+  assert.ok(worktreeListCalls.length <= 1, `expected <=1 'git worktree list --porcelain' spawn, got ${worktreeListCalls.length}`);
+  assert.ok(originHeadCalls.length <= 1, `expected <=1 'git rev-parse --abbrev-ref origin/HEAD' spawn, got ${originHeadCalls.length}`);
+  assert.ok(worktreeListCalls.length >= 1, 'expected the worktree-list spawn to happen at least once');
+});

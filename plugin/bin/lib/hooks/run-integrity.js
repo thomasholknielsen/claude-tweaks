@@ -20,10 +20,10 @@ const fs = require('fs');
 const path = require('path');
 const { runGit } = require('./git-exec');
 const { parseWorktreeList, resolveIntegrationBranch } = require('./worktree-reap');
+const ctxLib = require('./context');
 
 const NON_TERMINAL = new Set(['active', 'interrupted']);
 const RUN_STATE_STATUSES = new Set(['active', 'interrupted', 'clean']);
-const WRAP_UP_SKILL = 'claude-tweaks:wrap-up';
 
 // run dirs live at {root}/.claude-tweaks/pipelines/{run-id} by anchoring
 // (_shared/pipeline-run-dir.md), so the repo root is three levels up.
@@ -65,13 +65,25 @@ function realpathOrSelf(p) {
   try { return fs.realpathSync(p); } catch { return p; } // keep recorded form
 }
 
-function deriveBranch(root, worktreePath) {
+// `cache` (optional): { worktreeList: Map<root, stdout>, integrationBranch: Map<root, name|null> }
+// — an explicit, opt-in, per-invocation cache threaded by session-start.js's run(ctx) to
+// coalesce redundant `git worktree list`/`git rev-parse` spawns for the same repo root within
+// one SessionStart. Omitted (the shape every other caller and every pre-existing test uses),
+// this spawns fresh every call — byte-identical to pre-cache behavior. See #381.
+function deriveBranch(root, worktreePath, cache) {
   if (!worktreePath) return null;
-  const list = runGit(['worktree', 'list', '--porcelain'], root);
-  if (list.failure || list.stdout === null) return null;
+  let stdout;
+  if (cache && cache.worktreeList.has(root)) {
+    stdout = cache.worktreeList.get(root);
+  } else {
+    const list = runGit(['worktree', 'list', '--porcelain'], root);
+    stdout = list.failure || list.stdout === null ? null : list.stdout;
+    if (cache) cache.worktreeList.set(root, stdout);
+  }
+  if (stdout === null) return null;
   const target = realpathOrSelf(worktreePath);
   const realRoot = realpathOrSelf(root);
-  for (const entry of parseWorktreeList(list.stdout)) {
+  for (const entry of parseWorktreeList(stdout)) {
     if (entry.bare) continue;
     const entryReal = realpathOrSelf(entry.path);
     if (entryReal === realRoot) continue; // never the main checkout
@@ -106,37 +118,21 @@ function mergedEvidence(root, branch, integration) {
   return lines.every((l) => l.startsWith('-')) ? 'cherry' : false;
 }
 
-// events.jsonl scan; missing file or unreadable -> null (indeterminate).
-function scanSkillEvents(runDir) {
-  let raw;
-  try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
-  let any = false;
-  let wrapup = false;
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue;
-    let ev;
-    try { ev = JSON.parse(line); } catch { continue; }
-    if (!ev || ev.type !== 'skill_invoked') continue;
-    any = true;
-    if (ev.skill === WRAP_UP_SKILL) wrapup = true;
-  }
-  return { any, wrapup };
-}
-
-function checkRunIntegrity(runDir) {
+function checkRunIntegrity(runDir, opts = {}) {
+  const cache = opts.cache;
   const evidence = { branch: null, merged: null, ledgerActive: null, wrapupInvoked: null };
   const inProgress = { state: 'in-progress', evidence };
   try {
     const state = readValidatedRunState(runDir);
     if (!state || !NON_TERMINAL.has(state.status)) return inProgress;
     const root = repoRootOf(runDir);
-    evidence.branch = deriveBranch(root, state.worktree || null);
+    evidence.branch = deriveBranch(root, state.worktree || null, cache);
     if (!evidence.branch) return inProgress;
-    const integration = resolveIntegrationBranch(root);
+    const integration = resolveIntegrationBranch(root, cache);
     if (!integration) return inProgress;
     evidence.merged = mergedEvidence(root, evidence.branch, integration);
     if (evidence.merged !== 'ancestor' && evidence.merged !== 'cherry') return inProgress;
-    const events = scanSkillEvents(runDir);
+    const events = ctxLib.scanWrapupEvents(runDir);
     if (!events) return inProgress;
     evidence.ledgerActive = events.any;
     evidence.wrapupInvoked = events.wrapup;

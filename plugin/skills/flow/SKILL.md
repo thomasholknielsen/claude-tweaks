@@ -1,7 +1,7 @@
 ---
 name: flow
 description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a work record without stopping between steps. Accepts record references (#N) only — design docs must be decomposed via /claude-tweaks:specify first.
-argument-hint: "<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [step1,step2,step3]"
+argument-hint: "<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [cleanup-only] [step1,step2,step3]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -31,12 +31,12 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 
 ## Input
 
-`$ARGUMENTS` is parsed as `<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [step1,step2,step3]` — see Syntax and Arguments below for what each token resolves to.
+`$ARGUMENTS` is parsed as `<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [cleanup-only] [step1,step2,step3]` — see Syntax and Arguments below for what each token resolves to.
 
 ## Syntax
 
 ```
-/claude-tweaks:flow <#n>[,#m,#o] [worktree | current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto | interactive | hybrid | confirm] [keep-going] [step1,step2,step3]
+/claude-tweaks:flow <#n>[,#m,#o] [worktree | current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto | interactive | hybrid | confirm] [keep-going] [cleanup-only] [step1,step2,step3]
 ```
 
 All bracketed tokens are optional and order-independent. `worktree` is the default git strategy when neither `worktree` nor `current-branch` is set. `keep-going` applies to multi-record runs only. Design doc paths are rejected at Step 2.7 — run `/claude-tweaks:specify` first.
@@ -57,8 +57,9 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 | `auto` | No | **Flow's default mode** — pipeline runs hands-off. The Config Manifesto (Step 3) renders as a read-only FYI and proceeds without an approval stop. Silences branch-divergence-check (Step 2.5), shape-check (Step 2.6), all path-selection prompts mid-pipeline, and forbids the model from inserting its own reality-checks or context-window concerns. Failures surface via the ledger and the failure card, never via mid-pipeline questions. **Full contract:** see `_shared/auto-mode-contract.md` — that file is the single source of truth for what `auto` silences AND what it does NOT silence (resolve gate and hard validation mandatory; work-record creation follows the tiered stance). Passing `auto` explicitly is redundant (it is already the default) but harmless. Passed through to `/build`. |
 | `confirm` | No | Stay in `auto` but **re-enable the Manifesto approval gate** at Step 3 (the `Approve all / Override / Cancel` block). Use when you want to inspect and tweak the policy levers before the pipeline runs hands-off. Everything after the Manifesto still runs as `auto`. |
 | `interactive` | No | Opt out of auto entirely — skills present each decision in-flow as the standalone skills do. The Manifesto is skipped. Highest friction; use when you want a checkpoint at every decision. |
-| `hybrid` | No | Manifesto approval gate runs, and downstream skills still prompt when a decision fails the reversibility/confidence/severity floors (see `_shared/auto-mode-contract.md`). Between full `auto` and `interactive`. |
+| `hybrid` | No | Manifesto approval gate runs, and downstream skills still prompt when a decision fails the reversibility/confidence floors or the severity ceiling (see `_shared/auto-mode-contract.md`). Between full `auto` and `interactive`. |
 | `keep-going` | No | **Multi-spec only.** Continue the run after a HARD-GATE failure in one spec — remaining specs still run, committing into the same shared worktree. Failed specs surface in the consolidated Review Console's "Not run / Failed" footer. Use when specs are genuinely independent (no `blocked-by:` edges). The default is to stop on first failure because spec N+1 may build on spec N's correctness — `keep-going` inverts that safety, so it's opt-in. See `multi-spec.md`. On a single-spec/single-record run, `keep-going` has nothing to continue past — treat it as a no-op and note: "`keep-going` has no effect on a single-target run — it only applies when multiple specs/records are given." |
+| `cleanup-only` | No | Valid only when the resolved step list includes `wrap-up` (e.g. `/claude-tweaks:flow {target} wrap-up cleanup-only`) — a dedicated teardown-only entry point (#298), the fix for a headless `/claude-tweaks:dispatch next` firing whose first Task call fails `build`/`test`: the dispatching session's teardown-only follow-up call needs `wrap-up`'s cleanup route (`[IL-116]`) but not its full review/reflection semantics. Under `cleanup-only`, `/claude-tweaks:wrap-up` skips Phases 1-4 (reflection, routing, settle, close) and runs only `cleanup-procedures.md`'s cleanup items; `/flow`'s own Step 5 treats the run the same way it already treats a step list where `wrap-up` is *absent* — skip the nothing-left-behind ledger gate and the Creative/Depth surveys, render the "Flow: Steps Complete" note (see `steps-and-gates.md`'s "Partial step lists" section). On a step list that does not include `wrap-up`, the flag is a no-op — note it in the pipeline output, the same convention `keep-going` uses for its own no-op case: "`cleanup-only` has no effect — `wrap-up` is not in the step list." |
 | `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,polish,wrap-up` (re-verify is bundled with polish). |
 
 Flow always uses **subagent** execution strategy — its purpose is hands-off automation. The `batched` option (which pauses for human review) is not available in flow; use `/claude-tweaks:build batched` directly instead.
@@ -160,7 +161,7 @@ This is the bookend "begin stop" that locks in policy for the rest of the pipeli
 
 Export that directory — created or adopted — as `PIPELINE_RUN_DIR` so every downstream skill resolves this same run per `_shared/pipeline-run-dir.md`; a multi-spec run exports the per-spec `spec-{N}/` subdirectory instead of the parent (see `multi-spec.md`).
 
-For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory. Read `manifesto.md` only after Step 2.8 passes — a run stopped at pre-flight never consumes it (#724).
+For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory. Read `manifesto.md` only after Step 2.8 passes — a run stopped at pre-flight never consumes it (#724). `manifesto.md` is everything an `auto`-mode run needs; only under `confirm`/`hybrid` does it also point at `manifesto-confirm.md` (the `AskUserQuestion` call, Rendering rules, and On-override/On-cancel branches) — never open that companion file for an `auto` run (#657).
 
 ### Step 4: Run Pipeline
 

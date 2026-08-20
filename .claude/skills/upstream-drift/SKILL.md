@@ -68,7 +68,7 @@ Filter to `--dep` if given. Under `--capability-only`, still run this step — t
 
 > **Parallel execution (conditional):** When more than one dependency is due, dispatch one Task agent per dependency. Otherwise, run Step 4 sequentially in the main thread.
 
-Each dependency is fully independent — different upstream repos, different tags, different contract roots — so there is no shared state to serialize. When dispatching, follow `plugin/skills/_shared/subagent-output-contract.md`: give each agent a `Standard` model tier, the minimal input (the dependency's manifest entry, its Step 1 results, the repository root), and **inline the entire body of `judge-procedure.md` below its horizontal rule, verbatim**, into the agent's prompt. Agents see only their own prompt; a pointer to the file does not reach them. Require the four-value status line (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`) as the first line of the reply.
+Each dependency is fully independent — different upstream repos, different tags, different contract roots — so there is no shared state to serialize. When dispatching, follow `plugin/skills/_shared/subagent-output-contract.md`: give each agent a `Standard` model profile, the minimal input (the dependency's manifest entry, its Step 1 results, the repository root), and **inline the entire body of `judge-procedure.md` below its horizontal rule, verbatim**, into the agent's prompt. Agents see only their own prompt; a pointer to the file does not reach them. Require the four-value status line (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`) as the first line of the reply.
 
 Skip this step entirely under `--drift-only`.
 

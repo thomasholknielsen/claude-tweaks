@@ -8,7 +8,7 @@ files:
 
 **Persona:** A claude-tweaks maintainer who has just triaged the backlog and holds three capture stubs (`#701`, `#702`, `#703`) that all need promoting to `ready` before `/claude-tweaks:dispatch` will pick them up, and does not want to run `/claude-tweaks:specify` three times and answer the same prompts three times.
 **Goal:** Shape all three records into spec shape in one invocation — one command, at most one interactive decision, one summary table, one paste-ready follow-up command.
-**Entry point:** A Claude Code session at the project checkout, `work-backend: github-issues`, the record numbers in hand (typing `/claude-tweaks:specify` shows the grammar `<#N[,#M...]|record-id[,id...]|design-doc-path|topic|backlog-title>|#A-#B …` as the greyed argument hint, and `/claude-tweaks:help`'s reference card carries the same string).
+**Entry point:** A Claude Code session at the project checkout, `work-backend: github-issues`, the record numbers in hand (typing `/claude-tweaks:specify` shows the grammar `<next|#N[,#M...]|#A-#B|record-id[,id...]|design-doc-path|topic|backlog-title> …` as the greyed argument hint, and `/claude-tweaks:help`'s reference card carries the same string).
 **Success state:** Every record in the batch is `ready` with `risk:*`/`size:*`/`ceremony:*` stamped, its body carries `Surface:` + the five spec sections + `## Original request`, the Actions Performed table shows one row per record, and the terminal `## Next Actions` block leads with **`/claude-tweaks:flow #701,#702,#703`** — the maintainer never re-derived a command by hand.
 
 ## Steps
@@ -17,7 +17,7 @@ files:
 - **URL:** `/claude-tweaks:specify #701,#702,#703` — or, for a contiguous run, `/claude-tweaks:specify #701-#703`
 - **Action:** Type the record references as one comma-joined, no-spaces token — the same `#A,#B` shape `/claude-tweaks:flow` already documents — or, when the batch is a contiguous run of issue numbers, the inclusive range form (`#A-#B`/`#A–#B`, sigil required on both bounds), which expands to the equivalent comma list before anything else runs.
 - **Should feel:** Familiar — the grammar mirrors `/flow`, and the argument hint that appears while typing confirms both the comma and range forms are documented, not guessed.
-- **Should understand:** Every element resolves independently (parallel fetches, as `flow/materialize.md`'s Resolution does); if any element cannot be resolved, all unresolvable elements are reported in one message before anything is shaped. A comma list is shaping-mode-only — decomposition (a design doc) and topic resolution stay single-input. The range form is capped at 25 elements (a hard input error names the element count above that) and requires `A ≤ B`; a range collapsing to one element (`A == B`) resolves as an ordinary single record reference, not through the batch path.
+- **Should understand:** Every element resolves independently (parallel fetches, as `flow/materialize.md`'s Resolution does); if any element cannot be resolved, all unresolvable elements are reported in one message before anything is shaped. A comma list is shaping-mode-only — decomposition (a design doc) and topic resolution stay single-input. The range form is capped at 25 elements (a hard input error names the element count above that) and requires `A ≤ B`; a range collapsing to one element (`A == B`) resolves as an ordinary single record reference, not through the batch path. The literal `next` alternative in that grammar is a different, headless form entirely — it takes no modifiers, shapes exactly one record chosen by the skill rather than any record the user names, and is mutually exclusive with the comma-list and range forms documented here.
 - **Red flags:** The skill shapes only the first record and stops; the skill asks "did you mean a path or a topic?" for a comma list of `#N` references; a resolution failure on `#703` reported only after `#701` was already rewritten; a typo like `#123-456` (missing sigil on the second bound) silently expanding into a huge range instead of failing as a malformed reference.
 
 ### 2. Answer the one batched design-intent question (frontend records only)
@@ -55,6 +55,14 @@ files:
 - **Should understand:** This is the flag's existing posture for every unsupported input shape (design doc, topic, decomposition, and now a comma-list batch): ignore with a notice rather than error. `/capture`'s single-record chain contract is unchanged.
 - **Red flags:** The whole invocation refused; the batch shaped headlessly with no `## Next Actions`.
 
+### 7. Include a decomposition parent — the batch refuses whole
+- **URL:** `/claude-tweaks:specify #701,#416,#703` (where `#416` carries `parent-issue`, or is an unlabeled legacy parent with a `## Leaves` table)
+- **Action:** Include a decomposition-parent reference as one batch element.
+- **Should feel:** The same all-or-nothing honesty as an unresolvable element — every parent offender named in one message, nothing shaped, no per-offender prompting mid-batch.
+- **Should understand:** The case-1 parent-record guard runs per element before anything is written. A labeled (tier-1) parent still gets its mis-shape residue (`ready`, scoring, ceremony, `solution:unjustified`) silently stripped — repair of wrong state, not shaping — and the failure message names any strip that ran. A sniff-only (tier-2) hit resolves like the guard's headless branch inside a batch — no prompt, since a prompt could not change the fail-all outcome — and the message points at `/claude-tweaks:specify #416` to repair interactively.
+- **Red flags:** The parent shaped and marked `ready`; the non-parent elements shaped despite the fail-all posture; an `AskUserQuestion` firing mid-batch for a tier-2 offender; a residue strip that ran but went unmentioned.
+
 ## Origin
+- Step 7 added for #1071 (parent-record guard: batch fail-all, tier-2 refuse-without-prompt, reported residue strip)
 - Steps 1 and 3 updated for #705 (range-form input, mandatory read-back verification after each write)
-- Related specs: #705, #695/#702 (comma-list batch form and this journey's original steps)
+- Related specs: #1071, #705, #695/#702 (comma-list batch form and this journey's original steps)

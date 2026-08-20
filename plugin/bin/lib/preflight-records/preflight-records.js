@@ -14,10 +14,10 @@
 
 const { execFileSync } = require('child_process');
 const {
-  parseRecordFacets, parseDependencies, buildNativeDependencyQuery,
-  hasOpenNativeBlocker, extractFingerprint,
+  parseRecordFacets, parseDependencies, extractFingerprint,
 } = require('../issues/record');
 const { extractKeyFiles, groupByFileOverlap } = require('../issues/grouping');
+const { fetchNativeDependencies: sharedFetchNativeDependencies } = require('../issues/native-dependencies');
 
 function defaultRunner(args) {
   return execFileSync('gh', args, { encoding: 'utf8' });
@@ -50,44 +50,19 @@ function fetchIssues({ numbers, runner = defaultRunner } = {}) {
   return { ok, failed };
 }
 
-// { numbers, owner, repo, runner } -> Map<number, {blockedBy: number[], openBlocker: boolean}>.
-// ONE batched, aliased GraphQL call (buildNativeDependencyQuery) resolving
-// every candidate's native blockedBy connection at once — work-links: native.
-// owner/repo are already-resolved String! values, so -f (never -F — -F would
-// type-coerce an all-numeric name, gh-api-module-pattern's flag table).
-//
-// Throws — never returns a partial map — when `data.repository` is
-// null/missing, or any candidate's `i{n}` alias is absent from the
-// response: the same "throw on a partial result rather than returning a
-// partial map" rule bin/lib/issues/link.js's resolveDatabaseIds follows.
-// Without this, a malformed/error GraphQL response silently read as
-// `blockedBy: [], openBlocker: false` for every affected record — a
-// dependency-satisfied false positive (#723). The CLI's existing try/catch
-// around this call routes the thrown message to the same exit-1,
-// all-failures-named path `fetchIssues`' `failed[]` already uses.
+// fetchNativeDependencies({ numbers, owner, repo, runner }) -> Map<number,
+// {blockedBy: number[], openBlocker: boolean}>. Executes the batched,
+// aliased GraphQL call (bin/lib/issues/record.js's buildNativeDependencyQuery)
+// and parses the response — moved to bin/lib/issues/native-dependencies.js
+// (#538) so this CLI's call site and bin/resolve-blockers.js's single-record
+// CLI share one implementation instead of two copies of the same GraphQL-
+// call-and-parse logic. Re-exported here (with the same default-runner
+// convenience this module's other fetchers use) for this module's existing
+// callers/tests. `runner` defaults to `defaultRunner` (execFileSync('gh', ...))
+// the same way `fetchIssues` above does; native-dependencies.js itself takes
+// no default so its behavior stays fully injectable for every caller.
 function fetchNativeDependencies({ numbers, owner, repo, runner = defaultRunner } = {}) {
-  const result = new Map();
-  const query = buildNativeDependencyQuery(numbers);
-  if (!query) return result;
-  const out = runner(['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `repo=${repo}`]);
-  const parsed = JSON.parse(out);
-  const repository = parsed && parsed.data && parsed.data.repository;
-  const missing = repository ? numbers.filter((n) => !repository[`i${n}`]) : numbers.slice();
-  if (missing.length) {
-    const errs = Array.isArray(parsed && parsed.errors) ? parsed.errors.map((e) => e && e.message).filter(Boolean) : [];
-    const suffix = errs.length ? ` (GraphQL: ${errs.join('; ')})` : '';
-    const reason = repository ? 'missing dependency data for' : 'missing repository — no dependency data for';
-    throw new Error(`${reason} ${missing.map((n) => `#${n}`).join(', ')}${suffix}`);
-  }
-  for (const n of numbers) {
-    const node = repository[`i${n}`];
-    const nodes = (node.blockedBy && node.blockedBy.nodes) || [];
-    result.set(n, {
-      blockedBy: nodes.map((b) => b && b.number).filter((v) => v !== undefined),
-      openBlocker: hasOpenNativeBlocker(node),
-    });
-  }
-  return result;
+  return sharedFetchNativeDependencies({ numbers, owner, repo, runner });
 }
 
 // issues: Map<number, issue>, dependencies: Map<number, {blockedBy, openBlocker}> | null

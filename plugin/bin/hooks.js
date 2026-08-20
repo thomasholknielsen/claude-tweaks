@@ -16,6 +16,8 @@ const siblingSessions = require('./lib/hooks/sibling-sessions');
 const specStatusLib = require('./lib/flow/manifest');
 const resumeFreshness = require('./lib/hooks/resume-freshness');
 const wtDetect = require('./lib/hooks/worktree-detect');
+const { closeRunState } = require('./lib/hooks/close-run-state');
+const { teardownRun } = require('./lib/hooks/teardown-run');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -169,6 +171,34 @@ async function main(argv) {
     process.stderr.write(`claude-tweaks: resolve-run-dir: ${result.message}\n`);
     return 1;
   }
+  if (cmd === 'sweep-shadow') {
+    // Promotes curation-engine.md §4's post-fan-out shadow sweep from an
+    // inline bash snippet to this verb (#738). --run/--worktree are the raw
+    // PIPELINE_RUN_DIR/WORKTREE values as a judge dispatch would set them —
+    // sweepShadow() itself does the `pwd -P`-style normalization and the
+    // anchoring/same-path checks, so unlike record-worktree/record-pr/
+    // close-run this does NOT go through resolveRunArg: --worktree is
+    // legitimately a linked worktree, which resolveRunArg's anchoring check
+    // would reject outright, and --run's own "is it under the main
+    // checkout" question is exactly the sweep's own diagnostic, not a
+    // separate gate ahead of it.
+    const args = argv.slice(3);
+    const runArg = flagVal(args, '--run');
+    const worktreeArg = flagVal(args, '--worktree');
+    const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
+    if (!mainRoot) {
+      process.stdout.write(`sweep: ${wtDetect.unanchoredRunDirNoRepoMessage(process.cwd())} — not swept\n`);
+      return 1;
+    }
+    const { sweepShadow } = require('./lib/hooks/sweep-shadow');
+    const result = sweepShadow({
+      runRoot: mainRoot,
+      pipelineRunDir: runArg ? path.resolve(process.cwd(), runArg) : runArg,
+      worktree: worktreeArg ? path.resolve(process.cwd(), worktreeArg) : worktreeArg,
+    });
+    for (const line of result.lines) process.stdout.write(line + '\n');
+    return result.diagnostic ? 1 : 0;
+  }
   if (cmd === 'record-pr') {
     // Mirrors record-worktree's shape: --run <path> pins the target run dir
     // explicitly (falls back to resolveRunDir's newest-non-terminal-run scan
@@ -234,47 +264,22 @@ async function main(argv) {
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);
     } else if (runDir) {
-      const prev = ctxLib.readRunState(runDir);
-      const me = process.env.CLAUDE_CODE_SESSION_ID;
-      const foreignOwner = !!(prev && typeof prev.sessionId === 'string' && prev.sessionId && me && prev.sessionId !== me);
-      if (foreignOwner && !explicit) {
-        // The implicit fallback ("newest non-terminal run") landed on a run
-        // recorded by a DIFFERENT, still-active session — closing it here
-        // would silently disarm that session's E1/E2/E3 enforcement with no
-        // way for it to know (see CLAUDE.md's Hooks section). Refuse rather
-        // than act; pass an explicit --run if closing someone else's run is
-        // genuinely intended.
+      const r = closeRunState(runDir, { explicit, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
+      if (r.status === 'refused-foreign') {
         process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session — refusing to close it without an explicit --run\n`);
         return 0;
       }
-      if (foreignOwner) {
+      if (r.foreignOwner) {
         process.stdout.write(`claude-tweaks: closing run ${path.basename(runDir)} recorded by another session\n`);
       }
-      // Warn-tier check (#373): closing a run whose ledger never recorded a wrap-up
-      // invocation. Warn, never block — dispatch's close-before-merge is sanctioned,
-      // and a human-typed /claude-tweaks:wrap-up leaves no event at all (measured,
-      // #371 finding (e)), so absence is not proof the procedure was skipped.
-      let wrapupSeen = false;
-      try {
-        const rawEvents = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8');
-        for (const line of rawEvents.split('\n')) {
-          if (!line.trim()) continue;
-          try {
-            const ev = JSON.parse(line);
-            if (ev && ev.type === 'skill_invoked' && ev.skill === 'claude-tweaks:wrap-up') { wrapupSeen = true; break; }
-          } catch { /* skip garbage line */ }
-        }
-      } catch { /* no events.jsonl — treated the same as no wrap-up event */ }
-      if (!wrapupSeen) {
-        ctxLib.appendEvent(runDir, 'close-without-wrapup', {});
+      if (!r.wrapupSeen) {
         process.stdout.write(
           `claude-tweaks: closing run ${path.basename(runDir)} with no recorded wrap-up invocation — ` +
           'expected if wrap-up was run manually (typed slash commands leave no ledger event); ' +
           'otherwise consider /claude-tweaks:wrap-up before closing. Event recorded: close-without-wrapup.\n',
         );
       }
-      const result = ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
-      if (!result) {
+      if (!r.writeOk) {
         process.stdout.write(`claude-tweaks: failed to close run ${path.basename(runDir)} — run-state.json could not be written\n`);
       }
     } else {
@@ -283,6 +288,19 @@ async function main(argv) {
       // chain. Without this branch, a call that can't resolve any run dir
       // printed nothing and exited 0, indistinguishable from success.
       process.stdout.write('claude-tweaks: no pipeline run dir found — run not closed\n');
+    }
+    return 0;
+  }
+  if (cmd === 'teardown-run') {
+    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const mode = argv.includes('--merged') ? 'merged' : (argv.includes('--abandoned') ? 'abandoned' : null);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not torn down\n`);
+    } else if (runDir) {
+      const result = teardownRun(runDir, { mode, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
+      process.stdout.write(`claude-tweaks: teardown-run ${path.basename(runDir)}\n${result.lines.map((l) => `  ${l}`).join('\n')}\n`);
+    } else {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — run not torn down\n');
     }
     return 0;
   }
@@ -393,13 +411,23 @@ async function main(argv) {
     // rather than by a parity test re-deriving the same logic twice.
     const args = argv.slice(3);
     const opts = { dryRun: args.includes('--dry-run'), cwd: process.cwd() };
+    const jsonOut = args.includes('--json');
     let out;
     try {
       out = await require('./lib/reconcile').reconcile(opts);
     } catch {
       out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
     }
-    process.stdout.write(JSON.stringify(out) + '\n');
+    if (jsonOut) {
+      // Unchanged from before #638 — byte-for-byte, so bin/lib/reconcile's
+      // existing JSON consumers (dispatch/tidy reading `console.ready` off
+      // this) don't move.
+      process.stdout.write(JSON.stringify(out) + '\n');
+    } else {
+      // New default (#638): a compact human-readable summary instead of the
+      // full per-item census — see format-summary.js for the aggregation.
+      process.stdout.write(require('./lib/reconcile/format-summary').formatSummary(out) + '\n');
+    }
     return 0;
   }
   if (cmd === 'reconcile-background') {

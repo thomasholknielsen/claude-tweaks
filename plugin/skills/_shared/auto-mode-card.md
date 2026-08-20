@@ -1,6 +1,6 @@
 # Auto-Mode Operating Card
 
-The minimal facts a **child** skill needs to implement its own auto branch correctly, without loading the full contract. This is a subset, never a redefinition — every clause below exists verbatim-or-tighter in `_shared/auto-mode-contract.md`, which stays the single source of truth for precedence disputes, the reversibility/confidence/severity floors, the Bookend Architecture rationale, the full per-skill "What `auto` silences" table, and the anti-patterns list. Cite the full contract instead of this card when: authoring a NEW auto branch (the Skill integration pattern lives there), resolving a precedence or floor dispute, or the skill is `/flow` itself (the orchestrator that owns the Manifesto/Review Console bookend).
+The minimal facts a **child** skill needs to implement its own auto branch correctly, without loading the full contract. This is a subset, never a redefinition — every clause below exists verbatim-or-tighter in `_shared/auto-mode-contract.md`, which stays the single source of truth for precedence disputes, the reversibility/confidence floors and severity ceiling, the Bookend Architecture rationale, the full per-skill "What `auto` silences" table, and the anti-patterns list. Cite the full contract instead of this card when: authoring a NEW auto branch (the Skill integration pattern lives there), resolving a precedence or floor dispute, or the skill is `/flow` itself (the orchestrator that owns the Manifesto/Review Console bookend).
 
 ## Mode states
 

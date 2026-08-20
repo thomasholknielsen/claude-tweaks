@@ -13,7 +13,10 @@ cite this file rather than restating it.
 A patch is staged mid-pipeline, in a worktree whose HEAD advances several more times before the
 console runs — `/simplify`, polish, `/test` fix waves, later specs in a multi-spec run. Staleness
 is therefore structural, not an edge case: the literal diff bytes are the least durable part of
-the proposal. Two things went wrong in run 2026-08-16T164927 that this contract closes: a staged
+the proposal. This is `_shared/reverify-before-write.md`'s pattern applied to a staged diff
+specifically: the console is a long-lived human-confirmation gate, so the console apply step
+below never trusts the diff bytes as still-true — it re-derives from the `Invariant:` line
+against the current tree instead of assuming the snapshot staging captured still holds. Two things went wrong in run 2026-08-16T164927 that this contract closes: a staged
 diff was malformed and nobody noticed until `git apply` failed at the console ("No valid patches
 in input"), and a well-formed diff went stale because `/simplify` legitimately restructured the
 target lines after staging. Both surfaced only at the console, where the one-line fix had to be
@@ -31,6 +34,7 @@ Target: {repo-relative path of the file the fix edits — one line per file when
 Invariant: {one sentence — the property the edit establishes, stated so it can be re-derived without the diff; e.g. "the `rel` assignment normalizes separators to posix before comparison" — one line per `Target:` line, in the same order, when the diff touches several files}
 Finding: {severity} {category} — {the finding text as logged}
 Staged-at: {short sha of the worktree HEAD at staging time}
+Ledger: {docs/plans/{feature}-ledger.md}#{item-number}
 
 diff --git a/{path} b/{path}
 --- a/{path}
@@ -47,15 +51,24 @@ path — cumulative drift stays resolvable only when the fallback knows which fi
 must resolve inside the worktree root: the console rejects an absolute path or a `..`-escaping
 value (route to step 4) before opening anything.
 
+`Ledger:` names the exact open items ledger row this finding was also appended to — the staging
+site assigns the ledger item's number first (`_shared/ledger-format.md`'s Item Numbering), then
+composes this preamble referencing it, so the two writes always agree on one number. Present
+whenever the staging site also appends the finding to a ledger file (every current site does);
+omitted only for a proposal that has no corresponding ledger row by design. The console apply
+procedure below uses this field to write its outcome back to the named row — see "Write-back to
+the ledger" — closing the gap `_shared/ledger-format.md`'s Resolve Gate documents for Phase 2/3
+routing but that, before this field existed, the console's own apply step had no mechanical way to
+honor for a staged finding it applies directly.
+
 ## Staging-time gate
 
 Immediately after composing the file, and before logging it as staged, run — from the worktree,
 the same tree the diff was composed against. `$STAGE_PATH` is the staged file's **absolute**
-path under the run directory resolved per `_shared/pipeline-run-dir.md`'s Anchoring section
-(`$RUN_ROOT/.claude-tweaks/pipelines/{run-id}/staged/…` — the main checkout, never a
-worktree-relative shadow); the command runs with cwd = the **worktree root** the diff was
-composed against — always the `-C` form below, never a bare `git apply --check` from whatever cwd
-happens to be current (a bare form validates against the wrong tree silently):
+anchored path, per the staged-file invariant whose single owner is `_shared/pipeline-run-dir.md`'s
+Anchoring section; the command runs with cwd = the **worktree root** the diff was composed
+against — always the `-C` form below, never a bare `git apply --check` from whatever cwd happens
+to be current (a bare form validates against the wrong tree silently):
 
 ```bash
 git -C "$WORKTREE" apply --check "$STAGE_PATH"
@@ -126,6 +139,27 @@ order the console lists them:
 Both consoles' `--dry-run` modes (`wrap-up/review-console.md`, `flow/multispec-review-console.md`)
 print each of these outcomes as a preview line and execute nothing — no `git apply`, no `--check`,
 no edit — consistent with the consoles' own dry-run bullets.
+
+### Write-back to the ledger
+
+The console apply log entry above (`decisions.md`) is never the only record of an outcome — when
+the preamble carries a `Ledger:` field, the same apply step also updates that exact row in
+`docs/plans/{feature}-ledger.md` (`_shared/ledger-format.md`'s Ledger File Format), in the same
+pass, before moving to the next staged item:
+
+| Outcome (numbered above) | Ledger Status | Ledger Resolution |
+|---|---|---|
+| 1. Fast path applied | `fixed` | commit hash from the apply commit |
+| 2. Stale diff re-derived | `fixed` | commit hash from the apply commit |
+| 2. Invariant already held (dropped) | `fixed` | `{commit or phase} (already satisfied)` |
+| 4. Cannot re-derive | `open` (unchanged) | `—` (unchanged) |
+
+A `.patch` staged before this field existed carries no `Ledger:` line — the write-back step is
+then a no-op for that item (expand-contract read-side tolerance; nothing to update, nothing
+errors). This is what closes the gap: without it, an applied finding's resolution lived only in
+`decisions.md`, and the ledger file's own Status column kept reporting `open` for work that was
+actually done — the drift a manual audit of six pipeline runs' ledgers found in 2026-08-18 (19 of
+20 `open`-marked items were already resolved elsewhere).
 
 ## Anti-patterns
 

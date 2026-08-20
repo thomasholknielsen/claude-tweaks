@@ -9,9 +9,14 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+function resolveConfigDirRoot() {
+  const fromEnv = process.env.CLAUDE_CONFIG_DIR;
+  if (typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.replace(/[\\/]+$/, '');
+  return path.join(os.homedir(), '.claude');
+}
+
 const CACHE = path.join(
-  os.homedir(),
-  '.claude',
+  resolveConfigDirRoot(),
   'plugins',
   'cache',
   'claude-tweaks-marketplace',
