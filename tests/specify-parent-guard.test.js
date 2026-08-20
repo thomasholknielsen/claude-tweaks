@@ -35,6 +35,8 @@ test('specify SKILL.md defines exactly the two documented detection tiers', () =
   // third tier definition added anywhere in that paragraph is caught.
   const guardIdx = src.indexOf('**Parent-record guard (before the `needs:definition` check');
   const redirectIdx = src.indexOf('**`needs:definition` redirect (single-record path only).**');
+  assert.ok(guardIdx !== -1, 'guard paragraph marker missing — cannot scope the tier count');
+  assert.ok(redirectIdx !== -1, 'redirect paragraph marker missing — cannot scope the tier count');
   const slice = src.slice(guardIdx, redirectIdx);
   assert.strictEqual(
     (slice.match(/\*\*[Tt]ier \d \(/g) || []).length,
