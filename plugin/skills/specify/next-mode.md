@@ -196,6 +196,78 @@ claim's `runId`. Log the claim (and, below, the release) to that
 directory's `decisions.md` per `_shared/issue-claims.md`'s own logging
 convention — cited, not restated, here.
 
+## Framing Guard
+
+Between Claim and Shape, every claimed record passes through one
+`framing-check` call before shaping proceeds — a headless firing has no
+human present to catch a solution-baked framing after the fact, so the
+gate runs before, not after.
+
+Fetch the record's full title + body first (the same fetch `## Shape`
+below performs — do this fetch once, here, and hand the same result to
+both this guard and `## Shape`, rather than fetching twice):
+
+```bash
+gh issue view {n} --json number,title,body,url,labels
+```
+
+Invoke inline via the `Skill` tool — never as a Task-agent dispatch
+(`challenge/SKILL.md`'s own contract: the caller already holds the body,
+so a subagent would only pay to re-derive it):
+
+```
+Skill(claude-tweaks:challenge, "framing-check #{n}")
+```
+
+Pass the fetched title + body as `framing-check`'s Step 1 "Gather" input.
+
+**Verdict parsing.** The verdict is the line matching
+`^FRAMING: (open|solution-baked)$` (anchored, first match). Everything
+after that line is the RATIONALE. Output containing no such line is
+**not a verdict — it is a shaping-stage failure**, handled exactly like
+any other `## Shape`-stage failure below: Release still runs first
+(`failed: shaping`), then Failure self-report files. Never coerce
+unparseable output to either verdict.
+
+- **`FRAMING: open`** — proceed to `## Shape` below, unchanged.
+- **`FRAMING: solution-baked`** — do **not** shape. In order:
+  1. Stamp `needs:definition` on the record: `gh issue edit {n}
+     --add-label "needs:definition"`.
+  2. Post one comment naming the verdict, the RATIONALE's assumptions,
+     and the interactive route as a paste-ready command on its own line
+     (transport per `_shared/github-write-transport.md`):
+
+     ```
+     gh issue comment {n} --body-file {tmp}
+     ```
+
+     where `{tmp}` holds:
+
+     ```markdown
+     framing-check routed this record to `needs:definition` before
+     headless shaping: **{RATIONALE, verbatim}**
+
+     Resolve interactively:
+
+     /claude-tweaks:specify #{n}
+     ```
+  3. Release the claim with reason `routed: needs:definition #{n}` (see
+     `## Release` below — this is the third reason string that section's
+     table now documents) and `--remove-in-progress`.
+  4. Log the decision (per `_shared/auto-decision-log.md`'s schema when a
+     run dir resolves — see `## Release`'s existing note on the
+     Routine-no-run-dir fallback, unchanged by this guard).
+  5. **End the firing as a success.** This is not a failure — do **not**
+     file a Failure self-report. The triage itself is the productive
+     output of this firing.
+
+This routing outcome mirrors `## Claim`'s own "clean no-op" postures
+(ineligible re-read, contested write) in spirit — success without a
+shape — but is a distinct, named path: it is the only one of the three
+that writes a label and posts a comment, so it gets its own heading and
+its own release reason string rather than folding into either existing
+no-op.
+
 ## Shape
 
 **Invocation choice: in-process, not a recursive `Skill()` call** — `shaping-mode.md`
@@ -237,11 +309,11 @@ before this failure reaches Failure self-report below.
 
 Release the claim (`_shared/issue-claims.md`'s release operation) on the
 success path AND on every failure path below this point — try/finally
-semantics: whatever happens during Shape (the only failure path that can
-reach here — a Preflight failure, a Claim-step infra failure, or an
-ineligible/contested Claim, never acquires a claim in the first place, so
-there is nothing to release on any of those paths), Release always runs
-before this procedure's turn
+semantics: whatever happens during Framing Guard or Shape (the only
+failure paths that can reach here — a Preflight failure, a Claim-step
+infra failure, or an ineligible/contested Claim, never acquires a claim
+in the first place, so there is nothing to release on any of those
+paths), Release always runs before this procedure's turn
 ends, and always before Failure self-report (below) files anything —
 never the other order, so a self-report write failure can never leave the
 claim held to its 72h TTL. Use `bin/release-claim.js` with the concrete
@@ -278,9 +350,10 @@ Any Preflight failure (Preflight section above), any Claim-step infra
 failure (the live label re-read or `resolve-run-dir` call itself failing
 to run — as opposed to succeeding and returning an ineligible/contested
 result, which is a clean no-op per the Claim section above), and any
-post-claim shaping-stage failure (Shape section above throwing or
-returning an error — reported here only after Release above has already
-run), files the shared headless self-report
+post-claim shaping-stage failure (the Framing Guard section's own
+unparseable-verdict case, or the Shape section, throwing or returning an
+error — reported here only after Release above has already run), files
+the shared headless self-report
 (`_shared/headless-self-report.md`, `{caller}` = `specify`) before
 stopping — deduplicated against any existing open report. A zero-eligible
 exit (Zero eligible section) or a contested-claim exit (Claim section) is
