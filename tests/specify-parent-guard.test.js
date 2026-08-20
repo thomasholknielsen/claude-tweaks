@@ -68,3 +68,9 @@ test('specify SKILL.md guard states its scope: every shaping entry, cases 2-4 ou
   assert.ok(src.includes('covers every shaping entry'), 'guard scope sentence missing');
   assert.ok(src.includes('out of guard scope by construction'), 'cases-2-4 exclusion clause missing');
 });
+
+test('shaping-mode.md territory line carries the parent-guard removal carve-out', () => {
+  const src = readFlat('plugin/skills/specify/shaping-mode.md');
+  assert.ok(src.includes('as the one removal carve-out'), 'territory-line carve-out clause missing from shaping-mode.md');
+  assert.ok(src.includes('record bearing the parent marker'), 'parent-marker scoping missing from shaping-mode.md carve-out');
+});
