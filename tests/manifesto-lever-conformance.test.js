@@ -92,18 +92,25 @@ function escapeRegExp(s) {
 const ANCHOR_TOKEN = 'tidy-aggressiveness';
 
 // Levers whose per-file presence check is intentionally skipped, with why.
-// `mode`: word-boundary matching against context-flow.md's anchor line
-// (`plugin/skills/help/context-flow.md`) finds no standalone "mode" token
-// there today — that file's lever enumeration genuinely omits it (real,
-// pre-existing prose drift, not a matcher defect: `grep -n
+// `mode` on context-flow.md only: word-boundary matching against that file's
+// anchor line (`plugin/skills/help/context-flow.md`) finds no standalone
+// "mode" token there today — that file's lever enumeration genuinely omits
+// it (real, pre-existing prose drift, not a matcher defect: `grep -n
 // "tidy-aggressiveness" plugin/skills/help/context-flow.md` shows the list
 // starting at "scope-creep", never "mode"). Fixing that omission means
 // editing prose, which is out of scope for this coverage-test-only record
 // (Gotchas: file unrelated prose findings separately via
-// /claude-tweaks:capture). So this one lever/key is skipped, visibly, on
-// every target file rather than silently reported as passing. All 12 other
-// levers still get full word-boundary + line-anchored checking everywhere.
-const SKIP_KEYS = new Set(['mode']);
+// /claude-tweaks:capture). Scoped to this one file: the other three target
+// files' anchor lines already carry a standalone "mode" token today
+// (verified directly — `auto-mode-contract.md`'s "computes all policy
+// levers (mode, scope-creep, ...", `SKILL.md`'s "In every mode except
+// `interactive`, it computes the levers (...", `reference-card.md`'s
+// "policy lever (Mode, scope-creep, ...") and get full coverage for this
+// lever like every other. All 12 other levers, on every file, still get
+// full word-boundary + line-anchored checking.
+const SKIP_KEYS_BY_FILE = new Map([
+  [path.join('plugin', 'skills', 'help', 'context-flow.md'), new Set(['mode'])],
+]);
 
 test('manifesto-lever-conformance', async (t) => {
   const manifestoText = fs.readFileSync(MANIFESTO_PATH, 'utf8');
@@ -162,9 +169,10 @@ test('manifesto-lever-conformance', async (t) => {
       // and this also normalizes any incidental multi-space/tab runs
       // within the anchor line itself before the word-boundary match below.
       const anchorLine = anchorLines[0].replace(/\s+/g, ' ');
+      const skipKeys = SKIP_KEYS_BY_FILE.get(relPath) ?? new Set();
 
       for (const [name, key] of Object.entries(leverToKey)) {
-        if (SKIP_KEYS.has(key)) continue;
+        if (skipKeys.has(key)) continue;
         // Word-boundary match, not `String.includes` — a bare substring
         // test is non-discriminating (e.g. `'model-stance'.includes('mode')`
         // is true), so it can't tell "this file's own enumeration line
