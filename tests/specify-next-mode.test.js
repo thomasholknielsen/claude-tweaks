@@ -87,3 +87,57 @@ test('dispatch/headless-self-report.md no longer exists (extracted, not duplicat
   const oldPath = path.join(ROOT, 'plugin', 'skills', 'dispatch', 'headless-self-report.md');
   assert.ok(!fs.existsSync(oldPath), 'expected dispatch/headless-self-report.md to be deleted after extraction to _shared/');
 });
+
+test('next-mode.md states the guard ordering: Claim, then Framing Guard, then Shape', () => {
+  const claimIdx = NEXT_MODE_FLAT.indexOf('## Claim');
+  const guardIdx = NEXT_MODE_FLAT.indexOf('## Framing Guard');
+  const shapeIdx = NEXT_MODE_FLAT.indexOf('## Shape');
+  assert.ok(claimIdx !== -1 && guardIdx !== -1 && shapeIdx !== -1, 'all three sections must exist');
+  assert.ok(claimIdx < guardIdx && guardIdx < shapeIdx, 'sections must appear in Claim, Framing Guard, Shape order');
+});
+
+test('next-mode.md states the anchored verdict-parse contract with unparseable-as-failure', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('FRAMING: (open|solution-baked)'), 'anchored verdict regex missing');
+  assert.ok(NEXT_MODE_FLAT.includes('is a shaping-stage failure'), 'unparseable-output-as-failure handling missing');
+});
+
+test('next-mode.md states the solution-baked handling: needs:definition, comment, release, success exit', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('needs:definition'), 'needs:definition stamp missing from solution-baked handling');
+  assert.ok(NEXT_MODE_FLAT.includes('/claude-tweaks:specify #{n}'), 'paste-ready interactive-route command missing');
+  assert.ok(NEXT_MODE_FLAT.includes('routed: needs:definition #{n}'), 'routing release reason string missing');
+  assert.ok(NEXT_MODE_FLAT.includes('do **not** file a Failure self-report') || NEXT_MODE_FLAT.includes('do not file a Failure self-report') || NEXT_MODE_FLAT.includes('do not\n     file a Failure self-report') || NEXT_MODE_FLAT.includes('End the firing as a success'), 'success-exit framing for the routed path missing');
+});
+
+test('next-mode.md stamps ready + shaped:headless in a single label-edit call', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('add-label "ready,shaped:headless"'), 'single-call ready+shaped:headless stamp missing');
+});
+
+test('next-mode.md notes the Routine no-run-dir decision-log fallback', () => {
+  // NOTE: the plan's brief quoted the literal substring 'resolves no pipeline
+  // run dir', but Task 4's fix round rewrote this paragraph (to remove a
+  // factually false claim) and that exact substring is no longer present.
+  // Asserting instead on the current phrasing that carries the same
+  // underlying fact: a Routine firing with no explicit run dir configured
+  // still resolves $RUN_DIR via the standalone-auto fallback, so decisions
+  // still log to $RUN_DIR/decisions.md.
+  assert.ok(NEXT_MODE_FLAT.includes('When a Routine fires with no explicit pipeline run dir configured'), 'Routine-firing no-run-dir trigger wording missing');
+  assert.ok(NEXT_MODE_FLAT.includes('standalone-auto fallback, ensuring every auto-resolved decision is recorded'), 'standalone-auto fallback decision-log guarantee missing');
+});
+
+test('next-mode.md eligibility predicate still excludes needs:definition and parked (AC 5 re-pin)', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must still exclude needs:definition and parked — this is #967\'s own loop-guard invariant, re-asserted here since #968\'s guard depends on it staying true');
+});
+
+test('_shared/work-record.md declares shaped:headless exactly once, with writer and readers named', () => {
+  const WORK_RECORD_FLAT = readFlat('plugin/skills/_shared/work-record.md');
+  const occurrences = (WORK_RECORD_FLAT.match(/shaped:headless/g) || []).length;
+  assert.ok(occurrences >= 1, 'shaped:headless must be declared in work-record.md');
+  assert.ok(WORK_RECORD_FLAT.includes('Writer: `/specify` `next` mode only'), 'writer must be named');
+  assert.ok(WORK_RECORD_FLAT.includes('grant gate'), 'grant-gate reader must be named');
+  assert.ok(WORK_RECORD_FLAT.includes('/backlog attention'), '/backlog attention reader must be named');
+});
+
+test('_shared/label-bootstrap.md carries shaped:headless in the canonical LABELS_JSON list', () => {
+  const BOOTSTRAP_FLAT = readFlat('plugin/skills/_shared/label-bootstrap.md');
+  assert.ok(BOOTSTRAP_FLAT.includes('"shaped:headless"'), 'shaped:headless missing from LABELS_JSON');
+});

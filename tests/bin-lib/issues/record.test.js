@@ -219,7 +219,7 @@ test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
     origin: 'capture', risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null, isParentIssue: false, notPlanned: false,
+    acceptance: null, isParentIssue: false, notPlanned: false, shapedHeadless: false,
   });
 });
 
@@ -245,7 +245,7 @@ test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
     origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    acceptance: null, isParentIssue: false, notPlanned: false,
+    acceptance: null, isParentIssue: false, notPlanned: false, shapedHeadless: false,
   });
 });
 
