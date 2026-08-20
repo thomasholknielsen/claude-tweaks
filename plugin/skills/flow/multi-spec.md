@@ -178,6 +178,10 @@ Why shared, not per-record: sequential records in one run are one logical unit o
 
 > Separate-terminal parallel runs (`/flow #42 worktree` in each terminal) are different — those are N independent single-record runs and each correctly gets its own worktree. See `worktree-merge.md`.
 
+## PR phase-checklist convention (shared PR)
+
+A multi-spec run shares one PR (`_shared/pr-early-run-lifecycle.md`); its checklist rows are **cumulative and run-level, never reset per spec**. Read `multispec-pr-checklist.md` in this skill's directory for the rationale and the per-spec status source.
+
 ## Failure handling (default vs `keep-going`)
 
 Default mode stops the remaining specs on a HARD-GATE failure (compounding-risk default). `keep-going` inverts that — opt-in, for genuinely independent specs, so the consolidated console can surface every outcome together instead of stopping at the first failure. Read `multispec-failure-handling.md` in this skill's directory for the full behavior: the default-vs-`keep-going` console output shapes, the dependency-conflict warning, and the shared-worktree interaction (a failed spec's commits stay in the shared branch either way; only whether later specs keep building atop them differs).
