@@ -118,6 +118,8 @@ gh issue list --label parent-issue --state all --json number --limit "$LIMIT" \
 ```
 
 ```bash
+LIMIT="{resolved-limit}"
+export FETCH_LIMIT="$LIMIT"
 node -e "
   const parents = require('/tmp/trust-table-parent-issues.json');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
@@ -211,14 +213,19 @@ node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log
   gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-sub-issue-numbers.jsonl
 done
 
+LIMIT="{resolved-limit}"
+export FETCH_LIMIT="$LIMIT"
 node -e "
   const fs = require('fs');
   const parents = require('/tmp/trust-table-parent-issues.json');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + parents.length + ' parent-issue records (the configured backlog-fetch-limit) — older parent issues were dropped, so their sub-issues may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
-  const subIssueNumbers = fs.readFileSync('/tmp/trust-table-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  const raw = fs.readFileSync('/tmp/trust-table-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  const subIssueNumbers = Array.from(new Set(raw)).sort((a, b) => a - b);
   fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
+  const subSnapPath = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
+  if (subSnapPath) fs.writeFileSync(subSnapPath, JSON.stringify(subIssueNumbers));
 "
 ```
 
