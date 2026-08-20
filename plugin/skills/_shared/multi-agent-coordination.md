@@ -6,7 +6,7 @@ This file is the single source of truth. Skills inline the relevant dispatch tem
 
 ## Why this exists
 
-The Subagent Contract (`subagent-output-contract.md`) describes how agents **format output** (Templates A/B/C, status protocol, model tiers). It does not describe how multiple agents **compose**. The following forces shape coordination:
+The Subagent Contract (`subagent-output-contract.md`) describes how agents **format output** (Templates A/B/C, status protocol, model profiles). It does not describe how multiple agents **compose**. The following forces shape coordination:
 
 1. **False positives in single-agent review** — one agent, even Capable, hallucinates findings. Cutting that requires N>1 with deterministic match rules.
 2. **Cross-lens disagreement is signal, not noise** — when two reviewer lenses contradict each other on the same line, the right move is one structured debate round, not silent suppression.

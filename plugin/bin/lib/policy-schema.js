@@ -139,9 +139,9 @@ const POLICY_KEYS = [
   // registration here is schema/audit only, deliberately shallow (#219): this
   // file checks model-profiles' row keys are real profile names, never the
   // shape of a row's own fields — that's the resolver's job, at resolve time.
-  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default', summary: "Shifts every dispatched agent's reasoning effort one notch cheaper or more rigorous, without changing which model tier is chosen.", category: 'models', tier: 'advanced' },
-  { key: 'frontier-run-cap', type: 'integer', default: 3, summary: "Caps how many top-tier model dispatches one pipeline run may use before falling back to a cheaper tier.", category: 'models', tier: 'advanced' },
-  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES, summary: "Sets the highest model tier a skill's own default may resolve to, without limiting a person's explicit choice.", category: 'models', tier: 'advanced' },
+  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default', summary: "Shifts every dispatched agent's reasoning effort one notch cheaper or more rigorous, without changing which model profile is chosen.", category: 'models', tier: 'advanced' },
+  { key: 'frontier-run-cap', type: 'integer', default: 3, summary: "Caps how many Frontier model dispatches one pipeline run may use before falling back to a cheaper profile.", category: 'models', tier: 'advanced' },
+  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES, summary: "Sets the highest model profile a skill's own default may resolve to, without limiting a person's explicit choice.", category: 'models', tier: 'advanced' },
   { key: 'model-profiles', type: 'map', keys: PROFILE_NAMES, summary: "Lets a project override which model and effort level each named profile resolves to, replacing the shipped table row by row.", category: 'models', tier: 'advanced' },
   // Read from /claude-tweaks:research's own `## Input` --mode= flag (IL-24:
   // that file is authoritative for the vocabulary, not this schema).
