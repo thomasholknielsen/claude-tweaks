@@ -429,3 +429,48 @@ test('index: pr-first repo with a working remote actually reaches the remote-pru
     preflight.ghHealthCheck = originalHealth;
   }
 });
+
+test('pruneRemote passes preferOpen to its PR resolver (destructive tie-break wiring, #664)', () => {
+  const dir = makeRepoWithOrigin();
+  git(dir, 'checkout', '-b', 'build/reused');
+  fs.writeFileSync(path.join(dir, 'r.txt'), 'r\n');
+  git(dir, 'add', 'r.txt');
+  git(dir, 'commit', '-m', 'change');
+  git(dir, 'push', 'origin', 'build/reused');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/reused'); // cherry-equivalent (squash-merge shape)
+  git(dir, 'branch', '-D', 'build/reused');
+
+  const seenOpts = [];
+  const resolvePr = (root, branch, opts) => { seenOpts.push(opts); return null; };
+  pruneRemote({ cwd: dir, integration: 'main', dryRun: true, resolvePr, skipFetch: true });
+  assert.equal(seenOpts.length, 1);
+  assert.deepEqual(seenOpts[0], { preferOpen: true });
+});
+
+test('#570 scenario: cherry-equivalent branch with MERGED + newer OPEN PR is skipped pr-open, ref survives on origin', () => {
+  const dir = makeRepoWithOrigin();
+  git(dir, 'checkout', '-b', 'build/reused');
+  fs.writeFileSync(path.join(dir, 'r.txt'), 'r\n');
+  git(dir, 'add', 'r.txt');
+  git(dir, 'commit', '-m', 'change');
+  git(dir, 'push', 'origin', 'build/reused');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/reused');
+  git(dir, 'branch', '-D', 'build/reused');
+
+  // Contract-mimicking fake: with preferOpen the OPEN PR governs (Task 1's
+  // real behavior); without it the MERGED one would — which is exactly the
+  // pre-#664 bug this test locks out.
+  const resolvePr = (root, branch, opts) => (opts && opts.preferOpen
+    ? { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' }
+    : { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' });
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, skipFetch: true });
+  assert.equal(r.failure, null);
+  const entry = r.entries.find((e) => e.name === 'build/reused');
+  assert.equal(entry.action, 'skip');
+  assert.equal(entry.reason, 'pr-open');
+  // The pushed ref must still exist — no delete may have landed.
+  const lsRemote = git(dir, 'ls-remote', '--heads', 'origin', 'build/reused');
+  assert.match(lsRemote, /refs\/heads\/build\/reused/);
+});

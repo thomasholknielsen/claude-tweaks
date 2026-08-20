@@ -108,7 +108,10 @@ function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch, refExists
       entries.push({ name: branch, kind: 'remote-branch', action: 'skip', reason: 'cherry-failed' });
       continue;
     }
-    const prState = resolve(root, branch);
+    // Destructive-caller tie-break (#664): any OPEN PR on this head must
+    // reach decideRemotePrune (-> skip pr-open), even when an older MERGED
+    // PR exists — the #570 review's reused-branch deletion gap.
+    const prState = resolve(root, branch, { preferOpen: true });
     const decision = decideRemotePrune({ branch, cherryEquivalent, prState });
     if (decision.action === 'skip' || dryRun) {
       entries.push({ name: branch, kind: 'remote-branch', action: decision.action, reason: decision.reason });
