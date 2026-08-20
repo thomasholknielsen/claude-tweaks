@@ -82,8 +82,12 @@ test('POLICY_KEYS entries are unique', () => {
   // 53 -> 54, #660 (review prose-exemption lever): review-auto-apply-prose-exempt
   // — lets a prose-only fix auto-apply one severity tier above the resolved
   // review-auto-apply-ceiling, see skills/review/step3-routing.md.
-  assert.strictEqual(POLICY_KEYS.length, 54);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 54);
+  // 54 -> 59, #194 (Phase 2 doc-convention wiring): doc-convention-tutorial,
+  // doc-convention-how-to, doc-convention-reference, doc-convention-explanation,
+  // doc-convention-journey — one enum key per newly-wired Diátaxis/Journey genre,
+  // same shape as doc-convention-adr.
+  assert.strictEqual(POLICY_KEYS.length, 59);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 59);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -507,6 +511,29 @@ test('doc-convention-adr is an enum with no default — unset means "detect and 
   const result = auditPolicy(bad);
   assert.strictEqual(result.invalidValues.length, 1, 'a value outside the enum must be flagged');
   assert.strictEqual(result.invalidValues[0].key, 'doc-convention-adr');
+});
+
+test('doc-convention-{tutorial,how-to,reference,explanation,journey} are enums with no default, mirroring doc-convention-adr', () => {
+  const genres = ['tutorial', 'how-to', 'reference', 'explanation', 'journey'];
+  for (const genre of genres) {
+    const key = POLICY_KEYS.find((k) => k.key === `doc-convention-${genre}`);
+    assert.ok(key, `doc-convention-${genre} missing from POLICY_KEYS`);
+    assert.strictEqual(key.type, 'enum');
+    assert.deepStrictEqual(key.values, ['plugin', 'project']);
+    assert.strictEqual(key.default, undefined, 'unset is a meaningful third state: the question has not been asked yet');
+  }
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'doc-convention-how-to: project\n');
+  const ok = auditPolicy(repo);
+  assert.deepStrictEqual(ok.invalidValues, []);
+  assert.deepStrictEqual(ok.unrecognizedKeys, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'doc-convention-journey: whatever-the-repo-does\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, 'a value outside the enum must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'doc-convention-journey');
 });
 
 test('superpowers-plans-retention is an enum defaulting to keep-forever', () => {

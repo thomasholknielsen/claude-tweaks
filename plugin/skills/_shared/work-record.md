@@ -196,8 +196,10 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
 (`/claude-tweaks:review`), both of which gate *before* this axis is ever set.
 
 - `/claude-tweaks:wrap-up` applies `demo:pending` once build+test+review are done, and posts a
-  Verification Brief (an issue comment, or — under `work-links: body-text` on the `local-files`
-  driver, which has no comment mechanism — a `## Verification Brief` body section) with what
+  Verification Brief (an issue comment, or — on the `local-files` driver, which has no comment
+  mechanism regardless of `work-links` (`#205`: that key governs dependency/parent-child
+  expression under `github-issues` only, and doesn't apply here) — a `## Verification Brief`
+  body section) with what
   changed, why, and how to verify it. This happens **regardless of merge timing** — an
   `auto:merge`'d record still gets `demo:pending` on its now-closed issue, enabling retrospective
   sign-off. Two headless paths perform the identical write without passing through wrap-up's

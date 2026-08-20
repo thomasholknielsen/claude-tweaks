@@ -41,7 +41,7 @@ is reported to the user and stopped — see `_shared/learning-routing.md`,
 | `--kind=gap` | The plugin has no opinion where it should. Skips Step 2's inference. |
 | `--dry-run` | Run Steps 1-7 (classification, self-reference, dedup, drafting, scrub, and the confirm gate's dry-run branch), then render the draft and **stop** — Step 8 (label resolution and `gh issue create`) never runs. Step 4's dedup search is a real, read-only `gh issue list` call; no `gh` call ever creates, labels, or files anything. When `--pre-confirmed` is also passed, `--dry-run` wins — see Step 7. |
 | `--queue` | Explicit bare-invocation mode (see Step 0) even when free-text is also present — process this project's own `upstream-candidate` backlog instead of (or in addition to) the free-text learning. |
-| `--full` | Presence-only, meaningful only for bare/`--queue` invocation (Step 0's session-evaluation gather): ignore any existing watermark for the resolved transcript, dispatch the full un-scoped judge (no offset clause), then overwrite the watermark with the fresh result exactly as a first-ever evaluation would. A no-op combined with free-text-only invocation — free-text invocation without `--queue` runs no session evaluation at all (Step 0's rule). |
+| `--full` | Presence-only, meaningful only for bare/`--queue` invocation (Step 0's session-evaluation gather): ignore any existing watermark for the resolved transcript, dispatch the full un-scoped judge (no offset clause), then overwrite the watermark with the fresh result exactly as a first-ever evaluation would. This is also what bypasses `session-evaluation.md`'s Skip check (Step 0's Gather 2): that check reads the same watermark, so ignoring it always resolves to dispatch. A no-op combined with free-text-only invocation — free-text invocation without `--queue` runs no session evaluation at all (Step 0's rule). |
 | `--pre-confirmed` | Presence-only like `--dry-run`; the caller passes the item's staged-file path and the approved snapshot body alongside it. Skip Step 7's `AskUserQuestion` for this item when the caller-supplied approved snapshot is diffed against the current staged file with no mismatch (drift check); Step 6's scrub always reruns as a separate safety net regardless. On drift, falls back to a normal per-item confirm (see Step 7). Legitimate only from `/claude-tweaks:wrap-up`'s Review Console or `/claude-tweaks:flow`'s consolidated multi-spec console (see Component-Skill Contract). |
 
 ## Workflow
@@ -68,10 +68,14 @@ gh issue list --label upstream-candidate --state open --json number,title,body,l
 full backlog — while still bounding the read per `[IL-67]`; if the count returned equals the
 limit, state this in the summary rather than silently treating it as complete.)
 
-**Gather 2 — session evaluation.** Read `session-evaluation.md` in this skill's directory and run
-its judge dispatch (or its self-assessment degradation) against `_shared/feedback-objectives.md`'s
-rubric. Each returned finding becomes one merged-batch item; a `NOT EVALUATED` block is not a
-finding — session-evaluation.md's own rule — and never enters the batch. The two gathers are
+**Gather 2 — session evaluation.** Read `session-evaluation.md` in this skill's directory. Before
+dispatch, its **Skip check** runs first (on the transcript-resolved branch, `--full` not passed):
+when the resolved transcript hasn't grown since the last stamped evaluation, skip the judge
+dispatch entirely and report the prior stamp's `issueUrls` instead of re-evaluating — see that
+section for the full check and its self-assessment exemption. Otherwise, run the judge dispatch
+(or its self-assessment degradation) against `_shared/feedback-objectives.md`'s rubric. Each
+returned finding becomes one merged-batch item; a `NOT EVALUATED` block is not a finding —
+session-evaluation.md's own rule — and never enters the batch. The two gathers are
 failure-isolated in both directions: a judge dispatch that errors or returns nothing usable
 degrades to `session-evaluation.md`'s self-assessment path (noted in the run summary) and never
 aborts the run — Gather 1's queue candidates proceed through the batch regardless — and a Gather
@@ -168,15 +172,29 @@ classifier from rule 4 per `_shared/learning-routing.md`. Do not file.
 
 ### Step 4: Dedup
 
-Derive a fingerprint basis from the affected component plus the core symptom,
-then search:
+Derive the `--search` keywords from the affected component name **only** — never from the
+free-text symptom/summary, since that text is draft-derived and has not yet passed Step 6's scrub
+criteria below. A component name (a skill, contract, or CLI name from the claude-tweaks plugin's own
+public documentation — never a name drawn from the reporting project) is inherently public
+vocabulary and carries no privacy risk on its own — this is what keeps
+draft-derived, potentially-private text from ever reaching the public search API before the scrub
+gate runs:
 
 ```bash
-gh issue list --repo thomasholknielsen/claude-tweaks --search '<keywords>' --state all --limit 10 --json number,title,state,url
+gh issue list --repo thomasholknielsen/claude-tweaks --search '<component>' --state all --limit 10 --json number,title,state,url
 ```
 
+When the affected component resolved to Step 1's `"unclear / general"` fallback, there is no
+public-safe keyword to search on: **skip the search entirely** and say so in the report — never
+fall back to the summary text this step just ruled out. Step 8's fingerprint-marker dedup still
+runs and remains the authoritative duplicate check.
+
 Show any plausible matches and ask whether to file anyway, comment on the
-existing issue instead (then stop), or cancel.
+existing issue instead (then stop), or cancel. A component-name-only search is a coarse screen,
+not a reliable duplicate check — a busy component's ten most relevant issues need not include an
+actual duplicate. That is acceptable because the authoritative dedup runs later: `bin/file-feedback.js`
+matches the fingerprint marker exactly at Step 8 and reports `dedup-hit` without filing. Treat a
+no-match here as "nothing obvious to show the human", never as proof the report is new.
 
 **Inside Step 0's batch loop** (non-interactive), this three-way ask does not run. A match
 instead becomes the drafted item's dedup flag — `**possible duplicate:** #{N}` per
@@ -187,13 +205,19 @@ has no dedicated batch-mode option; a human who wants that outcome uses the cont
 edit channel (naming the item and requesting "comment on #{N} instead of filing") rather than a
 third checkbox state.
 
-Derive `fingerprintBasis: { component, summary }` for the drafted item — the same
-affected-component-plus-core-symptom inputs used for the search above — and carry it
-into the drafts file built for Step 8. Computing the fingerprint marker embedded in
-the body is not this step's job: `bin/file-feedback.js` derives it via
-`fingerprintFromBasis('feedback', basis)` (`bin/lib/health-core/fingerprint.js`) when
-it processes the draft, so a later run recognizes its own prior filing. Never call
-`createFingerprint` directly here.
+Derive `fingerprintBasis: { component, summary }` for the drafted item — the
+affected-component-plus-core-symptom inputs, wider than what fed the narrowed search above — and
+carry it into the drafts file built for Step 8, full and unscrubbed. This basis feeds a different
+consumer than the search: `bin/file-feedback.js` derives the fingerprint marker via
+`fingerprintFromBasis('feedback', basis)` (`bin/lib/health-core/fingerprint.js`) when it processes
+the draft, so a later run recognizes its own prior filing — that stable dedup-on-refile detection
+needs the full basis regardless of what the search above sends. Carrying it unscrubbed is safe for
+the same reason the search above is narrowed: the basis never leaves this machine as text —
+`fingerprintFromBasis` sha1-hashes it into a `feedback-{8 hex}` marker, and that opaque marker is
+the only thing derived from it that ever reaches GitHub (embedded in the filed body, and matched by
+the CLI's own dedup lookup). Never scrub the basis to match the scrubbed body: that mints a
+different marker for the same finding and breaks dedup-on-refile. Never call `createFingerprint`
+directly here.
 
 ### Step 5: Draft
 

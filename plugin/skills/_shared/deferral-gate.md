@@ -51,16 +51,16 @@ blocked-dependency — the fix waits on functionality not yet built
 
 ### Floor mapping
 
-`clearsFloor` (`bin/lib/issues/autonomy.js`) reads a structured value first and returns the verdict below; a free-prose reason still falls back to its regex categories. Structured values map onto those regex groups as follows:
+`clearsFloor` (`bin/lib/issues/autonomy.js`) reads a structured `Defer-reason:` value and returns the verdict below; anything that is not an exact `DEFER_REASONS` member denies.
 
-| `Defer-reason:` | `CATEGORY_PATTERNS` group | Clears the floor |
-|---|---|---|
-| `blocked-external` | external state / third-party / prod traffic / approvals | yes |
-| `needs-human-decision` | product-or-design decision | yes |
-| `blocked-dependency` | not-yet-built | yes |
-| `genuinely-larger` | scope expansion / long rebuild + `UNRELATED_TESTS_RE` (>10 unrelated tests) | yes |
-| `tangential` | — (no group) | no |
-| `pre-existing-outside-diff` | — (no group) | no |
+| `Defer-reason:` | Clears the floor |
+|---|---|
+| `blocked-external` | yes |
+| `needs-human-decision` | yes |
+| `blocked-dependency` | yes |
+| `genuinely-larger` | yes |
+| `tangential` | no |
+| `pre-existing-outside-diff` | no |
 
 ## The hard gate
 
@@ -74,7 +74,3 @@ After any fix-now change made after `/claude-tweaks:review` passed, re-run `/cla
 
 - **Staged proposals** (`{run-dir}/staged/*.md`): a `Defer-reason: {value}` line inside the header block — the lines before the first blank line, alongside `Title:` / `Type:` / `Labels:`. Readers locate it **by key, never by position**.
 - **Directly-created records**: a `Defer-reason: {value}` line in the body, located **by key** (`recordPayload`'s match-or-throw reads it wherever it sits; `clearsFloor` never reads a body — it receives the extracted value itself). A composer-composed body (`specShapedBody`) places it in the provenance block — after `header`/`Origin:`, before `## Current State`; a bare `recordPayload({deferReason})` on a body without the line inserts it as the first body line.
-
-## Removal condition
-
-`autonomy.js`'s regex fallback (`CATEGORY_PATTERNS` / `UNRELATED_TESTS_RE`) is transitional. Its recorded removal condition, stated here in the same words as the code comment: Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.

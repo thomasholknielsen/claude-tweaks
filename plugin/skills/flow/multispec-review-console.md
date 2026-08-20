@@ -73,7 +73,7 @@ Bundle analog of `wrap-up/review-console-interactive.md`'s Console-on-PR section
 
 ## Present the consolidated console
 
-Read `multispec-console-template.md` (this skill's directory) and render that exact shape — every section's column layout, the engine-vs-prose-fallback distinction, and the `[adr-convention]` row's three-way prompt. Worked example rows there are fictional; substitute this run's own per-spec `decisions.md`/`staged/` content, aggregated per "Numbering rules" above.
+Read `multispec-console-template.md` (this skill's directory) and render that exact shape — every section's column layout, the engine-vs-prose-fallback distinction, and the `[{genre}-convention]` row's three-way prompt. Worked example rows there are fictional; substitute this run's own per-spec `decisions.md`/`staged/` content, aggregated per "Numbering rules" above.
 
 Immediately after presenting the console tables above, call `AskUserQuestion` with `question`: `"How do you want to handle the Multi-Spec Review Console items?"`, `header`: `"Review Console"`, `multiSelect`: `false`. The Shared teardown's branch-finish row (below) is what makes the merge decision real — folding it into these options is what keeps that row from becoming its own improvised stop (`_shared/auto-mode-contract.md`'s bookend rule).
 

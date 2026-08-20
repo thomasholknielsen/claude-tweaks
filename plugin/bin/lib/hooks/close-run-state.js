@@ -4,8 +4,6 @@
 // either the foreign-owner refusal or the wrap-up warn-tier check only needs
 // to land once. Pure decision + one write; callers own their own message text.
 'use strict';
-const fs = require('fs');
-const path = require('path');
 const ctxLib = require('./context');
 
 // Returns one of:
@@ -33,17 +31,7 @@ function closeRunState(runDir, { explicit = false, sessionId = null } = {}) {
   // invocation. Warn, never block — dispatch's close-before-merge is sanctioned,
   // and a human-typed /claude-tweaks:wrap-up leaves no event at all (measured,
   // #371 finding (e)), so absence is not proof the procedure was skipped.
-  let wrapupSeen = false;
-  try {
-    const rawEvents = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8');
-    for (const line of rawEvents.split('\n')) {
-      if (!line.trim()) continue;
-      try {
-        const ev = JSON.parse(line);
-        if (ev && ev.type === 'skill_invoked' && ev.skill === 'claude-tweaks:wrap-up') { wrapupSeen = true; break; }
-      } catch { /* skip garbage line */ }
-    }
-  } catch { /* no events.jsonl — treated the same as no wrap-up event */ }
+  const wrapupSeen = !!(ctxLib.scanWrapupEvents(runDir) || {}).wrapup;
   if (!wrapupSeen) {
     ctxLib.appendEvent(runDir, 'close-without-wrapup', {});
   }

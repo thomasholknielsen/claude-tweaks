@@ -161,7 +161,7 @@ This is the bookend "begin stop" that locks in policy for the rest of the pipeli
 
 Export that directory — created or adopted — as `PIPELINE_RUN_DIR` so every downstream skill resolves this same run per `_shared/pipeline-run-dir.md`; a multi-spec run exports the per-spec `spec-{N}/` subdirectory instead of the parent (see `multi-spec.md`).
 
-For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory. Read `manifesto.md` only after Step 2.8 passes — a run stopped at pre-flight never consumes it (#724).
+For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory. Read `manifesto.md` only after Step 2.8 passes — a run stopped at pre-flight never consumes it (#724). `manifesto.md` is everything an `auto`-mode run needs; only under `confirm`/`hybrid` does it also point at `manifesto-confirm.md` (the `AskUserQuestion` call, Rendering rules, and On-override/On-cancel branches) — never open that companion file for an `auto` run (#657).
 
 ### Step 4: Run Pipeline
 
