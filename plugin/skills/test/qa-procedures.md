@@ -42,8 +42,8 @@ Parse from `$ARGUMENTS` after the `qa` keyword (keyword detection, case-insensit
 | JOURNEY_FILTER | — | `journey=<name>` | Only run stories with `journey: <name>` |
 | MAX_PARALLEL | `4` | `max_parallel=N` | Max concurrent agents per tier |
 | AGENT_TIMEOUT | `300000` | `timeout=<ms>` | Agent timeout in milliseconds. Raise it for a slow-loading app or CI cold-start; lower it for fast-fail local iteration on a hung session. |
-| SCREENSHOTS_BASE | `screenshots/qa` | — | Base directory for screenshots |
-| TRACES_BASE | `traces` | — | Base directory for failure traces |
+| SCREENSHOTS_BASE | `.claude-tweaks/artifacts/screenshots/qa` | — | Base directory for screenshots |
+| TRACES_BASE | `.claude-tweaks/artifacts/traces` | — | Base directory for failure traces |
 | RUN_DIR | `{SCREENSHOTS_BASE}/{timestamp}_{uuid}` | — | Generated once at start of run |
 
 ## Phase 1: Discover
@@ -70,13 +70,13 @@ Parse from `$ARGUMENTS` after the `qa` keyword (keyword detection, case-insensit
 9. If no stories remain after filtering, report and stop
 10. Generate `RUN_DIR`:
     ```bash
-    RUN_DIR="screenshots/qa/{YYYYMMDD}_{HHMMSS}_{6-char-random-hex}"
+    RUN_DIR=".claude-tweaks/artifacts/screenshots/qa/{YYYYMMDD}_{HHMMSS}_{6-char-random-hex}"
     # Generate the timestamp and random suffix using a cross-platform method:
-    # node -e "const d=new Date();const s=d.toISOString().replace(/[-T:.Z]/g,'').slice(0,14);console.log('screenshots/qa/'+s.slice(0,8)+'_'+s.slice(8,14)+'_'+require('crypto').randomBytes(3).toString('hex'))"
+    # node -e "const d=new Date();const s=d.toISOString().replace(/[-T:.Z]/g,'').slice(0,14);console.log('.claude-tweaks/artifacts/screenshots/qa/'+s.slice(0,8)+'_'+s.slice(8,14)+'_'+require('crypto').randomBytes(3).toString('hex'))"
     ```
 11. For each story, build its `SCREENSHOT_PATH`:
     - `{RUN_DIR}/{file-stem}/{story-id-or-slug}/`
-    - Example: `screenshots/qa/20260210_143022_a1b2c3/myapp-customer/checkout-flow-completes/`
+    - Example: `.claude-tweaks/artifacts/screenshots/qa/20260210_143022_a1b2c3/myapp-customer/checkout-flow-completes/`
 
 ## Phase 2: Dependency Resolution
 

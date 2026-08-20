@@ -173,8 +173,8 @@ The `summary.passed` count includes both PASS and PASS_WITH_CAVEATS stories (sin
 
 | #   | Story        | Category         | Severity | Finding                          | Trace                                | Suggested Fix                       |
 | --- | ------------ | ---------------- | -------- | -------------------------------- | ------------------------------------ | ----------------------------------- |
-| 1   | {story name} | stale-selector   | Low      | Locator "Submit" not found       | traces/{id}/{ts}.zip                 | Update locator in story YAML        |
-| 2   | {story name} | code-bug         | High     | Expected "Dashboard" in title    | traces/{id}/{ts}.zip                 | Investigate component behavior      |
+| 1   | {story name} | stale-selector   | Low      | Locator "Submit" not found       | .claude-tweaks/artifacts/traces/{id}/{ts}.zip                 | Update locator in story YAML        |
+| 2   | {story name} | code-bug         | High     | Expected "Dashboard" in title    | .claude-tweaks/artifacts/traces/{id}/{ts}.zip                 | Investigate component behavior      |
 
 > Traces are Chrome DevTools traces — open via Chrome DevTools → Performance → Load profile. Classification is automated — override categories in the findings table if needed.
 
