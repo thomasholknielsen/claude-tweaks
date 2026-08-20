@@ -1,7 +1,7 @@
 ---
 name: specify
 description: Use when shaping a work record into spec shape — one `#N`, a `#N,#M` list, or `#A-#B` range, one at a time — or decomposing a design doc into agent-sized ready sub-issue records. Keywords - specify, shape, decompose, spec, design doc, sub-issue, ready, batch.
-argument-hint: "<#N[,#M...]|#A-#B|record-id[,id...]|design-doc-path|topic|backlog-title> [phase-N] [--surface <web|mobile|desktop|backend|infra|terminal>] [--granularity <fine|standard|coarse>] [--chained]"
+argument-hint: "<next|#N[,#M...]|#A-#B|record-id[,id...]|design-doc-path|topic|backlog-title> [phase-N] [--surface <web|mobile|desktop|backend|infra|terminal>] [--granularity <fine|standard|coarse>] [--chained]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -35,9 +35,11 @@ The plugin enforces a 2-tier artifact taxonomy:
 
 ## Input
 
-`$ARGUMENTS` = `<record-ref[,record-ref...]-or-range-or-design-doc-or-topic> [phase-N] [--surface <value>] [--granularity <value>] [--chained]`
+`$ARGUMENTS` = `<next-or-record-ref[,record-ref...]-or-range-or-design-doc-or-topic> [phase-N] [--surface <value>] [--granularity <value>] [--chained]`
 
 The first argument is a work record reference (`#N`, an issue URL, or a bare local record id), a comma-separated list of record references (the batch paragraph below), an inclusive range of record references (the range paragraph below), a path to a design doc, a topic name, or a backlog reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel. `phase-N` only applies when the input resolves to a design doc (decomposition mode); a work record reference resolves to shaping mode and ignores it.
+
+**`next` (headless-safe form).** The unit a scheduled Routine fires — mutually exclusive with every other first-argument shape. Selects, claims, and shapes exactly one eligible unshaped backlog record per firing; zero eligible records is a cheap no-op. `work-backend: github-issues` only (see `next-mode.md`'s Preflight). `phase-N`, `--surface`, `--granularity`, and `--chained` are each rejected with a one-line notice when combined with `next` — this form takes no modifiers. See `next-mode.md` in this skill's directory for the full procedure.
 
 **Comma-list batch form (`#N[,#M...]` — shaping-mode-only).** Several record references may be given as one comma-joined token — `#701,#702` under `work-backend: github-issues`, or `record-id[,id...]` (e.g. `701,702`) under `work-backend: local-files` — mirroring `/claude-tweaks:flow`'s `#42,#45,#48` convention (a space after a comma is tolerated and trimmed). When **every** element parses as a record reference per Resolve-the-input case 1, the argument is a batch. Three non-batch shapes: **no** element parses as a record reference — the argument is not a list at all but ordinary free text, resolved through cases 3-5 exactly as for any other input, so a topic containing a comma ("auth, login flow") is neither a batch nor an error; **some but not all** elements parse as record references (`#695,docs/x-design.md`, `#695,meal planning`) — a mixed list is a hard input error, rejected with a one-line message naming the offending element (`"'{element}' is not a record reference — a comma list shapes records only; give a design doc or topic on its own"`), since decomposition and topic resolution stay single-input; an **empty** element (a trailing comma, `#41,`, or two commas in a row) is named as exactly that, "empty element after `#41`", so the human sees the stray comma rather than an unnamed offender. Each element resolves independently (parallel fetches, as `flow/materialize.md`'s Resolution does); an element that fails to resolve (missing, wrong repo, `gh issue view` error / no matching `specs/{n}-*.md`) stops the whole invocation before any record is shaped — every unresolvable element is reported in one message and nothing is shaped, the same all-at-once hard stop as `flow/materialize.md`'s Record-not-found rule (chosen over silently skipping and continuing, so the plugin's comma-list batch forms fail the same way everywhere). Only when every element resolves does the whole set enter shaping mode together — `shaping-mode.md`'s per-record loop, a loop never a fan-out (no Task dispatch, one record at a time). `phase-N` and `--granularity` are ignored on a comma list exactly as they already are for a single record reference; `--surface` applies to every record in the batch (the "every record this run produces" semantics below); `--chained` on a comma list is rejected — the flag is ignored with a one-line notice, the same posture as the flag's other unsupported input shapes (its own bullet below), and the batch still shapes and renders `## Next Actions`; `/claude-tweaks:capture`'s born-ready chain shapes exactly one record per invocation, and that contract does not change here.
 
@@ -59,6 +61,7 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 /claude-tweaks:specify food graph                                → resolve to design doc, decompose all
 /claude-tweaks:specify food graph phase-3                        → resolve to design doc, decompose phase 3 only
 /claude-tweaks:specify #142                                      → shape record #142 in place
+/claude-tweaks:specify next                                      → headless: shape exactly one eligible backlog record, or no-op if none eligible
 /claude-tweaks:specify #142 --surface backend                    → shape record #142, forcing Surface: backend regardless of the sniff
 /claude-tweaks:specify #142,#143,#150                            → shape records #142, #143, #150 in place, one after another (comma-list batch, shaping mode only)
 /claude-tweaks:specify #142-#144                                  → shape records #142, #143, #144 in place (range form, expands to the comma-list)
@@ -69,6 +72,7 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 
 ### Resolve the input:
 
+0. **Literal `next`** — the headless-safe form (see `## Input` above). Read `next-mode.md` in this skill's directory and follow it in full. This case ignores `phase-N`/`--surface`/`--granularity`/`--chained` if present — see that file's own flag-rejection step. `next-mode.md` is fully self-contained; when it completes, this skill's turn is over (its own Preflight/no-op/failure paths each end the invocation; there is no `## Next Actions` render for a headless firing — see `next-mode.md`'s own posture, mirroring `dispatch/SKILL.md`'s "nobody is present to answer" rule).
 1. **Work record reference** — a URL matching `https://github.com/{owner}/{repo}/issues/{n}`, or a shorthand like `#123` / `issue 123` / `gh-123`, or a bare local record id (e.g. `42`). Checked *before* case 2's path/topic disambiguation, since an issue URL contains `/` and would otherwise misparse as a design-doc path. Fetch it directly: `gh issue view {n} --json number,title,body,url,labels` (GitHub driver) or glob `specs/{n}-*.md` for the matching file, then `readRecord(path)` (`bin/lib/issues/local-store.js`; local-files driver).
 
    **`needs:definition` redirect (single-record path only).** Immediately after this fetch, check the fetched labels (or, local-files, `facets.needsDefinition`) for `needs:definition`. If present: do **not** enter shaping mode — no body edit, no `ready` label. Capture the origin record's number as `$ORIGIN_RECORD_NUM` (an execution-context variable carried forward the same way `$PARENT_NUM`/`$SUB_ISSUE_NUM` already flow between decomposition mode's own steps), invoke `/superpowers:brainstorming` (Skill tool) with the record's title + body as input, wait for the resulting design doc, then enter **decomposition mode** on that design doc with `$ORIGIN_RECORD_NUM` carried forward — see `decomposition-mode.md`'s Step 9 for what happens to the origin record once decomposition completes. `$ORIGIN_RECORD_NUM` is never set on any other entry path (cases 2-5). On a **batch branch** (below), a `needs:definition` element instead fails the whole invocation the same way an unresolvable element does — "'{element}' carries `needs:definition` — run `/claude-tweaks:specify #{element}` on its own to route it through brainstorming first, then re-run the batch without it" — a comma-list batch shapes only, so it can neither redirect one element into brainstorming nor silently skip it.
@@ -101,6 +105,14 @@ Read `shaping-mode.md` in this skill's directory for the full procedure: editing
 Entered from Resolve-the-input case 2 (design doc path), case 3 (topic matching an existing design doc), case 4 (bare topic, after `/superpowers:brainstorming` produces the doc), or case 5 where the matched record's topic already has a design doc.
 
 Read `decomposition-mode.md` in this skill's directory for the full procedure — Steps 1 through 9, including Step 2.5 (design pre-steps) and Step 2.5d (diagram suggestion). Step numbering there is unchanged from before the split, so cross-references naming a step by number still resolve. It delegates onward to `record-creation.md` (Steps 3-4), `red-team.md` (Step 5), and `design-pre-steps.md` (Step 2.5) exactly as before. When Step 9 completes, continue at `## Next Actions` below. Shaping mode's own procedure never runs on this path.
+
+## Routine Configuration
+
+`/specify` ships a routine template (`skills/specify/routine-template.yml`) whose prompt is `/claude-tweaks:specify next` — the headless selection form (#967). Instantiate it for the current project with:
+
+```
+/claude-tweaks:routine create specify
+```
 
 ## Next Actions
 
