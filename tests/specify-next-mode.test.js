@@ -42,8 +42,8 @@ test('specify resolve-input case 0 routes literal next to next-mode.md with flag
   assert.ok(SPECIFY_SKILL_FLAT.includes('flag-rejection step'), 'case 0 must point at next-mode.md\'s own flag-rejection step');
 });
 
-test('next-mode.md states the eligibility predicate excluding all 4 labels', () => {
-  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`'), 'eligibility predicate must exclude ready, needs:definition, parked, and parent-issue');
+test('next-mode.md states the eligibility predicate excluding all 5 labels', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must exclude ready, needs:definition, parked, parent-issue, and bot:in-progress');
 });
 
 test('next-mode.md states priority-then-age single selection', () => {

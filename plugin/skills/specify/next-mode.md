@@ -157,7 +157,13 @@ gh issue view {n} --json labels -q '[.labels[].name]'
 If the re-read shows the record no longer eligible (now carries `ready`,
 `needs:definition`, `parked`, `parent-issue`, or `bot:in-progress`) — exit
 as a clean no-op for this firing. No same-firing re-selection; the next
-firing picks up (dispatch's no-retry posture, mirrored exactly).
+firing picks up (dispatch's no-retry posture, mirrored exactly). This is
+a different outcome from the `gh issue view` re-read command, or the
+`resolve-run-dir` call below, failing to run at all (network error, `gh`
+auth failure, malformed response, a non-zero exit from either command) —
+that is a genuine infra failure, not an eligibility result, and is a
+Claim-step failure per Failure self-report below; it must not be folded
+into the silent no-op branch.
 
 Otherwise, claim it per `_shared/issue-claims.md`'s "The lock": read the
 claim blob, classify with `classifyClaimBlob`, and write create-only
@@ -232,9 +238,10 @@ before this failure reaches Failure self-report below.
 Release the claim (`_shared/issue-claims.md`'s release operation) on the
 success path AND on every failure path below this point — try/finally
 semantics: whatever happens during Shape (the only failure path that can
-reach here — a Preflight failure, or an ineligible/contested Claim, never
-acquires a claim in the first place, so there is nothing to release on
-either of those paths), Release always runs before this procedure's turn
+reach here — a Preflight failure, a Claim-step infra failure, or an
+ineligible/contested Claim, never acquires a claim in the first place, so
+there is nothing to release on any of those paths), Release always runs
+before this procedure's turn
 ends, and always before Failure self-report (below) files anything —
 never the other order, so a self-report write failure can never leave the
 claim held to its 72h TTL. Use `bin/release-claim.js` with the concrete
@@ -256,14 +263,25 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" {n} --run "$RUN_DIR" \
 
 If the release write itself fails, do not retry in-firing — the claims
 contract's stale-claim TTL is the backstop (`/tidy`'s sweep eventually
-reclaims it).
+reclaims it). `release-claim.js`'s exit `4` (held by another run,
+`_shared/issue-claims.md`'s exit-code table) is not actually a release
+failure to retry or report — a claim this firing holds cannot legitimately
+be "held by another run" at release time, so treat exit `4` here the same
+as any other non-zero exit: do not retry, let the TTL backstop it. Exits
+`1` (failed) and `2` (malformed / `gh` absent) get the same non-retry
+treatment; the distinction only matters for `/tidy`'s sweep diagnostics,
+not for this firing's own behavior.
 
 ## Failure self-report
 
-Any Preflight failure (Preflight section above), and any post-claim
-shaping-stage failure (Shape section above throwing or returning an error
-— reported here only after Release above has already run), files the
-shared headless self-report (`_shared/headless-self-report.md`, `{caller}`
-= `specify`) before stopping — deduplicated against any existing open
-report. A zero-eligible exit (Zero eligible section) or a contested-claim
-exit (Claim section) is NOT a failure and files nothing.
+Any Preflight failure (Preflight section above), any Claim-step infra
+failure (the live label re-read or `resolve-run-dir` call itself failing
+to run — as opposed to succeeding and returning an ineligible/contested
+result, which is a clean no-op per the Claim section above), and any
+post-claim shaping-stage failure (Shape section above throwing or
+returning an error — reported here only after Release above has already
+run), files the shared headless self-report
+(`_shared/headless-self-report.md`, `{caller}` = `specify`) before
+stopping — deduplicated against any existing open report. A zero-eligible
+exit (Zero eligible section) or a contested-claim exit (Claim section) is
+NOT a failure and files nothing.
