@@ -99,9 +99,10 @@ tools apply their own cross-checkout write-pinning refusal for a path under the 
 checkout, independent of and not covered by the `worktree-always` hook exemption — a session
 isolated to this worktree can still see an Edit/Write attempt against `decisions.md`,
 `staged/*.md`, `manifest.yml`, or any other file under a resolved run directory refused outright.
-When that happens, use a Bash heredoc instead (`cat >> "$RUN_DIR/decisions.md" << 'EOF' ... EOF`,
-or `cat > "$RUN_DIR/staged/{name}.md" << 'EOF' ... EOF` for a new file) — Bash write redirection
-is not subject to this tool-level pinning.
+When that happens, use `bin/log-decision.js` (`_shared/auto-decision-log.md`'s canonical
+appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged file — neither is
+subject to this tool-level pinning, and both work identically from a worktree session or the
+main checkout.
 
 A second, unconditional PreToolUse guard (`bin/lib/hooks/pre-tool-use.js`'s
 `checkPipelineShadowGuard`, not gated on `worktree-always`) denies the opposite direction: an
