@@ -8,12 +8,12 @@ const { decide } = require('../../../plugin/bin/lib/harness-health/dedup');
 // decide()'s actual branch coverage (file/skip/suppress/reopen across every
 // issue-index and local-cache combination, including the 'regressed'
 // cache-only fallback this file never tested) is already fully exercised,
-// with a superset of cases, by bin/lib/health-core/tests/dedup.test.js --
+// with a superset of cases, by tests/bin-lib/health-core/dedup.test.js --
 // re-testing every branch again here through the wrapper gives zero
 // additional coverage while doubling the maintenance surface for any future
 // change to decide()'s contract. Mirrors the same
 // shared-vs-per-subsystem-wrapper principle already documented in
-// bin/lib/harness-health/tests/cache.test.js's readDurableState/
+// tests/bin-lib/harness-health/cache.test.js's readDurableState/
 // writeDurableState sanity test.
 test('decide is the shared health-core implementation, not a local reimplementation', () => {
   // Referential identity, not just call-compatible behavior: proves this

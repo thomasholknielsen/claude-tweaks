@@ -1,4 +1,4 @@
-// bin/lib/record-graph/tests/layout.test.js
+// tests/bin-lib/record-graph/layout.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { buildGraph } = require('../../../plugin/bin/lib/record-graph/layout');

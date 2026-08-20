@@ -1,4 +1,4 @@
-# 14. A hook-read policy key rename ships with a transitional twin in this repo's own policy.yml
+# 0014. A hook-read policy key rename ships with a transitional twin in this repo's own policy.yml
 
 - **Status:** accepted
 - **Date:** 2026-08-16
