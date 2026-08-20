@@ -41,6 +41,15 @@ SubagentStop hook it depends on fires unreliably for Task dispatches
 (`_shared/subagent-output-contract.md`, claude-code#27755) — so the lens should not treat its
 *absence* as proof of a clean run.
 
+**This block is the single machine-checked statement of the vocabulary above** (`tests/reflect-friction-lens-vocab.test.js` pins it against the real `appendEvent(...)` call sites in `bin/lib/hooks/*.js` — a drift here is a test failure, not a silent doc rot, per `#452`'s post-mortem):
+
+<!-- friction-lens-vocab:begin -->
+- `wd-deny`: `bin/lib/hooks/pre-tool-use.js`
+- `gate-denial`: `bin/lib/hooks/pre-tool-use.js`
+- `contract-violation`: `bin/lib/hooks/subagent-stop.js`
+- `ask-user-question`: `bin/lib/hooks/post-tool-use.js`
+<!-- friction-lens-vocab:end -->
+
 **Membership rule:** an event qualifies only when it describes friction experienced by the run's
 own operator — a denied action, a forced stop. `wd-foreign-session` is excluded on this basis: it
 is logged when a *different* session than this run's owner attempts a wrong-checkout action, so
