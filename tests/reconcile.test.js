@@ -636,7 +636,7 @@ test('reconcile(): red-tip requested alone (no mirror/remote-prune) skips rather
 
 // --- hooks.js verb: garbage-stdin invariant + JSON shape (AC5) ---
 
-test('reconcile verb: garbage stdin still exits 0 and prints valid JSON', () => {
+test('reconcile verb: garbage stdin still exits 0 and prints valid JSON with --json', () => {
   // Always an isolated fixture cwd, never the ambient process cwd — a bare
   // `reconcile` with no cwd override would run for real against whatever
   // repo the test runner happens to be in (this project's own, under `npm
@@ -645,21 +645,72 @@ test('reconcile verb: garbage stdin still exits 0 and prints valid JSON', () => 
   // safe when it happened once during authoring, but a test must not rely
   // on that — it must never reach live state in the first place.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-garbage-'));
-  const r = runHook(['reconcile'], { input: '%%%not json%%%', cwd: dir });
+  const r = runHook(['reconcile', '--json'], { input: '%%%not json%%%', cwd: dir });
   assert.strictEqual(r.code, 0);
   assert.doesNotThrow(() => JSON.parse(r.stdout));
   assert.deepStrictEqual(JSON.parse(r.stdout).skipped, [{ check: 'all', reason: 'no-repo' }]);
 });
 
-test('reconcile verb: --dry-run is accepted and never mutates on a no-remote fixture', () => {
+test('reconcile verb: --dry-run --json is accepted and never mutates on a no-remote fixture', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-hook-'));
+  git(['init', '-q'], dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  const r = runHook(['reconcile', '--dry-run', '--json'], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.stdout);
+  assert.deepStrictEqual(parsed.skipped, [{ check: 'all', reason: 'no-remote' }]);
+});
+
+test('reconcile verb: --json output is byte-for-byte JSON.stringify(out) + "\\n" (#638)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-json-shape-'));
+  git(['init', '-q'], dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  const r = runHook(['reconcile', '--dry-run', '--json'], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  const parsed = JSON.parse(r.stdout);
+  assert.strictEqual(r.stdout, JSON.stringify(parsed) + '\n');
+});
+
+test('reconcile verb: no --json (new default) prints a compact summary, not the raw JSON census (#638)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-compact-default-'));
   git(['init', '-q'], dir);
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
   const r = runHook(['reconcile', '--dry-run'], { cwd: dir });
   assert.strictEqual(r.code, 0);
-  const parsed = JSON.parse(r.stdout);
-  assert.deepStrictEqual(parsed.skipped, [{ check: 'all', reason: 'no-remote' }]);
+  assert.throws(() => JSON.parse(r.stdout), 'default output must not be a parseable JSON object');
+  assert.match(r.stdout, /^skipped: all — no-remote\n$/);
+});
+
+test('reconcile verb: compact default on a fixture with actions taken + a mix of skip reasons matches the aggregated format (#638)', () => {
+  const { formatSummary } = require('../plugin/bin/lib/reconcile/format-summary');
+  const result = {
+    mirror: { state: 'behind', action: 'fast-forwarded' },
+    redTip: null,
+    worktrees: null,
+    claims: [{ issueNumber: 1, action: 'released' }, { issueNumber: 2, action: 'released' }],
+    runs: [
+      { runDir: 'r1', action: 'archived' },
+      { runDir: 'x1', action: 'skipped', reason: 'no-worktree' },
+      { runDir: 'x2', action: 'skipped', reason: 'no-worktree' },
+      { runDir: 'y1', action: 'skipped', reason: 'move-failed' },
+      { runDir: 'z1', action: 'skipped', reason: 'pr-open' },
+    ],
+    branches: null,
+    remoteBranches: null,
+    console: null,
+    skipped: [{ check: 'red-tip', reason: 'no-integration-ref' }],
+  };
+  const summary = formatSummary(result);
+  assert.strictEqual(summary, [
+    'mirror: fast-forwarded',
+    'released: 2 claims',
+    'archived: 1 run dir',
+    'skipped: 4 run dirs (no-worktree 2, move-failed 1, pr-open 1)',
+    'skipped: red-tip — no-integration-ref',
+  ].join('\n'));
 });
 
 test('reconcile(): returns a thenable (async contract) even when every check stays synchronous internally', async () => {

@@ -393,13 +393,23 @@ async function main(argv) {
     // rather than by a parity test re-deriving the same logic twice.
     const args = argv.slice(3);
     const opts = { dryRun: args.includes('--dry-run'), cwd: process.cwd() };
+    const jsonOut = args.includes('--json');
     let out;
     try {
       out = await require('./lib/reconcile').reconcile(opts);
     } catch {
       out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
     }
-    process.stdout.write(JSON.stringify(out) + '\n');
+    if (jsonOut) {
+      // Unchanged from before #638 — byte-for-byte, so bin/lib/reconcile's
+      // existing JSON consumers (dispatch/tidy reading `console.ready` off
+      // this) don't move.
+      process.stdout.write(JSON.stringify(out) + '\n');
+    } else {
+      // New default (#638): a compact human-readable summary instead of the
+      // full per-item census — see format-summary.js for the aggregation.
+      process.stdout.write(require('./lib/reconcile/format-summary').formatSummary(out) + '\n');
+    }
     return 0;
   }
   if (cmd === 'reconcile-background') {
