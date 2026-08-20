@@ -88,7 +88,7 @@ Minimum two screenshots per task: one after initial load, one at the final state
 .claude-tweaks/artifacts/traces/<session>/<timestamp>.zip
 ```
 
-Capture a trace before closing a session whenever a step fails. Failure reports must include the trace path. There is no automatic retention policy — users manage cleanup. `--quick` (human-invoked, direct ad-hoc use only) waives mandatory trace-on-failure for the current invocation — see Input. `/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, and Routines never set `--quick`; the full evidentiary discipline stays mandatory for those consumers regardless of how they invoke browser ops.
+Capture a trace before closing a session whenever a step fails. Failure reports must include the trace path. Artifacts older than 30 days are surfaced for deletion by `/tidy`'s residue sweep (the `artifact` residue finding). `--quick` (human-invoked, direct ad-hoc use only) waives mandatory trace-on-failure for the current invocation — see Input. `/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, and Routines never set `--quick`; the full evidentiary discipline stays mandatory for those consumers regardless of how they invoke browser ops.
 
 ### Lifecycle
 

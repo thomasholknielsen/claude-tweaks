@@ -114,6 +114,6 @@ agent-browser --session <session> trace stop .claude-tweaks/artifacts/traces/<se
 agent-browser --session <session> close
 ```
 
-In the failure report, attach the trace path verbatim. The file is a Chrome DevTools trace — the user opens it via Chrome DevTools → Performance → Load profile (the CLI has no trace-viewing subcommand). Do not omit the trace — failure reports without a trace path are not actionable. There is no automatic retention policy; users manage cleanup, and `.claude-tweaks/artifacts/` belongs in `.gitignore`.
+In the failure report, attach the trace path verbatim. The file is a Chrome DevTools trace — the user opens it via Chrome DevTools → Performance → Load profile (the CLI has no trace-viewing subcommand). Do not omit the trace — failure reports without a trace path are not actionable. Artifacts older than 30 days are surfaced for deletion by `/tidy`'s residue sweep (the `artifact` residue finding); `.claude-tweaks/artifacts/` belongs in `.gitignore`.
 
 If the failure is mid-batch, the batch invocation will return partial output up to the failure point. Run `trace stop <path>` and `close` as separate invocations after the batch returns; do not append them to the failed batch.
