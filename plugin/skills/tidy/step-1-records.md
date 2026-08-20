@@ -71,9 +71,11 @@ come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buck
 | A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), **and that commit's own diff/message already resolves the record's described problem** | Delete — already implemented (cite the resolving commit SHA in the closing comment) |
 | Neither trigger met, not yet `Stale` (per the staleness clock above) | Keep |
 | Neither trigger met, `Stale` (per the staleness clock above) | Re-evaluate or delete |
-| Prose-only trigger, no clear date/path condition | Judge live each sweep — Keep, or move back to backlog state |
+| Prose-only trigger, no clear date/path condition | Judge live each sweep — Keep, or move back to backlog state. When the trigger states a blocker as settled fact rather than naming an event to wait for, re-verify that fact directly against live evidence (grep the codebase/API/config for the asserted absence) — don't only search for an announcement that it was resolved |
 
 A watched-path match is a signal to look again, not proof the record still needs work — read the matching commit's diff and message before recommending Promote. A commit that merely touches the watched path is not evidence the underlying problem is solved; only a commit whose content demonstrably addresses what the record describes counts as resolved. Conflating the two risks recommending `/claude-tweaks:specify` on a record whose work is already done, producing a redundant decomposition.
+
+The prose-only row's live-evidence guard exists because a trigger can state its blocker as settled fact (e.g. #68: "Blocked today on an upstream capability that does not exist") — judging only whether that fact was ever announced resolved searches indefinitely for release notes that never arrive when the capability existed undocumented all along, or never existed as claimed. Re-verifying the blocker itself, not a report about it, closes that gap. The milestone row and the two watched-paths rows above are audited and confirmed immune to this same failure mode: a past-due `milestoneDueOn` and a matching commit since the record was parked are themselves the live evidence, not an announcement about it, so judging them live already checks the fact rather than a report of the fact — no separate guard is needed there.
 
 → Collect each as: `[parked] {title} — {recommendation}`
 
