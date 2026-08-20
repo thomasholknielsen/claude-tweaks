@@ -48,10 +48,11 @@ mirror-ff is the sanctioned, worktree-safe mechanism (it never merges, runs stri
 
 ## Post-creation catch-up
 
-For the rest of this session's lifetime inside the new worktree, under `worktree-always` write
-via a single plain command, the Write/Edit tools, or a CLI — never `cat >`, `sed -i`, a heredoc,
-or a looped `node -e`; the harness's "too complex to verify" check and the plugin gate both
-refuse those shapes (see `docs/donts.md`).
+For the rest of this session's lifetime inside the new worktree, the harness's Bash-shape guard
+stays in effect (see the "## 7. Shell constraint" pointer above) — default to one plain command
+per call rather than rediscovering the boundary through refusals; see `docs/donts.md` for the
+common mistake of assuming a specific editing idiom, rather than the command's shape, is what
+gets refused.
 
 Unconditionally, before anything else runs in the new worktree:
 
