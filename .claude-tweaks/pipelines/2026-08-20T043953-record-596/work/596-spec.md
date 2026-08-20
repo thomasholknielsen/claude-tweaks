@@ -62,3 +62,24 @@ Measured in the 2026-08-16 session: 3 refusals on run-dir appends (Edit pin ×1,
 
 Scope: (1) ship `bin/hooks.js log-decision --run <dir> --skill <name> --entry <text>` (append one canonical-schema line under the right `## /{skill}` heading; plain command, absolute paths, no redirect/heredoc — passes both guards from either checkout; the pipelines/ exemption already permits the write). (2) Delete the "unaffected … already satisfies the gate" sentence and replace the whole conditional block in `auto-decision-log.md` with one unconditional instruction: use `log-decision`. (3) Sweep every skill that prescribes a `decisions.md` append shape (grep `decisions.md` across `skills/`) to cite the subcommand instead. (4) Test pinning that no skill file prescribes a redirection or heredoc append to `$RUN_DIR`/`decisions.md`. Companion for `manifest.yml`/`run-state.json` writes may fall out of the same verb family (#594).
 
+## Build reconciliation note (Architecture Alignment — Common Step 4.5, "Update the spec")
+
+Deliverable 1 / the first Acceptance Criteria bullet ask for a new `bin/hooks.js log-decision
+--run <dir> --skill <name> --entry <text>` subcommand. Live repo research at build time found
+this is already satisfied by a pre-existing, differently-shaped CLI: `bin/log-decision.js --run
+<run-dir> --status AUTO|STAGED|KEPT-PROMPT|SCANNED|REFUSED --text "..." [--section "/<skill>"]`
+(shipped under #686, predating this record), already documented in
+`plugin/skills/_shared/auto-decision-log.md` as "the canonical appender for this schema", and
+already the tool `docs/hooks.md` names as the project's established standalone-CLI convention
+for a second pipeline-bookkeeping write verb (line 13: a same-purpose precedent CLI gets a
+standalone `bin/{name}.js` sibling, never folded into `bin/hooks.js`). Empirically verified
+during this build's own `/flow` orchestration: invoked from a worktree session against a
+main-checkout run dir, it appended correctly (see this run's own `decisions.md`).
+
+Building a second, `bin/hooks.js`-hosted CLI for the identical purpose would duplicate
+`bin/log-decision.js`'s logic and contradict `docs/hooks.md`'s own documented convention. This
+build satisfies Deliverable 1's intent via the existing CLI and does not add a new one. The
+remaining deliverables (2–4: fix the false "already satisfies the gate" prose, sweep the one
+other file with a stale append-shape prescription, add test pinning) are unaffected and proceed
+as specified.
+
