@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.102.0 — Headless shaping unit: specify next mode with framing-check guard and shaped:headless label (#967, #968), grant-gate oversight floor for shaped:headless records (#969), specify routine template + fleet row 9 (#970); dispatch local-merge resume question-string template (#545); help policy mode renders Shape-B derived defaults as computed (#636); build plan-authoring checks extracted to sub-file (ceiling breach)
+
+Headless shaping unit: specify next mode with framing-check guard and shaped:headless label (#967, #968), grant-gate oversight floor for shaped:headless records (#969), specify routine template + fleet row 9 (#970); dispatch local-merge resume question-string template (#545); help policy mode renders Shape-B derived defaults as computed (#636); build plan-authoring checks extracted to sub-file (ceiling breach).
+
 ## v6.101.0 — Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#633); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale
 
 Merged-PR batch: one-off Routine cadence via run_once_at, exempt from the daily cap (#212); bin/stage-item.js staged/ writer CLI (#637); reconcile archive-tag namespace collision fix with injective suffix encoding (#548); statusline wrapper honors CLAUDE_CONFIG_DIR (#633); Subagent Contract path-reference fix (#744); dispatch resume-gate no-carve-out rationale.
