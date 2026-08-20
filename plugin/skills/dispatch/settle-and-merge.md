@@ -19,7 +19,7 @@ claimed by this run at all, so step 1 below's ownership check will correctly fin
 release (skip is the right outcome there, not an error). The one thing this case adds: **when
 `DISPATCH_HEADLESS=1` was set on this Task call's invocation** (`dispatch/task-prompt.md`'s first
 template — set only for a `next`-form firing, where nobody is present to read the contest stop
-directly), read `_shared/headless-self-report.md` in this skill's directory and follow its dedup-and-file
+directly), read `_shared/headless-self-report.md` and follow its dedup-and-file
 procedure (caller = `dispatch`), using failing-check-name `flow-step-2.8-claim-contest` and the contest stop message as
 the diagnostic body. This is the one Settle branch that runs *before* any release/classification
 logic, since there is nothing to release or classify — it is a pre-flight stop, not a build/test
