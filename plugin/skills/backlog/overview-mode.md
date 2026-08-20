@@ -58,6 +58,10 @@ line. `insufficient-evidence` cells render nothing in bare mode — their table 
 The verdict vocabulary is read verbatim from `bin/lib/issues/trust.js`'s row verdicts as
 `_shared/trust-table.md` defines them — nothing new is invented here.
 
+Capture the Fetch script's printed rows to `/tmp/backlog-overview-trust-rows.json` — the
+consequence line renders from it, and bare mode's Machine-grant outlook (Step 2) re-reads the same
+file rather than re-fetching.
+
 The full table render moves to the trust lens (Step 2).
 
 ## Step 2: Route by lens
@@ -103,16 +107,16 @@ continue to Step 3. The header is populations + verbs only — **no record ids, 
 Critical/Risk-Value/Cleanup tables** (those remain one lens away). Template:
 
 ```
-captured ▶ scored ▶ shaped ▶ granted ▶ dispatchable ▶ in flight
-  {captured.length}   {scored.length}   {shaped.length}   {granted.length}   {dispatchable.length}   {inFlight.length}
+captured ▶ prioritized ▶ specified ▶ granted ▶ dispatchable ▶ in flight
+  {captured.length}   {prioritized.length}   {specified.length}   {granted.length}   {dispatchable.length}   {inFlight.length}
 
-# captured {n} — score them
+# captured {n} — prioritize them
 /claude-tweaks:backlog refine
 
-# scored {n} — shape them (#N is a placeholder — substitute the real record number)
+# prioritized {n} — specify them (#N is a placeholder — substitute the real record number)
 /claude-tweaks:specify #N
 
-# shaped {n} — grant them, or dispatch here with the human gate
+# specified {n} — grant them, or dispatch here with the human gate
 /claude-tweaks:backlog grant
 
 # granted {n} — no pointer; waiting on blockers, which appear in the dispatch hand-off
@@ -126,7 +130,18 @@ captured ▶ scored ▶ shaped ▶ granted ▶ dispatchable ▶ in flight
 └─ needs you: {n}   (human-owed — the one lane no agent can drain)
 ```
 
-Every category line above stands alone as a `#`-comment — no command text on it. A category with a pointer command (captured, scored, shaped, dispatchable) puts that command on its own following line, with nothing else on the line, so copying just that row yields a runnable command. A category with no pointer (granted, in flight) renders its comment line alone, with no command line beneath it.
+Every category line above stands alone as a `#`-comment — no command text on it. A category with a pointer command (captured, prioritized, specified, dispatchable) puts that command on its own following line, with nothing else on the line, so copying just that row yields a runnable command. A category with no pointer (granted, in flight) renders its comment line alone, with no command line beneath it.
+
+### Machine-grant outlook (config-aware stage annotations)
+
+Resolve `autonomy` and `grant-origination-enabled` once —
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled fleet-daily-grant-cap`.
+When `autonomy` is not `unattended`, or `grant-origination-enabled` is not `true`, or
+`work-backend` is `local-files` (the outlook needs Step 1.5's trust rows — same omission rationale
+as Step 1.5 itself), skip: render the template exactly as above, no extra lines. Otherwise read
+`machine-grant-outlook.md` in this skill's directory and add its two advisory `#`-comment
+annotation lines to the header — why the `specified` and `captured` stages aren't self-draining on
+a repo that configured them to.
 
 The branch line is fed from `funnelBuckets`' `needsYou` overlay; rendered only when non-zero
 (dormant repos never render it).
@@ -204,9 +219,9 @@ Bare mode only — lens runs end at their own table (Step 2) and never reach thi
 **Input precondition:** the dispatch-block candidate set is `funnelBuckets`'s `dispatchable` ∪
 `granted` (Step 2's `.funnel` — already filtered; `needs:definition` records are excluded here by
 rule (below) — until #471's redirect gate ships, `/claude-tweaks:specify` can still stamp `ready`
-on one, so the structural guarantee does not yet hold; the Shape block's own human-owed filtering is the
-Shape-block exclusion rule below). The Shape block's population is the `scored` bucket (records shaped next);
-the Score line's count is the `captured` bucket.
+on one, so the structural guarantee does not yet hold; the Specify block's own human-owed filtering is the
+Specify-block exclusion rule below). The Specify block's population is the `prioritized` bucket (records
+specified next); the Prioritize line's count is the `captured` bucket.
 
 Compute the batch's graph structure, transitive payout, and file-overlap groups in one pass,
 reusing Step 3's candidate set — first with the dependency-mismatch-flagged ids (Step 3's `flags`)
@@ -248,13 +263,13 @@ chains-first-then-independents grouping.
 **Render:** one fenced paste block per funnel stage that has members, exactly these templates:
 
 ```
-── Score the rest ──
-# {captured-count} records missing risk/size
+── Prioritize the rest ──
+# {captured-count} records missing priority
 /claude-tweaks:backlog refine
 ```
 
 ```
-── Shape next ──
+── Specify next ──
 # Terminal 1 — priority:{tier} — {one-line hook}
 /claude-tweaks:specify #{N}
 # Terminal 2 — priority:{tier} — {one-line hook}
@@ -262,7 +277,7 @@ chains-first-then-independents grouping.
 # #{N} excluded — needs:definition: yours to decide (see Needs you below)
 ```
 
-The exclusion line is one line per matching record — absent entirely when none match. `needs:definition` is LIVE (both drivers parse `facets.needsDefinition` since upstream's v6.85.0 taxonomy landed), so this line renders on any repo carrying matching records; it is independent of the unjustified-annotation line below (both are live; see below). It attaches immediately above the Shape block's command lines and applies in ANY paste block a matching record appears in.
+The exclusion line is one line per matching record — absent entirely when none match. `needs:definition` is LIVE (both drivers parse `facets.needsDefinition` since upstream's v6.85.0 taxonomy landed), so this line renders on any repo carrying matching records; it is independent of the unjustified-annotation line below (both are live; see below). It attaches immediately above the Specify block's command lines and applies in ANY paste block a matching record appears in.
 
 ```
 ── Dispatch now ──
@@ -275,9 +290,9 @@ The exclusion line is one line per matching record — absent entirely when none
 /claude-tweaks:flow #A,#B
 ```
 
-The unjustified-annotation line is likewise one line per matching record, absent entirely when none match — `solutionUnjustified` is live on both drivers since #677 renamed `framing:baked` → `solution:unjustified` (the exclusion line above is independently live for `needs:definition`) — it attaches immediately above the command line it annotates, and applies in ANY paste block a matching record appears in (a `solutionUnjustified` record keeps its primary funnel bucket, so it can surface in Shape or Dispatch alike).
+The unjustified-annotation line is likewise one line per matching record, absent entirely when none match — `solutionUnjustified` is live on both drivers since #677 renamed `framing:baked` → `solution:unjustified` (the exclusion line above is independently live for `needs:definition`) — it attaches immediately above the command line it annotates, and applies in ANY paste block a matching record appears in (a `solutionUnjustified` record keeps its primary funnel bucket, so it can surface in Specify or Dispatch alike).
 
-Prose rules: the Score line's count is comment-only (`refine` has no count flag); Shape lines are
+Prose rules: the Prioritize line's count is comment-only (`refine` has no count flag); Specify lines are
 priority-ordered, one record per terminal; a chain emits as **one** multi-ref
 `/claude-tweaks:flow #A,#B,#C` command listing every member in dependency order (one command per
 chain, never head-only — flow's multi-ref form runs them as a sequential pipeline); independents
@@ -300,15 +315,15 @@ executable line. Record ids and priority tiers are re-emitted from parsed facets
 already partitioned — the rules below name where each excluded population surfaces, they never
 re-derive membership.
 
-- **Shape-block exclusion** — the excluded population is the `scored`-bucket records carrying
+- **Specify-block exclusion** — the excluded population is the `prioritized`-bucket records carrying
   `needsDefinition === true` (`funnelBuckets`'s `needsYou` overlay, kind `definition`). Each is
-  excluded from the Shape block's terminals with the `# #{N} excluded — needs:definition: yours to
-  decide (see Needs you below)` comment line (Step 4's Shape template above) — never a bare
+  excluded from the Specify block's terminals with the `# #{N} excluded — needs:definition: yours to
+  decide (see Needs you below)` comment line (Step 4's Specify template above) — never a bare
   `/claude-tweaks:specify #{N}` command, since deciding whether the record needs definition is the
   human's call, not the agent's; counted under rule (c) and surfaced again, with fuller context, in
   the Needs you lane below.
-- **(a) Overlap serialization** — scoped to the Dispatch block only (Shape-block records are
-  unshaped and carry no `### Key Files`, so file-overlap grouping doesn't apply there). Records
+- **(a) Overlap serialization** — scoped to the Dispatch block only (Specify-block records are
+  not yet specified and carry no `### Key Files`, so file-overlap grouping doesn't apply there). Records
   `groupByFileOverlap` groups together never appear in different concurrent terminal blocks.
   Deciding criterion: members of the same dependency component are already serialized in one
   terminal by construction; a file-overlap group spanning different components/independents
@@ -335,10 +350,10 @@ re-derive membership.
   silently dropped (dropping would violate rule (c) above).
 - **Out-of-set-blocked granted records** — a `granted`-bucket candidate whose id appears in the
   compute block's `outOfSetBlocked` list (already computed above via `blockersOf` — never
-  re-derived ad hoc at render time) is definitionally blocked — its blocker is unshaped or
+  re-derived ad hoc at render time) is definitionally blocked — its blocker is unspecified or
   ungranted, not yet part of this batch. It still renders in the Dispatch block, but as a
   `#`-comment naming the out-of-set blocker and its funnel stage (e.g. `# #521 waiting — blocked by
-  #518 (shaped, ungranted)`), never a bare paste-ready command; counted under rule (c). This is what
+  #518 (specified, ungranted)`), never a bare paste-ready command; counted under rule (c). This is what
   keeps #513's header promise (the granted stage's "no pointer — waiting on blockers; the blocker
   itself appears in the dispatch hand-off").
   **Chain vs out-of-set precedence:** when a chain member (not a bare independent) is
@@ -363,7 +378,7 @@ re-derive membership.
   redirect gate ships, `/claude-tweaks:specify` can still stamp `ready` on one, so this
   render-level exclusion is the guard. It renders one `#`-comment
   (`# #{N} excluded — needs:definition: yours to decide (see Needs you below)`, the same format
-  the Shape block uses), is counted per rule (c), is skipped when determining the top-ranked
+  the Specify block uses), is counted per rule (c), is skipped when determining the top-ranked
   executable entry, and its Needs-you lane row is where it surfaces for action.
 
 ### Needs you (human lane)
