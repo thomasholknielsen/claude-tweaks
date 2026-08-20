@@ -12,9 +12,9 @@
 // Usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--help]
 // Output: one JSON line {"byParent":{"1095":[1097,1101]},"retry":[]} on
 // stdout — byParent as a plain object keyed by stringified number (JSON has
-// no Map). Zero positional numbers is valid and prints
-// {"byParent":{},"retry":[]} (exit 0) — lets prose pipe an empty parent
-// list through `xargs` safely. Exit 0 on success; 1 on a malformed
+// no Map). Prose invokes this via command substitution, not `xargs`; zero
+// positional numbers is still a valid invocation and prints
+// {"byParent":{},"retry":[]} (exit 0) — the empty envelope. Exit 0 on success; 1 on a malformed
 // invocation (non-positive-integer positional, unknown flag); 2 when `gh`
 // is absent or owner/repo cannot be resolved (no `--repo` and no readable
 // `origin` remote); 3 when the GraphQL call itself throws (network/API
@@ -30,6 +30,7 @@
 
 const { execFileSync } = require('child_process');
 const { fetchNativeSubIssues } = require('./lib/issues/native-dependencies');
+const { probeSchema } = require('./lib/issues/capabilities-probe');
 
 const USAGE = 'usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--help]\n';
 
@@ -78,7 +79,6 @@ function run(argv, deps = realDeps) {
   if (!repoSpec) { deps.stderr('fetch-sub-issues.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
   const { owner, repo } = repoSpec;
 
-  const { probeSchema } = require('./lib/issues/capabilities-probe');
   if (!probeSchema(deps.runner).subIssues) {
     deps.stderr('fetch-sub-issues.js: the subIssues GraphQL field is unavailable on this host — fall back to the per-parent REST loop\n');
     return 4;
