@@ -62,6 +62,13 @@ already-posted-brief branch (`wrap-up/verification-brief.md`'s **Apply the gate*
 label with no comment posted at all, leaving its brief arbitrarily far from last. Go straight to
 Step 2 with it.
 
+**No comment anywhere carries the heading** (`#205`): the label write landed but the brief post
+did not — a near-unreachable state, since every acceptance-labeling path posts the comment before
+the label (`verification-brief.md`'s Step 4, `verification-brief-parent-gate.md`'s Apply the
+gate), but not one this lookup should treat as an error. Fall through to the closing-commit
+recovery below exactly as the label-absent case does — do not surface this as a failure just
+because the label happens to be present.
+
 This `#N` may itself be a decomposition parent gated by the Parent-Gate Procedure
 (`wrap-up/verification-brief.md`) rather than a single build, in which case its Verification
 Brief covers the whole parent issue's primary path rather than one diff, but resolves and renders
