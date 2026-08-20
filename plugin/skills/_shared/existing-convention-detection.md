@@ -2,7 +2,7 @@
 
 Canonical contract for the question no doc-creating path used to ask: **does this repo already have its own convention for the genre I am about to write?**
 
-Read by `/claude-tweaks:wrap-up`'s Decision records curation row (`wrap-up/adr-curation.md`) before it proposes an ADR path. The per-genre declarations it keys off live in `_shared/diataxis-genre-templates.md`.
+Read by `/claude-tweaks:wrap-up`'s Decision records curation row (`wrap-up/adr-curation.md`) before it proposes an ADR path, `/claude-tweaks:wrap-up`'s Docs curation row (`wrap-up/docs-health-integration.md` D2) before it proposes a path for one of the four core Diátaxis genres, and `/claude-tweaks:journeys` Step 2 before it writes a new journey file. The per-genre declarations it keys off live in `_shared/diataxis-genre-templates.md`.
 
 ## Why this exists
 
