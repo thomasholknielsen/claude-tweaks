@@ -1,8 +1,9 @@
 // Format one _shared/auto-decision-log.md entry and append it to a run's
 // decisions.md — the decisions.md half of #637's "no CLI writes decisions.md
-// or staged/" gap (the staged/ half is #637's remaining scope). Every AUTO /
-// STAGED site that used to compose the line by hand (or via a scratch node -e)
-// calls bin/log-decision.js, which is a thin wrapper over this module.
+// or staged/" gap (the staged/ half now ships as bin/stage-item.js /
+// bin/lib/stage-item/write.js). Every AUTO / STAGED site that used to compose
+// the line by hand (or via a scratch node -e) calls bin/log-decision.js,
+// which is a thin wrapper over this module.
 // The run dir must resolve under the main checkout ($RUN_ROOT — see
 // _shared/pipeline-run-dir.md's Anchoring section): a worktree-local shadow
 // copy is refused, never silently written ([IL-127]).

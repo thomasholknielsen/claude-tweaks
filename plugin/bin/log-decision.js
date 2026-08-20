@@ -5,7 +5,7 @@
 //     [--section "/<skill>"] [--help]
 // Exit 0 appended (entry echoed to stdout); 2 malformed invocation; 3 run dir missing or not
 // anchored under the main checkout (a worktree-local shadow — _shared/pipeline-run-dir.md).
-// The decisions.md half of #637; the staged/ writer is #637's remaining scope.
+// The decisions.md half of #637; the staged/ half now ships as bin/stage-item.js.
 'use strict';
 
 const { STATUSES, formatEntry, resolveTarget, appendEntry } = require('./lib/log-decision/append');
