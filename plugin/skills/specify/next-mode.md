@@ -54,6 +54,17 @@ stop — it only leaves a durable GitHub trace, deduplicated against any
 existing open report so repeated firings don't re-file. A zero-eligible
 exit or a contested-claim exit (below) is NOT a failure and files nothing.
 
+**Label prerequisites.** This firing writes two of `_shared/label-bootstrap.md`'s
+canonical labels: `needs:definition` (the Framing Guard section's routing
+outcome, stamped before `shaping-mode.md` ever loads) and `shaped:headless` (applied
+inside `shaping-mode.md`'s own compose-then-write-once call, which bootstraps
+it per that file's own instruction). This file runs no bootstrap loop of its
+own — a headless firing assumes an earlier interactive run, or
+`/claude-tweaks:init`'s one-time provision-now offer, already established the
+canonical set in this repo. If `needs:definition` is absent, the routing stamp
+simply fails, and that is handled as the Framing Guard section's stamp-failure
+condition below — never swallowed as a success.
+
 ## Eligibility query
 
 Per `_shared/record-queue-fetch.md`'s `work-backend: github-issues` fetch:
@@ -201,7 +212,13 @@ convention — cited, not restated, here.
 Between Claim and Shape, every claimed record passes through one
 `framing-check` call before shaping proceeds — a headless firing has no
 human present to catch a solution-baked framing after the fact, so the
-gate runs before, not after.
+gate runs before, not after. This guard is deliberately harsher than the
+interactive path: on `solution-baked` it routes straight to
+`needs:definition` with no bounded evidence search, unlike
+`shaping-mode.md`'s own framing step, which attempts one before stamping
+`solution:unjustified`. That asymmetry is an accepted v1 tradeoff — the
+route is human-reversible, and the evidence-side improvement is tracked as
+`#772` (framing-check not reading `## Gotchas` evidence), not fixed here.
 
 Fetch the record's full title + body first (the same fetch `## Shape`
 below performs — do this fetch once, here, and hand the same result to
@@ -232,7 +249,17 @@ unparseable output to either verdict.
 - **`FRAMING: open`** — proceed to `## Shape` below, unchanged.
 - **`FRAMING: solution-baked`** — do **not** shape. In order:
   1. Stamp `needs:definition` on the record: `gh issue edit {n}
-     --add-label "needs:definition"`.
+     --add-label "needs:definition"`. **If this stamp itself fails** (the
+     `gh issue edit` command exits non-zero), this firing is *not* a clean
+     success: the routing state was never written, so the loop guard this
+     whole path exists to establish does not exist, and the next firing
+     would re-select the same record, reach the same verdict, and repeat
+     indefinitely. Skip steps 2-5 entirely — never post a comment about a
+     routing that was never written — release with reason
+     `failed: shaping` (not `routed: needs:definition #{n}`, which would
+     assert a routing that did not land), and proceed to
+     `## Failure self-report` below — the same handling the
+     unparseable-verdict case above gets.
   2. Post one comment naming the verdict, the RATIONALE's assumptions,
      and the interactive route as a paste-ready command on its own line
      (transport per `_shared/github-write-transport.md`):
@@ -251,9 +278,16 @@ unparseable output to either verdict.
 
      /claude-tweaks:specify #{n}
      ```
+
+     **If the comment fails but step 1 landed**, this firing is still a
+     success: the loop-guard invariant — the `needs:definition` label
+     itself — is intact, so the record is already out of `next`'s
+     eligibility and no reprocessing loop is possible. Continue with steps
+     3-5 and end the firing as a success, just without the comment. Do not
+     conflate this with step 1's stamp-failure case above: only a failed
+     *stamp* turns this path into a shaping-stage failure.
   3. Release the claim with reason `routed: needs:definition #{n}` (see
-     `## Release` below — this is the third reason string that section's
-     table now documents) and `--remove-in-progress`.
+     `## Release` below) and `--remove-in-progress`.
   4. Log the decision (per `_shared/auto-decision-log.md`'s schema when a
      run dir resolves — the Routine-no-run-dir fallback (`## Shape` below
      elaborates), unchanged by this guard).
@@ -297,29 +331,46 @@ rejection above), and no `## Next Actions` renders at the end (headless —
 nobody is present to answer it; `shaping-mode.md`'s own return clause
 names the `next` form's headless posture as a second reason to skip that
 render, alongside `--chained`). Shaping mode's own `ready` stamp is what
-removes the record from future `next` eligibility — no extra state change
-is needed here beyond the `shaped:headless` stamp described below.
+removes the record from future `next` eligibility, and the same call also
+carries the `shaped:headless` provenance marker on this entry path
+(below) — so no extra state change is needed here at all.
+
+**The guard's verdict is not reused here.** `## Framing Guard`'s verdict
+served exactly one purpose — the open/solution-baked routing decision that
+let this record reach shaping at all — and shaping mode never reads it.
+`shaping-mode.md` runs its own `framing-check #{n}` invocation against the
+now-shaped body plus the preserved `## Original request` block, and that
+second, independent verdict is the sole authority on the
+`solution:unjustified` stamp. The two may legitimately differ: the guard
+can read `open` (so the record proceeds to shaping here) while shaping
+mode's re-check against the fuller shaped body reads `solution-baked`, in
+which case the record correctly ends up `solution:unjustified`-stamped
+even though it passed the guard. `shaping-mode.md`'s own per-record
+self-check excludes this file's guard invocation from its count for
+exactly this reason.
 
 A shaping-stage failure — the compose-then-write-once call failing, or
 `shaping-mode.md`'s own read-back verification failing — is a failure for
 this file's purposes: Release (below) still runs first, unconditionally,
 before this failure reaches Failure self-report below.
 
-**Stamping override for `next` mode.** `shaping-mode.md`'s own label-write
-call (invoked above) stamps `ready` alone — that is correct for the
-`--chained` and interactive postures it was written for, but a `next`-mode
-shape carries the additional provenance marker. After `shaping-mode.md`
-returns successfully, apply `ready` and `shaped:headless` together in one
-label-edit call — never as two separate calls, so no reader ever observes
-`ready` without `shaped:headless` alongside it on a `next`-shaped record:
+**Provenance marker — applied inside `shaping-mode.md`, not here.** A
+`next`-mode shape carries the `shaped:headless` provenance marker on top
+of `ready`. That flag rides `shaping-mode.md`'s own compose-then-write-once
+call: its entry-path rule adds `--add-label "shaped:headless"` alongside
+`--add-label ready` in that same call, unconditionally, whenever the pass
+was entered via this form's headless posture. This file therefore makes
+**no** separate label-edit call for it. The pair lands in a single write
+inside shaping mode, so no reader can ever observe a `next`-shaped record
+carrying `ready` — and therefore permanently outside the Eligibility query
+above — without `shaped:headless` alongside it; if that write fails, the
+record stays unshaped and still eligible (a recoverable state), and the
+failure is the shaping-stage failure the paragraph above describes.
 
-```bash
-gh issue edit {n} --add-label "ready,shaped:headless"
-```
-
-**Decision-log fallback.** Every auto-resolved decision this guard and
-this stamp produce (the framing verdict, the design-intent resolution
-already established by Flag rejection above, and this label write) logs to
+**Decision-log fallback.** Every auto-resolved decision this firing
+produces (the framing verdict, the design-intent resolution already
+established by Flag rejection above, and this file's headless posture
+driving the `shaped:headless` inclusion in shaping mode's write) logs to
 `$RUN_DIR/decisions.md` per `_shared/auto-decision-log.md`'s schema — the
 same convention `## Claim` and `## Release` sections use for the same
 firing. When a Routine fires with no explicit pipeline run dir configured,
@@ -340,7 +391,9 @@ ends, and always before Failure self-report (below) files anything —
 never the other order, so a self-report write failure can never leave the
 claim held to its 72h TTL. Use `bin/release-claim.js` with the concrete
 reason string for the path taken — `shaped: #{n}` on the success path,
-`failed: shaping` on a shaping-stage failure
+`routed: needs:definition #{n}` on the Framing Guard's routing outcome,
+`failed: shaping` on a shaping-stage failure (which includes the Framing
+Guard's own failed `needs:definition` stamp, per that section's step 1)
 (`_shared/issue-claims.md`'s Release triggers table) — and
 `--remove-in-progress` to remove the `bot:in-progress` label in the same
 call (best-effort, per `_shared/issue-claims.md`'s "The bot:in-progress
@@ -350,6 +403,9 @@ label" section — never blocking the release itself on a failed removal):
 # Success path:
 node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" {n} --run "$RUN_DIR" \
   --reason "shaped: #{n}" --remove-in-progress --section "/specify" --step "Release"
+# Routed path (Framing Guard's solution-baked outcome):
+node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" {n} --run "$RUN_DIR" \
+  --reason "routed: needs:definition #{n}" --remove-in-progress --section "/specify" --step "Release"
 # Shaping-stage failure path:
 node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" {n} --run "$RUN_DIR" \
   --reason "failed: shaping" --remove-in-progress --section "/specify" --step "Release"
@@ -372,11 +428,23 @@ Any Preflight failure (Preflight section above), any Claim-step infra
 failure (the live label re-read or `resolve-run-dir` call itself failing
 to run — as opposed to succeeding and returning an ineligible/contested
 result, which is a clean no-op per the Claim section above), and any
-post-claim shaping-stage failure (the Framing Guard section's own
-unparseable-verdict case, or the Shape section, throwing or returning an
-error — reported here only after Release above has already run), files
-the shared headless self-report
+post-claim shaping-stage failure — reported here only after Release above
+has already run — files the shared headless self-report
 (`_shared/headless-self-report.md`, `{caller}` = `specify`) before
-stopping — deduplicated against any existing open report. A zero-eligible
-exit (Zero eligible section) or a contested-claim exit (Claim section) is
-NOT a failure and files nothing.
+stopping — deduplicated against any existing open report.
+
+Post-claim shaping-stage failures are, concretely:
+
+- **Framing Guard** (the section generally, not one case of it): its
+  record fetch or its `Skill()` invocation failing to run at all;
+  `framing-check` returning output with no parseable verdict line; and, on
+  the routed path, the `needs:definition` stamp itself failing (that
+  section's step 1 — the routing never landed, so the outcome is a
+  failure, not the routed success).
+- **Shape**: `shaping-mode.md` throwing or returning an error — its
+  compose-then-write-once call failing, or its own read-back verification
+  failing.
+
+A zero-eligible exit (Zero eligible section), a contested-claim exit
+(Claim section), and the Framing Guard's routed outcome with only its
+comment failing (that section's step 2) are NOT failures and file nothing.

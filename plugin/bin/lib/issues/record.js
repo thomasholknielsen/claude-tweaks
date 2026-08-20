@@ -274,7 +274,10 @@ function normalizeLabelNames(labels) {
 // size:* label was found.
 // Shared-key defaults come from facet-shape.js — local-store.js's defaultFacets
 // builds on the same shape (plus its own local-only keys). Add a new shared
-// facet key there, not independently here.
+// facet key there, not independently here — the sanctioned exception is a key
+// with no meaning on the other driver, declared driver-locally instead (see
+// shapedHeadless immediately below, the GitHub-only counterpart to
+// local-store.js's parent/blockedBy/unsynced keys).
 function parseRecordFacets(labels) {
   const names = normalizeLabelNames(labels);
 
