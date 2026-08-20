@@ -298,7 +298,7 @@ nobody is present to answer it; `shaping-mode.md`'s own return clause
 names the `next` form's headless posture as a second reason to skip that
 render, alongside `--chained`). Shaping mode's own `ready` stamp is what
 removes the record from future `next` eligibility — no extra state change
-is needed here.
+is needed here beyond the `shaped:headless` stamp described below.
 
 A shaping-stage failure — the compose-then-write-once call failing, or
 `shaping-mode.md`'s own read-back verification failing — is a failure for
@@ -319,14 +319,13 @@ gh issue edit {n} --add-label "ready,shaped:headless"
 
 **Decision-log fallback.** Every auto-resolved decision this guard and
 this stamp produce (the framing verdict, the design-intent resolution
-already established by Flag rejection above, and this label write) logs
-per `_shared/auto-decision-log.md`'s schema when a pipeline run dir
-resolves. A Routine firing resolves no pipeline run dir — `$RUN_DIR`
-above is this firing's *claim* run directory
-(`_shared/pipeline-run-dir.md`'s standalone-auto fallback), not a
-`/flow`-style pipeline run — so the documented fallback applies: these
-decisions are noted in the firing's own returned output only, with no
-alternate log target.
+already established by Flag rejection above, and this label write) logs to
+`$RUN_DIR/decisions.md` per `_shared/auto-decision-log.md`'s schema — the
+same convention `## Claim` and `## Release` sections use for the same
+firing. When a Routine fires with no explicit pipeline run dir configured,
+`$RUN_DIR` resolves via `_shared/pipeline-run-dir.md`'s standalone-auto
+fallback, ensuring every auto-resolved decision is recorded in that
+fallback run dir's audit log, not only in the firing's returned output.
 
 ## Release
 
