@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "record-435",
-  "reason": "correcting-erroneous-claim-id",
-  "releasedAt": "2026-08-20T04:45:08.411Z"
+  "runId": "2026-08-20T044217-record-435",
+  "sessionId": "da7611d3-fab7-4e1a-bd88-9de61b8445ba",
+  "claimedAt": "2026-08-20T04:45:13.781Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
