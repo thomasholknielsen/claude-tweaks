@@ -76,6 +76,18 @@ Two consequences, both load-bearing:
 - **`work/{n}-spec.md` is the exception** and stays inside the worktree. It is git-tracked
   and must be committed onto the feature branch; it reaches the main checkout by merge.
 
+**The staged-file invariant.** A staged proposal (`_shared/staged-patch.md`'s Artifact
+format — a review/reflect/test-fix/deepen-collapse `.patch`) lives at the **absolute**
+anchored path under `$RUN_ROOT/.claude-tweaks/pipelines/{run-id}/…/staged/`, never at a
+worktree-relative shadow — the same rule as the bullet above, restated as its own
+paragraph because a curation judge (`wrap-up/curation-engine.md` §3/§4) runs inside the
+worktree by necessity, so a path resolved relatively from that cwd is the *default*
+failure mode there, not agent carelessness. The staging-time `git apply --check` gate
+(`_shared/staged-patch.md`'s Staging-time gate) and the judge's own `test -f`
+self-verification (`curation-engine.md` §4) both check against this same anchored path
+before anything is logged as staged; the post-fan-out shadow sweep (`curation-engine.md`
+§4) is the routine remedy for a staged file that ends up in the shadow anyway.
+
 The `worktree-always` PreToolUse gate permits writes to this path from anywhere — see the
 one exemption in `_shared/policy-schema.md`. That exemption is file-write-only, so a
 `git commit` issued from the main checkout is still denied.

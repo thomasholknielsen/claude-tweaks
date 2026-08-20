@@ -104,6 +104,42 @@ test('the fallback procedure heading is stated once — only in the contract', (
   }
 });
 
+// #737: the anchored-staged-path invariant is owned by pipeline-run-dir.md's Anchoring
+// section — stated once there, cited (not restated) by staged-patch.md and curation-engine.md.
+const RUN_DIR_DOC = path.join(SKILLS, '_shared', 'pipeline-run-dir.md');
+const INVARIANT_MARKER = '**The staged-file invariant.**';
+const CITATION_PHRASE = "the staged-file invariant `_shared/pipeline-run-dir.md`'s Anchoring section states as the single owner";
+
+test('pipeline-run-dir.md Anchoring section states the staged-file invariant exactly once, repo-wide', () => {
+  const walk = (dir, acc = []) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full, acc);
+      else if (e.name.endsWith('.md')) acc.push(full);
+    }
+    return acc;
+  };
+  let ownerHits = 0;
+  for (const file of walk(SKILLS)) {
+    const text = fs.readFileSync(file, 'utf8');
+    const count = text.split(INVARIANT_MARKER).length - 1;
+    if (file === RUN_DIR_DOC) { ownerHits = count; continue; }
+    assert.equal(count, 0, `${path.relative(SKILLS, file)} restates the staged-file invariant marker`);
+  }
+  assert.equal(ownerHits, 1, 'pipeline-run-dir.md states the staged-file invariant marker exactly once');
+  const anchoring = fs.readFileSync(RUN_DIR_DOC, 'utf8');
+  const section = anchoring.slice(anchoring.indexOf('## Anchoring'));
+  assert.ok(section.includes(INVARIANT_MARKER), 'marker lives inside the Anchoring section');
+  assert.match(section, /worktree-relative shadow/, 'names the shadow failure mode');
+  // pipeline-run-dir.md hard-wraps prose across lines — a `.` in a regex does not span a
+  // newline, so a proximity check between two substrings that might land on different wrapped
+  // lines must not rely on `.*` (see the sibling "Whitespace-spanning sweep greps" class of
+  // bug). Two independent substring checks instead of one order/proximity-sensitive regex.
+  assert.ok(section.includes('curation-engine.md'), 'names curation-engine.md as the remedy owner');
+  assert.ok(section.includes('§4'), 'names §4 as the remedy location');
+  assert.ok(section.includes('post-fan-out shadow sweep'), 'names the shadow-sweep remedy by name');
+});
+
 // ---- Live discrimination probe: the mechanism the contract's prose relies on ----
 // Spawn env hardened against a global commit.gpgsign=true or template hook affecting the
 // fixture; every spawn (setup and probes) is bounded so a hang fails fast and names itself.
