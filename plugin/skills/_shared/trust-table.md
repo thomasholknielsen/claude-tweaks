@@ -107,14 +107,105 @@ node -e "
 ```
 
 **`work-links: native`** — the parent body carries no task list, so fetch parent numbers alone and
-query the sub-issues API instead, one call per parent:
+query the sub-issues API instead, via a batched aliased-GraphQL probe with a per-parent REST
+fallback:
 
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 gh issue list --label parent-issue --state all --json number --limit "$LIMIT" \
   > /tmp/trust-table-parent-issues.json
+```
 
+```bash
+node -e "
+  const parents = require('/tmp/trust-table-parent-issues.json');
+  if (parents.length === Number(process.env.FETCH_LIMIT)) {
+    console.error('WARNING: fetched exactly ' + parents.length + ' parent-issue records (the configured backlog-fetch-limit) — older parent issues were dropped, so their sub-issues may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
+  }
+"
+```
+
+The sub-issue fetch itself follows the same session-scoped freshness rule as the git-log dump
+below and the record snapshot in `_shared/record-queue-fetch.md`'s Session-scoped record snapshot
+section — reuse `/tmp/ct-subissues-{session-id}.json` (`record-snapshot.js`'s
+`subIssuesPath($CLAUDE_CODE_SESSION_ID)`) when fresh, else regenerate it via the batched probe
+below:
+
+```bash
+SUBSNAP=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
+if [ -n "$SUBSNAP" ] && node -e "
+  const { isFresh } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js');
+  process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
+" "$SUBSNAP" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
+  cp "$SUBSNAP" /tmp/trust-table-sub-issues.json
+fi
+```
+
+When the block above wrote `/tmp/trust-table-sub-issues.json` (the snapshot was fresh), skip
+straight to the git-log section below — the fetch and retry ladder that follow are unnecessary.
+Otherwise, run the batched fetch — one CLI call resolving every parent's sub-issues at once
+(`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), xargs-fed
+so an empty parent list still runs the CLI validly (its zero-positional contract prints an empty
+envelope rather than erroring):
+
+```bash
+node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))" | xargs node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" > /tmp/trust-table-sub-issues-batch.json
+```
+
+Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
+GraphQL field is unavailable on this host — run the Fallback block below for **every** parent
+instead of the canonicalization step that follows; it produces the same
+`/tmp/trust-table-sub-issues.json` by the older, verbatim REST path. **Exit 3** — the GraphQL call
+itself failed (network/API error, or a missing-repository response) — the run fails loud: report
+no verdict at all, naming the failed parents from the command's stderr. **Exit 0** — continue to
+the retry ladder below.
+
+The batch envelope's `retry` array names parents the probe could not resolve in one page — a
+missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true
+(`native-dependencies.js`'s `fetchNativeSubIssues` never lands a parent in `byParent` for either
+case, so a truncated page can never masquerade as a complete one). Each retry parent gets its own
+paginated REST call, exactly like the Fallback block's per-parent loop, and a retry parent whose
+REST call also fails throws, naming the parent — by design, this never coerces to an empty list:
+
+```bash
+node -e "
+  const fs = require('fs');
+  const { execFileSync } = require('child_process');
+  const batch = require('/tmp/trust-table-sub-issues-batch.json');
+  const byParent = batch.byParent || {};
+  const retryParents = batch.retry || [];
+  const retryResults = [];
+  for (const n of retryParents) {
+    let nums;
+    try {
+      const out = execFileSync('gh', ['api', '--paginate', 'repos/{owner}/{repo}/issues/' + n + '/sub_issues', '--jq', '.[].number'], { encoding: 'utf8' });
+      nums = out.trim().split('\n').filter(Boolean).map(Number);
+    } catch (err) {
+      throw new Error('sub-issue REST retry failed for parent #' + n + ': ' + (err && err.message ? err.message : String(err)));
+    }
+    retryResults.push(...nums);
+  }
+  if (retryParents.length) {
+    console.error('WARNING: ' + retryParents.length + ' parent(s) needed a per-parent REST retry (no alias, or more than one page, in the batched probe): ' + retryParents.join(', '));
+  }
+  const all = Object.values(byParent).flat().concat(retryResults);
+  const subIssueNumbers = Array.from(new Set(all)).sort((a, b) => a - b);
+  fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
+  const subSnapPath = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
+  if (subSnapPath) fs.writeFileSync(subSnapPath, JSON.stringify(subIssueNumbers));
+"
+```
+
+The throw above runs before either write, so a failed retry can never leave a partial
+`/tmp/trust-table-sub-issues.json` or a stale-looking snapshot on disk.
+
+#### Fallback (probe unavailable — older GHE)
+
+Runs only on exit 4 above, for every parent — the older, per-parent REST loop this branch used
+before the batched probe existed:
+
+```bash
 : > /tmp/trust-table-sub-issue-numbers.jsonl
 node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
   gh api "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-sub-issue-numbers.jsonl
@@ -130,6 +221,16 @@ node -e "
   fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
 "
 ```
+
+The error ladder, end to end: the batched alias resolves the common case in one call; a missing
+alias or a truncated `hasNextPage` page joins `retry` rather than ever being read as "no
+sub-issues"; a per-parent REST retry covers those; and a retry that also fails, or the batched
+call itself failing outright (exit 3), fails loud rather than rendering a verdict on incomplete
+data — partial pages are never used as if they were complete. Both the primary path and the
+Fallback path converge on the same canonicalized `/tmp/trust-table-sub-issues.json` — numerically
+sorted, deduplicated — which is what makes them interchangeable: the downstream consumer wraps
+its contents in a `Set`, so canonical order is the equality bar between the two paths' output, not
+just set-equivalence.
 
 With `/tmp/trust-table-sub-issues.json` written by whichever branch applies, fetch the record
 set itself — this block resolves its own `$LIMIT`/`FETCH_LIMIT` too, for the same reason:
