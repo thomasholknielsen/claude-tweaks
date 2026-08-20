@@ -97,7 +97,7 @@ Read the ledger and filter by criteria:
 
 ### Resolve Gate (Nothing-Left-Behind)
 
-The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure: `_shared/ledger-format.md`'s Resolve Gate section. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
+The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Phase 1 opens with a re-check: an `open` item whose own cited reference (a commit, PR, or issue) already shows it resolved outside this run skips straight to a terminal status instead of spending a fresh fix attempt or a Phase 2 drill question on it — the mechanism for a low-confidence finding that was deliberately left open for human attention and got fixed in a later, separate PR. Full procedure: `_shared/ledger-format.md`'s Resolve Gate section. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up`'s Phase 3 ledger gate and `/claude-tweaks:flow` Step 5.
 
 ### Delete
 
