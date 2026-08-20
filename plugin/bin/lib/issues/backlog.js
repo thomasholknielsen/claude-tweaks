@@ -220,8 +220,12 @@ function funnelBuckets(records) {
     // The human lane covers records still in play — a bot is actively
     // building an inFlight record, and parked/not-planned records are
     // /tidy's domain; surfacing them as the session's recommended move would
-    // invert the lane's premise. Skip before the facet checks below.
-    if (f.bot.inProgress || f.stage === 'parked' || f.notPlanned === true) continue;
+    // invert the lane's premise. A decomposition parent is skipped too: it
+    // routes to the `parents` bucket above, never `dispatchable`, and its
+    // needs-you launcher would misroute to `/specify #N` on a parent
+    // (#616's defect class, reappearing on this overlay surface — #766).
+    // Skip before the facet checks below.
+    if (f.bot.inProgress || f.stage === 'parked' || f.notPlanned === true || f.isParentIssue) continue;
     const id = r.number ?? r.id;
     if (f.needsDefinition === true) needsYou.push({ id, kind: 'definition' });
     else if (f.solutionUnjustified === true) needsYou.push({ id, kind: 'unjustified' });

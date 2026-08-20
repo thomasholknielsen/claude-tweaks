@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.100.1 — Merged-PR batch: worktree gate same-command shell-variable resolution (#630); cloud-setup drift check resolves sha-pinned catalog entries (#860 follow-up); backlog overview needsYou overlay skips parent records (#766); Shape 2 prose-only trigger false-premise guard; IL-141/IL-115 citation fixes
+
+Merged-PR batch: worktree gate same-command shell-variable resolution (#630); cloud-setup drift check resolves sha-pinned catalog entries (#860 follow-up); backlog overview needsYou overlay skips parent records (#766); Shape 2 prose-only trigger false-premise guard; IL-141/IL-115 citation fixes.
+
 ## v6.100.0 — Merged-PR batch: reconcile compact default output + --json (#638); worktree PreToolUse guard over-match fix (#861); worktree-always write-shape docs (#640); RENAMED_KEYS conformance pin (#629); auto-mode severity ceiling vocabulary (#332); capture duplicate-CLI cross-session signal (#789); archiveRunDir engine-state residue (#893); resolve-profile session-failure blacklist follow-ups parked (#841); ledger post-hoc drift fast-lane (#879); tidy scan-procedures gh-absent description fix (#172 follow-up); EnterWorktree retry branch-collision fast-lane; verify-mode entry-grammar dedup
 
 Merged-PR batch: reconcile compact default output + --json (#638); worktree PreToolUse guard over-match fix (#861); worktree-always write-shape docs (#640); RENAMED_KEYS conformance pin (#629); auto-mode severity ceiling vocabulary (#332); capture duplicate-CLI cross-session signal (#789); archiveRunDir engine-state residue (#893); resolve-profile session-failure blacklist follow-ups parked (#841); ledger post-hoc drift fast-lane (#879); tidy scan-procedures gh-absent description fix (#172 follow-up); EnterWorktree retry branch-collision fast-lane; verify-mode entry-grammar dedup.

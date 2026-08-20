@@ -461,6 +461,23 @@ test('funnelBuckets: notPlanned record with solutionUnjustified does NOT appear 
   assert.deepEqual(b.notPlanned.map((r) => r.number), [1]);
 });
 
+// #766: a decomposition parent routes to the `parents` bucket, never
+// dispatchable — its needsYou launcher would misroute to `/specify #N` on a
+// parent (the same defect class #616 fixed on the Shape paste block, missed
+// on this overlay surface). Mirrors the inFlight/notPlanned overlay-filter
+// tests above.
+test('funnelBuckets: parent record with needsDefinition does NOT appear in needsYou', () => {
+  const b = funnelBuckets([rec(1, { isParentIssue: true, needsDefinition: true })]);
+  assert.deepEqual(b.needsYou, []);
+  assert.deepEqual(b.parents.map((r) => r.number), [1]);
+});
+
+test('funnelBuckets: parent record with solutionUnjustified does NOT appear in needsYou', () => {
+  const b = funnelBuckets([rec(1, { isParentIssue: true, solutionUnjustified: true })]);
+  assert.deepEqual(b.needsYou, []);
+  assert.deepEqual(b.parents.map((r) => r.number), [1]);
+});
+
 test('readyGrantedSubset: returns only ready+granted records, in input order', () => {
   const records = [
     rec(1, { stage: 'ready', grants: { build: true, merge: false } }),   // included (build grant)
