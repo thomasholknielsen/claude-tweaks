@@ -145,10 +145,7 @@ test('manifesto-lever-conformance', async (t) => {
   // name. Lever 5's name is "Leftover routing" but its config key is
   // `leftover-default`, not `leftover-routing`; a naive transform would
   // silently check for the wrong string.
-  const leverToKey = {};
-  leverNames.forEach((name, i) => {
-    leverToKey[name] = configKeys[i];
-  });
+  const leverToKey = Object.fromEntries(leverNames.map((name, i) => [name, configKeys[i]]));
 
   for (const targetFile of TARGET_FILES) {
     const relPath = path.relative(REPO_ROOT, targetFile);
