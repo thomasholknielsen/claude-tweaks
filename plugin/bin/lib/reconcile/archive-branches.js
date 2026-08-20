@@ -76,6 +76,19 @@ function shouldAgeTag(dateIso, nowMs) {
   return nowMs - t > TAG_AGE_DAYS * 24 * 60 * 60 * 1000;
 }
 
+// branch name -> a flat (no '/'), injective tag suffix. Reversible
+// path-flattening: escape every literal '-' as '--' first, then replace
+// every remaining single '/' with a single '-'. A naive `/`->`-`
+// substitution alone is not injective (`build/foo-bar` and `build/foo/bar`
+// both become `build-foo-bar`), which — combined with the tag-creation call
+// site's `-f` force flag — would silently overwrite one branch's archive tag
+// with another's. Escaping `-` first structurally rules that out: two
+// distinct branch names can never encode to the same suffix. Never returns a
+// string containing '/'. See #548.
+function encodeArchiveTagSuffix(branch) {
+  return branch.replace(/-/g, '--').replace(/\//g, '-');
+}
+
 // Cherry equivalence: every commit on the branch is patch-equivalent to one
 // already on the integration branch (`git cherry` lines all start with '-';
 // empty output = no unique commits at all). A cherry failure fails closed.
@@ -116,10 +129,10 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
     }
     if (decision.action === 'tag-and-delete') {
       // Annotated + force-created: -f also fixes the retry dead-end where a
-      // pre-existing archive/{branch} tag from an earlier failed pass would
-      // permanently block archival — the tag is simply recreated at the
-      // same tip.
-      const tag = runGit(['tag', '-a', '-f', '-m', `archive of ${branch}`, `archive/${branch}`, tip], root);
+      // pre-existing archive/{encoded-branch} tag from an earlier failed
+      // pass would permanently block archival — the tag is simply recreated
+      // at the same tip.
+      const tag = runGit(['tag', '-a', '-f', '-m', `archive of ${branch}`, `archive/${encodeArchiveTagSuffix(branch)}`, tip], root);
       if (tag.failure) {
         entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'tag-failed' }); // fail closed: never delete untagged
         continue;
@@ -151,4 +164,4 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
   return { entries, failure: null };
 }
 
-module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS, isCherryEquivalent };
+module.exports = { decideArchive, inScope, shouldAgeTag, archiveBranches, BRANCH_AGE_DAYS, TAG_AGE_DAYS, isCherryEquivalent, encodeArchiveTagSuffix };

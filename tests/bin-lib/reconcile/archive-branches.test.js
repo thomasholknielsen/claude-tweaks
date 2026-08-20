@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { decideArchive, inScope, shouldAgeTag } = require('../../../plugin/bin/lib/reconcile/archive-branches');
+const { decideArchive, inScope, shouldAgeTag, encodeArchiveTagSuffix } = require('../../../plugin/bin/lib/reconcile/archive-branches');
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -67,6 +67,30 @@ test('shouldAgeTag: 91 days old -> true, 89 days -> false', () => {
 });
 test('shouldAgeTag: unparseable date -> false (fail closed)', () => {
   assert.strictEqual(shouldAgeTag('not-a-date', Date.now()), false);
+});
+
+// #548: encodeArchiveTagSuffix — flat (never contains '/') and injective
+// (two distinct branch names never collide), the fix for the D/F ref
+// conflict between e.g. archive/build/foo and archive/build/foo/bar.
+test('encodeArchiveTagSuffix: never returns a string containing "/"', () => {
+  assert.strictEqual(encodeArchiveTagSuffix('build/foo').includes('/'), false);
+  assert.strictEqual(encodeArchiveTagSuffix('build/foo/bar').includes('/'), false);
+  assert.strictEqual(encodeArchiveTagSuffix('worktree-record-42').includes('/'), false);
+  assert.strictEqual(encodeArchiveTagSuffix('build/foo-bar').includes('/'), false);
+});
+test('encodeArchiveTagSuffix: the reported example does not collide', () => {
+  assert.notStrictEqual(encodeArchiveTagSuffix('build/foo'), encodeArchiveTagSuffix('build/foo/bar'));
+});
+test('encodeArchiveTagSuffix: adversarial pair constructed to collide under naive "/"->"-" substitution does not collide', () => {
+  // Naive `branch.replace(/\//g, '-')` maps both of these to the same
+  // string ('build-foo-bar') because one input already contains a literal
+  // '-' where the other's flattened '/' would land. Escaping '-' as '--'
+  // before flattening '/' keeps them distinguishable.
+  const a = encodeArchiveTagSuffix('build/foo-bar');
+  const b = encodeArchiveTagSuffix('build/foo/bar');
+  assert.notStrictEqual(a, b);
+  assert.strictEqual(a, 'build-foo--bar');
+  assert.strictEqual(b, 'build-foo-bar');
 });
 
 const { execFileSync } = require('child_process');
@@ -135,7 +159,7 @@ test('archiveBranches: unmerged aged branch gets archive tag then delete; young 
   const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
   assert.strictEqual(r.entries.find((e) => e.name === 'build/aged').action, 'tag-and-delete');
   assert.strictEqual(r.entries.find((e) => e.name === 'build/young').action, 'skip');
-  assert.match(git(dir, 'tag', '--list', 'archive/build/aged'), /archive\/build\/aged/);
+  assert.match(git(dir, 'tag', '--list', 'archive/build-aged'), /archive\/build-aged/);
   assert.strictEqual(git(dir, 'branch', '--list', 'build/aged').trim(), '');
   assert.match(git(dir, 'branch', '--list', 'build/young'), /build\/young/);
 });
@@ -156,7 +180,7 @@ test('archiveBranches: same-pass survival — 120-day-old tip gets tagged AND th
   const entry = r.entries.find((e) => e.name === 'build/veryold');
   assert.strictEqual(entry.action, 'tag-and-delete');
   assert.strictEqual(git(dir, 'branch', '--list', 'build/veryold').trim(), ''); // branch gone
-  assert.match(git(dir, 'tag', '--list', 'archive/build/veryold'), /archive\/build\/veryold/); // tag survives — not aged out in the same pass
+  assert.match(git(dir, 'tag', '--list', 'archive/build-veryold'), /archive\/build-veryold/); // tag survives — not aged out in the same pass
 });
 
 test('archiveBranches: retry idempotency — a pre-existing lightweight archive tag from an earlier failed pass is force-replaced, not a dead end', () => {
@@ -170,7 +194,7 @@ test('archiveBranches: retry idempotency — a pre-existing lightweight archive 
     env: { ...process.env, GIT_COMMITTER_DATE: old, GIT_AUTHOR_DATE: old },
   });
   const tip = git(dir, 'rev-parse', 'build/retry').trim();
-  git(dir, 'tag', `archive/build/retry`, tip); // pre-existing lightweight tag, same tip, from an earlier failed pass
+  git(dir, 'tag', `archive/build-retry`, tip); // pre-existing lightweight tag, same tip, from an earlier failed pass
   git(dir, 'checkout', 'main');
 
   const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
@@ -178,7 +202,52 @@ test('archiveBranches: retry idempotency — a pre-existing lightweight archive 
   assert.strictEqual(entry.action, 'tag-and-delete');
   assert.notStrictEqual(entry.reason, 'tag-failed');
   assert.strictEqual(git(dir, 'branch', '--list', 'build/retry').trim(), '');
-  assert.match(git(dir, 'tag', '--list', 'archive/build/retry'), /archive\/build\/retry/);
+  assert.match(git(dir, 'tag', '--list', 'archive/build-retry'), /archive\/build-retry/);
+});
+
+// #548: the reported D/F-collision scenario. build/foo and build/foo/bar can
+// never exist as branches at the same time (git refuses that ref-prefix
+// overlap), so the repro archives-then-deletes build/foo first, then creates
+// and archives the unrelated build/foo/bar — proving the old unencoded
+// scheme's directory/file tag conflict (archive/build/foo would need to
+// become a directory to hold archive/build/foo/bar) no longer happens.
+test('archiveBranches: build/foo archived-and-deleted, then unrelated build/foo/bar archived — both succeed, two distinct tags, neither tag-failed', () => {
+  const dir = makeRepo();
+  const old = new Date(Date.now() - 20 * DAY).toISOString();
+
+  git(dir, 'checkout', '-b', 'build/foo');
+  fs.writeFileSync(path.join(dir, 'h1.txt'), 'h1\n');
+  git(dir, 'add', 'h1.txt');
+  execFileSync('git', ['commit', '-m', 'foo'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: old, GIT_AUTHOR_DATE: old },
+  });
+  git(dir, 'checkout', 'main');
+
+  const first = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const fooEntry = first.entries.find((e) => e.name === 'build/foo');
+  assert.strictEqual(fooEntry.action, 'tag-and-delete');
+  assert.notStrictEqual(fooEntry.reason, 'tag-failed');
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/foo').trim(), ''); // deleted, so build/foo/bar can now be created
+
+  git(dir, 'checkout', '-b', 'build/foo/bar');
+  fs.writeFileSync(path.join(dir, 'h2.txt'), 'h2\n');
+  git(dir, 'add', 'h2.txt');
+  execFileSync('git', ['commit', '-m', 'foo/bar'], {
+    cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_COMMITTER_DATE: old, GIT_AUTHOR_DATE: old },
+  });
+  git(dir, 'checkout', 'main');
+
+  const second = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => null });
+  const barEntry = second.entries.find((e) => e.name === 'build/foo/bar');
+  assert.strictEqual(barEntry.action, 'tag-and-delete'); // never 'skip'/'tag-failed' — the reported D/F conflict
+  assert.notStrictEqual(barEntry.reason, 'tag-failed');
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/foo/bar').trim(), '');
+
+  // Two distinct, flat tags — neither a directory, both independently listable.
+  assert.match(git(dir, 'tag', '--list', 'archive/build-foo'), /archive\/build-foo$/m);
+  assert.match(git(dir, 'tag', '--list', 'archive/build-foo-bar'), /archive\/build-foo-bar/);
 });
 
 test('archiveBranches: archive/* tag older than 90 days is deleted, younger kept', () => {
