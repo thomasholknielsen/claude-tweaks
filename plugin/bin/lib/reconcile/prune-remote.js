@@ -3,7 +3,10 @@
 // mutation in the reconcile family — every other check is local-only by
 // design (archive-branches.js). A pushed deletion is unrecoverable from
 // this checkout once origin GCs the ref, so the evidence bar is BOTH
-// signals at once: a MERGED PR (resolvePrState) AND cherry-equivalence of
+// signals at once: a MERGED PR — screened in one bulk call across the whole
+// in-scope branch set (resolvePrStatesBulk, #1082), then reconfirmed
+// per-branch (resolvePrState) for any branch the screen didn't already
+// skip — AND cherry-equivalence of
 // the remote ref against the integration branch (`git cherry` — the same
 // merged-in-substance evidence archive-branches.js documents; ancestry
 // alone is explicitly not trusted). Anything weaker — no PR, a closed
@@ -32,7 +35,7 @@ const { execFileSync } = require('child_process');
 const { runGit, DEFAULT_TIMEOUT_MS } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { inScope, isCherryEquivalent } = require('./archive-branches');
-const { resolvePrState } = require('./pr-state');
+const { resolvePrState, resolvePrStatesBulk } = require('./pr-state');
 
 // -> true (ref exists), false (provably gone — `ls-remote --exit-code`
 // exits 2), or null (indeterminate: network/timeout/any other failure).
@@ -71,9 +74,10 @@ function decideRemotePrune({ branch, cherryEquivalent, prState }) {
   return { action: 'delete', reason: 'merged-pr-cherry-equivalent' };
 }
 
-function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch, refExists } = {}) {
+function pruneRemote({ cwd, integration, dryRun, resolvePr, resolvePrBulk, skipFetch, refExists } = {}) {
   const root = cwd || process.cwd();
   const resolve = resolvePr || resolvePrState;
+  const resolveBulk = resolvePrBulk || resolvePrStatesBulk;
   const checkRefExists = refExists || ((r, b) => defaultRefExists(r, b, DEFAULT_TIMEOUT_MS));
   const entries = [];
 
@@ -98,19 +102,42 @@ function pruneRemote({ cwd, integration, dryRun, resolvePr, skipFetch, refExists
   const refs = runGit(['for-each-ref', '--format=%(refname:lstrip=3)', 'refs/remotes/origin'], root);
   if (refs.failure) return { entries, failure: 'git-failure' };
 
-  const toDelete = [];
+  // Collect the in-scope branch set first — the screen is one bulk call.
+  const inScopeBranches = [];
   for (const branch of refs.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
     if (branch === 'HEAD' || branch === integration) continue;
-    if (!inScope(branch, worktrees)) continue; // namespace + live-worktree guard — never reaches the decision fn
+    if (!inScope(branch, worktrees)) continue;
+    inScopeBranches.push(branch);
+  }
 
+  // Screen (#1082): one chunked GraphQL call for the whole set, destructive
+  // tie-break applied (#664 — any OPEN PR governs). ALL-OR-NOTHING: a failed
+  // screen skips the whole check, same fail-closed shape as fetch-failed.
+  const screen = inScopeBranches.length > 0
+    ? resolveBulk(root, inScopeBranches, { preferOpen: true })
+    : new Map();
+  if (screen === 'gh-absent') return { entries, failure: 'gh-absent' };
+  if (screen === 'network-failure') return { entries, failure: 'pr-screen-failed' };
+
+  const toDelete = [];
+  for (const branch of inScopeBranches) {
+    // Provisional verdict on screen evidence, through the UNCHANGED decision
+    // table. cherryEquivalent: true is a documented sentinel — safe because
+    // decideRemotePrune checks OPEN before cherry (order pinned by test) and
+    // cherry only gates the delete direction, which never happens without
+    // the per-branch confirm below. Screen evidence alone can only skip.
+    const provisional = decideRemotePrune({ branch, cherryEquivalent: true, prState: screen.get(branch) || null });
+    if (provisional.action === 'skip') {
+      entries.push({ name: branch, kind: 'remote-branch', action: 'skip', reason: provisional.reason });
+      continue;
+    }
+    // Candidate (screen said MERGED): today's exact per-branch evidence.
     const cherryEquivalent = isCherryEquivalent(root, integration, `origin/${branch}`);
     if (cherryEquivalent === null) {
       entries.push({ name: branch, kind: 'remote-branch', action: 'skip', reason: 'cherry-failed' });
       continue;
     }
-    // Destructive-caller tie-break (#664): any OPEN PR on this head must
-    // reach decideRemotePrune (-> skip pr-open), even when an older MERGED
-    // PR exists — the #570 review's reused-branch deletion gap.
+    // Confirm runs under dryRun too — reported reasons are confirmed reasons.
     const prState = resolve(root, branch, { preferOpen: true });
     const decision = decideRemotePrune({ branch, cherryEquivalent, prState });
     if (decision.action === 'skip' || dryRun) {

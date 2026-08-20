@@ -36,6 +36,15 @@ function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
+// Screen-then-confirm (#1082): every pre-existing test below injects only
+// `resolvePr` (the confirm step). Without a screen fake, `pruneRemote`
+// falls to the real `resolvePrStatesBulk`, whose `repoSlugOf` returns null
+// against these fixtures' file-path `origin` remotes — the whole check
+// would skip as `network-failure` before `resolvePr` is ever reached. This
+// permissive screen routes every branch down the candidate path so the
+// existing `resolvePr` fakes keep governing exactly as before.
+const permissiveScreen = (root, branches) => new Map(branches.map((b) => [b, { number: 99, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]));
+
 // A clone wired to a real bare origin — push --delete must actually land.
 function makeRepoWithOrigin() {
   const origin = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-origin-'));
@@ -83,11 +92,11 @@ test('pruneRemote: squash-merged remote build/* branch is deleted on origin; dry
   git(dir, 'cherry-pick', 'build/merged'); // merged in substance (squash-merge shape)
   git(dir, 'branch', '-D', 'build/merged'); // local branch already disposed; remote lingers
 
-  const dry = pruneRemote({ cwd: dir, integration: 'main', dryRun: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const dry = pruneRemote({ cwd: dir, integration: 'main', dryRun: true, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   assert.strictEqual(dry.entries.find((e) => e.name === 'build/merged').action, 'delete');
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/merged'), /build\/merged/); // dry-run did not mutate
 
-  const real = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const real = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   const entry = real.entries.find((e) => e.name === 'build/merged');
   assert.strictEqual(entry.action, 'delete');
   assert.strictEqual(entry.kind, 'remote-branch');
@@ -125,7 +134,7 @@ test('pruneRemote: refreshes origin before judging — a branch advanced from an
   git(clone2, 'push', 'origin', 'build/stale');
 
   // No fetch in `dir` — its refs/remotes/origin/build/stale is deliberately stale.
-  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   const entry = r.entries.find((e) => e.name === 'build/stale');
   assert.strictEqual(entry.action, 'skip');
   assert.strictEqual(entry.reason, 'not-cherry-equivalent'); // the internal fetch pulled the new commit in
@@ -149,7 +158,7 @@ test('pruneRemote: unmerged remote branch and non-namespace remote branch are ne
   git(dir, 'checkout', 'main');
   git(dir, 'branch', '-D', 'feature/out-of-scope');
 
-  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   assert.strictEqual(r.entries.find((e) => e.name === 'build/unmerged').reason, 'not-cherry-equivalent');
   assert.strictEqual(r.entries.find((e) => e.name === 'feature/out-of-scope'), undefined); // silent scope guard
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/unmerged'), /build\/unmerged/);
@@ -172,7 +181,7 @@ test('pruneRemote: integration branch is excluded even when it sits inside the p
   git(dir, 'push', 'origin', 'build/trunk');
   git(dir, 'checkout', 'main'); // build/trunk stays as a local ref but is no longer attached to any worktree
 
-  const r = pruneRemote({ cwd: dir, integration: 'build/trunk', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const r = pruneRemote({ cwd: dir, integration: 'build/trunk', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   assert.strictEqual(r.entries.find((e) => e.name === 'build/trunk'), undefined);
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/trunk'), /build\/trunk/);
 });
@@ -189,7 +198,7 @@ test('pruneRemote: origin/HEAD symbolic ref is never a candidate, alongside a re
   git(dir, 'cherry-pick', 'build/merged2');
   git(dir, 'branch', '-D', 'build/merged2');
 
-  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   assert.strictEqual(r.entries.find((e) => e.name === 'build/merged2').action, 'delete');
   assert.strictEqual(r.entries.find((e) => e.name === 'HEAD'), undefined);
   assert.strictEqual(git(dir, 'ls-remote', 'origin', 'refs/heads/build/merged2').trim(), ''); // real branch actually deleted
@@ -206,7 +215,7 @@ test('pruneRemote: skipFetch=true never calls fetch, trusts already-fetched refs
   git(dir, 'fetch', '--prune', 'origin'); // caller already fetched, simulating the shared-fetch path
   git(dir, 'remote', 'set-url', 'origin', 'https://example.invalid/nope.git');
 
-  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   assert.strictEqual(r.failure, null);
   void originUrl;
 });
@@ -223,7 +232,7 @@ test('pruneRemote: branch attached to a live worktree is silently out of scope',
   const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-wt-'));
   git(dir, 'worktree', 'add', path.join(wt, 'w'), 'build/wt'); // …but attached to a live worktree
 
-  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   assert.strictEqual(r.entries.find((e) => e.name === 'build/wt'), undefined);
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/wt'), /build\/wt/);
 });
@@ -267,7 +276,7 @@ test('pruneRemote: multiple prunable branches are deleted with ONE push call, no
   const wrapper = installPushWrapper(false);
   let result;
   try {
-    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   } finally {
     wrapper.restore();
   }
@@ -283,7 +292,7 @@ test('pruneRemote: a failed batch push falls back to per-branch deletes, one bad
   const wrapper = installPushWrapper(true);
   let result;
   try {
-    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   } finally {
     wrapper.restore();
   }
@@ -311,7 +320,7 @@ test('pruneRemote: batch fails; a branch already deleted before the fallback pus
   const wrapper = installPushWrapper(true); // batch push fails without touching origin; single-branch pushes hit real git
   let result;
   try {
-    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }) });
+    result = pruneRemote({ cwd: root, integration, skipFetch: true, resolvePr: () => ({ number: 1, state: 'MERGED' }), resolvePrBulk: permissiveScreen });
   } finally {
     wrapper.restore();
   }
@@ -357,6 +366,7 @@ test('pruneRemote: a genuine per-branch delete failure still reports delete-fail
     result = pruneRemote({
       cwd: root, integration, skipFetch: true,
       resolvePr: () => ({ number: 1, state: 'MERGED' }),
+      resolvePrBulk: permissiveScreen,
       refExists: () => true, // both branches provably still exist on origin
     });
   } finally {
@@ -443,7 +453,7 @@ test('pruneRemote passes preferOpen to its PR resolver (destructive tie-break wi
 
   const seenOpts = [];
   const resolvePr = (root, branch, opts) => { seenOpts.push(opts); return null; };
-  pruneRemote({ cwd: dir, integration: 'main', dryRun: true, resolvePr, skipFetch: true });
+  pruneRemote({ cwd: dir, integration: 'main', dryRun: true, resolvePr, skipFetch: true, resolvePrBulk: permissiveScreen });
   assert.equal(seenOpts.length, 1);
   assert.deepEqual(seenOpts[0], { preferOpen: true });
 });
@@ -465,7 +475,7 @@ test('#570 scenario: cherry-equivalent branch with MERGED + newer OPEN PR is ski
   const resolvePr = (root, branch, opts) => (opts && opts.preferOpen
     ? { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' }
     : { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' });
-  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, skipFetch: true });
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, skipFetch: true, resolvePrBulk: permissiveScreen });
   assert.equal(r.failure, null);
   const entry = r.entries.find((e) => e.name === 'build/reused');
   assert.equal(entry.action, 'skip');
@@ -473,4 +483,103 @@ test('#570 scenario: cherry-equivalent branch with MERGED + newer OPEN PR is ski
   // The pushed ref must still exist — no delete may have landed.
   const lsRemote = git(dir, 'ls-remote', '--heads', 'origin', 'build/reused');
   assert.match(lsRemote, /refs\/heads\/build\/reused/);
+});
+
+// Shared fixture: one in-scope, cherry-equivalent remote branch (squash-merge shape).
+function buildScreenFixture() {
+  const dir = makeRepoWithOrigin();
+  git(dir, 'checkout', '-b', 'build/screened');
+  fs.writeFileSync(path.join(dir, 's.txt'), 's\n');
+  git(dir, 'add', 's.txt');
+  git(dir, 'commit', '-m', 'change');
+  git(dir, 'push', 'origin', 'build/screened');
+  git(dir, 'checkout', 'main');
+  git(dir, 'cherry-pick', 'build/screened');
+  git(dir, 'branch', '-D', 'build/screened');
+  return dir;
+}
+const MERGED_PR = { number: 20, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const OPEN_PR = { number: 21, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
+
+test('screen-then-confirm: zero candidates -> one bulk call, zero per-branch resolver calls, screen-sourced reasons', () => {
+  const dir = buildScreenFixture();
+  let bulkCalls = 0; let confirmCalls = 0;
+  const resolvePrBulk = (root, branches, opts) => {
+    bulkCalls += 1;
+    assert.deepEqual(branches, ['build/screened']);
+    assert.equal(opts && opts.preferOpen, true);
+    return new Map([['build/screened', OPEN_PR]]);
+  };
+  const resolvePr = () => { confirmCalls += 1; return null; };
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk, skipFetch: true });
+  assert.equal(r.failure, null);
+  assert.equal(bulkCalls, 1);
+  assert.equal(confirmCalls, 0); // screen-skip is terminal — confirm never called
+  const entry = r.entries.find((e) => e.name === 'build/screened');
+  assert.equal(entry.action, 'skip');
+  assert.equal(entry.reason, 'pr-open');
+});
+
+test('screen-then-confirm: screen-null branch skips no-merged-pr without cherry or confirm', () => {
+  const dir = buildScreenFixture();
+  let confirmCalls = 0;
+  const resolvePrBulk = () => new Map([['build/screened', null]]);
+  const resolvePr = () => { confirmCalls += 1; return MERGED_PR; };
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk, skipFetch: true });
+  assert.equal(confirmCalls, 0);
+  const entry = r.entries.find((e) => e.name === 'build/screened');
+  assert.equal(entry.reason, 'no-merged-pr');
+});
+
+test('screen-then-confirm: screen-MERGED candidate confirms per-branch; confirm disagreement -> skip, ref survives', () => {
+  const dir = buildScreenFixture();
+  const resolvePrBulk = () => new Map([['build/screened', MERGED_PR]]);
+  const seenConfirmOpts = [];
+  const resolvePr = (root, branch, opts) => { seenConfirmOpts.push(opts); return OPEN_PR; }; // confirm sees a newer OPEN PR
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk, skipFetch: true });
+  assert.deepEqual(seenConfirmOpts, [{ preferOpen: true }]);
+  const entry = r.entries.find((e) => e.name === 'build/screened');
+  assert.equal(entry.action, 'skip');
+  assert.equal(entry.reason, 'pr-open');
+  assert.match(git(dir, 'ls-remote', '--heads', 'origin', 'build/screened'), /refs\/heads\/build\/screened/);
+});
+
+test('screen-then-confirm: confirmed MERGED candidate still deletes; dry-run still confirms and reports final reason', () => {
+  const dir = buildScreenFixture();
+  let confirmCalls = 0;
+  const resolvePrBulk = () => new Map([['build/screened', MERGED_PR]]);
+  const resolvePr = () => { confirmCalls += 1; return MERGED_PR; };
+  const dry = pruneRemote({ cwd: dir, integration: 'main', dryRun: true, resolvePr, resolvePrBulk, skipFetch: true });
+  assert.equal(confirmCalls, 1); // dry-run still confirms
+  assert.equal(dry.entries.find((e) => e.name === 'build/screened').reason, 'merged-pr-cherry-equivalent');
+  assert.match(git(dir, 'ls-remote', '--heads', 'origin', 'build/screened'), /refs\/heads\/build\/screened/); // dry-run deleted nothing
+  const real = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk, skipFetch: true });
+  assert.equal(real.entries.find((e) => e.name === 'build/screened').action, 'delete');
+  assert.equal(git(dir, 'ls-remote', '--heads', 'origin', 'build/screened').trim(), '');
+});
+
+test('screen-then-confirm: per-candidate confirm failure skips that branch, pass completes', () => {
+  const dir = buildScreenFixture();
+  const resolvePrBulk = () => new Map([['build/screened', MERGED_PR]]);
+  const resolvePr = () => 'network-failure';
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk, skipFetch: true });
+  assert.equal(r.failure, null);
+  assert.equal(r.entries.find((e) => e.name === 'build/screened').reason, 'network-failure');
+});
+
+test('screen failure is check-level and fail-closed: network -> pr-screen-failed, gh-absent -> gh-absent', () => {
+  const dir = buildScreenFixture();
+  let confirmCalls = 0;
+  const resolvePr = () => { confirmCalls += 1; return MERGED_PR; };
+  const net = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk: () => 'network-failure', skipFetch: true });
+  assert.deepEqual(net, { entries: [], failure: 'pr-screen-failed' });
+  const absent = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk: () => 'gh-absent', skipFetch: true });
+  assert.deepEqual(absent, { entries: [], failure: 'gh-absent' });
+  assert.equal(confirmCalls, 0);
+  assert.match(git(dir, 'ls-remote', '--heads', 'origin', 'build/screened'), /refs\/heads\/build\/screened/);
+});
+
+test('decideRemotePrune order pin: OPEN prState -> pr-open regardless of cherryEquivalent value (sentinel safety)', () => {
+  assert.strictEqual(decideRemotePrune({ branch: 'x', cherryEquivalent: true, prState: { number: 1, state: 'OPEN' } }).reason, 'pr-open');
+  assert.strictEqual(decideRemotePrune({ branch: 'x', cherryEquivalent: false, prState: { number: 1, state: 'OPEN' } }).reason, 'pr-open');
 });
