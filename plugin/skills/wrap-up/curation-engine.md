@@ -133,37 +133,10 @@ SCANNED {ISO-time} — {target}: gate {open|closed} ({gateReason}); read {N} ({p
 **Post-fan-out shadow sweep (routine, after every judged fan-out or singleton).** It runs after the agents return and **before any `record` call** — it can rewrite a payload's `stagePath` (below), and `record` must see the final value. Independently of what the payloads claim, sweep the current worktree's shadow of the run-dir path for stray staged files and relocate them to the anchored run directory — from the worktree, with `PIPELINE_RUN_DIR` set to the anchored run dir and `WORKTREE` to the worktree root:
 
 ```bash
-RUN_ROOT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --root-only)
-RUN_DIR=$( [ -n "$PIPELINE_RUN_DIR" ] && cd "$PIPELINE_RUN_DIR" 2>/dev/null && pwd -P )
-WT=$( [ -n "$WORKTREE" ] && cd "$WORKTREE" 2>/dev/null && pwd -P )
-if [ -z "$RUN_DIR" ] || [ -z "$WT" ]; then
-  echo "sweep: PIPELINE_RUN_DIR or WORKTREE unset/missing — not swept"
-elif [ "${RUN_DIR#"$RUN_ROOT"/}" = "$RUN_DIR" ]; then
-  echo "sweep: $RUN_DIR is not under $RUN_ROOT — not swept"
-else
-  SHADOW="$WT/${RUN_DIR#"$RUN_ROOT"/}"           # the worktree's shadow of .claude-tweaks/pipelines/{run-id}[/spec-{N}]
-  if [ ! "$SHADOW" -ef "$RUN_DIR" ] && [ -d "$SHADOW/staged" ]; then
-    for f in "$SHADOW"/staged/*; do
-      [ -e "$f" ] || continue
-      base=$(basename "$f")
-      if [ -L "$f" ] || [ ! -f "$f" ]; then echo "sweep: skipped $base — not a regular file"; continue; fi
-      dest="$RUN_DIR/staged/$base"
-      if [ -e "$dest" ]; then
-        dest="$dest.shadow-dup"; n=1
-        while [ -e "$dest" ]; do dest="$RUN_DIR/staged/$base.shadow-dup-$n"; n=$((n+1)); done
-        mv "$f" "$dest" && echo "collision: $base (kept as $(basename "$dest"))" || echo "sweep: FAILED to move $base — still in the shadow"
-      else
-        mv "$f" "$dest" && echo "relocated: $base" || echo "sweep: FAILED to move $base — still in the shadow"
-      fi
-    done
-    rmdir "$SHADOW/staged" 2>/dev/null || echo "sweep: shadow staged/ not empty after sweep — inspect $SHADOW/staged"
-  fi
-  if [ ! "$SHADOW" -ef "$RUN_DIR" ] && [ -f "$SHADOW/decisions.md" ] && [ ! -L "$SHADOW/decisions.md" ]; then
-    if grep '^- ' "$SHADOW/decisions.md" >> "$RUN_DIR/decisions.md"; then echo "relocated: decisions.md (entries appended)"; else echo "sweep: shadow decisions.md had no entries — dropped"; fi
-    rm "$SHADOW/decisions.md"
-  fi
-fi
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" sweep-shadow --run "$PIPELINE_RUN_DIR" --worktree "$WORKTREE"
 ```
+
+Same semantics documented below: `pwd -P`-style normalization on both paths, a same-path no-op when run from the main checkout (the `-ef` guard, ported), and every diagnostic line prefixed `sweep:`. One line per action on stdout — `relocated: {name}`, `collision: {name} (kept as {name}.shadow-dup[-N])`, or a `sweep: …` diagnostic — exit `0` on a clean or partial sweep, exit `1` iff any diagnostic line printed (`bin/lib/hooks/sweep-shadow.js` is the implementation; `bin/hooks.js sweep-shadow` its CLI wiring — this is a run-dir state operation, so it lives under the same `bin/hooks.js` verb dispatcher as `record-worktree`/`record-pr`/`close-run`, CLAUDE.md's Hooks section).
 
 The sweep targets `staged/` and a stray shadow `decisions.md` (whose `- ` entry lines are appended to the anchored log; its headers are dropped, and a headers-only file is reported as `had no entries — dropped`, never as appended) only — never `work/`, whose materialized `{n}-spec.md` legitimately lives in the worktree and reaches the main checkout by merge. Log one line per relocated file to the anchored `decisions.md` — `AUTO {time} — Shadow sweep: relocated staged/{name} from the worktree shadow to the anchored run dir. Reversibility: high.` — and, when a relocated file's name matches a payload's `stagePath` basename, treat that payload's `stagePath` as the anchored path from then on. Paths are normalized with `pwd -P` (a physical-path normalization of `_shared/pipeline-run-dir.md`'s Anchoring resolution) so trailing slashes and symlinked roots cannot defeat the prefix strip, and the same-path guard uses `-ef`, so running the sweep from the main checkout (where the shadow *is* the anchored dir) is a clean no-op that never touches the anchored `staged/`. A misconfiguration is never silent: an unset or missing `PIPELINE_RUN_DIR`/`WORKTREE`, or a run dir outside `$RUN_ROOT`, prints a `sweep: … — not swept` diagnostic. Every `sweep:` diagnostic line — not swept, `FAILED to move`, `skipped … not a regular file`, `shadow staged/ not empty after sweep` — is a tooling failure with no artifact to approve, so it is never logged `STAGED`: log `AUTO {time} — Shadow sweep: {diagnostic}; fan-out treated as unswept. Reversibility: n/a.` and add a wrap-up ledger item (status `open`) naming the diagnostic, so Phase 3's nothing-left-behind gate forces a decision rather than the console rendering a pending item with nothing to apply. A well-configured no-op sweep (nothing in the shadow) prints and logs nothing. A same-basename collision (staged names are per-row counters, so a shadow write and an anchored write of the same row collide by default) never overwrites the anchored file and never leaves the artifact in the shadow: the sweep moves the shadow copy to the anchored `staged/{name}.shadow-dup` (or `.shadow-dup-1`, `-2`, … when that slot is already taken — a repeated collision never overwrites an earlier, still-pending copy) and prints `collision: {name} (kept as {name}.shadow-dup)`; a shadow entry that is not a regular file (a symlink, a directory) is never moved or read — it is skipped with a `sweep: skipped … not a regular file` diagnostic and the shadow `staged/` is left for inspection; log it as `STAGED {time} — Shadow sweep: staged/{name} existed at both the anchored run dir and the worktree shadow; shadow copy kept as staged/{name}.shadow-dup for a human decision. Reversibility: high; stage path staged/{name}.shadow-dup.` so the console renders it as a pending item with the artifact safely anchored. In a multi-spec run the sweep runs once per `spec-{N}/` run dir the fan-out wrote to, plus the parent (`multispec-batch-curation.md`'s registry pass).
 

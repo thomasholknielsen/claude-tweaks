@@ -233,71 +233,7 @@ test('a denial applies the same reason to both grants', () => {
   assert.equal(result.grants.bornAuthorized.reason, result.reason);
 });
 
-// clearsFloor -- moved verbatim from the retired unattended-tier.test.js.
-
-test('clearsFloor returns true for an external-state blocker', () => {
-  assert.strictEqual(
-    clearsFloor('Requires external state (third-party API data) before this can be fixed'),
-    true,
-  );
-});
-
-test('clearsFloor returns true for a product/design-decision blocker', () => {
-  assert.strictEqual(
-    clearsFloor('Needs a product decision on the rate-limit value'),
-    true,
-  );
-});
-
-test('clearsFloor returns true for a not-yet-built-dependency blocker', () => {
-  assert.strictEqual(
-    clearsFloor('Depends on functionality not yet built in this pipeline (the /auth refresh endpoint)'),
-    true,
-  );
-});
-
-test('clearsFloor returns true for a scope-expansion blocker', () => {
-  assert.strictEqual(
-    clearsFloor('Would expand scope -- breaks 14 unrelated tests'),
-    true,
-  );
-});
-
-// Regression tests for the line-by-line finding: the digit count must exceed
-// resolve-gate.md's own '>10 unrelated tests' threshold, not merely be present.
-// These deliberately avoid the standalone "expand(s) scope" phrasing (its own
-// CATEGORY_PATTERNS entry) so only the digit-count check is exercised.
-test('clearsFloor returns false for a test-break count below the >10 threshold', () => {
-  assert.strictEqual(
-    clearsFloor('This fix breaks 2 unrelated tests'),
-    false,
-  );
-});
-
-test('clearsFloor returns false at exactly 10 unrelated tests (threshold is strictly >10)', () => {
-  assert.strictEqual(
-    clearsFloor('This fix breaks 10 unrelated tests'),
-    false,
-  );
-});
-
-test('clearsFloor returns true at 11 unrelated tests (just over the >10 threshold)', () => {
-  assert.strictEqual(
-    clearsFloor('This fix breaks 11 unrelated tests'),
-    true,
-  );
-});
-
-test('clearsFloor returns true for "more than 10 unrelated tests" wording', () => {
-  assert.strictEqual(
-    clearsFloor('This fix breaks more than 10 unrelated tests'),
-    true,
-  );
-});
-
-test('clearsFloor is case-insensitive', () => {
-  assert.strictEqual(clearsFloor('REQUIRES EXTERNAL STATE to proceed'), true);
-});
+// clearsFloor -- structured Defer-reason: path only (see #696).
 
 test('clearsFloor returns false for an ambiguous or unrecognized reason', () => {
   assert.strictEqual(clearsFloor('Not sure if this is even still relevant'), false);
@@ -313,27 +249,6 @@ test('clearsFloor returns false for a non-string input', () => {
 
 test('clearsFloor returns false for a whitespace-only string', () => {
   assert.strictEqual(clearsFloor('   '), false);
-});
-
-test('clearsFloor returns true for a third-party-dependency blocker', () => {
-  assert.strictEqual(
-    clearsFloor('Blocked on a third-party vendor shipping their webhook payload format'),
-    true,
-  );
-});
-
-test('clearsFloor returns true for a singular "approval" blocker', () => {
-  assert.strictEqual(
-    clearsFloor('Requires stakeholder approval before proceeding'),
-    true,
-  );
-});
-
-test('clearsFloor returns true for a plural "approvals" blocker (resolve-gate.md\'s own wording)', () => {
-  assert.strictEqual(
-    clearsFloor('Requires stakeholder approvals before proceeding'),
-    true,
-  );
 });
 
 // bookkeepingPermissions
@@ -450,24 +365,15 @@ test('clearsFloor: the documented verdict vector for the whole vocabulary, in co
   assert.deepStrictEqual(vocab.map(clearsFloor), [false, true, false, true, true, true]);
 });
 
-test('clearsFloor: a free-prose reason still resolves via the regex path', () => {
-  assert.strictEqual(clearsFloor('requires a product decision from the owner'), true);
-  assert.strictEqual(clearsFloor('Not sure if this is even still relevant'), false);
-});
-
-test('clearsFloor: a free-prose reason that merely contains a vocabulary word takes the regex path, not the structured one', () => {
-  // "tangential" is a structured false, but the surrounding prose names external state -> regex true.
-  assert.strictEqual(clearsFloor('tangential to the diff and blocked on external state'), true);
-  // exact-match only: whitespace or case variants are not structured values.
+test('clearsFloor: a free-prose reason that merely contains a vocabulary word is not the structured value itself', () => {
+  // exact-match only: whitespace or case variants, or prose merely mentioning a
+  // vocabulary word, are not structured values -- the structured path denies them.
+  assert.strictEqual(clearsFloor('tangential to the diff and blocked on external state'), false);
+  assert.strictEqual(clearsFloor('requires a product decision from the owner'), false);
   assert.strictEqual(clearsFloor(' blocked-external '), false);
   assert.strictEqual(clearsFloor('Blocked-External'), false);
 });
 
 test('clearsFloor: an unknown string returns false', () => {
   assert.strictEqual(clearsFloor('minor'), false);
-});
-
-test('autonomy.js source carries the regex fallback removal condition verbatim', () => {
-  const src = require('fs').readFileSync(require.resolve('../../../plugin/bin/lib/issues/autonomy.js'), 'utf8');
-  assert.ok(src.includes('Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.'));
 });

@@ -70,16 +70,56 @@ does for every other ledger producer (build, test, review, reflect):
 
 ## `remedy: auto` findings and the scratch worktree
 
-A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a merged-but-undeleted
-branch, a claim blob for a closed issue, a missing release-triple entry, an un-archived pipeline
-run dir whose `run-state.json` reached `status: clean`) is naturally a Phase 1 fix-now candidate —
-its `Item` description should say so. When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
+A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a claim blob for a closed
+issue, a missing release-triple entry, an un-archived pipeline run dir whose `run-state.json`
+reached `status: clean`) is naturally a Phase 1 fix-now candidate — its `Item` description should
+say so. A merged-but-undeleted branch carries `remedy: auto` too, but never reaches here under
+this preamble's `--scope blast-radius` (above): `probeBranches` only ever tags a branch
+`scope: 'observed'` once it survives the `scope.headBranch` exclusion (#499), so it's filtered
+out before Phase 1 sees it — same as any other `observed` finding, and still visible under
+`--scope repo` (`/tidy`'s job, not this preamble's). When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
 applies it and the write is not legal from wherever this session currently sits, provision a
-worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own commit, then
-merge back, and record the resulting sha as that item's `fixed` resolution. This applies to the
-pipeline-run-dir finding too: the directory lives in the main checkout, so the move (archive it
-under `.claude-tweaks/pipelines/archive/`) is usually illegal from wherever the run currently
-sits.
+worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own commit. This
+applies to the pipeline-run-dir finding too: the directory lives in the main checkout, so the move
+(archive it under `.claude-tweaks/pipelines/archive/`) is usually illegal from wherever the run
+currently sits.
+
+**Landing the batch — branches on `integration-model` (`_shared/integration-model.md`), the same
+shape `tidy/SKILL.md` Step 7.5 uses for its own Step 7 commit (#424, cross-checked and fixed here
+for this caller by #435):**
+
+- **`local-merge`** (including an unresolved/undetectable model — fail toward the behavior that
+  predates this branch): unchanged — `_shared/scratch-worktree.md` §5-6 merges the batch back into
+  the main checkout's integration branch, tear down via `ExitWorktree`, and record the landed
+  `sha` as each item's `fixed` resolution.
+- **`pr-first`**: skip §5-6's merge-back. Push the scratch worktree's branch
+  (`git -C "{worktree-path}" push origin {branch}`, its own Bash call) and open — or reuse/reopen
+  on a resumed run — a PR, reusing `_shared/pr-early-run-lifecycle.md`'s Step 1 (existing-PR
+  check) and Step 3 (compose-and-create) shapes exactly as `tidy/SKILL.md` Step 7.5 does. Stamp
+  `<!-- wrap-up-residue-pr -->` in the body at creation — a marker distinct from tidy's own
+  `<!-- tidy-housekeeping-pr -->`, since this is a separate call site producing a separate PR
+  shape, even though it shares that PR's semantic (an unreviewed, auto-generated housekeeping
+  commit). Record each landed item's `fixed` resolution as the PR reference (`PR #{n}`) rather
+  than a merge sha, since the commit hasn't reached the integration branch yet. **Arming**: this
+  reuses tidy's own `housekeeping-auto-merge` lever rather than introducing a new one — both call
+  sites gate the identical decision ("may an auto-generated housekeeping PR merge itself without a
+  human looking at it") and a residue-sweep-originated commit carries the same low-judgment,
+  purely-mechanical shape as a tidy Step-7 commit. Resolve it fresh (`resolve-policy.js`, JSON
+  mode, capturing `source`) before `ExitWorktree`: `false` → no action; `true` → arm now via
+  `_shared/pr-first-merge.md` Step 3's initial `gh pr merge --auto` call (not its degrade chain —
+  failure leaves it unarmed, reported). Log the outcome to `decisions.md`
+  (`_shared/auto-decision-log.md`, lever-attributed `[lever: housekeeping-auto-merge={true|false}
+  ({source})]`). **No sweep backstop**: unlike tidy's PR, `github-pr-scan.md`'s `repo-wide` item 9
+  does not recognize `<!-- wrap-up-residue-pr -->` — this residue-sweep procedure only ever runs
+  inside an already hands-off wrap-up, so creation-time arming is sufficient; an unarmed residue PR
+  simply stays visible, unmerged, in this run's own `decisions.md` rather than being picked up
+  later by a sweep. **If the push or both create attempts fail** (`pr-early-run-lifecycle.md`'s own
+  degrade path — network, auth, `gh` absent), don't strand the commit in a worktree nobody returns
+  to: fall through to the `local-merge` branch above and merge back locally instead, logging the
+  PR-open failure to `decisions.md`.
+
+Skip this entire branch decision when no `remedy: auto` finding was actually applied — nothing to
+land, nothing to push.
 
 ## `remedy: record` findings
 

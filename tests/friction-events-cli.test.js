@@ -1,0 +1,149 @@
+// tests/friction-events-cli.test.js — in-process tests for
+// bin/friction-events.js's run(argv, deps), mirroring
+// tests/resolve-blockers-cli.test.js's deps-injection style. Covers
+// argument parsing and the merged-events output shape (#500); the
+// underlying findRunsByWorktreePath lookup already has coverage in
+// tests/hooks-context.test.js and is not re-verified here beyond its own
+// call shape.
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { run } = require('../plugin/bin/friction-events');
+
+function fakeDeps(overrides = {}) {
+  const calls = { findRunsByWorktreePath: [], stdout: [], stderr: [] };
+  return {
+    calls,
+    isDirectory: () => true,
+    cwd: () => '/wt/current',
+    readEvents: (runDir, source) => (runDir === '/run/primary' ? [{ type: 'gate-denial', ts: 't1', _tag: 'primary-fixture' }] : []),
+    findRunsByWorktreePath: (cwd, target, excludeDir) => { calls.findRunsByWorktreePath.push({ cwd, target, excludeDir }); return []; },
+    stdout: (s) => calls.stdout.push(s),
+    stderr: (s) => calls.stderr.push(s),
+    ...overrides,
+  };
+}
+
+// --- argument parsing -----------------------------------------------------
+
+test('missing --run is a malformed invocation — exit 1, usage on stderr', () => {
+  const deps = fakeDeps({ isDirectory: () => { throw new Error('should not be called'); } });
+  const code = run([], deps);
+  assert.equal(code, 1);
+  assert.match(deps.calls.stderr.join(''), /missing required --run/);
+  assert.match(deps.calls.stderr.join(''), /usage: friction-events\.js/);
+});
+
+test('unknown flag is a malformed invocation — exit 1', () => {
+  const deps = fakeDeps();
+  const code = run(['--run', '/run/primary', '--bogus'], deps);
+  assert.equal(code, 1);
+  assert.match(deps.calls.stderr.join(''), /unknown argument: --bogus/);
+});
+
+test('--help prints usage and exits 0 without touching the filesystem', () => {
+  const deps = fakeDeps({ isDirectory: () => { throw new Error('should not be called'); } });
+  const code = run(['--help'], deps);
+  assert.equal(code, 0);
+  assert.match(deps.calls.stdout.join(''), /usage: friction-events\.js/);
+});
+
+test('--run naming a non-directory — exit 2', () => {
+  const deps = fakeDeps({ isDirectory: () => false });
+  const code = run(['--run', '/nope'], deps);
+  assert.equal(code, 2);
+  assert.match(deps.calls.stderr.join(''), /is not a directory/);
+});
+
+// --- worktree resolution ---------------------------------------------------
+
+test('defaults --worktree to deps.cwd() when omitted', () => {
+  const deps = fakeDeps();
+  run(['--run', '/run/primary'], deps);
+  assert.equal(deps.calls.findRunsByWorktreePath[0].target, '/wt/current');
+});
+
+test('an explicit --worktree overrides deps.cwd()', () => {
+  const deps = fakeDeps();
+  run(['--run', '/run/primary', '--worktree', '/wt/explicit'], deps);
+  assert.equal(deps.calls.findRunsByWorktreePath[0].target, '/wt/explicit');
+});
+
+test('excludes the primary run dir from the sibling lookup', () => {
+  const deps = fakeDeps();
+  run(['--run', '/run/primary'], deps);
+  assert.equal(deps.calls.findRunsByWorktreePath[0].excludeDir, '/run/primary');
+});
+
+// --- output shape ------------------------------------------------------
+
+test('success: primary events on stdout as a JSON array, tagged _source primary, exit 0', () => {
+  const deps = fakeDeps();
+  const code = run(['--run', '/run/primary'], deps);
+  assert.equal(code, 0);
+  const out = JSON.parse(deps.calls.stdout[0]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].type, 'gate-denial');
+  assert.equal(out[0]._tag, 'primary-fixture');
+});
+
+test('no primary events and no siblings — empty JSON array, not an error', () => {
+  const deps = fakeDeps({ readEvents: () => [] });
+  const code = run(['--run', '/run/other'], deps);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), []);
+});
+
+test('unions sibling (ad-hoc) run events with the primary run\'s, tagged _source adhoc', () => {
+  const deps = fakeDeps({
+    findRunsByWorktreePath: () => [{ runDir: '/run/adhoc-1', state: { worktree: '/wt/current' } }],
+    readEvents: (runDir, source) => (runDir === '/run/primary'
+      ? [{ type: 'gate-denial', ts: 't1', _source: source }]
+      : runDir === '/run/adhoc-1' ? [{ type: 'wd-deny', ts: 't0', _source: source }] : []),
+  });
+  const code = run(['--run', '/run/primary'], deps);
+  assert.equal(code, 0);
+  const out = JSON.parse(deps.calls.stdout[0]);
+  assert.equal(out.length, 2);
+  assert.equal(out.find((e) => e.type === 'gate-denial')._source, 'primary');
+  assert.equal(out.find((e) => e.type === 'wd-deny')._source, 'adhoc');
+});
+
+test('unions events from more than one sibling ad-hoc run dir', () => {
+  const deps = fakeDeps({
+    readEvents: () => [],
+    findRunsByWorktreePath: () => [
+      { runDir: '/run/adhoc-2', state: {} },
+      { runDir: '/run/adhoc-1', state: {} },
+    ],
+  });
+  deps.readEvents = (runDir) => (
+    runDir === '/run/adhoc-1' ? [{ type: 'wd-deny', ts: 't0' }]
+      : runDir === '/run/adhoc-2' ? [{ type: 'ask-user-question', ts: 't2' }]
+        : []
+  );
+  const code = run(['--run', '/run/primary'], deps);
+  assert.equal(code, 0);
+  const out = JSON.parse(deps.calls.stdout[0]);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map((e) => e.type).sort(), ['ask-user-question', 'wd-deny']);
+});
+
+// --- real readEvents behavior (against the actual filesystem-reading impl) ---
+
+test('the real readEvents helper parses events.jsonl, skips malformed lines, returns [] on a missing file', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { readEvents } = require('../plugin/bin/friction-events');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-fe-events-'));
+  fs.writeFileSync(
+    path.join(dir, 'events.jsonl'),
+    '{"type":"gate-denial","ts":"t1"}\nnot json\n{"type":"wd-deny","ts":"t2"}\n',
+  );
+  const events = readEvents(dir, 'primary');
+  assert.equal(events.length, 2);
+  assert.equal(events[0]._source, 'primary');
+  assert.equal(events[0]._runDir, dir);
+  assert.deepEqual(readEvents(path.join(dir, 'does-not-exist'), 'primary'), []);
+});

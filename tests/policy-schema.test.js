@@ -79,12 +79,15 @@ test('POLICY_KEYS entries are unique', () => {
   // 52 -> 53, #310 (sampling floor): grant-sampling-every — every Nth
   // machine-granted merged record is flagged for a real /demo verdict, so
   // human calibration evidence keeps entering the trust table.
-  // 53 -> 58, #194 (Phase 2 doc-convention wiring): doc-convention-tutorial,
+  // 53 -> 54, #660 (review prose-exemption lever): review-auto-apply-prose-exempt
+  // — lets a prose-only fix auto-apply one severity tier above the resolved
+  // review-auto-apply-ceiling, see skills/review/step3-routing.md.
+  // 54 -> 59, #194 (Phase 2 doc-convention wiring): doc-convention-tutorial,
   // doc-convention-how-to, doc-convention-reference, doc-convention-explanation,
   // doc-convention-journey — one enum key per newly-wired Diátaxis/Journey genre,
   // same shape as doc-convention-adr.
-  assert.strictEqual(POLICY_KEYS.length, 58);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 58);
+  assert.strictEqual(POLICY_KEYS.length, 59);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 59);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

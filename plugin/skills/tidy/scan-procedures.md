@@ -331,7 +331,12 @@ Scan recent git history for recurring findings across review summaries and wrap-
 
 When 3+ specs have shipped (`git log --all --oneline --grep="wrap-up" --since="8 weeks ago"`, or the same commit window this step's own scan above already searched), include a brief project health summary in the tidy report:
 
-1. **Velocity** — count shipped (git log for wrap-up/merge commits) vs. `ready`-or-building vs. `backlog`/`parked` (the latter two from Step 1's facet counts, when Step 1 is in scope)
+1. **Velocity** — count shipped (git log for wrap-up/merge commits) vs. `ready`-or-building vs.
+   `backlog`/`parked`. The shipped count is this step's own git-log scan (self-contained, per this
+   step's opening line); the other three are Step 1's facet counts, an opportunistic enrichment
+   included only when Step 1 already ran in this same tidy invocation (`patterns` scope run alone
+   never triggers Step 1 to satisfy this — `#205`: this bullet is additive to Step 5.5's
+   self-containment, not evidence against it)
 2. **Recurring themes** — conventions worth codifying if they appear in 3+ specs' wrap-up reflections
 3. **Convention candidates** — suggest: "This pattern shows up in {N} specs — consider adding to CLAUDE.md: `{pattern}`"
 

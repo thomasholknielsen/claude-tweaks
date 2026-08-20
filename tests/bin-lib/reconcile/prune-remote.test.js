@@ -410,9 +410,22 @@ test('index: pr-first repo with a working remote actually reaches the remote-pru
     'integration-model: pr-first\nintegration-branch: main\n',
   );
 
-  const withDispatch = await reconcile({ cwd: dir, checks: ['remote-prune'] });
-  assert.ok(Array.isArray(withDispatch.remoteBranches), 'remote-prune requested under pr-first must set remoteBranches to an array, not stay null');
+  // reconcile()'s preflight shells to the real `gh api rate_limit` with a
+  // 2s timeout; that live network call flaked in CI (observed failures at
+  // ~2051ms, right at the ceiling), skipping the remote-prune dispatch and
+  // leaving remoteBranches null regardless of this fixture. Stub it the
+  // same way tests/reconcile.test.js does throughout, so this test only
+  // discriminates on the dispatch block itself.
+  const preflight = require('../../../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  try {
+    const withDispatch = await reconcile({ cwd: dir, checks: ['remote-prune'] });
+    assert.ok(Array.isArray(withDispatch.remoteBranches), 'remote-prune requested under pr-first must set remoteBranches to an array, not stay null');
 
-  const withoutDispatch = await reconcile({ cwd: dir, checks: ['mirror'] });
-  assert.strictEqual(withoutDispatch.remoteBranches, null, 'remote-prune not requested must leave remoteBranches null');
+    const withoutDispatch = await reconcile({ cwd: dir, checks: ['mirror'] });
+    assert.strictEqual(withoutDispatch.remoteBranches, null, 'remote-prune not requested must leave remoteBranches null');
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
 });
