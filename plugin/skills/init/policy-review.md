@@ -12,7 +12,7 @@ Read `auditPolicy(repoRoot)` from `bin/lib/policy-schema.js` — the same module
 and Renamed key drift already call:
 
 ```bash
-node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); const r=auditPolicy(process.cwd()); console.log(JSON.stringify({invalidValues:r.invalidValues,unrecognizedKeys:r.unrecognizedKeys}))"
+node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); const r=auditPolicy(process.cwd()); console.log(JSON.stringify({invalidValues:r.invalidValues,unrecognizedKeys:r.unrecognizedKeys}))"
 ```
 
 - **`invalidValues`** — a recognized key set to a value its schema entry rejects (wrong type, an

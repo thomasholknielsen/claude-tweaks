@@ -58,7 +58,7 @@ Both drivers land in the same faceted-record shape (`{ ..., facets }`) at `/tmp/
 WEEKS="${RECORD_STALENESS_WEEKS:-4}"
 export STALENESS_WEEKS="$WEEKS"
 node -e "
-  const { isBacklog, isParked, isBotBlocked, isBotInProgress, classifyStaleness } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js');
+  const { isBacklog, isParked, isBotBlocked, isBotInProgress, classifyStaleness } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-buckets.js');
   const records = require('/tmp/help-records-faceted.json');
   const now = Date.now();
   const thresholdMs = Number(process.env.STALENESS_WEEKS) * 7 * 24 * 60 * 60 * 1000;
@@ -94,7 +94,7 @@ node -e "
 ```bash
 export GRANT_SAMPLING_EVERY="$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values grant-sampling-every)"
 node -e "
-  const { sampledForDemo } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-sampling.js');
+  const { sampledForDemo } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-sampling.js');
   const records = require('/tmp/help-records-faceted.json');
   const merges = records
     // stateReason !== 'NOT_PLANNED' excludes a granted-but-declined record
@@ -167,7 +167,7 @@ node -e "
 
 ```bash
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   console.log(JSON.stringify(queryRecords('specs', { stage: 'ready' })));
 " > /tmp/help-inflight-bodies.json
 ```
@@ -178,7 +178,7 @@ Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec
 
 ```bash
 node -e "
-  const { extractKeyFiles, expectsKeyFilesSection } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const { extractKeyFiles, expectsKeyFilesSection } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const inFlight = require('/tmp/help-inflight-bodies.json');
   const items = inFlight.map((r) => ({ id: r.number, keyFiles: extractKeyFiles(r) }));
   for (const [i, item] of items.entries()) {
@@ -194,7 +194,7 @@ node -e "
 
 ```bash
 node -e "
-  const { extractKeyFilesSection } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const { extractKeyFilesSection } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const inFlight = require('/tmp/help-inflight-bodies.json');
   const items = inFlight.map((r) => ({ id: r.id, keyFiles: extractKeyFilesSection(r.body) }));
   for (const [i, item] of items.entries()) {
@@ -210,7 +210,7 @@ Then call the shared grouping primitive:
 
 ```bash
 node -e "
-  const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const { groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const items = require('/tmp/help-records-key-files.json');
   const conflicts = groupByFileOverlap(items).filter((g) => g.length > 1);
   console.log(JSON.stringify(conflicts));
@@ -225,7 +225,7 @@ A record appearing in any group of size > 1 shares files with another open in-fl
 
 ```bash
 node -e "
-  const { rankNextToBuild } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
+  const { rankNextToBuild } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
   const candidates = require('/tmp/help-ready-authorized-candidates.json'); // [{id, facets, body, keyFiles, hasPlan}]
   console.log(JSON.stringify(rankNextToBuild(candidates)));
 "
@@ -290,7 +290,7 @@ calls run and their results merge:
 
 ```bash
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const records = [
     ...queryRecords('specs', { acceptance: 'pending' }),
     ...queryRecords('specs', { acceptance: 'pending', closed: true }),

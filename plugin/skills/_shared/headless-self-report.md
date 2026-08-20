@@ -34,7 +34,7 @@ gh issue list --label by:{caller} --state open --json number,title,body,createdA
 
 rm -f /tmp/{caller}-selfreport-lookup.json
 node -e "
-  const { findByMarker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/dedup-lookup.js');
+  const { findByMarker } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/dedup-lookup.js');
   const issues = require('/tmp/{caller}-selfreport-issues.json');
   const marker = '<!-- {caller}-preflight-marker: ' + process.argv[1] + ' -->';
   const result = findByMarker(issues, marker);

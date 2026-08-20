@@ -83,7 +83,7 @@ label sorts after every banded record, ordered among themselves by `createdAt` o
 
 ```bash
 node -e "
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const BAND_ORDER = { high: 0, medium: 1, low: 2 };
   const records = require('/tmp/backlog-attention-merged.json');
   const ranked = records

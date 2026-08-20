@@ -21,7 +21,7 @@ Phase 1 guarantees a run directory (see `_shared/pipeline-run-dir.md` for the re
 2. **Build the payload** via `recordPayload` (`bin/lib/issues/record.js`) — no `origin` param (a wrap-up leftover carries no `by:*` label; `_shared/work-record.md`'s origin axis records this case as the body's `Origin:` line). Landing states, per `_shared/work-record.md`'s born-shaped `/wrap-up` row: **born-ready** — `risk`/`size` judged per that file's Scoring axis from the section's own content, `ready: true`; **parked** (a real `Trigger:` in the header) — scored, `parked: true`, `ready: false` (`recordPayload` rejects both together); **needs-you** (the `openQuestion` body) — `needs:definition` in `Labels:`, no `ready`, no scoring. Also pass the same value as `recordPayload`'s `deferReason` — the composed body already carries the line, so this inserts nothing; it buys the mismatch throw (`record.js`'s match-or-throw), catching a staged header that diverges from the body:
 
    ```bash
-   node -e "const {recordPayload,specShapedBody}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
+   node -e "const {recordPayload,specShapedBody}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
      const args=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));
      const body=specShapedBody(args.compose);
      const p=recordPayload({ ...args.payload, body, deferReason: args.compose.provenance.deferReason });

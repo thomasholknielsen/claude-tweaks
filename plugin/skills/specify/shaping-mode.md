@@ -198,7 +198,7 @@ One further flag is keyed to the **entry path**, not to any verdict: when this p
 **`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.size`/`facets.ceremony`/`facets.type` when they were `null` (`facets.ceremony` always gets a value the first time a record is shaped — no null/unscored state for this axis, unlike `risk`/`size`) and `facets.solutionUnjustified` (unlike `facets.ceremony`, this one is written `true` ONLY on a final `solution-baked` outcome — `false` whenever the outcome is `open`, matching `sharedFacetDefaults()`'s own default). When the outcome is `open` and the record's existing `facets` already carry `solutionUnjustified: true` from an earlier pass, clear it — set `facets.solutionUnjustified` to `false` in the same `writeRecord` call rather than leaving a stale `true` on a record that has since re-shaped clean:
 
 ```bash
-node -e "const {writeRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+node -e "const {writeRecord}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   writeRecord(process.argv[1], { title: process.argv[2], body: process.argv[3], facets: JSON.parse(process.argv[4]) });
 " "$RECORD_PATH" "$TITLE" "$SHAPED_BODY" "$FACETS_JSON"
 ```

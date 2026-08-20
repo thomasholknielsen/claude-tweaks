@@ -33,7 +33,7 @@ Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec
 
 ```bash
 node -e "
-  const { extractKeyFiles } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const { extractKeyFiles } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const issues = require('/tmp/specify-all-issues.json').filter((i) => i.state === 'OPEN');
   console.log(JSON.stringify(issues.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }))));
 " > /tmp/specify-key-files.json
@@ -43,8 +43,8 @@ node -e "
 
 ```bash
 node -e "
-  const { extractKeyFilesSection } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { extractKeyFilesSection } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const records = queryRecords('specs', {});
   console.log(JSON.stringify(records.map((r) => ({ id: r.id, keyFiles: extractKeyFilesSection(r.body) }))));
 " > /tmp/specify-key-files.json
@@ -182,7 +182,7 @@ node -e "
   require('fs').writeFileSync('/tmp/specify-key-files.json', JSON.stringify(items));
 "
 node -e "
-  const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const { groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const items = require('/tmp/specify-key-files.json'); // [{id, keyFiles}] — new work units + open records
   console.log(JSON.stringify(groupByFileOverlap(items).filter(g => g.length > 1)));
 "

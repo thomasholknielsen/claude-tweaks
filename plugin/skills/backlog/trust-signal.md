@@ -33,7 +33,7 @@ the same reason `code-health/focus-mode.md`'s F1 block passes its own values tha
 ```bash
 node -e "
   const fs = require('fs');
-  const root = process.env.CLAUDE_PLUGIN_ROOT;
+  const root = '${CLAUDE_PLUGIN_ROOT}';
   const { trustRows, riskBand, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
   const { resolveProvenance } = require(root + '/bin/lib/issues/provenance.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');

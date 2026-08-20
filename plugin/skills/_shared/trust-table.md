@@ -95,7 +95,7 @@ export FETCH_LIMIT="$LIMIT"
 gh issue list --label parent-issue --state all --json number,body --limit "$LIMIT" \
   > /tmp/trust-table-parent-issues.json
 node -e "
-  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
   const parents = require('/tmp/trust-table-parent-issues.json');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
@@ -148,9 +148,9 @@ The git-log dump follows the same session-scoped freshness rule as the record sn
 when fresh, else regenerate it:
 
 ```bash
-GITLOG=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').gitLogPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
+GITLOG=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').gitLogPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
 if [ -n "$GITLOG" ] && node -e "
-  const { isFresh } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js');
+  const { isFresh } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js');
   process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
 " "$GITLOG" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
   cp "$GITLOG" /tmp/trust-table-git-log.txt
@@ -172,7 +172,7 @@ export FETCH_LIMIT="$LIMIT"
  with {tmp-records-file} = /tmp/trust-table-records.json}
 node -e "
   const fs = require('fs');
-  const { trustRows, parseGitLog } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/trust.js');
+  const { trustRows, parseGitLog } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/trust.js');
   const issues = require('/tmp/trust-table-records.json');
   const subIssues = new Set(require('/tmp/trust-table-sub-issues.json'));
   if (issues.length === Number(process.env.FETCH_LIMIT)) {

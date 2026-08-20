@@ -138,7 +138,7 @@ Before forming any finding, run these mechanical checks and treat their output a
 9. **Context-cost bloat scan** (any kind). Run the mechanical detector over the target, with the target's siblings supplying the corpus baseline:
    ```bash
    node -e "
-   const { bloatReport } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/skill-audit/bloat.js');
+   const { bloatReport } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/skill-audit/bloat.js');
    const [target, ...corpus] = process.argv.slice(1);
    console.log(bloatReport(target, corpus));
    " "<target-path>" "<root>"/.claude/skills/*.md "<root>"/.claude/skills/*/*.md

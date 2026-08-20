@@ -63,8 +63,8 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    ```bash
    gh issue list --state open --json number,title,labels --limit 200 > /tmp/pr-scan-records.json
    node -e "
-     const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-     const { isPendingAuthorization } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/pending-authorization.js');
+     const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+     const { isPendingAuthorization } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/pending-authorization.js');
      const issues = require('/tmp/pr-scan-records.json');
      const faceted = issues.map((i) => parseRecordFacets(i.labels));
      const withFacets = issues.map((i, idx) => ({ number: i.number, title: i.title, facets: faceted[idx] }));
@@ -175,7 +175,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
       NUM=$(echo "$FNAME" | sed -E 's/^issue-([0-9]+)\.json$/\1/')
       CONTENT=$(gh api "repos/{owner}/{repo}/contents/claims/${FNAME}?ref=claims-registry" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
       node -e "
-        const { classifyClaimBlob } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/claims.js');
+        const { classifyClaimBlob } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
         const c = classifyClaimBlob(process.argv[2] || null, Date.now());
         if (c.state !== 'live' && c.state !== 'stale') process.exit(0);
         const parsed = JSON.parse(process.argv[2]);
@@ -271,8 +271,8 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    ```bash
    gh issue list --label ready --state open --json number,labels --limit 200 > /tmp/triage-queue-ready.json
    node -e "
-     const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-     const { isPendingAuthorization } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/pending-authorization.js');
+     const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+     const { isPendingAuthorization } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/pending-authorization.js');
      const issues = require('/tmp/triage-queue-ready.json');
      const pending = issues.filter((i) => isPendingAuthorization(parseRecordFacets(i.labels))).length;
      console.log(pending);

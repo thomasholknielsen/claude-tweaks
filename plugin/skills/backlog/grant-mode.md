@@ -59,7 +59,7 @@ revocation (#268) — a class can read `clean` while this breaker is tripped, an
 
 ```bash
 node -e "
-  const { readWatched } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+  const { readWatched } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
   console.log(JSON.stringify(readWatched(process.cwd())));
 " > /tmp/backlog-grant-watched.json
 ```
@@ -77,7 +77,7 @@ An empty `{}` means nothing to sweep — skip straight to Step 1. Otherwise, for
 
    ```bash
    node -e "
-     const { classifyWatchedRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+     const { classifyWatchedRecord } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
      // entry = { number, grantedAt, lastKnownState: watched[number].lastKnownState, state, closedAt, labels }
      // gitLog: [{ sha, message }] from the already-fetched integration-branch log
      const result = classifyWatchedRecord(entry, gitLog, Date.now(), windowDays);
@@ -135,7 +135,7 @@ node -e "
   require('fs').writeFileSync('/tmp/backlog-grant-open-numbers.json', JSON.stringify(records.map((i) => ({ number: i.number }))));
 "
 node -e "
-  const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseRecordFacets, parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const issues = require('/tmp/backlog-grant-ready.json');
   const openNumbers = new Set(require('/tmp/backlog-grant-open-numbers.json').map((i) => i.number));
   const candidates = issues
@@ -175,7 +175,7 @@ pure module cannot make itself):
 
 ```bash
 node -e "
-  const { evaluateGrantGate } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-gate.js');
+  const { evaluateGrantGate } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-gate.js');
   const candidates = require('/tmp/backlog-grant-candidates.json');
   const policy = { ceiling: '$CEILING', grantOriginationEnabled: $([ \"$OPT_IN\" = 'true' ] && echo true || echo false), riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR' };
   // trustVerdicts: built the same way refine-mode.md's Trust Signal section builds its 'rows'
@@ -220,8 +220,8 @@ FLOOR_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge
 MERGE_SENSITIVE_PATHS=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '1p')   # line 1: merge-sensitive-paths (raw comma string; empty = none)
 FLEET_DAILY_GRANT_CAP=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '2p')   # line 2: fleet-daily-grant-cap (empty = unset/uncapped)
 node -e "
-  const { evaluateGrantGate } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-gate.js');
-  const { readBreakerState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+  const { evaluateGrantGate } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-gate.js');
+  const { readBreakerState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
   // ... same record/policy/trustVerdicts as Phase A, plus:
   const keyFiles = /* parsed from the record body's '### Key Files' list, one path per bullet */;
   const sensitivePaths = /* MERGE_SENSITIVE_PATHS from the resolver call above, split on ',' */;
@@ -283,7 +283,7 @@ else
   if [ "$AUTO_MERGE" = "true" ]; then
     gh issue edit "$ISSUE" --add-label auto:merge
     node -e "
-      const { writeWatched } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+      const { writeWatched } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
       writeWatched(process.cwd(), (current) => ({ ...current, ['$ISSUE']: { grantedAt: new Date().toISOString() } }));
     "
   fi

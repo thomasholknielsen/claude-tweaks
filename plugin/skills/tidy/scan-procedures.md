@@ -176,7 +176,7 @@ gh api "repos/{owner}/{repo}/contents/claims?ref=claims-registry" -q '.[].name'
 # for each claims/issue-<n>.json:
 gh issue view <n> --json state -q .state
 gh api "repos/{owner}/{repo}/contents/claims/issue-<n>.json?ref=claims-registry" -q '.content' | base64 -d > /tmp/tidy-claim-<n>.json
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   const content = require('fs').readFileSync(process.argv[1],'utf8');
   console.log(JSON.stringify(c.classifyClaimBlob(content, Date.now())))" /tmp/tidy-claim-<n>.json
 ```

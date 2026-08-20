@@ -34,7 +34,7 @@ its own — `gh` present proceeds via the gh-CLI calls below, `gh` absent via th
 Build the payload once, from either transport, the same way:
 
 ```bash
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),
   runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
   host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$RUN_ID" > /tmp/claim-payload-${ISSUE}.json
@@ -51,7 +51,7 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
     then `gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/heads/${CLAIMS_BRANCH}" -f "sha=${DEFAULT_SHA}"`
     to create.
   - **MCP:** call `create_branch` with name = `CLAIMS_BRANCH` (`claims-registry`,
-    `node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js').CLAIMS_BRANCH)"`)
+    `node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js').CLAIMS_BRANCH)"`)
     and source = the repository's default branch.
 
   Either bootstrap leaves `claims-registry` carrying the default branch's history underneath it
@@ -69,7 +69,7 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
        `CLAIMS_BRANCH`; not-found is a normal outcome.
   2. Classify what step 1 read (or its absence) with `classifyClaimBlob`:
      ```bash
-     node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+     node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
        const content = process.argv[1] === '__ABSENT__' ? null : require('fs').readFileSync(process.argv[1],'utf8');
        console.log(JSON.stringify(c.classifyClaimBlob(content, Date.now())))" \
        "${CONTENT_PATH_OR_ABSENT_SENTINEL}"
@@ -130,7 +130,7 @@ carries no identity the blob doesn't already carry authoritatively, and its own 
 affects claim state. Generate bodies with the module — never hand-write markers:
 
 ```bash
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   console.log(c.claimPayload({issueNumber:Number(process.argv[1]),
   runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
   host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$RUN_ID" > /tmp/claim-${ISSUE}.md
@@ -189,7 +189,7 @@ This is the single source of truth for whether an issue is claimed, by whom, and
 claim is breakable.
 
 ```bash
-node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   const content = process.argv[1] === '__ABSENT__' ? null : require('fs').readFileSync(process.argv[1],'utf8');
   const classified = c.classifyClaimBlob(content, Date.now());
   const identity = content ? JSON.parse(content) : null;

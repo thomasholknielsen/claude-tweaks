@@ -12,7 +12,7 @@ Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.
 
 ```bash
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const records = queryRecords('specs', { unsynced: true });
   console.log(JSON.stringify(records));
 " > /tmp/backlog-overview-unsynced.json
@@ -20,12 +20,12 @@ node -e "
 
 ```bash
 node -e "
-  const { deriveCreatedAtFromGit } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const records = require('/tmp/backlog-overview-unsynced.json');
   console.log(JSON.stringify(deriveCreatedAtFromGit(records)));
 " > /tmp/backlog-overview-unsynced-dated.json
 node -e "
-  const { mergeUnsyncedRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const { mergeUnsyncedRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const github = require('/tmp/backlog-overview-faceted.json');
   const unsynced = require('/tmp/backlog-overview-unsynced-dated.json');
   console.log(JSON.stringify(mergeUnsyncedRecords(github, unsynced)));
@@ -78,7 +78,7 @@ The funnel-computation script below then reads `all` with these `r.blockedBy` va
 
 ```bash
 node -e "
-  const bl = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const bl = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const all = require('/tmp/backlog-overview-faceted.json');
   console.log(JSON.stringify({
     critical: bl.filterCritical(all),
@@ -194,7 +194,7 @@ since the two subsets are not identical (see Step 2's pre-attach note for why). 
 
 ```bash
 node -e "
-  const { rankNextToBuild, findUnresolvedDependencyProse } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
+  const { rankNextToBuild, findUnresolvedDependencyProse } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
   const candidates = require('/tmp/backlog-overview-candidates.json'); // [{id, facets, body, keyFiles, hasPlan, blockedBy?}]
   console.log(JSON.stringify({ ranked: rankNextToBuild(candidates), flags: findUnresolvedDependencyProse(candidates) }));
 " > /tmp/backlog-overview-ranked.json
@@ -235,8 +235,8 @@ it directly instead of re-deriving membership ad hoc at render time:
 
 ```bash
 node -e "
-  const { buildChains, transitiveUnblocksCount, blockersOf } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
-  const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const { buildChains, transitiveUnblocksCount, blockersOf } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
+  const { groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const flags = require('/tmp/backlog-overview-ranked.json').flags.map((f) => f.id);
   const candidates = require('/tmp/backlog-overview-candidates.json').filter((c) => !flags.includes(c.id));
   const candidateIds = new Set(candidates.map((c) => c.id));
