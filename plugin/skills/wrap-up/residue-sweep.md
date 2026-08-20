@@ -138,7 +138,7 @@ or `needs:definition` by the same rules.
 
 ## The judgment class — named triggers
 
-Two observable classes resolve mechanically (the suite re-run above; a resolved gate denial, once
+Two observable classes resolve mechanically (the suite re-run above; a resolved gate denial —
 `events.jsonl` carries `gate-denial` entries). A third does not: something this session noticed by
 reading, not by running a command. Add either of these as an `open` ledger item by hand (`Phase:
 wrap-up`), same as any CLI-sourced finding:
