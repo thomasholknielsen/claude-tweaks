@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-20T135224-record-550",
-  "sessionId": "0657f497-2ee8-4e19-8994-de6bae21c41c",
-  "claimedAt": "2026-08-20T14:37:11.149Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: materialize-shape-gate",
+  "releasedAt": "2026-08-20T14:42:04.803Z"
 }
