@@ -40,12 +40,13 @@ against reality than trusting it in the abstract; do that for whichever check yo
    exactly (`tests/hooks-session-start.test.js`, `tests/bin-lib/hooks/reconcile-background.test.js`)
    — missing this step fails that assertion, not silently.
 4. **`bin/hooks.js`'s `reconcile-threw` fallback** — a **hand-maintained duplicate** of
-   `reconcile()`'s result shape (`{ mirror, worktrees, claims, runs, branches, remoteBranches,
-   console, skipped }`), substituted only when `reconcile()` itself throws. If the new check
-   populates a new top-level result key, this literal needs that key added too — an omission here
-   doesn't throw or fail a lint; it just silently under-reports on the one code path (a genuine
-   throw inside `reconcile()`) that almost never runs in normal testing, which is exactly what
-   makes it easy to miss.
+   `reconcile()`'s result shape (`{ mirror, redTip, worktrees, claims, runs, branches,
+   remoteBranches, console, skipped }`), substituted only when `reconcile()` itself throws. If the
+   new check populates a new top-level result key, this literal needs that key added too — an
+   omission here doesn't throw or fail a lint; it just silently under-reports on the one code path
+   (a genuine throw inside `reconcile()`) that almost never runs in normal testing, which is
+   exactly what makes it easy to miss. The current fallback is already missing `redTip` — a live
+   instance of this exact hazard, not a hypothetical one (#1009).
 5. **`bin/lib/reconcile/format-summary.js`'s `CATEGORIES` table** — only if the check's result is
    array-shaped (like `worktrees`/`claims`/`runs`/`branches`/`remoteBranches`). Add a row so
    `bin/hooks.js reconcile`'s compact human-readable default output covers the new check's taken
