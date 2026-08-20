@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { readRunState } = require('../plugin/bin/lib/hooks/context');
+const { linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
@@ -291,9 +292,7 @@ test('e2e: foreign-session commit in the main checkout is allowed with a systemM
   // own main-checkout root, so an unrelated worktree fixture would read as a
   // foreign repo and short-circuit to a bare allow with no systemMessage.
   execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
-  const worktreeParent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-wtparent-'));
-  const worktree = path.join(worktreeParent, 'wt');
-  execFileSync('git', ['-C', project, 'worktree', 'add', '-q', worktree, '-b', `wt-branch-${path.basename(worktreeParent)}`]);
+  const worktree = linkedWorktreeOf(project);
   runHook(['record-worktree', worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
 
   const result = runHook(['pre-tool-use'], {

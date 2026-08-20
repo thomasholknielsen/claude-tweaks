@@ -663,12 +663,10 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
   // #861: this run's assigned worktree is a linked worktree of some main
   // checkout — mainCheckoutRoot(assigned) resolves it via the fs-only
   // gitdir-pointer check (no git spawn needed, since `assigned`'s own `.git`
-  // is always the worktree-marker FILE). Used below to tell "wrong location
-  // WITHIN this project" (still a discipline violation) apart from "a
-  // completely unrelated git repository" (never was this project's business
-  // to enforce discipline over) — the guard used to conflate the two,
-  // denying a commit in an out-of-repo scratch fixture repo the same as one
-  // in the wrong in-project checkout.
+  // is always the worktree-marker FILE). The loop below compares it against
+  // each target's own main-checkout root; the guard used to skip that step,
+  // and so denied a commit in an out-of-repo scratch fixture repo exactly as
+  // it denied one in the wrong in-project checkout.
   const mainRoot = safeReal(wtDetect.mainCheckoutRoot(assigned));
 
   for (const target of commandGitTargets || []) {

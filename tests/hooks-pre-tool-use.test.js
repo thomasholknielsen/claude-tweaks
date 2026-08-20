@@ -60,7 +60,7 @@ test('commit in the assigned worktree is allowed', () => {
   assert.deepStrictEqual(out, {});
 });
 
-test('commit in the main checkout (still denied) with corrective reason', () => {
+test('commit in the main checkout is still denied with corrective reason', () => {
   const { main, wt } = mainAndWorktree();
   const { run, state } = mkRun(wt);
   const out = pre.run({ input: bashInput('git commit -m "x"', main), runDir: run, runState: state, cwd: main });
@@ -110,29 +110,29 @@ test('wrong-checkout commit from the OWNING session is still denied', () => {
 
 test('missing or malformed session identity on either side falls back to deny (status quo)', () => {
   // Legacy run-state (no recorded owner), caller id present.
-  const legacy0 = mainAndWorktree();
-  const legacy = mkRun(legacy0.wt);
+  const { main: legacyMain, wt: legacyWt } = mainAndWorktree();
+  const legacy = mkRun(legacyWt);
   const legacyOut = pre.run({
-    input: { ...bashInput('git commit -m "x"', legacy0.main), session_id: 'bystander-session' },
-    runDir: legacy.run, runState: legacy.state, cwd: legacy0.main,
+    input: { ...bashInput('git commit -m "x"', legacyMain), session_id: 'bystander-session' },
+    runDir: legacy.run, runState: legacy.state, cwd: legacyMain,
   });
   assert.strictEqual(legacyOut.json.hookSpecificOutput.permissionDecision, 'deny');
 
   // Owner recorded, caller id absent from hook input.
-  const noCaller0 = mainAndWorktree();
-  const noCaller = mkRun(noCaller0.wt, 'owner-session');
+  const { main: noCallerMain, wt: noCallerWt } = mainAndWorktree();
+  const noCaller = mkRun(noCallerWt, 'owner-session');
   const noCallerOut = pre.run({
-    input: bashInput('git commit -m "x"', noCaller0.main),
-    runDir: noCaller.run, runState: noCaller.state, cwd: noCaller0.main,
+    input: bashInput('git commit -m "x"', noCallerMain),
+    runDir: noCaller.run, runState: noCaller.state, cwd: noCallerMain,
   });
   assert.strictEqual(noCallerOut.json.hookSpecificOutput.permissionDecision, 'deny');
 
   // Corrupt owner (non-string) never counts as identity.
-  const corrupt0 = mainAndWorktree();
-  const corrupt = mkRun(corrupt0.wt, { nested: true });
+  const { main: corruptMain, wt: corruptWt } = mainAndWorktree();
+  const corrupt = mkRun(corruptWt, { nested: true });
   const corruptOut = pre.run({
-    input: { ...bashInput('git commit -m "x"', corrupt0.main), session_id: 'bystander-session' },
-    runDir: corrupt.run, runState: corrupt.state, cwd: corrupt0.main,
+    input: { ...bashInput('git commit -m "x"', corruptMain), session_id: 'bystander-session' },
+    runDir: corrupt.run, runState: corrupt.state, cwd: corruptMain,
   });
   assert.strictEqual(corruptOut.json.hookSpecificOutput.permissionDecision, 'deny');
 });
