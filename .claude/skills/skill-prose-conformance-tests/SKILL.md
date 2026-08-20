@@ -43,6 +43,23 @@ The excerpt is a string literal in the test file, not a read of history, so it s
 
 **The blind spot: `doesNotMatch` passes for free when the control lacks the tokens.** An adjacency claim — two tokens joined by a `[\s\S]{0,N}` window — only goes red against the control when the control contains *both* tokens and separates them by more than `N`. A control that contains neither token, or only one, satisfies `doesNotMatch` for the wrong reason, and the window (the whole adjacency claim) is never exercised. `tests/backlog-refine-reverify-before-write.test.js`'s cross-reference test is exactly this case: `/Step 6 auto-apply table already applies the identical rule[\s\S]{0,150}step-6-auto\.md/` is checked against a `PRE_CHANGE_STEP_5_HEAD` that mentions neither token, so nothing tests that `150` — the pattern would still be green at any window width. For an adjacency or ordering claim, build the control so it carries the anchor and lacks only the thing being pinned, and run the *same* extraction over both: `tests/backlog-narration-bounded-allowance.test.js` calls `textAfterHeader(PRE_CHANGE_BANNER, '## Step 1: Fetch')`, so the frozen text supplies the header and the miss is attributable to the reminder's absence rather than the header's.
 
+### Sweep code regions, not the whole file, when prose may say what commands may not
+
+Some conventions bind only the *commands* a skill file carries. `plugin/skills/flow/multispec-freshness.md` must parameterize its git commands as `origin/{integration-branch}`, while a paragraph explaining the ladder may legitimately name `origin/main` in passing. `tests/multispec-boundary-freshness.test.js` extracts the code regions first and sweeps only those — fences and inline spans as two passes, not one regex:
+
+```js
+function codeRegions(text) {
+  const fences = text.match(/```[\s\S]*?```/g) ?? [];
+  const stripped = text.replace(/```[\s\S]*?```/g, '');
+  const spans = stripped.match(/`[^`\n]+`/g) ?? [];
+  return [...fences, ...spans];
+}
+```
+
+Stripping the fences before scanning for spans is the load-bearing half, and it fails in a way that hides offenders rather than adding noise: on `` ``` tail `origin/x` end ``, the unstripped span regex pairs the fence's closing backtick with the real span's opening one and yields `` ` tail ` `` — the `origin/x` span is never scanned at all. Contrast `tests/frontier-unattended-literal.test.js`, which sweeps whole files with an explicit allowlist: reach for that shape when the literal is banned everywhere, and for region-scoping only when prose and command text genuinely differ in what they may say.
+
+**An empty extraction passes the sweep for free.** `assert.deepStrictEqual(offenders, [], …)` over a derived haystack is green when the extractor returns nothing — a fence style the regex misses (`~~~`, an indented block), a renamed target read as an empty string, or a typo. This is the `doesNotMatch` blind spot above one level up: there the *control* lacked the tokens, here the *haystack* does. It is live, not hypothetical: `multispec-freshness.md` today has 95 inline spans and **zero** fenced blocks, so the fence half of that helper is currently pinning nothing and a bug in it would not show. Assert the region count is non-empty, and run the same filter over a frozen string carrying the banned literal, so green proves the sweep can still see one.
+
 ### Bind an executable snippet to a test — extract-and-run first, byte-pin second
 
 When skill prose carries a shell snippet the reader is expected to execute, bind it to a `node --test` file that both pins it and runs it. `docs/skill-authoring.md`'s "Executable snippets in skill prose" names two forms and **prefers extract-and-run**: the test pulls the fence out of the doc with an anchored regex and executes exactly that string, so the doc is the only source of the executed text and the two cannot drift; the test fails loudly — *"extraction pattern is out of sync"* — when the anchor moves. Shipped instances: `tests/pipeline-run-dir-adoption-anchoring.test.js` and `tests/blast-radius-snippet.test.js`, the latter extracting `plugin/skills/assess-agent-autonomy/merge-check.md`'s Step 1 fence and running it against a fixture git repo.
@@ -81,6 +98,7 @@ When a resolver has a deliberate special case that excludes one source from prec
 | Content a future migration is expected to delete or rewrite | Freeze the bytes as a fixture under `tests/fixtures/` |
 | A shell or `node -e` snippet the reader is told to run, where the full command matters | Extract the fence from the doc with a structurally-anchored regex and execute exactly that string; byte-pin the fence instead only when the probe needs fixture-specific surroundings |
 | A shell snippet the reader is told to run, where only the flags matter | Byte-pin the fence, tokenize it, feed the argv straight through the CLI's own arg parser |
+| A literal banned in a file's command text but legitimate in its prose | Extract the code regions first — fences, then inline spans over the fence-stripped remainder — and sweep only those; assert the extraction is non-empty, or the sweep passes on an empty haystack |
 | A behavioural claim about a third-party tool (`git apply --check`, `gh`, `mv -n`) | Probe the tool; asserting the sentence proves only that the sentence is present |
 | A documented convention this project wants enforced against every future addition — no fixed code structure to pin against, no bytes a migration will rewrite | Read the live corpus and pin the convention itself (a regex over `plugin/skills/**/*.md`, or wherever the convention applies); never freeze it — freezing would stop the suite from catching a new violation, which is the whole point (`tests/resolve-profile-invocation-conformance.test.js`, #670) |
 
@@ -112,6 +130,7 @@ A varying failure count across runs on byte-identical code tracks machine load f
 | Asserting a fenced snippet reads correctly without running it | The snippet is instruction to a shell, not to a reader; only execution separates correct from merely plausible |
 | Retyping the pinned literal from memory of the edit that introduces it | The obvious failure — a red test — is the benign one; the likely "fix" is to reword the *prose* to match the misremembered assertion, silently shipping the remembered wording instead of the designed wording |
 | Paraphrasing the pinned snippet inside the test | The fence and the probe then drift apart, and the probe stops describing the shipped procedure while both stay green |
+| Sweeping a derived region set for a banned literal without asserting the set is non-empty | The extractor becomes part of the assertion, silently: a regex matching no region reports zero offenders and certifies a convention it never checked |
 | Adding another hand-rolled git-init ladder | `tests/helpers/git-fixtures.js` already owns it, and two builders are two things to keep correct |
 | Running the whitespace-collapsed control scan on only the presence half of a migration suite | The absence half is the half that fails open, so the untested direction is exactly the one that silently certifies a retired clause as deleted `[IL-66]` |
 | Merging on a green branch without re-running the full suite post-merge | Byte-pinning suites are the class that goes red only at the merge combination |
@@ -119,7 +138,7 @@ A varying failure count across runs on byte-identical code tracks machine load f
 
 ## Reference
 
-- Instances: `tests/curation-judge-stagepath.test.js`, `tests/staged-patch-contract.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/hooks-gate-coverage.test.js`, `tests/skill-conventions.test.js`, `tests/blast-radius-snippet.test.js`, `tests/pipeline-run-dir-adoption-anchoring.test.js`, `tests/bin-lib/verify/snippet-conformance.test.js` (lighter argv-tokenize-direct variant), `tests/resolve-profile-invocation-conformance.test.js` (live-corpus convention enforcement, no fixture), `tests/manifesto-lever-conformance.test.js` (declared-contract pattern — one file's canonical enumeration pinned against four files that restate it by hand), `tests/node-e-snippet-syntax.test.js` (live-corpus embedded-snippet sweep — generalizes `tests/sweep-backstop.test.js`'s narrow single-file `node -e` extractor to a corpus-wide sweep over `plugin/skills/**/*.md`, both quote styles, with a planted-then-reverted go-red discrimination check)
+- Instances: `tests/curation-judge-stagepath.test.js`, `tests/staged-patch-contract.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/hooks-gate-coverage.test.js`, `tests/skill-conventions.test.js`, `tests/blast-radius-snippet.test.js`, `tests/pipeline-run-dir-adoption-anchoring.test.js`, `tests/bin-lib/verify/snippet-conformance.test.js` (lighter argv-tokenize-direct variant), `tests/resolve-profile-invocation-conformance.test.js` (live-corpus convention enforcement, no fixture), `tests/manifesto-lever-conformance.test.js` (declared-contract pattern — one file's canonical enumeration pinned against four files that restate it by hand), `tests/node-e-snippet-syntax.test.js` (live-corpus embedded-snippet sweep — generalizes `tests/sweep-backstop.test.js`'s narrow single-file `node -e` extractor to a corpus-wide sweep over `plugin/skills/**/*.md`, both quote styles, with a planted-then-reverted go-red discrimination check), `tests/multispec-boundary-freshness.test.js` (code-region-scoped literal sweep), `tests/frontier-unattended-literal.test.js` (whole-file sweep with allowlist)
 - Shared helper: `tests/helpers/git-fixtures.js`
 - Rules: `docs/donts.md` `[IL-66]`, `[IL-78]`, `[IL-80]`, `[IL-105]`; full accounts in `docs/incident-log.md`
 - Conventions for authoring the prose itself: `docs/skill-authoring.md`
