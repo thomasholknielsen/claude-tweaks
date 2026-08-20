@@ -15,7 +15,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const pre = require('../plugin/bin/lib/hooks/pre-tool-use');
-const { isPolicyOnlyCommit, POLICY_COMMIT_ALLOWLIST } = pre;
+const { isPolicyOnlyCommit, POLICY_COMMIT_ALLOWLIST, isDeleteOnlyPush, DELETE_ONLY_PUSH_ALLOWLIST } = pre;
 
 // Sibling suites contending for the same machine can push a plain git init/
 // commit on a fresh temp repo past the DEFAULT_TIMEOUT_MS budget (#104) when
@@ -165,6 +165,85 @@ test('commit shapes that must stay denied: -a, --amend, compound, -C', () => {
     const out = pre.run({ input: bashInput(command, repo), runDir: null, runState: null, cwd: repo });
     assertDenied(out);
   }
+});
+
+// ─── delete-only push exemption: allowlist match, whole-command only (#658) ─
+
+test('git push origin --delete my-branch from a non-isolated checkout is allowed', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree-always: true\n');
+  const out = pre.run({ input: bashInput('git push origin --delete my-branch', repo), runDir: null, runState: null, cwd: repo });
+  assertAllowed(out);
+});
+
+test('git push origin :my-branch (refspec-delete form) from a non-isolated checkout is allowed', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree-always: true\n');
+  const out = pre.run({ input: bashInput('git push origin :my-branch', repo), runDir: null, runState: null, cwd: repo });
+  assertAllowed(out);
+});
+
+test('an ordinary content push (git push origin main) stays denied', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree-always: true\n');
+  const out = pre.run({ input: bashInput('git push origin main', repo), runDir: null, runState: null, cwd: repo });
+  assertDenied(out);
+});
+
+test('a compound command riding on a delete-only push stays denied, fail-closed', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree-always: true\n');
+  const out = pre.run({ input: bashInput('git push origin --delete my-branch && rm -rf /', repo), runDir: null, runState: null, cwd: repo });
+  assertDenied(out);
+});
+
+test('a delete-only push with an extra flag stays denied, fail-closed', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree-always: true\n');
+  const out = pre.run({ input: bashInput('git push origin --delete my-branch --force', repo), runDir: null, runState: null, cwd: repo });
+  assertDenied(out);
+});
+
+test('the denied push message names the branch-delete fallback', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree-always: true\n');
+  const out = pre.run({ input: bashInput('git push origin main', repo), runDir: null, runState: null, cwd: repo });
+  assertDenied(out);
+  const reason = out.json.hookSpecificOutput.permissionDecisionReason;
+  assert.ok(reason.includes('gh api -X DELETE'), `deny message must name the gh api fallback: ${reason}`);
+  assert.ok(reason.includes('gh pr merge --delete-branch'), `deny message must name the gh pr merge fallback: ${reason}`);
+});
+
+test('DELETE_ONLY_PUSH_ALLOWLIST matches exactly the admitted shapes', () => {
+  const shouldMatch = [
+    'git push origin --delete my-branch',
+    'git push origin :my-branch',
+    'git push origin --delete feature/my-branch',
+    '  git   push   origin   --delete   my-branch  ',
+  ];
+  for (const command of shouldMatch) {
+    assert.ok(DELETE_ONLY_PUSH_ALLOWLIST.test(command), `expected a match: ${JSON.stringify(command)}`);
+  }
+  const shouldNotMatch = [
+    'git push origin main',
+    'git push origin --delete my-branch --force',
+    'git push origin --delete my-branch && rm -rf /',
+    'git push origin --delete',
+    'FOO=1 git push origin --delete my-branch',
+    '/usr/bin/git push origin --delete my-branch',
+    'git -C . push origin --delete my-branch',
+    'git push -f origin --delete my-branch',
+    'git push origin --delete my-branch extra-branch',
+  ];
+  for (const command of shouldNotMatch) {
+    assert.ok(!DELETE_ONLY_PUSH_ALLOWLIST.test(command), `expected no match: ${JSON.stringify(command)}`);
+  }
+});
+
+test('isDeleteOnlyPush fails closed on non-string / garbage input without throwing', () => {
+  assert.strictEqual(isDeleteOnlyPush(null), false);
+  assert.strictEqual(isDeleteOnlyPush(undefined), false);
+  assert.strictEqual(isDeleteOnlyPush(42), false);
 });
 
 // ─── review findings: shapes the first cut allowed and must not ─────────────

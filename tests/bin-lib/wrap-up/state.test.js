@@ -1,4 +1,4 @@
-// bin/lib/wrap-up/tests/state.test.js
+// tests/bin-lib/wrap-up/state.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { readState } = require('../../../plugin/bin/lib/wrap-up/state');

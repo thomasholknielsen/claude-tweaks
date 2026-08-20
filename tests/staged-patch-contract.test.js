@@ -104,6 +104,62 @@ test('the fallback procedure heading is stated once — only in the contract', (
   }
 });
 
+// #737: the anchored-staged-path invariant is owned by pipeline-run-dir.md's Anchoring
+// section — stated once there, cited (not restated) by staged-patch.md and curation-engine.md.
+// Both consumer sites word their citation naturally for their own sentence, not as one reused
+// literal phrase (a single literal phrase pasted into two grammatically different slots reads as
+// a category error — #737 review finding). `citesStagedFileInvariant` therefore checks for a set
+// of short, independent keywords rather than one long contiguous string: each is unlikely to
+// straddle a hard-wrapped line on its own, and normalizing whitespace before matching removes
+// that risk entirely even if a future re-wrap moves a line break mid-keyword.
+const RUN_DIR_DOC = path.join(SKILLS, '_shared', 'pipeline-run-dir.md');
+const INVARIANT_MARKER = '**The staged-file invariant.**';
+const normWS = (s) => s.replace(/\s+/g, ' ');
+function citesStagedFileInvariant(text) {
+  const n = normWS(text);
+  return n.includes('staged-file invariant')
+    && n.includes('_shared/pipeline-run-dir.md')
+    && n.includes('Anchoring section')
+    && n.includes('single owner');
+}
+
+test('pipeline-run-dir.md Anchoring section states the staged-file invariant exactly once, repo-wide', () => {
+  const walk = (dir, acc = []) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full, acc);
+      else if (e.name.endsWith('.md')) acc.push(full);
+    }
+    return acc;
+  };
+  let ownerHits = 0;
+  for (const file of walk(SKILLS)) {
+    const text = normWS(fs.readFileSync(file, 'utf8'));
+    const count = text.split(INVARIANT_MARKER).length - 1;
+    if (file === RUN_DIR_DOC) { ownerHits = count; continue; }
+    assert.equal(count, 0, `${path.relative(SKILLS, file)} restates the staged-file invariant marker`);
+  }
+  assert.equal(ownerHits, 1, 'pipeline-run-dir.md states the staged-file invariant marker exactly once');
+  const anchoring = fs.readFileSync(RUN_DIR_DOC, 'utf8');
+  const anchoringStart = anchoring.indexOf('## Anchoring');
+  const nextHeadingRel = anchoring.slice(anchoringStart + 1).search(/^## /m);
+  const anchoringEnd = nextHeadingRel === -1 ? anchoring.length : anchoringStart + 1 + nextHeadingRel;
+  const section = normWS(anchoring.slice(anchoringStart, anchoringEnd));
+  assert.ok(section.includes(INVARIANT_MARKER), 'marker lives inside the Anchoring section (bounded to its own heading, not merely after it)');
+  assert.match(section, /worktree-relative shadow/, 'names the shadow failure mode');
+  assert.ok(section.includes('curation-engine.md'), 'names curation-engine.md as the remedy owner');
+  assert.ok(section.includes('§4'), 'names §4 as the remedy location');
+  assert.ok(section.includes('post-fan-out shadow sweep'), 'names the shadow-sweep remedy by name');
+});
+
+test('staged-patch.md Staging-time gate cites the pipeline-run-dir.md staged-file invariant instead of restating it', () => {
+  const text = fs.readFileSync(CONTRACT, 'utf8');
+  const gate = text.slice(text.indexOf('## Staging-time gate'), text.indexOf('## Console apply with description fallback'));
+  assert.ok(citesStagedFileInvariant(gate), 'Staging-time gate cites the staged-file invariant');
+  assert.ok(!normWS(gate).includes('worktree-relative shadow'), 'Staging-time gate no longer restates the shadow phrase');
+  assert.match(gate, /\*\*absolute\*\*/, 'still names the path as absolute (kept, not part of the restatement being removed)');
+});
+
 // ---- Live discrimination probe: the mechanism the contract's prose relies on ----
 // Spawn env hardened against a global commit.gpgsign=true or template hook affecting the
 // fixture; every spawn (setup and probes) is bounded so a hang fails fast and names itself.

@@ -193,7 +193,7 @@ const DEFAULT_TIMEOUT_MS = 20000;
 // report. `created_at` is deliberately excluded: UPDATE Step 7 rewrites it on
 // every run ("last written at"), so comparing it would make every record differ
 // from upstream the moment anyone re-syncs, and the stop would fire on nothing.
-const SIGNIFICANT_FIELDS = ['routine_id', 'template', 'template_version', 'schedule', 'branch', 'model', 'kernel_version'];
+const SIGNIFICANT_FIELDS = ['routine_id', 'template', 'template_version', 'schedule', 'cadence', 'run_once_at', 'branch', 'model', 'kernel_version'];
 
 // Absent and empty compare equal here. The record schema distinguishes them (an
 // omitted `branch` means "unresolved", `branch: ""` would mean "pinned to

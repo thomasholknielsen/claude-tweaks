@@ -564,6 +564,22 @@ test('reconcile: outside any repo resolves to no-repo, never crashes', async () 
   assert.deepStrictEqual(r.skipped, [{ check: 'all', reason: 'no-repo' }]);
 });
 
+test('reconcile: a non-canonical (dash-less) run-dir name is surfaced, never silently omitted (#848)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-noncanon-'));
+  git(['init', '-q'], dir);
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  fs.mkdirSync(path.join(dir, '.claude-tweaks', 'pipelines', '20260817T173343-spec-764'), { recursive: true });
+  // No remote configured, same as the no-remote fixture above — the
+  // non-canonical-run-dir report must appear ahead of (not instead of) the
+  // no-remote skip, since it runs before that gate.
+  const r = await reconcile({ cwd: dir });
+  assert.deepStrictEqual(r.skipped, [
+    { check: 'all', reason: 'non-canonical-run-dir', names: ['20260817T173343-spec-764'] },
+    { check: 'all', reason: 'no-remote' },
+  ]);
+});
+
 test('reconcile: checks filter excludes reap -> local-merge project runs nothing at all', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-checks-'));
   git(['init', '-q', '--initial-branch=main'], dir);
@@ -713,6 +729,16 @@ test('reconcile verb: compact default on a fixture with actions taken + a mix of
     'skipped: 4 run dirs (no-worktree 2, move-failed 1, pr-open 1)',
     'skipped: red-tip — no-integration-ref',
   ].join('\n'));
+});
+
+test('formatSummary: a skipped entry carrying names (non-canonical-run-dir, #848) lists them, not just the reason', () => {
+  const result = {
+    mirror: null, redTip: null, worktrees: null, claims: null, runs: null,
+    branches: null, remoteBranches: null, console: null,
+    skipped: [{ check: 'all', reason: 'non-canonical-run-dir', names: ['20260817T173343-spec-764'] }],
+  };
+  const summary = formatSummary(result);
+  assert.strictEqual(summary, 'skipped: all — non-canonical-run-dir: 20260817T173343-spec-764');
 });
 
 test('reconcile verb: compact default separates branch entries from archive-branches.js\'s interleaved tag-aging entries in result.branches (#638)', () => {

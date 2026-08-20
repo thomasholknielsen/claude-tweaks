@@ -43,6 +43,35 @@ function isUnadoptedMint(dir, state) {
 // unfiltered .sort().reverse() would rank it first and shadow live runs.
 const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T/;
 
+// #848: a near-miss shape — the same 8-digit-date + T + 6-digit-time prefix
+// as a canonical run-id, minus the dashes (e.g. `20260817T173343-spec-764`,
+// the exact form a hand-composed `date -u +%Y%m%dT%H%M%S` mint produced
+// before every mint site delegated to run-dir-resolve.js's formatTimestamp()).
+// RUN_ID_RE silently excludes this shape from iterRunDirsWithState — by
+// design, that generator only yields directories it can confidently treat as
+// runs, since it drives both the fallback event-attribution scan and every
+// reconcile check's enumeration. findNonCanonicalRunDirs is the surfacing
+// half: report-only, never renamed or adopted, so a caller (reconcile) can
+// warn a human instead of silently omitting the run from every pass forever.
+const NON_CANONICAL_RUN_ID_RE = /^\d{8}T\d{6}/;
+
+// Directories under `.claude-tweaks/pipelines/` that look run-dir-shaped
+// (NON_CANONICAL_RUN_ID_RE) but don't match the canonical dash format
+// (RUN_ID_RE) and aren't `archive`. Anchored the same way
+// iterRunDirsWithState is — the main checkout, not raw cwd. Read-only: never
+// renames, deletes, or touches anything under the returned names.
+function findNonCanonicalRunDirs(cwd) {
+  const start = cwd || process.cwd();
+  const root = wtDetect.mainCheckoutRoot(start) || start;
+  const base = path.join(root, '.claude-tweaks', 'pipelines');
+  let entries;
+  try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return []; }
+  return entries
+    .filter((e) => e.isDirectory() && e.name !== 'archive' && !RUN_ID_RE.test(e.name) && NON_CANONICAL_RUN_ID_RE.test(e.name))
+    .map((e) => e.name)
+    .sort();
+}
+
 // #208: archived-is-terminal invariant, reader side. An archived run-id must never reach the
 // isUnadoptedMint/status inspection below regardless of what its resurrected active-side
 // run-state.json (if any) claims — that data is exactly the untrustworthy resurrected shell
@@ -311,5 +340,5 @@ function appendEvent(runDir, type, data, attribution) {
 
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
-  readRunState, writeRunState, appendEvent, findRunByWorktreePath, RUN_ID_RE,
+  readRunState, writeRunState, appendEvent, findRunByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
 };

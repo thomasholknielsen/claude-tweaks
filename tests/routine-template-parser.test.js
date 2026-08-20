@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { parseRoutineTemplate, listRoutineRecords } = require('../plugin/bin/lib/routine-template-parser.js');
+const { parseRoutineTemplate, listRoutineRecords, SIGNIFICANT_FIELDS } = require('../plugin/bin/lib/routine-template-parser.js');
 
 // Deliberate: several fixtures below use `prompt: >` as the folded-scalar key
 // under test. The parser is field-name-agnostic, so this is historical input —
@@ -199,6 +199,67 @@ test('listRoutineRecords returns a partial object (no crash) for a record missin
     assert.strictEqual(records[0].template, undefined);
     assert.strictEqual(records[0].routine_id, undefined);
     assert.strictEqual(records[0].template_version, 2);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// #212: a one-off record structurally tags its cadence via `cadence: once` plus
+// `run_once_at` in place of `schedule` — never a string-sniff of one overloaded
+// field. `SIGNIFICANT_FIELDS` must know about both new fields so a cadence-class
+// change (recurring <-> once) and a `run_once_at` edit both surface as record
+// drift, the same as any other significant field.
+test('SIGNIFICANT_FIELDS includes cadence and run_once_at (#212)', () => {
+  assert.ok(SIGNIFICANT_FIELDS.includes('cadence'));
+  assert.ok(SIGNIFICANT_FIELDS.includes('run_once_at'));
+  // schedule stays significant too — a recurring record's cron is still tracked.
+  assert.ok(SIGNIFICANT_FIELDS.includes('schedule'));
+});
+
+test('listRoutineRecords parses a one-off record (cadence: once, run_once_at, no schedule) (#212)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'routine-records-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'claude-tweaks-cleanup-once.yml'),
+      [
+        'routine_id: "trig_once1"',
+        'template: code-health',
+        'template_version: 2',
+        'kernel_version: 1',
+        'model: "claude-sonnet-5"',
+        'created_at: "2026-08-20T00:00:00Z"',
+        'cadence: once',
+        'run_once_at: "2026-09-15T07:00:00Z"',
+        'console_url: "https://claude.ai/code/routines/trig_once1"',
+        '',
+      ].join('\n'),
+    );
+    const records = listRoutineRecords(dir);
+    assert.strictEqual(records.length, 1);
+    const rec = records[0];
+    assert.strictEqual(rec.cadence, 'once');
+    assert.strictEqual(rec.run_once_at, '2026-09-15T07:00:00Z');
+    // Mutually exclusive with `schedule` — a one-off record never carries it.
+    assert.strictEqual(rec.schedule, undefined);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('listRoutineRecords parses a recurring record with no cadence field the same as before (#212 backward compat)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'routine-records-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'claude-tweaks-code-health-daily.yml'),
+      'routine_id: "trig_abc123"\ntemplate: code-health\ntemplate_version: 2\ncreated_at: "2026-06-01T00:00:00Z"\nschedule: "0 3 * * *"\nconsole_url: "https://claude.ai/code/routines/trig_abc123"\n',
+    );
+    const records = listRoutineRecords(dir);
+    assert.strictEqual(records.length, 1);
+    // Absent `cadence` is the pre-existing record shape — every reader treats
+    // this as recurring, never as a parse error or a missing-field warning.
+    assert.strictEqual(records[0].cadence, undefined);
+    assert.strictEqual(records[0].schedule, '0 3 * * *');
+    assert.strictEqual(records[0].run_once_at, undefined);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

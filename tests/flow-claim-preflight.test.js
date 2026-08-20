@@ -63,8 +63,8 @@ test('task-prompt.md documents DISPATCH_HEADLESS for next-form firings', () => {
   assert.match(read('plugin/skills/dispatch/task-prompt.md'), /DISPATCH_HEADLESS/);
 });
 
-test('headless-self-report.md documents the Step 2.8 contest trigger', () => {
-  const content = read('plugin/skills/dispatch/headless-self-report.md');
+test('_shared/headless-self-report.md documents the Step 2.8 contest trigger', () => {
+  const content = read('plugin/skills/_shared/headless-self-report.md');
   assert.match(content, /flow-step-2\.8-claim-contest|Step 2\.8 claim contest/);
 });
 
