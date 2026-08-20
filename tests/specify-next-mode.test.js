@@ -24,6 +24,7 @@ const SPECIFY_SKILL = read('plugin/skills/specify/SKILL.md');
 const SPECIFY_SKILL_FLAT = readFlat('plugin/skills/specify/SKILL.md');
 const NEXT_MODE_FLAT = readFlat('plugin/skills/specify/next-mode.md');
 const DISPATCH_SKILL_FLAT = readFlat('plugin/skills/dispatch/SKILL.md');
+const SHAPING_MODE_FLAT = readFlat('plugin/skills/specify/shaping-mode.md');
 
 test('specify argument-hint names next as the first alternative', () => {
   const hint = extractArgumentHint(SPECIFY_SKILL);
@@ -108,8 +109,20 @@ test('next-mode.md states the solution-baked handling: needs:definition, comment
   assert.ok(NEXT_MODE_FLAT.includes('do **not** file a Failure self-report') || NEXT_MODE_FLAT.includes('do not file a Failure self-report') || NEXT_MODE_FLAT.includes('do not\n     file a Failure self-report') || NEXT_MODE_FLAT.includes('End the firing as a success'), 'success-exit framing for the routed path missing');
 });
 
-test('next-mode.md stamps ready + shaped:headless in a single label-edit call', () => {
-  assert.ok(NEXT_MODE_FLAT.includes('add-label "ready,shaped:headless"'), 'single-call ready+shaped:headless stamp missing');
+test('shaping-mode.md stamps ready + shaped:headless atomically in one compose-then-write-once call for next-mode entries', () => {
+  // NOTE: the final whole-branch review (#968) found the original two-call
+  // sequence (shaping-mode.md's own `ready` stamp, then a separate
+  // next-mode.md override call adding shaped:headless) left a window where a
+  // record could be permanently `ready` — and therefore excluded from all
+  // future `next` eligibility — without ever getting its shaped:headless
+  // marker, if the second call failed. The fix folds shaped:headless into
+  // shaping-mode.md's own compose-then-write-once call as an entry-path-keyed
+  // flag (unconditional under `next` mode, same pattern already used for the
+  // verdict-keyed `solution:unjustified` flag), so next-mode.md no longer
+  // issues a separate label-edit call for this at all.
+  assert.ok(SHAPING_MODE_FLAT.includes('--add-label ready'), 'shaping-mode.md must still stamp ready in its compose-then-write-once call');
+  assert.ok(SHAPING_MODE_FLAT.includes('add-label "shaped:headless"'), 'shaping-mode.md must stamp shaped:headless in the same call for next-mode entries');
+  assert.ok(!NEXT_MODE_FLAT.includes('add-label "ready,shaped:headless"'), 'next-mode.md must no longer make its own separate ready+shaped:headless label-edit call');
 });
 
 test('next-mode.md notes the Routine no-run-dir decision-log fallback', () => {
