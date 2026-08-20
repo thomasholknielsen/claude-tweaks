@@ -15,9 +15,9 @@ const path = require('path');
 //
 // Previously this same ~15-line sequence was hand-duplicated once per
 // subsystem/filename combination -- e.g.
-// bin/lib/harness-health/tests/cli-next-target.test.js's seedDurableCursors
+// tests/bin-lib/harness-health/cli-next-target.test.js's seedDurableCursors
 // (harness-health/cursors.json) and
-// bin/lib/harness-health/tests/cli-validate-findings.test.js's
+// tests/bin-lib/harness-health/cli-validate-findings.test.js's
 // seedDurableRuns (harness-health/runs.json) -- each independently spelling
 // out the same 8-step sequence, with each file's own comment naming the
 // others as precedent instead of extracting a shared helper. This is that

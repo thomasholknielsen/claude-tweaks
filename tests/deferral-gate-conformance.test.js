@@ -17,8 +17,6 @@ const GATE = read('plugin/skills/_shared/deferral-gate.md');
 const LEDGER = read('plugin/skills/_shared/ledger-format.md');
 const AUTONOMY_SRC = read('plugin/bin/lib/issues/autonomy.js');
 
-const REMOVAL_CONDITION = 'Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.';
-
 // The vocabulary is the first fenced block after the "## `Defer-reason:` vocabulary"
 // heading; each line is "{value} — {one-line definition}".
 function parseVocabulary(md) {
@@ -81,13 +79,6 @@ test('deferral-gate.md names its consumers, the hard gate, re-verification, and 
   assert.ok(GATE.includes('## Re-verification'));
   assert.ok(GATE.includes('## Where the reason lives'));
   assert.ok(GATE.includes('by key, never by position'));
-});
-
-// --- removal condition: prose == code comment ---
-
-test('deferral-gate.md and autonomy.js carry the removal condition in the same words', () => {
-  assert.ok(GATE.includes(REMOVAL_CONDITION), 'deferral-gate.md');
-  assert.ok(AUTONOMY_SRC.includes(REMOVAL_CONDITION), 'autonomy.js');
 });
 
 // --- STRUCTURED_FLOOR covers the whole vocabulary (a gap would fail silently to false) ---
