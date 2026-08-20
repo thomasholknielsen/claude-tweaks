@@ -227,7 +227,7 @@ If no findings: return literal text "No findings."
 Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
 Do not add narration, headers, or summaries before or after the table.
 
-[Use: Standard model.]
+[Use: Standard]
 ```
 
 6. The read-only constraint, verbatim: "Read-only: report findings only — modify no file, run no formatter, stage nothing. This is an advisory review; the fixes belong to a later step."
