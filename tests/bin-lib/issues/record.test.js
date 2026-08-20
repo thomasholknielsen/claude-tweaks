@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS, DEFER_REASONS,
-  extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
+  extractFingerprint, extractVerifiedAsOf, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues,
 } = require('../../../plugin/bin/lib/issues/record');
 
@@ -699,4 +699,59 @@ test('specShapedBody: the required sections still throw when empty, naming the s
 test('specShapedBody: header plus Trigger line renders first, before provenance', () => {
   const body = specShapedBody({ header: 'Trigger: after #42 lands', ...BASE, acceptanceCriteria: 'a', provenance: { origin: 'wrap-up leftover from #42', deferReason: 'tangential' }, footer: '_Filed by `wrap-up leftover routing` via specShapedBody._' });
   assert.ok(body.startsWith('Trigger: after #42 lands\n\nOrigin: wrap-up leftover from #42\n\nDefer-reason: tangential\n\n## Current State'));
+});
+
+// --- specShapedBody / extractVerifiedAsOf freshness stamp (#117) ---
+
+test('specShapedBody: omitting verifiedAsOf is byte-identical to the pre-change composition', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a' });
+  assert.strictEqual(body, [
+    'H', '## Current State', 'c', '## Deliverables', 'd', '## Acceptance Criteria', 'a',
+    '_Filed by `x`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+  ].join('\n\n'));
+});
+
+test('specShapedBody: verifiedAsOf renders between header and Origin, lowercased', () => {
+  const body = specShapedBody({
+    header: 'H', ...BASE, acceptanceCriteria: 'a', verifiedAsOf: 'ABCDEF1', provenance: { origin: 'o' },
+  });
+  assert.ok(body.startsWith('H\n\nVerified-as-of: abcdef1\n\nOrigin: o\n\n## Current State'));
+});
+
+test('specShapedBody: verifiedAsOf alone (no header, no provenance) renders with no stray blanks', () => {
+  const body = specShapedBody({ ...BASE, acceptanceCriteria: 'a', verifiedAsOf: '1234567' });
+  assert.ok(body.startsWith('Verified-as-of: 1234567\n\n## Current State'));
+});
+
+test('specShapedBody: verifiedAsOf rejects a value that is not a git sha shape', () => {
+  assert.throws(
+    () => specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', verifiedAsOf: '2026-08-19' }),
+    /verifiedAsOf must be a git commit sha/,
+  );
+  assert.throws(
+    () => specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', verifiedAsOf: 'main' }),
+    /verifiedAsOf must be a git commit sha/,
+  );
+});
+
+test('specShapedBody: verifiedAsOf accepts both abbreviated (7-char) and full (40-char) shas', () => {
+  assert.doesNotThrow(() => specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', verifiedAsOf: '1234567' }));
+  assert.doesNotThrow(() => specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', verifiedAsOf: '1234567890abcdef1234567890abcdef12345678' }));
+});
+
+test('extractVerifiedAsOf: reads the sha back off a composed body', () => {
+  const body = specShapedBody({ header: 'H', ...BASE, acceptanceCriteria: 'a', verifiedAsOf: 'abc1234' });
+  assert.strictEqual(extractVerifiedAsOf(body), 'abc1234');
+});
+
+test('extractVerifiedAsOf: null when absent, when body is empty, and for non-string input', () => {
+  assert.strictEqual(extractVerifiedAsOf('## Current State\nno stamp here'), null);
+  assert.strictEqual(extractVerifiedAsOf(''), null);
+  assert.strictEqual(extractVerifiedAsOf(null), null);
+  assert.strictEqual(extractVerifiedAsOf(undefined), null);
+});
+
+test('extractVerifiedAsOf: is line-anchored — prose mentioning a commit elsewhere does not match', () => {
+  const body = 'See commit abc1234 for background.\n\n## Current State\nx';
+  assert.strictEqual(extractVerifiedAsOf(body), null);
 });

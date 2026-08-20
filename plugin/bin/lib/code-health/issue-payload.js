@@ -47,7 +47,11 @@ function toIssuePayload(finding) {
 // Label/marker/type assembly delegates to recordPayload (bin/lib/issues/record.js) — the
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:code-health,
 // colon-form risk:*/size:* scoring, born-ready, Type task, work-fingerprint marker.
-function toIssuePayloadV2(finding) {
+// verifiedAsOf (#117): the sha the sweep read this repo at, resolved ONCE per
+// run by the caller (bin/code-health.js, via health-core/read-commit.js) and
+// threaded through here — never resolved inside this function. See
+// specShapedBody's own verifiedAsOf doc in record.js for why.
+function toIssuePayloadV2(finding, verifiedAsOf) {
   // Same "Also affects: ..." bundler the other three health producers use — this
   // file's finding vocabulary names the bundled items relatedAnchors rather than
   // relatedSections, but the rendered block is identical.
@@ -58,6 +62,7 @@ function toIssuePayloadV2(finding) {
     deliverables: finding.suggestedApproach,
     acceptanceCriteria: finding.acceptance,
     filedBy: '/claude-tweaks:code-health',
+    verifiedAsOf,
   });
 
   // No spread after this call — recordPayload's return is the payload verbatim.

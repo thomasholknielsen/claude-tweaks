@@ -256,6 +256,23 @@ identity that made the claim.
 **Work-ready evidence.** Pass `releasePayload` a `link` (merge commit URL/sha or PR URL) when one
 exists — it lands in the release marker and human line.
 
+**In-flight detection at claim time (#315).** A `pr-opened:` tombstone's `link` field points at
+the PR that build produced — before reclaiming such a tombstone, a claim-time reader may check
+`gh pr view <link> --json state --jq .state`; a still-`OPEN` result means a build for this issue
+already exists and reclaiming would race it. `bin/lib/issues/claim-engine.js`'s `claimOne` runs
+this check (`tombstoneInFlightPr`), returning `outcome: 'in-flight'` instead of proceeding to a
+fresh claim; any other reason, a missing `link`, or a failed/closed/merged check falls through to
+the reclaim behavior below unchanged (fail open). `link` is untrusted (any session with
+registry-branch write access can set it), so `tombstoneInFlightPr` validates it — a well-formed
+`https://github.com/{owner}/{repo}/pull/{number}` URL for the SAME owner/repo as the issue being
+claimed — before ever calling `gh pr view`; anything else (wrong repo, malformed, non-string) is
+treated the same as a missing `link` and never reaches `gh` at all.
+`bin/lib/claim-targets/claim-targets.js` — the group-claim loop `/claude-tweaks:flow` Step 2.8 and
+`/claude-tweaks:dispatch` actually call, a separate implementation from `claim-engine.js` — runs
+the same `tombstoneInFlightPr` check inline and reports the stopped target via
+`inFlight`/`reason: 'in-flight'` instead of `outcome` (`flow/claim-targets.md`'s "Branch on exit
+code").
+
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a
 tombstone) — `bin/release-claim.js` appends its own line; claim-side entries go through
@@ -340,6 +357,35 @@ follows that file's taxonomy; every other failure class in this table applies ex
 stated.
 
 **Group-claim-all-or-abort exception.** The row above assumes an independent-batch context (dispatch's per-issue loop, `/tidy`'s sweep), where dropping one issue and continuing is safe. A consumer claiming multiple targets under the group-claim-all-or-abort invariant (`flow/claim-targets.md`'s Step 2.8) gets different treatment: any transient `gh`/MCP failure during a claim read or write — not just a classification-based contest — triggers the same all-or-abort release-and-stop (or `keep-going` skip) as a live contest, since silently continuing with one named target unclaimed reopens the double-build race group-claiming exists to prevent.
+
+## Deliverable-name collisions (bin/ CLIs)
+
+The lock above claims the *issue number* being worked, not the *deliverable* (a named `bin/`
+CLI, module, or artifact) a record proposes to build — two different issues that each
+independently propose a same-named `bin/` CLI never collide here; the first collision point is a
+`git merge` add/add conflict, discovered only after both sides have already built, tested, and
+relied on diverging designs (the #637/spec-686-vs-"Ship bin/ CLIs"-PR incident this section
+exists to prevent a repeat of).
+
+**Where this fires:** at capture or specify time, whenever a record's title or body proposes
+building a new `bin/` CLI (a `bin/{name}.js` filename, or prose like "build a CLI for X"/"ship a
+`bin/` script for X"). Before filing or shaping such a record, grep both the shipped tree and the
+open queue for the proposed name:
+
+```bash
+ls plugin/bin/{name}.js 2>/dev/null; gh issue list --search "{name} in:title,body" --state open
+```
+
+A hit in either — an existing implementation, or another open record proposing the same
+deliverable — means resolve the collision (reuse, rename, or explicitly supersede the other
+record) before the record is shaped `ready`. `capture/SKILL.md`'s Adding-an-Entry step cites this
+section rather than restating it.
+
+Would this have caught the #637 incident? Yes — grepping `log-decision` against the open-issue
+titles at the time spec 686 was shaped would have surfaced "Ship bin/ CLIs for the hand-scripted
+per-run procedures" proposing the same `bin/log-decision.js` filename, before either side wrote
+code — the collision was visible from issue/PR titles alone, well before the eventual merge
+conflict.
 
 ## Consumers
 

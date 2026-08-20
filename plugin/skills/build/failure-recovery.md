@@ -1,6 +1,6 @@
 # Superpowers Failure Handling — recovery procedures for execution-skill failures
 
-Referenced from Common Step 2 of `/claude-tweaks:build`. Loaded only when an execution skill (or `/superpowers:writing-plans` in Step 3) fails.
+Referenced from Common Step 2 of `/claude-tweaks:build`. Loaded only when an execution skill (or `/superpowers:writing-plans` in Step 3) fails. The **Anything else** row also covers a transient component-skill dispatch failure outside Common Step 2 — e.g. Common Step 3's `/claude-tweaks:simplify` dispatch — since that row's verify-actual-state-before-redoing posture is failure-shape-general, not specific to the Superpowers execution chain; Common Step 3 cites it directly rather than duplicating the table.
 
 ## Recovery table
 

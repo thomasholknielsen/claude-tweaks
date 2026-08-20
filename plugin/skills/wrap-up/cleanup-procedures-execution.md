@@ -33,17 +33,8 @@ If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
 2. Verify the Review Console ran and applied/dismissed all staged items.
 3. **Mark the run terminal, if not already closed by Section C's step 3.6** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). Idempotent: re-running it on an already-clean run (the worktree-strategy case, where Section C's step 3.6 closed it first) is a harmless no-op. E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
-4. **Move the `work/` subdirectory** to `.claude-tweaks/pipelines/archive/{run-id}/work/` — the materialized record files (`materialize.md`'s "committed as audit trail, never gitignored" contract) are git-tracked, unlike the rest of the run directory: move it with `git mv` (mandatory — the archive path itself is gitignored, so a plain `mv` + `git add` is rejected and the tracked files would register as deletions; `git mv` preserves the tracked rename regardless of the ignore rule).
-5. **Gitignored content** (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`):
-   already in the main checkout — run directories are anchored there at creation
-   (`_shared/pipeline-run-dir.md`, Anchoring), and for a run that predates anchoring,
-   Section C step 3.5's transitional guard has already copied it there and re-pointed
-   `$RUN_DIR`. Either way `$RUN_DIR` names a main-checkout path by the time this step
-   runs. Move them into the archive path with a plain `mv`, same destination as
-   `work/`'s but without `git mv` since they were never tracked. This is identical for
-   worktree-strategy and `current-branch` runs; the two-branch split it replaces existed
-   only because the worktree strategy used to hold the sole copy.
-6. Skipped staged items remain in the archive; they are NOT silently dropped.
+4. **Archive the run directory** — `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" archive-run --run "$RUN_DIR"`. This archives the tracked `work/` directory and moves every other entry (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`, and anything else the run directory holds — the verb enumerates rather than assuming a fixed list) in one call. The verb refuses a non-terminal run (`active`/`interrupted`) — step 3's `close-run` call above is what makes this refusal unreachable in practice here, not a redundant check.
+5. Skipped staged items remain in the archive; they are NOT silently dropped.
 
 Do NOT delete the run directory outright — the auto-decision log is project history (for the user's calibration of project policy), not pipeline state.
 
@@ -134,7 +125,7 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    since Section C is skipped when no worktree exists).
 3.5. **Transitional guard — a run directory whose only copy is inside this worktree.**
    Run directories created since run-dir anchoring shipped (2026-08-07, `_shared/pipeline-run-dir.md`'s
-   Anchoring section) live under the **main checkout**, so Section B step 5 can rely on the copy
+   Anchoring section) live under the **main checkout**, so Section B step 4 can rely on the copy
    being there and removing a worktree cannot destroy it. Runs created *before* that hold their
    only copy of `config.yml`, `decisions.md`, `events.jsonl` and `staged/` inside the worktree,
    where step 4 below deletes them permanently — there is no git history to recover from, the
@@ -214,13 +205,25 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    it holds for `--no-ff`, fast-forward, and squash/rebase merges alike, all of which the SHA
    equality test alone would reject.
 
-   For a worktree this session does **not** occupy and that `git worktree list --porcelain`
-   shows unlocked, `git worktree remove {path}` is fine.
-5. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
-6. If the branch was merged (the same condition step 5 just checked), also delete the
-   remote branch — run `_shared/pr-first-merge-post-merge.md`'s `## Step 5: Delete the remote
-   branch` against `{branch}`. Skip silently if the branch was kept for an open PR
-   (step 5's own condition) or if no remote tracking ref exists for it.
+   For a worktree this session does **not** occupy, use `teardown-run` (below) instead of a raw
+   `git worktree remove` — it already checks `git worktree list --porcelain` for you and skips
+   (never forces) a locked one.
+5. **Steps 5-6, subsumed into one call.** For a worktree this session does not occupy, run:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" teardown-run --run "$RUN_DIR" \
+     --merged  # or --abandoned when the branch was discarded, not merged
+   ```
+
+   One command performs archival (idempotent if Section B already archived this run — a second
+   pass is a harmless no-op), worktree removal (skip-and-report if locked, never forced), the
+   local branch delete (only under `--merged`, and only when the branch isn't the integration
+   branch itself), and the remote branch delete (`pr-first-merge-post-merge.md`'s `## Step 5:
+   Delete the remote branch` mechanism, verbatim) — replacing what used to be 4-5 hand-assembled
+   commands per run. **Own-worktree carve-out:** never call `teardown-run` against the worktree
+   the session is standing in — that removal path is `ExitWorktree` only, per step 4 above and
+   `[IL-58]`; `teardown-run`'s own worktree-removal step is for a worktree this session does not
+   occupy.
 
 If no worktree exists for this spec, skip this section silently.
 
@@ -252,10 +255,21 @@ only after the branch outcome is known (item 4, Git
 Worktree, completes first — the execution order of the canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
-`_shared/forge-detection.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
-skip — Section E exists specifically to write GitHub state (release claims, remove labels); if
-`gh` is unavailable there is nothing safe to degrade to. Report the specific failing check and
-stop before attempting any release.
+`_shared/forge-detection.md` (checks 1-3). Checks 1 (GitHub remote) and 3 (repo reachable) are
+hard gates on either transport — there is no meaningful degraded mode when the repo itself is
+unreachable; report the specific failing check and stop before attempting any release. Check 2
+(`gh` installed) does **not** gate on its own: Section E is a transport-aware consumer with a
+documented MCP fallback — step 4 below already routes a `gh`-absent release through the MCP
+tools per `_shared/github-write-transport.md`'s conditional-write pattern (claim tombstone) and
+CRUD mapping (label removal, release comment) — so per `_shared/forge-detection.md`'s own rule
+("a consumer with a documented MCP fallback... proceeds via that path instead of stopping"),
+`gh`-absence alone degrades to that path rather than stopping. **Decision:** this was ambiguous
+before 6.69.0 widened item 7's Condition (`cleanup-procedures.md`'s table) from "materialized
+header present" to "record-based work," which made a standalone `/wrap-up #N` run reach this
+gate far more often — but every write this section performs already has a documented MCP
+equivalent (see step 4), matching CLAUDE.md's Dependencies row (`gh`-absent env routes the same
+CRUD via `_shared/github-write-transport.md`'s MCP path). A genuine hard stop occurs only when
+checks 1 or 3 fail.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
    `/flow` releases all claims once after its consolidated Review Console and merge.
@@ -279,11 +293,19 @@ stop before attempting any release.
    under, for a singleton. (A multi-spec bundle is the one exception this single-spec Section E does
    not itself resolve — see the callout below.) A spec reaching this point through any other path
    (a human running `/flow #{issue}` directly, or a spec merely *derived from* an issue with no
-   live claim) resolves the same way. The CLI reads the blob at `claims/issue-${ISSUE}.json` on
-   `claims-registry` itself; a `runId` other than `$RUN_ID` means a successor holds the lock — it
-   exits `4`, writes nothing, posts nothing, and appends `AUTO — skipped release of issue
-   #{issue}: claim held by run {claim.runId}` to `decisions.md`; skip the remaining steps for
-   this issue — a successor owns it now.
+   live claim) resolves the same way. The CLI classifies the blob at `claims/issue-${ISSUE}.json`
+   on `claims-registry` before touching it (`classifyClaimBlob`, per `_shared/issue-claims.md`'s
+   "The lock" section), and the two outcomes that reach this step are not the same. **Absent**
+   (never claimed) or a **tombstone** (already released) — nothing is held, so the CLI proceeds
+   quietly to the release-and-comment path below and logs the ordinary `released claim on
+   #{issue} (...) — already released or swept` line; it never writes the "held by run" line
+   below. **Live or stale**, by contrast, is an actual outstanding lock — only then does a
+   `runId` other than `$RUN_ID` mean a successor holds it: the CLI exits `4`, writes nothing,
+   posts nothing, and appends `AUTO — skipped release of issue #{issue}: claim held by run
+   {claim.runId}` to `decisions.md`; skip the remaining steps for this issue — a successor owns
+   it now. (An unreadable/corrupt blob fails closed the same way, with `holder: unreadable`, per
+   `_shared/issue-claims.md`'s Failure posture table's "Claim write rejected, blob classified
+   `'unreadable'`" row — treated as live, so it also skips and logs.)
 
    **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
    `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" in `cleanup-procedures.md`) —

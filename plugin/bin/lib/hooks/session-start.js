@@ -26,6 +26,14 @@ const FAST_CHECKS = ['mirror', 'red-tip', 'console'];
 
 async function run(ctx) {
   const parts = [];
+  // Per-invocation cache (#381): memoizes `git worktree list --porcelain` and
+  // `resolveIntegrationBranch`'s resolved name, each keyed by repo root, so the
+  // up-to-MAX_REPORTED checkRunIntegrity calls below and the trailing reconcile()
+  // call share one spawn of each instead of one per call. Opt-in and scoped to this
+  // single run(ctx) invocation — every other caller of these functions (direct unit
+  // tests, /dispatch, /tidy, any other reconcile() caller) omits it and keeps
+  // today's fresh-spawn-per-call behavior unchanged.
+  const cache = { worktreeList: new Map(), integrationBranch: new Map() };
   try { parts.push(...deps.collect()); } catch { /* best-effort */ }
   try {
     // Only the newest MAX_REPORTED entries are ever shown — pull from the
@@ -52,7 +60,7 @@ async function run(ctx) {
         const prSuffix = state && state.pr && state.pr.url ? ` — PR ${state.pr.url}` : '';
         const base = `- ${path.basename(dir)} (status: ${(state && state.status) || 'unknown'})${prSuffix}`;
         try {
-          const verdict = runIntegrity.checkRunIntegrity(dir);
+          const verdict = runIntegrity.checkRunIntegrity(dir, { cache });
           if (verdict.state === 'shipped-unclosed') {
             // Evidence names what was checked so the reader can judge the claim.
             const how = verdict.evidence.merged === 'cherry' ? 'squash/rebase-equivalent' : 'merged';
@@ -97,7 +105,7 @@ async function run(ctx) {
     // reconcile-background-status.json's own `completedAt` (see the spawn
     // block below and its comment for why conflating the two was a bug).
     const result = await reconcile({
-      cwd: ctx.cwd, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: DEFAULT_TTL_MS,
+      cwd: ctx.cwd, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: DEFAULT_TTL_MS, cache,
     });
 
     // One added summary line for what the fast path did — today just mirror
@@ -216,7 +224,12 @@ async function run(ctx) {
           const child = spawn(
             process.execPath,
             [path.join(__dirname, '..', '..', 'hooks.js'), 'reconcile-background'],
-            { cwd: ctx.cwd, detached: true, stdio: 'ignore' },
+            // `windowsHide: true` is load-bearing alongside `detached: true`:
+            // detaching is what leaves the child with no inheritable console,
+            // and without the flag Windows gives it a VISIBLE one — as it
+            // then does for every git process this background pass spawns
+            // beneath it. See tests/hooks-git-exec.test.js for the funnel.
+            { cwd: ctx.cwd, detached: true, stdio: 'ignore', windowsHide: true },
           );
           // spawn() returns an EventEmitter, and an ASYNCHRONOUS spawn
           // failure (EAGAIN under fork pressure — routine in a repo running

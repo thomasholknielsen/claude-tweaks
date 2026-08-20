@@ -81,7 +81,7 @@ async function fetchPrComments(repoRoot, prNumber) {
     ({ stdout } = await execFileAsync(
       'gh',
       ['pr', 'view', String(prNumber), '--json', 'comments'],
-      { cwd: repoRoot, encoding: 'utf8', timeout: FETCH_TIMEOUT_MS },
+      { cwd: repoRoot, encoding: 'utf8', timeout: FETCH_TIMEOUT_MS, windowsHide: true },
     ));
   } catch (e) {
     if (e && e.code === 'ENOENT') return { ok: false, reason: 'gh-absent' };

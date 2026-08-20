@@ -121,6 +121,28 @@ test('dedupAndDispatch returns an empty wontfixSuppressed when nothing was suppr
   assert.deepStrictEqual(result.wontfixSuppressed, []);
 });
 
+test('dedupAndDispatch threads verifiedAsOf through to toIssuePayload as its second argument (#117)', () => {
+  const { readCache } = makeDeps();
+  let receivedSecondArg;
+  const toIssuePayload = (finding, verifiedAsOf) => { receivedSecondArg = verifiedAsOf; return { payloadFor: finding.id }; };
+  dedupAndDispatch({
+    root: '/r', toolName: 't', survivors: [{ id: 'f1' }], readCache,
+    decide: () => ({ action: 'file' }), toIssuePayload, verifiedAsOf: 'abc1234',
+  });
+  assert.strictEqual(receivedSecondArg, 'abc1234');
+});
+
+test('dedupAndDispatch passes verifiedAsOf through as undefined when the caller omits it — never re-derives it', () => {
+  const { readCache } = makeDeps();
+  let receivedSecondArg = 'unset';
+  const toIssuePayload = (finding, verifiedAsOf) => { receivedSecondArg = verifiedAsOf; return { payloadFor: finding.id }; };
+  dedupAndDispatch({
+    root: '/r', toolName: 't', survivors: [{ id: 'f1' }], readCache,
+    decide: () => ({ action: 'file' }), toIssuePayload,
+  });
+  assert.strictEqual(receivedSecondArg, undefined);
+});
+
 test('dedupAndDispatch passes issuesPath and toolName through to loadIssueIndex (a malformed --issues file degrades gracefully)', () => {
   const { readCache, toIssuePayload } = makeDeps();
   // loadIssueIndex (bin/lib/health-core/issue-index.js) already degrades a

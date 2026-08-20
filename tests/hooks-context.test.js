@@ -90,6 +90,50 @@ test('listRunDirsWithState returns each non-terminal dir paired with its already
   ]);
 });
 
+// #593: defense in depth — a stray top-level dir whose archive twin already
+// carries a terminal run-state.json (a filesystem-only, non-git-aware
+// archival move, or a tracked work/ file resurrected by `git checkout`) must
+// not be reported as unfinished/`status: unknown` forever. Checked at the
+// shared iterator so every caller (resolveRun's fallback scan, session-
+// start's report, the reconciler) benefits, not just session-start.js.
+test('iterRunDirsWithState: stray dir with no local run-state.json is skipped when its archive/{name}/ twin is terminal', () => {
+  const project = tmpProject();
+  const runId = '2026-07-01T090000-spec-1';
+  const stray = mkRun(project, runId); // no run-state.json — readRunState returns null
+  const archiveTwin = mkRun(project, path.join('archive', runId), { status: 'clean' });
+  assert.deepStrictEqual(ctx.listRunDirs(project), []);
+  assert.strictEqual(ctx.resolveRunDir(project, {}), null);
+  assert.ok(fs.existsSync(stray));
+  assert.ok(fs.existsSync(archiveTwin));
+});
+
+test('iterRunDirsWithState: stray dir with a stale non-terminal run-state.json is still skipped when its archive twin is terminal', () => {
+  const project = tmpProject();
+  const runId = '2026-07-01T090000-spec-1';
+  mkRun(project, runId, { status: 'active' }); // resurrected/stale local state
+  mkRun(project, path.join('archive', runId), { status: 'clean' });
+  assert.deepStrictEqual(ctx.listRunDirs(project), []);
+});
+
+test('iterRunDirsWithState: stray dir is still yielded when it has no archive twin at all', () => {
+  const project = tmpProject();
+  const genuinelyOpen = mkRun(project, '2026-07-01T090000-spec-1', { status: 'active' }); // no archive twin at all
+  assert.deepStrictEqual(ctx.listRunDirs(project), [genuinelyOpen]);
+});
+
+// #208: archived is terminal regardless of the archive twin's own run-state —
+// existence of archive/{run-id}/ alone is authoritative, since that twin's
+// status field is exactly the untrustworthy resurrected data #208 fixes
+// (a later hook write can corrupt or resurrect it after the real archival).
+// Supersedes the pre-#208 assumption that a non-terminal archive twin meant
+// the archival hadn't "really" finished — AC3 states this explicitly.
+test('iterRunDirsWithState: #208 — a run-id present under archive/ is skipped even when that twin\'s own state is non-terminal', () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-02T090000-spec-2'); // stray active-side dir, no local run-state.json
+  mkRun(project, path.join('archive', '2026-07-02T090000-spec-2'), { status: 'active' }); // resurrected/corrupted twin state
+  assert.deepStrictEqual(ctx.listRunDirs(project), []);
+});
+
 test('listRunDirs is derived from listRunDirsWithState (same dirs, same order)', () => {
   const project = tmpProject();
   const a = mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });

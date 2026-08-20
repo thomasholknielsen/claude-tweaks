@@ -22,8 +22,9 @@ Stay consistent with whatever vault list `agent-browser auth list` already shows
    ```
    No matching auth vault found. To create one (the LLM will never see the password):
 
-       agent-browser auth set <vault-name> <username> <password>
+       agent-browser auth save <vault-name> --url <login-page-url> --username <username> --password <password>
 
+   Add --password-stdin instead of --password to keep the password out of shell history.
    Recommended vault name: `default-user` (or `<project-slug>-user`).
    ```
    Then call `AskUserQuestion` with `question`: `"Auth vault ready?"`, `header`: `"Auth vault"`, `multiSelect`: `false`:
@@ -34,7 +35,11 @@ Stay consistent with whatever vault list `agent-browser auth list` already shows
 
    **Auto mode:** never block — tag auth-gated stories as `needs-auth-vault` and stage the install hint. (Step 5 refinement's sample selection filters only by `priority`, not tags, so a tagged story may still be validated and is expected to fail its auth step until a vault exists.) Log:
    ```
-   STAGED {HH:MM:SS} — Auth Resolution: no matching vault for {auth-gated-page-list}. Auth-gated stories tagged `needs-auth-vault` (may still be sampled by Step 5 refinement and fail the auth step until a vault exists). User can create a vault with `agent-browser auth set default-user <username> <password>` and re-run /stories. Reversibility: high (re-run /stories or /test qa).
+   STAGED {HH:MM:SS} — Auth Resolution: no matching vault for {auth-gated-page-list}. Auth-gated stories tagged `needs-auth-vault` (may still be sampled by Step 5 refinement and fail the auth step until a vault exists). User can create a vault with `agent-browser auth save default-user --url <login-url> --username <username> --password <password>` and re-run /stories. Reversibility: high (re-run /stories or /test qa).
    ```
    Surface the install hint at the Wrap-Up Review Console.
 4. **Multiple vaults exist** (e.g., `default-user`, `admin-user`): map each story's persona to the matching vault; fall back to `default-user` with a comment when no clean match.
+
+## Tag self-heal (update mode)
+
+When update mode is active and an existing story carries the `needs-auth-vault` tag, re-check it against the `agent-browser auth list` output from Step 1 of this procedure: if a matching vault now exists, remove the tag (and any accompanying vault-hint comment) as part of the update-mode write — the tag records a condition that no longer holds, and leaving it makes every later run re-report a solved problem. `/test qa`'s Story Hygiene section recommends the same cleanup when it observes a tagged story whose vault now exists; this step is what actually performs it.
