@@ -79,3 +79,8 @@ test('next-mode.md names the shaping-time guard as the backstop for unlabeled le
   const src = readFlat('plugin/skills/specify/next-mode.md');
   assert.ok(src.includes('shaping-time backstop'), 'backstop sentence missing from next-mode.md');
 });
+
+test('work-record.md permission matrix grants /specify the parent-guard removal carve-out', () => {
+  const src = readFlat('plugin/skills/_shared/work-record.md');
+  assert.ok(src.includes('parent-marked record only (case-1 parent-record guard cleanup'), 'permission-matrix carve-out missing from work-record.md');
+});
