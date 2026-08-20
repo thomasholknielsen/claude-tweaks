@@ -1,0 +1,5 @@
+# Open Items — Record #706
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | wrap-up | residue-sweep (--scope blast-radius) surfaced 8 findings belonging to OTHER concurrent sessions' worktrees/pipeline-runs, not this run's own blast radius: merged-not-deleted branches origin/worktree-record-736, origin/worktree-record-768; un-archived clean pipeline-run dirs for records 538, 663, 671, 768, 667, 736. `bin/lib/residue/probes/branches.js` (and the pipeline-run probe) tag every repo-wide merged branch / clean run dir as `scope: 'blast-radius'` rather than filtering by which run/worktree created it — contradicts `wrap-up/residue-sweep.md`'s stated intent ("a finding belongs on this run's ledger only if it is this run's own blast radius"). Unsafe for a #706-scoped run to act on another live session's worktree/run-dir mid-flight in a 30+-concurrent-session repo. | deferred (-> backlog) | Routed via ledgerNarrowing (autonomy: unattended, blocked-external clears floor) -> #1118 |
