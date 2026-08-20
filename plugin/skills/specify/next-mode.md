@@ -58,24 +58,29 @@ exit or a contested-claim exit (below) is NOT a failure and files nothing.
 
 Per `_shared/record-queue-fetch.md`'s `work-backend: github-issues` fetch:
 open records carrying none of `ready`, `needs:definition`, `parked`,
-`parent-issue`, and holding no live claim per `_shared/issue-claims.md`'s
-Reading claim state. `ready` and `parent-issue` are excluded because they
-are not this skill's job at all — a `ready` record is already shaped
-(nothing left for `next` to do), and a `parent-issue` is a decomposition
-summary, never itself a shaping target (`_shared/work-record.md`'s
-Structure family). The other two exclusions are content judgments, not
-mechanical ones, and each rules out headless shaping for a different
-reason: **`needs:definition`** marks "a genuine open choice with no
-tradeoff made yet, rather than a single clear ask" (`_shared/work-record.md`'s
-Definition family) — an undecided record cannot be born-ready, and a
-headless firing has nobody present to make the decision it's waiting on,
-so shaping it would mean fabricating that human call. **`parked`** marks a
-record a human deliberately deferred; unattended shaping must not
-un-defer it on its own — promoting a `parked` record out of hold is
-exactly what shaping mode does (removes the label, per `shaping-mode.md`'s
-Stamp scoring and stage labels section), so leaving it un-promoted is the
-only safe default with nobody present to confirm the human's deferral has
-lapsed.
+`parent-issue`, and `bot:in-progress`. The last is a cheap label-based
+pre-filter, the identical posture `dispatch/SKILL.md` Step 2 already takes
+for its own `bot:*` exclusion ("labels are projection, not truth... the
+authoritative unclaimed check is `/flow`'s Step 2.8 atomic claim
+attempt") — passing this pre-filter does not mean a record is actually
+unclaimed, only that its label snapshot doesn't say so; the authoritative
+check happens at the Claim step below. `ready` and `parent-issue` are
+excluded because they are not this skill's job at all — a `ready` record
+is already shaped (nothing left for `next` to do), and a `parent-issue` is
+a decomposition summary, never itself a shaping target
+(`_shared/work-record.md`'s Structure family). The other two exclusions
+are content judgments, not mechanical ones, and each rules out headless
+shaping for a different reason: **`needs:definition`** marks "a genuine
+open choice with no tradeoff made yet, rather than a single clear ask"
+(`_shared/work-record.md`'s Definition family) — an undecided record
+cannot be born-ready, and a headless firing has nobody present to make the
+decision it's waiting on, so shaping it would mean fabricating that human
+call. **`parked`** marks a record a human deliberately deferred;
+unattended shaping must not un-defer it on its own — promoting a `parked`
+record out of hold is exactly what shaping mode does (removes the label,
+per `shaping-mode.md`'s Stamp scoring and stage labels section), so
+leaving it un-promoted is the only safe default with nobody present to
+confirm the human's deferral has lapsed.
 
 `gh issue list` returns newest-first, so a fetch that hits the `--limit`
 cap silently drops the *oldest* open records — precisely the records
@@ -93,7 +98,7 @@ if [ "$RAW_COUNT" -ge 500 ]; then
 fi
 node -e "
   const records = require('/tmp/specify-next-raw.json');
-  const EXCLUDE = new Set(['ready', 'needs:definition', 'parked', 'parent-issue']);
+  const EXCLUDE = new Set(['ready', 'needs:definition', 'parked', 'parent-issue', 'bot:in-progress']);
   const eligible = records.filter((r) =>
     !r.labels.some((l) => EXCLUDE.has(l.name))
   );
@@ -101,11 +106,13 @@ node -e "
 " > /tmp/specify-next-candidates.json
 ```
 
-Then filter out any record already carrying a live or stale-but-unbroken
-claim — read each candidate's claim state per `_shared/issue-claims.md`'s
-"Reading claim state" section (`state: 'live'` excludes it; `'absent'`,
-`'tombstone'`, and `'stale'` — the last reclaimed at claim time in the Claim
-step below, not here — do not).
+No further claim-state filtering runs here — the `bot:in-progress`
+exclusion above is a cheap label pre-filter only, same posture as
+dispatch's own queue-time filter. The authoritative unclaimed check is the
+Claim step's live re-read below, which reads each candidate's actual
+claim-blob state per `_shared/issue-claims.md`'s "Reading claim state" and
+attempts an atomic create-only/conditional write; a record can pass the
+pre-filter above and still turn out contested once Claim runs.
 
 ## Selection
 
@@ -148,33 +155,40 @@ gh issue view {n} --json labels -q '[.labels[].name]'
 ```
 
 If the re-read shows the record no longer eligible (now carries `ready`,
-`needs:definition`, `parked`, or `parent-issue`) — exit as a clean no-op
-for this firing. No same-firing re-selection; the next firing picks up
-(dispatch's no-retry posture, mirrored exactly).
+`needs:definition`, `parked`, `parent-issue`, or `bot:in-progress`) — exit
+as a clean no-op for this firing. No same-firing re-selection; the next
+firing picks up (dispatch's no-retry posture, mirrored exactly).
 
 Otherwise, claim it per `_shared/issue-claims.md`'s "The lock": read the
 claim blob, classify with `classifyClaimBlob`, and write create-only
 (`'absent'`) or conditionally (`'tombstone'`/`'stale'`). If the write is
 contested (`'live'`, or a write rejection) — exit as a clean no-op for this
 firing, same as an ineligible re-read. This is not a failure; file no
-self-report.
+self-report. Add `bot:in-progress` alongside a successful claim write
+(bootstrap-then-add, per `_shared/issue-claims.md`'s "The bot:in-progress
+label" section) — best-effort, never blocking the claim itself on a
+failed add.
 
-`runId` for this claim is this firing's own resolved run directory
-identity. Resolve it once, before claiming, via `_shared/pipeline-run-dir.md`'s
-standalone-auto fallback (Resolution order step 4) — `specify` is on that
-file's allowlist as of this task, added alongside `/claude-tweaks:dispatch`'s
-own `next`-form entry, for the identical reason: `next` is the headless-safe
-form a scheduled Routine fires unattended, so step 5's interactive fallback
-is never a real option for it:
+This firing always resolves its run directory in `auto` mode — a headless
+`next` firing has no human present to answer an interactive-mode prompt,
+so `--mode auto` below is a structural fact of the `next` form itself, not
+a policy choice. `runId` for this claim is this firing's own resolved run
+directory identity. Resolve it once, before claiming, via
+`_shared/pipeline-run-dir.md`'s standalone-auto fallback (Resolution order
+step 4) — `specify` is on that file's allowlist as of this task, added
+alongside `/claude-tweaks:dispatch`'s own `next`-form entry, for the
+identical reason: `next` is the headless-safe form a scheduled Routine
+fires unattended, so step 5's interactive fallback is never a real option
+for it:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --standalone specify --mode auto --create
+RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --standalone specify --mode auto --create)
 ```
 
-The resulting directory's basename is this claim's `runId`. Log the claim
-(and, below, the release) to that directory's `decisions.md` per
-`_shared/issue-claims.md`'s own logging convention — cited, not restated,
-here.
+Call the result `$RUN_DIR`; the resulting directory's basename is this
+claim's `runId`. Log the claim (and, below, the release) to that
+directory's `decisions.md` per `_shared/issue-claims.md`'s own logging
+convention — cited, not restated, here.
 
 ## Shape
 
@@ -186,34 +200,70 @@ external `Skill(skill: "claude-tweaks:specify", args: "#{n} --chained")`
 call (the shape `/claude-tweaks:capture`'s born-ready chain uses to invoke
 this skill from *outside*, which does not apply here).
 
+Fetch the record's full content before handing off — the Claim step's
+live re-read above fetched `labels` only, to keep the claim race window as
+short as possible, but `shaping-mode.md`'s "Preserve the original request"
+precondition needs the record's title and body verbatim, the same fetch
+shape `SKILL.md`'s resolve-input case 1 already performs:
+
+```bash
+gh issue view {n} --json number,title,body,url,labels
+```
+
 Read `shaping-mode.md` in this skill's directory and follow its procedure
-directly against the record claimed above, under the same headless posture
-`--chained` uses: Step 2.5c's design-intent question resolves to
+directly against the record fetched above, under the same headless posture
+`--chained` uses: `next`-mode is a named entry path in `shaping-mode.md`'s
+own header, Step 2.5c's design-intent question resolves to
 `Design-intent: none` without prompting (already established in Flag
 rejection above), and no `## Next Actions` renders at the end (headless —
-nobody is present to answer it). Shaping mode's own `ready` stamp is what
+nobody is present to answer it; `shaping-mode.md`'s own return clause
+names the `next` form's headless posture as a second reason to skip that
+render, alongside `--chained`). Shaping mode's own `ready` stamp is what
 removes the record from future `next` eligibility — no extra state change
 is needed here.
 
 A shaping-stage failure — the compose-then-write-once call failing, or
 `shaping-mode.md`'s own read-back verification failing — is a failure for
-this file's purposes: it reaches Failure self-report below, not a silent
-stop, before Release runs.
+this file's purposes: Release (below) still runs first, unconditionally,
+before this failure reaches Failure self-report below.
 
 ## Release
 
 Release the claim (`_shared/issue-claims.md`'s release operation) on the
 success path AND on every failure path below this point — try/finally
-semantics: whatever happens during Shape, Release always runs before this
-procedure's turn ends. If the release write itself fails, do not retry
-in-firing — the claims contract's stale-claim TTL is the backstop
-(`/tidy`'s sweep eventually reclaims it).
+semantics: whatever happens during Shape (the only failure path that can
+reach here — a Preflight failure, or an ineligible/contested Claim, never
+acquires a claim in the first place, so there is nothing to release on
+either of those paths), Release always runs before this procedure's turn
+ends, and always before Failure self-report (below) files anything —
+never the other order, so a self-report write failure can never leave the
+claim held to its 72h TTL. Use `bin/release-claim.js` with the concrete
+reason string for the path taken — `shaped: #{n}` on the success path,
+`failed: shaping` on a shaping-stage failure
+(`_shared/issue-claims.md`'s Release triggers table) — and
+`--remove-in-progress` to remove the `bot:in-progress` label in the same
+call (best-effort, per `_shared/issue-claims.md`'s "The bot:in-progress
+label" section — never blocking the release itself on a failed removal):
+
+```bash
+# Success path:
+node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" {n} --run "$RUN_DIR" \
+  --reason "shaped: #{n}" --remove-in-progress --section "/specify" --step "Release"
+# Shaping-stage failure path:
+node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" {n} --run "$RUN_DIR" \
+  --reason "failed: shaping" --remove-in-progress --section "/specify" --step "Release"
+```
+
+If the release write itself fails, do not retry in-firing — the claims
+contract's stale-claim TTL is the backstop (`/tidy`'s sweep eventually
+reclaims it).
 
 ## Failure self-report
 
 Any Preflight failure (Preflight section above), and any post-claim
-shaping-stage failure (Shape section above throwing or returning an error),
-files the shared headless self-report (`_shared/headless-self-report.md`,
-`{caller}` = `specify`) before stopping — deduplicated against any existing
-open report. A zero-eligible exit (Selection section) or a contested-claim
+shaping-stage failure (Shape section above throwing or returning an error
+— reported here only after Release above has already run), files the
+shared headless self-report (`_shared/headless-self-report.md`, `{caller}`
+= `specify`) before stopping — deduplicated against any existing open
+report. A zero-eligible exit (Zero eligible section) or a contested-claim
 exit (Claim section) is NOT a failure and files nothing.

@@ -152,7 +152,8 @@ function resolve(opts = {}) {
     // `--mode`, when GIVEN, gates creation to auto mode only — mirroring
     // resolution-order step 4's "AND the skill is running in auto mode"
     // clause for the standalone-auto allowlist (/tidy, /init, /capture,
-    // /claude-tweaks:dispatch, /claude-tweaks:backlog). When `--mode` is
+    // /claude-tweaks:dispatch, /claude-tweaks:backlog,
+    // /claude-tweaks:specify). When `--mode` is
     // OMITTED entirely, no such gate applies — that is wrap-up's own
     // documented exception (pipeline-run-dir.md resolution order step 4):
     // wrap-up creates a standalone run dir in *every* mode, not only auto,

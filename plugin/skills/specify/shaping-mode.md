@@ -1,8 +1,10 @@
 # Specify — Shaping Mode (one or more records)
 
 Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 1 (a work record reference,
-or a comma-joined batch of them — `SKILL.md`'s `## Input`, "Comma-list batch form") or case 5 (a
-backlog reference with no matching design doc). Each record already exists and IS the target —
+or a comma-joined batch of them — `SKILL.md`'s `## Input`, "Comma-list batch form"), case 5 (a
+backlog reference with no matching design doc), or the `next` form's headless entry (`next-mode.md`'s
+Shape step, which fetches the claimed record itself and hands it to this procedure directly — the
+same in-process invocation `--chained` uses, never a recursive `Skill()` call). Each record already exists and IS the target —
 there is nothing to decompose, and none of decomposition mode's Steps 1-9 (`decomposition-mode.md`
 in this skill's directory) ever run here.
 
@@ -19,9 +21,11 @@ each write already landed via the API (or on disk); report the failure on that r
 keep shaping the rest.
 
 This procedure is fully self-contained: once it completes, return to `SKILL.md`'s `## Next Actions`
-block — except under `--chained`, which returns to the caller instead (a comma list never runs under
-`--chained` — `SKILL.md`'s `## Input` drops the flag with a notice first, so a batch always reaches
-`## Next Actions`). Kept out of `SKILL.md` because shaping is now the primary path (`#N` record
+block — except under `--chained`, or under the `next` form's headless posture (`next-mode.md`'s
+Shape step), both of which return to the caller instead with no `## Next Actions` render (a comma
+list never runs under `--chained` — `SKILL.md`'s `## Input` drops the flag with a notice first, and
+`next` never shapes a comma list either — its own Flag rejection rejects it — so a batch always
+reaches `## Next Actions`). Kept out of `SKILL.md` because shaping is now the primary path (`#N` record
 references are the primary input) and it has no use for decomposition mode's much larger body.
 
 **Parallel-safety.** Under `work-backend: github-issues`, shaping a record writes no local files — it edits the GitHub issue directly via `gh`, so no worktree is required and multiple records may be shaped concurrently with zero collision risk. `work-backend: local-files` does write a tracked file (`writeRecord`) and is not safe to parallelize without isolation.
@@ -83,7 +87,7 @@ The shaped sections above are `/specify`'s editorial interpretation; `## Origina
 
 ### Metadata block
 
-Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained` that step never asks and resolves to `Design-intent: none` (its own `--chained` branch). On a comma-list batch, run the sniff per record but ask the design-intent question **once** for all frontend records together: render one batch table (record, sniffed surface, recommended intent pre-filled) followed by a single `AskUserQuestion` for apply-all/override, per the Interaction style directive — never one call per record; backend/infra records in the same batch appear in the table with `Design-intent: —` and are not asked. On a batch, both the sniff and that single question already ran once, upfront, per this file's opening paragraph — reaching this section for a given record in the per-record loop below only writes that record's already-resolved values into its own composed body; nothing here fires a second time. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
+Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained`, or under the `next` form's headless posture, that step never asks and resolves to `Design-intent: none` (its own `--chained` branch; `next` pre-resolves this itself in `next-mode.md`'s Flag rejection step, before this file ever loads, the same "already resolved, just write it" shape a batch's pre-resolved value gets below). On a comma-list batch, run the sniff per record but ask the design-intent question **once** for all frontend records together: render one batch table (record, sniffed surface, recommended intent pre-filled) followed by a single `AskUserQuestion` for apply-all/override, per the Interaction style directive — never one call per record; backend/infra records in the same batch appear in the table with `Design-intent: —` and are not asked. On a batch, both the sniff and that single question already ran once, upfront, per this file's opening paragraph — reaching this section for a given record in the per-record loop below only writes that record's already-resolved values into its own composed body; nothing here fires a second time. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
 
 ```
 Surface: web
@@ -212,6 +216,6 @@ One row per record — a single-record run renders one row, a comma-list batch r
 
 For a comma-list batch, render one row per shaped element, in list order, and prefix each Detail with its outcome: `shaped` (this run edited the record — the row above), `already shaped, no-op` (every section present and non-empty and every label family already stamped — nothing written, nothing to undo), or `failed` (either the write call itself failed, or the read-back verification (above) failed — the Detail cell's own text names which one). There is no `skipped` outcome here — the batch branch's stop-all failure semantics (`SKILL.md`'s `## Input`, Comma-list batch form) mean an unresolvable element never reaches shaping mode at all; every row this table renders is an element that was actually shaped. The Ref column follows the same per-driver rule on every row.
 
-Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block: the "Shaping mode — one record shaped in place" row of its Situation table for a single record, the "Shaping mode — multiple records shaped in place" row for a comma-list batch (its recommended command lists every successfully shaped record, in the order given). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable.
+Shaping mode ends here — return to `SKILL.md` and render its `## Next Actions` block: the "Shaping mode — one record shaped in place" row of its Situation table for a single record, the "Shaping mode — multiple records shaped in place" row for a comma-list batch (its recommended command lists every successfully shaped record, in the order given). Under `--chained` (see `SKILL.md`'s Input and Component-Skill Contract), or under the `next` form's headless posture (`next-mode.md`), skip Next Actions entirely and return control to the calling skill — the shaped, `ready` record is the whole deliverable; `next-mode.md` has nobody present to read a rendered Next Actions block anyway.
 
 `/specify` adds `ready`, `risk:*`/`size:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.

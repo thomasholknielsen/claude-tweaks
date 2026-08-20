@@ -35,7 +35,7 @@ The plugin enforces a 2-tier artifact taxonomy:
 
 ## Input
 
-`$ARGUMENTS` = `<record-ref[,record-ref...]-or-range-or-design-doc-or-topic> [phase-N] [--surface <value>] [--granularity <value>] [--chained]`
+`$ARGUMENTS` = `<next-or-record-ref[,record-ref...]-or-range-or-design-doc-or-topic> [phase-N] [--surface <value>] [--granularity <value>] [--chained]`
 
 The first argument is a work record reference (`#N`, an issue URL, or a bare local record id), a comma-separated list of record references (the batch paragraph below), an inclusive range of record references (the range paragraph below), a path to a design doc, a topic name, or a backlog reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel. `phase-N` only applies when the input resolves to a design doc (decomposition mode); a work record reference resolves to shaping mode and ignores it.
 

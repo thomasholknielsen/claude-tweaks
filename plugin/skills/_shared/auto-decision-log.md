@@ -146,7 +146,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --sta
 
 Prefer it over composing the line by hand or via a scratch `node -e` at every AUTO/STAGED site.
 
-**Under `worktree-always: true`, before a worktree exists for this run.** Every standalone-auto skill (`_shared/pipeline-run-dir.md`'s step 4 allowlist: `/tidy`, `/init`, `/capture`, `/dispatch`, `/backlog`) writes its own `decisions.md` directly against the main checkout — there is no per-run worktree the way a `/build`/`/flow` pipeline has one. The `worktree-always` PreToolUse gate blocks `Edit`/`Write`/`NotebookEdit` there, so the Read+Write pattern above is denied. Use `bin/log-decision.js` (above) or a Bash append instead — the gate's Bash coverage is the `cp`/`mv`/`tee` shapes only, not a Node process or output redirection (see CLAUDE.md's Hooks section):
+**Under `worktree-always: true`, before a worktree exists for this run.** Every standalone-auto skill (`_shared/pipeline-run-dir.md`'s step 4 allowlist: `/tidy`, `/init`, `/capture`, `/dispatch`, `/backlog`, `/specify`) writes its own `decisions.md` directly against the main checkout — there is no per-run worktree the way a `/build`/`/flow` pipeline has one. The `worktree-always` PreToolUse gate blocks `Edit`/`Write`/`NotebookEdit` there, so the Read+Write pattern above is denied. Use `bin/log-decision.js` (above) or a Bash append instead — the gate's Bash coverage is the `cp`/`mv`/`tee` shapes only, not a Node process or output redirection (see CLAUDE.md's Hooks section):
 
 ```bash
 HEADING="## /{skill-name}"
