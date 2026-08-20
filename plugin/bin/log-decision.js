@@ -17,7 +17,7 @@ function parseArgs(argv) {
   const o = { run: null, status: null, text: null, spec: null, step: null, reversibility: 'n/a', lever: null, section: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = () => { const v = argv[++i]; return v === undefined ? null : v; };
+    const next = () => argv[++i] ?? null;
     if (a === '--help' || a === '-h') o.help = true;
     else if (a === '--run') o.run = next();
     else if (a === '--status') o.status = next();
@@ -42,13 +42,14 @@ const realDeps = {
 
 function run(argv, deps = realDeps) {
   const o = parseArgs(argv);
+  const usageError = (message) => { deps.stderr(`log-decision.js: ${message}\n` + USAGE); return 2; };
   if (o.error) { deps.stderr(o.error + '\n' + USAGE); return 2; }
   if (o.help) { deps.stdout(USAGE); return 0; }
-  if (!o.run) { deps.stderr('log-decision.js: --run <run-dir> is required\n' + USAGE); return 2; }
-  if (!STATUSES.includes(o.status)) { deps.stderr(`log-decision.js: --status must be one of ${STATUSES.join('|')}\n` + USAGE); return 2; }
-  if (!o.text || !String(o.text).trim()) { deps.stderr('log-decision.js: --text is required\n' + USAGE); return 2; }
-  if (!REVERSIBILITY.includes(o.reversibility)) { deps.stderr(`log-decision.js: --reversibility must be one of ${REVERSIBILITY.join('|')}\n` + USAGE); return 2; }
-  if (o.spec !== null && !/^\d+$/.test(String(o.spec))) { deps.stderr('log-decision.js: --spec must be a record number\n' + USAGE); return 2; }
+  if (!o.run) return usageError('--run <run-dir> is required');
+  if (!STATUSES.includes(o.status)) return usageError(`--status must be one of ${STATUSES.join('|')}`);
+  if (!o.text || !String(o.text).trim()) return usageError('--text is required');
+  if (!REVERSIBILITY.includes(o.reversibility)) return usageError(`--reversibility must be one of ${REVERSIBILITY.join('|')}`);
+  if (o.spec !== null && !/^\d+$/.test(String(o.spec))) return usageError('--spec must be a record number');
   let target;
   try { target = resolveTarget({ runDir: o.run, cwd: deps.cwd(), mainRoot: deps.mainRoot }); } catch (err) { deps.stderr(`log-decision.js: ${err && err.message}\n`); return 3; }
   if (!target.ok) {

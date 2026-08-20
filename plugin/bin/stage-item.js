@@ -24,7 +24,7 @@ function parseArgs(argv) {
   const o = { run: null, id: null, file: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = () => { const v = argv[++i]; return v === undefined ? null : v; };
+    const next = () => argv[++i] ?? null;
     if (a === '--help' || a === '-h') o.help = true;
     else if (a === '--run') o.run = next();
     else if (a === '--id') o.id = next();
@@ -44,12 +44,13 @@ const realDeps = {
 
 function run(argv, deps = realDeps) {
   const o = parseArgs(argv);
+  const usageError = (message) => { deps.stderr(`stage-item.js: ${message}\n` + USAGE); return 2; };
   if (o.error) { deps.stderr(o.error + '\n' + USAGE); return 2; }
   if (o.help) { deps.stdout(USAGE); return 0; }
-  if (!o.run) { deps.stderr('stage-item.js: --run <run-dir> is required\n' + USAGE); return 2; }
-  if (!o.file) { deps.stderr('stage-item.js: --file <path> is required\n' + USAGE); return 2; }
+  if (!o.run) return usageError('--run <run-dir> is required');
+  if (!o.file) return usageError('--file <path> is required');
   const id = sanitizeId(o.id);
-  if (!id) { deps.stderr(`stage-item.js: --id must be a plain filename stem (letters, digits, ., _, - — no path separators): ${JSON.stringify(o.id)}\n` + USAGE); return 2; }
+  if (!id) return usageError(`--id must be a plain filename stem (letters, digits, ., _, - — no path separators): ${JSON.stringify(o.id)}`);
 
   let content;
   try { content = deps.readFile(o.file); } catch (err) {

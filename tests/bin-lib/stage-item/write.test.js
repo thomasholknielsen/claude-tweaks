@@ -61,15 +61,15 @@ test('resolveTarget: with mainRoot explicitly null, the .git-is-a-FILE check alo
   fs.writeFileSync(path.join(wt, '.git'), 'gitdir: ../../../.git/worktrees/wt\n');
   assert.deepEqual(resolveTarget({ runDir: wtRun, mainRoot: null }), { ok: false, reason: 'not-anchored' });
 
-  const mainRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'si-nullroot-main-'));
-  const main2 = path.join(mainRoot2, 'main');
-  const mainRun = path.join(main2, '.claude-tweaks', 'pipelines', 'run-b');
+  const mainTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'si-nullroot-main-'));
+  const main = path.join(mainTmp, 'main');
+  const mainRun = path.join(main, '.claude-tweaks', 'pipelines', 'run-b');
   fs.mkdirSync(mainRun, { recursive: true });
-  fs.mkdirSync(path.join(main2, '.git'));
+  fs.mkdirSync(path.join(main, '.git'));
   assert.equal(resolveTarget({ runDir: mainRun, mainRoot: null }).ok, true);
 
-  const orphanRoot2 = fs.mkdtempSync(path.join(os.tmpdir(), 'si-nullroot-orphan-'));
-  const orphanRun2 = path.join(orphanRoot2, 'run-c');
-  fs.mkdirSync(orphanRun2, { recursive: true });
-  assert.deepEqual(resolveTarget({ runDir: orphanRun2, mainRoot: null }), { ok: false, reason: 'not-anchored' });
+  const orphanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'si-nullroot-orphan-'));
+  const orphanRun = path.join(orphanRoot, 'run-c');
+  fs.mkdirSync(orphanRun, { recursive: true });
+  assert.deepEqual(resolveTarget({ runDir: orphanRun, mainRoot: null }), { ok: false, reason: 'not-anchored' });
 });

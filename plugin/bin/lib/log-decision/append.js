@@ -39,7 +39,7 @@ function formatEntry({ status, now, step, spec, text, reversibility = 'n/a', lev
   if (!STATUSES.includes(status)) throw new Error(`invalid status: ${status} (expected ${STATUSES.join('|')})`);
   const body = String(text || '').trim();
   if (!body) throw new Error('text is required');
-  const hasSpec = spec !== undefined && spec !== null && spec !== '';
+  const hasSpec = spec != null && spec !== '';
   let location;
   if (step && hasSpec) location = `spec #${spec} — ${step}`;
   else if (step) location = String(step);
@@ -66,12 +66,14 @@ function findGitRoot(startDir) {
   }
 }
 
+function isDirectory(p) {
+  try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}
+
 // { runDir, cwd?, mainRoot? } -> { ok, file } | { ok:false, reason:'missing'|'not-anchored' }
 function resolveTarget({ runDir, cwd = process.cwd(), mainRoot }) {
   const real = safeReal(runDir);
-  let isDir = false;
-  try { isDir = !!real && fs.statSync(real).isDirectory(); } catch { isDir = false; }
-  if (!isDir) return { ok: false, reason: 'missing' };
+  if (!real || !isDirectory(real)) return { ok: false, reason: 'missing' };
 
   const found = findGitRoot(real);
   if (!found || found.isFile) return { ok: false, reason: 'not-anchored' };
@@ -85,17 +87,12 @@ function resolveTarget({ runDir, cwd = process.cwd(), mainRoot }) {
   // class bypass). An explicit `mainRoot: null` is a distinct, deliberate
   // opt-out kept for callers that only want the .git-file structural gate
   // above and never asked for a domain match.
+  let anchor = mainRoot;
   if (mainRoot === undefined) {
-    const computed = mainCheckoutRoot(cwd);
-    if (!computed) return { ok: false, reason: 'not-anchored' };
-    const rootReal = safeReal(computed) || computed;
-    if (rootReal !== gitRoot) return { ok: false, reason: 'not-anchored' };
-    return { ok: true, file: path.join(real, 'decisions.md') };
+    anchor = mainCheckoutRoot(cwd);
+    if (!anchor) return { ok: false, reason: 'not-anchored' };
   }
-  if (mainRoot) {
-    const rootReal = safeReal(mainRoot) || mainRoot;
-    if (rootReal !== gitRoot) return { ok: false, reason: 'not-anchored' };
-  }
+  if (anchor && (safeReal(anchor) || anchor) !== gitRoot) return { ok: false, reason: 'not-anchored' };
   return { ok: true, file: path.join(real, 'decisions.md') };
 }
 

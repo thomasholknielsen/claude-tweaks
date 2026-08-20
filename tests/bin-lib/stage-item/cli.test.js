@@ -17,7 +17,7 @@ function fixture() {
   fs.writeFileSync(path.join(main, '.claude', 'worktrees', 'flow-spec-12', '.git'), 'gitdir: ../../../.git/worktrees/flow-spec-12\n');
   const sourceFile = path.join(root, 'proposal.patch');
   fs.writeFileSync(sourceFile, 'diff --git a b\n+x\n');
-  return { root, main, runDir, shadow, sourceFile };
+  return { main, runDir, shadow, sourceFile };
 }
 
 function fakeDeps(cwd) {
@@ -58,7 +58,10 @@ test('cli: unsafe --id (path traversal) is rejected (exit 2), nothing written', 
   const { deps } = fakeDeps(main);
   const code = run(['--run', runDir, '--id', '../../etc/passwd', '--file', sourceFile], deps);
   assert.equal(code, 2);
-  assert.equal(fs.existsSync(path.join(runDir, '..', '..', '..', 'etc', 'passwd')), false);
+  // Where the id would have landed had it reached writeStagedItem:
+  // path.join(runDir, 'staged', '../../etc/passwd' + '.patch').
+  assert.equal(fs.existsSync(path.join(runDir, '..', 'etc', 'passwd.patch')), false);
+  assert.equal(fs.existsSync(path.join(runDir, 'staged')), false);
 });
 
 test('cli: a source file that does not exist is a malformed invocation (exit 2)', () => {

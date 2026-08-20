@@ -19,8 +19,7 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 // A staged item's id becomes a filename stem — reject anything that isn't a
 // plain, single-segment token (no `/`, no leading `.`, no empty string).
 function sanitizeId(id) {
-  if (typeof id !== 'string' || !id) return null;
-  if (!SAFE_ID.test(id)) return null;
+  if (typeof id !== 'string' || !SAFE_ID.test(id)) return null;
   return id;
 }
 
@@ -41,28 +40,25 @@ function findGitRoot(startDir) {
   }
 }
 
+function isDirectory(p) {
+  try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}
+
 // { runDir, cwd?, mainRoot? } -> { ok, dir } | { ok:false, reason:'missing'|'not-anchored' }
 function resolveTarget({ runDir, cwd = process.cwd(), mainRoot }) {
   const real = safeReal(runDir);
-  let isDir = false;
-  try { isDir = !!real && fs.statSync(real).isDirectory(); } catch { isDir = false; }
-  if (!isDir) return { ok: false, reason: 'missing' };
+  if (!real || !isDirectory(real)) return { ok: false, reason: 'missing' };
 
   const found = findGitRoot(real);
   if (!found || found.isFile) return { ok: false, reason: 'not-anchored' };
   const gitRoot = found.dir;
 
+  let anchor = mainRoot;
   if (mainRoot === undefined) {
-    const computed = mainCheckoutRoot(cwd);
-    if (!computed) return { ok: false, reason: 'not-anchored' };
-    const rootReal = safeReal(computed) || computed;
-    if (rootReal !== gitRoot) return { ok: false, reason: 'not-anchored' };
-    return { ok: true, dir: real };
+    anchor = mainCheckoutRoot(cwd);
+    if (!anchor) return { ok: false, reason: 'not-anchored' };
   }
-  if (mainRoot) {
-    const rootReal = safeReal(mainRoot) || mainRoot;
-    if (rootReal !== gitRoot) return { ok: false, reason: 'not-anchored' };
-  }
+  if (anchor && (safeReal(anchor) || anchor) !== gitRoot) return { ok: false, reason: 'not-anchored' };
   return { ok: true, dir: real };
 }
 
