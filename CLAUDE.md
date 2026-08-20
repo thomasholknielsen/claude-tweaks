@@ -52,6 +52,10 @@ Invocation: `node plugin/bin/release.js <minor|patch> "<summary>"` from clean `m
 
 All hook registrations route through `plugin/bin/hooks.js <event>` — one dispatcher, one module per event in `plugin/bin/lib/hooks/`. The full contract — tiered posture, run-dir resolution and ownership, the never-break-a-session invariant, and its consumers — is in `docs/hooks.md`. Read it before touching `plugin/bin/hooks.js`, `plugin/bin/lib/hooks/`, or `plugin/hooks/hooks.json`.
 
+### Reconcile
+
+Adding a new `bin/lib/reconcile/` convergence check touches multiple registration sites — the full procedure is in `docs/reconcile-checks.md`. Read it before touching `bin/lib/reconcile/` or `bin/hooks.js`'s `reconcile` command.
+
 ## Philosophy
 
 - **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
