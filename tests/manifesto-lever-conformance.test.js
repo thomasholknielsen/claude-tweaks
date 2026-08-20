@@ -1,0 +1,121 @@
+// tests/manifesto-lever-conformance.test.js
+//
+// Binds plugin/skills/flow/manifesto.md's "Canonical lever numbering" line
+// (the declared list of Pipeline Config Manifesto policy levers) to the four
+// other prose files that restate the same set by hand:
+// plugin/skills/_shared/auto-mode-contract.md, plugin/skills/flow/SKILL.md,
+// plugin/skills/help/reference-card.md, plugin/skills/help/context-flow.md.
+// Nothing kept these five restatements in sync automatically — adding lever
+// 12 (design-critique) missed all four non-canonical files until a
+// whole-branch review caught it by reading, and lever 11's addition (#559)
+// needed a dedicated "lever checklist" commit for the same reason.
+//
+// This suite reads live production prose, which [IL-80] warns against — a
+// test asserting "this real file currently contains X" is a scheduled
+// failure timed to the next migration. It is acceptable HERE, and only
+// here, because the enumeration IS the declared contract whose update is
+// the intended action when a lever is added or removed (same house pattern
+// as tests/wrap-up-registry-pin.test.js and tests/hooks-gate-coverage.test.js).
+// Do not generalize this pattern to prose that merely happens to mention a
+// lever in passing.
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const REPO_ROOT = path.join(__dirname, '..');
+const MANIFESTO_PATH = path.join(REPO_ROOT, 'plugin', 'skills', 'flow', 'manifesto.md');
+const TARGET_FILES = [
+  path.join(REPO_ROOT, 'plugin', 'skills', '_shared', 'auto-mode-contract.md'),
+  path.join(REPO_ROOT, 'plugin', 'skills', 'flow', 'SKILL.md'),
+  path.join(REPO_ROOT, 'plugin', 'skills', 'help', 'reference-card.md'),
+  path.join(REPO_ROOT, 'plugin', 'skills', 'help', 'context-flow.md'),
+];
+
+// Parses the "**Canonical lever numbering**" line into its ordered list of
+// `N=Name` pairs (e.g. "1=Mode", "2=Scope-creep", ...) and returns just the
+// names, in order. Anchored on the literal bolded token per
+// skill-prose-conformance-tests's "anchor on a literal token the skill
+// already uses" convention.
+function parseLeverNames(manifestoText) {
+  const lineMatch = /\*\*Canonical lever numbering\*\*[^:]*:\s*([^\n]+)/.exec(manifestoText);
+  assert.ok(lineMatch, 'manifesto.md: "**Canonical lever numbering**" line not found — anchor text may have changed');
+  // The line ends "...13=Merge authorization. The table below shows only ..."
+  // — split off the trailing sentence before splitting the pairs on ", ".
+  const pairsPart = lineMatch[1].split(/\.\s+The table/)[0];
+  const pairs = pairsPart.split(',').map((s) => s.trim());
+  return pairs.map((pair) => {
+    const m = /^\d+=(.+)$/.exec(pair);
+    assert.ok(m, `manifesto.md: malformed lever pair "${pair}" in the canonical numbering line`);
+    return m[1].trim();
+  });
+}
+
+// Locates the config.yml example block inside the "On approval (option 1)"
+// section and returns its ordered list of lever config keys, stopping
+// before the trailing per-run bookkeeping keys `spec:`/`created:` (which are
+// not policy levers).
+function parseConfigKeys(manifestoText) {
+  const approvalIdx = manifestoText.indexOf('On approval (option 1)');
+  assert.ok(approvalIdx !== -1, 'manifesto.md: "On approval (option 1)" section not found');
+  const fenceStart = manifestoText.indexOf('```yaml', approvalIdx);
+  assert.ok(fenceStart !== -1, 'manifesto.md: no ```yaml fence found after "On approval (option 1)"');
+  const fenceEnd = manifestoText.indexOf('```', fenceStart + 7);
+  assert.ok(fenceEnd !== -1, 'manifesto.md: unterminated ```yaml fence after "On approval (option 1)"');
+  const block = manifestoText.slice(fenceStart + 7, fenceEnd);
+  const keys = [];
+  for (const rawLine of block.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const m = /^([a-z0-9-]+):/.exec(line);
+    if (!m) continue;
+    if (m[1] === 'spec' || m[1] === 'created') break; // trailing bookkeeping keys, not levers
+    keys.push(m[1]);
+  }
+  return keys;
+}
+
+test('manifesto-lever-conformance', async (t) => {
+  const manifestoText = fs.readFileSync(MANIFESTO_PATH, 'utf8');
+  const leverNames = parseLeverNames(manifestoText);
+  const configKeys = parseConfigKeys(manifestoText);
+
+  await t.test('numbering line and config.yml example agree on lever count', () => {
+    // Self-check that both anchors are still being read correctly: the two
+    // independently-parsed lists must describe the same set of levers, so
+    // their lengths must match. This is intentionally NOT pinned to a
+    // hardcoded literal — a future lever added to one anchor but not the
+    // other must fail here, by count mismatch, however many levers exist
+    // at the time.
+    assert.strictEqual(
+      leverNames.length,
+      configKeys.length,
+      `lever count mismatch: numbering line has ${leverNames.length} pairs (${JSON.stringify(leverNames)}), ` +
+        `config.yml example has ${configKeys.length} keys (${JSON.stringify(configKeys)})`,
+    );
+    assert.ok(leverNames.length > 0, 'parsed zero levers — anchor text may have changed');
+  });
+
+  // Positional zip — NOT a mechanical kebab-case transform of the lever
+  // name. Lever 5's name is "Leftover routing" but its config key is
+  // `leftover-default`, not `leftover-routing`; a naive transform would
+  // silently check for the wrong string.
+  const leverToKey = {};
+  leverNames.forEach((name, i) => {
+    leverToKey[name] = configKeys[i];
+  });
+
+  for (const targetFile of TARGET_FILES) {
+    const relPath = path.relative(REPO_ROOT, targetFile);
+    await t.test(`every lever's config key appears in ${relPath}`, () => {
+      const content = fs.readFileSync(targetFile, 'utf8');
+      for (const [name, key] of Object.entries(leverToKey)) {
+        assert.ok(
+          content.includes(key),
+          `${relPath}: missing key "${key}" (lever "${name}")`,
+        );
+      }
+    });
+  }
+});
