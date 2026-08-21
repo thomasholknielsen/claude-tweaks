@@ -444,6 +444,48 @@ function hasOpenNativeBlocker(issueNode) {
   return nodes.some((n) => n && n.state === 'OPEN');
 }
 
+// candidates[] (each with .number and .body), openNumbers: Set<number> -> { eligible, excluded }.
+// The same open-body-text-dependency predicate dispatch/queue-pull-script.md's own
+// eligibility filter already applies (parseDependencies + an open id) — this makes
+// which candidates it drops, and the blocker id(s) that dropped them, a first-class
+// return value instead of letting the pool just shrink with nothing to report
+// (dispatch/SKILL.md's Blocked-exclusion report, #1101). A two-member dependency
+// cycle needs no special handling here: each member independently names the other
+// as an open blocker, so both land in `excluded` — the cycle is visible as two
+// entries pointing at each other, not a distinct code path.
+function partitionByOpenBodyBlockers(candidates, openNumbers) {
+  const eligible = [];
+  const excluded = [];
+  for (const c of candidates) {
+    const openBlockers = parseDependencies(c.body).filter((dep) => openNumbers.has(dep));
+    if (openBlockers.length > 0) excluded.push({ number: c.number, blockedBy: openBlockers });
+    else eligible.push(c);
+  }
+  return { eligible, excluded };
+}
+
+// candidates[] (each with .number), repoData: the native GraphQL response's
+// repository{} object (i{number} aliases, buildNativeDependencyQuery's shape) ->
+// { eligible, excluded }, same shape as partitionByOpenBodyBlockers above, for
+// work-links: native. hasOpenNativeBlocker only ever returned a boolean; this is
+// the identical OPEN-state filter, keeping the actual blocker numbers instead of
+// discarding them. A candidate missing from repoData (no `i{n}` alias — e.g. the
+// project isn't on work-links: native, per queue-pull-script.md's `{}` placeholder)
+// has no nodes to check and stays eligible, matching hasOpenNativeBlocker's own
+// no-array-of-nodes -> false behavior.
+function partitionByOpenNativeBlockers(candidates, repoData) {
+  const eligible = [];
+  const excluded = [];
+  for (const c of candidates) {
+    const node = repoData && repoData['i' + c.number];
+    const nodes = (node && node.blockedBy && node.blockedBy.nodes) || [];
+    const openBlockers = nodes.filter((n) => n && n.state === 'OPEN').map((n) => n.number);
+    if (openBlockers.length > 0) excluded.push({ number: c.number, blockedBy: openBlockers });
+    else eligible.push(c);
+  }
+  return { eligible, excluded };
+}
+
 // body -> array of {number, assumption} for every line-anchored
 // 'Blocked by #N: {text}' declaration, in order of appearance. A bare
 // 'Blocked by #N' line (no colon) contributes nothing here — parseDependencies
@@ -532,5 +574,5 @@ module.exports = {
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, extractVerifiedAsOf, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
-  buildNativeSubIssuesQuery,
+  buildNativeSubIssuesQuery, partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
 };
