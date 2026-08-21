@@ -51,3 +51,17 @@ Then call `AskUserQuestion` with:
 - Option 1 — `label`: `"Add to plan (Recommended)"`, `description`: `"I'll add these as new tasks to the plan"`
 - Option 2 — `label`: `"Continue without"`, `description`: `"I've checked, these are intentionally excluded"`
 - Option 3 — `label`: `"Stop"`, `description`: `"Let me revise the plan manually"`
+
+## Check C — Verification-command pre-check (always runs)
+
+Catches a different failure mode than Check A/B: a task whose own stated acceptance command wouldn't actually discriminate a correct fix from a no-op — a command that would pass regardless of whether the implementation is correct. Neither Check A nor Check B executes anything the plan declares; Check C is the one check in this step that runs a command.
+
+**Extraction:** for each `### Task N: ...` block in the plan, find its `- [ ] **Step 2: Run test to verify it fails**` sub-step (the shape `/superpowers:writing-plans`'s Task Structure section defines — cited here, not restated, since it lives in a different plugin and can drift independently) and read the `Run: {command}` / `Expected: {text}` pair immediately following it. A task with no such pair (a non-code task — pure config/doc/manual work) has nothing to extract and is skipped by this check.
+
+**Execution:** run each extracted `{command}` once, read-only, against the plan's own worktree at its current HEAD — before Common Step 2 hands off to any execution strategy, i.e. before any task's implementation has landed. This is the same "run a plan-dictated command once, read-only, and record the output" discipline as the Verbatim-command run-once check (`build/plan-authoring-checks.md`) — cited here rather than duplicated.
+
+**Flagging rule — passing signature only:** the only finding Check C raises is a command whose actual pre-dispatch result already exhibits a passing/success signature — exit code 0 from a test runner, or output containing a success marker (`PASS`, `0 failing`, `✓`) with no corresponding failure marker — despite the task declaring `Expected: FAIL ...`. **A command erroring or cleanly failing pre-dispatch is not a Check C finding** — only an already-passing result is. A later task's Step 2 command hard-erroring (missing module, import error, file not found) because earlier tasks in the same plan haven't landed yet is expected and safe to ignore; it is not a false negative. Widening this into flagging errors too would produce constant false positives on any plan whose tasks build on each other sequentially.
+
+**On Check C finding a non-discriminating command:** Stop. Present the flagged task(s) and command(s). The plan needs revision before execution starts — the same unconditional-stop shape as Check A's own on-failure behavior. Unlike Check B, Check C has no auto-mode policy table and no `AskUserQuestion` branch: a non-discriminating verification command is a correctness gap covered by `_shared/auto-mode-contract.md`'s HARD-GATE exemption (test failures), not a scope decision with a resolvable policy lever.
+
+**Skip condition:** Check C shares Check A/B's existing skip gate in `build/SKILL.md`'s Common Step 1.5 stub (fewer than 3 file references and no `Scope keywords:` field, or `ceremony-profile: fast-lane`) — it introduces no new skip condition of its own.

@@ -167,17 +167,18 @@ If the user did not specify `worktree`, skip this step.
 
 ### Common Step 1.5: Plan Audit
 
-Audit the plan against the actual repo before dispatching execution. Two checks:
+Audit the plan against the actual repo before dispatching execution. Three checks:
 - **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create).
 - **Check B (conditional):** when the plan declares `Scope keywords:`, grep the repo for each keyword and list any matched files not in the plan.
+- **Check C (always):** pre-run each task's own Step 2 `Run:`/`Expected: FAIL ...` command once, read-only, against current repo state, and flag a task only when its command already shows a passing/success signature — the same unconditional-stop shape as Check A, not routed through Check B's scope-creep policy.
 
-**Auto mode** (including a standalone `auto` invocation with no pipeline run dir): apply the `scope-creep` policy, resolved per the standard precedence (default `add-to-plan`). **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop".
+**Auto mode** (including a standalone `auto` invocation with no pipeline run dir): apply the `scope-creep` policy, resolved per the standard precedence (default `add-to-plan`) — Check B only; Check C's on-finding behavior is an unconditional stop with no policy lever, see below. **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop" — Check B only.
 
-**Skip this step entirely when** the plan has fewer than 3 file references (trivial plans don't benefit from audit) AND no `Scope keywords:` field is present, **or** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a `ceremony-check` verdict of `fast-lane` is itself a judgment that this record's plan doesn't need auditing against scope creep. Standalone `/build` (no `config.yml`) always falls back to the size-based condition alone. This is the full gate — deciding skip-vs-run never requires loading `plan-audit.md` itself.
+**Skip this step entirely when** the plan has fewer than 3 file references (trivial plans don't benefit from audit) AND no `Scope keywords:` field is present, **or** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a `ceremony-check` verdict of `fast-lane` is itself a judgment that this record's plan doesn't need auditing against scope creep. Standalone `/build` (no `config.yml`) always falls back to the size-based condition alone. This is the full gate — deciding skip-vs-run never requires loading `plan-audit.md` itself. Check C shares this same skip condition; it introduces no new one.
 
 > **Project setting:** When `.claude-tweaks/policy.yml` declares `scope-keywords-required: true`, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
 
-For the full procedure (Check A failure handling, Check B scope-keyword sweep command, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
+For the full procedure (Check A failure handling, Check B scope-keyword sweep command, `scope-keywords-required` setting, auto-mode policy table, interactive prompt, and Check C's extraction/execution/flagging rules), read `plan-audit.md` in this skill's directory.
 
 ### Common Step 1.7: Design Pre-Build (frontend specs)
 
