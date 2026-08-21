@@ -247,6 +247,94 @@ test('acceptance-labeling check skips when no resolved issues found', () => {
   assert.strictEqual(row.result, 'skip');
 });
 
+function writeExpectations(runDir, data) {
+  fs.writeFileSync(path.join(runDir, 'verify-expectations.json'), JSON.stringify(data));
+}
+
+test('memory-updates check renders unknown when expectations file is absent', () => {
+  const runDir = makeTmpDir('verify-memory-noexp-');
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'memory-updates');
+  assert.strictEqual(row.result, 'unknown');
+  assert.match(row.detail, /expectations file missing/);
+});
+
+test('memory-updates check skips when expectations.memory is present but empty', () => {
+  const runDir = makeTmpDir('verify-memory-empty-');
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [] });
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'memory-updates');
+  assert.strictEqual(row.result, 'skip');
+  assert.match(row.detail, /nothing recorded/);
+});
+
+test('memory-updates check passes when every recorded file and index line exist on disk', () => {
+  const runDir = makeTmpDir('verify-memory-pass-');
+  const memDir = makeTmpDir('verify-memory-target-');
+  const memFile = path.join(memDir, 'insight.md');
+  const indexFile = path.join(memDir, 'MEMORY.md');
+  fs.writeFileSync(memFile, '# insight');
+  fs.writeFileSync(indexFile, '- [insight](insight.md)');
+  writeExpectations(runDir, { version: 1, memory: [{ file: memFile, indexFile }], upstream: [] });
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'memory-updates');
+  assert.strictEqual(row.result, 'pass');
+});
+
+test('memory-updates check fails when recorded file is missing on disk', () => {
+  const runDir = makeTmpDir('verify-memory-fail-');
+  writeExpectations(runDir, { version: 1, memory: [{ file: '/tmp/does-not-exist-verify-900.md', indexFile: '/tmp/also-missing-900.md' }], upstream: [] });
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'memory-updates');
+  assert.strictEqual(row.result, 'fail');
+});
+
+test('expectations checks render unknown-unsupported-version for a bad version field', () => {
+  const runDir = makeTmpDir('verify-badversion-');
+  writeExpectations(runDir, { version: 99, memory: [], upstream: [] });
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'memory-updates');
+  assert.strictEqual(row.result, 'unknown');
+  assert.match(row.detail, /version 99 unsupported/);
+});
+
+test('upstream-feedback check passes via gh issue view when recorded url resolves', () => {
+  const runDir = makeTmpDir('verify-upstream-pass-');
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [{ url: 'https://github.com/org/repo/issues/42' }] });
+  const fakeGh = (args) => (args[0] === '--version' ? 'gh version 2.0.0' : JSON.stringify({ number: 42 }));
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'upstream-feedback');
+  assert.strictEqual(row.result, 'pass');
+});
+
+test('worktree-removed check skips when deferred set includes worktree', () => {
+  const runDir = makeTmpDir('verify-deferred-worktree-');
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [], deferred: ['worktree'] });
+  const fakeGit = () => { throw new Error('should not be called'); };
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'worktree-removed');
+  assert.strictEqual(row.result, 'skip');
+  assert.match(row.detail, /deferred to parent console/);
+});
+
+test('design-caches check skips when deferred set includes design-caches', () => {
+  const runDir = makeTmpDir('verify-deferred-designcaches-');
+  const cacheDir = path.join(process.cwd(), 'docs', 'plans');
+  fs.mkdirSync(cacheDir, { recursive: true });
+  const slug = path.basename(runDir);
+  const strayCache = path.join(cacheDir, `${slug}-audit.json`);
+  fs.writeFileSync(strayCache, '{}');
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [], deferred: ['design-caches'] });
+  try {
+    const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'design-caches');
+    assert.strictEqual(row.result, 'skip');
+    assert.match(row.detail, /deferred to parent console/);
+  } finally {
+    fs.rmSync(strayCache, { force: true });
+  }
+});
+
 test('runVerify short-circuits to an all-unknown row set when runDir is null, never invoking check fns', () => {
   // Throwaway check scoped to this one test — name chosen so it can't collide
   // with a real check name Tasks 2-6 register ('plans-ledger', etc). Its fn

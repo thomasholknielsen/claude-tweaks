@@ -45,6 +45,41 @@ function resolveArchivedRunDir(runDir, repoRoot) {
   return null;
 }
 
+// ---- verify-expectations.json (v1) -----------------------------------------
+//
+// Written by the wrap-up Review Console at resolution time, always -- even
+// an empty { version: 1, memory: [], upstream: [] } when nothing resolved.
+// Absent-entirely is DISTINCT from present-but-empty (spec's load-bearing
+// asymmetry): absent means the console's own write step failed -- exactly
+// the silent-non-execution class this whole verb exists to catch -- so it
+// renders 'unknown', never folded into 'skip'.
+const SUPPORTED_EXPECTATIONS_VERSION = 1;
+
+function readExpectations(runDir) {
+  const expPath = path.join(runDir, 'verify-expectations.json');
+  if (!fs.existsSync(expPath)) return { ok: false, reason: 'missing' };
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(expPath, 'utf8'));
+  } catch {
+    return { ok: false, reason: 'missing' };
+  }
+  if (data.version !== SUPPORTED_EXPECTATIONS_VERSION) {
+    return { ok: false, reason: 'unsupported-version', version: data.version };
+  }
+  return { ok: true, data };
+}
+
+function deferredSet(expectations) {
+  return expectations.ok ? new Set(expectations.data.deferred || []) : new Set();
+}
+
+function expectationsUnknownDetail(expectations) {
+  return expectations.reason === 'unsupported-version'
+    ? `expectations version ${expectations.version} unsupported`
+    : 'expectations file missing';
+}
+
 // ---- plans + ledger removal ------------------------------------------------
 //
 // docs/superpowers/plans/ and docs/plans/ are relative to the repo root, not
@@ -76,7 +111,9 @@ registerCheck('plans-ledger', ({ runDir }) => {
 });
 
 // ---- design caches deleted --------------------------------------------------
-registerCheck('design-caches', ({ runDir }) => {
+registerCheck('design-caches', ({ runDir, expectations }) => {
+  const deferred = deferredSet(expectations);
+  if (deferred.has('design-caches')) return { result: 'skip', detail: 'deferred to parent console' };
   const slug = specSlugFromRunDir(runDir);
   const cacheDir = path.join(process.cwd(), 'docs', 'plans');
   if (!fs.existsSync(cacheDir)) return { result: 'pass', detail: '' };
@@ -94,7 +131,9 @@ registerCheck('design-caches', ({ runDir }) => {
 // archiveRunDir() produces: the original .claude-tweaks/pipelines/{run-id}/
 // path is gone, .claude-tweaks/pipelines/archive/{run-id}/ exists, and its
 // work/ subdirectory (when the run had one) is git-tracked at the new path.
-registerCheck('run-dir-archived', ({ runDir, deps }) => {
+registerCheck('run-dir-archived', ({ runDir, expectations, deps }) => {
+  const deferred = deferredSet(expectations);
+  if (deferred.has('run-dir-archival')) return { result: 'skip', detail: 'deferred to parent console' };
   const repoRoot = process.cwd();
   const runId = path.basename(runDir);
   const originalPath = path.join(repoRoot, '.claude-tweaks', 'pipelines', runId);
@@ -115,7 +154,9 @@ registerCheck('run-dir-archived', ({ runDir, deps }) => {
 });
 
 // ---- worktree removed ---------------------------------------------------------
-registerCheck('worktree-removed', ({ runDir, deps }) => {
+registerCheck('worktree-removed', ({ runDir, expectations, deps }) => {
+  const deferred = deferredSet(expectations);
+  if (deferred.has('worktree')) return { result: 'skip', detail: 'deferred to parent console' };
   // Worktree paths/branches are named from the spec-slug alone (e.g.
   // .claude/worktrees/flow-spec-900, branch worktree-flow-spec-900), not the
   // ISO-timestamp-prefixed run-dir basename -- match against the same slug
@@ -277,9 +318,51 @@ registerCheck('acceptance-labeling', ({ runDir, deps }) => {
   return { result: 'pass', detail: '' };
 });
 
+// ---- memory updates -----------------------------------------------------------
+registerCheck('memory-updates', ({ expectations }) => {
+  if (!expectations.ok) return { result: 'unknown', detail: expectationsUnknownDetail(expectations) };
+  const entries = expectations.data.memory || [];
+  if (!entries.length) return { result: 'skip', detail: 'nothing recorded' };
+  const missing = [];
+  for (const { file, indexFile } of entries) {
+    if (!fs.existsSync(file)) missing.push(`file missing: ${file}`);
+    if (indexFile && fs.existsSync(indexFile)) {
+      const indexContent = fs.readFileSync(indexFile, 'utf8');
+      const base = path.basename(file, '.md');
+      if (!indexContent.includes(base)) missing.push(`index line missing for ${base} in ${indexFile}`);
+    } else if (indexFile) {
+      missing.push(`index file missing: ${indexFile}`);
+    }
+  }
+  if (missing.length) return { result: 'fail', detail: missing.join('; ') };
+  return { result: 'pass', detail: '' };
+});
+
+// ---- upstream feedback ----------------------------------------------------------
+registerCheck('upstream-feedback', ({ expectations, deps }) => {
+  if (!expectations.ok) return { result: 'unknown', detail: expectationsUnknownDetail(expectations) };
+  const entries = expectations.data.upstream || [];
+  if (!entries.length) return { result: 'skip', detail: 'nothing recorded' };
+  if (!ghAvailable(deps)) return { result: 'unknown', detail: 'gh absent' };
+  const failing = [];
+  for (const { url } of entries) {
+    const m = url.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
+    if (!m) { failing.push(`could not parse issue URL: ${url}`); continue; }
+    const [, owner, repo, number] = m;
+    try {
+      deps.gh(['issue', 'view', number, '--repo', `${owner}/${repo}`, '--json', 'number'], process.cwd());
+    } catch (err) {
+      failing.push(`${url}: gh issue view failed (${err.message})`);
+    }
+  }
+  if (failing.length) return { result: 'fail', detail: failing.join('; ') };
+  return { result: 'pass', detail: '' };
+});
+
 function runVerify({ runDir, base, deps = {} }) {
   const git = deps.git || defaultGit;
   const gh = deps.gh || defaultGh;
+  const expectations = runDir === null ? null : readExpectations(runDir);
 
   // Null runDir (resolveArchivedRunDir found the run neither at its original
   // path nor under the archive) short-circuits here so every check function
@@ -292,7 +375,7 @@ function runVerify({ runDir, base, deps = {} }) {
         detail: 'run dir not found at original or archive path',
       }))
     : CHECKS.map(({ name, fn }) => {
-        const { result, detail } = fn({ runDir, base, deps: { git, gh } });
+        const { result, detail } = fn({ runDir, base, expectations, deps: { git, gh } });
         return { check: name, result, detail: detail || '' };
       });
 
