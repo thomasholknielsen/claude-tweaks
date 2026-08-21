@@ -31,6 +31,19 @@ test('parseArgs: --run immediately followed by another flag is an error, not tre
   assert.match(parseArgs(['actions.json', '--run', '--repo', 'acme/widgets']).error, /--run requires a value/);
 });
 
+test('parseArgs: --run "" degrades to omitted, not an error', () => {
+  const opts = parseArgs(['actions.json', '--run', '']);
+  assert.strictEqual(opts.error, undefined);
+  assert.strictEqual(opts.run, null);
+  assert.strictEqual(opts.runEmpty, true);
+});
+
+test('parseArgs: --run never passed leaves runEmpty false', () => {
+  const opts = parseArgs(['actions.json']);
+  assert.strictEqual(opts.run, null);
+  assert.strictEqual(opts.runEmpty, false);
+});
+
 test('validateAction: rejects a non-integer issue', () => {
   assert.match(validateAction({ issue: 'x', addLabels: ['a'] }, 0), /must be a positive integer/);
 });
@@ -191,4 +204,21 @@ test('run: no --run flag never calls appendEntry', () => {
   const code = run(['actions.json'], deps);
   assert.strictEqual(code, 0);
   assert.strictEqual(deps.calls.appendEntry.length, 0);
+});
+
+test('run: --run "" degrades to omitted — applies the batch (exit 0), skips appendEntry, notes the skip on stderr', () => {
+  const deps = fakeDeps({ readFile: () => JSON.stringify([{ issue: 118, addLabels: ['auto:build'] }]) });
+  const code = run(['actions.json', '--run', ''], deps);
+  assert.strictEqual(code, 0);
+  assert.strictEqual(deps.calls.appendEntry.length, 0);
+  assert.match(deps.calls.stderr.join(''), /--run was empty — proceeding without run-dir\/decisions\.md logging/);
+  const summary = JSON.parse(deps.calls.stdout.join(''));
+  assert.deepStrictEqual(summary, { ok: [118], failed: [] });
+});
+
+test('run: no --run flag at all stays silent — no empty-run stderr note', () => {
+  const deps = fakeDeps({ readFile: () => JSON.stringify([{ issue: 1, addLabels: ['a'] }]) });
+  const code = run(['actions.json'], deps);
+  assert.strictEqual(code, 0);
+  assert.doesNotMatch(deps.calls.stderr.join(''), /--run was empty/);
 });
