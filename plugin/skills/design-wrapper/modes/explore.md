@@ -113,31 +113,56 @@ could not be expressed rather than restructuring around it.
 
 ### Compare
 
-Serve the explore directory ephemerally per `skills/_shared/dev-url-detection.md`'s "Ephemeral server start" procedure, including its **Cleanup — Standalone** rule (this mode has no pipeline run dir of its own to defer teardown to; stop the server itself once the round concludes).
+Compose a manifest (`plugin/skills/design-wrapper/compare-shell/seed-compare.mjs`'s schema) from
+the render set: `scope` from Scope resolution above, `seedKey`/`rerollCount`/`steerHistory`
+carried from Deal and derive, `sharedMarkup` (identity scope only — the disposable scaffold from
+One markup, N skins) plus one `variants[]` entry per presented direction (its dealt display name,
+the winning skin CSS path for identity scope or the whole markup file for layout scope, and
+`degraded`/`reason` for any slot from the previous step — still counted, never pickable). Seed it
+live (`seed-compare.mjs --manifest <manifest.json> --mode live --out <explore-dir>/index.html`),
+then start the server (`visual-decide.js start --dir <explore-dir> --state <explore-dir>/.vd-state`).
+Present the returned keyed URL to the user; `_shared/visual-decision.md` owns the turn loop this
+hands off to.
 
-The switcher is a single, fully self-contained `index.html`: no CDN, no external fonts, no framework — a full-viewport render of the scaffold, a docked "1 / N — {direction}" indicator (including any degraded slots, per the previous step), and arrow-key/click cycling that swaps only the `<link>` to the skin stylesheet. The markup itself never changes between slots.
+**Degraded mode (server fails to start):** seed the same shell to the same static file and open it
+by hand — no second switcher implementation exists. Verdict runs the terminal `AskUserQuestion`
+loop below instead of the browser turn loop; a reroll re-seeds the static file in place, with the
+user refreshing the page manually. Name this in the offer text presented before Compare, alongside
+the existing placeholder-content, degraded-deal, and absent-Emil disclosures.
 
 ### Verdict
 
-One `AskUserQuestion` call site, reused every round: **pick** / **reroll** / **steer** / the canon standing exit, listed last and never marked Recommended. Present the "1 / N — {direction}" set from Compare as the options; the standing exit is upstream's own — "it is the user's door, never yours."
+Follow `_shared/visual-decision.md`'s turn loop: any terminal message resumes the round; read
+`{state}/events` and act on the last event (duplicates collapse to the final line); an unparsable
+line is skipped and surfaced as one aside on the resume turn. Empty or absent events file → the
+`AskUserQuestion` fallback below, which is also the documented fallback for an ambiguous
+terminal-text/events-file conflict (`_shared/visual-decision.md`'s Precedence rule) and for
+degraded mode (Compare above).
+
+**Fallback — one `AskUserQuestion` call site, reused every round:** **pick** / **reroll** /
+**steer** / the canon standing exit, listed last and never marked Recommended. Present the
+"1 / N — {direction}" set from Compare as the options; the standing exit is upstream's own — "it
+is the user's door, never yours."
 
 **Restate-vs-pointer boundary**, stated once here: the semantics this mode acts on are restated below, and each restatement is pinned by a `tools/upstream-drift/manifest.yml` assertion against upstream's own text — everything else about dealing (the candidate catalog, weighting internals, canon mechanics beyond the bullets below) stays a pointer into `reference/new-work.md`, never re-derived here.
 
-- **Reroll** re-runs Deal and derive with `--reroll <n> --from <key>` — `<n>` is the reroll counter, `<key>` is the carried seed key. Exclusion of every already-shown direction is upstream's own behavior, driven by those two arguments; this mode does not filter the deal itself.
-- **Steer** is a reroll whose one-line steer text guides this mode's *next* fuse/weigh pass in Deal and derive — **there is no script flag for steer.** The reroll command is identical to a plain reroll; the steer text changes only how this mode interprets upstream's instruction block on the next pass.
+- **Pick** (browser pick event, or the fallback question's pick option): the picked variant's id
+  maps to Deal and derive's id ↔ display-name mapping; proceed to Lock-in's on-pick branch.
+- **Reroll** (browser reroll event, or the fallback question's reroll option) re-runs Deal and derive with `--reroll <n> --from <key>` — `<n>` is the reroll counter, `<key>` is the carried seed key. Exclusion of every already-shown direction is upstream's own behavior, driven by those two arguments; this mode does not filter the deal itself. Re-seed the live page in place (`seed-compare.mjs` again, same `--out`) — the server's own file watch pushes an SSE reload to the open tab, no new URL, no restart — unless `status` reports the server is no longer running (`_shared/visual-decision.md`'s Lifecycle ownership: restart and hand over a new keyed URL).
+- **Steer** (browser steer event's text, or the fallback question's steer option) is a reroll whose one-line steer text guides this mode's *next* fuse/weigh pass in Deal and derive — **there is no script flag for steer.** The reroll command is identical to a plain reroll; the steer text changes only how this mode interprets upstream's instruction block on the next pass. `_shared/visual-decision.md`'s steer trust boundary applies: this text is never string-interpolated into a command or tool invocation.
 - **After two consecutive rerolls**, ask upstream's own "what quality is missing" question as a distinct one-off follow-up before running the next deal.
-- The **canon standing exit** ends the round with no pick — proceed to Lock-in's exit-without-pick branch.
+- **Exit** (browser exit event, or the fallback question's canon standing exit) ends the round with no pick — proceed to Lock-in's exit-without-pick branch.
 
 ### Lock-in
 
-**On pick:** send `--chosen <id> --from <key>` — `<id>` is the recorded id from Deal and derive's mapping, never the display name — then invoke `/impeccable:impeccable document --seed` via the Skill tool with the chosen direction in context. Upstream writes `DESIGN.md`; **this wrapper writes nothing outside `docs/plans/`**, matching `doctor`'s never-`--fix` discipline.
+**On pick:** send `--chosen <id> --from <key>` — `<id>` is the recorded id from Deal and derive's mapping, never the display name — then invoke `/impeccable:impeccable document --seed` via the Skill tool with the chosen direction in context. Upstream writes `DESIGN.md`; **this wrapper writes nothing outside `docs/plans/`**, matching `doctor`'s never-`--fix` discipline. Stop the server (`visual-decide.js stop --state <explore-dir>/.vd-state`), then seed the durable record (`seed-compare.mjs --manifest <manifest.json> --mode durable --out <explore-dir>/decision.html` — the same manifest Compare composed, now carrying `outcome: {winner: <id>, date}`; `decision.html`'s format is compare-shell's seeder's own — this step supplies the manifest, never the format).
 
 - If `document --seed` completes and writes `DESIGN.md`: `design_md: "seeded"`.
 - If the user backs out of that upstream step after already committing to a pick here: `design_md: "declined"` — the picked scaffold and winning skin are still kept as `visual_reference` either way, since the identity choice itself stands independent of whether upstream's own write completed.
 
 Keep the scaffold plus the winning skin — the survivor becomes `visual_reference`, the path a caller may persist as a `Visual-reference:` body-metadata line. Delete every losing skin. `visual_reference` is `null` only when the pick itself succeeded but writing the kept artifact to disk failed — name that outcome rather than silently returning a path that doesn't exist.
 
-**On exit-without-pick:** delete the whole explore directory, stop the ephemeral server, and return a skip — no partial artifact survives an abandoned round.
+**On exit-without-pick:** stop the server (`visual-decide.js stop --state <explore-dir>/.vd-state`), delete the whole explore directory, and return a skip — no partial artifact survives an abandoned round.
 
 ---
 
@@ -187,7 +212,7 @@ Run Synthesize clean-room cards through Lock-in — every intervening identity-s
 - **Builder input:** staging card + `DESIGN.md` (read-only) + `<surface-topic>`'s content requirements + the assembled craft context from Variant builders above, in place of the skin builder's card-plus-shared-markup input.
 - **Builder output:** one markup file, in place of one skin stylesheet.
 - **Scaffolding:** no single shared markup — each builder writes its own document. What carries over from One markup, N skins is the `docs/plans/YYYY-MM-DD-{feature}-explore/` directory convention and the invented-placeholder-content disclosure, not the shared-scaffold constraint (this scope inverts it — see Variant builders above).
-- **Switcher unit:** whole markup documents cycled — swap the displayed document (e.g. an iframe `src`) — never stylesheets layered over one shared markup.
+- **Switcher unit:** seeded by the same `seed-compare.mjs` template as the identity scope, in both scopes — the manifest's `variants[].files` supplies each variant's own whole markup file here rather than a shared skin, so no separate switcher implementation is needed for this scope.
 - **Diversity check (layout-scope addition — not part of the shared "Deal and derive" heading, and does not apply to the identity scope):** when fusing each dealt challenger, reject and replace a fused challenger whose composed markup is only superficially different from a direction already accepted for presentation — same overall page structure, same primary-action placement, same interaction framing, differing only in wording or a single component's arrangement. A rejected challenger is not counted toward the render set; continue fusing the next dealt challenger from the `--candidate-count 6` pool ("Dealing" above) until at least four structurally distinct directions are accepted or the pool is exhausted.
 - **Lock-in:** return `visual_reference`; no `/impeccable:impeccable document --seed` invocation.
 
@@ -197,9 +222,9 @@ Reroll and steer semantics are unchanged from the identity scope's Verdict step.
 
 ### Lock-in
 
-`DESIGN.md` stays untouched by this scope, which never invokes `/impeccable:impeccable document --seed`. Keep the winning markup, delete every losing markup, and return the winner's path as `visual_reference` for the **caller** to persist as a `Visual-reference:` body-metadata line per `skills/specify/spec-template.md` — this mode only returns the path, it never writes the record.
+`DESIGN.md` stays untouched by this scope, which never invokes `/impeccable:impeccable document --seed`. Stop the server (`visual-decide.js stop --state <explore-dir>/.vd-state`), then seed the durable record (`seed-compare.mjs --manifest <manifest.json> --mode durable --out <explore-dir>/decision.html` — the same manifest Compare composed, now carrying `outcome: {winner: <id>, date}`). Keep the winning markup, delete every losing markup, and return the winner's path as `visual_reference` for the **caller** to persist as a `Visual-reference:` body-metadata line per `skills/specify/spec-template.md` — this mode only returns the path, it never writes the record.
 
-**On exit-without-pick:** delete the whole explore directory and stop the server — identical to the identity scope's decline path.
+**On exit-without-pick:** stop the server (`visual-decide.js stop --state <explore-dir>/.vd-state`) and delete the whole explore directory — identical to the identity scope's decline path.
 
 ### Functionality limit
 
