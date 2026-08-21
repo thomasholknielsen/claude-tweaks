@@ -490,9 +490,12 @@ async function main(argv) {
     // cache both `archive`/`reap` already maintain (Deliverable 2), and
     // runs only the cheap, git-only `mirror` check fresh (mirror-ff.js
     // never shells to `gh` — see index.js's own preflight comment on why
-    // it's excluded from the gh-health gate), since mirror never persists
-    // anywhere (it only ever runs inline at SessionStart — see that file's
-    // FAST_CHECKS comment).
+    // it's excluded from the gh-health gate), since mirror's own RESULT
+    // never persists anywhere (it only ever runs inline at SessionStart —
+    // see that file's FAST_CHECKS comment). The call itself still reaches
+    // reconcile()'s end-of-pass freshness stamp, though, which is a
+    // DIFFERENT persistence path this call must opt out of — see
+    // `skipCacheStamp` below.
     const cwd = process.cwd();
     const root = wtDetect.mainCheckoutRoot(cwd) || cwd;
     const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
@@ -504,7 +507,15 @@ async function main(argv) {
 
     let mirror = null;
     try {
-      const mirrorResult = await require('./lib/reconcile').reconcile({ cwd, checks: ['mirror'] });
+      // skipCacheStamp: true — this narrow mirror-only probe must not stamp
+      // the shared reconcile-cache.json `lastRunAt` session-start.js's own
+      // FAST_CHECKS call gates its `skipIfFresh` freshness check on; doing
+      // so would make the next SessionStart within DEFAULT_TTL_MS believe
+      // its own mirror/red-tip/console pass already ran and skip it,
+      // silently suppressing red-tip's CI-failure surfacing after every
+      // successful `/claude-tweaks:flow` completion (see index.js's own
+      // comment on this option).
+      const mirrorResult = await require('./lib/reconcile').reconcile({ cwd, checks: ['mirror'], skipCacheStamp: true });
       mirror = mirrorResult.mirror;
     } catch { /* best-effort — mirror shows n/a rather than blocking this summary */ }
 

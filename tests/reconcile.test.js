@@ -1121,6 +1121,59 @@ test('reconcile(): a real (non-short-circuited) pass stamps lastRunAt for the ne
   assert.ok(after.lastRunAt >= before, 'lastRunAt must be stamped after a real pass');
 });
 
+// #644 review fix: `opts.skipCacheStamp` — `bin/hooks.js reconcile-summary`'s
+// own internal `checks: ['mirror']` probe must NOT stamp the same
+// `lastRunAt` key session-start.js's FAST_CHECKS call gates its
+// `skipIfFresh` short-circuit on (D7, tested above) — otherwise every
+// successful `/claude-tweaks:flow` closing report would make the next
+// SessionStart within DEFAULT_TTL_MS believe its own mirror/red-tip/console
+// pass already ran and skip it for real, silently suppressing red-tip's
+// CI-failure surfacing.
+test('reconcile(): skipCacheStamp=true completes a real pass without stamping lastRunAt', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  const cache = require('../plugin/bin/lib/reconcile/cache');
+  let r;
+  try {
+    r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipCacheStamp: true });
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+  assert.deepEqual(r.skipped, [], `expected a fully-completed pass, saw ${JSON.stringify(r.skipped)}`);
+  assert.equal(typeof r.mirror, 'object', 'the mirror check itself must still have run');
+  const after = cache.readCache(mainDir);
+  assert.equal(after.lastRunAt, null, 'lastRunAt must stay unstamped when skipCacheStamp is set');
+});
+
+test('reconcile(): skipCacheStamp=true does not disturb a real pass\'s residueSummary field', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+
+  let r;
+  try {
+    r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipCacheStamp: true });
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+  assert.equal(typeof r.residueSummary, 'string', `expected a residueSummary string even with skipCacheStamp, got: ${JSON.stringify(r)}`);
+  assert.match(r.residueSummary, /^reconcile: \d+ archived, \d+ stuck.*mirror ff /);
+});
+
 // AC1: reconcile() degrades within ~2s via the preflight when GitHub is
 // unreachable, instead of accumulating every check's own 5-10s timeout.
 test('AC1: a preflight failure resolves in well under the old per-check-timeout sum', async () => {

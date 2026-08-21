@@ -13,19 +13,15 @@
 // best-effort miss, not a hard failure, and the next `/tidy` sweep or a
 // human reading `reconcile`'s JSON is the backstop.
 'use strict';
-const { execFileSync } = require('child_process');
 const { fingerprintFromBasis, normalizeText } = require('../health-core/fingerprint');
-
-function defaultRunner(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-}
-
-// Same shape as file-feedback.js's errorText — a runner may throw a
-// non-Error; never let the failure reason come back empty.
-function errorText(err) {
-  const parts = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).map(String);
-  return parts.length ? parts.join(' ') : String(err);
-}
+// #644 review fix — defaultRunner/errorText were a byte-for-byte duplicate
+// of bin/lib/feedback/file-feedback.js's own (this module's header comment
+// already says "same shape"); import rather than restate, so a future fix
+// to either only has to land once. The dedup-then-file FLOW below still
+// diverges deliberately (no readBack/verify round trip, `--body` inline
+// rather than `--body-file`) — that's a real behavioral difference, not
+// duplication, and stays local to this module.
+const { defaultRunner, errorText } = require('../feedback/file-feedback');
 
 function residueFingerprint(reason, targetPath) {
   return fingerprintFromBasis('reconcile-residue', [reason, normalizeText(targetPath)]);

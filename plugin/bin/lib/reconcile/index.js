@@ -288,7 +288,19 @@ async function reconcile(opts = {}) {
 
   if (overBudget(DISPATCH_ORDER.slice(7))) return result;
   if (checks.includes('reap')) {
-    const r = reapMerged({ cwd: root, dryRun });
+    // #644 review fix: pass the caller's actual `cwd`, not the already-
+    // resolved `root` every other dispatch line above uses. reapMerged's own
+    // `isOwnCwd` guard (#644 Deliverable 1) exists specifically to detect
+    // "the calling session is standing inside this candidate worktree right
+    // now" — that's only knowable from the real caller cwd. reapMerged
+    // re-derives `root` from `cwd` internally the same way this function
+    // did above, so passing `cwd` costs nothing for every other candidate's
+    // git-worktree-list-driven logic; passing `root` here instead made the
+    // own-cwd guard permanently unreachable through this entry point (`here`
+    // was always the main checkout, never inside any worktree), even though
+    // reap-merged.test.js's isolated calls (which pass a worktree path
+    // directly) still exercised and passed.
+    const r = reapMerged({ cwd, dryRun });
     if (r.failure) {
       result.skipped.push({ check: 'reap', reason: r.failure });
     } else {
@@ -302,9 +314,25 @@ async function reconcile(opts = {}) {
   // preflight failure, budget-exceeded, and the skipIfFresh short-circuit
   // itself) exits above this line and never reaches it, so a failed or
   // partial pass never gets recorded as "fresh" for a future skipIfFresh
-  // check (#820, D7).
-  const cache = readCache(root);
-  writeCache(root, { ...cache, lastRunAt: Date.now() });
+  // check (#820, D7). `opts.skipCacheStamp` (#644 review fix) is the one
+  // exception: `bin/hooks.js reconcile-summary`'s own internal
+  // `checks: ['mirror']` call sets it, since this stamp is keyed on
+  // `lastRunAt` alone — it cannot distinguish "the FULL requested subset
+  // just finished" from "a narrow mirror-only probe just finished" — and
+  // `session-start.js`'s FAST_CHECKS call reads the exact same key via its
+  // own `skipIfFresh` gate. Without this opt-out, every `/claude-tweaks:flow`
+  // closing report would silently stamp the shared cache as fresh, and the
+  // next SessionStart within `DEFAULT_TTL_MS` would skip its own
+  // mirror/red-tip/console pass believing it already ran — silently
+  // suppressing red-tip's CI-failure surfacing for up to 7 minutes after
+  // every successful flow completion. No other caller sets this option, so
+  // every existing stamp-dependent behavior (including session-start.js's
+  // own FAST_CHECKS call, which both stamps and reads this key by design)
+  // is unchanged.
+  if (!opts.skipCacheStamp) {
+    const cache = readCache(root);
+    writeCache(root, { ...cache, lastRunAt: Date.now() });
+  }
 
   // #644 Deliverable 3 — the one-line residue summary /claude-tweaks:flow's
   // closing report renders, attached to the same JSON this function already

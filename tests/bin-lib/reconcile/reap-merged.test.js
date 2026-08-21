@@ -8,6 +8,7 @@ const path = require('path');
 const { reapMerged, isOwnCwd, decideReap, trackReapResidue } = require('../../../plugin/bin/lib/reconcile/reap-merged');
 const { writeRunState } = require('../../../plugin/bin/lib/hooks/context');
 const { listResidueFailures, RESIDUE_ESCALATE_THRESHOLD } = require('../../../plugin/bin/lib/reconcile/cache');
+const { reconcile } = require('../../../plugin/bin/lib/reconcile');
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -224,4 +225,78 @@ test('trackReapResidue: never throws when escalate itself throws (best-effort)',
   for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
     assert.doesNotThrow(() => trackReapResidue(root, 'o/r', '/x/wt', { failed: true, lastError: 'x' }, { escalate }));
   }
+});
+
+// #644 review fix — a merged-PR worktree the caller is standing in with no
+// lock file, reaped only when going through the SAME entry point the rest
+// of this suite exercises reapMerged directly through (`reapMerged({cwd:
+// wtPath})`, above). The real production call path is index.js's
+// `reconcile()` dispatcher, which resolves `root` from the caller's cwd
+// FIRST and previously passed that already-resolved `root` — never the
+// caller's actual cwd — down to reapMerged, making isOwnCwd's comparison
+// always false in practice (root is never itself nor an ancestor of the
+// worktree it's checking): the own-cwd guard existed but was unreachable
+// through the one path real callers use. A direct reapMerged({cwd: wtPath})
+// call bypasses this entirely and gives false confidence — this test goes
+// through reconcile() itself to close that gap.
+function buildReapableFixtureWithRemote() {
+  const originDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reap-merged-origin-'));
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', originDir], { stdio: 'ignore' });
+
+  // `origin/HEAD` (what resolveIntegrationBranch reads) is only set by a
+  // clone taken AFTER origin already has a commit — a bare `git init` alone
+  // has no HEAD to symlink to. Seed origin from a throwaway clone first,
+  // exactly like tests/reconcile.test.js's own pairedFixture() does, then
+  // clone again into the fixture's real main checkout.
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reap-merged-seed-'));
+  execFileSync('git', ['clone', '-q', originDir, seedDir], { stdio: 'ignore' });
+  git(seedDir, 'config', 'user.email', 't@t');
+  git(seedDir, 'config', 'user.name', 't');
+  fs.writeFileSync(path.join(seedDir, 'a.txt'), 'a\n');
+  git(seedDir, 'add', 'a.txt');
+  git(seedDir, 'commit', '-q', '-m', 'seed');
+  git(seedDir, 'push', '-q', 'origin', 'main');
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'reap-merged-remote-root-'));
+  execFileSync('git', ['clone', '-q', originDir, root], { stdio: 'ignore' });
+  git(root, 'config', 'user.email', 't@t');
+  git(root, 'config', 'user.name', 't');
+
+  // reconcile()'s pr-first branch is policy-gated, not auto-detected from a
+  // local bare-repo origin URL — force it explicitly, same as this repo's
+  // other full-reconcile() fixtures (tests/reconcile.test.js's D2 test).
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(root, 'add', '.claude-tweaks/policy.yml');
+  git(root, 'commit', '-q', '-m', 'policy');
+  git(root, 'push', '-q', 'origin', 'main');
+
+  const wtPath = path.join(root, '.claude', 'worktrees', 'issue-1');
+  git(root, 'worktree', 'add', '-q', '-b', 'worktree-issue-1', wtPath);
+
+  return { root, wtPath };
+}
+
+test('reconcile(): the real dispatcher never reaps the worktree the caller is standing in (#644 review fix — reachable only through index.js, not a direct reapMerged() call)', async () => {
+  const { wtPath } = buildReapableFixtureWithRemote();
+  const preflight = require('../../../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  const wrapper = installGhWrapper([{ number: 42, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]);
+
+  let result;
+  try {
+    result = await reconcile({ cwd: wtPath, checks: ['reap'] });
+  } finally {
+    wrapper.restore();
+    preflight.ghHealthCheck = originalHealth;
+  }
+
+  assert.equal(fs.existsSync(wtPath), true, 'the worktree the caller is standing in must survive a real reconcile() call');
+  assert.ok(Array.isArray(result.worktrees), `expected a worktrees array, got: ${JSON.stringify(result)}`);
+  const realWt = fs.realpathSync(wtPath);
+  const entry = result.worktrees.find((w) => w.path === realWt);
+  assert.ok(entry, `expected an entry for the own-cwd worktree, got: ${JSON.stringify(result.worktrees)}`);
+  assert.equal(entry.action, 'skipped');
+  assert.equal(entry.reason, 'own-cwd', `expected 'own-cwd', got: ${JSON.stringify(entry)}`);
 });
