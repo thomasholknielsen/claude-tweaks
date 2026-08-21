@@ -75,7 +75,8 @@ test('AC4: terminal option descriptions no longer claim unconditional "no furthe
 
 test('review-console-interactive.md Hard requirements defines the drills-individually class once', () => {
   assert.match(REVIEW_CONSOLE_INTERACTIVE, /The "drills individually" class/);
-  assert.match(REVIEW_CONSOLE_INTERACTIVE, /\[adr-convention\]` row \(one three-way `AskUserQuestion`/);
+  assert.match(REVIEW_CONSOLE_INTERACTIVE, /every `\[\{genre\}-convention\]` row present \(each its own three-way `AskUserQuestion`\)/);
+  assert.match(REVIEW_CONSOLE_INTERACTIVE, /for `\[adr-convention\]` specifically, its single answer is global/);
   assert.match(REVIEW_CONSOLE_INTERACTIVE, /restructural/);
   assert.match(REVIEW_CONSOLE_INTERACTIVE, /_shared\/batched-item-drill\.md.*multiSelect chunking/);
 });
@@ -87,7 +88,7 @@ test('AC3: the [adr-convention] post-Approve-all outcome is specified, not left 
     ['console-template.md', CONSOLE_TEMPLATE],
   ]) {
     assert.doesNotMatch(content, /leaves it unanswered/, `${name} still claims the row is left unanswered`);
-    assert.doesNotMatch(content, /leaves any `\[\{genre\}-convention\}\]` row unanswered/, `${name} still claims the row is left unanswered`);
+    assert.doesNotMatch(content, /leaves any `\[\{genre\}-convention\]` row unanswered/, `${name} still claims the row is left unanswered`);
     assert.doesNotMatch(content, /unanswered and blocks every/, `${name} still uses the retired "unanswered and blocks" phrasing`);
   }
   assert.match(REVIEW_CONSOLE_INTERACTIVE, /still fires its own three-way `AskUserQuestion`/);
