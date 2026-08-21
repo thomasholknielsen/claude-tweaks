@@ -64,7 +64,7 @@ test('reconcile: the raw-JSON subcommand also carries a residueSummary field com
     'integration-branch: main\nintegration-model: pr-first\n',
   );
 
-  const result = execFileSync('node', [HOOKS, 'reconcile'], { cwd: dir, encoding: 'utf8' });
+  const result = execFileSync('node', [HOOKS, 'reconcile', '--json'], { cwd: dir, encoding: 'utf8' });
   const parsed = JSON.parse(result);
   assert.equal(typeof parsed.residueSummary, 'string', `expected a residueSummary string, got: ${result}`);
   assert.match(parsed.residueSummary, /^reconcile: \d+ archived, \d+ stuck.*mirror ff /);
