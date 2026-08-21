@@ -41,3 +41,10 @@ test('the caller is told to read `failed`', () => {
 test('the helper invocation prints its envelope to stdout (no /tmp redirect)', () => {
   assert.doesNotMatch(text, /link-records\.js[^\n]*\n[^\n]*> \/tmp\//, 'do not redirect the envelope away from the tool result');
 });
+
+test('the Blocked-by assumption bullet distinguishes mechanical from prose-shape assumptions', () => {
+  assert.match(text, /mechanical, not prose-shape/, 'record-creation.md must carry the mechanical-vs-prose authoring rule');
+  assert.match(text, /never a specific prose string, documentation wording/, 'the rule must rule out prose/documentation-shape assumptions specifically');
+  assert.match(text, /exposes getStatus\(\) on the queue module/, 'the rule must include a mechanical (safe) example');
+  assert.match(text, /documents the retry-window default as "5 minutes"/, 'the rule must include a prose-shape (fragile) example');
+});
