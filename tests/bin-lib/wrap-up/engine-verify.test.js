@@ -47,9 +47,89 @@ test('runVerify returns one row per registered check, each with a valid result',
   assert.strictEqual(result.exitCode, expectedExit);
 });
 
-// The test above re-derives its expected exitCode from the same rows array
-// runVerify just returned, so it can't distinguish a bug in the exitCode
-// derivation from correct behavior. This test pins the literal value: force
+// AC1/AC2 fixture-level integration tests (record #900, Task 7). These call
+// runVerify() with a real run-dir and assert on the literal exitCode, so
+// they are placed HERE -- immediately after the structural test above, and
+// deliberately BEFORE 'runVerify sets exitCode 3 ... (forced-fail probe)'
+// below -- rather than at the file's tail near __test-null-guard-probe__.
+// That forced-fail probe permanently registers a check (via the module-level
+// CHECKS array, which persists for this file's whole process) that always
+// returns 'fail' with no input-dependent guard, so every runVerify() call
+// with a non-null runDir anywhere later in this file's execution order would
+// unconditionally report exitCode 3 -- these fixtures need a real,
+// input-driven exitCode 0 for their "fixing it passes" / "no fail rows"
+// assertions, so they must run before that contamination exists. Helper fns
+// writeSpecFile/writeExpectations (defined further down this file) are
+// ordinary function declarations, hence hoisted, and are callable here.
+//
+// The brief's own transcribed AC1/AC2 code (task-7-brief.md) writes
+// verify-expectations.json without deferring run-dir-archival, using
+// originalPath (under .claude-tweaks/pipelines/{runId}) directly as runDir.
+// Read against the real, current 'run-dir-archived' check (Task 2, unchanged
+// since): that check independently re-derives originalPath from
+// path.basename(runDir) and fails whenever it still exists on disk -- which
+// it does here, since these fixtures create it and never archive it. Left
+// as transcribed, that would make 'run-dir-archived' ALSO fail in both
+// fixtures, alongside 'worktree-removed' in AC1 and contradicting AC2's "no
+// fail rows" premise. Both fixtures below add `deferred: ['run-dir-archival']`
+// to verify-expectations.json (the same real deferred-set mechanism
+// 'design-caches'/'worktree-removed' already use, per Task 5) so
+// 'run-dir-archived' skips instead of failing -- letting each fixture
+// isolate exactly the one check under test, per AC1/AC2's literal wording.
+test('AC1: fixture run-dir with one unexecuted approved action exits 3 naming that check; fixing it exits 0', () => {
+  const runId = 'test-ac1-fixture-900';
+  const originalPath = path.join(process.cwd(), '.claude-tweaks', 'pipelines', runId);
+  // Simulate: everything else clean (run-dir-archival deferred to the parent
+  // console, so that check doesn't also fail here), but the worktree row was
+  // never removed.
+  fs.mkdirSync(originalPath, { recursive: true });
+  writeExpectations(originalPath, { version: 1, memory: [], upstream: [], deferred: ['run-dir-archival'] });
+  try {
+    const fakeGitDirty = (args) => {
+      if (args[0] === 'worktree') return `worktree /repo/.claude/worktrees/flow-${runId}\nbranch refs/heads/worktree-flow-${runId}\n\n`;
+      return '';
+    };
+    const dirtyResult = runVerify({ runDir: originalPath, base: 'main', deps: { git: fakeGitDirty, gh: () => 'gh version 2.0.0' } });
+    assert.strictEqual(dirtyResult.exitCode, 3);
+    const failingRows = dirtyResult.rows.filter((r) => r.result === 'fail');
+    assert.strictEqual(failingRows.length, 1, `expected exactly one failing check, got: ${failingRows.map((r) => r.check).join(', ')}`);
+    assert.strictEqual(failingRows[0].check, 'worktree-removed');
+
+    const fakeGitClean = () => '';
+    const cleanResult = runVerify({ runDir: originalPath, base: 'main', deps: { git: fakeGitClean, gh: () => 'gh version 2.0.0' } });
+    assert.strictEqual(cleanResult.exitCode, 0);
+  } finally {
+    fs.rmSync(originalPath, { recursive: true, force: true });
+  }
+});
+
+test('AC2: gh absent renders acceptance-labeling unknown, exit code reflects only checks that ran', () => {
+  const runId = 'test-ac2-fixture-900';
+  const originalPath = path.join(process.cwd(), '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(originalPath, { recursive: true });
+  writeSpecFile(originalPath, '900', 900);
+  writeExpectations(originalPath, { version: 1, memory: [], upstream: [], deferred: ['run-dir-archival'] });
+  try {
+    const throwingGh = () => { throw new Error('command not found: gh'); };
+    const cleanGit = (args) => (args[0] === 'log' ? 'abc1234 fix\n' : '');
+    const result = runVerify({ runDir: originalPath, base: 'main', deps: { git: cleanGit, gh: throwingGh } });
+    const acceptanceRow = result.rows.find((r) => r.check === 'acceptance-labeling');
+    assert.strictEqual(acceptanceRow.result, 'unknown');
+    assert.match(acceptanceRow.detail, /gh absent/);
+    // No 'fail' rows in this fixture -- exitCode reflects only what ran (0), unknown never blocks.
+    const failingRows = result.rows.filter((r) => r.result === 'fail');
+    assert.deepStrictEqual(failingRows, []);
+    assert.strictEqual(result.exitCode, 0);
+  } finally {
+    fs.rmSync(originalPath, { recursive: true, force: true });
+  }
+});
+
+// The 'runVerify returns one row per registered check' test further above
+// (immediately before the AC1/AC2 fixtures) re-derives its expected exitCode
+// from the same rows array runVerify just returned, so it can't distinguish
+// a bug in the exitCode derivation from correct behavior. This test pins the
+// literal value: force
 // one check to fail and assert exitCode === 3 as a hardcoded constant, proving
 // the derivation actually produces 3 for a real fail case.
 test('runVerify sets exitCode 3 when any check fails (forced-fail probe)', () => {
