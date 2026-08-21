@@ -37,5 +37,8 @@
   },
   "doc:decisions/0012-autonomy-ceiling-top-tier-ships-shut": {
     "lastAuditedMs": 1787206469464
+  },
+  "doc:decisions/0013-plugin-conventions-detect-prior-art-before-writing": {
+    "lastAuditedMs": 1787292461057
   }
 }
