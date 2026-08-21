@@ -62,6 +62,17 @@ function pluginRoot() {
 const PIPELINE_STATE_DIR = path.join('.claude-tweaks', 'pipelines');
 const POLICY_FILE = path.join('.claude-tweaks', 'policy.yml');
 
+// #959: the one documented worktree-local exception (_shared/pipeline-run-dir.md's
+// Anchoring section, "work/{n}-spec.md is the exception"). Matches the tail of a
+// pipeline-run-relative path (i.e. with the run-id segment already stripped) against
+// either the single-record shape (`work[/{n}-spec.md]`) or the multi-record shape
+// (`spec-{slug}/work[/{n}-spec.md]`) — the directory form covers a `mkdir -p` target,
+// the file form covers the Write/heredoc target. Deliberately narrow: it does NOT match
+// any other file inside `work/`, nor anything below `spec-{slug}/` besides `work/`,
+// so the carve-out cannot be used to shadow-write arbitrary pipeline state into a
+// worktree — only the one tracked, committed-on-branch artifact this section documents.
+const WORK_SPEC_TAIL_RE = /^(?:spec-[^/\\]+[/\\])?work(?:[/\\]\d+-spec\.md)?$/;
+
 // git always reports/accepts forward-slash paths regardless of platform —
 // used for GATE_COVERAGE's prose-facing rendering and for comparing against
 // `git diff --cached --name-only` output in isPolicyOnlyCommit below.
@@ -439,6 +450,15 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
 // itself, and further writes into an already-existing worktree-trapped run
 // dir (e.g. a still-running pre-anchoring pipeline appending events.jsonl)
 // must not be newly denied by a guard shipped after that pipeline started.
+//
+// #959: also lets the one documented worktree-local exception through even
+// when the run-id directory does NOT yet exist there — `work/{n}-spec.md`
+// (or its multi-record `spec-{slug}/work/{n}-spec.md` form) is meant to be
+// created and committed on the feature branch as the run's FIRST commit
+// (materialize.md's "When this runs"), so requiring the run-dir to
+// pre-exist made the sanctioned exception unreachable by any tool-mediated
+// write. See WORK_SPEC_TAIL_RE above for exactly what this does and does
+// not cover.
 function shadowPipelineRunDir(targetPath) {
   if (typeof targetPath !== 'string' || !targetPath || !path.isAbsolute(targetPath)) return null;
   const resolved = path.resolve(targetPath);
@@ -452,7 +472,10 @@ function shadowPipelineRunDir(targetPath) {
   const real = realTarget(resolved) || resolved;
   const relFromPipelines = path.relative(pipelinesDir, real);
   if (!relFromPipelines || relFromPipelines.startsWith('..') || path.isAbsolute(relFromPipelines)) return null;
-  const runDirName = relFromPipelines.split(path.sep)[0];
+  const relParts = relFromPipelines.split(path.sep);
+  const runDirName = relParts[0];
+  const tail = relParts.slice(1).join(path.sep);
+  if (WORK_SPEC_TAIL_RE.test(tail)) return null;
   const runDirCandidate = path.join(pipelinesDir, runDirName);
   let exists = false;
   try { exists = fs.statSync(runDirCandidate).isDirectory(); } catch { /* not there yet — a genuinely new shadow */ }

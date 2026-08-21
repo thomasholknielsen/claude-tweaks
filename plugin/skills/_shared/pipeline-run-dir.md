@@ -112,17 +112,20 @@ exists to prevent. It flags only a genuinely new creation; a pre-anchoring run d
 sitting in a worktree (`wrap-up/cleanup-procedures-execution.md` Section C step 3.5's transitional guard,
 sunset 2026-11-07) is left alone.
 
-**Known gap: this guard has no `work/{n}-spec.md` carve-out (#959).** It takes the first path
-segment under `pipelines/` as the run-dir candidate and denies whenever that directory does not
-already exist in the worktree — with no exception for the tracked `work/` path the paragraph
-above documents. In practice this is reachable only through the *sanctioned* route
-(`bin/materialize.js`, which writes via `fs` inside a Node process and so never matches the
-guard's Edit/Write/Bash-command pattern-matching) — a hand-written materialization of the same
-path (the `Write` tool, or a `cat > … << EOF` heredoc) is denied outright, even though it targets
-the exact file this section says belongs there. **Do not work around this by writing the blob via
-git plumping (`hash-object`/`update-index`/`commit`) to bypass the guard** — that tunnels under
-every PreToolUse gate at once rather than satisfying any of them (see the matching Don't in
-`docs/donts.md`). Use `bin/materialize.js`, or wait for #959's fix.
+**`work/{n}-spec.md` carve-out (#959).** The guard takes the first path segment under `pipelines/`
+as the run-dir candidate and, before this fix, denied whenever that directory did not already
+exist in the worktree — with no exception for the tracked `work/` path the paragraph above
+documents, so even the sanctioned `bin/materialize.js` route needed its own separate anchoring fix
+(below) to reach the write at all. `shadowPipelineRunDir` now checks the candidate's tail against
+`WORK_SPEC_TAIL_RE` — `work[/{n}-spec.md]` or the multi-record `spec-{slug}/work[/{n}-spec.md]` —
+and allows it regardless of whether the run-id directory pre-exists, so a normal `Write` tool call
+or a `mkdir -p … && cat > …` heredoc now reaches the file directly, the same as `bin/materialize.js`
+does. The carve-out is narrow by construction (`tests/hooks-pipeline-shadow-guard.test.js`'s `#959`
+cases pin both the positive shapes and the negative controls — any other file under `work/`, one
+level deeper than `work/`, or elsewhere in the run dir is still denied). Do not work around a
+denial outside this one documented shape by writing the blob via git plumbing
+(`hash-object`/`update-index`/`commit`) — that tunnels under every PreToolUse gate at once rather
+than satisfying any of them (see the matching Don't in `docs/donts.md`).
 
 A third guard sits at the **CLI-argument boundary** — the one path neither of the two above
 covers, a run directory handed to a binary explicitly on the command line rather than inherited

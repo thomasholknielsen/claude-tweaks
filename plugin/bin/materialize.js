@@ -11,9 +11,11 @@
 // Prints one JSON envelope on success. Exit 0 on success; 1 when the
 // record's own body fails the shape gate (points at /claude-tweaks:specify,
 // same as the skill does); 2 on a malformed invocation, an unanchored
-// --run-dir (#790/[IL-127] — a worktree-relative shadow, or a path with no
-// determinable git repository root), an unresolved record, or when `gh` is
-// absent.
+// --run-dir (#790/[IL-127] — a foreign-checkout shadow, or a path with no
+// determinable git repository root; #959 — a --run-dir resolving INSIDE the
+// current linked worktree is anchored-equivalent and accepted, since this
+// CLI only ever writes to that worktree's own work/{n}-spec.md), an
+// unresolved record, or when `gh` is absent.
 'use strict';
 
 const fs = require('fs');
@@ -96,6 +98,14 @@ const realDeps = {
   cwd: () => process.cwd(),
   mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
   isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
+  // #959: this CLI only ever writes to `{run-dir}/work/{n}-spec.md` (or the
+  // multi-record `{run-dir}/spec-{slug}/work/{n}-spec.md`) — see the workDir/
+  // outFile composition below — so a --run-dir resolving inside a linked
+  // worktree is the documented exception (_shared/pipeline-run-dir.md's
+  // Anchoring section), not a shadow to reject. `isAnchoredUnderRoot` can't
+  // answer this itself: it requires the nearest `.git` to be a DIRECTORY,
+  // which a linked worktree's `.git` FILE pointer never is by construction.
+  isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
   mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
   writeFile: (file, content) => fs.writeFileSync(file, content),
   stdout: (s) => process.stdout.write(s),
@@ -124,7 +134,11 @@ function run(argv, deps = realDeps) {
       deps.stderr(`materialize.js: ${wtDetect.unanchoredRunDirNoRepoMessage(cwd)}\n`);
       return 2;
     }
-    if (!deps.isAnchored(path.resolve(cwd, opts.runDir), mainRoot)) {
+    const resolvedRunDir = path.resolve(cwd, opts.runDir);
+    // #959: a --run-dir resolving inside a linked worktree is not a shadow —
+    // it's the documented route for this CLI's own write (work/{n}-spec.md),
+    // which only ever lands under here. See isInsideLinkedWorktree above.
+    if (!deps.isAnchored(resolvedRunDir, mainRoot) && !deps.isInsideLinkedWorktree(resolvedRunDir)) {
       deps.stderr(`materialize.js: ${wtDetect.unanchoredRunDirShadowMessage(opts.runDir, mainRoot)}\n`);
       return 2;
     }
