@@ -88,6 +88,13 @@ same as every other push in this plugin).
 
 `AUTO {time} — PR-early run lifecycle: push of {branch} to origin FAILED ({reason}); run proceeds local-only, no PR opened. Reversibility: n/a.`
 
+Also record the degrade in `run-state.json`, so `test/SKILL.md`'s Lifecycle Stamp Gate
+([IL-131]) reads this as a documented degrade rather than a silent skip:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-pr --run "$RUN_DIR" --degraded "push-failed: {reason}"
+```
+
 The run continues exactly as a `local-merge` run would — this is a degrade, never a block. The
 next phase's own phase-exit push (`_shared/git-discipline.md`) naturally retries.
 
@@ -162,8 +169,10 @@ gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {b
 lowest-numbered record.
 
 **If creation fails, retry once.** If the retry also fails: log and continue local-only, same
-message shape as the push-failure log above (`reason` naming the `gh pr create` failure). The
-branch is already on origin from Step 2 either way.
+message shape as the push-failure log above (`reason` naming the `gh pr create` failure), and
+record the same degrade in `run-state.json` the same way: `node
+"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-pr --run "$RUN_DIR" --degraded "create-failed:
+{reason}"`. The branch is already on origin from Step 2 either way.
 
 ### Step 4: Record the PR
 
@@ -272,12 +281,15 @@ warning and the merge proceeds; a stale title/checklist is cosmetic, never a mer
 | Condition | Behavior |
 |---|---|
 | `integration-model: local-merge` | Skip this entire file — today's no-PR lifecycle. |
-| Push at run start fails | Local-only run, logged warning (Step 2 above), continue. Every later phase-exit push retries naturally. |
-| `gh pr create` fails twice | Local-only run (branch already pushed), logged warning, continue. |
-| `gh` absent | Same degrade as a push/create failure, distinguished reason: `_shared/github-write-transport.md`'s CRUD mapping carries no pull-request row, so there is no MCP fallback to attempt for PR creation (unlike issue operations, which do have one). Log `reason: gh-absent — no MCP fallback for pull requests`. |
-| `gh` absent at merge time (`_shared/pr-first-merge.md` Step 2.5) | The `merge-verification` lever is unenforceable without `gh` — proceed as `off` and disclose it at **warn** tier in the run summary (a visible line, not a silent log entry): `merge-verification: {resolved} unenforceable — gh absent; proceeded as off`. Same no-MCP-fallback reason as the row above. |
+| Push at run start fails | Local-only run, logged warning (Step 2 above), `record-pr --degraded` recorded, continue. Every later phase-exit push retries naturally. |
+| `gh pr create` fails twice | Local-only run (branch already pushed), logged warning, `record-pr --degraded` recorded, continue. |
+| `gh` absent | Same degrade as a push/create failure, distinguished reason: `_shared/github-write-transport.md`'s CRUD mapping carries no pull-request row, so there is no MCP fallback to attempt for PR creation (unlike issue operations, which do have one). Log `reason: gh-absent — no MCP fallback for pull requests`, and `record-pr --run "$RUN_DIR" --degraded "gh-absent: no MCP fallback for pull requests"`. |
+| `gh` absent at merge time (`_shared/pr-first-merge.md` Step 2.5) | The `merge-verification` lever is unenforceable without `gh` — proceed as `off` and disclose it at **warn** tier in the run summary (a visible line, not a silent log entry): `merge-verification: {resolved} unenforceable — gh absent; proceeded as off`. Same no-MCP-fallback reason as the row above. No `record-pr --degraded` here — this is a merge-time gap, not a run-start "was the PR ever opened" gap, so it's outside `test/SKILL.md`'s Lifecycle Stamp Gate ([IL-131]), which only runs once, early in the pipeline. |
 | Offline / no `origin` remote | Same degrade path as any push failure — `_shared/forge-detection.md` would already have resolved `local-merge` for a no-remote project, so this case is specifically "remote configured but unreachable right now." |
 
 None of these ever block the pipeline — a pr-first project whose GitHub connectivity is degraded
 for one run behaves exactly like a `local-merge` run for that run, with the degradation logged
-rather than silent.
+rather than silent. **Every degrade row above except the merge-time one also writes
+`run-state.json`'s `prDegraded` field** via `record-pr --degraded` — this is what lets
+`test/SKILL.md`'s Lifecycle Stamp Gate ([IL-131]) tell a documented degrade apart from a silent
+skip, rather than blocking a legitimate degrade as if it were the bug it exists to catch.

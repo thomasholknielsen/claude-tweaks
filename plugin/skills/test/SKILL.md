@@ -152,6 +152,24 @@ After types/lint/tests pass (or if they were skipped via `VERIFICATION_PASSED`),
 
 Otherwise, read `design-gate.md` in this skill's directory for the full invocation, result-handling table, per-mode reporting variants, and the Design Findings template.
 
+## Step 1.6: Lifecycle Stamp Gate ([IL-131])
+
+Mechanical HARD-GATE, not a QA check — runs only inside a `/claude-tweaks:flow` pipeline (a resolvable `PIPELINE_RUN_DIR`). A standalone `/test` invocation has no run dir and nothing to enforce; skip this step entirely in that case.
+
+This closes the gap the prose-only fix in `build/SKILL.md` Spec Step 1 tried and failed to hold twice ([IL-131] original, #118; recurrence, #893): a build step that judges "already satisfied by prior work" and makes no further commits can still silently skip `build/worktree-setup.md` Step 4.5 (`record-worktree`) and, under `integration-model: pr-first`, Step 6 (the PR-early lifecycle). Neither gap leaves a commit to key a check on, so this step checks the stamps directly instead of inferring them from git activity:
+
+```bash
+GIT_STRATEGY=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values git-strategy)
+INTEGRATION_MODEL=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values integration-model)
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" check-lifecycle-stamps --run "$PIPELINE_RUN_DIR" \
+  --git-strategy "$GIT_STRATEGY" --integration-model "$INTEGRATION_MODEL"
+```
+
+- **Exit 0** — stamps present (or not applicable: `current-branch` mode has no worktree stamp to check; `local-merge` has no PR stamp to check). Proceed to Step 2.
+- **Exit 1** — one or both stamps missing, and (for the PR stamp) no documented degrade recorded either. **STOP** — do not proceed to Step 2. Present the printed problem(s) verbatim and run the missing step(s) now: `record-worktree` (`build/worktree-setup.md` Step 4.5) and/or the PR-early lifecycle (`_shared/pr-early-run-lifecycle.md`, `build/worktree-setup.md` Step 6), then re-run this gate.
+
+**A genuine degrade is not a gate failure.** `_shared/pr-early-run-lifecycle.md`'s skip/degrade table (push failure, `gh pr create` failing twice, `gh` absent) already records the degrade via `record-pr --degraded <reason>` at the point of failure — `check-lifecycle-stamps` treats a recorded degrade as satisfying the PR-stamp check, exactly like a real `pr` stamp. Only a *silent* skip — neither stamp present — trips this gate.
+
 ## Step 2: Report
 
 Present results using the format from `verification.md` Step 3 for standard checks. For QA and pipeline results, render the appropriate template from `report-templates.md` in this skill's directory.

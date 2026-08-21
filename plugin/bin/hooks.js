@@ -249,6 +249,32 @@ async function main(argv) {
     // write-ownership rule) — this is the sanctioned verb for the pr-early
     // run lifecycle's { number, url } field (#409).
     const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    // [IL-131] second recurrence (#991): `--degraded <reason>` is the
+    // sanctioned alternative to a real number/url pair — it records that the
+    // PR-early lifecycle (_shared/pr-early-run-lifecycle.md) genuinely
+    // degraded (push failed, `gh pr create` failed twice, `gh` absent) so
+    // `check-lifecycle-stamps` below can tell a documented degrade apart
+    // from a silent skip, without turning that legitimate degrade into a
+    // hard block.
+    const degradedIdx = rest.indexOf('--degraded');
+    if (degradedIdx !== -1) {
+      const reason = rest[degradedIdx + 1];
+      if (invalidRunArg) {
+        process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — PR degrade not recorded\n`);
+      } else if (!runDir) {
+        process.stdout.write('claude-tweaks: no pipeline run dir found — PR degrade not recorded\n');
+      } else if (!reason) {
+        process.stdout.write('claude-tweaks: usage: record-pr [--run <dir>] --degraded <reason> — PR degrade not recorded\n');
+      } else {
+        const result = ctxLib.writeRunState(runDir, { prDegraded: { reason, at: new Date().toISOString() } });
+        if (result) {
+          process.stdout.write(`claude-tweaks: PR-early degrade recorded for ${path.basename(runDir)}: ${reason}\n`);
+        } else {
+          process.stdout.write(`claude-tweaks: failed to record PR degrade for ${path.basename(runDir)} — run-state.json could not be written\n`);
+        }
+      }
+      return 0;
+    }
     const numberArg = rest[0];
     const urlArg = rest[1];
     const number = Number(numberArg);
@@ -267,6 +293,37 @@ async function main(argv) {
       }
     }
     return 0;
+  }
+  if (cmd === 'check-lifecycle-stamps') {
+    // [IL-131] second recurrence (#991): mechanical HARD-GATE invoked by
+    // /claude-tweaks:test's Step 1.6 (Lifecycle Stamp Gate) — see
+    // lib/hooks/lifecycle-stamps.js for what it checks and why. Unlike every
+    // other verb in this dispatcher (which always exits 0 per this file's own
+    // header comment), this one has a genuine non-zero exit: it's invoked
+    // directly from skill prose as a gate, never as a hook event — mirrors
+    // resolve-run-dir's identical carve-out above.
+    const args = argv.slice(3);
+    const { runDir, invalidRunArg } = resolveRunArg(args, process.cwd(), process.env);
+    const gitStrategy = flagVal(args, '--git-strategy');
+    const integrationModel = flagVal(args, '--integration-model');
+    if (invalidRunArg) {
+      process.stderr.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — lifecycle stamps not checked\n`);
+      return 1;
+    }
+    if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — lifecycle stamp gate has nothing to enforce (standalone run)\n');
+      return 0;
+    }
+    const { ok, problems } = require('./lib/hooks/lifecycle-stamps').checkLifecycleStamps({
+      runDir, gitStrategy, integrationModel,
+    });
+    if (ok) {
+      process.stdout.write(`claude-tweaks: lifecycle stamps OK for ${path.basename(runDir)}\n`);
+      return 0;
+    }
+    process.stderr.write(`claude-tweaks: lifecycle stamp gate FAILED for ${path.basename(runDir)}:\n`);
+    for (const p of problems) process.stderr.write(`  - ${p}\n`);
+    return 1;
   }
   if (cmd === 'spec-status') {
     // Couples a multi-spec manifest.yml status transition to the
