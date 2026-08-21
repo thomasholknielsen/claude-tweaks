@@ -40,5 +40,8 @@
   },
   "doc:decisions/0013-plugin-conventions-detect-prior-art-before-writing": {
     "lastAuditedMs": 1787292461057
+  },
+  "doc:decisions/0014-hook-read-key-renames-carry-a-transitional-twin": {
+    "lastAuditedMs": 1787293023951
   }
 }
