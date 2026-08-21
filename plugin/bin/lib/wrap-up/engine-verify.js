@@ -10,6 +10,11 @@
 // convention as bin/lib/merge-size-probe.js (see the gh-api-module-pattern
 // skill) — argv array only, never a shell string.
 //
+// Deliberately gh-CLI-only, same constraint every other reconcile check
+// states: a Node subprocess cannot reach an agent session's MCP tools, so a
+// gh-absent environment reports that reason (per-check, via the `deps.gh`
+// seam) rather than attempting an MCP fallback.
+//
 // Read-only by design: only `git log`, `git ls-files`, `git worktree list`,
 // `fs.readdirSync`/`fs.existsSync`, and `gh issue view`/`gh pr view`. No
 // state-changing command belongs in this module.
