@@ -488,6 +488,15 @@ test('partitionByOpenNativeBlockers keeps a candidate missing from repoData (not
   assert.deepStrictEqual(excluded, []);
 });
 
+test('partitionByOpenNativeBlockers fails safe (never throws) when blockedBy.nodes is malformed (not an array)', () => {
+  const candidates = [{ number: 12 }];
+  const repoData = { i12: { number: 12, blockedBy: { nodes: 'not-an-array' } } };
+  assert.doesNotThrow(() => partitionByOpenNativeBlockers(candidates, repoData));
+  const { eligible, excluded } = partitionByOpenNativeBlockers(candidates, repoData);
+  assert.deepStrictEqual(eligible.map((c) => c.number), [12]);
+  assert.deepStrictEqual(excluded, []);
+});
+
 test('buildNativeDependencyQuery aliases each number and requests blockedBy state', () => {
   const q = buildNativeDependencyQuery([39, 37]);
   assert.match(q, /i39: issue\(number:39\)/);

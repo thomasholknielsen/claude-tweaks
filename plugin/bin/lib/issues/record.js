@@ -444,24 +444,33 @@ function hasOpenNativeBlocker(issueNode) {
   return nodes.some((n) => n && n.state === 'OPEN');
 }
 
-// candidates[] (each with .number and .body), openNumbers: Set<number> -> { eligible, excluded }.
-// The same open-body-text-dependency predicate dispatch/queue-pull-script.md's own
-// eligibility filter already applies (parseDependencies + an open id) — this makes
-// which candidates it drops, and the blocker id(s) that dropped them, a first-class
-// return value instead of letting the pool just shrink with nothing to report
-// (dispatch/SKILL.md's Blocked-exclusion report, #1101). A two-member dependency
-// cycle needs no special handling here: each member independently names the other
-// as an open blocker, so both land in `excluded` — the cycle is visible as two
-// entries pointing at each other, not a distinct code path.
-function partitionByOpenBodyBlockers(candidates, openNumbers) {
+// candidates[] (each with .number), openBlockerIdsFn: candidate -> number[] of
+// the open blocker ids excluding it (empty when none) -> { eligible, excluded }.
+// The shared partition shape both blocked-by checks below need: split on
+// whether the candidate has any open blocker, carrying the actual blocker
+// id(s) for whichever candidates get dropped instead of discarding them
+// (dispatch/SKILL.md's Blocked-exclusion report, #1101). A two-member
+// dependency cycle needs no special handling here: each member's
+// `openBlockerIdsFn` independently names the other, so both land in
+// `excluded` — the cycle is visible as two entries pointing at each other,
+// not a distinct code path.
+function partitionByOpenBlockers(candidates, openBlockerIdsFn) {
   const eligible = [];
   const excluded = [];
   for (const c of candidates) {
-    const openBlockers = parseDependencies(c.body).filter((dep) => openNumbers.has(dep));
+    const openBlockers = openBlockerIdsFn(c);
     if (openBlockers.length > 0) excluded.push({ number: c.number, blockedBy: openBlockers });
     else eligible.push(c);
   }
   return { eligible, excluded };
+}
+
+// candidates[] (each with .number and .body), openNumbers: Set<number> -> { eligible, excluded }.
+// The same open-body-text-dependency predicate dispatch/queue-pull-script.md's own
+// eligibility filter already applies (parseDependencies + an open id), via
+// partitionByOpenBlockers above.
+function partitionByOpenBodyBlockers(candidates, openNumbers) {
+  return partitionByOpenBlockers(candidates, (c) => parseDependencies(c.body).filter((dep) => openNumbers.has(dep)));
 }
 
 // candidates[] (each with .number), repoData: the native GraphQL response's
@@ -472,18 +481,16 @@ function partitionByOpenBodyBlockers(candidates, openNumbers) {
 // discarding them. A candidate missing from repoData (no `i{n}` alias — e.g. the
 // project isn't on work-links: native, per queue-pull-script.md's `{}` placeholder)
 // has no nodes to check and stays eligible, matching hasOpenNativeBlocker's own
-// no-array-of-nodes -> false behavior.
+// no-array-of-nodes -> false behavior. Same fails-safe guard as hasOpenNativeBlocker:
+// a malformed response (nodes present but not an array, e.g. a schema mismatch)
+// degrades to "no blockers resolved", never throws .filter-is-not-a-function.
 function partitionByOpenNativeBlockers(candidates, repoData) {
-  const eligible = [];
-  const excluded = [];
-  for (const c of candidates) {
+  return partitionByOpenBlockers(candidates, (c) => {
     const node = repoData && repoData['i' + c.number];
-    const nodes = (node && node.blockedBy && node.blockedBy.nodes) || [];
-    const openBlockers = nodes.filter((n) => n && n.state === 'OPEN').map((n) => n.number);
-    if (openBlockers.length > 0) excluded.push({ number: c.number, blockedBy: openBlockers });
-    else eligible.push(c);
-  }
-  return { eligible, excluded };
+    const rawNodes = node && node.blockedBy && node.blockedBy.nodes;
+    const nodes = Array.isArray(rawNodes) ? rawNodes : [];
+    return nodes.filter((n) => n && n.state === 'OPEN').map((n) => n.number);
+  });
 }
 
 // body -> array of {number, assumption} for every line-anchored

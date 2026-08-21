@@ -227,12 +227,10 @@ Bare mode only — lens runs end at their own table (Step 2) and never reach thi
 Two stages, each one paste-ready command block instead of one terminal per record or chain:
 **Shape** (`/claude-tweaks:specify #a,#b,...` chunks over the `prioritized` bucket) and
 **Dispatch** (one bare `/claude-tweaks:dispatch` line). Neither stage computes a dependency graph
-any more — chain order, file-overlap serialization, and claim exclusion move to
-`/claude-tweaks:dispatch`'s own pick-order/claims logic at execution time, matching what that
-skill already owns as a one-command queue consumer; `/claude-tweaks:specify`'s own comma-list
-batch is what makes chunking the Shape stage possible at all. **Score**
-(`/claude-tweaks:backlog refine`) and **Grant** (`/claude-tweaks:backlog grant`) keep their
-existing one-command pointers from the Prioritize/Specify template lines above, unchanged.
+any more — `docs/skill-graph.md`'s `## backlog` → `/dispatch` row is the canonical statement of
+what moved to that skill and why; not restated here. **Score** (`/claude-tweaks:backlog refine`)
+and **Grant** (`/claude-tweaks:backlog grant`) keep their existing one-command pointers from the
+Prioritize/Specify template lines above, unchanged.
 
 ### Shape stage — specify the prioritized bucket in chunks
 
@@ -260,14 +258,13 @@ per-record terminal architecture had to).
 ```bash
 eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_VIEWS=backlog-overview-views.json ST_BACKLOG_OVERVIEW_SHAPE=backlog-overview-shape.json)"
 node -e "
-  const RANK = { high: 0, medium: 1, low: 2 };
-  const bandOf = (r) => (r.facets.priority ? RANK[r.facets.priority] : 3);
+  const { priorityBandOf } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
   const prioritized = require('$ST_BACKLOG_OVERVIEW_VIEWS').funnel.prioritized;
   const needsDefinition = prioritized.filter((r) => r.facets.needsDefinition === true);
   const unsynced = prioritized.filter((r) => r.facets.unsynced === true && r.facets.needsDefinition !== true);
   const eligible = prioritized
     .filter((r) => r.facets.needsDefinition !== true && r.facets.unsynced !== true)
-    .sort((a, b) => bandOf(a) - bandOf(b) || new Date(a.createdAt) - new Date(b.createdAt) || (a.number ?? a.id) - (b.number ?? b.id));
+    .sort((a, b) => priorityBandOf(a) - priorityBandOf(b) || new Date(a.createdAt) - new Date(b.createdAt) || (a.number ?? a.id) - (b.number ?? b.id));
   const chunks = [];
   for (let i = 0; i < eligible.length; i += 10) chunks.push(eligible.slice(i, i + 10).map((r) => r.number ?? r.id));
   console.log(JSON.stringify({ eligibleCount: eligible.length, needsDefinitionCount: needsDefinition.length, unsyncedCount: unsynced.length, chunks }));
@@ -289,7 +286,15 @@ Each exclusion clause (`{n} excluded: needs:definition`, `{n} excluded: unsynced
 when its count is non-zero; drop the whole ` — ...` suffix when both are zero. When
 `eligibleCount` is 0 (every prioritized record was excluded), the block still renders its header
 line — the count ledger the no-silent-caps rule requires — with no `/claude-tweaks:specify` line
-beneath it. All commands fully qualified.
+beneath it. All commands fully qualified. The script above emits bare numeric ids in `chunks` —
+the `#` sigil shown in the template is applied at render time, per `work-backend`: under
+`github-issues` (the default, and this repo's own setting) prefix each id with `#` as shown;
+under `local-files`, drop it and render each chunk as bare comma-joined ids (`{a},{b},...`)
+instead, matching `/claude-tweaks:specify`'s own Input table's backend-specific comma-list syntax
+(`specify/SKILL.md`) — never the `#`-prefixed form there, which fails to parse as a record
+reference under that backend. This file's Step 2 funnel header still hardcodes the `#`-prefixed
+form on every one of its own placeholder lines regardless of `work-backend`; that gap predates
+this rewrite and is out of scope here.
 
 ### Dispatch stage — one queue-consumer pointer
 
@@ -298,9 +303,8 @@ the same session-scoped views file the Shape stage reads) — Step 2's own funne
 emptiness signal; no graph computation runs here.
 
 **Render:** exactly one paste block, rendered only when `dispatchable.length + granted.length >
-0` — no per-record lines, no chain arrows, no file-overlap annotation. `/claude-tweaks:dispatch`
-resolves pick-order, claims, chain order, and file-overlap serialization itself, at its own
-execution time:
+0` — no per-record lines, no chain arrows, no file-overlap annotation (the intro above names
+where that logic lives now):
 
 ```
 ── Dispatch now ──
@@ -318,8 +322,19 @@ on) or now belongs to `/claude-tweaks:dispatch`'s own execution-time logic:
 
 - **Overlap serialization** (former rule (a)) — file-overlap grouping across concurrent
   terminals; there is one Dispatch line, not one terminal per group, so nothing to serialize
-  here. `/claude-tweaks:dispatch`'s own file-overlap grouping (`groupByFileOverlap`, its Step 2)
-  does this at execution time instead.
+  here (`docs/skill-graph.md`'s `/dispatch` row names where the grouping itself now lives).
+  **Not carried forward: the old rule's >3-combined-members size cap**
+  (only the top-ranked member stayed executable beyond it, every other member excluded as
+  comment-only). No dispatch-side equivalent exists, and porting the old mechanism verbatim isn't
+  possible: dispatch's own group-claim rule is unconditionally atomic — "claiming a single member
+  of a group alone is forbidden" (`SKILL.md`'s `#N` form) — so silently dropping members past a
+  cap would violate the invariant the cap itself depended on. A large cross-component overlap
+  group is now offered whole, with no fallback; this is a real, larger blast radius per dispatch
+  batch than before, accepted here rather than fixed, since resolving it needs a genuinely new
+  dispatch-side policy (warn, refuse, or split a bundle above some size) — a product decision, not
+  a mechanical port. `SKILL.md`'s bare-mode batch table still shows full bundle membership before
+  a human selects one; the `next` (headless) form has no such review and is where this gap bites
+  hardest.
 - **Claim exclusion** (former rule (b)) — `bot:in-progress` records were already partitioned into
   `.funnel.inFlight` before this step ever saw them; there is no per-record comment line left to
   write.
