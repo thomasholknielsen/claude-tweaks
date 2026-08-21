@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-21T105702-spec-252-257-899-266-316-644-652",
-  "sessionId": "4086bb7a-e4a2-4a27-9346-5f813d685c3b",
-  "claimedAt": "2026-08-21T11:07:04.348Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "handing off to a dedicated single-record flow dispatch",
+  "releasedAt": "2026-08-21T12:04:54.865Z"
 }
