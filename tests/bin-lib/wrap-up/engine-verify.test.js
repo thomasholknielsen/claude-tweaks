@@ -47,6 +47,18 @@ test('runVerify returns one row per registered check, each with a valid result',
   assert.strictEqual(result.exitCode, expectedExit);
 });
 
+// The test above re-derives its expected exitCode from the same rows array
+// runVerify just returned, so it can't distinguish a bug in the exitCode
+// derivation from correct behavior. This test pins the literal value: force
+// one check to fail and assert exitCode === 3 as a hardcoded constant, proving
+// the derivation actually produces 3 for a real fail case.
+test('runVerify sets exitCode 3 when any check fails (forced-fail probe)', () => {
+  registerCheck('__test-exitcode-probe__', () => ({ result: 'fail', detail: 'forced' }));
+  const runDir = makeTmpDir('verify-exitcode-probe-');
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  assert.strictEqual(result.exitCode, 3);
+});
+
 test('plans-ledger check passes when no matching plan/ledger files remain', () => {
   const runDir = makeTmpDir('verify-plans-ledger-clean-');
   const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
@@ -118,14 +130,14 @@ test('worktree-removed check fails when a matching worktree is still listed', ()
     }
     return '';
   };
-  const result = runVerify({ runDir: '/tmp/spec-900', base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const result = runVerify({ runDir: '/tmp/2026-01-01T000000-spec-900', base: 'main', deps: { git: fakeGit, gh: () => '' } });
   const row = result.rows.find((r) => r.check === 'worktree-removed');
   assert.strictEqual(row.result, 'fail');
 });
 
 test('worktree-removed check passes when no matching worktree is listed', () => {
   const fakeGit = (args) => (args[0] === 'worktree' ? '' : '');
-  const result = runVerify({ runDir: '/tmp/spec-900', base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const result = runVerify({ runDir: '/tmp/2026-01-01T000000-spec-900', base: 'main', deps: { git: fakeGit, gh: () => '' } });
   const row = result.rows.find((r) => r.check === 'worktree-removed');
   assert.strictEqual(row.result, 'pass');
 });

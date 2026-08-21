@@ -116,7 +116,11 @@ registerCheck('run-dir-archived', ({ runDir, deps }) => {
 
 // ---- worktree removed ---------------------------------------------------------
 registerCheck('worktree-removed', ({ runDir, deps }) => {
-  const runId = path.basename(runDir);
+  // Worktree paths/branches are named from the spec-slug alone (e.g.
+  // .claude/worktrees/flow-spec-900, branch worktree-flow-spec-900), not the
+  // ISO-timestamp-prefixed run-dir basename -- match against the same slug
+  // plans-ledger/design-caches already derive, not the raw basename.
+  const slug = specSlugFromRunDir(runDir);
   let porcelain;
   try {
     porcelain = deps.git(['worktree', 'list', '--porcelain'], process.cwd());
@@ -124,7 +128,7 @@ registerCheck('worktree-removed', ({ runDir, deps }) => {
     return { result: 'unknown', detail: `git worktree list failed: ${err.message}` };
   }
   const list = parseWorktreeList(porcelain);
-  const match = list.find((wt) => wt.path.includes(runId) || (wt.branch && wt.branch.includes(runId)));
+  const match = list.find((wt) => wt.path.includes(slug) || (wt.branch && wt.branch.includes(slug)));
   if (match) return { result: 'fail', detail: `worktree still listed: ${match.path}` };
   return { result: 'pass', detail: '' };
 });
