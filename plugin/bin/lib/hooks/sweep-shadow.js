@@ -36,22 +36,32 @@ function realDir(p) {
   try { return fs.statSync(real).isDirectory() ? real : null; } catch { return null; }
 }
 
-// Given the full destination path (no suffix yet), finds the first free
-// `.shadow-dup[-N]` slot — mirrors the bash `dest="$dest.shadow-dup"; n=1;
-// while [ -e "$dest" ]; do dest="...shadow-dup-$n"; n=$((n+1)); done` loop.
-// A repeated collision therefore never overwrites an earlier, still-pending
-// copy: the first collision lands at `.shadow-dup`, the second at
-// `.shadow-dup-1`, and so on.
-function nextDupPath(destPath) {
-  const first = `${destPath}.shadow-dup`;
-  if (!fs.existsSync(first)) return first;
-  let n = 1;
-  let candidate = `${destPath}.shadow-dup-${n}`;
-  while (fs.existsSync(candidate)) {
-    n += 1;
-    candidate = `${destPath}.shadow-dup-${n}`;
+// Atomically claims a free destination for `src`: `preferred` first, falling
+// back to `preferred.shadow-dup`, `.shadow-dup-1`, ... — mirrors the bash
+// `dest="$dest.shadow-dup"; n=1; while [ -e "$dest" ]; do
+// dest="...shadow-dup-$n"; n=$((n+1)); done` loop's end state, but claims
+// each candidate with fs.linkSync (atomic, EEXIST-safe: it throws rather
+// than clobbering an existing destination) instead of a separate
+// existsSync-then-renameSync pair. Two overlapping sweepShadow invocations
+// racing the same slot can therefore never both win it — a plain
+// exists-check followed by a separate rename let the second racer silently
+// overwrite the first's already-relocated file (review finding); linkSync
+// fails loudly on the exact path a rename would have clobbered. Once a
+// candidate is claimed, unlinks `src` to complete the move.
+function claimFreeDest(src, preferred) {
+  let candidate = preferred;
+  let n = 0;
+  for (;;) {
+    try {
+      fs.linkSync(src, candidate);
+      fs.unlinkSync(src);
+      return candidate;
+    } catch (e) {
+      if (!e || e.code !== 'EEXIST') throw e;
+      n += 1;
+      candidate = n === 1 ? `${preferred}.shadow-dup` : `${preferred}.shadow-dup-${n - 1}`;
+    }
   }
-  return candidate;
 }
 
 // opts: { runRoot, pipelineRunDir, worktree }
@@ -112,21 +122,13 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
         continue;
       }
       const dest = path.join(runDir, 'staged', base);
-      if (fs.existsSync(dest)) {
-        const dupDest = nextDupPath(dest);
-        try {
-          fs.renameSync(f, dupDest);
-          lines.push(`collision: ${base} (kept as ${path.basename(dupDest)})`);
-        } catch {
-          lines.push(`sweep: FAILED to move ${base} — still in the shadow`);
-        }
-      } else {
-        try {
-          fs.renameSync(f, dest);
-          lines.push(`relocated: ${base}`);
-        } catch {
-          lines.push(`sweep: FAILED to move ${base} — still in the shadow`);
-        }
+      try {
+        const claimed = claimFreeDest(f, dest);
+        lines.push(claimed === dest
+          ? `relocated: ${base}`
+          : `collision: ${base} (kept as ${path.basename(claimed)})`);
+      } catch {
+        lines.push(`sweep: FAILED to move ${base} — still in the shadow`);
       }
     }
     try {
@@ -157,4 +159,4 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
   return { lines, diagnostic: lines.some((l) => l.startsWith('sweep:')) };
 }
 
-module.exports = { sweepShadow };
+module.exports = { sweepShadow, claimFreeDest };

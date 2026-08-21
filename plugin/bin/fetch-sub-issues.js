@@ -31,6 +31,7 @@
 const { execFileSync } = require('child_process');
 const { fetchNativeSubIssues } = require('./lib/issues/native-dependencies');
 const { probeSchema } = require('./lib/issues/capabilities-probe');
+const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--help]\n';
 
@@ -52,14 +53,9 @@ function parseArgs(argv) {
   return opts;
 }
 
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
 const realDeps = {
-  ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
-  remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  ghAvailable,
+  remoteUrl,
   // 30s bound: a 50-alias GraphQL batch outweighs the 5s single-call convention
   // (gh-api-module-pattern's "bound every remote-contacting call" rule).
   runner: (args) => execFileSync('gh', args, { encoding: 'utf8', timeout: 30000 }),
@@ -73,6 +69,12 @@ function run(argv, deps = realDeps) {
   const opts = parseArgs(argv);
   if (opts.error) { deps.stderr(opts.error + '\n' + USAGE); return 1; }
   if (opts.help) { deps.stdout(USAGE); return 0; }
+  // Zero positional numbers is documented as "still a valid invocation" that guarantees exit 0
+  // with the empty envelope — never gated on gh/owner-repo/schema resolution, none of which the
+  // empty result depends on (review finding: this used to run those unconditionally first, so a
+  // zero-arg caller on a host with no `gh`, no origin remote, or a fail-safe probeSchema result
+  // got exit 2/4 instead of the documented guarantee).
+  if (opts.numbers.length === 0) { deps.stdout(`${JSON.stringify({ byParent: {}, retry: [] })}\n`); return 0; }
   if (!deps.ghAvailable()) { deps.stderr('fetch-sub-issues.js: `gh` is required (work-links: native)\n'); return 2; }
 
   let remote = null;

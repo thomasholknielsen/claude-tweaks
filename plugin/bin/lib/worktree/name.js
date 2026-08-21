@@ -16,10 +16,19 @@ const MAX_LEN = 64;
 // Order matters: collapse runs of '-' before capping, so MAX_LEN is enforced
 // against the final, already-collapsed string. '/' is preserved as the
 // segment delimiter; only the characters within each segment are sanitized.
+// An originally-empty segment (from '//', or a leading/trailing '/') maps to
+// '' — the replace/collapse pair above can't produce '' from any non-empty
+// input, since a segment made entirely of disallowed characters still
+// collapses to a single '-' — so filtering out '' segments after mapping
+// drops exactly the malformed-slash cases and never a real segment (review
+// finding: rejoining them verbatim reproduced the '//' or leading/trailing
+// '/' EnterWorktree's per-segment validator is likely to reject, #689's own
+// failure class).
 function sanitizeWorktreeName(name) {
   return String(name)
     .split('/')
     .map((segment) => segment.replace(/[^A-Za-z0-9._-]/g, '-').replace(/-+/g, '-'))
+    .filter(Boolean)
     .join('/')
     .slice(0, MAX_LEN);
 }

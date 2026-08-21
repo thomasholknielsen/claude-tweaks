@@ -25,6 +25,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readJsonFile, writeJsonFile } = require('../json-store');
 
 // Pure string derivation — no fs access needed. Strips the transcript's
 // directory and a trailing `.jsonl` extension, keeping the session-id form,
@@ -43,22 +44,15 @@ function watermarkPath(transcriptPath, { consumer = 'feedback' } = {}) {
 // the same way — a watermark is a cache, never a dependency the evaluation
 // should fail over.
 function readWatermark(transcriptPath, { consumer, readFile = fs.readFileSync } = {}) {
-  try {
-    const raw = readFile(watermarkPath(transcriptPath, { consumer }), 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  return readJsonFile(watermarkPath(transcriptPath, { consumer }), { readFile, fallback: null });
 }
 
 // Overwrites the watermark for transcriptPath (scoped to `consumer`) with
 // `data`. Creates the watermarks directory if needed. Throws on a real
 // failure (permissions, disk full, etc.) — the caller decides how to
 // degrade, this module doesn't silently eat the error.
-function writeWatermark(transcriptPath, data, { consumer, mkdirSync = fs.mkdirSync, writeFile = fs.writeFileSync } = {}) {
-  const p = watermarkPath(transcriptPath, { consumer });
-  mkdirSync(path.dirname(p), { recursive: true });
-  writeFile(p, JSON.stringify(data, null, 2));
+function writeWatermark(transcriptPath, data, { consumer, mkdirSync = fs.mkdirSync, writeFile = fs.writeFileSync, rename = fs.renameSync } = {}) {
+  writeJsonFile(watermarkPath(transcriptPath, { consumer }), data, { mkdirSync, writeFile, rename });
 }
 
 // Reads filePath, takes the first byteOffset bytes, and counts newlines to

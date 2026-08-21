@@ -38,6 +38,25 @@ test('zero positionals is valid: empty envelope, exit 0, no GraphQL fetch', () =
   assert.ok(!d.calls.some((args) => args.some((a) => a.includes('subIssues(first:100)'))));
 });
 
+// Review finding (whole-branch review, e90376a4..HEAD): the header comment guarantees zero
+// positionals is "still a valid invocation" printing the empty envelope at exit 0, but run()
+// used to call ghAvailable()/remoteUrl()/probeSchema() unconditionally before ever checking
+// opts.numbers.length — so a zero-arg caller on a host where any of those fails got exit 2/4
+// instead of the documented guarantee. The happy-path deps() fixture above wouldn't have caught
+// this (ghAvailable/probeSchema both succeed there); these two force each dependency to fail and
+// assert the guarantee holds anyway, proving the short-circuit runs before them.
+test('zero positionals: guaranteed exit 0 even when gh is unavailable (finding regression)', () => {
+  const d = deps({ ghAvailable: () => false });
+  assert.strictEqual(run([], d), 0);
+  assert.deepStrictEqual(JSON.parse(d.out.join('')), { byParent: {}, retry: [] });
+});
+
+test('zero positionals: guaranteed exit 0 even when the schema probe throws (finding regression)', () => {
+  const d = deps({ runner: () => { throw new Error('gh api graphql: transient failure'); } });
+  assert.strictEqual(run([], d), 0);
+  assert.deepStrictEqual(JSON.parse(d.out.join('')), { byParent: {}, retry: [] });
+});
+
 test('probe reporting subIssues unavailable exits 4 before any fetch', () => {
   const d = deps({ runner: () => probeNo });
   assert.strictEqual(run(['5'], d), 4);
