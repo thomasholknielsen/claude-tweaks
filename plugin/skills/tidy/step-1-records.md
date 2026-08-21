@@ -163,7 +163,7 @@ absent, and a sweep needing no `gh` must not inherit that skip; that scope's own
 the full reasoning, including what `_shared/forge-detection.md`'s Detection Ladder (which that scope runs behind) does and does not gate on.
 
 Classification is entirely `parentGateState`'s (`bin/lib/issues/acceptance.js`) — do not
-reimplement it. That predicate is backend-agnostic: it takes `{leaves, parentLabels}` (the shipped
+reimplement it. That predicate is backend-agnostic: it takes `{subIssues, parentLabels}` (the shipped
 signature's own key names), and a local parent's disposition translates to the one-element
 `['demo:' + facets.acceptance]` (empty when unset), exactly as
 `wrap-up/verification-brief.md`'s **Evaluate the gate** does for this driver.
@@ -199,22 +199,22 @@ node -e "
       title: p.title,
       path: p.path,
       parentLabels: p.facets.acceptance ? ['demo:' + p.facets.acceptance] : [],
-      leaves: subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', risk: r.facets.risk })),
+      subIssues: subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', risk: r.facets.risk })),
     };
   });
-  function maxRiskTier(leaves) {
+  function maxRiskTier(subIssues) {
     let hasUnscored = false;
     let maxIndex = -1;
-    for (const leaf of leaves) {
-      const index = TIERS.indexOf(leaf.risk);
+    for (const subIssue of subIssues) {
+      const index = TIERS.indexOf(subIssue.risk);
       if (index === -1) { hasUnscored = true; continue; }
       if (index > maxIndex) maxIndex = index;
     }
     return hasUnscored ? undefined : TIERS[maxIndex];
   }
   gates
-    .filter((f) => exceedsOversightFloor({ risk: maxRiskTier(f.leaves) }, { riskFloor, sizeFloor: null }).exceeds)
-    .filter((f) => parentGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
+    .filter((f) => exceedsOversightFloor({ risk: maxRiskTier(f.subIssues) }, { riskFloor, sizeFloor: null }).exceeds)
+    .filter((f) => parentGateState({ subIssues: f.subIssues, parentLabels: f.parentLabels }) === 'due')
     .forEach((f) => console.log(f.path + '\t[parent-gate] ' + f.id + ': ' + f.title + ' — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo ' + f.id));
 " "$RISK_FLOOR"
 ```

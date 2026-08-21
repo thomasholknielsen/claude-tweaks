@@ -76,14 +76,14 @@ function needsBackstop(record) {
 // A parent issue's acceptance state across its sub-issues. Reads the parent's own label first:
 // the label is the authoritative record of what has already been applied, so a
 // sub-issue reopening after the gate went on never re-opens the gating decision.
-function parentGateState({ leaves, parentLabels } = {}) {
+function parentGateState({ subIssues, parentLabels } = {}) {
   const disposition = dispositionState(parentLabels);
   if (disposition === 'approved' || disposition === 'changes-requested') return 'resolved';
   if (disposition === 'pending') return 'gated';
 
-  const all = Array.isArray(leaves) ? leaves : [];
+  const all = Array.isArray(subIssues) ? subIssues : [];
   if (all.length === 0) return 'incomplete';
-  return all.every((leaf) => leaf && leaf.state === 'CLOSED') ? 'due' : 'incomplete';
+  return all.every((subIssue) => subIssue && subIssue.state === 'CLOSED') ? 'due' : 'incomplete';
 }
 
 module.exports = { dispositionState, verificationSurface, needsBackstop, parentGateState };
