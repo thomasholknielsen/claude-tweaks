@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { renderVerifyTable, runVerify } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
+const { renderVerifyTable, runVerify, registerCheck } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
 const { gitRepo } = require('../../helpers/git-fixtures');
 
 test('renderVerifyTable renders pass/fail bare and skip/unknown with folded detail', () => {
@@ -24,6 +24,28 @@ test('runVerify with zero registered checks returns exitCode 0 and empty rows', 
   const result = runVerify({ runDir: '/tmp/does-not-matter', base: 'main', deps: {} });
   assert.strictEqual(result.exitCode, 0);
   assert.deepStrictEqual(result.rows, []);
+});
+
+test('runVerify short-circuits to an all-unknown row set when runDir is null, never invoking check fns', () => {
+  // Throwaway check scoped to this one test — name chosen so it can't collide
+  // with a real check name Tasks 2-6 register ('plans-ledger', etc). Its fn
+  // throws if called, proving the null-runDir guard short-circuits before
+  // reaching any registered check function. This registration is cumulative
+  // within this process for the remainder of the file's test run (module-
+  // level CHECKS array), so any later row-count assertion in this file must
+  // account for this one extra row.
+  registerCheck('__test-null-guard-probe__', () => {
+    throw new Error('check fn must not be called when runDir is null');
+  });
+
+  const result = runVerify({ runDir: null, base: 'main', deps: {} });
+  assert.strictEqual(result.exitCode, 0);
+  const probeRow = result.rows.find((r) => r.check === '__test-null-guard-probe__');
+  assert.deepStrictEqual(probeRow, {
+    check: '__test-null-guard-probe__',
+    result: 'unknown',
+    detail: 'run dir not found at original or archive path',
+  });
 });
 
 // #790/[IL-127]: wrap-up-engine.js's main() rejects any --run-dir that doesn't

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // bin/wrap-up-engine.js — CLI wiring the wrap-up curation engine modules
-// (facts.js, engine-plan.js, engine-record.js, engine-render.js) into three
-// verbs: `plan` (gather facts, build the worklist, initialize engine state),
-// `record` (validate and store one judgment payload), `render` (produce the
-// Phase 2 phase-trace table or the Review Console's engine-fed sections).
+// (facts.js, engine-plan.js, engine-record.js, engine-render.js, engine-verify.js)
+// into four verbs: `plan` (gather facts, build the worklist, initialize engine
+// state), `record` (validate and store one judgment payload), `render`
+// (produce the Phase 2 phase-trace table or the Review Console's engine-fed
+// sections), `verify` (run the closure-gate checks against a run dir).
 //
 // Exit codes: 0 for success (including a `render --strict` completeness
 // failure is the one deliberate exception — see below); 1 when the

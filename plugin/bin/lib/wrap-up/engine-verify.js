@@ -48,10 +48,20 @@ function runVerify({ runDir, base, deps = {} }) {
   const git = deps.git || defaultGit;
   const gh = deps.gh || defaultGh;
 
-  const rows = CHECKS.map(({ name, fn }) => {
-    const { result, detail } = fn({ runDir, base, deps: { git, gh } });
-    return { check: name, result, detail: detail || '' };
-  });
+  // Null runDir (resolveArchivedRunDir found the run neither at its original
+  // path nor under the archive) short-circuits here so every check function
+  // registered by Tasks 2-6 can assume runDir is a real, existing path — none
+  // of them need to re-implement this guard themselves.
+  const rows = runDir === null
+    ? CHECKS.map(({ name }) => ({
+        check: name,
+        result: 'unknown',
+        detail: 'run dir not found at original or archive path',
+      }))
+    : CHECKS.map(({ name, fn }) => {
+        const { result, detail } = fn({ runDir, base, deps: { git, gh } });
+        return { check: name, result, detail: detail || '' };
+      });
 
   const exitCode = rows.some((r) => r.result === 'fail') ? 3 : 0;
   return { rows, exitCode };
