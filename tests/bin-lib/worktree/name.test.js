@@ -75,3 +75,32 @@ test('sanitizing then capping does not leave a name over 64 chars even when inva
 test('empty string stays empty', () => {
   assert.equal(sanitizeWorktreeName(''), '');
 });
+
+// Review finding (whole-branch review, e90376a4..HEAD): an originally-empty segment (from '//',
+// or a leading/trailing '/' — e.g. an upstream slug composition that degrades to an empty
+// component) used to be rejoined verbatim, reproducing the malformed slash sequence in the
+// output — exactly the class of name #689 was meant to fix, and something EnterWorktree's
+// per-segment validator is likely to reject outright.
+test('a doubled slash collapses — the empty segment is dropped, not rejoined as //', () => {
+  const out = sanitizeWorktreeName('flow//spec-123');
+  assert.equal(out, 'flow/spec-123');
+  assert.match(out, VALID);
+});
+
+test('a leading slash is dropped, not preserved as a leading /', () => {
+  const out = sanitizeWorktreeName('/flow/spec-123');
+  assert.equal(out, 'flow/spec-123');
+  assert.match(out, VALID);
+});
+
+test('a trailing slash is dropped, not preserved as a trailing /', () => {
+  const out = sanitizeWorktreeName('flow/spec-123/');
+  assert.equal(out, 'flow/spec-123');
+  assert.match(out, VALID);
+});
+
+test('an empty component sandwiched between two real segments is dropped entirely, not left as //', () => {
+  const out = sanitizeWorktreeName('flow/' + '' + '/spec-123');
+  assert.equal(out, 'flow/spec-123');
+  assert.match(out, VALID);
+});

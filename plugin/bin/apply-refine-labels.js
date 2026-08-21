@@ -22,6 +22,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const wtDetect = require('./lib/hooks/worktree-detect');
 const { appendEntry, formatEntry } = require('./lib/log-decision/append');
+const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: apply-refine-labels.js <actions.json> [--run <run-dir>] [--repo owner/name] [--help]\n';
 
@@ -44,11 +45,6 @@ function parseArgs(argv) {
   return opts;
 }
 
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
 function isPosInt(n) { return Number.isInteger(n) && n > 0; }
 
 function hasItems(arr) { return Array.isArray(arr) && arr.length > 0; }
@@ -65,8 +61,8 @@ function validateAction(a, i) {
 
 const realDeps = {
   gh: (args) => execFileSync('gh', args, { encoding: 'utf8' }),
-  ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
-  remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  ghAvailable,
+  remoteUrl,
   readFile: (f) => fs.readFileSync(f, 'utf8'),
   cwd: () => process.cwd(),
   mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),

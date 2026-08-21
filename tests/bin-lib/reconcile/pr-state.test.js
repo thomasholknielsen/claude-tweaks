@@ -181,7 +181,9 @@ test('preferOpen with no OPEN PR in the set: behavior unchanged (MERGED wins)', 
 function graphqlResponse(entries) {
   const repository = {};
   entries.forEach((e, i) => {
-    repository['b' + i] = e === null ? null : { associatedPullRequests: { nodes: e.prs } };
+    repository['b' + i] = e === null
+      ? null
+      : { associatedPullRequests: { nodes: e.prs, pageInfo: { hasNextPage: !!e.hasNextPage } } };
   });
   return JSON.stringify({ data: { repository } });
 }
@@ -233,6 +235,26 @@ test('resolvePrStatesBulk: degraded responses classify network-failure; missing 
   let spawned = 0;
   assert.equal(resolvePrStatesBulk('/tmp', [], { runner: () => { spawned += 1; return '{}'; }, repoSlug: 'o/r' }).size, 0);
   assert.equal(spawned, 0);
+});
+
+// Review finding (whole-branch review, e90376a4..HEAD): buildBulkQuery's associatedPullRequests
+// had no pageInfo/hasNextPage guard, unlike the sibling sub-issues query — a branch with more
+// than 10 associated PRs got a silently truncated (and therefore possibly wrong) governing-PR
+// screen instead of a loud failure. The query now requests pageInfo{hasNextPage} and the whole
+// call fails closed ('network-failure') when any alias reports it, the same posture already
+// used for a missing alias key.
+test('resolvePrStatesBulk: a branch whose associatedPullRequests page is truncated (hasNextPage) fails the whole call closed', () => {
+  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+  const runner = () => graphqlResponse([{ prs: [merged], hasNextPage: true }]);
+  const r = resolvePrStatesBulk('/tmp', ['many-prs'], { runner, repoSlug: 'o/r' });
+  assert.equal(r, 'network-failure');
+});
+
+test('resolvePrStatesBulk: hasNextPage:false (the normal case) still resolves the map — the guard does not misfire', () => {
+  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+  const runner = () => graphqlResponse([{ prs: [merged], hasNextPage: false }]);
+  const r = resolvePrStatesBulk('/tmp', ['few-prs'], { runner, repoSlug: 'o/r' });
+  assert.equal(r.get('few-prs').number, 10);
 });
 
 test('resolvePrStatesBulk: response missing an alias key classifies network-failure — never a silent null', () => {

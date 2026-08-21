@@ -136,6 +136,15 @@ function resolveRunArg(args, cwd, env) {
   return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };
 }
 
+// #280: prints the worktree-local-fallback disclosure resolveRunArg's
+// `worktreeLocalFallback` flag calls for — shared by every call site so a
+// future one can't silently omit it the way six of the seven did before this
+// fix (review finding: the disclosure was wired only at record-worktree).
+function reportWorktreeLocalFallback(runDir, worktreeLocalFallback) {
+  if (!worktreeLocalFallback) return;
+  process.stdout.write(`claude-tweaks: --run ${runDir} resolved via the worktree-local fallback (#280) — no anchored copy exists under the main checkout; this run's state lives only in this worktree until merge.\n`);
+}
+
 async function main(argv) {
   const cmd = argv[2];
   if (cmd === 'record-worktree') {
@@ -147,14 +156,7 @@ async function main(argv) {
       runDir, invalidRunArg, rest, worktreeLocalFallback,
     } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     const worktreeArg = rest[0];
-    if (worktreeLocalFallback) {
-      // #280: surfaced, not silent — a worktree-local run dir was adopted
-      // because no main-checkout anchored copy exists for it. Distinct from
-      // the ordinary "worktree recorded" line so a reader can tell this run's
-      // audit trail is degraded (run-dir lives only in this worktree until
-      // merge) rather than assuming the everyday anchored path was taken.
-      process.stdout.write(`claude-tweaks: --run ${runDir} resolved via the worktree-local fallback (#280) — no anchored copy exists under the main checkout; this run's state lives only in this worktree until merge.\n`);
-    }
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — worktree not recorded\n`);
     } else if (runDir && worktreeArg) {
@@ -248,7 +250,8 @@ async function main(argv) {
     // run-state.json is written only through hooks.js verbs (CLAUDE.md's
     // write-ownership rule) — this is the sanctioned verb for the pr-early
     // run lifecycle's { number, url } field (#409).
-    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const numberArg = rest[0];
     const urlArg = rest[1];
     const number = Number(numberArg);
@@ -276,7 +279,8 @@ async function main(argv) {
     // the multi-spec PARENT run dir (where manifest.yml lives — see
     // multi-spec.md's "Run directory layout"), never a per-spec
     // PIPELINE_RUN_DIR subdirectory.
-    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const specArg = flagVal(rest, '--spec');
     const statusArg = flagVal(rest, '--status');
     const phaseArg = flagVal(rest, '--phase');
@@ -302,7 +306,8 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'close-run') {
-    const { runDir, invalidRunArg, explicit } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);
     } else if (runDir) {
@@ -334,7 +339,8 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'teardown-run') {
-    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const mode = argv.includes('--merged') ? 'merged' : (argv.includes('--abandoned') ? 'abandoned' : null);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not torn down\n`);
@@ -349,7 +355,8 @@ async function main(argv) {
   if (cmd === 'archive-run') {
     const { archiveRunDir } = require('./lib/reconcile/archive-merged');
     const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
-    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not archived\n`);
       return 0;
@@ -399,7 +406,8 @@ async function main(argv) {
     // Read-only: never writes run-state.json. Skills call this immediately
     // before any of the three resume paths' safe-to-resume ruling
     // (skills/_shared/run-resume-freshness.md).
-    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — resume freshness not checked\n`);
       return 0;

@@ -152,6 +152,47 @@ test('item 9 detects plugin-created PRs purely GitHub-side, via either marker', 
   assert.match(ITEM9, /no local run-dir join/);
 });
 
+// Review finding (whole-branch review, e90376a4..HEAD): the wrap-up-residue-pr marker
+// (wrap-up/residue-sweep.md's pr-first landing path) used to be explicitly excluded from this
+// safety net, despite residue-sweep.md's own prose calling it the same low-judgment,
+// purely-mechanical shape as a tidy Step-7 commit. Both the candidate filter's HOUSEKEEPING_MARKER
+// and the grant classifier's isHousekeeping now recognize it too, on the same housekeeping-auto-merge
+// lever — pinned here both as a prose claim and by actually running the embedded filter script
+// against a fixture PR carrying only the wrap-up-residue-pr marker.
+test('item 9 also recognizes wrap-up-residue-pr as a mechanical-housekeeping marker (finding regression)', () => {
+  assert.match(ITEM9, /<!-- wrap-up-residue-pr -->/);
+  assert.match(ITEM9, /HOUSEKEEPING_MARKER = \/<!-- \(\?:tidy-housekeeping-pr\|wrap-up-residue-pr\) -->\//);
+  assert.match(ITEM9, /isHousekeeping = \/<!-- \(\?:tidy-housekeeping-pr\|wrap-up-residue-pr\) -->\/\.test/);
+});
+
+test("item 9's filter script treats a wrap-up-residue-pr-marked PR as a housekeeping candidate (finding regression)", () => {
+  const filterScript = extractNodeScripts(ITEM9)[0];
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-item9-residue-'));
+  const inputPath = path.join(tmpDir, 'pr-scan-unarmed.json');
+  const candidatesPath = path.join(tmpDir, 'pr-scan-unarmed-candidates.json');
+  const isolatedScript = filterScript
+    .split('/tmp/pr-scan-unarmed-candidates.json').join(candidatesPath)
+    .split('/tmp/pr-scan-unarmed.json').join(inputPath);
+
+  const oldEnough = new Date(Date.now() - 25 * 3600000).toISOString();
+  fs.writeFileSync(inputPath, JSON.stringify([{
+    number: 2001,
+    title: 'wrap-up residue: archive merged run dirs',
+    isDraft: false,
+    autoMergeRequest: null,
+    updatedAt: oldEnough,
+    statusCheckRollup: [{ conclusion: 'SUCCESS' }],
+    body: '<!-- wrap-up-residue-pr -->',
+  }]));
+
+  const scriptPath = path.join(tmpDir, 'item9-residue-filter.js');
+  fs.writeFileSync(scriptPath, isolatedScript);
+  execFileSync('node', [scriptPath], { env: { ...process.env, UNARMED_AGE: '24' }, stdio: 'pipe' });
+
+  const candidateNumbers = JSON.parse(fs.readFileSync(candidatesPath, 'utf8')).map((c) => c.number);
+  assert.ok(candidateNumbers.includes(2001), 'a PR carrying only the wrap-up-residue-pr marker must be a candidate');
+});
+
 test('item 9 re-verifies unresolved threads per candidate, never against the full open-PR list', () => {
   assert.match(ITEM9, /run once per\s*\n?\s*\*\*candidate\*\*, never against the full open-PR list/);
 });

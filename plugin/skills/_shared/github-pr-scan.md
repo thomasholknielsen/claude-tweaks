@@ -81,7 +81,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
    Surface all three as the `[queue]` Output Contract row below — bare counts only, per the Output Contract's own documented shape. No per-record enumeration is produced or needed here.
 
-9. **Unarmed ready PR** — a green, gate-passed, granted or grantable, plugin-created PR whose `--auto` was never armed. "Plugin-created" is detected purely GitHub-side, from the PR body's `<!-- claude-tweaks-run: {run-id} -->` marker (stamped by `_shared/pr-early-run-lifecycle.md`'s PR-open template) or the `<!-- tidy-housekeeping-pr -->` marker (stamped by `/claude-tweaks:tidy` Step 7 at creation) — no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.
+9. **Unarmed ready PR** — a green, gate-passed, granted or grantable, plugin-created PR whose `--auto` was never armed. "Plugin-created" is detected purely GitHub-side, from the PR body's `<!-- claude-tweaks-run: {run-id} -->` marker (stamped by `_shared/pr-early-run-lifecycle.md`'s PR-open template) or one of the two mechanical-housekeeping markers — `<!-- tidy-housekeeping-pr -->` (stamped by `/claude-tweaks:tidy` Step 7 at creation) or `<!-- wrap-up-residue-pr -->` (stamped by `wrap-up/residue-sweep.md`'s pr-first landing path — the same low-judgment, purely-mechanical shape as a tidy Step-7 commit, gated by the identical `housekeeping-auto-merge` lever) — no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.
 
    ```bash
    UNARMED_AGE=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values pr-unarmed-age-hours)
@@ -94,7 +94,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
      const AGE_HOURS = Number(process.env.UNARMED_AGE);
      const now = Date.now();
      const RUN_MARKER = /<!-- claude-tweaks-run: [^\s]+ -->/;
-     const HOUSEKEEPING_MARKER = /<!-- tidy-housekeeping-pr -->/;
+     const HOUSEKEEPING_MARKER = /<!-- (?:tidy-housekeeping-pr|wrap-up-residue-pr) -->/;
      const prs = require('/tmp/pr-scan-unarmed.json');
      const candidates = prs.filter((pr) => {
        if (pr.isDraft || pr.autoMergeRequest) return false;
@@ -139,7 +139,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
        : [];
      const labelsByIssue = new Map(links.map((l) => [l.number, l.labels]));
      candidates.forEach((pr) => {
-       const isHousekeeping = /<!-- tidy-housekeeping-pr -->/.test(pr.body || '');
+       const isHousekeeping = /<!-- (?:tidy-housekeeping-pr|wrap-up-residue-pr) -->/.test(pr.body || '');
        let granted;
        if (isHousekeeping) {
          granted = HOUSEKEEPING;
