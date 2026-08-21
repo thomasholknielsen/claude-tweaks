@@ -170,6 +170,36 @@ If the remote resolves to the claude-tweaks repository itself, **stop**. Report
 that the learning belongs in this project's own records and re-run the
 classifier from rule 4 per `_shared/learning-routing.md`. Do not file.
 
+**Fallback when `git remote get-url origin` throws (no live git context —**
+**e.g. a persisted worktree-isolation pin after a worktree teardown, #703).**
+Prefer an already-known slug over failing outright:
+
+1. Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `repository`
+   field. This is a static file read, never a git command, so it works
+   regardless of git context — but it only proves self-reference when
+   `${CLAUDE_PLUGIN_ROOT}` is nested inside the current project's own working
+   tree (the local-dev `claude --plugin-dir ./plugin` case this repo's own
+   CLAUDE.md documents), since that's the one situation where the plugin's
+   declared home repo genuinely *is* the project being worked in. Check that
+   nesting via a plain path prefix comparison against `$RUN_ROOT`
+   (`_shared/pipeline-run-dir.md`'s Anchoring section) — no git command
+   needed for that comparison either.
+2. If nested, confirm the slug with `gh repo view --repo {slug} --json
+   nameWithOwner` and treat a match as self-reference (stop, same as the
+   primary check). A marketplace-installed plugin (`CLAUDE_PLUGIN_ROOT` under
+   `~/.claude/plugins/cache/...`) is never nested this way even when the
+   current project *is* claude-tweaks — `plugin.json`'s `repository` field is
+   a fixed copy shared by every project that installs the plugin, so it
+   proves nothing there.
+3. If `${CLAUDE_PLUGIN_ROOT}` isn't nested in the current project (including
+   every marketplace install), there is no pre-known slug that answers this
+   check — skip it with a logged assumption ("git context broken; project
+   identity unconfirmed; proceeding as not self-referential") rather than
+   throwing. This is the safer failure direction: incorrectly filing a
+   project's own bug as upstream feedback is easier to catch and re-route at
+   review than silently dropping a legitimate feedback filing because git was
+   unavailable.
+
 ### Step 4: Dedup
 
 Derive the `--search` keywords from the affected component name **only** — never from the

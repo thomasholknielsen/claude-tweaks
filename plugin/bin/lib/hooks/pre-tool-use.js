@@ -836,4 +836,9 @@ module.exports = {
   DELETE_ONLY_PUSH_ALLOWLIST,
   shadowPipelineRunDir,
   checkPipelineShadowGuard,
+  // Exported for post-tool-use.js's post-teardown re-anchor backstop (#703)
+  // to reuse rather than reimplement — the same target-resolution logic
+  // this file's own checkTeardownGate already relies on.
+  teardownTargets,
+  toplevel,
 };
