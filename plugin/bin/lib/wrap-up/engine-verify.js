@@ -30,7 +30,7 @@ function defaultGit(args, cwd) {
 }
 
 function defaultGh(args, cwd) {
-  return execFileSync('gh', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  return execFileSync('gh', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 });
 }
 
 // Registry of check functions, populated by Tasks 2-5. Each entry:

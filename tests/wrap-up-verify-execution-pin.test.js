@@ -43,6 +43,10 @@ test('the shape pin rejects a paraphrased hand-run instruction (negative control
   // git/gh invocation other than the verb call itself.
   const sec = section();
   const backticked = sec.match(/`[^`]*`/g) || [];
+  assert.ok(
+    backticked.some((c) => c.includes('wrap-up-engine.js verify')),
+    'the verb invocation itself must appear backticked in the section -- proves the extraction actually found command spans, not that it found nothing'
+  );
   const otherCommands = backticked.filter((c) => /\bgit\s|\bgh\s/.test(c) && !c.includes('wrap-up-engine.js verify'));
   assert.deepStrictEqual(otherCommands, [], `section must not name any git/gh invocation other than the verb: ${otherCommands.join(', ')}`);
 });
