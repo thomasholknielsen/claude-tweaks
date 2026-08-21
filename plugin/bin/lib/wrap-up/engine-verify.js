@@ -18,6 +18,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { parseWorktreeList } = require('../hooks/worktree-reap');
 
 function defaultGit(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -43,6 +44,90 @@ function resolveArchivedRunDir(runDir, repoRoot) {
   if (fs.existsSync(archived)) return archived;
   return null;
 }
+
+// ---- plans + ledger removal ------------------------------------------------
+//
+// docs/superpowers/plans/ and docs/plans/ are relative to the repo root, not
+// runDir -- run readdirSync against process.cwd() (the checkout the CLI runs
+// from), matching how build/wrap-up already resolve these paths elsewhere.
+function specSlugFromRunDir(runDir) {
+  // run-dir basenames are '{ISO-timestamp}-{spec-slug}' or, for a
+  // multi-record spec-{N}/ subdirectory, just 'spec-{N}'. Strip a leading
+  // ISO-timestamp prefix (YYYY-MM-DDTHHMMSS-) when present; otherwise the
+  // whole basename is already the slug.
+  const base = path.basename(runDir);
+  const m = base.match(/^\d{4}-\d{2}-\d{2}T\d{6}-(.+)$/);
+  return m ? m[1] : base;
+}
+
+registerCheck('plans-ledger', ({ runDir }) => {
+  const slug = specSlugFromRunDir(runDir);
+  const plansDir = path.join(process.cwd(), 'docs', 'superpowers', 'plans');
+  const ledgerDir = path.join(process.cwd(), 'docs', 'plans');
+  const matches = [];
+  for (const dir of [plansDir, ledgerDir]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const entry of fs.readdirSync(dir)) {
+      if (entry.includes(slug)) matches.push(path.join(dir, entry));
+    }
+  }
+  if (matches.length) return { result: 'fail', detail: `${matches.length} file(s) remain: ${matches.join(', ')}` };
+  return { result: 'pass', detail: '' };
+});
+
+// ---- design caches deleted --------------------------------------------------
+registerCheck('design-caches', ({ runDir }) => {
+  const slug = specSlugFromRunDir(runDir);
+  const cacheDir = path.join(process.cwd(), 'docs', 'plans');
+  if (!fs.existsSync(cacheDir)) return { result: 'pass', detail: '' };
+  const suffixes = ['-audit.json', '-recommendations.json', '-declined.json'];
+  const matches = fs.readdirSync(cacheDir).filter(
+    (entry) => entry.includes(slug) && suffixes.some((suf) => entry.endsWith(suf))
+  );
+  if (matches.length) return { result: 'fail', detail: `${matches.length} cache file(s) remain: ${matches.join(', ')}` };
+  return { result: 'pass', detail: '' };
+});
+
+// ---- run-dir archived --------------------------------------------------------
+//
+// "Archived" means the shape bin/lib/reconcile/archive-merged.js's
+// archiveRunDir() produces: the original .claude-tweaks/pipelines/{run-id}/
+// path is gone, .claude-tweaks/pipelines/archive/{run-id}/ exists, and its
+// work/ subdirectory (when the run had one) is git-tracked at the new path.
+registerCheck('run-dir-archived', ({ runDir, deps }) => {
+  const repoRoot = process.cwd();
+  const runId = path.basename(runDir);
+  const originalPath = path.join(repoRoot, '.claude-tweaks', 'pipelines', runId);
+  const archivePath = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', runId);
+  if (fs.existsSync(originalPath)) return { result: 'fail', detail: `original path still present: ${originalPath}` };
+  if (!fs.existsSync(archivePath)) return { result: 'fail', detail: `archive path missing: ${archivePath}` };
+  const archivedWork = path.join(archivePath, 'work');
+  if (fs.existsSync(archivedWork)) {
+    let tracked;
+    try {
+      tracked = deps.git(['ls-files', archivedWork], repoRoot);
+    } catch (err) {
+      return { result: 'fail', detail: `git ls-files failed for ${archivedWork}: ${err.message}` };
+    }
+    if (!tracked.trim()) return { result: 'fail', detail: `${archivedWork} exists but is not git-tracked` };
+  }
+  return { result: 'pass', detail: '' };
+});
+
+// ---- worktree removed ---------------------------------------------------------
+registerCheck('worktree-removed', ({ runDir, deps }) => {
+  const runId = path.basename(runDir);
+  let porcelain;
+  try {
+    porcelain = deps.git(['worktree', 'list', '--porcelain'], process.cwd());
+  } catch (err) {
+    return { result: 'unknown', detail: `git worktree list failed: ${err.message}` };
+  }
+  const list = parseWorktreeList(porcelain);
+  const match = list.find((wt) => wt.path.includes(runId) || (wt.branch && wt.branch.includes(runId)));
+  if (match) return { result: 'fail', detail: `worktree still listed: ${match.path}` };
+  return { result: 'pass', detail: '' };
+});
 
 function runVerify({ runDir, base, deps = {} }) {
   const git = deps.git || defaultGit;

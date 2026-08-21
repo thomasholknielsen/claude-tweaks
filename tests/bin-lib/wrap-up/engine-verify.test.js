@@ -3,9 +3,14 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const { renderVerifyTable, runVerify, registerCheck } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
 const { gitRepo } = require('../../helpers/git-fixtures');
+
+function makeTmpDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
 
 test('renderVerifyTable renders pass/fail bare and skip/unknown with folded detail', () => {
   const md = renderVerifyTable([
@@ -20,10 +25,109 @@ test('renderVerifyTable renders pass/fail bare and skip/unknown with folded deta
   assert.match(md, /\| acceptance-labeling \| unknown \(gh absent\) \|/);
 });
 
-test('runVerify with zero registered checks returns exitCode 0 and empty rows', () => {
-  const result = runVerify({ runDir: '/tmp/does-not-matter', base: 'main', deps: {} });
-  assert.strictEqual(result.exitCode, 0);
-  assert.deepStrictEqual(result.rows, []);
+// Task 1's original version of this test asserted `rows` deepStrictEqual []
+// on the premise that CHECKS was still empty at that point in the plan.
+// Task 2 permanently registers real checks at module load (and Tasks 3-6
+// register more), so "zero registered checks" is no longer a reachable state
+// for this module in any test run — the assertion is rewritten to the
+// structural invariant that survives every future check registration: one
+// row per registered check, each with a valid result, and exitCode derived
+// consistently from whether any row failed.
+test('runVerify returns one row per registered check, each with a valid result', () => {
+  const result = runVerify({ runDir: '/tmp/does-not-matter', base: 'main', deps: { git: () => '', gh: () => '' } });
+  assert.ok(Array.isArray(result.rows));
+  // At least the four checks Task 2 registers: plans-ledger, design-caches,
+  // run-dir-archived, worktree-removed.
+  assert.ok(result.rows.length >= 4);
+  for (const row of result.rows) {
+    assert.strictEqual(typeof row.check, 'string');
+    assert.ok(['pass', 'fail', 'skip', 'unknown'].includes(row.result));
+  }
+  const expectedExit = result.rows.some((r) => r.result === 'fail') ? 3 : 0;
+  assert.strictEqual(result.exitCode, expectedExit);
+});
+
+test('plans-ledger check passes when no matching plan/ledger files remain', () => {
+  const runDir = makeTmpDir('verify-plans-ledger-clean-');
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'plans-ledger');
+  assert.strictEqual(row.result, 'pass');
+});
+
+test('plans-ledger check fails when a matching plan file still exists', () => {
+  // A run-dir basename of 'spec-900' -- the plan file's slug must match it.
+  const runDir = makeTmpDir('verify-plans-ledger-dirty-');
+  const plansDir = path.join(process.cwd(), 'docs', 'superpowers', 'plans');
+  fs.mkdirSync(plansDir, { recursive: true });
+  const stray = path.join(plansDir, `2099-01-01-spec-900-leftover.md`);
+  fs.writeFileSync(stray, '# stray');
+  try {
+    const result = runVerify({
+      runDir: path.join(path.dirname(runDir), 'spec-900'),
+      base: 'main', deps: { git: () => '', gh: () => '' },
+    });
+    const row = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(row.result, 'fail');
+    assert.match(row.detail, /spec-900/);
+  } finally {
+    fs.rmSync(stray, { force: true });
+  }
+});
+
+test('design-caches check skips when no *-audit.json/*-recommendations.json/*-declined.json remain', () => {
+  const runDir = makeTmpDir('verify-design-caches-clean-');
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'design-caches');
+  assert.strictEqual(row.result, 'pass');
+});
+
+test('run-dir-archived check fails when original path still exists', () => {
+  const pipelinesDir = path.join(process.cwd(), '.claude-tweaks', 'pipelines');
+  const runId = 'test-verify-archived-fail-900';
+  const originalPath = path.join(pipelinesDir, runId);
+  fs.mkdirSync(originalPath, { recursive: true });
+  try {
+    const result = runVerify({ runDir: originalPath, base: 'main', deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'run-dir-archived');
+    assert.strictEqual(row.result, 'fail');
+  } finally {
+    fs.rmSync(originalPath, { recursive: true, force: true });
+  }
+});
+
+test('run-dir-archived check passes when original gone and archive exists with no work/ dir', () => {
+  const runId = 'test-verify-archived-pass-900';
+  const archivePath = path.join(process.cwd(), '.claude-tweaks', 'pipelines', 'archive', runId);
+  fs.mkdirSync(archivePath, { recursive: true });
+  try {
+    const result = runVerify({
+      runDir: path.join(process.cwd(), '.claude-tweaks', 'pipelines', runId),
+      base: 'main', deps: { git: () => '', gh: () => '' },
+    });
+    const row = result.rows.find((r) => r.check === 'run-dir-archived');
+    assert.strictEqual(row.result, 'pass');
+  } finally {
+    fs.rmSync(archivePath, { recursive: true, force: true });
+  }
+});
+
+test('worktree-removed check fails when a matching worktree is still listed', () => {
+  const fakeGit = (args) => {
+    if (args[0] === 'worktree') {
+      return 'worktree /repo/.claude/worktrees/flow-spec-900\nbranch refs/heads/worktree-flow-spec-900\n\n';
+    }
+    return '';
+  };
+  const result = runVerify({ runDir: '/tmp/spec-900', base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'worktree-removed');
+  assert.strictEqual(row.result, 'fail');
+});
+
+test('worktree-removed check passes when no matching worktree is listed', () => {
+  const fakeGit = (args) => (args[0] === 'worktree' ? '' : '');
+  const result = runVerify({ runDir: '/tmp/spec-900', base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'worktree-removed');
+  assert.strictEqual(row.result, 'pass');
 });
 
 test('runVerify short-circuits to an all-unknown row set when runDir is null, never invoking check fns', () => {
@@ -32,8 +136,9 @@ test('runVerify short-circuits to an all-unknown row set when runDir is null, ne
   // throws if called, proving the null-runDir guard short-circuits before
   // reaching any registered check function. This registration is cumulative
   // within this process for the remainder of the file's test run (module-
-  // level CHECKS array), so any later row-count assertion in this file must
-  // account for this one extra row.
+  // level CHECKS array), so this test is placed LAST among the tests that
+  // call runVerify directly with a non-null runDir in this file — anything
+  // after it would otherwise hit this permanently-throwing probe.
   registerCheck('__test-null-guard-probe__', () => {
     throw new Error('check fn must not be called when runDir is null');
   });
@@ -56,12 +161,26 @@ test('runVerify short-circuits to an all-unknown row set when runDir is null, ne
 // as both cwd and the --run-dir's ancestor, matching engine-cli.test.js's
 // makeRunDir() convention, so the CLI actually reaches runVerifyVerb rather
 // than failing the anchoring gate first.
-test('wrap-up-engine.js verify exits 0 with zero registered checks', () => {
+//
+// This test spawns a fresh subprocess, so it is immune to the null-guard
+// probe registered above (module state does not cross process boundaries).
+// It only asserts the CLI's plumbing (table header renders); it does not
+// assert exitCode 0, because real checks run here against a synthetic,
+// non-pipeline run dir — e.g. 'run-dir-archived' legitimately fails (the
+// fixture dir isn't under .claude-tweaks/pipelines/), which is exitCode 3 by
+// design, not a bug. realExecFileSync throws on a non-zero exit, so the
+// invocation is wrapped to recover stdout from the thrown error either way.
+test('wrap-up-engine.js verify prints a check table for a real, anchored run dir', () => {
   const cliPath = path.join(__dirname, '../../../plugin/bin/wrap-up-engine.js');
   const repo = gitRepo();
   const runDir = fs.mkdtempSync(path.join(repo, 'verify-rundir-'));
-  const out = realExecFileSync('node', [cliPath, 'verify', '--run-dir', runDir, '--base', 'main'], {
-    encoding: 'utf8', cwd: repo,
-  });
+  let out;
+  try {
+    out = realExecFileSync('node', [cliPath, 'verify', '--run-dir', runDir, '--base', 'main'], {
+      encoding: 'utf8', cwd: repo,
+    });
+  } catch (err) {
+    out = err.stdout;
+  }
   assert.match(out, /\| Check \| Result \| Detail \|/);
 });
