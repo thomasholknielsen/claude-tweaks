@@ -533,6 +533,37 @@ test('record-pr with a non-numeric or missing number/url prints a usage notice i
   }
 });
 
+// [IL-131] second recurrence (#991): `record-pr --degraded` is the sanctioned
+// way `_shared/pr-early-run-lifecycle.md`'s skip/degrade rows record a
+// genuine push/create failure, distinct from writing a real `pr` field —
+// `check-lifecycle-stamps` treats the two as equally satisfying.
+test('record-pr --degraded writes run-state.prDegraded and prints a confirmation line', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['record-pr', '--degraded', 'push-failed: no network'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /PR-early degrade recorded for 2026-07-01T090000-spec-1: push-failed: no network/);
+  const state = readRunState(run);
+  assert.strictEqual(state.prDegraded.reason, 'push-failed: no network');
+  assert.strictEqual(state.pr, undefined, 'a degrade must never also write a fake pr field');
+});
+
+test('record-pr --degraded with no reason value prints a usage notice instead of writing garbage state', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['record-pr', '--degraded'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /usage: record-pr .* --degraded <reason>/);
+  assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false);
+});
+
+test('record-pr --degraded with no resolvable run dir prints a not-recorded notice instead of silent success', () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
+  const result = runHook(['record-pr', '--degraded', 'push-failed: no network'], { cwd: bare });
+  assert.strictEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /degrade recorded/);
+});
+
 test('check-resume-freshness: reports OK when the run is not interrupted', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-1');

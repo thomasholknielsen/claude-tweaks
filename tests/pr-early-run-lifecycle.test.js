@@ -25,6 +25,7 @@ const REVIEW_SKILL =
 const STEPS_AND_GATES = read('plugin', 'skills', 'flow', 'steps-and-gates.md');
 const WRAP_EXEC = read('plugin', 'skills', 'wrap-up', 'execution-and-verification.md');
 const HOOKS_JS = read('plugin', 'bin', 'hooks.js');
+const INCIDENT_LOG = read('docs', 'incident-log.md');
 
 test('the run marker is the unconditional first line of the PR body', () => {
   assert.match(
@@ -157,4 +158,49 @@ test('wrap-up does not duplicate the Fixes lines already carried by the draft PR
 test('bin/hooks.js record-pr verb writes run-state.json.pr through writeRunState, mirroring record-worktree', () => {
   assert.match(HOOKS_JS, /if \(cmd === 'record-pr'\)/);
   assert.match(HOOKS_JS, /ctxLib\.writeRunState\(runDir, \{ pr: \{ number, url: urlArg \} \}\)/);
+});
+
+// [IL-131] second recurrence (#991): both #118 and #893 hit the identical
+// "already satisfied by prior work" trigger with zero further commits, so a
+// mechanical check keyed on git activity would never fire — the fix is a
+// dedicated /claude-tweaks:test HARD-GATE step that reads run-state.json
+// directly, plus a structured degrade field so a genuine push/PR-create
+// failure never trips it.
+
+test('bin/hooks.js record-pr also accepts --degraded to record a PR-lifecycle degrade, distinct from a real pr field', () => {
+  assert.match(HOOKS_JS, /--degraded <reason>/);
+  assert.match(HOOKS_JS, /prDegraded: \{ reason, at: new Date\(\)\.toISOString\(\) \}/);
+});
+
+test('bin/hooks.js exposes check-lifecycle-stamps as a genuinely non-zero-exit HARD-GATE verb', () => {
+  assert.match(HOOKS_JS, /if \(cmd === 'check-lifecycle-stamps'\)/);
+  assert.match(HOOKS_JS, /require\('\.\/lib\/hooks\/lifecycle-stamps'\)\.checkLifecycleStamps/);
+});
+
+test('every degrade row in the skip/degrade table records the degrade via record-pr --degraded, not just decisions.md', () => {
+  assert.match(LIFECYCLE, /record-pr --run "\$RUN_DIR" --degraded "push-failed: \{reason\}"/);
+  assert.match(LIFECYCLE, /record-pr --run "\$RUN_DIR" --degraded "create-failed:/);
+  assert.match(LIFECYCLE, /record-pr --run "\$RUN_DIR" --degraded "gh-absent: no MCP fallback for pull requests"/);
+});
+
+test('test/SKILL.md carries the Lifecycle Stamp Gate as Step 1.6, citing check-lifecycle-stamps and IL-131', () => {
+  assert.match(TEST_SKILL, /## Step 1\.6: Lifecycle Stamp Gate \(\[IL-131\]\)/);
+  assert.match(TEST_SKILL, /check-lifecycle-stamps/);
+  assert.match(TEST_SKILL, /A standalone `\/test` invocation has no run dir and nothing to enforce/);
+  assert.match(TEST_SKILL, /A genuine degrade is not a gate failure/);
+});
+
+test('flow/steps-and-gates.md\'s test gate row names the Lifecycle Stamp Gate alongside types/lint/tests/QA', () => {
+  assert.match(STEPS_AND_GATES, /Lifecycle Stamp Gate \(`test\/SKILL\.md` Step 1\.6, \[IL-131\]\)/);
+});
+
+test('build/SKILL.md\'s non-skippable paragraph now points at the mechanical enforcement, not prose alone', () => {
+  assert.match(BUILD_SKILL, /This is enforced mechanically, not only by this paragraph's own prose/);
+  assert.match(BUILD_SKILL, /Lifecycle Stamp Gate/);
+});
+
+test('docs/incident-log.md records the structural fix under IL-131, linked to #991', () => {
+  assert.match(INCIDENT_LOG, /\*\*Structural fix \(record #991, 2026-08-21\):\*\*/);
+  assert.match(INCIDENT_LOG, /Lifecycle Stamp Gate/);
+  assert.match(INCIDENT_LOG, /check-lifecycle-stamps/);
 });
