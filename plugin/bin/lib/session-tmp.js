@@ -13,13 +13,9 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
-// Mirrors record-snapshot.js's resolveSessionId exactly — an absent/blank
-// session id resolves to null rather than silently sharing a directory
-// between unrelated sessions (or throwing).
-function resolveSessionId(sessionId) {
-  return sessionId && String(sessionId).trim() ? String(sessionId).trim() : null;
-}
+// Imported, not copy-pasted — the two files must never silently drift on what
+// counts as a valid session id (both fs/path/os-only, no network pulled in).
+const { resolveSessionId } = require('./issues/record-snapshot');
 
 // sessionId -> this session's temp root directory, or null when no session
 // id is available. Mirrors record-snapshot.js's snapshotPath degrade rule:
