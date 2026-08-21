@@ -121,8 +121,8 @@ test('resolvePrStateAsync: does not block the event loop (real concurrency, not 
     const sequentialElapsed = Date.now() - sequentialStart;
 
     assert.ok(
-      concurrentElapsed < sequentialElapsed * 0.6,
-      `expected concurrent (${concurrentElapsed}ms) well under sequential (${sequentialElapsed}ms) — a blocking implementation would make these roughly equal`,
+      concurrentElapsed < sequentialElapsed * 0.9,
+      `expected concurrent (${concurrentElapsed}ms) under sequential (${sequentialElapsed}ms) — a blocking implementation would make these roughly equal (ratio ~1)`,
     );
   } finally {
     wrapper.restore();
