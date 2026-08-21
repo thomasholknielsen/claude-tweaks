@@ -28,12 +28,14 @@ const { gatherFacts } = require('./lib/wrap-up/facts');
 const { buildWorklist } = require('./lib/wrap-up/engine-plan');
 const { initState, recordResult } = require('./lib/wrap-up/engine-record');
 const { renderTrace, renderConsoleSections, renderConsoleSectionsMulti, strictCheck } = require('./lib/wrap-up/engine-render');
+const { runVerify, renderVerifyTable, resolveArchivedRunDir } = require('./lib/wrap-up/engine-verify');
 
 const USAGE = [
   'usage: wrap-up-engine.js plan --run-dir <dir> --base <sha> [--ceremony <profile>] [--skill-budget n] [--doc-budget n] [--signals <json>] [--dry-run]',
   '       wrap-up-engine.js record --run-dir <dir> [--dry-run]   (payload JSON on stdin)',
   '       wrap-up-engine.js render --run-dir <dir> [--strict] [--section trace|console] [--start-at n]',
   '       wrap-up-engine.js render --section console --spec-state <id>=<path> [--spec-state <id>=<path> ...] [--start-at n] [--strict]   (no --run-dir)',
+  '       wrap-up-engine.js verify --run-dir <dir> --base <ref>',
   '',
 ].join('\n');
 
@@ -290,6 +292,15 @@ function runRender(args) {
   }
 }
 
+function runVerifyVerb(args) {
+  if (!args.runDir || !args.base) usageExit();
+  const repoRoot = resolveRepoRoot(process.cwd());
+  const resolvedDir = resolveArchivedRunDir(args.runDir, repoRoot);
+  const { rows, exitCode } = runVerify({ runDir: resolvedDir, base: args.base, deps: {} });
+  process.stdout.write(`${renderVerifyTable(rows)}\n`);
+  process.exit(exitCode);
+}
+
 function main() {
   const verb = process.argv[2];
   const args = parseArgs(process.argv.slice(3));
@@ -318,6 +329,7 @@ function main() {
   if (verb === 'plan') { runPlan(args); return; }
   if (verb === 'record') { runRecord(args); return; }
   if (verb === 'render') { runRender(args); return; }
+  if (verb === 'verify') { runVerifyVerb(args); return; }
 
   usageExit();
 }
