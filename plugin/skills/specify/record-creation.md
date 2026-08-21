@@ -10,7 +10,9 @@ Records are created **parent-first**: the parent's number has to exist before an
 
 Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each sub-issue. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard. **A unit slug must never be the literal string `parent`** — that value is reserved for the parent record's own fingerprint; a sub-issue slugified to `parent` would collide with it in the map below.
 
-Before creating anything, build a fingerprint→number map of every existing marker, once. Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`; re-resolved here since a fresh bash invocation does not inherit Step 1's shell variables):
+Before creating anything, build a fingerprint→number map of every existing marker, once. Resolve this run's session-scoped temp paths inside whichever driver branch below actually runs (`_shared/session-tmp-root.md`) — a fresh bash invocation does not inherit shell variables from a separate fence, so each branch resolves its own paths rather than relying on a shared preamble fence:
+
+`work-backend: github-issues` — reuse Step 1's session-scoped `specify-all-issues.json` (already fetched `--state all --json number,title,labels,body,state`, the REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own); no second `gh issue list` round-trip:
 
 ```bash
 SPECIFY_ALL_ISSUES=$(node -e "
@@ -21,11 +23,6 @@ SPECIFY_EXISTING_FINGERPRINTS=$(node -e "
   const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
   console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-existing-fingerprints.json') || require('path').join(require('os').tmpdir(), 'specify-existing-fingerprints.json'))
 ")
-```
-
-`work-backend: github-issues` — reuse Step 1's `"$SPECIFY_ALL_ISSUES"` (already fetched `--state all --json number,title,labels,body,state`, the REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own); no second `gh issue list` round-trip:
-
-```bash
 node -e "
   const { extractFingerprint } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const issues = require('$SPECIFY_ALL_ISSUES');
@@ -40,6 +37,10 @@ If `"$SPECIFY_ALL_ISSUES"` is unavailable (a resumed decomposition run in a fres
 `work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker). `queryRecords('specs', {})` alone excludes closed records by default (its `filtersOnClosed` check treats an empty filter object as "open, as today," per `local-store.js`'s own header comment on the function) — this map needs both open and closed, mirroring the github driver's `--state all` fetch above: a fingerprint match against an already-closed local record still means "already exists" and must not be recreated on a resumed decomposition. Merge a default (open) query with an explicit `{ closed: true }` query — the same two-call idiom `tests/bin-lib/issues/local-store.test.js` demonstrates:
 
 ```bash
+SPECIFY_EXISTING_FINGERPRINTS=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-existing-fingerprints.json') || require('path').join(require('os').tmpdir(), 'specify-existing-fingerprints.json'))
+")
 node -e "
   const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const { extractFingerprint } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');

@@ -42,9 +42,17 @@ When Step 9 completes, return to `SKILL.md`'s `## Next Actions` block.
 
 Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every open record's body to build a file→record map. Never let the raw record bodies re-enter the model's context for this step — call the existing extractor and redirect its output:
 
-`work-backend: github-issues` (reads `"$SPECIFY_ALL_ISSUES"`, the same `--state all` snapshot Step 1 above already fetched):
+`work-backend: github-issues` (reads this run's session-scoped `specify-all-issues.json`, the same `--state all` snapshot Step 1 above already fetched — re-resolved here since a fresh bash invocation does not inherit Step 1's shell variables, `_shared/session-tmp-root.md`):
 
 ```bash
+SPECIFY_ALL_ISSUES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-all-issues.json') || require('path').join(require('os').tmpdir(), 'specify-all-issues.json'))
+")
+SPECIFY_KEY_FILES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-key-files.json') || require('path').join(require('os').tmpdir(), 'specify-key-files.json'))
+")
 node -e "
   const { extractKeyFiles } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const issues = require('$SPECIFY_ALL_ISSUES').filter((i) => i.state === 'OPEN');
@@ -55,6 +63,10 @@ node -e "
 `work-backend: local-files` (over every file `queryRecords('specs', {})` returns, reference by record id instead of `#N`):
 
 ```bash
+SPECIFY_KEY_FILES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-key-files.json') || require('path').join(require('os').tmpdir(), 'specify-key-files.json'))
+")
 node -e "
   const { extractKeyFilesSection } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');

@@ -30,9 +30,14 @@ false` and the specific gather/fetch failure named verbatim in `RATIONALE` — t
 short-circuit shape `merge-check.md` Step 1 already uses for its own resolution failures.
 
 Read the record's full body (Current State / Deliverables / Acceptance Criteria) from the fetched
-JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present:
+JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present. Re-resolve
+`$ASSESS_GRANT` first — a fresh bash invocation does not inherit Step 1's shell variables:
 
 ```bash
+ASSESS_GRANT=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'assess-grant-' + process.argv[1] + '.json') || require('path').join(require('os').tmpdir(), 'assess-grant-' + process.argv[1] + '.json'))
+" "$N")
 node -e "const {parseRecordFacets}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const d=require(process.argv[1]);
   const {risk, size, ceremony}=parseRecordFacets(d.labels);
