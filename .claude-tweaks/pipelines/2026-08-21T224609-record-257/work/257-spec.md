@@ -1,0 +1,70 @@
+---
+record: 257
+origin: human
+risk: medium
+size: medium
+ceremony: standard
+grants: [build, merge]
+surface: backend
+---
+# 257: build: pre-dispatch verification pass over each task's own stated acceptance command
+
+Surface: backend
+
+## Current State
+
+- `skills/build/SKILL.md`'s **Common Step 1.5 (Plan Audit)** is the one plan-review step that runs after a plan is written and before execution begins (Common Step 2 hands off to `/superpowers:subagent-driven-development` or `/superpowers:executing-plans`). Its full procedure lives in `skills/build/plan-audit.md`.
+- `skills/build/plan-audit.md` currently defines two checks, both structural: **Check A** (always runs) verifies every path in the plan's `Files:` sections exists (or its parent directory exists, for Create); **Check B** (conditional) greps the repo for declared `Scope keywords:` and flags matched files missing from the plan. Neither check executes any command the plan itself declares.
+- `skills/build/SKILL.md`'s Spec Step 3 / Design Step 3 already carry several individual authoring-time checks for specific plan-authoring risk classes (e.g. the "Verbatim-command run-once check" — run a plan-dictated command once against the live target before dispatch, and record the output) — but none of them executes *every task's own stated acceptance/verification command*, and none runs at the controller level immediately before dispatch.
+- Plan task shape is defined by the superpowers `writing-plans` skill (external plugin, not this repo) — each task's `- [ ] **Step 2: Run test to verify it fails**` sub-step carries a literal `Run: {command}` line and an `Expected: {text}` line (e.g. `Expected: FAIL with "function not defined"`). Step 4 ("Run test to verify it passes") carries the equivalent post-implementation pair, but that command structurally requires the task's own implementation to exist, so it cannot be meaningfully pre-run before dispatch.
+- Origin incident: during the specs 216/217/218 build, several plan tasks' stated verification commands would not have discriminated a correct fix from a no-op if pre-run against live repo state. This was caught only because 4 of 7 dispatched implementers happened to independently run their own ad hoc "scratch copy, revert, re-run, confirm red" probe before trusting a green result; the other 3 had no equivalent safety net.
+
+## Deliverables
+
+- [ ] Add a new **Check C — Verification-command pre-check** section to `skills/build/plan-audit.md`, matching the existing Check A/Check B heading style, that: (1) extracts every task's Step 2 `Run: {command}` / `Expected: {text}` pair from the plan file; (2) executes each extracted command once, read-only, against the current (pre-dispatch) repo state — i.e. before Common Step 2 hands off to any execution strategy; (3) flags a task only when its command's actual result already exhibits a passing/success signature (exit code 0 for a test runner, or output matching a success pattern) despite the task declaring `Expected: FAIL ...`.
+- [ ] State explicitly in that section that a command erroring or cleanly failing pre-dispatch is **not** a Check C finding — only an already-passing result is (see Gotchas for why).
+- [ ] State explicitly that tasks with no Step 2 `Run:`/`Expected:` pair (non-code tasks — pure config/doc/manual tasks) are skipped by Check C; there is nothing to pre-run.
+- [ ] Update `skills/build/SKILL.md`'s Common Step 1.5 stub to name Check C alongside Check A and Check B, so a reader of the stub alone knows the step performs three checks, not two.
+- [ ] Document Check C's on-finding behavior as a hard stop, worded like Check A's existing "Stop. Present the missing paths. The plan needs revision before execution starts." — not routed through Check B's auto-mode `scope-creep` policy table, since a non-discriminating verification command is a correctness gap the `_shared/auto-mode-contract.md` HARD-GATE exemption already covers (test failures), not a scope decision with a policy lever.
+- [ ] Confirm Check C shares Check A/B's existing skip gate (fewer than 3 file references and no `Scope keywords:` field, or `ceremony-profile: fast-lane`) rather than introducing a new one.
+
+## Acceptance Criteria
+
+1. `skills/build/plan-audit.md` contains a `## Check C` (or equivalently-headed) section documenting the extraction rule (Step 2's `Run:`/`Expected:` pair), the once-only pre-dispatch execution rule, and the passing-signature-only flagging rule described above.
+2. That section states in plain prose that a command erroring or cleanly failing pre-dispatch is not a finding — only an already-passing result is.
+3. `skills/build/SKILL.md`'s Common Step 1.5 stub names "Check C" (not just Check A and Check B).
+4. The section documents Check C's on-finding behavior as an unconditional stop — the same "present findings, plan needs revision" shape as Check A — with no auto-mode policy table or `AskUserQuestion` branch attached to it (contrast with Check B, which has both).
+5. The section states that Check C shares Check A/B's existing skip condition, introducing no new one.
+6. `grep -l "Check C" skills/build/plan-audit.md skills/build/SKILL.md` returns both file paths, confirming both files were updated.
+
+## Technical Approach
+
+- **Extraction:** parse each `### Task N: ...` block in the plan file for its `- [ ] **Step 2: Run test to verify it fails**` sub-step, then the `Run: {command}` and `Expected: {text}` lines immediately following it — the literal template shape defined by the superpowers `writing-plans` skill's Task Structure section (cite it; do not restate its template here, since it lives in a different plugin and can drift independently).
+- **Execution:** run each extracted `{command}` once via Bash, against the plan's own worktree at its current HEAD, before Common Step 2 hands off to the execution strategy — i.e. before any task's implementation has landed. This reuses the "run a plan-dictated command once, read-only, and record the output" discipline `skills/build/SKILL.md`'s Spec Step 3 "Verbatim-command run-once check" bullet already establishes; cite it rather than duplicating the discipline.
+- **Pass/fail judgment:** the only finding Check C raises is "the command already looks like it passed, despite the task declaring `Expected: FAIL`." Concretely: exit code 0 from a test runner invocation, or output containing the runner's own success marker (e.g. `PASS`, `0 failing`, `✓`) with no corresponding failure marker. A non-zero exit, an assertion failure, or a hard error (missing module, import error, file not found) are all **non-findings** — see Gotchas for why a hard error is expected and safe to ignore here, not a false negative.
+- **Scope of this record:** the change is confined to `skills/build/plan-audit.md` and `skills/build/SKILL.md`'s Common Step 1.5 stub. It does not modify `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, or any file outside this plugin's own `skills/build/` directory — those are external superpowers-plugin skills and out of scope here. The origin issue's alternative framing ("or `/specify`'s plan-authoring self-check") is not pursued: `/specify` runs before a plan exists at all (it produces the record `/superpowers:writing-plans` later consumes), so it has no plan file to extract Step 2 commands from — `/build`'s Common Step 1.5 is the only point in the pipeline that holds both the finished plan and a pre-dispatch moment to run it in.
+
+## Gotchas
+
+- Do not literally re-run every task's Step 4 ("Run test to verify it passes") command pre-dispatch — that command structurally requires the task's own implementation to exist yet, so pre-running it would trivially fail every time and add zero signal. Check C is scoped to Step 2 commands only.
+- A command erroring (missing module, import error) rather than cleanly failing is common and expected for a later task in a plan whose tasks build on each other sequentially — running task 5's Step 2 command before any of tasks 1-4 have landed will often hard-error rather than assert-fail, and that's fine. The origin incident's actual failure mode was a command that returned an unconditional **pass** regardless of correctness ("would pass regardless of whether the implementer's change was actually correct") — that's the one signature Check C exists to catch; do not widen it into flagging errors too, which would produce constant false positives on any plan with inter-task dependencies.
+- Keep Check C's on-finding behavior distinct from Check B's scope-creep policy table on purpose — this is a correctness HARD-GATE per `_shared/auto-mode-contract.md` (explicitly not silenced by `auto` mode), not a decision-worthy lever with a resolvable policy.
+- Do not expand this into a general "run every command mentioned anywhere in the plan" sweep. Scope is exactly each task's own declared Step 2 verification command, matching the issue's own proposed direction; broader static analysis of arbitrary plan-embedded commands is a different, larger record.
+
+## Original request
+
+build: pre-dispatch verification pass over each task's own stated acceptance command
+
+**Summary:** `/build`'s plan-review has no step that pre-runs a task's own stated acceptance/verification command against live repo state before dispatch — a gap only caught today because implementers happen to notice it themselves.
+
+**Origin:** Reflection during the specs 216/217/218 build (`/superpowers:subagent-driven-development` dispatch). Originally drafted as an upstream superpowers gap-report; reclassified to claude-tweaks' own scope on reconsideration, since claude-tweaks already holds the full plan — including every task's stated verification command — before any dispatch mechanism ever sees it.
+
+**What happened:** Several plan tasks specified an acceptance/verification command that, if pre-run against live repo state, would have immediately shown the command didn't discriminate correctly (it would pass regardless of whether the implementer's change was actually correct). This was only caught because 4 of 7 dispatched implementers independently ran their own ad hoc "scratch copy" probe — copy the target file, revert the change, re-run the check, confirm it goes red — before trusting a green result. The other 3 had no equivalent safety net; a subtly broken plan task could have shipped unnoticed.
+
+**Proposed direction:** Add a pre-dispatch verification pass to `/build`'s plan-review (or `/specify`'s plan-authoring self-check, alongside the existing "run a plan's grep/expected-output self-checks against the actual planned text during authoring" discipline) that runs each task's own stated acceptance/verification command against current repo state once, upfront, before any task is dispatched — regardless of which execution strategy (`/superpowers:subagent-driven-development`, solo-implementer, or a future strategy) actually does the dispatching. This generalizes the mutation-probe pattern observed here (currently redone ad hoc, per-implementer, only when one happens to think of it) into a single controller-level check that catches the same class of gap earlier, for every task.
+
+**Type:** feature
+
+---
+Filed via conversation following up on the specs 216/217/218 wrap-up.
+
