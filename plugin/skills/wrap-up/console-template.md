@@ -5,7 +5,7 @@ Referenced by `skills/wrap-up/review-console-interactive.md`'s "Present the cons
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. Every section below — the named batch sections, plus Queue writes, Memory updates, and Upstream feedback — resolves via the same terminal Approve all / Override / Stop choice. Approve all applies each section's own default (batch sections: apply; `Q#`/`M#`: their pre-checked `Apply` default; `U#`: its unchecked/declined default) with no further prompts. Override is what still drills `Q#`/`M#`/`U#` individually — one or more chunked `multiSelect` calls, `_shared/batched-item-drill.md` for `Q#`/`M#`, `_shared/upstream-feedback-batch.md` for `U#` (see `review-console-interactive.md`'s Hard requirements for why).
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. Every section below — the named batch sections, plus Queue writes, Memory updates, and Upstream feedback — resolves via the same terminal Approve all / Override / Stop choice. Approve all applies each section's own default (batch sections: apply; `Q#`/`M#`: their pre-checked `Apply` default; `U#`: its unchecked/declined default) with no further prompts, except rows marked drills-individually (listed above the terminal options when present — see `review-console-interactive.md`'s Hard requirements). Override is what still drills `Q#`/`M#`/`U#` individually — one or more chunked `multiSelect` calls, `_shared/batched-item-drill.md` for `Q#`/`M#`, `_shared/upstream-feedback-batch.md` for `U#` (see `review-console-interactive.md`'s Hard requirements for why).
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -91,7 +91,7 @@ A `[{genre}-convention]` row renders inside this section but carries its own thr
      3  Keep project form — resolve from this repo             -> doc-convention-adr: project
 ```
 
-A Diátaxis-genre instance (Tutorial/How-To/Reference/Explanation, surfaced in Documentation updates above rather than here) renders identically, substituting the genre name and its own `doc-convention-{genre}` key — e.g. `how-to-convention  docs/guides/  — this repo's how-to guides disagree with the plugin's convention`, with the same three numbered options against `doc-convention-how-to`. Omit the `project skill` line when detection found none. "Approve all" leaves any `[{genre}-convention]` row unanswered and blocks every `[doc]`/`[adr]` row for that same genre from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
+A Diátaxis-genre instance (Tutorial/How-To/Reference/Explanation, surfaced in Documentation updates above rather than here) renders identically, substituting the genre name and its own `doc-convention-{genre}` key — e.g. `how-to-convention  docs/guides/  — this repo's how-to guides disagree with the plugin's convention`, with the same three numbered options against `doc-convention-how-to`. Omit the `project skill` line when detection found none. "Approve all" never applies a default to any `[{genre}-convention]` row — it belongs to the drills-individually class (`review-console-interactive.md`'s Hard requirements), so Approve all still fires this row's own three-way `AskUserQuestion` as part of the same console stop, and that answer resolves every `[doc]`/`[adr]` row for that same genre from the same run, since their resolved paths depend on it.
 
 #### Reference repairs (from the Broken references curation row)
 
