@@ -128,7 +128,7 @@ captured ▶ prioritized ▶ specified ▶ granted ▶ dispatchable ▶ in fligh
 # specified {n} — grant them, or dispatch here with the human gate
 /claude-tweaks:backlog grant
 
-# granted {n} — no pointer; waiting on blockers, which appear in the dispatch hand-off
+# granted {n} — no pointer; blockers surface at /claude-tweaks:dispatch's own execution time
 
 # dispatchable {n} — dispatch the queue, or flow one record (#N is a placeholder)
 /claude-tweaks:dispatch
@@ -224,171 +224,127 @@ Render the top result (and up to 2 runners-up) as a short "Recommended next" cal
 
 Bare mode only — lens runs end at their own table (Step 2) and never reach this step.
 
-**Input precondition:** the dispatch-block candidate set is `funnelBuckets`'s `dispatchable` ∪
-`granted` (Step 2's `.funnel` — already filtered; `needs:definition` records are excluded here by
-rule (below) — until #471's redirect gate ships, `/claude-tweaks:specify` can still stamp `ready`
-on one, so the structural guarantee does not yet hold; the Specify block's own human-owed filtering is the
-Specify-block exclusion rule below). The Specify block's population is the `prioritized` bucket (records
-specified next); the Prioritize line's count is the `captured` bucket.
+Two stages, each one paste-ready command block instead of one terminal per record or chain:
+**Shape** (`/claude-tweaks:specify #a,#b,...` chunks over the `prioritized` bucket) and
+**Dispatch** (one bare `/claude-tweaks:dispatch` line). Neither stage computes a dependency graph
+any more — chain order, file-overlap serialization, and claim exclusion move to
+`/claude-tweaks:dispatch`'s own pick-order/claims logic at execution time, matching what that
+skill already owns as a one-command queue consumer; `/claude-tweaks:specify`'s own comma-list
+batch is what makes chunking the Shape stage possible at all. **Score**
+(`/claude-tweaks:backlog refine`) and **Grant** (`/claude-tweaks:backlog grant`) keep their
+existing one-command pointers from the Prioritize/Specify template lines above, unchanged.
 
-Compute the batch's graph structure, transitive payout, and file-overlap groups in one pass,
-reusing Step 3's candidate set — first with the dependency-mismatch-flagged ids (Step 3's `flags`)
-removed. A flagged record's graph data is unreliable by construction (that unreliability is exactly
-what triggered the flag), so it must never form a chain; any other candidate that lists a flagged id
-as a blocker simply loses that edge once the flagged id is filtered out, and ranks as an independent
-unless another in-set edge remains. Rule (e) below renders the flagged records themselves, verbatim,
-from the `flags` list — they never re-enter here. The same filtered candidate set also emits the
-out-of-set-blocked list (`outOfSetBlocked`) so the "Out-of-set-blocked granted records" rule can read
-it directly instead of re-deriving membership ad hoc at render time:
+### Shape stage — specify the prioritized bucket in chunks
+
+**Input:** the `prioritized` bucket (`.funnel.prioritized`, Step 2's `session-scoped
+backlog-overview-views.json`) — the same population the funnel header's `prioritized` column
+already counts and the pre-rewrite Specify block used.
+
+**Exclusions run first, each named with a count when non-zero:**
+- `needs:definition` records (`facets.needsDefinition === true`) — they already surface in the
+  Needs-you lane below, and `/claude-tweaks:specify`'s comma-list batch hard-fails its ENTIRE
+  batch when any pasted element carries the label, so one leaked record would break every chunk
+  it landed in, not just its own.
+- `unsynced: true` records (`facets.unsynced === true`) — their ids are local-namespace, never a
+  pasteable GitHub `#N` ref. A record carrying both facets counts once, under `needs:definition` —
+  the same dominance `funnelBuckets`' `needsYou` overlay already applies.
+
+**Ordering:** the remaining specify-eligible set sorts by priority (high first), then age (oldest
+first), ties broken by id — the same convention the Needs-you lane's own ordering states inline.
+
+**Chunking:** sliced into chunks of 10, ALL chunks emitted — no cap on chunk count. A 500-record
+specify-eligible set emits 50 one-line commands; a deliberate, documented trade-off (the whole set
+stays drainable from one report instead of truncating at an arbitrary top-*k*, the way the old
+per-record terminal architecture had to).
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_RANKED=backlog-overview-ranked.json ST_BACKLOG_OVERVIEW_CANDIDATES=backlog-overview-candidates.json ST_BACKLOG_OVERVIEW_EMITTER=backlog-overview-emitter.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_VIEWS=backlog-overview-views.json ST_BACKLOG_OVERVIEW_SHAPE=backlog-overview-shape.json)"
 node -e "
-  const { buildChains, transitiveUnblocksCount, blockersOf } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
-  const { groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
-  const flags = require('$ST_BACKLOG_OVERVIEW_RANKED').flags.map((f) => f.id);
-  const candidates = require('$ST_BACKLOG_OVERVIEW_CANDIDATES').filter((c) => !flags.includes(c.id));
-  const candidateIds = new Set(candidates.map((c) => c.id));
-  console.log(JSON.stringify({
-    graph: buildChains(candidates),
-    payout: Object.fromEntries(transitiveUnblocksCount(candidates)),
-    overlapGroups: groupByFileOverlap(candidates.map((c) => ({ id: c.id, keyFiles: c.keyFiles || [] }))),
-    outOfSetBlocked: candidates.filter((c) => blockersOf(c).some((b) => !candidateIds.has(b))).map((c) => c.id),
-  }));
-" > "$ST_BACKLOG_OVERVIEW_EMITTER"
+  const RANK = { high: 0, medium: 1, low: 2 };
+  const bandOf = (r) => (r.facets.priority ? RANK[r.facets.priority] : 3);
+  const prioritized = require('$ST_BACKLOG_OVERVIEW_VIEWS').funnel.prioritized;
+  const needsDefinition = prioritized.filter((r) => r.facets.needsDefinition === true);
+  const unsynced = prioritized.filter((r) => r.facets.unsynced === true && r.facets.needsDefinition !== true);
+  const eligible = prioritized
+    .filter((r) => r.facets.needsDefinition !== true && r.facets.unsynced !== true)
+    .sort((a, b) => bandOf(a) - bandOf(b) || new Date(a.createdAt) - new Date(b.createdAt) || (a.number ?? a.id) - (b.number ?? b.id));
+  const chunks = [];
+  for (let i = 0; i < eligible.length; i += 10) chunks.push(eligible.slice(i, i + 10).map((r) => r.number ?? r.id));
+  console.log(JSON.stringify({ eligibleCount: eligible.length, needsDefinitionCount: needsDefinition.length, unsyncedCount: unsynced.length, chunks }));
+" > "$ST_BACKLOG_OVERVIEW_SHAPE"
 ```
 
-Note: `payout` keys are strings after `Object.fromEntries` (plain JS object keys are always
-strings) while `graph`'s chain/independent/cycle ids stay numbers — coerce before comparing or
-joining the two.
-
-**Ordering rule:** one combined ranking over dependency components and independents alike — sort
-key: the component head's `transitiveUnblocksCount` descending, then the head's priority, then the
-head's size, ties by id. The component head is the linearized chain's first element (an
-independent is its own head, usually with `transitiveUnblocksCount` 0); residual ties among
-components resolve on the head's priority/size, never another member's. No
-chains-first-then-independents grouping.
-
-**Render:** one fenced paste block per funnel stage that has members, exactly these templates:
-
-```
-── Prioritize the rest ──
-# {captured-count} records missing priority
-/claude-tweaks:backlog refine
-```
+**Render:** one paste block when `.funnel.prioritized` is non-empty (the same "one fenced paste
+block per funnel stage that has members" rule the Prioritize/Dispatch blocks already follow) — a
+header count line, then one `/claude-tweaks:specify #a,#b,...` command per chunk, all chunks:
 
 ```
 ── Specify next ──
-# Terminal 1 — priority:{tier} — {one-line hook}
-/claude-tweaks:specify #{N}
-# Terminal 2 — priority:{tier} — {one-line hook}
-/claude-tweaks:specify #{M}
-# #{N} excluded — needs:definition: yours to decide (see Needs you below)
+# {eligibleCount} specify-eligible — {needsDefinitionCount} excluded: needs:definition; {unsyncedCount} excluded: unsynced
+/claude-tweaks:specify #a,#b,#c,#d,#e,#f,#g,#h,#i,#j
+/claude-tweaks:specify #k,#l,#m,...
 ```
 
-The exclusion line is one line per matching record — absent entirely when none match. `needs:definition` is LIVE (both drivers parse `facets.needsDefinition` since upstream's v6.85.0 taxonomy landed), so this line renders on any repo carrying matching records; it is independent of the unjustified-annotation line below (both are live; see below). It attaches immediately above the Specify block's command lines and applies in ANY paste block a matching record appears in.
+Each exclusion clause (`{n} excluded: needs:definition`, `{n} excluded: unsynced`) renders only
+when its count is non-zero; drop the whole ` — ...` suffix when both are zero. When
+`eligibleCount` is 0 (every prioritized record was excluded), the block still renders its header
+line — the count ledger the no-silent-caps rule requires — with no `/claude-tweaks:specify` line
+beneath it. All commands fully qualified.
+
+### Dispatch stage — one queue-consumer pointer
+
+**Input:** `funnelBuckets`'s `dispatchable` ∪ `granted` (`.funnel.dispatchable`/`.funnel.granted`,
+the same session-scoped views file the Shape stage reads) — Step 2's own funnel output is the
+emptiness signal; no graph computation runs here.
+
+**Render:** exactly one paste block, rendered only when `dispatchable.length + granted.length >
+0` — no per-record lines, no chain arrows, no file-overlap annotation. `/claude-tweaks:dispatch`
+resolves pick-order, claims, chain order, and file-overlap serialization itself, at its own
+execution time:
 
 ```
 ── Dispatch now ──
-# Terminal 1 — chain: #A ─▶ #B ─▶ #C (head unblocks {n})
-/claude-tweaks:flow #A,#B,#C
-# Terminal 2 — independent
-/claude-tweaks:flow #D
-# ⚠ #{N} solution:unjustified — one-line evidence call pending
-# Terminal {k} — serialized: #A, #B (file overlap: {files})
-/claude-tweaks:flow #A,#B
+# {dispatchable-count} dispatchable + {granted-count} granted — /claude-tweaks:dispatch picks the order, claims, and serializes file overlap
+/claude-tweaks:dispatch
 ```
 
-The unjustified-annotation line is likewise one line per matching record, absent entirely when none match — `solutionUnjustified` is live on both drivers since #677 renamed `framing:baked` → `solution:unjustified` (the exclusion line above is independently live for `needs:definition`) — it attaches immediately above the command line it annotates, and applies in ANY paste block a matching record appears in (a `solutionUnjustified` record keeps its primary funnel bucket, so it can surface in Specify or Dispatch alike).
+When the union is empty, render nothing for this stage — not even the header line.
 
-Prose rules: the Prioritize line's count is comment-only (`refine` has no count flag); Specify lines are
-priority-ordered, one record per terminal; a chain emits as **one** multi-ref
-`/claude-tweaks:flow #A,#B,#C` command listing every member in dependency order (one command per
-chain, never head-only — flow's multi-ref form runs them as a sequential pipeline); independents
-get their own terminals with plain `/claude-tweaks:flow #N`; a file-overlap group merged across
-components/independents (per the Overlap serialization integrity rule below) emits as the third
-comment form, `# Terminal {k} — serialized: #A, #B (file overlap: {files})`, with the members'
-internal order following the combined ranked order and the merged terminal's own rank key taken
-from its highest-ranked member. All commands fully qualified. The `─▶` arrows in a chain comment
-show execution order, not necessarily a direct dependency edge — a linearized diamond serializes
-siblings that have no edge between them.
+### Retired from Step 4
 
-**Sanitize interpolated record text.** Every record-derived value rendered into a paste block
-(`{one-line hook}`, `{files}`, any future field) is flattened to a single line before rendering:
-strip newlines, carriage returns, and control characters, and truncate to one comment line — a
-`#`-comment never spans lines, so untrusted record content can never escape the comment into an
-executable line. Record ids and priority tiers are re-emitted from parsed facets (`#{number}`,
-`priority:{tier}`), never copied as raw text.
+The per-record terminal architecture these rules guarded is gone; none has a successor here — the
+population each named is either already partitioned by `funnelBuckets` (nothing left to comment
+on) or now belongs to `/claude-tweaks:dispatch`'s own execution-time logic:
 
-**Batch integrity rules:** the emitter's exclusion rules operate on populations `funnelBuckets`
-already partitioned — the rules below name where each excluded population surfaces, they never
-re-derive membership.
+- **Overlap serialization** (former rule (a)) — file-overlap grouping across concurrent
+  terminals; there is one Dispatch line, not one terminal per group, so nothing to serialize
+  here. `/claude-tweaks:dispatch`'s own file-overlap grouping (`groupByFileOverlap`, its Step 2)
+  does this at execution time instead.
+- **Claim exclusion** (former rule (b)) — `bot:in-progress` records were already partitioned into
+  `.funnel.inFlight` before this step ever saw them; there is no per-record comment line left to
+  write.
+- **No terminal cap** (former rule (d)) — there is exactly one Dispatch line now; "the human takes
+  the top *k*" no longer applies.
+- **Flagged-records rendering** (former rule (e)) — Step 3's dependency-mismatch detection and its
+  headline-replacement rule are untouched (unchanged, above); a flagged record simply has no
+  per-record Dispatch line left to suppress.
+- **Out-of-set-blocked granted records**, and its **chain-vs-out-of-set precedence** clause — both
+  annotated one terminal's partially-executable command; `/claude-tweaks:dispatch` reports a
+  blocked pick at claim time instead of this report annotating it in advance.
+- **Cyclic components** — `buildChains`'s `cycles` output is no longer read here; a stalled
+  component surfaces via `/claude-tweaks:dispatch` (or Step 3's own recommendation pass, which
+  still reads the same ranking data) instead of a named comment block in this step.
 
-- **Specify-block exclusion** — the excluded population is the `prioritized`-bucket records carrying
-  `needsDefinition === true` (`funnelBuckets`'s `needsYou` overlay, kind `definition`). Each is
-  excluded from the Specify block's terminals with the `# #{N} excluded — needs:definition: yours to
-  decide (see Needs you below)` comment line (Step 4's Specify template above) — never a bare
-  `/claude-tweaks:specify #{N}` command, since deciding whether the record needs definition is the
-  human's call, not the agent's; counted under rule (c) and surfaced again, with fuller context, in
-  the Needs you lane below.
-- **(a) Overlap serialization** — scoped to the Dispatch block only (Specify-block records are
-  not yet specified and carry no `### Key Files`, so file-overlap grouping doesn't apply there). Records
-  `groupByFileOverlap` groups together never appear in different concurrent terminal blocks.
-  Deciding criterion: members of the same dependency component are already serialized in one
-  terminal by construction; a file-overlap group spanning different components/independents
-  serializes them into one terminal when they are few (≤3 combined); when a cross-component
-  file-overlap group exceeds 3 combined members, only the single top-ranked member stays
-  executable — every other member of the group is excluded, each with its own `#`-comment naming
-  the conflict (the invariant "overlapping records never appear in different concurrent terminal
-  blocks" must hold for any group size, not just the ≤3 case). Group membership is transitive —
-  treat membership, not pairwise overlap, as the signal.
-- **(b) Claim exclusion** — the excluded population is `.funnel.inFlight` (Step 2's
-  `session-scoped backlog-overview-views.json` output — the records `funnelBuckets` already partitioned out
-  of the buildable subset by the `bot:in-progress` facet; claim blobs on the claims-registry
-  branch are not read by this report). Each excluded record gets one `#`-comment reason (e.g.
-  `# #472 skipped — bot:in-progress`), already counted in the funnel's `in flight` stage. The
-  claim snapshot is read-only and may go stale between render and paste; that staleness is
-  accepted risk, resolved downstream by `/claude-tweaks:dispatch`/`/claude-tweaks:flow`'s own
-  claim-taking at execution time — never read this scan as a completeness guarantee, and never
-  instruct taking a claim from this report.
-- **(c) No silent caps** — anything excluded or truncated is named with a count.
-- **(d) No terminal cap** — blocks emit in ranked order; the human takes the top *k*.
-- **(e) Flagged records** — records flagged by the dependency-mismatch detection (Step 3's
-  `flags`) render as plain independents: no `─▶` arrows, own terminal, with a `#`-comment naming
-  the suppressed chain and pointing at `/claude-tweaks:backlog refine`'s dependency repair — never
-  silently dropped (dropping would violate rule (c) above).
-- **Out-of-set-blocked granted records** — a `granted`-bucket candidate whose id appears in the
-  compute block's `outOfSetBlocked` list (already computed above via `blockersOf` — never
-  re-derived ad hoc at render time) is definitionally blocked — its blocker is unspecified or
-  ungranted, not yet part of this batch. It still renders in the Dispatch block, but as a
-  `#`-comment naming the out-of-set blocker and its funnel stage (e.g. `# #521 waiting — blocked by
-  #518 (specified, ungranted)`), never a bare paste-ready command; counted under rule (c). This is what
-  keeps #513's header promise (the granted stage's "no pointer — waiting on blockers; the blocker
-  itself appears in the dispatch hand-off").
-  **Chain vs out-of-set precedence:** when a chain member (not a bare independent) is
-  out-of-set-blocked, this rule wins over the chain's normal one-command rendering for that member
-  and everything after it in the linearized order — later members depend (directly or
-  transitively) on the blocked one, so they cannot run either. The chain's executable
-  `/claude-tweaks:flow #A,#B,...` command covers only the topological prefix BEFORE the first
-  out-of-set-blocked member; that member and every member after it render as comment-only lines
-  each naming the out-of-set blocker, per this rule, instead of joining the executable command. When
-  the out-of-set-blocked member is the chain's head (an empty prefix), the whole terminal renders
-  comment-only — no executable command for that terminal at all.
-- **Cyclic components** — a dependency component `buildChains` returns under `cycles` (never
-  partially placed in `chains`) renders as a named `#`-comment block listing every id in the
-  component, with a pointer to `/claude-tweaks:backlog refine`'s dependency repair; counted under
-  rule (c). A stalled component absorbs its acyclic members too — the whole component is named
-  there, never silently dropped into a working terminal.
-- **Unsynced records** — `unsynced: true` fallback records never render as `#N` paste commands
-  (their ids are local-namespace, not GitHub refs); they are excluded from every paste block with
-  one `#`-comment naming the sync gap, counted under rule (c).
-- **`needs:definition` records** — a candidate whose `facets.needsDefinition` is true never
-  renders an executable command in ANY paste block, whatever bucket it reached — until #471's
-  redirect gate ships, `/claude-tweaks:specify` can still stamp `ready` on one, so this
-  render-level exclusion is the guard. It renders one `#`-comment
-  (`# #{N} excluded — needs:definition: yours to decide (see Needs you below)`, the same format
-  the Specify block uses), is counted per rule (c), is skipped when determining the top-ranked
-  executable entry, and its Needs-you lane row is where it surfaces for action.
+The Shape-block `needs:definition` exclusion (the old unlettered Specify-block-exclusion rule) and
+the general `needs:definition` records rule (the old unlettered rule after Cyclic components)
+collapse into the Shape stage's single `needs:definition` exclusion above, now chunk-level rather
+than per-record. The **unsynced records** rule likewise collapses into the Shape stage's
+`unsynced` exclusion above. **No silent caps** (former rule (c)) stays live, satisfied by the two
+named exclusion counts plus the funnel header itself — already a complete count ledger of every
+record's stage. The **sanitize rule** for record-derived text stays live too, scoped to whatever
+record-derived text either remaining block interpolates: today that's nothing (both templates
+above interpolate integer counts and facet-derived `#N` refs, never free record text), but the
+rule remains the guard should a future line add one.
 
 ### Needs you (human lane)
 
@@ -399,7 +355,7 @@ One line per record with an interactive launcher, fully qualified:
 - `kind: 'unjustified'` → `/claude-tweaks:challenge #{N}` (the evidence-or-accept-risk mode — reads the record's `## Gotchas` assumptions, runs a bounded in-repo evidence search, and offers supply-evidence / accept-risk / leave in one call; either resolving choice clears the label) with a `#`-comment naming the one-line call (e.g. `# solution:unjustified — one-line evidence-or-accept-risk call`)
 - `unsynced: true` needs-you records never render a `#{N}` launcher (local-namespace ids) — they render one `#`-comment naming the sync gap and pointing at `/claude-tweaks:tidy`, still counted in the branch-line total.
 
-**Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch). Primary sort is priority (high first), then age (oldest first), ties by id — matching the emitter's own convention. Releases-count is an **advisory annotation** on each row, not a sort key — it is computed directly, never sourced from `transitiveUnblocksCount` (that Map is keyed by emitter-candidate id only, and a needs-you record structurally never appears as one of those keys, so a lookup against it can never resolve for this lane; the helper remains the emitter's own chain-payout tool, unchanged in Step 4). The direct computation: one `node -e` pass importing `blockersOf` from `ranking.js`, run over the full faceted set at `session-scoped backlog-overview-faceted.json` (the carrier — the whole open set, not the emitter's filtered candidate subset) — count how many OPEN records in that set resolve the needs-you record's id via `blockersOf`. When that count is zero, or the computation was skipped, render `deciding releases nothing tracked` in place of a number — never a literal `undefined` or a dangling placeholder. This priority-then-age ordering deliberately deviates from the original spec's releases-first ordering: releases is demoted to an advisory annotation, never the sort key, because the count is partial by construction (needs-you records get no blocker attachment and their dependents are mostly outside the buildable set) — the deviation is flagged here in the text, not left implicit in run artifacts alone.
+**Ordering + inputs:** `needsYou` stays `{id, kind}` from `funnelBuckets`; the render joins each id back to the faceted record set for `facets.priority` and `createdAt` (already in the overview fetch). Primary sort is priority (high first), then age (oldest first), ties by id — matching the emitter's own convention. Releases-count is an **advisory annotation** on each row, not a sort key — it is computed directly, never sourced from `transitiveUnblocksCount` — that payout map only ever keyed on the old per-record batch emitter's candidate ids, which never included a needs-you record in the first place, and the emitter no longer computes it at all (Step 4's Retired section above). The direct computation: one `node -e` pass importing `blockersOf` from `ranking.js`, run over the full faceted set at `session-scoped backlog-overview-faceted.json` (the carrier — the whole open set, not the emitter's filtered candidate subset) — count how many OPEN records in that set resolve the needs-you record's id via `blockersOf`. When that count is zero, or the computation was skipped, render `deciding releases nothing tracked` in place of a number — never a literal `undefined` or a dangling placeholder. This priority-then-age ordering deliberately deviates from the original spec's releases-first ordering: releases is demoted to an advisory annotation, never the sort key, because the count is partial by construction (needs-you records get no blocker attachment and their dependents are mostly outside the buildable set) — the deviation is flagged here in the text, not left implicit in run artifacts alone.
 
 **Cap + pointer:** at most 3 rows named; beyond that, one pointer line: `{M} more human-owed records → /claude-tweaks:backlog attention (when available)` — advisory until that mode ships (#471's decomposition), count always shown. Interim-launcher honesty note, citing #471: until #471's redirect gate ships, `/claude-tweaks:specify #{N}` on a `needs:definition` record still lands in ordinary shaping mode — acceptable interim (the human is present either way); this caveat is removed by #471's own landing.
 
@@ -410,13 +366,13 @@ document-level, not a continuation of this lane.
 
 **Two-channel contract + `Next:` line:** paste blocks carry agent-executable/unattended commands
 only; the Next Actions close-out block carries this-session moves only (run refine here, open a
-lens, dispatch the top chain here) and is never the delivery channel for other-terminal command
+lens, run dispatch here) and is never the delivery channel for other-terminal command
 lists — terminal-command lists inside the close-out block are forbidden. The report body ends with a
 single `Next:` line: one sentence naming the top-ranked action, always exactly one.
 
 **Precedence (3-level):**
 1. When `needsYou` is non-empty → the `Next:` line names the top Needs-you item (per the section's ordering), recomputed fresh every run — no session state, no stored binding.
-2. Otherwise → the top-ranked **executable** Dispatch entry — comment-only entries (out-of-set-blocked, cyclic, unsynced, flagged, overlap-excluded) are skipped when determining it (promise F2).
-3. When the Dispatch block contains **no executable entry** (empty, or comment-only entries throughout) → the existing fallback ladder (grant → specify → refine, ties by id; `Next: backlog is empty` terminal case).
+2. Otherwise → the Dispatch line when it rendered (`dispatchable ∪ granted` non-empty), else the first Shape chunk when any chunk rendered (the specify-eligible set non-empty) — retires the old "top-ranked executable Dispatch entry" wording along with the per-record entries it used to rank.
+3. When neither the Dispatch line nor any Shape chunk rendered → the existing fallback ladder (grant → specify → refine, ties by id; `Next: backlog is empty` terminal case) fires unchanged.
 
-The close-out block's recommended line MUST match the `Next:` line at every precedence level — unchanged rule, now with a well-defined referent at each level.
+The close-out block's recommended line MUST match the `Next:` line at every precedence level — unchanged rule, now with a well-defined referent at each level (level 2's referent is the Dispatch line or the first Shape chunk, never a ranked per-record pick).
