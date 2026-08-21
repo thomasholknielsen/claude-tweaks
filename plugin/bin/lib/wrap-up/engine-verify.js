@@ -34,7 +34,7 @@ function defaultGh(args, cwd) {
 }
 
 // Registry of check functions, populated by Tasks 2-5. Each entry:
-// { name: string, fn: ({runDir, base, expectations, deps}) => {result, detail} }.
+// { name: string, fn: ({runDir, originalRunDir, base, repoRoot, expectations, deps}) => {result, detail} }.
 // A flat array (not an object keyed by name) preserves the fixed row order
 // the table renders in, matching the prose checklist's original order.
 const CHECKS = [];
@@ -43,9 +43,45 @@ function registerCheck(name, fn) {
   CHECKS.push({ name, fn });
 }
 
+// A multi-spec per-spec leaf ('spec-{N}') resolves relative to its PARENT
+// run's id -- the worktree/branch and the archived layout
+// (archive-merged.js's archiveRunDir) both nest under the parent, never a
+// flattened 'spec-{N}' alone.
+function isSpecLeaf(base) {
+  return /^spec-\d+$/.test(base);
+}
+
+function runIdFromRunDir(runDir) {
+  // Strip a leading ISO-timestamp prefix (YYYY-MM-DDTHHMMSS-) when present;
+  // otherwise the whole basename is already the id.
+  const base = path.basename(runDir);
+  const m = base.match(/^\d{4}-\d{2}-\d{2}T\d{6}-(.+)$/);
+  return m ? m[1] : base;
+}
+
+// The id used for matching against worktree paths/branch names AND (see
+// archiveRelativeId below) for locating the archived copy. For a per-spec
+// subdirectory this is the PARENT's id (worktree/branch naming reflects the
+// parent, not the per-spec leaf); otherwise it's this dir's own id.
+function specSlugFromRunDir(runDir) {
+  const base = path.basename(runDir);
+  if (isSpecLeaf(base)) return runIdFromRunDir(path.dirname(runDir));
+  return runIdFromRunDir(runDir);
+}
+
+// Path segment(s), relative to .claude-tweaks/pipelines/archive/, where this
+// run's archived copy lives -- '{parent-run-id}/spec-{N}' for a per-spec
+// subdirectory (preserving archive-merged.js's own nesting), or just the
+// run's own id otherwise.
+function archiveRelativeId(runDir) {
+  const base = path.basename(runDir);
+  if (isSpecLeaf(base)) return path.join(runIdFromRunDir(path.dirname(runDir)), base);
+  return runIdFromRunDir(runDir);
+}
+
 function resolveArchivedRunDir(runDir, repoRoot) {
   if (fs.existsSync(runDir)) return runDir;
-  const archived = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', path.basename(runDir));
+  const archived = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', archiveRelativeId(runDir));
   if (fs.existsSync(archived)) return archived;
   return null;
 }
@@ -69,6 +105,7 @@ function readExpectations(runDir) {
   } catch {
     return { ok: false, reason: 'missing' };
   }
+  if (data === null || typeof data !== 'object') return { ok: false, reason: 'missing' };
   if (data.version !== SUPPORTED_EXPECTATIONS_VERSION) {
     return { ok: false, reason: 'unsupported-version', version: data.version };
   }
@@ -87,45 +124,50 @@ function expectationsUnknownDetail(expectations) {
 
 // ---- plans + ledger removal ------------------------------------------------
 //
-// docs/superpowers/plans/ and docs/plans/ are relative to the repo root, not
-// runDir -- run readdirSync against process.cwd() (the checkout the CLI runs
-// from), matching how build/wrap-up already resolve these paths elsewhere.
-function specSlugFromRunDir(runDir) {
-  // run-dir basenames are '{ISO-timestamp}-{spec-slug}' or, for a
-  // multi-record spec-{N}/ subdirectory, just 'spec-{N}'. Strip a leading
-  // ISO-timestamp prefix (YYYY-MM-DDTHHMMSS-) when present; otherwise the
-  // whole basename is already the slug.
-  const base = path.basename(runDir);
-  const m = base.match(/^\d{4}-\d{2}-\d{2}T\d{6}-(.+)$/);
-  return m ? m[1] : base;
-}
-
-registerCheck('plans-ledger', ({ runDir }) => {
-  const slug = specSlugFromRunDir(runDir);
-  const plansDir = path.join(process.cwd(), 'docs', 'superpowers', 'plans');
-  const ledgerDir = path.join(process.cwd(), 'docs', 'plans');
-  const matches = [];
-  for (const dir of [plansDir, ledgerDir]) {
-    if (!fs.existsSync(dir)) continue;
-    for (const entry of fs.readdirSync(dir)) {
-      if (entry.includes(slug)) matches.push(path.join(dir, entry));
-    }
+// docs/superpowers/plans/ and docs/plans/ hold ephemeral scratch (execution
+// plans; design-wrapper cache JSON) that should be untracked by the time
+// wrap-up finishes -- slug-matching a plan's TOPIC filename against the
+// run's SPEC identity essentially never matches (they come from unrelated
+// naming schemes), so this scans for untracked entries via `git status`
+// instead. repoRoot -- not runDir, not process.cwd() -- since these paths
+// are relative to the repo root and the CLI may be invoked from a worktree.
+registerCheck('plans-ledger', ({ repoRoot, deps }) => {
+  let status;
+  try {
+    status = deps.git(['status', '--porcelain', '--', 'docs/superpowers/plans', 'docs/plans'], repoRoot);
+  } catch (err) {
+    return { result: 'unknown', detail: `git status failed: ${err.message}` };
   }
-  if (matches.length) return { result: 'fail', detail: `${matches.length} file(s) remain: ${matches.join(', ')}` };
+  const leftovers = status.split('\n').filter((l) => l.startsWith('??')).map((l) => l.slice(3).trim());
+  // .superpowers/sdd/ is gitignored entirely so it never shows up in `git
+  // status` even with the paths above -- check it directly. Any entry
+  // present there is a leftover SDD ledger workspace that should have been
+  // deleted at wrap-up.
+  const sddDir = path.join(repoRoot, '.superpowers', 'sdd');
+  let sddEntries = [];
+  try {
+    if (fs.existsSync(sddDir)) sddEntries = fs.readdirSync(sddDir).map((e) => path.join('.superpowers/sdd', e));
+  } catch { /* unreadable dir -- treat as no entries rather than throwing */ }
+  const all = [...leftovers, ...sddEntries];
+  if (all.length) return { result: 'fail', detail: `${all.length} leftover artifact(s) remain: ${all.join(', ')}` };
   return { result: 'pass', detail: '' };
 });
 
 // ---- design caches deleted --------------------------------------------------
-registerCheck('design-caches', ({ runDir, expectations }) => {
+registerCheck('design-caches', ({ repoRoot, expectations, deps }) => {
   const deferred = deferredSet(expectations);
   if (deferred.has('design-caches')) return { result: 'skip', detail: 'deferred to parent console' };
-  const slug = specSlugFromRunDir(runDir);
-  const cacheDir = path.join(process.cwd(), 'docs', 'plans');
+  const cacheDir = path.join(repoRoot, 'docs', 'plans');
   if (!fs.existsSync(cacheDir)) return { result: 'pass', detail: '' };
+  let status;
+  try {
+    status = deps.git(['status', '--porcelain', '--', 'docs/plans'], repoRoot);
+  } catch (err) {
+    return { result: 'unknown', detail: `git status failed: ${err.message}` };
+  }
   const suffixes = ['-audit.json', '-recommendations.json', '-declined.json'];
-  const matches = fs.readdirSync(cacheDir).filter(
-    (entry) => entry.includes(slug) && suffixes.some((suf) => entry.endsWith(suf))
-  );
+  const untracked = status.split('\n').filter((l) => l.startsWith('??')).map((l) => l.slice(3).trim());
+  const matches = untracked.filter((f) => suffixes.some((suf) => f.endsWith(suf)));
   if (matches.length) return { result: 'fail', detail: `${matches.length} cache file(s) remain: ${matches.join(', ')}` };
   return { result: 'pass', detail: '' };
 });
@@ -136,13 +178,11 @@ registerCheck('design-caches', ({ runDir, expectations }) => {
 // archiveRunDir() produces: the original .claude-tweaks/pipelines/{run-id}/
 // path is gone, .claude-tweaks/pipelines/archive/{run-id}/ exists, and its
 // work/ subdirectory (when the run had one) is git-tracked at the new path.
-registerCheck('run-dir-archived', ({ runDir, expectations, deps }) => {
+registerCheck('run-dir-archived', ({ originalRunDir, repoRoot, expectations, deps }) => {
   const deferred = deferredSet(expectations);
   if (deferred.has('run-dir-archival')) return { result: 'skip', detail: 'deferred to parent console' };
-  const repoRoot = process.cwd();
-  const runId = path.basename(runDir);
-  const originalPath = path.join(repoRoot, '.claude-tweaks', 'pipelines', runId);
-  const archivePath = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', runId);
+  const originalPath = path.resolve(originalRunDir);
+  const archivePath = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', archiveRelativeId(originalRunDir));
   if (fs.existsSync(originalPath)) return { result: 'fail', detail: `original path still present: ${originalPath}` };
   if (!fs.existsSync(archivePath)) return { result: 'fail', detail: `archive path missing: ${archivePath}` };
   const archivedWork = path.join(archivePath, 'work');
@@ -203,18 +243,40 @@ function resolvedIssueNumbers(runDir) {
 }
 
 // ---- carrier commit -----------------------------------------------------------
+//
+// Under `worktree` mode + `integration-model: pr-first`, there is
+// deliberately no `Fixes #{n}` commit on the branch -- the run's draft PR
+// body carries that line instead (execution-and-verification.md's
+// worktree/pr-first note). Only fall back to the PR body when a PR number
+// actually resolves for this run (resolvePrNumber); local-merge /
+// current-branch runs have no PR, and the branch-log commit is their only
+// carrier -- missing there stays a genuine `fail`, unchanged from before.
 registerCheck('carrier-commit', ({ runDir, base, deps }) => {
   const issues = resolvedIssueNumbers(runDir);
   if (!issues.length) return { result: 'skip', detail: 'no resolved issue numbers found (conversation-based work, or no materialized headers and no expectations issues)' };
+  const prNumber = resolvePrNumber(runDir);
+  let prBody = null; // cached across issues once fetched -- never re-fetched per issue
+  let prBodyFetched = false;
   const missing = [];
   for (const n of issues) {
     let out;
     try {
-      out = deps.git(['log', '--grep', `Fixes #${n}`, `${base}..HEAD`, '--oneline'], process.cwd());
+      out = deps.git(['log', `--grep=Fixes #${n}`, `${base}..HEAD`, '--oneline'], process.cwd());
     } catch (err) {
       return { result: 'unknown', detail: `git log failed: ${err.message}` };
     }
-    if (!out.trim()) missing.push(n);
+    if (out.trim()) continue;
+
+    if (!prNumber) { missing.push(n); continue; }
+    if (!prBodyFetched) {
+      prBodyFetched = true;
+      try {
+        prBody = JSON.parse(deps.gh(['pr', 'view', String(prNumber), '--json', 'body'], process.cwd())).body || '';
+      } catch (err) {
+        return { result: 'unknown', detail: `gh pr view failed for PR #${prNumber}: ${err.message}` };
+      }
+    }
+    if (!prBody.includes(`Fixes #${n}`)) missing.push(n);
   }
   if (missing.length) return { result: 'fail', detail: `no carrier commit found for #${missing.join(', #')}` };
   return { result: 'pass', detail: '' };
@@ -471,9 +533,11 @@ registerCheck('upstream-feedback', ({ expectations, deps }) => {
   return { result: 'pass', detail: '' };
 });
 
-function runVerify({ runDir, base, deps = {} }) {
+function runVerify({ runDir, originalRunDir, base, repoRoot, deps = {} }) {
   const git = deps.git || defaultGit;
   const gh = deps.gh || defaultGh;
+  const resolvedRepoRoot = repoRoot || process.cwd();
+  const resolvedOriginalRunDir = originalRunDir || runDir;
   const expectations = runDir === null ? null : readExpectations(runDir);
 
   // Null runDir (resolveArchivedRunDir found the run neither at its original
@@ -487,21 +551,30 @@ function runVerify({ runDir, base, deps = {} }) {
         detail: 'run dir not found at original or archive path',
       }))
     : CHECKS.map(({ name, fn }) => {
-        const { result, detail } = fn({ runDir, base, expectations, deps: { git, gh } });
+        const { result, detail } = fn({
+          runDir, originalRunDir: resolvedOriginalRunDir, base, repoRoot: resolvedRepoRoot,
+          expectations, deps: { git, gh },
+        });
         return { check: name, result, detail: detail || '' };
       });
 
-  const exitCode = rows.some((r) => r.result === 'fail') ? 3 : 0;
+  // A run that could not be located at all is not a clean pass -- surface it
+  // as exit code 3 too, same as any other failing check.
+  const exitCode = runDir === null || rows.some((r) => r.result === 'fail') ? 3 : 0;
   return { rows, exitCode };
+}
+
+function sanitizeCell(text) {
+  return String(text).replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
 }
 
 function renderVerifyTable(rows) {
   const lines = ['| Check | Result | Detail |', '|---|---|---|'];
   for (const row of rows) {
     const resultCell = (row.result === 'skip' || row.result === 'unknown') && row.detail
-      ? `${row.result} (${row.detail})`
+      ? `${row.result} (${sanitizeCell(row.detail)})`
       : row.result;
-    const detailCell = row.result === 'pass' ? '' : (row.result === 'fail' ? row.detail : '');
+    const detailCell = row.result === 'fail' ? sanitizeCell(row.detail) : '';
     lines.push(`| ${row.check} | ${resultCell} | ${detailCell} |`);
   }
   return lines.join('\n');

@@ -12,6 +12,18 @@ function makeTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
+// plans-ledger's sdd-leftover check reads repoRoot's own filesystem directly
+// (not via deps.git), so any test whose assertions depend on an exact
+// failing-row set or a specific exitCode -- but isn't itself exercising
+// plans-ledger/design-caches -- must pass an isolated repoRoot rather than
+// let it default to process.cwd(). This repo's own worktree legitimately has
+// real leftover docs/superpowers/plans and .superpowers/sdd entries at any
+// given time (that's the exact vacuous-check bug this fix round closes), so
+// relying on the default would make those tests depend on live repo state.
+function makeCleanRepoRoot() {
+  return makeTmpDir('verify-clean-reporoot-');
+}
+
 test('renderVerifyTable renders pass/fail bare and skip/unknown with folded detail', () => {
   const md = renderVerifyTable([
     { check: 'plans-ledger', result: 'pass', detail: '' },
@@ -23,6 +35,29 @@ test('renderVerifyTable renders pass/fail bare and skip/unknown with folded deta
   assert.match(md, /\| worktree-removed \| fail \| worktree still listed \|/);
   assert.match(md, /\| memory-updates \| skip \(nothing recorded\) \|/);
   assert.match(md, /\| acceptance-labeling \| unknown \(gh absent\) \|/);
+});
+
+// A multi-line/pipe-containing detail (e.g. a raw multi-line git fatal
+// error) is inserted verbatim into the wrap-up report per the spec -- an
+// un-sanitized cell would corrupt the markdown table (record #900 fix
+// round, I4).
+test('renderVerifyTable sanitizes a multi-line/pipe-containing detail into a single safe cell', () => {
+  const md = renderVerifyTable([
+    { check: 'run-dir-archived', result: 'fail', detail: "git ls-files failed:\nfatal: not a | git repository\n(or any parent up to mount point /)" },
+    { check: 'plans-ledger', result: 'unknown', detail: 'git status failed:\nfatal: some multi-line | error' },
+  ]);
+  const lines = md.split('\n');
+  // header + separator + one line per row -- no extra lines from an embedded newline
+  assert.strictEqual(lines.length, 4, `expected exactly 4 lines, got ${lines.length}:\n${md}`);
+  for (const line of lines.slice(2)) {
+    // every actual table row is exactly 3 pipe-delimited cells (4 pipe
+    // characters: leading, two separators, trailing) once escaped
+    // pipes are excluded -- an unescaped embedded '|' would add a
+    // spurious 5th field.
+    const unescaped = line.replace(/\\\|/g, '');
+    assert.strictEqual((unescaped.match(/\|/g) || []).length, 4, `row has an unescaped '|' breaking its cell count: ${line}`);
+  }
+  assert.match(md, /git ls-files failed: fatal: not a \\\| git repository \(or any parent up to mount point \/\)/);
 });
 
 // Task 1's original version of this test asserted `rows` deepStrictEqual []
@@ -84,22 +119,24 @@ test('AC1: fixture run-dir with one unexecuted approved action exits 3 naming th
   // never removed.
   fs.mkdirSync(originalPath, { recursive: true });
   writeExpectations(originalPath, { version: 1, memory: [], upstream: [], deferred: ['run-dir-archival'] });
+  const repoRoot = makeCleanRepoRoot();
   try {
     const fakeGitDirty = (args) => {
       if (args[0] === 'worktree') return `worktree /repo/.claude/worktrees/flow-${runId}\nbranch refs/heads/worktree-flow-${runId}\n\n`;
       return '';
     };
-    const dirtyResult = runVerify({ runDir: originalPath, base: 'main', deps: { git: fakeGitDirty, gh: () => 'gh version 2.0.0' } });
+    const dirtyResult = runVerify({ runDir: originalPath, base: 'main', repoRoot, deps: { git: fakeGitDirty, gh: () => 'gh version 2.0.0' } });
     assert.strictEqual(dirtyResult.exitCode, 3);
     const failingRows = dirtyResult.rows.filter((r) => r.result === 'fail');
     assert.strictEqual(failingRows.length, 1, `expected exactly one failing check, got: ${failingRows.map((r) => r.check).join(', ')}`);
     assert.strictEqual(failingRows[0].check, 'worktree-removed');
 
     const fakeGitClean = () => '';
-    const cleanResult = runVerify({ runDir: originalPath, base: 'main', deps: { git: fakeGitClean, gh: () => 'gh version 2.0.0' } });
+    const cleanResult = runVerify({ runDir: originalPath, base: 'main', repoRoot, deps: { git: fakeGitClean, gh: () => 'gh version 2.0.0' } });
     assert.strictEqual(cleanResult.exitCode, 0);
   } finally {
     fs.rmSync(originalPath, { recursive: true, force: true });
+    fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 });
 
@@ -109,10 +146,11 @@ test('AC2: gh absent renders acceptance-labeling unknown, exit code reflects onl
   fs.mkdirSync(originalPath, { recursive: true });
   writeSpecFile(originalPath, '900', 900);
   writeExpectations(originalPath, { version: 1, memory: [], upstream: [], deferred: ['run-dir-archival'] });
+  const repoRoot = makeCleanRepoRoot();
   try {
     const throwingGh = () => { throw new Error('command not found: gh'); };
     const cleanGit = (args) => (args[0] === 'log' ? 'abc1234 fix\n' : '');
-    const result = runVerify({ runDir: originalPath, base: 'main', deps: { git: cleanGit, gh: throwingGh } });
+    const result = runVerify({ runDir: originalPath, base: 'main', repoRoot, deps: { git: cleanGit, gh: throwingGh } });
     const acceptanceRow = result.rows.find((r) => r.check === 'acceptance-labeling');
     assert.strictEqual(acceptanceRow.result, 'unknown');
     assert.match(acceptanceRow.detail, /gh absent/);
@@ -122,6 +160,7 @@ test('AC2: gh absent renders acceptance-labeling unknown, exit code reflects onl
     assert.strictEqual(result.exitCode, 0);
   } finally {
     fs.rmSync(originalPath, { recursive: true, force: true });
+    fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 });
 
@@ -139,38 +178,109 @@ test('runVerify sets exitCode 3 when any check fails (forced-fail probe)', () =>
   assert.strictEqual(result.exitCode, 3);
 });
 
-test('plans-ledger check passes when no matching plan/ledger files remain', () => {
-  const runDir = makeTmpDir('verify-plans-ledger-clean-');
-  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
-  const row = result.rows.find((r) => r.check === 'plans-ledger');
-  assert.strictEqual(row.result, 'pass');
-});
+// plans-ledger/design-caches now scan `git status --porcelain` for untracked
+// entries (record #900 fix round, C3) rather than slug-matching filenames --
+// topic-slugged plan files (superpowers:writing-plans) essentially never
+// share the run's own spec-identity slug, which made the old check vacuous.
+// Every test below passes its own isolated repoRoot fixture, and asserts on
+// the exact args/cwd `deps.git` was called with, to prove the check
+// genuinely calls out to git status rather than falling back to some other
+// (still-vacuous) heuristic.
 
-test('plans-ledger check fails when a matching plan file still exists', () => {
-  // A run-dir basename of 'spec-900' -- the plan file's slug must match it.
-  const runDir = makeTmpDir('verify-plans-ledger-dirty-');
-  const plansDir = path.join(process.cwd(), 'docs', 'superpowers', 'plans');
-  fs.mkdirSync(plansDir, { recursive: true });
-  const stray = path.join(plansDir, `2099-01-01-spec-900-leftover.md`);
-  fs.writeFileSync(stray, '# stray');
+test('plans-ledger check passes when git status reports no untracked entries and no sdd leftovers', () => {
+  const runDir = makeTmpDir('verify-plans-ledger-clean-');
+  const repoRoot = makeCleanRepoRoot();
   try {
-    const result = runVerify({
-      runDir: path.join(path.dirname(runDir), 'spec-900'),
-      base: 'main', deps: { git: () => '', gh: () => '' },
-    });
+    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'plans-ledger');
-    assert.strictEqual(row.result, 'fail');
-    assert.match(row.detail, /spec-900/);
+    assert.strictEqual(row.result, 'pass');
   } finally {
-    fs.rmSync(stray, { force: true });
+    fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 });
 
-test('design-caches check skips when no *-audit.json/*-recommendations.json/*-declined.json remain', () => {
+test('plans-ledger check fails when git status reports an untracked plan file, naming it', () => {
+  const runDir = makeTmpDir('verify-plans-ledger-dirty-');
+  const repoRoot = makeCleanRepoRoot();
+  const calls = [];
+  const fakeGit = (args, cwd) => {
+    calls.push({ args, cwd });
+    if (args[0] === 'status') return '?? docs/superpowers/plans/2099-01-01-some-topic.md\n';
+    return '';
+  };
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: fakeGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(row.result, 'fail');
+    assert.match(row.detail, /2099-01-01-some-topic\.md/);
+    const statusCall = calls.find((c) => c.args[0] === 'status');
+    assert.deepStrictEqual(statusCall.args, ['status', '--porcelain', '--', 'docs/superpowers/plans', 'docs/plans']);
+    assert.strictEqual(statusCall.cwd, repoRoot, 'git status must run against repoRoot, not process.cwd()');
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('plans-ledger check fails when a .superpowers/sdd/ leftover directory is present, naming it', () => {
+  const runDir = makeTmpDir('verify-plans-ledger-sdd-');
+  const repoRoot = makeCleanRepoRoot();
+  const sddDir = path.join(repoRoot, '.superpowers', 'sdd', '2026-08-21-some-topic');
+  fs.mkdirSync(sddDir, { recursive: true });
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(row.result, 'fail');
+    assert.match(row.detail, /2026-08-21-some-topic/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('design-caches check passes when cache dir does not exist', () => {
   const runDir = makeTmpDir('verify-design-caches-clean-');
-  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
-  const row = result.rows.find((r) => r.check === 'design-caches');
-  assert.strictEqual(row.result, 'pass');
+  const repoRoot = makeCleanRepoRoot();
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'design-caches');
+    assert.strictEqual(row.result, 'pass');
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('design-caches check fails when an untracked *-audit.json cache file remains', () => {
+  const runDir = makeTmpDir('verify-design-caches-dirty-');
+  const repoRoot = makeCleanRepoRoot();
+  fs.mkdirSync(path.join(repoRoot, 'docs', 'plans'), { recursive: true });
+  const fakeGit = (args) => {
+    if (args[0] === 'status') return '?? docs/plans/some-topic-audit.json\n';
+    return '';
+  };
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: fakeGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'design-caches');
+    assert.strictEqual(row.result, 'fail');
+    assert.match(row.detail, /some-topic-audit\.json/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('design-caches check does not fail on a TRACKED file matching a cache suffix (only untracked counts)', () => {
+  const runDir = makeTmpDir('verify-design-caches-tracked-');
+  const repoRoot = makeCleanRepoRoot();
+  fs.mkdirSync(path.join(repoRoot, 'docs', 'plans'), { recursive: true });
+  // git status --porcelain never reports a clean, committed file at all --
+  // so an empty status output (no '??' line) is exactly what a tracked
+  // cache-suffixed file looks like to this check.
+  const fakeGit = (args) => (args[0] === 'status' ? '' : '');
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: fakeGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'design-caches');
+    assert.strictEqual(row.result, 'pass');
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
 });
 
 test('run-dir-archived check fails when original path still exists', () => {
@@ -222,6 +332,106 @@ test('worktree-removed check passes when no matching worktree is listed', () => 
   assert.strictEqual(row.result, 'pass');
 });
 
+// ---- multi-spec spec-{N}/ subdirectory resolution (record #900 fix round, C2/I2) ----
+//
+// A multi-spec `/flow` run exports the per-spec `spec-{N}/` subdirectory as
+// `$PIPELINE_RUN_DIR`, while the worktree/branch and the archived layout are
+// both named from the PARENT run's id, never the bare 'spec-{N}' leaf. The
+// tests below prove the corrected resolution against that shape, and
+// (worktree-removed) prove the OLD (pre-fix) logic would have wrongly
+// reported 'pass' by asserting the failure directly against the same
+// fixture shape the live whole-branch review hit.
+
+test('worktree-removed check fails when the worktree/branch are named from the PARENT run id (multi-spec spec-{N}/ subdirectory)', () => {
+  const parentId = '2026-08-21T075329-spec-343-900';
+  const runDir = path.join(os.tmpdir(), parentId, 'spec-900');
+  const fakeGit = (args) => {
+    if (args[0] === 'worktree') {
+      return 'worktree /repo/.claude/worktrees/flow-spec-343-900\nbranch refs/heads/worktree-flow-spec-343-900\n\n';
+    }
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'worktree-removed');
+  // Old (pre-fix) behavior: specSlugFromRunDir('spec-900') === 'spec-900',
+  // which is not a substring of the worktree path/branch
+  // ('flow-spec-343-900'/'worktree-flow-spec-343-900') -- match() would
+  // find nothing and this row would wrongly report 'pass' even though the
+  // worktree is still live. The fix derives the slug from the PARENT run id
+  // ('spec-343-900') instead, which IS a substring, so this must fail.
+  assert.strictEqual(row.result, 'fail');
+  assert.match(row.detail, /flow-spec-343-900/);
+});
+
+test('run-dir-archived check passes when the archived copy is nested at archive/{parent}/spec-{N}/work/, tracked', () => {
+  const parentId = 'test-archived-parent-900';
+  const repoRoot = makeCleanRepoRoot();
+  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', parentId, 'spec-900');
+  const archiveSpecDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', parentId, 'spec-900');
+  const archivedWork = path.join(archiveSpecDir, 'work');
+  fs.mkdirSync(archivedWork, { recursive: true });
+  const fakeGit = (args) => (args[0] === 'ls-files' ? `${path.join(archivedWork, '900-spec.md')}\n` : '');
+  try {
+    const result = runVerify({ runDir, originalRunDir: runDir, base: 'main', repoRoot, deps: { git: fakeGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'run-dir-archived');
+    assert.strictEqual(row.result, 'pass');
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-dir-archived check fails naming the original path when it is still present (multi-spec subdirectory)', () => {
+  const parentId = 'test-archived-parent-901';
+  const repoRoot = makeCleanRepoRoot();
+  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', parentId, 'spec-900');
+  fs.mkdirSync(runDir, { recursive: true });
+  try {
+    const result = runVerify({ runDir, originalRunDir: runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'run-dir-archived');
+    assert.strictEqual(row.result, 'fail');
+    assert.match(row.detail, /original path still present/);
+    assert.match(row.detail, /spec-900/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-dir-archived check fails naming the correct NESTED archive path when it is missing (multi-spec subdirectory)', () => {
+  const parentId = 'test-archived-parent-902';
+  const repoRoot = makeCleanRepoRoot();
+  // Original path does not exist (already "moved") but nothing was placed at
+  // the correctly-nested archive path -- this must name the nested path
+  // (archive/{parent}/spec-900), not a flattened archive/spec-900.
+  const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', parentId, 'spec-900');
+  try {
+    const result = runVerify({ runDir, originalRunDir: runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'run-dir-archived');
+    assert.strictEqual(row.result, 'fail');
+    assert.match(row.detail, /archive path missing/);
+    const expectedArchivePath = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', parentId, 'spec-900');
+    assert.match(row.detail, new RegExp(expectedArchivePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-dir-archived check still behaves as before for a single-spec (non-subdirectory) run dir (regression)', () => {
+  const runId = 'test-archived-singlespec-900';
+  const repoRoot = makeCleanRepoRoot();
+  const archivePath = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', runId);
+  fs.mkdirSync(archivePath, { recursive: true });
+  try {
+    const result = runVerify({
+      runDir: path.join(repoRoot, '.claude-tweaks', 'pipelines', runId),
+      base: 'main', repoRoot, deps: { git: () => '', gh: () => '' },
+    });
+    const row = result.rows.find((r) => r.check === 'run-dir-archived');
+    assert.strictEqual(row.result, 'pass');
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
 function writeSpecFile(runDir, specId, record) {
   const workDir = path.join(runDir, 'work');
   fs.mkdirSync(workDir, { recursive: true });
@@ -255,6 +465,75 @@ test('carrier-commit check skips when no resolved issues found (conversation-bas
   const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
   const row = result.rows.find((r) => r.check === 'carrier-commit');
   assert.strictEqual(row.result, 'skip');
+});
+
+// ---- carrier-commit PR-body fallback (record #900 fix round, C1) ----
+//
+// Under `worktree` mode + `integration-model: pr-first`, there is
+// deliberately no `Fixes #{n}` commit on the branch -- the run's draft PR
+// body carries that line instead. The four tests below pin the fallback:
+// PR body has it -> pass; neither has it -> fail; gh unavailable when the
+// fallback is actually needed -> unknown; branch log already has it -> pass
+// without ever touching gh (proving no wasted call).
+
+test('carrier-commit check passes via the PR body when the branch log has no carrier commit (pr-first)', () => {
+  const runDir = makeTmpDir('verify-carrier-prbody-pass-');
+  writeSpecFile(runDir, '900', 900);
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ pr: { number: 1199 } }));
+  const fakeGit = () => ''; // branch log: nothing found for any issue
+  const prBodyCalls = [];
+  const fakeGh = (args) => {
+    if (args[0] === 'pr' && args[1] === 'view') {
+      prBodyCalls.push(args);
+      return JSON.stringify({ body: 'Some description.\n\nFixes #900\n' });
+    }
+    return ''; // other checks (e.g. acceptance-labeling) also call gh in this same runVerify pass
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'pass');
+  assert.strictEqual(prBodyCalls.length, 1, 'PR body must be fetched exactly once');
+  assert.deepStrictEqual(prBodyCalls[0], ['pr', 'view', '1199', '--json', 'body']);
+});
+
+test('carrier-commit check fails naming the issue when neither the branch log nor the PR body carries it', () => {
+  const runDir = makeTmpDir('verify-carrier-prbody-fail-');
+  writeSpecFile(runDir, '900', 900);
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ pr: { number: 1199 } }));
+  const fakeGit = () => '';
+  const fakeGh = () => JSON.stringify({ body: 'Unrelated PR description, no closing keyword.' });
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'fail');
+  assert.match(row.detail, /900/);
+});
+
+test('carrier-commit check renders unknown when the PR-body fallback is needed but gh is unavailable', () => {
+  const runDir = makeTmpDir('verify-carrier-prbody-ghabsent-');
+  writeSpecFile(runDir, '900', 900);
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ pr: { number: 1199 } }));
+  const fakeGit = () => '';
+  const throwingGh = () => { throw new Error('command not found: gh'); };
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: throwingGh } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'unknown');
+  assert.match(row.detail, /1199/);
+});
+
+test('carrier-commit check passes from the branch log alone without ever calling gh for a PR body', () => {
+  const runDir = makeTmpDir('verify-carrier-branchlog-nogh-');
+  writeSpecFile(runDir, '900', 900);
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ pr: { number: 1199 } }));
+  const fakeGit = (args) => (args.some((a) => a === '--grep=Fixes #900') ? 'abc1234 Fix wrap-up verify verb\n' : '');
+  const prBodyCalls = [];
+  const fakeGh = (args) => {
+    if (args[0] === 'pr' && args[1] === 'view') prBodyCalls.push(args);
+    return ''; // other checks (e.g. acceptance-labeling) also call gh in this same runVerify pass
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'pass');
+  assert.deepStrictEqual(prBodyCalls, [], 'carrier-commit must never fetch a PR body when the branch log already carries the commit');
 });
 
 test('reference-repairs check skips when engine-state.json has no applied references findings', () => {
@@ -460,6 +739,15 @@ test('memory-updates check renders unknown when expectations file is absent', ()
   assert.match(row.detail, /expectations file missing/);
 });
 
+test('memory-updates check does not throw on a verify-expectations.json containing literal null, treating it as missing', () => {
+  const runDir = makeTmpDir('verify-memory-nullexp-');
+  fs.writeFileSync(path.join(runDir, 'verify-expectations.json'), 'null');
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'memory-updates');
+  assert.strictEqual(row.result, 'unknown');
+  assert.match(row.detail, /expectations file missing/);
+});
+
 test('memory-updates check skips when expectations.memory is present but empty', () => {
   const runDir = makeTmpDir('verify-memory-empty-');
   writeExpectations(runDir, { version: 1, memory: [], upstream: [] });
@@ -550,7 +838,9 @@ test('runVerify short-circuits to an all-unknown row set when runDir is null, ne
   });
 
   const result = runVerify({ runDir: null, base: 'main', deps: {} });
-  assert.strictEqual(result.exitCode, 0);
+  // A run that could not be located at all is not a clean pass -- exit 3,
+  // same as any other failing check (record #900 fix round, I3).
+  assert.strictEqual(result.exitCode, 3);
   const probeRow = result.rows.find((r) => r.check === '__test-null-guard-probe__');
   assert.deepStrictEqual(probeRow, {
     check: '__test-null-guard-probe__',
