@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // bin/wrap-up-engine.js — CLI wiring the wrap-up curation engine modules
-// (facts.js, engine-plan.js, engine-record.js, engine-render.js) into four
-// verbs: `plan` (gather facts, build the worklist, initialize engine state),
-// `record` (validate and store one judgment payload), `amend` (correct an
-// already-recorded row without hand-editing engine-state.json), `render`
-// (produce the Phase 2 phase-trace table or the Review Console's engine-fed
-// sections).
+// (facts.js, engine-plan.js, engine-record.js, engine-render.js, engine-verify.js)
+// into five verbs: `plan` (gather facts, build the worklist, initialize engine
+// state), `record` (validate and store one judgment payload), `amend`
+// (correct an already-recorded row without hand-editing engine-state.json),
+// `render` (produce the Phase 2 phase-trace table or the Review Console's
+// engine-fed sections), `verify` (run the closure-gate checks against a run
+// dir).
 //
 // Exit codes: 0 for success (including a `render --strict` completeness
 // failure is the one deliberate exception — see below); 1 when the
@@ -18,7 +19,9 @@
 // plan time — since --signals is parsed before any engine work starts, an
 // unparseable value is invocation shape, not payload). `render --strict` is
 // documented separately: it prints first, THEN exits 2 when rows are
-// missing, so the hole is visible AND fatal.
+// missing, so the hole is visible AND fatal. `verify` has its own additional
+// exit code, 3, on any `fail` row (or a run dir that couldn't be located at
+// all) — 0/1/2 keep their meanings above unchanged.
 'use strict';
 
 const { execFileSync } = require('node:child_process');
@@ -31,6 +34,7 @@ const { gatherFacts } = require('./lib/wrap-up/facts');
 const { buildWorklist } = require('./lib/wrap-up/engine-plan');
 const { initState, recordResult, amendResult } = require('./lib/wrap-up/engine-record');
 const { renderTrace, renderConsoleSections, renderConsoleSectionsMulti, strictCheck } = require('./lib/wrap-up/engine-render');
+const { runVerify, renderVerifyTable, resolveArchivedRunDir } = require('./lib/wrap-up/engine-verify');
 
 const USAGE = [
   'usage: wrap-up-engine.js plan --run-dir <dir> --base <sha> [--ceremony <profile>] [--skill-budget n] [--doc-budget n] [--signals <json>] [--dry-run]',
@@ -38,6 +42,7 @@ const USAGE = [
   '       wrap-up-engine.js amend --run-dir <dir>   (payload JSON on stdin)',
   '       wrap-up-engine.js render --run-dir <dir> [--strict] [--section trace|console] [--start-at n]',
   '       wrap-up-engine.js render --section console --spec-state <id>=<path> [--spec-state <id>=<path> ...] [--start-at n] [--strict]   (no --run-dir)',
+  '       wrap-up-engine.js verify --run-dir <dir> --base <ref>',
   '',
 ].join('\n');
 
@@ -326,6 +331,17 @@ function runRender(args) {
   }
 }
 
+function runVerifyVerb(args) {
+  if (!args.runDir || !args.base) usageExit();
+  const repoRoot = resolveRepoRoot(process.cwd());
+  const resolvedDir = resolveArchivedRunDir(args.runDir, repoRoot);
+  const { rows, exitCode } = runVerify({ runDir: resolvedDir, originalRunDir: args.runDir, base: args.base, repoRoot, deps: {} });
+  process.stdout.write(`${renderVerifyTable(rows)}\n`);
+  // Never process.exit() right after a large write -- can truncate stdout on
+  // a pipe (see MEMORY.md's async-write-vs-process-exit-race incident).
+  process.exitCode = exitCode;
+}
+
 function main() {
   const verb = process.argv[2];
   const args = parseArgs(process.argv.slice(3));
@@ -355,6 +371,7 @@ function main() {
   if (verb === 'record') { runRecord(args); return; }
   if (verb === 'amend') { runAmend(args); return; }
   if (verb === 'render') { runRender(args); return; }
+  if (verb === 'verify') { runVerifyVerb(args); return; }
 
   usageExit();
 }
