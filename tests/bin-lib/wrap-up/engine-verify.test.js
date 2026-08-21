@@ -142,6 +142,66 @@ test('worktree-removed check passes when no matching worktree is listed', () => 
   assert.strictEqual(row.result, 'pass');
 });
 
+function writeSpecFile(runDir, specId, record) {
+  const workDir = path.join(runDir, 'work');
+  fs.mkdirSync(workDir, { recursive: true });
+  fs.writeFileSync(path.join(workDir, `${specId}-spec.md`), `---\nrecord: ${record}\n---\n# ${specId}: title\n`);
+}
+
+test('carrier-commit check passes when a Fixes #{n} commit exists in range for every resolved issue', () => {
+  const runDir = makeTmpDir('verify-carrier-pass-');
+  writeSpecFile(runDir, '900', 900);
+  const fakeGit = (args) => {
+    if (args[0] === 'log' && args.some((a) => a.includes('Fixes #900'))) return 'abc1234 Fix wrap-up verify verb\n';
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'pass');
+});
+
+test('carrier-commit check fails when no matching commit exists for a resolved issue', () => {
+  const runDir = makeTmpDir('verify-carrier-fail-');
+  writeSpecFile(runDir, '900', 900);
+  const fakeGit = () => '';
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'fail');
+  assert.match(row.detail, /900/);
+});
+
+test('carrier-commit check skips when no resolved issues found (conversation-based work)', () => {
+  const runDir = makeTmpDir('verify-carrier-skip-');
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'skip');
+});
+
+test('reference-repairs check skips when engine-state.json has no applied references findings', () => {
+  const runDir = makeTmpDir('verify-refrepair-skip-');
+  fs.writeFileSync(path.join(runDir, 'engine-state.json'), JSON.stringify({ version: 1, results: {} }));
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'reference-repairs');
+  assert.strictEqual(row.result, 'skip');
+});
+
+test('reference-repairs check fails when Initiative-Fix commit diff touches a file not in the applied set', () => {
+  const runDir = makeTmpDir('verify-refrepair-fail-');
+  fs.writeFileSync(path.join(runDir, 'engine-state.json'), JSON.stringify({
+    version: 1,
+    results: { references: { findings: [{ action: 'applied', kind: 'broken-link', summary: 'fix', targetPath: 'docs/a.md' }] } },
+  }));
+  const fakeGit = (args) => {
+    if (args[0] === 'log' && args.includes('--grep=Initiative-Fix:')) return 'def5678 Initiative-Fix: repair refs\n';
+    if (args[0] === 'diff-tree' && args.includes('--name-only')) return 'docs/a.md\ndocs/b.md\n';
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'reference-repairs');
+  assert.strictEqual(row.result, 'fail');
+  assert.match(row.detail, /docs\/b\.md/);
+});
+
 test('runVerify short-circuits to an all-unknown row set when runDir is null, never invoking check fns', () => {
   // Throwaway check scoped to this one test — name chosen so it can't collide
   // with a real check name Tasks 2-6 register ('plans-ledger', etc). Its fn

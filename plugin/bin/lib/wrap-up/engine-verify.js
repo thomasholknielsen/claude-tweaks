@@ -133,6 +133,84 @@ registerCheck('worktree-removed', ({ runDir, deps }) => {
   return { result: 'pass', detail: '' };
 });
 
+// ---- resolved-issue-number resolution --------------------------------------
+function resolvedIssueNumbers(runDir) {
+  const workDir = path.join(runDir, 'work');
+  const fromHeaders = [];
+  if (fs.existsSync(workDir)) {
+    for (const entry of fs.readdirSync(workDir)) {
+      if (!entry.endsWith('-spec.md')) continue;
+      const content = fs.readFileSync(path.join(workDir, entry), 'utf8');
+      const m = content.match(/^record:\s*(\d+)/m);
+      if (m) fromHeaders.push(Number(m[1]));
+    }
+  }
+  if (fromHeaders.length) return fromHeaders;
+  const expPath = path.join(runDir, 'verify-expectations.json');
+  if (fs.existsSync(expPath)) {
+    try {
+      const exp = JSON.parse(fs.readFileSync(expPath, 'utf8'));
+      if (Array.isArray(exp.issues)) return exp.issues;
+    } catch { /* malformed expectations file -- Task 5 owns reporting this on the expectations-dependent rows; this fallback simply yields nothing here */ }
+  }
+  return [];
+}
+
+// ---- carrier commit -----------------------------------------------------------
+registerCheck('carrier-commit', ({ runDir, base, deps }) => {
+  const issues = resolvedIssueNumbers(runDir);
+  if (!issues.length) return { result: 'skip', detail: 'no resolved issue numbers found (conversation-based work, or no materialized headers and no expectations issues)' };
+  const missing = [];
+  for (const n of issues) {
+    let out;
+    try {
+      out = deps.git(['log', '--grep', `Fixes #${n}`, `${base}..HEAD`, '--oneline'], process.cwd());
+    } catch (err) {
+      return { result: 'unknown', detail: `git log failed: ${err.message}` };
+    }
+    if (!out.trim()) missing.push(n);
+  }
+  if (missing.length) return { result: 'fail', detail: `no carrier commit found for #${missing.join(', #')}` };
+  return { result: 'pass', detail: '' };
+});
+
+// ---- reference-repair commit scoping -------------------------------------------
+registerCheck('reference-repairs', ({ runDir, base, deps }) => {
+  const statePath = path.join(runDir, 'engine-state.json');
+  if (!fs.existsSync(statePath)) return { result: 'skip', detail: 'no engine-state.json (curation deferred or not run)' };
+  let state;
+  try {
+    state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  } catch (err) {
+    return { result: 'unknown', detail: `could not parse engine-state.json: ${err.message}` };
+  }
+  const findings = (state.results && state.results.references && state.results.references.findings) || [];
+  const applied = findings.filter((f) => f.action === 'applied').map((f) => f.targetPath).filter(Boolean);
+  if (!applied.length) return { result: 'skip', detail: 'no applied reference-repair findings this run' };
+  let commitLog;
+  try {
+    commitLog = deps.git(['log', '--grep=Initiative-Fix:', `${base}..HEAD`, '--format=%H'], process.cwd());
+  } catch (err) {
+    return { result: 'unknown', detail: `git log failed: ${err.message}` };
+  }
+  const commits = commitLog.split('\n').filter(Boolean);
+  if (!commits.length) return { result: 'fail', detail: 'no Initiative-Fix: commit found in range' };
+  const touched = new Set();
+  for (const sha of commits) {
+    let diff;
+    try {
+      diff = deps.git(['diff-tree', '--no-commit-id', '--name-only', '-r', sha], process.cwd());
+    } catch (err) {
+      return { result: 'unknown', detail: `git diff-tree failed for ${sha}: ${err.message}` };
+    }
+    for (const f of diff.split('\n').filter(Boolean)) touched.add(f);
+  }
+  const appliedSet = new Set(applied);
+  const extra = [...touched].filter((f) => !appliedSet.has(f));
+  if (extra.length) return { result: 'fail', detail: `Initiative-Fix: commit touches unrelated file(s): ${extra.join(', ')}` };
+  return { result: 'pass', detail: '' };
+});
+
 function runVerify({ runDir, base, deps = {} }) {
   const git = deps.git || defaultGit;
   const gh = deps.gh || defaultGh;
