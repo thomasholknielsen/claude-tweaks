@@ -72,11 +72,18 @@ function specSlugFromRunDir(runDir) {
 // Path segment(s), relative to .claude-tweaks/pipelines/archive/, where this
 // run's archived copy lives -- '{parent-run-id}/spec-{N}' for a per-spec
 // subdirectory (preserving archive-merged.js's own nesting), or just the
-// run's own id otherwise.
+// run's own id otherwise. Unlike specSlugFromRunDir (worktree/branch
+// substring matching, which needs the ISO-timestamp prefix stripped),
+// archive-merged.js's archiveRunDir() archives to
+// `archive/{path.basename(runDir)}` -- the FULL basename, timestamp
+// included -- so this must use the raw basename, never runIdFromRunDir's
+// stripped form, or a real archived run is never located (regression caught
+// by the record #900 whole-branch re-review: resolveArchivedRunDir returned
+// null for every timestamped run dir).
 function archiveRelativeId(runDir) {
   const base = path.basename(runDir);
-  if (isSpecLeaf(base)) return path.join(runIdFromRunDir(path.dirname(runDir)), base);
-  return runIdFromRunDir(runDir);
+  if (isSpecLeaf(base)) return path.join(path.basename(path.dirname(runDir)), base);
+  return base;
 }
 
 function resolveArchivedRunDir(runDir, repoRoot) {
@@ -131,10 +138,32 @@ function expectationsUnknownDetail(expectations) {
 // naming schemes), so this scans for untracked entries via `git status`
 // instead. repoRoot -- not runDir, not process.cwd() -- since these paths
 // are relative to the repo root and the CLI may be invoked from a worktree.
+//
+// Known, deliberate gap (record #900 whole-branch re-review, finding #3):
+// under this project's default `worktree`/`pr-first` mode, an execution-plan
+// or design-cache file created by THIS run lives in the worktree's own
+// working tree, not the main checkout's -- repoRoot resolves to the main
+// checkout, which cannot see worktree-local untracked state at all (a
+// worktree's untracked files never appear in any other checkout's `git
+// status`, even though they share one object store). So under the default
+// mode this check is effectively blind to the run's own leftovers and can
+// only catch leftovers from a run invoked directly against the main
+// checkout (current-branch / local-merge mode). Fixing this correctly
+// requires threading the invoking checkout's own cwd through separately
+// from repoRoot (repoRoot must stay the main checkout for
+// run-dir-archived's `.claude-tweaks/pipelines/` lookups) and reworking
+// this suite's test fixtures, which default to isolating repoRoot from live
+// repo state specifically to avoid depending on this worktree's own churn
+// (see makeCleanRepoRoot() in the test file) -- deliberately left as a
+// known limitation rather than widened in this fix round; ruled and
+// captured for follow-up rather than silently dropped.
+// `--porcelain=v1 -uall` (not the default `-uno`) so a wholly-untracked
+// directory reports every file inside it individually instead of collapsing
+// to one `?? {dir}/` line the suffix/name filters below could never match.
 registerCheck('plans-ledger', ({ repoRoot, deps }) => {
   let status;
   try {
-    status = deps.git(['status', '--porcelain', '--', 'docs/superpowers/plans', 'docs/plans'], repoRoot);
+    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/superpowers/plans', 'docs/plans'], repoRoot);
   } catch (err) {
     return { result: 'unknown', detail: `git status failed: ${err.message}` };
   }
@@ -142,11 +171,17 @@ registerCheck('plans-ledger', ({ repoRoot, deps }) => {
   // .superpowers/sdd/ is gitignored entirely so it never shows up in `git
   // status` even with the paths above -- check it directly. Any entry
   // present there is a leftover SDD ledger workspace that should have been
-  // deleted at wrap-up.
+  // deleted at wrap-up. Dotfiles (the directory's own `.gitignore`
+  // scaffolding, always present) are not leftovers -- only real content
+  // counts.
   const sddDir = path.join(repoRoot, '.superpowers', 'sdd');
   let sddEntries = [];
   try {
-    if (fs.existsSync(sddDir)) sddEntries = fs.readdirSync(sddDir).map((e) => path.join('.superpowers/sdd', e));
+    if (fs.existsSync(sddDir)) {
+      sddEntries = fs.readdirSync(sddDir)
+        .filter((e) => !e.startsWith('.'))
+        .map((e) => path.join('.superpowers/sdd', e));
+    }
   } catch { /* unreadable dir -- treat as no entries rather than throwing */ }
   const all = [...leftovers, ...sddEntries];
   if (all.length) return { result: 'fail', detail: `${all.length} leftover artifact(s) remain: ${all.join(', ')}` };
@@ -154,6 +189,9 @@ registerCheck('plans-ledger', ({ repoRoot, deps }) => {
 });
 
 // ---- design caches deleted --------------------------------------------------
+//
+// repoRoot, matching plans-ledger's reasoning above (including its known
+// gap under the default worktree/pr-first mode -- see the comment there).
 registerCheck('design-caches', ({ repoRoot, expectations, deps }) => {
   const deferred = deferredSet(expectations);
   if (deferred.has('design-caches')) return { result: 'skip', detail: 'deferred to parent console' };
@@ -161,7 +199,7 @@ registerCheck('design-caches', ({ repoRoot, expectations, deps }) => {
   if (!fs.existsSync(cacheDir)) return { result: 'pass', detail: '' };
   let status;
   try {
-    status = deps.git(['status', '--porcelain', '--', 'docs/plans'], repoRoot);
+    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/plans'], repoRoot);
   } catch (err) {
     return { result: 'unknown', detail: `git status failed: ${err.message}` };
   }

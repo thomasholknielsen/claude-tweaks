@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { renderVerifyTable, runVerify, registerCheck, resolvePrNumber } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
+const { renderVerifyTable, runVerify, registerCheck, resolvePrNumber, resolveArchivedRunDir } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
 const { gitRepo } = require('../../helpers/git-fixtures');
 
 function makeTmpDir(prefix) {
@@ -214,7 +214,11 @@ test('plans-ledger check fails when git status reports an untracked plan file, n
     assert.strictEqual(row.result, 'fail');
     assert.match(row.detail, /2099-01-01-some-topic\.md/);
     const statusCall = calls.find((c) => c.args[0] === 'status');
-    assert.deepStrictEqual(statusCall.args, ['status', '--porcelain', '--', 'docs/superpowers/plans', 'docs/plans']);
+    // '-uall' (not the default '-uno'): a wholly-untracked directory must
+    // report each file individually, never collapse to one '?? {dir}/' line
+    // the suffix/name filters could never match (record #900 whole-branch
+    // re-review, finding #2).
+    assert.deepStrictEqual(statusCall.args, ['status', '--porcelain=v1', '-uall', '--', 'docs/superpowers/plans', 'docs/plans']);
     assert.strictEqual(statusCall.cwd, repoRoot, 'git status must run against repoRoot, not process.cwd()');
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
@@ -427,6 +431,102 @@ test('run-dir-archived check still behaves as before for a single-spec (non-subd
     });
     const row = result.rows.find((r) => r.check === 'run-dir-archived');
     assert.strictEqual(row.result, 'pass');
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+// ---- resolveArchivedRunDir: real (ISO-timestamped) run ids (record #900
+// whole-branch re-review, finding #1 -- Critical regression) ----
+//
+// archive-merged.js's archiveRunDir() archives to
+// `archive/{path.basename(runDir)}` -- the FULL basename, ISO timestamp
+// included. The fix-round's first pass built archiveRelativeId on top of
+// runIdFromRunDir, which STRIPS that timestamp (correct for
+// specSlugFromRunDir's worktree/branch substring matching, wrong here) --
+// every real run id is timestamped, so that version could never locate any
+// real archived run. Every prior archive-path test in this file used a
+// timestamp-free parentId ('test-archived-parent-900', etc.), which never
+// exercises the strip regex at all and masked the bug completely -- these
+// tests use realistic timestamped ids specifically to close that gap.
+test('resolveArchivedRunDir finds a real (ISO-timestamped) single-spec archived run', () => {
+  const runId = '2026-01-01T000000-spec-18';
+  const repoRoot = makeCleanRepoRoot();
+  const archivePath = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', runId);
+  fs.mkdirSync(archivePath, { recursive: true });
+  try {
+    const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', runId);
+    const resolved = resolveArchivedRunDir(runDir, repoRoot);
+    assert.strictEqual(resolved, archivePath, `expected the timestamped archive path, got: ${resolved}`);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('resolveArchivedRunDir finds a real (ISO-timestamped) multi-spec spec-{N}/ archived run, nested under the parent id', () => {
+  const parentId = '2026-01-01T000000-spec-1-2';
+  const repoRoot = makeCleanRepoRoot();
+  const archiveSpecDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', parentId, 'spec-2');
+  fs.mkdirSync(archiveSpecDir, { recursive: true });
+  try {
+    const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', parentId, 'spec-2');
+    const resolved = resolveArchivedRunDir(runDir, repoRoot);
+    assert.strictEqual(resolved, archiveSpecDir, `expected the nested timestamped archive path, got: ${resolved}`);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-dir-archived check passes for a real (ISO-timestamped) single-spec run once correctly archived', () => {
+  const runId = '2026-01-01T000000-spec-19';
+  const repoRoot = makeCleanRepoRoot();
+  const archivePath = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', runId);
+  fs.mkdirSync(archivePath, { recursive: true });
+  try {
+    const runDir = path.join(repoRoot, '.claude-tweaks', 'pipelines', runId);
+    const result = runVerify({ runDir: archivePath, originalRunDir: runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'run-dir-archived');
+    assert.strictEqual(row.result, 'pass', row.detail);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+// ---- plans-ledger / design-caches: '-uall' collapsed-directory fix and
+// dotfile exclusion (record #900 whole-branch re-review, findings #2/#4) ----
+
+test('design-caches check catches an untracked *-audit.json inside a WHOLLY-untracked docs/plans/ directory (real git, no fake)', () => {
+  // A real git repo, not a fake `deps.git`: the default `-uno` porcelain
+  // mode collapses an entirely-untracked directory to one '?? docs/plans/'
+  // line, which the suffix filter can never match -- '-uall' must be what
+  // actually prevents that collapse, so this proves it against real git
+  // output rather than a hand-written fixture that could just as easily
+  // encode the wrong (collapsed) shape.
+  const repo = gitRepo();
+  try {
+    fs.mkdirSync(path.join(repo, 'docs', 'plans'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'docs', 'plans', 'some-topic-audit.json'), '{}');
+    const realGit = (args, cwd) => realExecFileSync('git', args, { cwd, encoding: 'utf8' });
+    const runDir = makeTmpDir('verify-design-caches-realgit-');
+    const result = runVerify({ runDir, base: 'main', repoRoot: repo, deps: { git: realGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'design-caches');
+    assert.strictEqual(row.result, 'fail', row.detail);
+    assert.match(row.detail, /some-topic-audit\.json/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('plans-ledger check does not count .superpowers/sdd/.gitignore itself as a leftover', () => {
+  const runDir = makeTmpDir('verify-plans-ledger-sdd-gitignore-only-');
+  const repoRoot = makeCleanRepoRoot();
+  const sddDir = path.join(repoRoot, '.superpowers', 'sdd');
+  fs.mkdirSync(sddDir, { recursive: true });
+  fs.writeFileSync(path.join(sddDir, '.gitignore'), '*\n');
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(row.result, 'pass', row.detail);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
