@@ -129,7 +129,7 @@ const BULK_CHUNK = 50; // probe-validated 2026-08-20: a 50-alias chunk costs 1 G
 // escape anyway); owner/name travel as typed variables, never placeholders.
 function buildBulkQuery(branches) {
   const fields = branches
-    .map((b, i) => `b${i}: ref(qualifiedName:${JSON.stringify('refs/heads/' + b)}){ associatedPullRequests(first:10){ nodes{ number state mergedAt updatedAt } } }`)
+    .map((b, i) => `b${i}: ref(qualifiedName:${JSON.stringify('refs/heads/' + b)}){ associatedPullRequests(first:10){ nodes{ number state mergedAt updatedAt } pageInfo{ hasNextPage } } }`)
     .join('\n    ');
   return `query($owner:String!,$name:String!){\n  repository(owner:$owner,name:$name){\n    ${fields}\n  }\n}`;
 }
@@ -170,7 +170,17 @@ function resolvePrStatesBulk(repoRoot, branches, opts = {}) {
       const key = 'b' + i;
       if (!(key in repo)) return 'network-failure'; // incomplete alias set — never a silent null
       const node = repo[key];
-      const prs = node && node.associatedPullRequests && node.associatedPullRequests.nodes;
+      const assoc = node && node.associatedPullRequests;
+      // A branch with more than 10 associated PRs would otherwise have its true governing state
+      // fall outside this page — silently mis-classifying it (review finding) rather than failing
+      // loud. Same "never a silent partial" posture as the missing-alias check above: the sibling
+      // sub-issues query (native-dependencies.js) instead routes a truncated parent onto a `retry`
+      // list for a per-item fallback, but that contract doesn't fit here — this module's own
+      // header already commits to "fails the WHOLE call on any incomplete response", so a
+      // truncated page fails the whole chunk the same way an incomplete alias set does, rather
+      // than inventing a second, narrower partial-result shape.
+      if (assoc && assoc.pageInfo && assoc.pageInfo.hasNextPage) return 'network-failure';
+      const prs = assoc && assoc.nodes;
       map.set(chunk[i], node === null ? null : pickGoverningPr(prs, opts));
     }
   }

@@ -109,11 +109,13 @@ for this caller by #435):**
   `_shared/pr-first-merge.md` Step 3's initial `gh pr merge --auto` call (not its degrade chain —
   failure leaves it unarmed, reported). Log the outcome to `decisions.md`
   (`_shared/auto-decision-log.md`, lever-attributed `[lever: housekeeping-auto-merge={true|false}
-  ({source})]`). **No sweep backstop**: unlike tidy's PR, `github-pr-scan.md`'s `repo-wide` item 9
-  does not recognize `<!-- wrap-up-residue-pr -->` — this residue-sweep procedure only ever runs
-  inside an already hands-off wrap-up, so creation-time arming is sufficient; an unarmed residue PR
-  simply stays visible, unmerged, in this run's own `decisions.md` rather than being picked up
-  later by a sweep. **If the push or both create attempts fail** (`pr-early-run-lifecycle.md`'s own
+  ({source})]`). **Sweep backstop**: `github-pr-scan.md`'s `repo-wide` item 9 recognizes
+  `<!-- wrap-up-residue-pr -->` on the same footing as tidy's own `<!-- tidy-housekeeping-pr -->` —
+  creation-time arming is the common case, but if the initial `gh pr merge --auto` call fails to
+  arm for a reason other than the push/create failure handled below (branch protection, a
+  transient API blip), this PR does not sit unarmed indefinitely: the next `repo-wide` sweep finds
+  it and re-attempts the arm under the same `housekeeping-auto-merge` lever, exactly like a tidy
+  housekeeping PR. **If the push or both create attempts fail** (`pr-early-run-lifecycle.md`'s own
   degrade path — network, auth, `gh` absent), don't strand the commit in a worktree nobody returns
   to: fall through to the `local-merge` branch above and merge back locally instead, logging the
   PR-open failure to `decisions.md`.

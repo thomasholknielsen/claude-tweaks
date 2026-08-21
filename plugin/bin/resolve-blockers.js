@@ -28,6 +28,7 @@
 
 const { execFileSync } = require('child_process');
 const { fetchNativeDependencies } = require('./lib/issues/native-dependencies');
+const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: resolve-blockers.js <n> [--repo owner/name] [--help]\n';
 
@@ -47,14 +48,9 @@ function parseArgs(argv) {
   return opts;
 }
 
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
 const realDeps = {
-  ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
-  remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  ghAvailable,
+  remoteUrl,
   runner: (args) => execFileSync('gh', args, { encoding: 'utf8' }),
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),

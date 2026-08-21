@@ -63,7 +63,7 @@ function listSlices(root) {
     // this check must not silently defeat that guarantee for the common
     // case. A dot-directory that DOES hold real source (a hypothetical
     // `.config/`) still passes through untouched.
-    if (entry.name.startsWith('.') && sourceFiles(absPath, { recursive: true }).length === 0) continue;
+    if (entry.name.startsWith('.') && isEmptySourceDir(absPath)) continue;
     candidates.push({ id: entry.name, path: absPath });
   }
   candidates.push(...workspaceSlices);
@@ -165,38 +165,67 @@ function splitOversized(id, absDir, out) {
 // workspace slice that already covers everything beneath root. Was
 // docs/superpowers/specs/2026-07-30-durable-state-git-native-write-design.md
 // — deleted (70849915).
-function sourceFiles(absDir, { recursive = true } = {}) {
+// Throws on a scan failure instead of swallowing it — sourceFiles below
+// catches this for its own degrade-to-[] contract; isEmptySourceDir below
+// instead needs to tell "genuinely zero files" apart from "the scan failed"
+// (review finding), so it calls this directly.
+function sourceFilesRaw(absDir, { recursive = true } = {}) {
+  const excludeArgs = [];
+  for (const dir of SKIP_DIRS) {
+    // `*/dir/*` (not `${dir}/*`) so a skip-directory is excluded wherever it
+    // appears in the subtree, not only as a direct child of absDir — find's
+    // -path matches against the whole path string, so `*` spans '/' and
+    // matches nested occurrences too (e.g. pkg/nested/dir/*).
+    excludeArgs.push('-not', '-path', `*/${dir}/*`);
+  }
+  const depthArgs = recursive ? [] : ['-maxdepth', '1'];
+  // Scan `.` with cwd set to absDir, NOT the absolute path. -path matches the
+  // whole path string, so an absolute start point puts absDir's OWN ancestors
+  // in front of every candidate — and a checkout living under any segment
+  // named in SKIP_DIRS then excludes itself entirely. A linked worktree sits
+  // at <repo>/.claude/worktrees/<name>, so every sweep run from one found
+  // zero files while still emitting every slice: judged nothing, filed
+  // nothing, reported success (#111). Relative paths cannot name an ancestor,
+  // which is what makes the exclusions mean what the comment above says.
+  const raw = execFileSync(
+    'find',
+    ['.', ...depthArgs, '-type', 'f', ...excludeArgs],
+    { cwd: absDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
+  );
+  return raw
+    .split('\n')
+    .filter(Boolean)
+    .filter((f) => SOURCE_EXTS.has(path.extname(f)))
+    .map((f) => path.resolve(absDir, f))
+    .sort();
+}
+
+function sourceFiles(absDir, opts) {
   try {
-    const excludeArgs = [];
-    for (const dir of SKIP_DIRS) {
-      // `*/dir/*` (not `${dir}/*`) so a skip-directory is excluded wherever it
-      // appears in the subtree, not only as a direct child of absDir — find's
-      // -path matches against the whole path string, so `*` spans '/' and
-      // matches nested occurrences too (e.g. pkg/nested/dir/*).
-      excludeArgs.push('-not', '-path', `*/${dir}/*`);
-    }
-    const depthArgs = recursive ? [] : ['-maxdepth', '1'];
-    // Scan `.` with cwd set to absDir, NOT the absolute path. -path matches the
-    // whole path string, so an absolute start point puts absDir's OWN ancestors
-    // in front of every candidate — and a checkout living under any segment
-    // named in SKIP_DIRS then excludes itself entirely. A linked worktree sits
-    // at <repo>/.claude/worktrees/<name>, so every sweep run from one found
-    // zero files while still emitting every slice: judged nothing, filed
-    // nothing, reported success (#111). Relative paths cannot name an ancestor,
-    // which is what makes the exclusions mean what the comment above says.
-    const raw = execFileSync(
-      'find',
-      ['.', ...depthArgs, '-type', 'f', ...excludeArgs],
-      { cwd: absDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
-    );
-    return raw
-      .split('\n')
-      .filter(Boolean)
-      .filter((f) => SOURCE_EXTS.has(path.extname(f)))
-      .map((f) => path.resolve(absDir, f))
-      .sort();
+    return sourceFilesRaw(absDir, opts);
   } catch {
     return [];
+  }
+}
+
+// listSlices' dot-directory rotation-exclusion guard: true only when the
+// scan genuinely succeeded and found zero source files. A scan failure
+// (permission denial, spawn failure, timeout — sourceFiles' own catch
+// collapses all of these into the same [] a real empty directory produces)
+// must NOT be read as "empty" here, unlike sourceFiles' other callers: this
+// is the one call site whose result decides whether a directory is silently
+// dropped from rotation, so a transient failure would permanently exclude a
+// dot-directory that actually holds real source, with no error surfaced
+// anywhere (review finding). Fails safe — keep the directory in rotation —
+// and reports the failure to stderr instead.
+function isEmptySourceDir(absDir) {
+  try {
+    return sourceFilesRaw(absDir, { recursive: true }).length === 0;
+  } catch (e) {
+    process.stderr.write(
+      `[code-health] scope: dot-directory scan failed for ${absDir} — keeping it in rotation rather than silently excluding it (${e && e.message ? e.message : e})\n`,
+    );
+    return false;
   }
 }
 
