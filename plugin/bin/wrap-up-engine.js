@@ -16,7 +16,9 @@
 // plan time — since --signals is parsed before any engine work starts, an
 // unparseable value is invocation shape, not payload). `render --strict` is
 // documented separately: it prints first, THEN exits 2 when rows are
-// missing, so the hole is visible AND fatal.
+// missing, so the hole is visible AND fatal. `verify` has its own additional
+// exit code, 3, on any `fail` row (or a run dir that couldn't be located at
+// all) — 0/1/2 keep their meanings above unchanged.
 'use strict';
 
 const { execFileSync } = require('node:child_process');

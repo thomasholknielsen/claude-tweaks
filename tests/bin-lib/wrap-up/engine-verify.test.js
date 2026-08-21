@@ -878,6 +878,52 @@ test('memory-updates check fails when recorded file is missing on disk', () => {
   assert.strictEqual(row.result, 'fail');
 });
 
+// TOCTOU hardening (record #900 whole-branch re-review, Step 3 lens 3c — both
+// reproduction-pair agents independently found the same existsSync-then-read
+// races). A directory in place of the expected file deterministically
+// triggers the same EISDIR failure a delete-mid-read race would, without
+// needing to actually race the filesystem.
+test('memory-updates check fails (not throws) when the index file is a directory, not a file', () => {
+  const runDir = makeTmpDir('verify-memory-toctou-');
+  const memDir = makeTmpDir('verify-memory-toctou-target-');
+  const memFile = path.join(memDir, 'insight.md');
+  fs.writeFileSync(memFile, '# insight');
+  const indexFile = path.join(memDir, 'MEMORY.md');
+  fs.mkdirSync(indexFile); // a directory where readFileSync expects a file -- EISDIR
+  writeExpectations(runDir, { version: 1, memory: [{ file: memFile, indexFile }], upstream: [] });
+  assert.doesNotThrow(() => {
+    const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'memory-updates');
+    assert.strictEqual(row.result, 'fail');
+    assert.match(row.detail, /index file missing/);
+  });
+});
+
+test('carrier-commit resolves no issue numbers (not throws) when work/ contains an unreadable entry', () => {
+  const runDir = makeTmpDir('verify-toctou-workdir-');
+  const workDir = path.join(runDir, 'work');
+  fs.mkdirSync(workDir, { recursive: true });
+  // A directory named like a spec file -- readFileSync throws EISDIR, the
+  // same failure class a mid-read prune/archive race would produce.
+  fs.mkdirSync(path.join(workDir, '900-spec.md'));
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [] }); // no `issues` fallback either
+  assert.doesNotThrow(() => {
+    const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'carrier-commit');
+    assert.strictEqual(row.result, 'skip', row.detail);
+  });
+});
+
+test('runVerify contains a check function that throws as a fail row, never an uncaught exception', () => {
+  registerCheck('__test-throwing-check__', () => { throw new Error('boom'); });
+  const runDir = makeTmpDir('verify-throwing-check-');
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === '__test-throwing-check__');
+  assert.strictEqual(row.result, 'fail');
+  assert.match(row.detail, /check threw: boom/);
+  assert.strictEqual(result.exitCode, 3);
+});
+
 test('expectations checks render unknown-unsupported-version for a bad version field', () => {
   const runDir = makeTmpDir('verify-badversion-');
   writeExpectations(runDir, { version: 99, memory: [], upstream: [] });

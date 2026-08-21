@@ -258,17 +258,25 @@ registerCheck('worktree-removed', ({ runDir, expectations, deps }) => {
 });
 
 // ---- resolved-issue-number resolution --------------------------------------
+//
+// existsSync-then-read is a TOCTOU by construction: this project's own
+// reconcile/archive processes concurrently prune exactly these pipeline
+// run-dirs. Wrapped in try/catch, degrading to "no headers found" (falls
+// through to the expectations-file fallback below) on any race, rather than
+// throwing uncaught -- matching every other read site in this module.
 function resolvedIssueNumbers(runDir) {
   const workDir = path.join(runDir, 'work');
   const fromHeaders = [];
-  if (fs.existsSync(workDir)) {
-    for (const entry of fs.readdirSync(workDir)) {
-      if (!entry.endsWith('-spec.md')) continue;
-      const content = fs.readFileSync(path.join(workDir, entry), 'utf8');
-      const m = content.match(/^record:\s*(\d+)/m);
-      if (m) fromHeaders.push(Number(m[1]));
+  try {
+    if (fs.existsSync(workDir)) {
+      for (const entry of fs.readdirSync(workDir)) {
+        if (!entry.endsWith('-spec.md')) continue;
+        const content = fs.readFileSync(path.join(workDir, entry), 'utf8');
+        const m = content.match(/^record:\s*(\d+)/m);
+        if (m) fromHeaders.push(Number(m[1]));
+      }
     }
-  }
+  } catch { /* work/ pruned mid-read (reconcile/archive race) -- fall through to the expectations fallback below */ }
   if (fromHeaders.length) return fromHeaders;
   const expPath = path.join(runDir, 'verify-expectations.json');
   if (fs.existsSync(expPath)) {
@@ -539,7 +547,16 @@ registerCheck('memory-updates', ({ expectations }) => {
   for (const { file, indexFile } of entries) {
     if (!fs.existsSync(file)) missing.push(`file missing: ${file}`);
     if (indexFile && fs.existsSync(indexFile)) {
-      const indexContent = fs.readFileSync(indexFile, 'utf8');
+      // existsSync-then-read is a TOCTOU -- an index file edited/removed
+      // between the check and the read degrades to "missing" here, same as
+      // the else-branch below, rather than throwing uncaught.
+      let indexContent;
+      try {
+        indexContent = fs.readFileSync(indexFile, 'utf8');
+      } catch {
+        missing.push(`index file missing: ${indexFile}`);
+        continue;
+      }
       const base = path.basename(file, '.md');
       if (!indexContent.includes(base)) missing.push(`index line missing for ${base} in ${indexFile}`);
     } else if (indexFile) {
@@ -589,11 +606,23 @@ function runVerify({ runDir, originalRunDir, base, repoRoot, deps = {} }) {
         detail: 'run dir not found at original or archive path',
       }))
     : CHECKS.map(({ name, fn }) => {
-        const { result, detail } = fn({
-          runDir, originalRunDir: resolvedOriginalRunDir, base, repoRoot: resolvedRepoRoot,
-          expectations, deps: { git, gh },
-        });
-        return { check: name, result, detail: detail || '' };
+        // A check throwing (a bug in the check itself, or a race this
+        // module's own read sites don't yet guard against) must not take
+        // down the whole verb uncaught -- that would print no table at all
+        // and exit via Node's default uncaught-exception path, silently
+        // colliding with the documented exit-code contract. 'fail', not
+        // 'unknown': a check that couldn't even determine its own state is
+        // evidence something is wrong, and this verb's whole purpose is to
+        // never silently non-execute -- erring toward blocking closure.
+        try {
+          const { result, detail } = fn({
+            runDir, originalRunDir: resolvedOriginalRunDir, base, repoRoot: resolvedRepoRoot,
+            expectations, deps: { git, gh },
+          });
+          return { check: name, result, detail: detail || '' };
+        } catch (err) {
+          return { check: name, result: 'fail', detail: `check threw: ${err.message}` };
+        }
       });
 
   // A run that could not be located at all is not a clean pass -- surface it
