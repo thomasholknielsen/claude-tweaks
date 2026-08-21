@@ -30,29 +30,22 @@ caller needs:
 
 ## When to Use
 
-The diagram above names the call site for each mode; each sub-file's own "Called from" line gives
-the full detail (e.g. `grant-check` also covers `/claude-tweaks:backlog grant`'s gate chain, and
-`merge-check` also covers `/claude-tweaks:wrap-up`'s Review Console Auto-merge short-circuit — both
-same-mode, same call shape as their primary caller).
+The diagram above names each mode's call site; each sub-file's own "Called from" line gives the
+full detail, including secondary same-mode callers (e.g. `grant-check` also covers
+`/claude-tweaks:backlog grant`'s gate chain; `merge-check` also covers `/claude-tweaks:wrap-up`'s
+Review Console Auto-merge short-circuit).
 
-Not for: granting `auto:build`/`auto:merge` (still `/claude-tweaks:backlog refine`'s human-confirmed job),
-merging anything itself (`/claude-tweaks:dispatch` acts on the verdict), deciding auto-merge
-eligibility or blast-radius caps (that's still `merge-check` alone — `ceremony-profile` and
-`auto:merge` are independent axes), or any decision outside the call sites above — this is not a
-general-purpose risk service.
+Not for: granting `auto:build`/`auto:merge` (still `/claude-tweaks:backlog refine`'s
+human-confirmed job), merging anything itself (`/claude-tweaks:dispatch` acts on the verdict), or
+any decision outside the call sites above — this is not a general-purpose risk service.
 
 ## Input
 
-`$ARGUMENTS` is `{mode} [#{n}] [--base <ref>]`, where `mode` is one of `grant-check` |
-`merge-check` | `failure-check` | `ceremony-check` and `#{n}` is the record's issue number. Each
-mode's own Step 1 ("Gather," in its sub-file) is the source of truth for how it's used — they differ:
-`grant-check` fetches the record body via `gh issue view` keyed on `#{n}`; `failure-check` fetches
-issue/PR comments via `gh api ".../issues/${N}/comments..."`, also a genuine fetch keyed on `#{n}`;
-`ceremony-check`'s primary call path (from `/specify`) issues no fetch at all — it reuses
-body/label data the caller already holds in memory, and its fallback path (from `/flow`) likewise
-reuses data `materialize.md` already fetched; `merge-check` doesn't consume `#{n}` at all — its
-gather is a single `bin/blast-radius.js` call (git diff + config, see `merge-check.md` Step 1) —
-and it never fetches the record itself.
+`$ARGUMENTS` is `{mode} [#{n}] [--base <ref>]` — `mode` selects one of `grant-check` |
+`merge-check` | `failure-check` | `ceremony-check`; `#{n}` is the record's issue number, when the
+mode needs one. Each mode's own Step 1 ("Gather") is the source of truth for exactly what it
+fetches and how — they differ enough (some key off `#{n}`, `merge-check` doesn't consume it at
+all) that this router doesn't restate it.
 
 `#{n}` is omitted only from `ceremony-check`'s primary call in `/specify`'s Step 3
 decomposition-mode per-sub-issue loop — the sub-issue has no issue number yet at that point in the
@@ -60,55 +53,41 @@ procedure (it's assigned only after the record is created, later in the same ste
 site invokes this skill as bare `ceremony-check` with no trailing `#{n}` at all. Every other mode,
 and `ceremony-check`'s own Shaping-mode and `/flow`-fallback calls, always pass `#{n}`.
 
-`--base <ref>` is `merge-check`-only: an optional pre-known merge-base commit or ref the caller
-already has in context (e.g. one of dispatch's per-group Task calls, which ran `/flow` inside the
-worktree its dispatching session set up). When present, `merge-check`'s Step 1 uses it directly instead of re-deriving
-the merge base from this project's integration branch. Ignored by the other three modes.
+`--base <ref>` is `merge-check`-only — an optional pre-known merge-base commit or ref the caller
+already has in context; see its own Step 1 for how it short-circuits integration-branch
+resolution. Ignored by the other three modes.
 
-Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
-human-driven `/claude-tweaks:backlog refine` session, or one of dispatch's per-group Task calls running `/flow` — `failure-check` from the `build,test` call, `merge-check` from the `review,polish,wrap-up` one)
-runs this skill's procedure in its own context and reads the produced report directly; there is no
-cross-process hand-off.
+Invoked inline via the Skill tool, in the calling agent's own context — never a fresh Task-agent
+dispatch (see Anti-Patterns); there is no cross-process hand-off.
 
 ## Error Handling
 
-Two distinct failure shapes render different rationale text — never collapse them:
+Two failure shapes render different rationale text — never collapse them:
 
-**could-not-gather** — Step 1's gather itself failed: `gh` absent with no MCP transport
-available either, a fetch error, a timeout, an unreachable repo. The mode still renders its
-usual conservative outcome (per mode, below), but the RATIONALE names the specific gather
-failure verbatim — e.g. "gh unavailable, no MCP transport resolved — could not fetch record
-body; conservative default, not a content judgment." This never reads as a judgment about the
-record/diff/failure content, because none was read. `merge-check.md` Step 1 already renders
-this shape for its own resolution failures (`VERDICT: needs-human` / a RATIONALE naming the
-specific resolution failure) — the pattern here generalizes that same shape to `grant-check`
-and `failure-check`.
+- **could-not-gather** — Step 1's own gather failed (`gh` absent with no MCP fallback, a fetch
+  error, a timeout, an unreachable repo). Render the mode's usual conservative outcome below, with
+  RATIONALE naming the specific gather failure verbatim — never phrased as a content judgment,
+  since none was read.
+- **gathered-but-inconclusive** — the gather succeeded, but the content itself doesn't clearly
+  support a confident verdict (malformed input, an inconclusive read). Same conservative outcome;
+  RATIONALE explains the content ambiguity instead.
 
-**gathered-but-inconclusive** — the gather succeeded (the body/labels/comments were fetched),
-but the content itself doesn't clearly support a confident verdict (malformed input, an
-inconclusive read). This is today's existing behavior, unchanged.
-
-Both cases default to the same conservative outcome per mode: `grant-check` →
-`RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false`; `merge-check` → `VERDICT: needs-human`;
-`failure-check` → `CLASSIFICATION: correctness`; `ceremony-check` → `CEREMONY: standard`. Never
-resolve ambiguity toward more autonomy or less ceremony — a missed auto-merge or a fuller
-wrap-up pass costs a human a click or a few extra minutes; a wrongly-granted shortcut could ship
-something bad or under-reflect on real complexity. What differs between the two cases is only
-the RATIONALE text: could-not-gather names the tooling/transport failure; gathered-but-inconclusive
-explains the content ambiguity.
+Conservative default per mode: `grant-check` → `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE:
+false`; `merge-check` → `VERDICT: needs-human`; `failure-check` → `CLASSIFICATION: correctness`;
+`ceremony-check` → `CEREMONY: standard`. Never resolve ambiguity toward more autonomy or less
+ceremony — a missed auto-merge or a fuller wrap-up pass costs a human a click or a few extra
+minutes; a wrongly-granted shortcut could ship something bad or under-reflect on real complexity.
 
 ## Component-Skill Contract
 
 `/claude-tweaks:assess-agent-autonomy` is **always** a component skill — it is never invoked
 directly by a human, and never renders a `## Next Actions` block. Its only callers are
-`/claude-tweaks:backlog refine` (Step 2, `grant-check`), `/claude-tweaks:backlog grant` (gate chain
-gate 4, `grant-check` — same mode, a machine-written label instead of a human-confirmed table row),
-`/claude-tweaks:dispatch` (Auto-merge gate,
-`merge-check`; Settle step, `failure-check`), `/claude-tweaks:wrap-up` (the Review Console's Auto-merge
-short-circuit, `merge-check` — the single-record version of dispatch's same gate, run whether or not
-`/claude-tweaks:dispatch` was involved), `/claude-tweaks:specify` (Step 3, `ceremony-check`), and
-`/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when record carries no
-`ceremony:*` label).
+`/claude-tweaks:backlog` (`refine` Step 2 and `grant`'s gate 4, both `grant-check`),
+`/claude-tweaks:dispatch` (Auto-merge gate `merge-check`; Settle step `failure-check`),
+`/claude-tweaks:wrap-up` (Review Console's Auto-merge short-circuit, `merge-check`),
+`/claude-tweaks:specify` (Step 3, `ceremony-check`), and `/claude-tweaks:flow` (materialization
+fallback, `ceremony-check`, only when a record carries no `ceremony:*` label) — each sub-file's own
+"Called from" line is the source of truth for the full detail behind each entry here.
 
 ## Anti-Patterns
 
