@@ -182,51 +182,48 @@ test('archiveRunDir: git mv succeeds but git commit fails — reverts on disk an
   commitPath(root, `.claude-tweaks/pipelines/${runId}/work/77-spec.md`, '# spec 77\n');
   fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
 
+  // No cleanup needed: the hook lives inside this test's own throwaway repo.
   installFailingPreCommitHook(root);
-  try {
-    const result = archiveRunDir(root, runDir);
-    assert.equal(result.ok, false, JSON.stringify(result));
-    assert.equal(result.reason, 'commit-failed');
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'commit-failed');
 
-    // Old path restored on disk.
-    assert.equal(
-      fs.existsSync(path.join(runDir, 'work', '77-spec.md')),
-      true,
-      'old work/77-spec.md must be restored on disk after a commit failure',
-    );
-    assert.equal(
-      fs.readFileSync(path.join(runDir, 'work', '77-spec.md'), 'utf8'),
-      '# spec 77\n',
-    );
+  // Old path restored on disk.
+  assert.equal(
+    fs.existsSync(path.join(runDir, 'work', '77-spec.md')),
+    true,
+    'old work/77-spec.md must be restored on disk after a commit failure',
+  );
+  assert.equal(
+    fs.readFileSync(path.join(runDir, 'work', '77-spec.md'), 'utf8'),
+    '# spec 77\n',
+  );
 
-    // Old path restored in the index — no staged rename survives the pass.
-    const tracked = trackedFiles(root);
-    assert.ok(
-      tracked.includes(`.claude-tweaks/pipelines/${runId}/work/77-spec.md`),
-      'old path must remain tracked in the index after a reverted commit failure',
-    );
+  // Old path restored in the index — no staged rename survives the pass.
+  const tracked = trackedFiles(root);
+  assert.ok(
+    tracked.includes(`.claude-tweaks/pipelines/${runId}/work/77-spec.md`),
+    'old path must remain tracked in the index after a reverted commit failure',
+  );
 
-    // New (archive) path must not exist — the rename was fully undone.
-    const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
-    assert.equal(fs.existsSync(path.join(archiveDir, 'work', '77-spec.md')), false);
+  // New (archive) path must not exist — the rename was fully undone.
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'work', '77-spec.md')), false);
 
-    // The tracked working tree (staged + unstaged) is clean for the path
-    // this pass touched — no leftover deletion or addition from the aborted
-    // git mv. Scoped to `--` status of the tracked area only: `run-state.json`
-    // is a genuine untracked sibling in this test fixture (in the real repo
-    // it's gitignored) and unrelated to the revert this test is pinning.
-    const statusOut = git(root, 'status', '--porcelain', '--', '.claude-tweaks/pipelines');
-    const trackedStatusLines = statusOut
-      .split('\n')
-      .filter((line) => line && !line.startsWith('??'));
-    assert.equal(
-      trackedStatusLines.join('\n'),
-      '',
-      `expected no staged/modified tracked entries, got:\n${statusOut}`,
-    );
-  } finally {
-    removePreCommitHook(root);
-  }
+  // The tracked working tree (staged + unstaged) is clean for the path this
+  // pass touched — no leftover deletion or addition from the aborted git mv.
+  // Scoped to `--` status of the tracked area only: `run-state.json` is a
+  // genuine untracked sibling in this test fixture (in the real repo it's
+  // gitignored) and unrelated to the revert this test is pinning.
+  const statusOut = git(root, 'status', '--porcelain', '--', '.claude-tweaks/pipelines');
+  const trackedStatusLines = statusOut
+    .split('\n')
+    .filter((line) => line && !line.startsWith('??'));
+  assert.equal(
+    trackedStatusLines.join('\n'),
+    '',
+    `expected no staged/modified tracked entries, got:\n${statusOut}`,
+  );
 });
 
 // #652 AC 2: once the commit-failure cause is resolved, the next reconcile

@@ -106,6 +106,28 @@ function listSpecDirs(runDir) {
   }
 }
 
+// #652: `git mv` physically moves the files and stages the rename before the
+// commit runs, so a commit failure (gpgsign requirement, a failing
+// pre-commit/commit-msg hook, a lock file, a worktree-always-style policy
+// gate) would otherwise strand a staged, uncommitted rename in the shared main
+// checkout indefinitely — archiveRunDir's `fs.existsSync` retry guards can
+// never fire again once the old path is gone, so no later pass would clean it
+// up. Undoing the rename in the index AND on disk leaves the tree exactly as
+// this pass found it and restores what those guards look for. Best-effort and
+// never throws: a revert failure must still degrade to the caller's reported
+// skip, not an unhandled exception (this runs from SessionStart with no
+// supervising human).
+function revertWorkMoves(root, workMoves) {
+  for (const [src, dest] of workMoves) {
+    runGit(['reset', '--', src, dest], root);
+    try {
+      fs.renameSync(dest, src);
+    } catch {
+      /* best-effort — the tree may stay partially dirty */
+    }
+  }
+}
+
 function archiveRunDir(root, runDir) {
   const runId = path.basename(runDir);
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
@@ -161,27 +183,7 @@ function archiveRunDir(root, runDir) {
     // would otherwise sit in the shared main checkout's index indefinitely.
     const commit = runGit(['commit', '-m', `[reconcile] archive run ${runId}`], root);
     if (commit.failure) {
-      // #652: git mv already ran and physically moved the files before the
-      // commit failed (gpgsign requirement, a failing pre-commit/commit-msg
-      // hook, a lock file, a worktree-always-style policy gate). Left as-is,
-      // the retry guard above (`fs.existsSync(topWork)`/specWork) would never
-      // fire again on a later pass, since the old path is already gone —
-      // silently stranding a staged, uncommitted rename in the shared main
-      // checkout indefinitely. Revert the staged rename on disk AND in the
-      // index so this pass leaves the tree exactly as it found it, and the
-      // existing retry guard sees the old path again next time. Best-effort
-      // and never throws — a revert failure must still degrade to a reported
-      // skip, not an unhandled exception (this runs from SessionStart with no
-      // supervising human).
-      for (const [src, dest] of workMoves) {
-        runGit(['reset', '--', src, dest], root);
-        try {
-          fs.renameSync(dest, src);
-        } catch {
-          /* best-effort — the tree may stay partially dirty; still degrade
-             to a reported skip below rather than throwing. */
-        }
-      }
+      revertWorkMoves(root, workMoves);
       return { ok: false, reason: 'commit-failed' };
     }
   }
