@@ -12,8 +12,7 @@
 //   - legacy root residue: a project-root screenshots/ or traces/ tree (the
 //     pre-#1077 convention). This namespace is NOT plugin-owned — `screenshots/`
 //     is an ordinary directory name any project may use for real, tracked
-//     content — so the class carries two ownership discriminators, and BOTH
-//     must clear before a remedy stronger than 'record' is ever emitted:
+//     content — so the class carries two ownership discriminators:
 //       * shape match: the tree looks like the pre-relocation plugin layout —
 //         `screenshots/` has a first-level `qa` or `browse` subdirectory;
 //         `traces/` has a first-level subdirectory containing a `.zip` at any
@@ -22,13 +21,15 @@
 //         tracked file lives under it. A null return (git failed, not a repo,
 //         or no runner injected) is UNPROVEN, never "untracked".
 //     Emission: shape mismatch OR tracked → skip silently, no finding.
-//     Shape match AND untracked-proven → the 30-day age split ('auto' when
-//     aged, 'record' when anything fresher is inside — a trace captured the day
-//     before the plugin update must surface for a human). Shape match AND
-//     untracked-UNPROVEN → remedy capped at 'record' regardless of age.
-//     **Never auto without proof**: /tidy auto-applies `remedy: auto` deletions
-//     at every tier, so a legacy root only earns 'auto' on shape match plus a
-//     positive untracked proof — absence of evidence is never ownership.
+//     Shape match, untracked or unproven → remedy 'record', ALWAYS — never
+//     'auto'. /tidy auto-applies `remedy: auto` deletions at every tier, and
+//     neither discriminator proves plugin ownership: "untracked" proves
+//     non-tracked (a user's own gitignored traces/ archive is equally
+//     untracked), and the shape heuristics match generic layouts (any
+//     subdir-with-a-.zip tree passes the traces/ check). A legacy root is a
+//     one-time migration residue per project — it surfaces once for human
+//     disposition; auto-deleting an unowned namespace on heuristics is the
+//     failure mode, not the saving.
 // Per-root ENOENT is clean (a project that has only ever run /browse has no
 // traces/ root); any OTHER read failure fails the whole probe loudly — a
 // partial scan must never report as a clean sweep (sibling probes' contract).
@@ -48,7 +49,7 @@ const ARTIFACT_ROOTS = [
 ];
 const LEGACY_ROOTS = ['screenshots', 'traces'];
 const LEGACY_SHAPE_SUBDIRS = ['qa', 'browse'];
-const UNPROVEN_NOTE = '; git could not prove the tree untracked — remedy capped at record, never auto-deleted without ownership proof';
+const UNPROVEN_NOTE = '; git could not prove the tree untracked — treat as possibly project-owned content';
 
 // How a read failure is named in the probe-level `reason` — errno when the
 // error carries one, the error itself otherwise.
@@ -193,13 +194,13 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
     const aged = now - basis.basisMs > THIRTY_DAYS_MS;
     const proven = tracked === 'untracked';
     const evidence = aged
-      ? 'pre-relocation artifact root, aged past the 30-day window — superseded by .claude-tweaks/artifacts/'
+      ? 'pre-relocation artifact root, aged past the 30-day window — superseded by .claude-tweaks/artifacts/; surface for human disposition, never auto-deleted (namespace is not plugin-owned)'
       : 'pre-relocation artifact root with content fresher than 30 days — superseded by .claude-tweaks/artifacts/; surface for human disposition, do not auto-delete';
     findings.push(makeFinding({
       kind: 'artifact',
       scope: 'observed',
       subject: rel,
-      remedy: aged && proven ? 'auto' : 'record',
+      remedy: 'record',
       evidence: proven ? evidence : `${evidence}${UNPROVEN_NOTE}`,
     }));
   }
