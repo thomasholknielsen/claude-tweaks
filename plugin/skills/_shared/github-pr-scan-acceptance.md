@@ -437,7 +437,7 @@ node -e "
     number: p.number,
     title: p.title,
     parentLabels: p.labels.map(l => l.name),
-    leaves: parseSubIssues(p.body).map(n => {
+    subIssues: parseSubIssues(p.body).map(n => {
       const info = infoOf.get(n);
       return { number: n, state: (info && info.state) || 'OPEN', labels: (info && info.labels) || [] };
     }),
@@ -472,7 +472,7 @@ paginated REST call, exactly like the Fallback block's per-parent loop, and a re
 REST call also fails throws, naming the parent — by design, this never coerces to an empty list.
 Unlike `acceptance-gap`'s flattened union, this scope keeps each parent's own sub-issue set intact
 — the composing step below reads the envelope's `byParent` (plus retry results merged into it)
-per-parent, because `leaves` needs each parent's own numbers, not existence alone:
+per-parent, because `subIssues` needs each parent's own numbers, not existence alone:
 
 ```bash
 node -e "
@@ -500,7 +500,7 @@ node -e "
     number: p.number,
     title: p.title,
     parentLabels: p.labels.map(l => l.name),
-    leaves: (byParent[p.number] || []).map(n => {
+    subIssues: (byParent[p.number] || []).map(n => {
       const info = infoOf.get(n);
       return { number: n, state: (info && info.state) || 'OPEN', labels: (info && info.labels) || [] };
     }),
@@ -550,7 +550,7 @@ node -e "
       number,
       title: p.title,
       parentLabels: p.labels.map(l => l.name),
-      leaves: subIssueNumbers.map(n => {
+      subIssues: subIssueNumbers.map(n => {
         const info = infoOf.get(n);
         return { number: n, state: (info && info.state) || 'OPEN', labels: (info && info.labels) || [] };
       }),
@@ -561,7 +561,7 @@ node -e "
 ```
 
 Both the primary path and the Fallback path converge on the same `/tmp/tidy-parent-gates.json`
-shape — `{number, title, parentLabels, leaves:[{number,state,labels}]}` per parent.
+shape — `{number, title, parentLabels, subIssues:[{number,state,labels}]}` per parent.
 
 ### Oversight-floor pre-filter
 
@@ -576,9 +576,9 @@ size at this level would mean gating on a fact that does not exist.
 
 With `/tmp/tidy-parent-gates.json` assembled by whichever branch above applies, filter to parents
 that both exceed the floor and whose gate is due. A parent's aggregate risk is the **max** risk
-tier across its `leaves` — never a size read at the parent level, and never omitted or defaulted
-to the resolved `size-floor` value, which would silently fail every leaf's missing `size` facet
-closed and gate every parent regardless of risk. Any single unscored leaf (`risk:*` missing or
+tier across its `subIssues` — never a size read at the parent level, and never omitted or defaulted
+to the resolved `size-floor` value, which would silently fail every sub-issue's missing `size` facet
+closed and gate every parent regardless of risk. Any single unscored sub-issue (`risk:*` missing or
 out-of-vocabulary) makes the whole parent's aggregate unscored too, matching
 `exceedsOversightFloor`'s own fail-closed rule for a missing facet:
 
@@ -588,13 +588,13 @@ node -e "
   const { parentGateState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
   const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
   const { parseRecordFacets, TIERS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const gates = require('/tmp/tidy-parent-gates.json'); // [{number, title, leaves, parentLabels}]
+  const gates = require('/tmp/tidy-parent-gates.json'); // [{number, title, subIssues, parentLabels}]
   const [riskFloor] = process.argv.slice(1);
-  function maxRiskTier(leaves) {
+  function maxRiskTier(subIssues) {
     let hasUnscored = false;
     let maxIndex = -1;
-    for (const leaf of leaves) {
-      const { risk } = parseRecordFacets(leaf.labels);
+    for (const subIssue of subIssues) {
+      const { risk } = parseRecordFacets(subIssue.labels);
       const index = TIERS.indexOf(risk);
       if (index === -1) { hasUnscored = true; continue; }
       if (index > maxIndex) maxIndex = index;
@@ -602,8 +602,8 @@ node -e "
     return hasUnscored ? undefined : TIERS[maxIndex];
   }
   gates
-    .filter(f => exceedsOversightFloor({ risk: maxRiskTier(f.leaves) }, { riskFloor, sizeFloor: null }).exceeds)
-    .filter(f => parentGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
+    .filter(f => exceedsOversightFloor({ risk: maxRiskTier(f.subIssues) }, { riskFloor, sizeFloor: null }).exceeds)
+    .filter(f => parentGateState({ subIssues: f.subIssues, parentLabels: f.parentLabels }) === 'due')
     .forEach(f => console.log('[parent-gate] #' + f.number + ': ' + f.title + ' — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo #' + f.number));
 " "$RISK_FLOOR"
 ```
