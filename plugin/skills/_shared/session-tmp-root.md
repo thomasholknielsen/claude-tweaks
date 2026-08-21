@@ -91,8 +91,9 @@ caller trusts a stale read.
 ## Consumers
 
 `skills/specify/decomposition-mode.md`, `skills/specify/record-creation.md`,
-`skills/dispatch/queue-pull-script.md`, `skills/dispatch/headless-self-report.md`,
-`skills/dispatch/settle-and-merge.md`, `skills/dispatch/SKILL.md`,
-`skills/backlog/overview-mode.md`, `skills/backlog/refine-mode.md`,
-`skills/backlog/refine-lanes.md`, `skills/backlog/grant-mode.md`,
-`skills/assess-agent-autonomy/grant-check.md`.
+`skills/specify/shaping-mode.md`, `skills/dispatch/queue-pull-script.md`,
+`skills/_shared/headless-self-report.md`, `skills/dispatch/settle-and-merge.md`,
+`skills/dispatch/SKILL.md`, `skills/backlog/overview-mode.md`,
+`skills/backlog/refine-mode.md`, `skills/backlog/refine-lanes.md`,
+`skills/backlog/grant-mode.md`, `skills/backlog/attention-mode.md`,
+`skills/backlog/trust-signal.md`, `skills/assess-agent-autonomy/grant-check.md`.
