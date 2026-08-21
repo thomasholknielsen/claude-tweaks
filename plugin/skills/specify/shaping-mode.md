@@ -178,11 +178,15 @@ Design-intent: {value}
 {original body, verbatim}
 ```
 
-**`work-backend: github-issues`:** write the composed body to a temp file, then a single call carries both the body and every label change (`--type {t}` under `work-types: native`; swap to `--add-label "type:{t}"` under `work-types: labels`):
+**`work-backend: github-issues`:** write the composed body to this run's session-scoped temp file (`_shared/session-tmp-root.md`), then a single call carries both the body and every label change (`--type {t}` under `work-types: native`; swap to `--add-label "type:{t}"` under `work-types: labels`):
 
 ```bash
+SPECIFY_SHAPED_BODY=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-shaped-body.md') || require('path').join(require('os').tmpdir(), 'specify-shaped-body.md'))
+")
 gh issue edit {n} \
-  --body-file /tmp/specify-shaped-body.md \
+  --body-file "$SPECIFY_SHAPED_BODY" \
   --add-label ready \
   --add-label "risk:{tier}" \
   --add-label "size:{tier}" \

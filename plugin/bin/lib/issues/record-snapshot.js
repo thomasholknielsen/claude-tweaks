@@ -86,6 +86,7 @@ function invalidateSnapshot(sessionId) {
 
 module.exports = {
   UNION_FIELDS,
+  resolveSessionId,
   snapshotPath,
   gitLogPath,
   subIssuesPath,

@@ -12,6 +12,9 @@ const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { iterRunDirsWithState, writeRunState } = require('../hooks/context');
 const { resolvePrState } = require('./pr-state');
+const { recordResidueFailure, recordResidueSuccess } = require('./cache');
+const { escalateResidue } = require('./escalate-residue');
+const { repoSlugOf } = require('./release-merged');
 
 // Orphan case introduced by the dispatch/flow run-identity unification:
 // dispatch mints an empty, anchored run directory (mkdir only, no
@@ -106,6 +109,45 @@ function listSpecDirs(runDir) {
   }
 }
 
+// #652: `git mv` physically moves the files and stages the rename before the
+// commit runs, so a commit failure (gpgsign requirement, a failing
+// pre-commit/commit-msg hook, a lock file, a worktree-always-style policy
+// gate) would otherwise strand a staged, uncommitted rename in the shared main
+// checkout indefinitely — archiveRunDir's `fs.existsSync` retry guards can
+// never fire again once the old path is gone, so no later pass would clean it
+// up. Undoing the rename in the index AND on disk leaves the tree exactly as
+// this pass found it and restores what those guards look for. Best-effort and
+// never throws: a revert failure must still degrade to the caller's reported
+// skip, not an unhandled exception (this runs from SessionStart with no
+// supervising human). Returns true only when every pair ended back at its
+// original path in both index and disk; false means the tree is left partially
+// moved, which the caller reports as a distinct reason.
+function revertWorkMoves(root, workMoves) {
+  let fullyReverted = true;
+  for (const [src, dest] of workMoves) {
+    const reset = runGit(['reset', '--', src, dest], root);
+    if (reset.failure) {
+      // The index still matches what `git mv` staged (src removed, dest
+      // added) — leave the file where `git mv` physically put it too, so
+      // disk and index stay mutually consistent (still in the "moved"
+      // state, same as the pre-revert bug). Moving it back here would
+      // desync disk from an index entry that was never actually unstaged —
+      // a worse state than doing nothing, since `git status` would then
+      // show a staged addition with no file behind it. The same lock/hook
+      // cause that can fail the commit can plausibly also fail this reset.
+      fullyReverted = false;
+      continue;
+    }
+    try {
+      fs.renameSync(dest, src);
+    } catch {
+      /* best-effort — the tree may stay partially dirty */
+      fullyReverted = false;
+    }
+  }
+  return fullyReverted;
+}
+
 function archiveRunDir(root, runDir) {
   const runId = path.basename(runDir);
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
@@ -160,7 +202,16 @@ function archiveRunDir(root, runDir) {
     // guaranteed to commit anything afterward, so an uncommitted rename
     // would otherwise sit in the shared main checkout's index indefinitely.
     const commit = runGit(['commit', '-m', `[reconcile] archive run ${runId}`], root);
-    if (commit.failure) return { ok: false, reason: 'commit-failed' };
+    if (commit.failure) {
+      // A partial revert (some pairs' `git reset` or disk move failed) is a
+      // distinct outcome from a clean one: the retry guard below keys on
+      // `fs.existsSync(workSrc)`, which only sees a pair again once it's
+      // genuinely back at its original path. `commit-failed-partial-revert`
+      // makes that distinction visible to callers/logs rather than
+      // collapsing both into the same reason string.
+      const fullyReverted = revertWorkMoves(root, workMoves);
+      return { ok: false, reason: fullyReverted ? 'commit-failed' : 'commit-failed-partial-revert' };
+    }
   }
 
   // Tracked-entry guard: a git-tracked file in the run dir outside work/
@@ -261,12 +312,43 @@ function archiveRunDir(root, runDir) {
   return { ok: true, movedEntries };
 }
 
+// #644 Deliverable 2 — every archive attempt's outcome, whichever of the two
+// archival paths (mint vs. full run dir) produced it, flows through this one
+// choke point so the consecutive-failure counter and escalation live in
+// exactly one place rather than duplicated per call site. `dir` is the run
+// directory — the same granularity `iterRunDirsWithState` iterates and the
+// same unit a retry re-examines whole, matching the issue's own observed
+// symptom ("15 run dirs stuck at move-failed"). Only `move-failed` tracks:
+// the other reasons (`mkdir-failed`, `git-mv-failed`, `commit-failed`,
+// `ls-files-failed`, `readdir-failed`, `tracked-entry`, `close-failed`) are
+// distinct failure classes the issue never named, and folding them into the
+// same counter would blur reasons that need different diagnosis.
+// `escalate` is injectable (defaults to the real `escalateResidue`, which
+// shells to `gh`) so a test can assert escalation actually fired — and how
+// many times — without touching real `gh` or the network.
+function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateResidue } = {}) {
+  if (result.ok) {
+    recordResidueSuccess(root, 'move-failed', dir);
+    return;
+  }
+  if (result.reason !== 'move-failed') return;
+  const streak = recordResidueFailure(root, 'move-failed', dir);
+  if (!streak.shouldEscalate) return;
+  try {
+    escalate({
+      repo: repoSlug, reason: 'move-failed', targetPath: dir,
+      count: streak.count, firstFailedAt: streak.firstFailedAt,
+    });
+  } catch { /* best-effort — never let escalation turn an archive skip into a thrown error */ }
+}
+
 function archiveMerged({ cwd, dryRun = false } = {}) {
   const archived = [];
   const skipped = [];
   const start = cwd || process.cwd();
   const root = mainCheckoutRoot(start);
   if (!root) return { archived, skipped };
+  const repoSlug = repoSlugOf(root);
 
   const wtList = runGit(['worktree', 'list', '--porcelain'], root);
   const worktrees = wtList.failure ? [] : parseWorktreeList(wtList.stdout);
@@ -277,6 +359,7 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
     if (isOrphanedMint(dir)) {
       if (dryRun) { archived.push(dir); continue; }
       const result = archiveOrphanedMint(root, dir);
+      trackArchiveResult(root, repoSlug, dir, result);
       if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
       archived.push(dir);
       continue;
@@ -293,6 +376,7 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
     if (dryRun) { archived.push(dir); continue; }
 
     const result = archiveRunDir(root, dir);
+    trackArchiveResult(root, repoSlug, dir, result);
     if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
     archived.push(dir);
   }
@@ -301,5 +385,5 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
 
 module.exports = {
   archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
-  isOrphanedMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS,
+  isOrphanedMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
 };

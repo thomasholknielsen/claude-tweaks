@@ -10,32 +10,44 @@ Records are created **parent-first**: the parent's number has to exist before an
 
 Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each sub-issue. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard. **A unit slug must never be the literal string `parent`** — that value is reserved for the parent record's own fingerprint; a sub-issue slugified to `parent` would collide with it in the map below.
 
-Before creating anything, build a fingerprint→number map of every existing marker, once:
+Before creating anything, build a fingerprint→number map of every existing marker, once. Resolve this run's session-scoped temp paths inside whichever driver branch below actually runs (`_shared/session-tmp-root.md`) — a fresh bash invocation does not inherit shell variables from a separate fence, so each branch resolves its own paths rather than relying on a shared preamble fence:
 
-`work-backend: github-issues` — reuse Step 1's `/tmp/specify-all-issues.json` (already fetched `--state all --json number,title,labels,body,state`, the REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own); no second `gh issue list` round-trip:
+`work-backend: github-issues` — reuse Step 1's session-scoped `specify-all-issues.json` (already fetched `--state all --json number,title,labels,body,state`, the REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own); no second `gh issue list` round-trip:
 
 ```bash
+SPECIFY_ALL_ISSUES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-all-issues.json') || require('path').join(require('os').tmpdir(), 'specify-all-issues.json'))
+")
+SPECIFY_EXISTING_FINGERPRINTS=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-existing-fingerprints.json') || require('path').join(require('os').tmpdir(), 'specify-existing-fingerprints.json'))
+")
 node -e "
   const { extractFingerprint } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const issues = require('/tmp/specify-all-issues.json');
+  const issues = require('$SPECIFY_ALL_ISSUES');
   const map = {};
   for (const i of issues) { const fp = extractFingerprint(i.body); if (fp && !(fp in map)) map[fp] = i.number; }
-  require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify(map));
+  require('fs').writeFileSync('$SPECIFY_EXISTING_FINGERPRINTS', JSON.stringify(map));
 "
 ```
 
-If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to reading through the session-scoped record snapshot the same way Step 1 does — `{Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md), with {tmp-records-file} = /tmp/specify-all-issues.json}`. A resumed session usually still has its own snapshot fresh at `/tmp/ct-records-{session-id}.json` (same session id, same TTL window), so this fallback is typically a cache hit, not a fresh `gh` round-trip.
+If `"$SPECIFY_ALL_ISSUES"` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to reading through the session-scoped record snapshot the same way Step 1 does — `{Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md), with {tmp-records-file} = "$SPECIFY_ALL_ISSUES"}`. A resumed session in the *same* session (same `$CLAUDE_CODE_SESSION_ID`) resolves to the identical path `sessionTmpPath` derived before, so this is typically a cache hit against its own prior state, not a fresh `gh` round-trip — the session-scoped record snapshot at `record-snapshot.js`'s own path is a separate, independent cache covering the same underlying data.
 
 `work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker). `queryRecords('specs', {})` alone excludes closed records by default (its `filtersOnClosed` check treats an empty filter object as "open, as today," per `local-store.js`'s own header comment on the function) — this map needs both open and closed, mirroring the github driver's `--state all` fetch above: a fingerprint match against an already-closed local record still means "already exists" and must not be recreated on a resumed decomposition. Merge a default (open) query with an explicit `{ closed: true }` query — the same two-call idiom `tests/bin-lib/issues/local-store.test.js` demonstrates:
 
 ```bash
+SPECIFY_EXISTING_FINGERPRINTS=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-existing-fingerprints.json') || require('path').join(require('os').tmpdir(), 'specify-existing-fingerprints.json'))
+")
 node -e "
   const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const { extractFingerprint } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const records = [...queryRecords('specs', {}), ...queryRecords('specs', { closed: true })];
   const map = {};
   for (const r of records) { const fp = extractFingerprint(r.body); if (fp && !(fp in map)) map[fp] = r.id; }
-  require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify(map));
+  require('fs').writeFileSync('$SPECIFY_EXISTING_FINGERPRINTS', JSON.stringify(map));
 "
 ```
 
@@ -48,12 +60,23 @@ One parent per decomposition run (or per `phase-N`, when scoped — see Step 7's
 Parent body = design summary: the problem, the chosen approach, the key decisions, and why the alternatives lost. This is deliberately not the design doc pasted verbatim — it's the durable digest that has to survive Step 7 deleting the design doc. Prefix it with a one-line metadata block, `Surface: {value}` — reuse whatever Step 2.5a's whole-design-doc detection already produced (the canonical value list lives in `spec-template.md`). The parent never carries `Design-intent:` — parents are never built or polished directly, so creative intent has nothing to attach to.
 
 ```bash
+SPECIFY_PARENT_PAYLOAD=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-parent-payload.json') || require('path').join(require('os').tmpdir(), 'specify-parent-payload.json'))
+")
+SPECIFY_PARENT_BODY=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-parent-body.md') || require('path').join(require('os').tmpdir(), 'specify-parent-body.md'))
+")
+
 node -e "const {recordPayload}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const p=recordPayload({title:process.argv[1], body:process.argv[2], type:'feature', fingerprint:process.argv[3]});
-  require('fs').writeFileSync('/tmp/specify-parent-payload.json', JSON.stringify(p))" "$PARENT_TITLE" "$PARENT_BODY" "${DESIGN_DOC_SLUG}:parent"
+  require('fs').writeFileSync('$SPECIFY_PARENT_PAYLOAD', JSON.stringify(p))" "$PARENT_TITLE" "$PARENT_BODY" "${DESIGN_DOC_SLUG}:parent"
 
-node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-parent-payload.json','utf8')).body)" > /tmp/specify-parent-body.md
+node -e "console.log(JSON.parse(require('fs').readFileSync('$SPECIFY_PARENT_PAYLOAD','utf8')).body)" > "$SPECIFY_PARENT_BODY"
 ```
+
+(`_shared/session-tmp-root.md` — cited, not restated. `$SPECIFY_PARENT_PAYLOAD`/`$SPECIFY_PARENT_BODY` stay in scope for the rest of this section below.)
 
 `recordPayload` returns zero labels for the parent — no origin, no scoring, no `ready`. Two
 labels can still land on it, both applied directly via `gh issue create --label` rather than
@@ -83,10 +106,14 @@ above keys the parent's resume on.
 **`work-backend: github-issues`** — the Type expression branch (`_shared/work-record-config.md`, the config-key table's canonical home; read `work-types` once, never re-probe mid-flow):
 
 ```bash
+SPECIFY_PARENT_BODY=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-parent-body.md') || require('path').join(require('os').tmpdir(), 'specify-parent-body.md'))
+")
 # work-types: native
-PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --type feature --label parent-issue)
+PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file "$SPECIFY_PARENT_BODY" --type feature --label parent-issue)
 # work-types: labels
-PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --label type:feature --label parent-issue)
+PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file "$SPECIFY_PARENT_BODY" --label type:feature --label parent-issue)
 
 PARENT_NUM=$(basename "$PARENT_URL")
 ```
@@ -94,6 +121,10 @@ PARENT_NUM=$(basename "$PARENT_URL")
 **`work-backend: local-files`:** use `createRecord`, not `allocateId`+`writeRecord` separately — two near-simultaneous decomposition runs (or a `/specify` decomposition racing a `/capture` filing) calling `allocateId`+`writeRecord` independently can both read the same directory listing, both compute the same next id, and both succeed under different slugs — two records silently sharing one numeric id, corrupting any later `facets.parent`/`facets.blockedBy` reference that assumes id uniqueness (exactly the kind of reference this decomposition is about to write). `createRecord` closes that race by allocating the id and writing the file as one atomic step (see `bin/lib/issues/local-store.js`'s header comments on `allocateId` and `createRecord`; the same fix `capture/SKILL.md`'s local-files branch already applies). The slug is `deriveSlug(title, existingSlugs)` from that same module — not a hand-derived slugification:
 
 ```bash
+SPECIFY_PARENT_BODY=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-parent-body.md') || require('path').join(require('os').tmpdir(), 'specify-parent-body.md'))
+")
 PARENT_ID=$(node -e "const fs=require('fs');
   const {createRecord, deriveSlug}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const dir='specs';
@@ -101,9 +132,9 @@ PARENT_ID=$(node -e "const fs=require('fs');
     ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
     : [];
   const slug=deriveSlug(process.argv[1], existingSlugs);
-  const body=fs.readFileSync('/tmp/specify-parent-body.md', 'utf8');
+  const body=fs.readFileSync(process.argv[2], 'utf8');
   const record=createRecord(dir, { slug, title: process.argv[1], body, facets: { type: 'feature', isParentIssue: true } });
-  console.log(record.id)" "$PARENT_TITLE")
+  console.log(record.id)" "$PARENT_TITLE" "$SPECIFY_PARENT_BODY")
 ```
 
 `isParentIssue: true` is the local-files parity for the `parent-issue` label above — the same
@@ -159,32 +190,47 @@ Reuse this same `$UNIT_SLUG` value below for both the fingerprint and, under `wo
 **Fingerprint** — `{design-doc-slug}:{unit-slug}` (`$UNIT_SLUG` from Slug derivation, above), the sub-issue half of the deterministic scheme the Idempotency section above defines.
 
 ```bash
+SPECIFY_SUB_ISSUE_PAYLOAD=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-sub-issue-payload.json') || require('path').join(require('os').tmpdir(), 'specify-sub-issue-payload.json'))
+")
+SPECIFY_SUB_ISSUE_BODY=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-sub-issue-body.md') || require('path').join(require('os').tmpdir(), 'specify-sub-issue-body.md'))
+")
+
 node -e "const {recordPayload}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const p=recordPayload({
     title: process.argv[1], body: process.argv[2], type: process.argv[3],
     risk: process.argv[4], size: process.argv[5], ceremony: process.argv[6], ready: true,
     fingerprint: process.argv[7]
   });
-  require('fs').writeFileSync('/tmp/specify-sub-issue-payload.json', JSON.stringify(p))" \
+  require('fs').writeFileSync('$SPECIFY_SUB_ISSUE_PAYLOAD', JSON.stringify(p))" \
   "$SUB_ISSUE_TITLE" "$SUB_ISSUE_BODY" "$SUB_ISSUE_TYPE" "$SUB_ISSUE_RISK" "$SUB_ISSUE_SIZE" "$SUB_ISSUE_CEREMONY" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
 
-node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-sub-issue-payload.json','utf8')).body)" > /tmp/specify-sub-issue-body.md
+node -e "console.log(JSON.parse(require('fs').readFileSync('$SPECIFY_SUB_ISSUE_PAYLOAD','utf8')).body)" > "$SPECIFY_SUB_ISSUE_BODY"
 ```
 
-`recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `/tmp/specify-sub-issue-body.md` above already carries it, so both drivers below write the same fingerprinted text.
+(This bash fence runs once per work unit, in a loop — `sessionTmpPath` is idempotent per session+filename, so `$SPECIFY_SUB_ISSUE_PAYLOAD`/`$SPECIFY_SUB_ISSUE_BODY` resolve to the same paths on every iteration and each iteration's compose-then-write-once still overwrites cleanly before the next, exactly as the un-migrated literal paths did.)
+
+`recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `"$SPECIFY_SUB_ISSUE_BODY"` above already carries it, so both drivers below write the same fingerprinted text.
 
 Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`size:{tier}`/`ceremony:{tier}` pair in use, plus `solution:unjustified` — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
 
 **`work-backend: github-issues`** — same Type expression branch as the parent. The `recordPayload` call above never passes `solutionUnjustified` (it embeds the fingerprint into the body, not the create call's labels), so its `.labels` cover only `risk:{tier}`, `size:{tier}`, `ceremony:{tier}`, `ready`, and no `by:*` label — a decomposition is human-shaped work, not a health-skill filing. The `--label` flags below are exactly that set; `solution:unjustified` is added separately, below the create blocks, once the Framing verdict is known:
 
 ```bash
+SPECIFY_SUB_ISSUE_BODY=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-sub-issue-body.md') || require('path').join(require('os').tmpdir(), 'specify-sub-issue-body.md'))
+")
 # work-types: native
-SUB_ISSUE_URL=$(gh issue create --title "$SUB_ISSUE_TITLE" --body-file /tmp/specify-sub-issue-body.md \
+SUB_ISSUE_URL=$(gh issue create --title "$SUB_ISSUE_TITLE" --body-file "$SPECIFY_SUB_ISSUE_BODY" \
   --type "$SUB_ISSUE_TYPE" \
   --label "risk:$SUB_ISSUE_RISK" --label "size:$SUB_ISSUE_SIZE" --label "ceremony:$SUB_ISSUE_CEREMONY" --label ready)
 
 # work-types: labels
-SUB_ISSUE_URL=$(gh issue create --title "$SUB_ISSUE_TITLE" --body-file /tmp/specify-sub-issue-body.md \
+SUB_ISSUE_URL=$(gh issue create --title "$SUB_ISSUE_TITLE" --body-file "$SPECIFY_SUB_ISSUE_BODY" \
   --label "risk:$SUB_ISSUE_RISK" --label "size:$SUB_ISSUE_SIZE" --label "ceremony:$SUB_ISSUE_CEREMONY" --label ready \
   --label "type:$SUB_ISSUE_TYPE")
 
@@ -193,18 +239,22 @@ SUB_ISSUE_NUM=$(basename "$SUB_ISSUE_URL")
 
 When this sub-issue's Framing verdict (above) was `solution-baked`, add `--label "solution:unjustified"` to the create call; on `open` add nothing — the label is presence-only, and absence is the common case since most sub-issues are `open`.
 
-**`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-sub-issue-body.md` already carries the fingerprint marker, so the local write preserves it:
+**`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `"$SPECIFY_SUB_ISSUE_BODY"` already carries the fingerprint marker, so the local write preserves it:
 
 ```bash
+SPECIFY_SUB_ISSUE_BODY=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-sub-issue-body.md') || require('path').join(require('os').tmpdir(), 'specify-sub-issue-body.md'))
+")
 SUB_ISSUE_ID=$(node -e "const {createRecord}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
-  const body = require('fs').readFileSync('/tmp/specify-sub-issue-body.md', 'utf8');
+  const body = require('fs').readFileSync(process.argv[7], 'utf8');
   const record = createRecord('specs', {
     slug: process.argv[1],
     title: process.argv[2],
     body,
     facets: { type: process.argv[3], risk: process.argv[4], size: process.argv[5], ceremony: process.argv[6], stage: 'ready' }
   });
-  console.log(record.id)" "$UNIT_SLUG" "$SUB_ISSUE_TITLE" "$SUB_ISSUE_TYPE" "$SUB_ISSUE_RISK" "$SUB_ISSUE_SIZE" "$SUB_ISSUE_CEREMONY")
+  console.log(record.id)" "$UNIT_SLUG" "$SUB_ISSUE_TITLE" "$SUB_ISSUE_TYPE" "$SUB_ISSUE_RISK" "$SUB_ISSUE_SIZE" "$SUB_ISSUE_CEREMONY" "$SPECIFY_SUB_ISSUE_BODY")
 ```
 
 Add a `facets.solutionUnjustified: true` key to the object above only when this sub-issue's Framing verdict (above) was `solution-baked`; omit the key entirely on `open` (absent, not null) — unlike `facets.ceremony`, which always gets a value the first time a record is shaped, `facets.solutionUnjustified` is genuinely absent on the common `open` case.
@@ -284,6 +334,7 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 
 - Parent ↔ sub-issue — append one task-list line per sub-issue to the parent's body, `- [ ] #{subIssueNum}`, then a single `gh issue edit $PARENT_NUM --body-file` with the recomposed body (design summary + Decision Rationale below + the task list).
 - Sub-issue ↔ sub-issue / sub-issue ↔ pre-existing record — add one `Blocked by #N` line to the dependent sub-issue's body per dependency (line-anchored, matching `record.js`'s `DEP_RE`: the literal text `Blocked by #` followed by the number, at the start of a line), then a single `gh issue edit $SUB_ISSUE_NUM --body-file` with the recomposed body. When the dependency is between two sub-issues of this same decomposition (not a pre-existing companion record) and this decomposition produced 4 or more sub-issues (the Cross-Spec Promises threshold — see item 3 below), write the extended form instead — `Blocked by #N: {one-line assumption}` — stating what the dependent sub-issue actually needs from #N (`record.js`'s `parseDependencyAssumptions` reads the trailing text; bare lines and pre-existing-record links are unaffected).
+- **Authoring the assumption text — mechanical, not prose-shape.** The assumption text should assert a structural fact about #N's own deliverable — a function, symbol, API, file, or exported artifact existing — never a specific prose string, documentation wording, or a claim about what #N's own eventual `## Non-Goals` will or won't scope out. A sibling's `## Non-Goals` narrows *how something is described*, not *whether it structurally exists*, so a mechanical assertion survives that narrowing and a prose-shape one doesn't. Safe example: `Blocked by #211: exposes getStatus() on the queue module`. Fragile example (avoid): `Blocked by #211: documents the retry-window default as "5 minutes" in its README section` — #211's own scoping decision can legitimately drop that exact wording from its docs while still shipping the capability, stranding this check.
 - Readers parse this back out with `record.js`'s `parseDependencies(body)` — it returns every `Blocked by #N` target as a deduped, ordered array; a mid-line mention doesn't count, only a line-starting one does.
 
 **`work-backend: local-files`** (no native/body-text choice — frontmatter is the only mechanism):
