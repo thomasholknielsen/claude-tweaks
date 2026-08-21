@@ -99,7 +99,14 @@ test('verification-brief.md routes the full brief to the PR and leaves a one-lin
 // engine-verify.js's `acceptance-labeling` check (record #900, Task 6 —
 // see plugin/skills/wrap-up/execution-and-verification.md's Verify
 // execution section, now a verb invocation rather than hand-run prose).
-// tests/bin-lib/wrap-up/engine-verify.test.js owns that check's coverage.
+// Task 6's initial cut only reproduced the label + full-brief-on-the-issue
+// path; a post-review fix (same task) added the actual pointer+PR-brief
+// handling — pointer found on the issue → fetch `gh pr view --json
+// comments` → require a comment carrying both `<!-- run-comment: brief -->`
+// and `### Confirmed` — plus parent redirection for decomposed sub-issues.
+// tests/bin-lib/wrap-up/engine-verify.test.js owns that check's coverage,
+// including the pr-first pointer+brief pass/fail cases and the parent-
+// redirect/dedup cases.
 
 test('review/SKILL.md posts a verdict comment reusing the findings-table shape, gated on the pr object', () => {
   assert.match(REVIEW_SKILL, /run-comment: verdict/);

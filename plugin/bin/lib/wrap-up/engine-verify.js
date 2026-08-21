@@ -262,57 +262,164 @@ function ghAvailable(deps) {
   }
 }
 
+// ---- parent resolution + pr-first pointer helpers ---------------------------
+//
+// `verification-brief.md`'s Routing section: a resolvable-parent sub-issue
+// never carries its own `demo:pending` -- its parent carries one gate for
+// all of them. Callers must redirect to the parent before checking labels/
+// comments. Returns { ok:false, error } instead of throwing so a gh/JSON
+// failure folds into the check's own `fail` detail line rather than
+// aborting the whole check.
+function resolveParent(n, deps) {
+  let raw;
+  try {
+    raw = deps.gh(['issue', 'view', String(n), '--json', 'parent'], process.cwd());
+  } catch (err) {
+    return { ok: false, error: `gh issue view (parent) failed for #${n} (${err.message})` };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: `could not parse parent JSON for #${n}` };
+  }
+  return { ok: true, parent: parsed.parent ? parsed.parent.number : null };
+}
+
+// `verify`'s --run-dir may be the parent pipeline run directory, or (in a
+// multi-spec run) a spec-{N}/ subdirectory with no run-state.json of its
+// own -- checks runDir first, then one directory up. Absence or a parse/
+// shape failure at whichever path is checked returns null, which correctly
+// degrades to "no PR" (local-merge / degraded-pr-first) behavior in the
+// caller -- it never falls further than one level up, and it never treats a
+// present-but-PR-less run-state.json as a reason to keep searching.
+function resolvePrNumber(runDir) {
+  const direct = path.join(runDir, 'run-state.json');
+  const statePath = fs.existsSync(direct) ? direct : path.join(path.dirname(runDir), 'run-state.json');
+  if (!fs.existsSync(statePath)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    return data.pr && data.pr.number ? data.pr.number : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---- acceptance labeling ---------------------------------------------------
 //
 // Reproduces execution-and-verification.md's existing per-backend,
-// per-parent-vs-non-parent check (the prose this record deletes). Deliberate
-// scope note (spec's own nuance, preserved here rather than re-derived): a
-// resolvable-parent record's brief lives on the PARENT, and correctly-gated
-// parents routinely have OTHER comments after the brief lands (the
-// Parent-Gate Procedure's already-posted-brief branch only adds the label,
-// posting nothing new) -- so this check tests whether ANY comment on the
-// target issue contains the brief, never only the most recent one. A
-// last-comment-only test would hard-stop a correctly-gated parent.
+// per-parent-vs-non-parent check (the prose this record deletes), including
+// the two nuances the original version of this check omitted (record #900,
+// Task 6 fix): parent redirection, and the pr-first pointer+brief split.
+// Deliberate scope note (spec's own nuance, preserved here rather than
+// re-derived): a resolvable-parent record's brief lives on the PARENT, and
+// correctly-gated parents routinely have OTHER comments after the brief
+// lands (the Parent-Gate Procedure's already-posted-brief branch only adds
+// the label, posting nothing new) -- so this check tests whether ANY
+// comment on the target issue (or, under the pr-first pointer form, the PR)
+// contains the brief, never only the most recent one. A last-comment-only
+// test would hard-stop a correctly-gated parent.
+//
+// Known, deliberate gaps (not reproduced here -- said honestly rather than
+// implied by omission): the Oversight-floor gate (a non-parent record that
+// doesn't clear the floor legitimately carries no `demo:pending` at all --
+// this check has no way to distinguish that from a genuinely missed
+// labeling step, so it will report a false `fail` for that case) and the
+// `local-files` backend's different acceptance shape (`facets.acceptance`
+// on the record body, no `gh` comments at all) are both out of scope for
+// this check as written; it only reproduces the `github-issues` path.
 registerCheck('acceptance-labeling', ({ runDir, deps }) => {
   if (!ghAvailable(deps)) return { result: 'unknown', detail: 'gh absent' };
   const issues = resolvedIssueNumbers(runDir);
   if (!issues.length) return { result: 'skip', detail: 'no resolved issue numbers found' };
   const failing = [];
+
+  // Resolve each issue's target (its parent, when resolvable; itself
+  // otherwise), deduping by target -- two sub-issues sharing one parent
+  // must only be checked once, both to avoid redundant gh calls and to
+  // avoid redundant identical detail lines.
+  const targets = [];
+  const seenTargets = new Set();
   for (const n of issues) {
+    const resolved = resolveParent(n, deps);
+    if (!resolved.ok) {
+      failing.push(`#${n}: ${resolved.error}`);
+      continue;
+    }
+    const target = resolved.parent || n;
+    if (seenTargets.has(target)) continue;
+    seenTargets.add(target);
+    targets.push(target);
+  }
+
+  const prNumber = resolvePrNumber(runDir);
+
+  for (const target of targets) {
     let labelsRaw;
     try {
-      labelsRaw = deps.gh(['issue', 'view', String(n), '--json', 'labels'], process.cwd());
+      labelsRaw = deps.gh(['issue', 'view', String(target), '--json', 'labels'], process.cwd());
     } catch (err) {
-      failing.push(`#${n}: gh issue view failed (${err.message})`);
+      failing.push(`#${target}: gh issue view failed (${err.message})`);
       continue;
     }
     let labels;
     try {
       labels = JSON.parse(labelsRaw).labels || [];
     } catch {
-      failing.push(`#${n}: could not parse labels JSON`);
+      failing.push(`#${target}: could not parse labels JSON`);
       continue;
     }
     if (!labels.some((l) => l.name === 'demo:pending')) {
-      failing.push(`#${n}: missing demo:pending label`);
+      failing.push(`#${target}: missing demo:pending label`);
       continue;
     }
     let commentsRaw;
     try {
-      commentsRaw = deps.gh(['issue', 'view', String(n), '--json', 'comments'], process.cwd());
+      commentsRaw = deps.gh(['issue', 'view', String(target), '--json', 'comments'], process.cwd());
     } catch (err) {
-      failing.push(`#${n}: gh issue view (comments) failed (${err.message})`);
+      failing.push(`#${target}: gh issue view (comments) failed (${err.message})`);
       continue;
     }
     let comments;
     try {
       comments = JSON.parse(commentsRaw).comments || [];
     } catch {
-      failing.push(`#${n}: could not parse comments JSON`);
+      failing.push(`#${target}: could not parse comments JSON`);
       continue;
     }
-    const hasBrief = comments.some((c) => c.body && c.body.includes('## Verification Brief') && c.body.includes('### Confirmed'));
-    if (!hasBrief) failing.push(`#${n}: no comment carries a confirmed Verification Brief`);
+    const hasFullBrief = comments.some((c) => c.body && c.body.includes('## Verification Brief') && c.body.includes('### Confirmed'));
+    if (hasFullBrief) continue;
+
+    // No full brief on the issue itself -- under pr-first (run-state.json
+    // carries a `pr` object), verification-brief.md's "`pr` object present"
+    // branch posts the full brief on the PR instead, leaving only a
+    // one-line pointer on the issue. Check for that form before failing.
+    if (prNumber) {
+      const hasPointer = comments.some((c) => c.body && c.body.includes('Verification Brief posted to PR #'));
+      if (hasPointer) {
+        let prCommentsRaw;
+        try {
+          prCommentsRaw = deps.gh(['pr', 'view', String(prNumber), '--json', 'comments'], process.cwd());
+        } catch (err) {
+          failing.push(`#${target}: gh pr view failed for PR #${prNumber} (${err.message})`);
+          continue;
+        }
+        let prComments;
+        try {
+          prComments = JSON.parse(prCommentsRaw).comments || [];
+        } catch {
+          failing.push(`#${target}: could not parse PR #${prNumber} comments JSON`);
+          continue;
+        }
+        const hasPrBrief = prComments.some(
+          (c) => c.body && c.body.includes('<!-- run-comment: brief -->') && c.body.includes('### Confirmed')
+        );
+        if (hasPrBrief) continue;
+        failing.push(`#${target}: pointer to PR #${prNumber} found but no confirmed Verification Brief on PR #${prNumber}`);
+        continue;
+      }
+    }
+    failing.push(`#${target}: no comment carries a confirmed Verification Brief`);
   }
   if (failing.length) return { result: 'fail', detail: failing.join('; ') };
   return { result: 'pass', detail: '' };
@@ -395,4 +502,13 @@ function renderVerifyTable(rows) {
   return lines.join('\n');
 }
 
-module.exports = { runVerify, renderVerifyTable, resolveArchivedRunDir, registerCheck, defaultGit, defaultGh };
+module.exports = {
+  runVerify,
+  renderVerifyTable,
+  resolveArchivedRunDir,
+  registerCheck,
+  defaultGit,
+  defaultGh,
+  resolveParent,
+  resolvePrNumber,
+};

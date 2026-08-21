@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { execFileSync: realExecFileSync } = require('node:child_process');
-const { renderVerifyTable, runVerify, registerCheck } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
+const { renderVerifyTable, runVerify, registerCheck, resolvePrNumber } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
 const { gitRepo } = require('../../helpers/git-fixtures');
 
 function makeTmpDir(prefix) {
@@ -217,6 +217,7 @@ test('acceptance-labeling check passes when demo:pending label and a brief comme
   writeSpecFile(runDir, '900', 900);
   const fakeGh = (args) => {
     if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) return JSON.stringify({ parent: null });
     if (args.includes('labels')) return JSON.stringify({ labels: [{ name: 'demo:pending' }] });
     if (args.includes('comments')) return JSON.stringify({ comments: [{ body: '## Verification Brief\n### Confirmed\n' }] });
     return '';
@@ -231,6 +232,7 @@ test('acceptance-labeling check fails when demo:pending label missing', () => {
   writeSpecFile(runDir, '900', 900);
   const fakeGh = (args) => {
     if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) return JSON.stringify({ parent: null });
     if (args.includes('labels')) return JSON.stringify({ labels: [] });
     return JSON.stringify({ comments: [] });
   };
@@ -245,6 +247,125 @@ test('acceptance-labeling check skips when no resolved issues found', () => {
   const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
   const row = result.rows.find((r) => r.check === 'acceptance-labeling');
   assert.strictEqual(row.result, 'skip');
+});
+
+test('acceptance-labeling check redirects to a resolvable parent, never checking the sub-issue itself', () => {
+  const runDir = makeTmpDir('verify-acceptance-parent-');
+  writeSpecFile(runDir, '900', 900);
+  const calls = [];
+  const fakeGh = (args) => {
+    calls.push(args);
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) return JSON.stringify({ parent: { number: 898 } });
+    if (args.includes('labels')) return JSON.stringify({ labels: [{ name: 'demo:pending' }] });
+    if (args.includes('comments')) return JSON.stringify({ comments: [{ body: '## Verification Brief\n### Confirmed\n' }] });
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'pass');
+  const labelCalls = calls.filter((a) => a.includes('labels'));
+  assert.strictEqual(labelCalls.length, 1);
+  assert.strictEqual(labelCalls[0][2], '898', 'the labels check must target the parent #898, not the sub-issue #900');
+  const commentCalls = calls.filter((a) => a[0] === 'issue' && a.includes('comments'));
+  assert.strictEqual(commentCalls[0][2], '898', 'the comments check must target the parent #898, not the sub-issue #900');
+});
+
+test('acceptance-labeling check queries a shared parent exactly once for two sub-issues', () => {
+  const runDir = makeTmpDir('verify-acceptance-dedup-');
+  writeSpecFile(runDir, '900', 900);
+  writeSpecFile(runDir, '901', 901);
+  const calls = [];
+  const fakeGh = (args) => {
+    calls.push(args);
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) return JSON.stringify({ parent: { number: 898 } });
+    if (args.includes('labels')) return JSON.stringify({ labels: [{ name: 'demo:pending' }] });
+    if (args.includes('comments')) return JSON.stringify({ comments: [{ body: '## Verification Brief\n### Confirmed\n' }] });
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'pass');
+  const labelCalls = calls.filter((a) => a.includes('labels'));
+  assert.strictEqual(labelCalls.length, 1, 'parent #898 must only be checked once despite two sub-issues resolving to it');
+  const commentCalls = calls.filter((a) => a[0] === 'issue' && a.includes('comments'));
+  assert.strictEqual(commentCalls.length, 1, 'parent #898 comments must only be fetched once');
+  assert.strictEqual(row.detail, '');
+});
+
+test('acceptance-labeling check passes via the pr-first pointer+brief form (full brief on the PR, pointer on the issue)', () => {
+  const runDir = makeTmpDir('verify-acceptance-prpointer-pass-');
+  writeSpecFile(runDir, '900', 900);
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ pr: { number: 1199 } }));
+  const fakeGh = (args) => {
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) return JSON.stringify({ parent: null });
+    if (args.includes('labels')) return JSON.stringify({ labels: [{ name: 'demo:pending' }] });
+    if (args[0] === 'pr' && args[1] === 'view') {
+      return JSON.stringify({ comments: [{ body: '<!-- run-comment: brief -->\n\n## Verification Brief\n### Confirmed\n' }] });
+    }
+    if (args.includes('comments')) {
+      return JSON.stringify({ comments: [{ body: 'Verification Brief posted to PR #1199: https://github.com/org/repo/pull/1199' }] });
+    }
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'pass');
+});
+
+test('acceptance-labeling check fails when the pr-first pointer is present but the PR carries no confirmed brief', () => {
+  const runDir = makeTmpDir('verify-acceptance-prpointer-fail-');
+  writeSpecFile(runDir, '900', 900);
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ pr: { number: 1199 } }));
+  const fakeGh = (args) => {
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) return JSON.stringify({ parent: null });
+    if (args.includes('labels')) return JSON.stringify({ labels: [{ name: 'demo:pending' }] });
+    if (args[0] === 'pr' && args[1] === 'view') return JSON.stringify({ comments: [] });
+    if (args.includes('comments')) {
+      return JSON.stringify({ comments: [{ body: 'Verification Brief posted to PR #1199: https://github.com/org/repo/pull/1199' }] });
+    }
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'fail');
+  assert.match(row.detail, /PR #1199/);
+});
+
+test('acceptance-labeling check folds a parent-resolution gh failure into a fail detail instead of throwing', () => {
+  const runDir = makeTmpDir('verify-acceptance-parenterr-');
+  writeSpecFile(runDir, '900', 900);
+  const fakeGh = (args) => {
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) throw new Error('gh: rate limited');
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'fail');
+  assert.match(row.detail, /#900.*gh issue view \(parent\) failed/);
+});
+
+test('resolvePrNumber falls back to run-state.json one level up when absent at runDir itself (multi-spec subdir case)', () => {
+  const parentDir = makeTmpDir('verify-prnum-parent-');
+  fs.writeFileSync(path.join(parentDir, 'run-state.json'), JSON.stringify({ pr: { number: 1199 } }));
+  const subDir = path.join(parentDir, 'spec-900');
+  fs.mkdirSync(subDir);
+  assert.strictEqual(resolvePrNumber(subDir), 1199);
+});
+
+test('resolvePrNumber returns null when neither runDir nor its parent has run-state.json', () => {
+  const runDir = makeTmpDir('verify-prnum-none-');
+  assert.strictEqual(resolvePrNumber(runDir), null);
+});
+
+test('resolvePrNumber returns null when run-state.json exists directly at runDir but carries no pr field', () => {
+  const runDir = makeTmpDir('verify-prnum-nopr-');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'ok' }));
+  assert.strictEqual(resolvePrNumber(runDir), null);
 });
 
 function writeExpectations(runDir, data) {
