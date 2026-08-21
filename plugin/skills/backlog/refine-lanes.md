@@ -301,19 +301,24 @@ appending the stamp in a separate pass afterward.
 
 **Unattended auto-apply (`refineAutoApply`).** When this run's already-resolved `autonomy` ceiling
 reads `unattended` — `_shared/autonomy-ceiling.md`'s Bookkeeping capabilities table grants
-`refineAutoApply` at that tier only — skip the `AskUserQuestion` below entirely: this batch resolves exactly as if
-"Apply all recommended" had been chosen — every lane's rows, priority/Related/flag-back/
-dependency-repair rows and grant rows alike. This is a zero-*click* short-circuit, never a
-zero-*render* one — the lane tables above still render in full regardless (per the stamping
-instruction above), mirroring `consoleAutoResolve`'s own "skipping the prompt is not license to
-skip the render" contract. Log one `decisions.md` `AUTO` entry for the whole batch, lever-attributed:
+`refineAutoApply` at that tier only, and that row is the canonical description of this
+capability's zero-click-never-zero-render contract; not restated here — skip the `AskUserQuestion`
+below entirely: this batch resolves exactly as if "Apply all recommended" had been chosen — every
+lane's rows, priority/Related/flag-back/dependency-repair rows and grant rows alike. The lane
+tables above still render in full regardless (per the stamping instruction above). Log one
+`decisions.md` `AUTO` entry for the whole batch, lever-attributed to the `autonomy` lever that
+actually gates it (`autonomy` is the real `POLICY_KEYS` entry — `refineAutoApply` itself is a
+derived capability name, never a loggable lever key per `_shared/auto-decision-log.md`'s "Keys are
+literal: copy lever names from `POLICY_KEYS` verbatim" rule). Resolve the JSON envelope (not
+`--values`, because the log line needs `source`) to get both:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO \
-  --section "/backlog" --step "refine confirm-gate" \
-  --text "Backlog refine: batch auto-applied — {n} rows across {m} lanes, all recommended values" \
-  --reversibility high --lever "refineAutoApply=true (unattended)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" autonomy
+# -> {"autonomy": {"value": "unattended", "source": "run-config"|"policy"}}
 ```
+
+Then log, substituting that `source` for `{source}` (see the shared log-decision template below
+for the `{text}` this branch supplies).
 
 Then proceed straight to Step 5's Apply logic under "Apply all recommended" semantics — no further
 gate, and skip the session-scope override below too (it has nothing to add once this branch has
@@ -343,7 +348,7 @@ one further `AskUserQuestion`, exactly once per session — <!-- HARD-GATE: refi
 a live human must stop and report `BLOCKED` rather than answering on its own initiative:
 
 - `question`: `"Apply future batches this session the same way, or ask each time?"`, `header`: `"Backlog refine"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Yes, apply this way for the rest of this session"`, `description`: `"Every later batch-confirm this run resolves like this one did — rendered, [auto-applied]-stamped, logged — with no further prompt of either kind"`
+- Option 1 — `label`: `"Yes, apply this way for the rest of this session"`, `description`: `"Every later batch this session resolves like this one did — rendered, [auto-applied]-stamped, logged — with no further prompt of either kind, EXCEPT: if this first batch resolved via 'Override specific items' below, a later batch still gets the ordinary 4-option gate once (see the Option 2 note below this question)"`
 - Option 2 — `label`: `"No, ask me every batch (Recommended)"`, `description`: `"Prompt with the 4-option gate above on every remaining batch, exactly as today"`
 
 This choice lives only in the running session's own memory — never written to `policy.yml`, a run
@@ -351,26 +356,32 @@ config, or any file — and never survives past this session: a fresh `/claude-t
 refine` invocation in a new session prompts from scratch, both questions included.
 
 Answering **"Yes"** records which of the 4 gate options this first batch resolved to, for the rest
-of this running session. Every later batch-confirm in the same session then skips both this
-question and the 4-option gate above, resolves to that same recorded option, renders its lanes in
-full (per the stamping instruction above), stamps every resolved row `[auto-applied]`, and logs one
-`decisions.md` `AUTO` entry per batch — same shape as the `unattended` branch's entry above, but
-with no `[lever: ...]` attribution (this suppression is a session-scoped human choice, not a
-ceiling-gated policy lever):
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO \
-  --section "/backlog" --step "refine confirm-gate" \
-  --text "Backlog refine: batch auto-applied — {n} rows across {m} lanes, per this session's standing override (chosen at the first batch-confirm)" \
-  --reversibility high
-```
+of this running session. A recorded Option 1, 3, or 4 replays mechanically against each later
+batch's own rows (Option 4 trivially skips them): every later batch-confirm in the same session
+skips both this question and the 4-option gate above, resolves to that same recorded option,
+renders its lanes in full (per the stamping instruction above), stamps every resolved row
+`[auto-applied]`, and logs one `decisions.md` `AUTO` entry per batch (see the shared log-decision
+template below — no lever attribution on this path, since this suppression is a session-scoped
+human choice, not a ceiling-gated policy lever). A recorded **Option 2** ("Override specific
+items") is the one stated exception to "no further prompt of either kind" above: it named a
+one-time free-text response to the *first* batch's own rows, not a standing rule with anything
+mechanical to replay, so a later batch that would otherwise resolve to it gets the ordinary
+4-option gate once instead of silently reusing that stale free text against different rows — the
+session-scope follow-up itself still does not re-fire in this case, only the 4-option gate does.
 
 Answering **"No"** leaves every subsequent batch prompting normally at the 4-option gate above,
 with no suppression and no further logging change. Either way, this follow-up question itself
 never fires again for the remainder of the session — decided once, never re-asked.
 
-A recorded Option 1, 3, or 4 replays mechanically against each later batch's own rows (Option 4
-trivially skips them). A recorded Option 2 ("Override specific items") has no static correction to
-replay — it named a one-time free-text response to the *first* batch's own rows, not a standing
-rule — so a later batch that would otherwise resolve to it prompts the ordinary 4-option gate
-instead, exactly once, rather than silently reusing that stale free text against different rows.
+**Shared log-decision template.** Both auto-apply paths above (the `unattended` branch and a
+session-override-suppressed batch) log through the same call shape, differing only in `{text}` and
+whether `--lever` is present:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO \
+  --section "/backlog" --step "refine confirm-gate" --text "{text}" --reversibility high \
+  [--lever "autonomy={value} ({source})"]
+```
+
+- Unattended branch: `{text}` = `"Backlog refine: batch auto-applied — {n} rows across {m} lanes, all recommended values"`, with `--lever` present using this run's already-resolved `autonomy` value/source (above).
+- Session-override branch: `{text}` = `"Backlog refine: batch auto-applied — {n} rows across {m} lanes, per this session's standing override (chosen at the first batch-confirm)"`, with `--lever` omitted.

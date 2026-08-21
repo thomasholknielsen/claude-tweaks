@@ -57,11 +57,14 @@ assertions:
   # refine-lanes.md's rewritten confirm-gate section specifies.
   - type: result-contains
     contains: ["[auto-applied]"]
-  # One decisions.md AUTO entry for the whole batch, lever-attributed exactly
-  # as refine-lanes.md's unattended branch specifies.
+  # One decisions.md AUTO entry for the whole batch, lever-attributed to the
+  # real POLICY_KEYS entry that gates it (`autonomy`, source `policy` since
+  # this fixture sets it via .claude-tweaks/policy.yml) — refineAutoApply
+  # itself is a derived capability name, never a loggable lever key, per
+  # auto-decision-log.md's "keys are literal, copy from POLICY_KEYS" rule.
   - type: decisions-log-has
     contains:
-      - "[lever: refineAutoApply=true (unattended)]"
+      - "[lever: autonomy=unattended (policy)]"
   # Legitimate commit shapes: init + seed base fixture + the policy.yml seed
   # step (seedFiles' default "seed fixture files" message) + the one seeded
   # record + this skill's own priority-write commit
