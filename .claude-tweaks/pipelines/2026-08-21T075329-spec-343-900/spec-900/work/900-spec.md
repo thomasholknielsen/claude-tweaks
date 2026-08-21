@@ -40,14 +40,52 @@ Wrap-up's closure gate — `execution-and-verification.md`'s "Verify execution" 
 - `bin/lib/wrap-up/state.js` / `engine-state.json` — run-dir state the verb can read for what was staged/applied.
 - Tests: `tests/bin-lib/{module}/` suites are picked up automatically by `npm test`'s recursive glob.
 
+## Architecture alignment (post-build note)
+
+Three deviations from this spec's literal wording, both classified during Common Step 4.5 and
+applied as spec updates (auto mode, reversibility high — editing this already-archival-bound
+materialized copy):
+
+1. **"Update the spec" — `plans-ledger`/`design-caches` are not glob checks.** This spec's
+   Deliverables item 1 called them `(glob)`. Task 2's readdirSync + slug-match implementation
+   (matching the run's spec-slug against plan/cache filenames) shipped as specified, but the
+   whole-branch review found it vacuous by construction — plan files are named from unrelated
+   *topic* slugs (`/superpowers:writing-plans`), never the run's *spec* slug, so the match
+   essentially never fires. The fix round replaced slug-matching with `git status --porcelain`
+   untracked-file detection plus a direct `.superpowers/sdd/` scan. The spec's assumption (a glob
+   match against the run's own slug reliably identifies leftovers) was wrong; reality is correct.
+2. **"Update the spec" — `carrier-commit` needs a pr-first PR-body fallback the spec never
+   named.** Deliverables item 1 specified only a branch-log `git log --grep` check. Under this
+   project's own default `worktree`/`pr-first` mode, `execution-and-verification.md` already
+   states there is deliberately no `Fixes #{n}` commit on the branch — the draft PR body carries
+   it instead. The spec's Gotchas section flagged re-reading that same file fresh before Task 1,
+   but its own Deliverables text for this specific check didn't carry the nuance forward. Fixed:
+   `carrier-commit` now falls back to `gh pr view --json body` when the branch log has nothing and
+   a PR number resolves.
+3. **Beneficial — multi-spec `spec-{N}/` subdirectory resolution, not scoped by the spec.** The
+   spec's Technical Approach didn't address `/flow` multi-spec runs exporting a per-spec
+   subdirectory as `$PIPELINE_RUN_DIR`, distinct from the parent run's own id (which the
+   worktree/branch and archived-copy naming both key off). Added `specSlugFromRunDir`/
+   `archiveRelativeId` to resolve correctly in both shapes — an extension beyond the spec's
+   literal scope, kept as-built.
+
+Two smaller, real gaps against the spec's stated Data/API Surface were found too late in the
+review cycle to fix without expanding this already-large fix round past CLAUDE.md's
+`genuinely-larger` deferral criterion — filed as backlog records rather than silently dropped:
+[#1222](https://github.com/thomasholknielsen/claude-tweaks/issues/1222) (`plans-ledger`/
+`design-caches` read the main-checkout `repoRoot`, so are structurally blind to worktree-local
+leftovers under the project's own default `pr-first` mode) and
+[#1223](https://github.com/thomasholknielsen/claude-tweaks/issues/1223) (the expectations file's
+`issues` key, named in this spec's Data/API Surface, is never actually populated).
+
 ## Deliverables
 
-- [ ] `wrap-up-engine.js verify --run-dir <dir> --base <ref>` prints one row per check — `pass` / `fail` / `skip (reason)` / `unknown (reason)` — table first, then exits **3** on any `fail` and 0 otherwise (`pass`/`skip`/`unknown` rows never change the exit code — `unknown` renders visibly but does not block, matching the current checklist where a check that cannot run is surfaced, not treated as a failed action). Exit 3 is a **new** code: 1 (bad payload) and 2 (malformed invocation / `render --strict` holes) keep their existing meanings, so a caller can distinguish "you called it wrong" from "a closure check failed." Checks: plans+ledger removal (glob), design caches (glob), run-dir archived (old path gone, archive path present, `work/` tracked at new path via `git ls-files`), worktree removed (`git worktree list` parse), carrier commit (`git log --grep "Fixes #{n}"` over `{base}..HEAD` per resolved issue), reference-repair commit scoping (`Initiative-Fix:` trailer commit in `{base}..HEAD`, diff touches only the files named by `engine-state.json`'s applied reference findings). `--base` is consumed by exactly those last two checks; the caller passes the same `{base}` `summary-template.md`'s ladder already resolved for this run. `--run-dir` accepts the run's original path and, when it no longer exists (the normal case — archival precedes verification), resolves `archive/{basename}` under the same pipelines root; the expectations file travels with the archive. Resolved-issue numbers come from the archived `work/*-spec.md` headers' `record:` fields, falling back to the expectations file's `issues` key for current-branch runs with no materialized header.
-- [ ] Checks needing `gh` (acceptance labeling: `demo:pending` present, brief/pointer comment present per the existing per-backend branch) run when `gh` resolves — probe via the injectable runner's PATH lookup, the same seam the `plugin/bin/lib/` gh modules use — and render `unknown (gh absent)` otherwise, never a silent pass. The verb is deliberately gh-CLI-only: in a gh-absent environment the rows stay `unknown` and any MCP-path manual verification remains the skill prose's affair, outside this verb's scope (stated in the module header).
-- [ ] Checks whose expected values live outside git/fs (memory-file path + index line, upstream issue URLs) read a small expectations JSON (`{run-dir}/verify-expectations.json`, versioned shape) that the console **always** writes at resolution time — including an empty one (`{"version":1,"memory":[],"upstream":[]}`) when nothing resolved to apply/file. Semantics are therefore asymmetric by design: a key present but empty → `skip (nothing recorded)`; the **file absent entirely** → `unknown (expectations file missing)` on every expectations-dependent row, because the console's write step itself failed — folding that into `skip` would hide exactly the class of silent non-execution this record exists to catch. An unrecognized `version` value renders `unknown (expectations version {v} unsupported)` on those rows; unknown keys within a recognized version are ignored.
-- [ ] `execution-and-verification.md`'s "Verify execution" section rewritten to: write the expectations file at console resolution (one sentence in the M#/U# resolution bullets, plus the `deferred` list below), run the verb, insert its table verbatim, and on exit 3 emit `BLOCKED — {failing check row}` and stop; `unknown` rows are quoted in the closure line but do not block. The prose checklist is deleted — no duplicated copy survives.
-- [ ] The parent-brief nuance ("any comment on the parent, never only the most recent — a correctly gated parent routinely has some other comment last") is preserved as a code comment in `engine-verify.js` beside the parent-branch check — the prose that carried this previously-regressed rationale is being deleted, so the comment is its new home.
-- [ ] Tests: green run over a fixture run-dir; one failing fixture per check class; gh-absent degradation; expectations-file absent / present / empty / unsupported-version; deferred-set rows.
+- [x] `wrap-up-engine.js verify --run-dir <dir> --base <ref>` prints one row per check — `pass` / `fail` / `skip (reason)` / `unknown (reason)` — table first, then exits **3** on any `fail` and 0 otherwise (`pass`/`skip`/`unknown` rows never change the exit code — `unknown` renders visibly but does not block, matching the current checklist where a check that cannot run is surfaced, not treated as a failed action). Exit 3 is a **new** code: 1 (bad payload) and 2 (malformed invocation / `render --strict` holes) keep their existing meanings, so a caller can distinguish "you called it wrong" from "a closure check failed." Checks: plans+ledger removal (glob), design caches (glob), run-dir archived (old path gone, archive path present, `work/` tracked at new path via `git ls-files`), worktree removed (`git worktree list` parse), carrier commit (`git log --grep "Fixes #{n}"` over `{base}..HEAD` per resolved issue), reference-repair commit scoping (`Initiative-Fix:` trailer commit in `{base}..HEAD`, diff touches only the files named by `engine-state.json`'s applied reference findings). `--base` is consumed by exactly those last two checks; the caller passes the same `{base}` `summary-template.md`'s ladder already resolved for this run. `--run-dir` accepts the run's original path and, when it no longer exists (the normal case — archival precedes verification), resolves `archive/{basename}` under the same pipelines root; the expectations file travels with the archive. Resolved-issue numbers come from the archived `work/*-spec.md` headers' `record:` fields, falling back to the expectations file's `issues` key for current-branch runs with no materialized header.
+- [x] Checks needing `gh` (acceptance labeling: `demo:pending` present, brief/pointer comment present per the existing per-backend branch) run when `gh` resolves — probe via the injectable runner's PATH lookup, the same seam the `plugin/bin/lib/` gh modules use — and render `unknown (gh absent)` otherwise, never a silent pass. The verb is deliberately gh-CLI-only: in a gh-absent environment the rows stay `unknown` and any MCP-path manual verification remains the skill prose's affair, outside this verb's scope (stated in the module header).
+- [x] Checks whose expected values live outside git/fs (memory-file path + index line, upstream issue URLs) read a small expectations JSON (`{run-dir}/verify-expectations.json`, versioned shape) that the console **always** writes at resolution time — including an empty one (`{"version":1,"memory":[],"upstream":[]}`) when nothing resolved to apply/file. Semantics are therefore asymmetric by design: a key present but empty → `skip (nothing recorded)`; the **file absent entirely** → `unknown (expectations file missing)` on every expectations-dependent row, because the console's write step itself failed — folding that into `skip` would hide exactly the class of silent non-execution this record exists to catch. An unrecognized `version` value renders `unknown (expectations version {v} unsupported)` on those rows; unknown keys within a recognized version are ignored.
+- [x] `execution-and-verification.md`'s "Verify execution" section rewritten to: write the expectations file at console resolution (one sentence in the M#/U# resolution bullets, plus the `deferred` list below), run the verb, insert its table verbatim, and on exit 3 emit `BLOCKED — {failing check row}` and stop; `unknown` rows are quoted in the closure line but do not block. The prose checklist is deleted — no duplicated copy survives.
+- [x] The parent-brief nuance ("any comment on the parent, never only the most recent — a correctly gated parent routinely has some other comment last") is preserved as a code comment in `engine-verify.js` beside the parent-branch check — the prose that carried this previously-regressed rationale is being deleted, so the comment is its new home.
+- [x] Tests: green run over a fixture run-dir; one failing fixture per check class; gh-absent degradation; expectations-file absent / present / empty / unsupported-version; deferred-set rows.
 
 ## Acceptance Criteria
 
