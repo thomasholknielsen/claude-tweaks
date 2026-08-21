@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-20T193635-record-344",
-  "reason": "failed: materialize-worktree-shadow-guard-959",
-  "releasedAt": "2026-08-20T20:58:22.822Z"
+  "runId": "2026-08-21T043115-record-344",
+  "sessionId": "da7611d3-fab7-4e1a-bd88-9de61b8445ba",
+  "claimedAt": "2026-08-21T04:32:07.345Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
