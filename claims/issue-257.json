@@ -1,6 +1,7 @@
 {
-  "released": true,
   "runId": "2026-08-21T105702-spec-252-257-899-266-316-644-652",
-  "reason": "never-started: file-overlap group partial claim",
-  "releasedAt": "2026-08-21T10:57:20.892Z"
+  "sessionId": "4086bb7a-e4a2-4a27-9346-5f813d685c3b",
+  "claimedAt": "2026-08-21T10:57:48.727Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
