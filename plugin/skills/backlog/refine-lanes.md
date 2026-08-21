@@ -29,9 +29,15 @@ to always fire, since the lane split needs the overview up front regardless of c
 record carrying only a Priority or Dependency-repair *annotation* (below) is counted under its
 primary lane, never double-counted under Priority or Dependency-repair too.
 
+Resolve this run's session-scoped actions-file paths once, up front (`_shared/session-tmp-root.md`) — every lane below writes its actions to its own variable instead of a literal `/tmp` path:
+
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_ACTIONS_REAUTHORIZE=backlog-refine-actions-reauthorize.json ST_BACKLOG_REFINE_ACTIONS_GRANT=backlog-refine-actions-grant.json ST_BACKLOG_REFINE_ACTIONS_FLAGBACK=backlog-refine-actions-flagback.json ST_BACKLOG_REFINE_ACTIONS_PRIORITY=backlog-refine-actions-priority.json)"
+```
+
 ## Re-authorize
 
-Population: `.blocked` from `/tmp/backlog-refine-worklist.json` — records that hit the retry
+Population: `.blocked` from `session-scoped backlog-refine-worklist.json` — records that hit the retry
 ceiling (`bot:blocked`), unaffected by Step 3's grant-check budget. Every row recommends the same
 fixed action regardless of content: a prior failure means the human's renewed judgment is the
 point, never a mechanical replay (Step 3).
@@ -44,14 +50,14 @@ point, never a mechanical replay (Step 3).
 
 Accepted defaults, paste-ready (Step 5's Grant-rows mechanics, `bot:blocked`→`auto:build` branch —
 bootstrap comment lives there, not repeated here). Write every re-authorize row's action to
-`/tmp/backlog-refine-actions-reauthorize.json` (one `{issue, addLabels, removeLabels}` object per
+`"$ST_BACKLOG_REFINE_ACTIONS_REAUTHORIZE"` (one `{issue, addLabels, removeLabels}` object per
 row — `addLabels: ["auto:build"], removeLabels: ["bot:blocked"]` for every row in this lane, per
 record `issue`), then apply the whole lane in one call (`bin/apply-refine-labels.js` — batch
 `gh issue edit`/`gh issue comment` dispatch from a structured actions file, #844):
 
 ```bash
 ── Re-authorize ──
-node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" /tmp/backlog-refine-actions-reauthorize.json --run "$PIPELINE_RUN_DIR"
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" "$ST_BACKLOG_REFINE_ACTIONS_REAUTHORIZE" --run "$PIPELINE_RUN_DIR"
 ```
 
 Re-authorizing grants `auto:build` only, never `auto:merge` — restoring that too requires an
@@ -74,13 +80,13 @@ visible, never as a permanent fixture.
   ↳ trust: producer:capture / low — clean, 62% coverage
 
 Accepted defaults, paste-ready (Step 5's Grant-rows mechanics — bootstrap comment lives there, not
-repeated here). Write every grant row's action to `/tmp/backlog-refine-actions-grant.json`
+repeated here). Write every grant row's action to `"$ST_BACKLOG_REFINE_ACTIONS_GRANT"`
 (`addLabels: ["auto:build"]`, or `["auto:build", "auto:merge"]` when `RECOMMEND_MERGE` was also
 `true`, per record `issue`), then apply the whole lane in one call:
 
 ```bash
 ── Grant ──
-node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" /tmp/backlog-refine-actions-grant.json --run "$PIPELINE_RUN_DIR"
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" "$ST_BACKLOG_REFINE_ACTIONS_GRANT" --run "$PIPELINE_RUN_DIR"
 ```
 
 **Trust consequence line.** Rendered under a Re-authorize or Grant row only when the Trust signal
@@ -91,7 +97,7 @@ skip-case footer below the lanes) — as the literal template:
   ↳ trust: {provenance} / {band} — {verdict}{, {coverage}% coverage}
 ```
 
-sourced from `/tmp/backlog-refine-trust.json`, the coverage clause appended only when `{verdict}`
+sourced from `session-scoped backlog-refine-trust.json`, the coverage clause appended only when `{verdict}`
 is `clean` or `mixed`. `{provenance}` is the row's full `kind:source` pair (`producer:capture`,
 `side-effect:wrap-up leftover`, `human:human`) and `{verdict}` is the literal module value
 (`clean`/`mixed`/`insufficient-evidence`) — do not shorten either, since a record's `by:*` label
@@ -100,7 +106,7 @@ and its resolved provenance must be readable as the same fact side by side.
 Two absences render differently and must not be conflated: "no cell yet" — the `no-cell` module
 value reworded for the reader, since `no-cell` beside real verdicts would read like a fourth
 verdict — when the record's class has closed no records, and "not fetched" when the record is
-missing from `/tmp/backlog-refine-trust.json` entirely. The second is reachable: Step 1's worklist
+missing from `session-scoped backlog-refine-trust.json` entirely. The second is reachable: Step 1's worklist
 is `--state open` while the trust fetch is `--state all` against the same `backlog-fetch-limit`, so
 a long history can push an old open record out of the trust fetch while it stays in the worklist.
 Silence there would read as "no evidence" when the truth is "not looked at."
@@ -142,14 +148,14 @@ spec-shape re-check immediately before Step 4).
 | 2 | #205: {title} | ready → flag back (not spec-shaped) | missing/empty: `## Acceptance Criteria` |
 
 Accepted defaults, paste-ready (Step 5's Flag-back-rows mechanics — bootstrap comment lives there,
-not repeated here). Write every flag-back row's action to `/tmp/backlog-refine-actions-flagback.json`
+not repeated here). Write every flag-back row's action to `"$ST_BACKLOG_REFINE_ACTIONS_FLAGBACK"`
 (`removeLabels: ["ready"], commentFile: "/tmp/backlog-refine-flagback-{issue}.md"` per record —
 the per-record flagback body file is still written exactly as before, just referenced by path
 instead of pasted as its own `gh issue comment` line), then apply the whole lane in one call:
 
 ```bash
 ── Flag-back ──
-node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" /tmp/backlog-refine-actions-flagback.json --run "$PIPELINE_RUN_DIR"
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" "$ST_BACKLOG_REFINE_ACTIONS_FLAGBACK" --run "$PIPELINE_RUN_DIR"
 ```
 
 ## Priority
@@ -186,13 +192,13 @@ lane above get a full Priority-lane row below.
 
 Accepted defaults, paste-ready (Step 5's Priority/Related-rows mechanics — bootstrap comment lives
 there, not repeated here). Write every priority row's action to
-`/tmp/backlog-refine-actions-priority.json` (`addLabels: ["priority:{tier}"]` per record — a
+`"$ST_BACKLOG_REFINE_ACTIONS_PRIORITY"` (`addLabels: ["priority:{tier}"]` per record — a
 Related-only row with no priority tier omits `addLabels` and only sets whatever the Related body
 rewrite needs, per that row's own mechanics), then apply the whole lane in one call:
 
 ```bash
 ── Priority ──
-node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" /tmp/backlog-refine-actions-priority.json --run "$PIPELINE_RUN_DIR"
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" "$ST_BACKLOG_REFINE_ACTIONS_PRIORITY" --run "$PIPELINE_RUN_DIR"
 ```
 
 Rows also carry Step 2's non-binding tier guess in the Evidence column — the old `Suggested Tier`
@@ -232,7 +238,7 @@ its own per-record paste-ready form rather than a forced batch call (#844: batch
 ```bash
 ── Dependency repair ──
 # Terminal — #420 (work-links: body-text)
-gh issue edit 420 --body-file /tmp/backlog-refine-body-420.md
+gh issue edit 420 --body-file "$BACKLOG_REFINE_BODY"  # this run's session-scoped backlog-refine-body-420.md, per _shared/session-tmp-root.md
 ```
 
 A judgment-required repair — evidence too ambiguous for a mechanical wire (e.g. a cyclic or

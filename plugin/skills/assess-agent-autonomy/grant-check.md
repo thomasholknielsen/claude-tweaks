@@ -7,8 +7,17 @@ chain (gate 4), once per candidate whose ceiling/opt-in/trust/origin gates alrea
 
 ## Step 1: Gather
 
+Resolve this run's session-scoped temp path first (`_shared/session-tmp-root.md`) — combined with
+the existing `${N}` record suffix, per that file's "Record-suffixed callers keep both suffixes"
+section: two different sessions building the same record concurrently still need the session
+segment, and two different records in the same session still need the record segment.
+
 ```bash
-gh issue view "$N" --json body,labels -q '{body: .body, labels: [.labels[].name]}' > /tmp/assess-grant-${N}.json
+ASSESS_GRANT=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'assess-grant-' + process.argv[1] + '.json') || require('path').join(require('os').tmpdir(), 'assess-grant-' + process.argv[1] + '.json'))
+" "$N")
+gh issue view "$N" --json body,labels -q '{body: .body, labels: [.labels[].name]}' > "$ASSESS_GRANT"
 ```
 
 Follows `_gather-resilience.md`'s three-part shape: the MCP path uses `issue_read`'s **get mode**
@@ -21,13 +30,18 @@ false` and the specific gather/fetch failure named verbatim in `RATIONALE` — t
 short-circuit shape `merge-check.md` Step 1 already uses for its own resolution failures.
 
 Read the record's full body (Current State / Deliverables / Acceptance Criteria) from the fetched
-JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present:
+JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present. Re-resolve
+`$ASSESS_GRANT` first — a fresh bash invocation does not inherit Step 1's shell variables:
 
 ```bash
+ASSESS_GRANT=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'assess-grant-' + process.argv[1] + '.json') || require('path').join(require('os').tmpdir(), 'assess-grant-' + process.argv[1] + '.json'))
+" "$N")
 node -e "const {parseRecordFacets}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const d=require('/tmp/assess-grant-${N}.json');
+  const d=require(process.argv[1]);
   const {risk, size, ceremony}=parseRecordFacets(d.labels);
-  console.log(JSON.stringify({risk, size, ceremony}))"
+  console.log(JSON.stringify({risk, size, ceremony}))" "$ASSESS_GRANT"
 ```
 
 ## Step 2: Judge

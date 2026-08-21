@@ -14,8 +14,16 @@ three annotation lines below the header, which sit under it rather than inside i
 ## `specified` stage — grant-gate outlook
 
 Compute the outlook mechanically — `machineGrantOutlook(funnel.specified, { ceiling, grantOriginationEnabled }, trustRows)`
-(`bin/lib/issues/backlog.js`), with `trustRows` = the rows Step 1.5 already computed, re-read from
-`/tmp/backlog-overview-trust-rows.json` rather than re-fetched. Phase-1 gates only (ceiling,
+(`bin/lib/issues/backlog.js`), with `trustRows` = the rows Step 1.5 already computed. This file is
+loaded separately from `overview-mode.md`'s own fence, so re-resolve the path rather than
+assuming its shell variable survived (`_shared/session-tmp-root.md`; `sessionTmpPath` is
+idempotent per session+filename, so this resolves to the identical path Step 1.5 wrote):
+
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_TRUST_ROWS=backlog-overview-trust-rows.json)"
+```
+
+`trustRows` re-reads from `"$ST_BACKLOG_OVERVIEW_TRUST_ROWS"` rather than re-fetched. Phase-1 gates only (ceiling,
 opt-in, `needs:definition`, class trust, `by:*` origin) — never run grant-check here (overview's
 "entirely mechanical" contract); `eligible` means "reaches the grant unit's own grant-check on a
 future firing", not "will be granted". Render one extra `#`-comment line directly under the

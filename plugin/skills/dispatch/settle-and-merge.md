@@ -62,9 +62,21 @@ trace of it.
 
    **Comment source routes on the pr-first gate** (`_shared/pr-run-comments.md`): when `run-state.json` carries a `pr` object, the "Attempt N failed" comments this step counts live on the **PR**, not the issue — step 5 below posts the full failure comment there, not to the issue. Fetch from `repos/{owner}/{repo}/issues/{pr-number}/comments` (PRs are issues under the REST model, so the identical endpoint shape applies, just with the PR's number). Absent a `pr` object, fetch from the issue exactly as today.
 
+   Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`) — these two also carry the existing `${ISSUE}` suffix, since two different records settling concurrently (a dispatch loop over a bundle group's members) still need per-record disjoint files even within one session, exactly as `_shared/session-tmp-root.md`'s "Record-suffixed callers keep both suffixes" section states:
+
    ```bash
+   eval "$(node -e "
+     const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+     const os = require('os'); const path = require('path');
+     const issue = process.argv[1];
+     const files = { DISPATCH_COMMENTS: 'dispatch-comments-' + issue + '.json', ATTEMPT_INFO: 'attempt-info-' + issue + '.json' };
+     for (const [varName, filename] of Object.entries(files)) {
+       const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+       console.log(varName + '=' + JSON.stringify(p));
+     }
+   " "$ISSUE")"
    DISPATCH_RETRY_CEILING=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-retry-ceiling)
-   gh api "repos/{owner}/{repo}/issues/${COMMENT_SOURCE}/comments?per_page=100" > "/tmp/dispatch-comments-${ISSUE}.json"
+   gh api "repos/{owner}/{repo}/issues/${COMMENT_SOURCE}/comments?per_page=100" > "$DISPATCH_COMMENTS"
    node -e "
      const { countFailedAttempts } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
      const comments = require(process.argv[1]);
@@ -72,12 +84,12 @@ trace of it.
      const ceiling = Number(process.argv[2] || 3);
      const ceilingHit = attemptNumber >= ceiling; // equivalent to hasHitRetryCeiling if comments included this attempt's own (not-yet-posted) comment
      console.log(JSON.stringify({ attemptNumber, ceilingHit }));
-   " "/tmp/dispatch-comments-${ISSUE}.json" "$DISPATCH_RETRY_CEILING" > "/tmp/attempt-info-${ISSUE}.json"
+   " "$DISPATCH_COMMENTS" "$DISPATCH_RETRY_CEILING" > "$ATTEMPT_INFO"
    ```
 
 **MCP path** (`gh` unavailable, same live-as-of-Task-10 status as `dispatch/SKILL.md`'s Step 4): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md` in place of the `gh api` call above — `countFailedAttempts` and the rest of this step's logic consume the same comment-body-string shape regardless of transport.
 
-5. Compose the failure comment, using the `attemptNumber` and `ceilingHit` just computed — content unchanged regardless of routing below:
+5. Compose the failure comment, using the `attemptNumber` and `ceilingHit` just computed — content unchanged regardless of routing below. Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`; `ATTEMPT_INFO` re-derived here since a fresh bash invocation does not inherit step 4's shell variables — `sessionTmpPath` is idempotent per session+filename, so this resolves to the same path):
 
    ```bash
    # Negative-evidence persist point (#268): passing classification here (from
@@ -88,18 +100,31 @@ trace of it.
    # this marker back from the record's comments as known-bad evidence for the record's class
    # (see its "Operational outcome evidence" section and _shared/autonomy-ceiling.md's
    # Revocation section for the full semantics).
+   eval "$(node -e "
+     const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+     const os = require('os'); const path = require('path');
+     const issue = process.argv[1];
+     const files = {
+       ATTEMPT_INFO: 'attempt-info-' + issue + '.json',
+       ATTEMPT_COMMENT_BODY: 'attempt-comment-body-' + issue + '.md',
+     };
+     for (const [varName, filename] of Object.entries(files)) {
+       const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+       console.log(varName + '=' + JSON.stringify(p));
+     }
+   " "$ISSUE")"
    node -e "
      const { attemptFailedCommentBody } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
      const { attemptNumber, ceilingHit } = require(process.argv[1]);
      console.log(attemptFailedCommentBody({ attemptNumber, reason: process.argv[2], ceilingHit, classification: process.argv[3] }));
-   " "/tmp/attempt-info-${ISSUE}.json" "$REASON" "$CLASSIFICATION" > /tmp/attempt-comment-body.md
+   " "$ATTEMPT_INFO" "$REASON" "$CLASSIFICATION" > "$ATTEMPT_COMMENT_BODY"
    ```
 
    **`run-state.json` has no `pr` object** (`local-merge`, or a degraded `pr-first` run —
    `_shared/pr-run-comments.md`'s gate): post to the issue exactly as today.
 
    ```bash
-   gh issue comment "$ISSUE" --body-file /tmp/attempt-comment-body.md
+   gh issue comment "$ISSUE" --body-file "$ATTEMPT_COMMENT_BODY"
    ```
 
    **`run-state.json` carries a `pr` object — this is the failure tombstone** (`_shared/pr-run-comments.md`):
@@ -109,7 +134,20 @@ trace of it.
    the branch and worktree in place; nothing else in this step tears them down.
 
    ```bash
-   printf '<!-- run-comment: failure -->\n\n' | cat - /tmp/attempt-comment-body.md > /tmp/failure-comment.md
+   eval "$(node -e "
+     const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+     const os = require('os'); const path = require('path');
+     const issue = process.argv[1];
+     const files = {
+       ATTEMPT_COMMENT_BODY: 'attempt-comment-body-' + issue + '.md',
+       FAILURE_COMMENT: 'failure-comment-' + issue + '.md',
+     };
+     for (const [varName, filename] of Object.entries(files)) {
+       const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+       console.log(varName + '=' + JSON.stringify(p));
+     }
+   " "$ISSUE")"
+   printf '<!-- run-comment: failure -->\n\n' | cat - "$ATTEMPT_COMMENT_BODY" > "$FAILURE_COMMENT"
    # find-or-create per _shared/pr-run-comments.md's post-or-update procedure, kind=failure
    gh pr close {pr-number} --repo {owner}/{repo}
    ```
@@ -120,14 +158,27 @@ trace of it.
    issue's comments and is not modified by this design — still sees it:
 
    ```bash
+   eval "$(node -e "
+     const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+     const os = require('os'); const path = require('path');
+     const issue = process.argv[1];
+     const files = {
+       ATTEMPT_COMMENT_BODY: 'attempt-comment-body-' + issue + '.md',
+       MARKER_LINE: 'marker-line-' + issue + '.md',
+     };
+     for (const [varName, filename] of Object.entries(files)) {
+       const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+       console.log(varName + '=' + JSON.stringify(p));
+     }
+   " "$ISSUE")"
    node -e "
      const { extractNegativeEvidenceMarker } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
      const fs = require('fs');
-     const marker = extractNegativeEvidenceMarker(fs.readFileSync('/tmp/attempt-comment-body.md', 'utf8'));
+     const marker = extractNegativeEvidenceMarker(fs.readFileSync(process.argv[1], 'utf8'));
      if (marker) console.log(marker);
-   " > /tmp/marker-line.md
+   " "$ATTEMPT_COMMENT_BODY" > "$MARKER_LINE"
    # Only post when non-empty (a transient-classified attempt produces no marker at all):
-   [ -s /tmp/marker-line.md ] && gh issue comment "$ISSUE" --body-file /tmp/marker-line.md
+   [ -s "$MARKER_LINE" ] && gh issue comment "$ISSUE" --body-file "$MARKER_LINE"
    ```
 
 6. **If `ceilingHit` was `true`:** bootstrap `bot:blocked` if it doesn't already exist:
@@ -203,7 +254,7 @@ Nothing is threaded back from the second Task call beyond its `OUTCOME: ready-to
 
 - **`{group-worktree}` and `{branch}`** — this session created and entered both for this group in Step 5; it is still inside it (or can `cd` back — the path was captured then). Neither is derived from the Task call's report.
 - **`{run-dir}`** — the same value this session minted for the group in Step 4 and passed as `PIPELINE_RUN_DIR` on both Task calls; nothing to derive from either call's report.
-- **the group's issue numbers and titles** — already in `/tmp/dispatch-groups.json` from Step 2's queue pull. Use the lowest-numbered record's title as `{one-line summary}` for a singleton, or a semicolon-joined list of every member's title for a bundle — the same "issue title as summary" convention `_shared/pr-first-merge.md`'s own `summary` argument (line 128 above) uses for its PR title on the `pr-first` path.
+- **the group's issue numbers and titles** — already in this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`; `queue-pull-script.md`'s Step 2 queue pull wrote it under the same session id). Use the lowest-numbered record's title as `{one-line summary}` for a singleton, or a semicolon-joined list of every member's title for a bundle — the same "issue title as summary" convention `_shared/pr-first-merge.md`'s own `summary` argument (line 128 above) uses for its PR title on the `pr-first` path.
 
 Clear this run's worktree assignment before merging, the same way `flow/worktree-merge.md`'s reconciliation does:
 
