@@ -1122,3 +1122,32 @@ one-line comment on the fixture.
 
 Cost on the #500 run: moderate (~10 min) — one direct-verification pass to confirm a
 false-positive "high" severity finding before it could be staged or acted on.
+
+## IL-143 — Three bugs masked by fixtures whose values production never produces
+
+Record #900's build of `wrap-up-engine.js verify` shipped three separate defects in
+`plugin/bin/lib/wrap-up/engine-verify.js` that its own test suite could not see, each for the
+same reason: the fixture supplied a value simpler than the one production always supplies.
+
+`worktree-removed` (86f935eb) matched live worktrees by `path.basename(runDir)`. A real run dir
+is always `{ISO-timestamp}-{spec-slug}` while a worktree path/branch carries the slug alone, so
+the raw basename never matches — but both fixtures passed `runDir: '/tmp/spec-900'`, where
+basename and slug coincide, and the check read as correct. `acceptance-labeling` (b3fa97be)
+queried the sub-issue directly and expected the full Verification Brief on the issue; no fixture
+modelled a record with a resolvable parent, and none modelled the pr-first pointer-plus-brief
+form that is this project's own default integration mode, so neither real routing path was ever
+executed. `archiveRelativeId` (ae5e2cb1) — rated Critical by the whole-branch re-review — was
+built on `runIdFromRunDir`'s ISO-timestamp-stripping, while `archive-merged.js`'s
+`archiveRunDir()` archives to `archive/{full basename, timestamp included}`, so
+`resolveArchivedRunDir` could locate no real archived run at all; every archive-path fixture used
+a timestamp-free id (`test-archived-parent-900`, `test-archived-singlespec-900`), so the strip
+regex was never exercised.
+
+Each was caught by a different mechanism — a task-level reviewer, a whole-branch
+live-verification review, a scoped re-review — and never by the suite, which stayed green through
+all three. Each fix's real content was one or two fixture values changed to the production shape
+(`/tmp/2026-01-01T000000-spec-900`, `2026-01-01T000000-spec-18`, a parent-carrying issue, a
+pr-first PR), after which the existing assertions failed on their own.
+
+Cost on the #900 run: high — three extra fix rounds inside one record, the last of them a
+Critical regression introduced by a fix round and caught only because a re-review was run at all.

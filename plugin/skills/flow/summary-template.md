@@ -2,6 +2,8 @@
 
 Loaded by `/claude-tweaks:flow` Step 5 **only on successful completion of all steps** (`wrap-up` in the step list). Never rendered on the failure path — see `failure-cards.md` for that template.
 
+**Reconcile residue line (#644).** Immediately before rendering the template below, run `node "{pluginRoot}/bin/hooks.js" reconcile-summary` and capture its one stdout line verbatim for the **Reconcile:** field — never hand-compose this line or re-derive its counts, and never skip the call: this is the only place in the pipeline that surfaces reconcile's stuck/declined residue (`bin/lib/reconcile`'s own convergence checks run silently off the SessionStart hot path and a detached background process; nothing else in `/flow` reads their output). The command always succeeds and always prints exactly one line — a background pass that hasn't completed yet reads as `0 archived`, an unreachable mirror reads as `mirror ff n/a` — so there is no failure mode here to branch on.
+
 On successful completion of all steps (`wrap-up` in the step list):
 
 ```markdown
@@ -20,6 +22,8 @@ On successful completion of all steps (`wrap-up` in the step list):
 
 **Release status:** {the one-line human form from `_shared/pr-first-merge-post-merge.md` Step 4.1, verbatim — `not yet in a release — bump pending` | `already carried by vX.Y.Z — CHANGELOG backfill needed: #A, #B` | `already carried by vX.Y.Z — CHANGELOG has no vX.Y.Z entry; backfill needed: #A, #B` | `already carried by vX.Y.Z — every record named in CHANGELOG` | `n/a — no plugin manifest at {ref}` | `release status unavailable — {reason}` | `n/a — not merged in this run (outcome: {armed | pending-review})`}
 {On either backfill form, one more line: **Backfill:** staged at `staged/release-backfill-vX.Y.Z.md` (archived with the run); posted as PR #{n}'s `release-status` comment — drop the PR clause under local-merge.}
+
+**Reconcile:** {one line from `node "{pluginRoot}/bin/hooks.js" reconcile-summary`, run once here and printed verbatim — `reconcile: {archived} archived, {stuck} stuck (oldest {age}), mirror ff {ok | declined — {reason} | anomaly — {state} | skipped — {reason} | failed — {reason} | n/a}`}
 
 ### Key Outputs
 - {summary of what was built}
