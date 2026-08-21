@@ -135,9 +135,9 @@ section — reuse `/tmp/ct-subissues-{session-id}.json` (`record-snapshot.js`'s
 below:
 
 ```bash
-SUBSNAP=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
+SUBSNAP=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
 if [ -n "$SUBSNAP" ] && node -e "
-  const { isFresh } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js');
+  const { isFresh } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js');
   process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
 " "$SUBSNAP" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
   cp "$SUBSNAP" /tmp/trust-table-sub-issues.json
@@ -194,7 +194,7 @@ node -e "
   const all = Object.values(byParent).flat().concat(retryResults);
   const subIssueNumbers = Array.from(new Set(all)).sort((a, b) => a - b);
   fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
-  const subSnapPath = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
+  const subSnapPath = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
   if (subSnapPath) fs.writeFileSync(subSnapPath, JSON.stringify(subIssueNumbers));
 "
 ```
@@ -229,7 +229,7 @@ node -e "
   const raw = fs.readFileSync('/tmp/trust-table-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
   const subIssueNumbers = Array.from(new Set(raw)).sort((a, b) => a - b);
   fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
-  const subSnapPath = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
+  const subSnapPath = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
   if (subSnapPath) fs.writeFileSync(subSnapPath, JSON.stringify(subIssueNumbers));
 "
 ```
