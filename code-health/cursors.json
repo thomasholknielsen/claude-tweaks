@@ -66,5 +66,9 @@
   "evals/fixtures": {
     "lastSweptMs": 1787281679311,
     "lastHash": "4b4f27b19695d306d6aca4fb8bda3d50aa848616"
+  },
+  "evals/scripts": {
+    "lastSweptMs": 1787281871090,
+    "lastHash": "3c11980efd29a35b305609640c97dcde95cd284c"
   }
 }

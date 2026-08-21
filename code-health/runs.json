@@ -178,5 +178,10 @@
     "runId": "20260821T030758Z",
     "runAt": "2026-08-21T03:07:58.594Z",
     "fingerprints": []
+  },
+  {
+    "runId": "2026-08-21T031110-evals-scripts",
+    "runAt": "2026-08-21T03:11:10.462Z",
+    "fingerprints": []
   }
 ]
