@@ -23,9 +23,9 @@ files:
 
 ### 2. Run the release — terminal
 - **URL:** `node plugin/bin/release.js <minor|patch> "One-line summary"` (`minor` for features, `patch` for fixes — CLAUDE.md's Versioning convention)
-- **Action:** Run it. The script guards the branch (`main` only) and a clean tree, fetches `origin/main`, and runs the collision pre-check across every source a concurrent session could have claimed a number through: origin/main's tip, unpushed local `main`, sibling worktree branches, and unexecuted plan documents.
+- **Action:** Run it. The script guards the branch (`main` only) and a clean tree, fetches `origin/main`, and runs the collision pre-check across every source a concurrent session could have claimed a number through: origin/main's tip, unpushed local `main`, sibling worktree branches, and unexecuted plan documents. Once that passes, the unnamed-merge gate runs next, before the release commit.
 - **Expect:** On a clean state — one commit with exactly the release trio, an ancestry re-check against a fresh fetch, a push, then `marketplace mirrored`. Exit 0.
 
 ### 3. If it aborts — read the conflict list, don't override — terminal
-- **Action:** A collision abort names each conflicting source (`worktree-branch: … claims vX.Y.Z`, `plan-claim: …`) and prints `Suggested renumber: vX.Y.Z`. A divergence abort means someone pushed during compose — rebase and re-run.
-- **Expect:** No partial state: aborts happen before the commit (collision, stray staged file) or before the push (divergence). Never force; never renumber a version that already shipped (see docs/releasing.md's judgment calls).
+- **Action:** A collision abort names each conflicting source (`worktree-branch: … claims vX.Y.Z`, `plan-claim: …`) and prints `Suggested renumber: vX.Y.Z`. A divergence abort means someone pushed during compose — rebase and re-run. An unnamed-merge abort (`release gate: unnamed merges since vX.Y.Z: #N`) means a record materialized since the last bump isn't named in the summary or CHANGELOG.md's newest entry — name it in the summary, backfill the CHANGELOG entry, or pass `--allow-unnamed <n>[,<m>...]` to override deliberately (recorded in the release commit).
+- **Expect:** No partial state: aborts happen before the commit (collision, stray staged file, unnamed merge) or before the push (divergence). Never force; never renumber a version that already shipped (see docs/releasing.md's judgment calls).
