@@ -7,6 +7,7 @@ files:
   - plugin/bin/lib/hooks/close-run-state.js
   - plugin/bin/lib/hooks/context.js
   - plugin/bin/hooks.js
+  - plugin/bin/lib/hooks/post-tool-use.js
 ---
 
 # Run-Integrity Lifecycle: Detect, Remediate, and Gate Bypassed Pipeline Closures
@@ -37,3 +38,10 @@ files:
 ### 5. A second, independent deny — a raw `git worktree remove` on your own cwd
 - **Action:** From inside a worktree, run a raw Bash `git worktree remove <that-worktree-path>` (never `ExitWorktree`) whose target is the session's own cwd, or a directory containing it — including via a `cd <elsewhere> && git worktree remove <own-cwd>` compound.
 - **Expect:** Denied, naming `ExitWorktree` as the sanctioned remediation. This own-cwd guard fires independent of any pipeline-run assignment: unlike Step 3's deny, Step 4's `close-run` does NOT lift it — `close-run` only clears the run-assignment deny, and deleting the shell's own live working directory is the failure regardless of whether a run owns it. The `cd` in the compound form does not launder the target; it is still denied. The same raw `git worktree remove` targeting a *different* worktree from elsewhere (e.g. the main checkout) is unaffected and allowed, and `ExitWorktree` removing the session's own cwd is unaffected by this guard — it remains the one sanctioned way to do exactly that.
+
+### 6. After an allowed teardown — a re-anchor reminder, not a deny
+- **Action:** After any of Steps 3-5's *allowed* teardown paths actually completes (`ExitWorktree` `action: "remove"`, or the sanctioned own-cwd Bash `git worktree remove`).
+- **Expect:** A warn-tier `systemMessage` names the removed worktree path and instructs re-anchoring to the main checkout (`cd {path}`, or a generic pointer when the root can't be resolved) before any further git-dependent command — because this repo's hooks cannot themselves clear the harness's native worktree-isolation pin, which can otherwise outlive the worktree it pointed to and refuse subsequent commands as still "isolated" (#703).
+
+## Origin
+- Updated during build of #703 — a post-teardown re-anchor backstop (warn tier) now fires on every allowed teardown path Steps 3/5 already document; Step 6 added.
