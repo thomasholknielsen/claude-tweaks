@@ -27,17 +27,7 @@ produce.
 **Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `session-scoped backlog-refine-open.json`, `{tmp-faceted-file}` = `session-scoped backlog-refine-faceted.json`) — reading through the session-scoped record snapshot, whose union field set always carries `body` (no `{EXTRA_FIELDS}` request needed) for this pass's synthesis. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
 
 ```bash
-eval "$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  const os = require('os'); const path = require('path');
-  const files = {
-    ST_BACKLOG_REFINE_UNSYNCED: 'backlog-refine-unsynced.json',
-  };
-  for (const [varName, filename] of Object.entries(files)) {
-    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-    console.log(varName + '=' + JSON.stringify(p));
-  }
-")"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_UNSYNCED=backlog-refine-unsynced.json)"
 node -e "
   const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const records = queryRecords('specs', { unsynced: true });
@@ -48,19 +38,7 @@ node -e "
 For each unsynced record, attach a `createdAt` from its own last-commit date (the local driver carries no timestamp facet — same approach `/claude-tweaks:tidy`'s Step 1 staleness clock already uses) via `backlog.js`'s shared `deriveCreatedAtFromGit` helper (the same staleness-clock approach `_shared/record-queue-fetch.md` documents for the `local-files` driver):
 
 ```bash
-eval "$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  const os = require('os'); const path = require('path');
-  const files = {
-    ST_BACKLOG_REFINE_UNSYNCED: 'backlog-refine-unsynced.json',
-    ST_BACKLOG_REFINE_UNSYNCED_DATED: 'backlog-refine-unsynced-dated.json',
-    ST_BACKLOG_REFINE_FACETED: 'backlog-refine-faceted.json',
-  };
-  for (const [varName, filename] of Object.entries(files)) {
-    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-    console.log(varName + '=' + JSON.stringify(p));
-  }
-")"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_UNSYNCED=backlog-refine-unsynced.json ST_BACKLOG_REFINE_UNSYNCED_DATED=backlog-refine-unsynced-dated.json ST_BACKLOG_REFINE_FACETED=backlog-refine-faceted.json)"
 node -e "
   const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const records = require('$ST_BACKLOG_REFINE_UNSYNCED');
@@ -79,18 +57,7 @@ This last script reads `{tmp-faceted-file}`'s github-only content and overwrites
 **Grant fetch (`work-backend: github-issues` only, skipped per Preflight under `local-files`).** Fetch per the same shared fragment, this time server-side filtered:
 
 ```bash
-eval "$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  const os = require('os'); const path = require('path');
-  const files = {
-    ST_BACKLOG_REFINE_READY: 'backlog-refine-ready.json',
-    ST_BACKLOG_REFINE_READY_FACETED: 'backlog-refine-ready-faceted.json',
-  };
-  for (const [varName, filename] of Object.entries(files)) {
-    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-    console.log(varName + '=' + JSON.stringify(p));
-  }
-")"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_READY=backlog-refine-ready.json ST_BACKLOG_REFINE_READY_FACETED=backlog-refine-ready-faceted.json)"
 LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
 export FETCH_LIMIT="$LIMIT"
 gh issue list --label ready --state open --json number,title,labels,updatedAt --limit "$LIMIT" > "$ST_BACKLOG_REFINE_READY"
@@ -112,19 +79,7 @@ node -e "
 Immediately after, compute the whole refine worklist in one pass — this is what Step 2 and Step 3 below both read, in place of their own inline split/slice scripts:
 
 ```bash
-eval "$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  const os = require('os'); const path = require('path');
-  const files = {
-    ST_BACKLOG_REFINE_FACETED: 'backlog-refine-faceted.json',
-    ST_BACKLOG_REFINE_READY_FACETED: 'backlog-refine-ready-faceted.json',
-    ST_BACKLOG_REFINE_WORKLIST: 'backlog-refine-worklist.json',
-  };
-  for (const [varName, filename] of Object.entries(files)) {
-    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-    console.log(varName + '=' + JSON.stringify(p));
-  }
-")"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_FACETED=backlog-refine-faceted.json ST_BACKLOG_REFINE_READY_FACETED=backlog-refine-ready-faceted.json ST_BACKLOG_REFINE_WORKLIST=backlog-refine-worklist.json)"
 node -e "
   const { refineWorklist } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const fs = require('fs');
@@ -238,19 +193,7 @@ fetch/render this sub-stage advises with, and how it never changes what the gate
 For every record the grant-check pass recommends **granting** (not flag-back/blocked rows) — fetch the body and re-verify spec shape immediately before writing any label, using the same cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check` already fetched and cached the body at this run's session-scoped `assess-grant-{n}.json` — `_shared/session-tmp-root.md`; reuse it instead of a second API round-trip).
 
 ```bash
-eval "$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  const os = require('os'); const path = require('path');
-  const issue = process.argv[1];
-  const files = {
-    ASSESS_GRANT: 'assess-grant-' + issue + '.json',
-    BACKLOG_REFINE_BODY: 'backlog-refine-body-' + issue + '.md',
-  };
-  for (const [varName, filename] of Object.entries(files)) {
-    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-    console.log(varName + '=' + JSON.stringify(p));
-  }
-" "$ISSUE")"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "ASSESS_GRANT=assess-grant-${ISSUE}.json" "BACKLOG_REFINE_BODY=backlog-refine-body-${ISSUE}.md")"
 if [ -f "$ASSESS_GRANT" ]; then
   # Fresh row already went through Step 3's grant-check, which fetched and cached the
   # body — reuse it instead of a second GitHub API round-trip for the same content.
@@ -270,10 +213,7 @@ Flagged back by /claude-tweaks:backlog refine: body is not spec-shaped — missi
 ```
 
 ```bash
-BACKLOG_REFINE_FLAGBACK=$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'backlog-refine-flagback-' + process.argv[1] + '.md') || require('path').join(require('os').tmpdir(), 'backlog-refine-flagback-' + process.argv[1] + '.md'))
-" "$ISSUE")
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_REFINE_FLAGBACK=backlog-refine-flagback-${ISSUE}.md")"
 node -e "console.log(\`Flagged back by /claude-tweaks:backlog refine: body is not spec-shaped — missing/empty: \${process.argv[1]}. Run /claude-tweaks:specify #\${process.argv[2]} to shape it, then re-add 'ready'.\`)" "$MISSING_LIST" "$ISSUE" > "$BACKLOG_REFINE_FLAGBACK"
 ```
 
@@ -395,10 +335,7 @@ Stripping `bot:blocked` in the same edit as the grant matters: without it, the r
 **Flag-back rows:** For every row flagged back — Step 3.5's auto-downgrade, a row missing risk/size accepted as recommended, or a human override in Step 4 — remove `ready` and post a comment. Step 3.5's downgrade always uses its exact wording above; every other flag-back uses a shorter comment: `Flagged back by /claude-tweaks:backlog refine: {reason}. Re-add 'ready' once addressed.`, where `{reason}` is `needs scoring` for the recommended case or the human's own free-text reason for an explicit override.
 
 ```bash
-BACKLOG_REFINE_FLAGBACK=$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'backlog-refine-flagback-' + process.argv[1] + '.md') || require('path').join(require('os').tmpdir(), 'backlog-refine-flagback-' + process.argv[1] + '.md'))
-" "$ISSUE")
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_REFINE_FLAGBACK=backlog-refine-flagback-${ISSUE}.md")"
 gh issue edit "$ISSUE" --remove-label ready
 gh issue comment "$ISSUE" --body-file "$BACKLOG_REFINE_FLAGBACK"
 ```

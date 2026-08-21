@@ -26,7 +26,7 @@ const MIGRATED_FILES = [
   'specify/record-creation.md',
   'specify/shaping-mode.md',
   'dispatch/queue-pull-script.md',
-  'dispatch/headless-self-report.md',
+  '_shared/headless-self-report.md',
   'dispatch/settle-and-merge.md',
   'dispatch/SKILL.md',
   'backlog/overview-mode.md',

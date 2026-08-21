@@ -62,9 +62,13 @@ line. `insufficient-evidence` cells render nothing in bare mode — their table 
 The verdict vocabulary is read verbatim from `bin/lib/issues/trust.js`'s row verdicts as
 `_shared/trust-table.md` defines them — nothing new is invented here.
 
-Capture the Fetch script's printed rows to `/tmp/backlog-overview-trust-rows.json` — the
-consequence line renders from it, and bare mode's Machine-grant outlook (Step 2) re-reads the same
-file rather than re-fetching.
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_TRUST_ROWS=backlog-overview-trust-rows.json)"
+```
+
+Capture the Fetch script's printed rows to `"$ST_BACKLOG_OVERVIEW_TRUST_ROWS"` — the consequence
+line renders from it, and bare mode's Machine-grant outlook (Step 2) re-reads the same file rather
+than re-fetching.
 
 The full table render moves to the trust lens (Step 2).
 
@@ -208,11 +212,9 @@ node -e "
 
 ### Dependency-mismatch detection
 
-- Read the `flags` array from `session-scoped backlog-overview-ranked.json` (computed above, in the same pass as `ranked` — `findUnresolvedDependencyProse`, from `ranking.js`). On any hit, render a loud flag naming the affected ids with their `mention` lines, and **suppress every chain-shaped claim** about them ("unblocks N", dependency-order phrasing) — no corrected chain is drawn (chain rendering is the batch-emitter sub-issue).
-- The accepted limitation, verbatim: the check fires only on empty resolved blockers; a *partially* wired record (non-empty `blockedBy` missing some prose-mentioned id) is not flagged — prose mentions have no mechanical ground truth, so partial-coverage checking would guess.
-- **False-positive expectation:** the prose regex is deliberately broad (same-line intervening words allowed between "blocked by" and the `#N`), so non-dependency mentions can flag too — e.g. "blocked by the outage, see #12" is not a real dependency but still matches. The rendered `mention` line is exactly the human's evidence to dismiss a false positive at a glance; a false negative here would instead be the silent mis-ranking this detection exists to prevent, so the check accepts occasional over-flagging rather than risk under-flagging.
-- **Headline-replacement rule:** when detection fires, the flagged candidates get no mechanical recommendation. Either (a) the output cites explicit dependency evidence it holds — native links on other candidates, the flagged records' own prose — as a **corrected** "Recommended next" with the citation inline, in which case the corrected pick IS the headline and the raw ranker pick demotes to a one-line footnote (never render a recommendation the same output retracts); or (b) when no such evidence resolves an order, the output states plainly that ranking is unreliable for the flagged set and points at `/claude-tweaks:backlog refine`'s dependency repair.
-- A worked example tracing the observed #418/#419/#420 failure: three records wired `#420 blocked-by #419 blocked-by #418` in the native graph, bodies carrying only prose mentions ("Hard prerequisites, wired as Blocked by links: …"). Pre-#514: bodies parse as zero-dependency, `rankNextToBuild` recommends #420 (the chain's *last* record) first. Post-#514: the native fetch attaches `#420→blockedBy:[419]`, `#419→blockedBy:[418]`, `#418→blockedBy:[]`; `computeUnblocksCount` then yields `418→1, 419→1, 420→0`, so #420 — the record the old path recommended first — drops to last, while #418 and #419 tie at 1. That residual tie (including the fact that a blocked candidate is not demoted by ranking — #419 is itself blocked by #418, yet ties with it) is left to the batch-emitter sub-issue's chain-aware ordering. Had the fetch failed instead, `findUnresolvedDependencyProse` flags all three (prose mention, empty resolution) and case (b) replaces the headline with the unreliable-ranking statement.
+Read `dependency-mismatch-detection.md` in this skill's directory and follow it — the flag
+detection over `session-scoped backlog-overview-ranked.json`'s `flags` array, the
+headline-replacement rule, and the worked #418/#419/#420 example.
 
 Render the top result (and up to 2 runners-up) as a short "Recommended next" callout above the funnel header, with a one-line rationale derived from which tie-break criterion decided it (e.g. "highest priority, unblocks 2 other records" or "smallest size among same-priority candidates with no file overlap") — except when the dependency-mismatch detection above fired: flagged candidates get no mechanical recommendation, and the headline follows the headline-replacement rule (corrected pick, or the case-(b) unreliable-ranking statement) instead. This section is scoped specifically to *which backlog/ready record deserves attention next* — it does not attempt to replace `/help`'s whole-pipeline status/recommendation role. At precedence level 1 (non-empty `needsYou`, see the Needs-you section's Precedence below), the report's closing `Next:` line and the Next Actions block's recommended line deliberately name the needs-you item instead — this callout stays the build-candidate recommendation regardless, since the two answer different questions (what to build vs. what needs a human decision first).
 

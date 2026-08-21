@@ -15,7 +15,8 @@ three annotation lines below the header, which sit under it rather than inside i
 
 Compute the outlook mechanically — `machineGrantOutlook(funnel.specified, { ceiling, grantOriginationEnabled }, trustRows)`
 (`bin/lib/issues/backlog.js`), with `trustRows` = the rows Step 1.5 already computed, re-read from
-`/tmp/backlog-overview-trust-rows.json` rather than re-fetched. Phase-1 gates only (ceiling,
+`"$ST_BACKLOG_OVERVIEW_TRUST_ROWS"` (this run's session-scoped `backlog-overview-trust-rows.json`,
+resolved by Step 1.5 — `_shared/session-tmp-root.md`) rather than re-fetched. Phase-1 gates only (ceiling,
 opt-in, `needs:definition`, class trust, `by:*` origin) — never run grant-check here (overview's
 "entirely mechanical" contract); `eligible` means "reaches the grant unit's own grant-check on a
 future firing", not "will be granted". Render one extra `#`-comment line directly under the
