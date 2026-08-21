@@ -7,6 +7,9 @@
 // must cite the helper and must not carry a raw `sub_issue_id=` snippet any more —
 // the module test (tests/bin-lib/issues/link.test.js) is where the identifier
 // discrimination now lives.
+//
+// Also pins Step 4's body-text branch (#316): the mechanical-vs-prose rule that
+// governs how a `Blocked by #N: {assumption}` line's trailing text is authored.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -40,4 +43,11 @@ test('the caller is told to read `failed`', () => {
 
 test('the helper invocation prints its envelope to stdout (no /tmp redirect)', () => {
   assert.doesNotMatch(text, /link-records\.js[^\n]*\n[^\n]*> \/tmp\//, 'do not redirect the envelope away from the tool result');
+});
+
+test('the Blocked-by assumption bullet distinguishes mechanical from prose-shape assumptions', () => {
+  assert.match(text, /mechanical, not prose-shape/, 'record-creation.md must carry the mechanical-vs-prose authoring rule');
+  assert.match(text, /never a specific prose string, documentation wording/, 'the rule must rule out prose/documentation-shape assumptions specifically');
+  assert.match(text, /exposes getStatus\(\) on the queue module/, 'the rule must include a mechanical (safe) example');
+  assert.match(text, /documents the retry-window default as "5 minutes"/, 'the rule must include a prose-shape (fragile) example');
 });
