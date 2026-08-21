@@ -29,8 +29,25 @@ const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', '
 // not the other.
 const BACKGROUND_CHECKS = ['release', 'archive', 'archive-branches', 'remote-prune', 'reap'];
 
+// String-literal per-event requires — not a computed `require('./lib/hooks/' +
+// event)` — so every `bin/lib/hooks/*.js` module resolves statically inside
+// `plugin/` (payload-boundary test #419, assertion (b): a dynamic require() is
+// itself a failure, not an accepted blind spot). `event` is already gated to
+// one of `EVENTS` by this function's one call site before it's ever reached
+// here, so the lookup table's keys are exactly — and only — that fixed set.
+const EVENT_MODULES = {
+  'session-start': () => require('./lib/hooks/session-start'),
+  'session-end': () => require('./lib/hooks/session-end'),
+  'pre-compact': () => require('./lib/hooks/pre-compact'),
+  'pre-tool-use': () => require('./lib/hooks/pre-tool-use'),
+  'post-tool-use': () => require('./lib/hooks/post-tool-use'),
+  'subagent-stop': () => require('./lib/hooks/subagent-stop'),
+};
+
 function loadModule(event) {
-  try { return require('./lib/hooks/' + event); } catch { return null; }
+  const load = EVENT_MODULES[event];
+  if (!load) return null;
+  try { return load(); } catch { return null; }
 }
 
 // Shared by the resolve-run-dir and spec-status subcommands below — each
