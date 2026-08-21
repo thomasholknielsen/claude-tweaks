@@ -29,14 +29,21 @@ files:
 - **Should understand:** `pass`/`skip`/`unknown` never change the exit code — only `fail` does (or a `null` run dir, which forces exit 3 even though every row renders `unknown`). `skip` means a real, known condition why the check doesn't apply here (e.g. `deferred to parent console`, `nothing recorded`). `unknown` means the check genuinely could not run (`gh` absent, `verify-expectations.json` missing) — visible, but not blocking, matching how the old checklist surfaced an un-runnable check rather than treating it as a failed action.
 - **Red flags:** A multi-line or pipe-containing detail string breaking the table's column count (the renderer sanitizes this — collapsing whitespace and escaping `|` — so a broken table here means the sanitizer itself regressed).
 
-### 3. Hit a real fail row and watch closure get blocked
+### 3. Trace a memory or upstream row back to the console that recorded it
+- **URL:** `$PIPELINE_RUN_DIR/verify-expectations.json`, written by `review-console.md`'s "On approval" step 10
+- **Action:** Open the expectations file the Review Console wrote when it resolved this run's `M#`/`U#` items, and match its `memory`/`upstream` arrays against the table's `memory-updates` and `upstream-feedback` rows.
+- **Should feel:** The two checks covering writes that land *outside* the repository rest on something the console actually recorded at resolution time — not on the verb re-deriving intent afterwards from state it cannot see.
+- **Should understand:** An absent file and an empty one are distinct states, and the row text says which one happened: no file renders `unknown (expectations file missing)` — the console's own write step never ran — while `{"memory": [], "upstream": []}` renders `skip (nothing recorded)`, meaning it ran and had nothing to record. The console writes the file on every path that reaches a resolution, the empty-console fast path included. Under `MULTISPEC_REVIEW_DEFER=1` it writes empty arrays plus a `deferred` list naming the cleanup items the parent console still owns; three of those names (`design-caches`, `worktree`, `run-dir-archival`) turn their rows into `skip (deferred to parent console)`, and the per-spec `memory-updates`/`upstream-feedback` rows read `skip (nothing recorded)` because this spec's own `M#`/`U#` resolution never ran — an accepted limit of per-spec verification under defer, not a clean bill of health.
+- **Red flags:** `memory-updates` or `upstream-feedback` reporting `pass` when no expectations file exists at all; an absent file rendering as `skip (nothing recorded)`, which would erase the difference between "the console never wrote it" and "the console had nothing to write".
+
+### 4. Hit a real fail row and watch closure get blocked
 - **URL:** `execution-and-verification.md`'s Verify execution section, downstream of Step 1's table
 - **Action:** Run the verb against a run where one approved cleanup action didn't actually execute (e.g. the worktree is still listed, or the archive path is missing).
 - **Should feel:** The pipeline stops here, not three steps later when something downstream trips over the half-finished state.
 - **Should understand:** Exit code `3` means "surface `BLOCKED — {failing check row, verbatim}` and stop" — never emit the closure line. This is a genuinely new exit code (`0` unchanged, `1`/`2` keep their existing "bad payload"/"malformed invocation" meanings from the verb's sibling `plan`/`record`/`render` commands).
 - **Red flags:** The closure line emitting anyway despite a `fail` row in the table; a `BLOCKED` message that doesn't name which check failed.
 
-### 4. Run it with `gh` unavailable
+### 5. Run it with `gh` unavailable
 - **URL:** the same command, in an environment with no `gh` on `PATH`
 - **Action:** Invoke the verb where `acceptance-labeling` (and any `carrier-commit`/`upstream-feedback` fallback needing `gh`) would otherwise need it.
 - **Should feel:** Degrades visibly, never silently — a reader sees exactly which rows the environment couldn't evaluate.
