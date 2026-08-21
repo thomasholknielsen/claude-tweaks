@@ -82,6 +82,25 @@ test('status: never-started, running, stopped, crashed', async () => {
   assert.equal(stoppedStatus.out.trim(), 'stopped');
 });
 
+test('review fix: --idle-minutes 0 is honored by the daemon, not silently replaced by the 240min default', async () => {
+  // idleMinutes=0 makes the daemon self-exit within ~1ms of starting — too
+  // fast for `start`'s own probe to reliably observe as "running" (a race
+  // inherent to the value itself, not the bug under test), so this checks
+  // the effect (the stopped marker appears promptly) rather than gating on
+  // `start`'s own exit code.
+  const dir = mkTmp('vd-content-');
+  const stateDir = mkTmp('vd-state-');
+  run(['start', '--dir', dir, '--state', stateDir, '--idle-minutes', '0']);
+  await new Promise((resolve) => {
+    setTimeout(resolve, 1000);
+  });
+  assert.equal(
+    fs.existsSync(path.join(stateDir, 'server-stopped')),
+    true,
+    'idleMinutes=0 must self-exit almost immediately, not run for 240 minutes',
+  );
+});
+
 test('stop is stale-PID tolerant (dead PID -> already-stopped, exit 0)', async () => {
   const dir = mkTmp('vd-content-');
   const stateDir = mkTmp('vd-state-');

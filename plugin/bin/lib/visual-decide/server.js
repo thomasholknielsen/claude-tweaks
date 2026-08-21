@@ -53,9 +53,16 @@ function resolveSafe(rootDir, urlPath) {
 // mtime, path set, or count changed under rootDir. Polling over fs.watch:
 // fs.watch is unreliable/coalescing on macOS, and this repo's tests run on
 // macOS + Linux CI (spec Gotchas).
-function watchSignature(rootDir) {
+//
+// `excludeDir`, when given, skips that subtree entirely — a consumer that
+// nests its own state dir (events/server-info/server-stopped) inside the
+// served dir would otherwise have every /events POST change that file's
+// mtime and trigger a reload of its own resulting page (review finding).
+function watchSignature(rootDir, excludeDir) {
   let sig = '';
+  const resolvedExclude = excludeDir ? path.resolve(excludeDir) : null;
   (function walk(dir) {
+    if (resolvedExclude && path.resolve(dir) === resolvedExclude) return;
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -90,7 +97,7 @@ function startServer({ dir, stateDir, port, idleMinutes }) {
 
   let idleTimer = null;
   let watchTimer = null;
-  let lastSig = watchSignature(dir);
+  let lastSig = watchSignature(dir, stateDir);
   let stopped = false;
   const sseClients = new Set();
 
@@ -136,14 +143,17 @@ function startServer({ dir, stateDir, port, idleMinutes }) {
   }
 
   const server = http.createServer((req, res) => {
-    resetIdle();
     const { pathname } = new URL(req.url, 'http://127.0.0.1');
 
     if (!authenticate(req, res)) {
+      // Idle timer resets only on authenticated traffic — an unauthenticated
+      // prober (wrong/no key) must not be able to defeat the idle-timeout
+      // backstop by hammering the port with no key (review finding).
       res.writeHead(401, { 'Content-Type': 'text/plain' });
       res.end('unauthorized');
       return;
     }
+    resetIdle();
 
     if (req.method === 'POST' && pathname === '/events') {
       let body = '';
@@ -225,7 +235,8 @@ function startServer({ dir, stateDir, port, idleMinutes }) {
   });
 
   watchTimer = setInterval(() => {
-    const sig = watchSignature(dir);
+    if (sseClients.size === 0) return; // nothing to notify — skip the walk entirely
+    const sig = watchSignature(dir, stateDir);
     if (sig !== lastSig) {
       lastSig = sig;
       for (const client of sseClients) {
@@ -242,20 +253,30 @@ function startServer({ dir, stateDir, port, idleMinutes }) {
   return new Promise((resolve, reject) => {
     server.on('error', reject);
     server.listen(port || 0, '127.0.0.1', () => {
-      const info = {
-        url: `http://127.0.0.1:${server.address().port}/?key=${key}`,
-        port: server.address().port,
-        pid: process.pid,
-        startedAt: Date.now(),
-      };
+      // Any throw in here (e.g. stateDir doesn't exist) must reject rather
+      // than leave this promise permanently pending — an unguarded listener
+      // body previously left a hung caller with an already-bound, never-
+      // stoppable listening socket and no way to detect the failure.
       try {
-        fs.unlinkSync(stoppedPath);
-      } catch {
-        // absent is the common case
+        const info = {
+          url: `http://127.0.0.1:${server.address().port}/?key=${key}`,
+          port: server.address().port,
+          pid: process.pid,
+          startedAt: Date.now(),
+        };
+        try {
+          fs.unlinkSync(stoppedPath);
+        } catch {
+          // absent is the common case
+        }
+        fs.writeFileSync(infoPath, JSON.stringify(info), { mode: 0o600 });
+        resetIdle();
+        resolve({ server, info, key, stop });
+      } catch (err) {
+        if (watchTimer) clearInterval(watchTimer);
+        server.close();
+        reject(err);
       }
-      fs.writeFileSync(infoPath, JSON.stringify(info), { mode: 0o600 });
-      resetIdle();
-      resolve({ server, info, key, stop });
     });
   });
 }

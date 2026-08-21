@@ -124,6 +124,12 @@ then start the server (`visual-decide.js start --dir <explore-dir> --state <expl
 Present the returned keyed URL to the user; `_shared/visual-decision.md` owns the turn loop this
 hands off to.
 
+**Once the server has started, any error that aborts the round before reaching Lock-in's own stop
+call — Deal and derive failing on a reroll, an interrupted terminal session, an unhandled error in
+Verdict — must still stop it (`visual-decide.js stop --state <explore-dir>/.vd-state`) before
+propagating or returning. The idle timeout is a backstop only, per `_shared/visual-decision.md`'s
+Lifecycle ownership — never the primary teardown path.**
+
 **Degraded mode (server fails to start):** seed the same shell to the same static file and open it
 by hand — no second switcher implementation exists. Verdict runs the terminal `AskUserQuestion`
 loop below instead of the browser turn loop; a reroll re-seeds the static file in place, with the

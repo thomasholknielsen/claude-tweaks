@@ -113,7 +113,9 @@ function assembleIdentityDoc(sharedMarkupText, skinCssText) {
   return styleBlock + sharedMarkupText;
 }
 
-function buildVariantData(manifest, mode, manifestDir) {
+const ASSEMBLED_DIR_NAME = '.vd-assembled';
+
+function buildVariantData(manifest, mode, manifestDir, outDir) {
   const sharedMarkupText = manifest.scope === 'identity' && manifest.sharedMarkup
     ? fs.readFileSync(resolveManifestPath(manifestDir, manifest.sharedMarkup), 'utf8')
     : null;
@@ -124,6 +126,29 @@ function buildVariantData(manifest, mode, manifestDir) {
       return { ...base, reason: variant.reason || 'degraded' };
     }
     if (mode === 'live') {
+      if (manifest.scope === 'identity') {
+        // identity scope's `variants[].files[0]` is a skin CSS path, not a
+        // standalone page — an iframe can't usefully src= a raw stylesheet.
+        // Assemble the same shared-markup-plus-skin document durable mode
+        // builds (assembleIdentityDoc below), write it to disk inside the
+        // served directory, and iframe-src that instead (review finding:
+        // the un-assembled path left identity-scope live comparison
+        // entirely broken — every grid/focus frame just rendered CSS text).
+        const skinCssText = fs.readFileSync(
+          resolveManifestPath(manifestDir, (variant.files || [])[0]),
+          'utf8',
+        );
+        // Written next to --out (the served round dir in real usage), never
+        // into manifestDir — the manifest can legitimately live outside the
+        // served tree (e.g. a fixtures directory in tests), and this
+        // generated artifact must not land there.
+        const assembledDoc = assembleIdentityDoc(sharedMarkupText, skinCssText);
+        const assembledDir = path.join(outDir, ASSEMBLED_DIR_NAME);
+        fs.mkdirSync(assembledDir, { recursive: true });
+        const assembledRelPath = `${ASSEMBLED_DIR_NAME}/${variant.id}.html`;
+        fs.writeFileSync(path.join(outDir, assembledRelPath), assembledDoc);
+        return { ...base, src: assembledRelPath };
+      }
       const relFile = (variant.files || [])[0];
       return { ...base, src: relFile };
     }
@@ -158,7 +183,7 @@ function seed({ manifestPath, mode, outPath }) {
   const manifest = readManifest(manifestPath);
   validateManifest(manifest, mode, manifestDir);
 
-  const variants = buildVariantData(manifest, mode, manifestDir);
+  const variants = buildVariantData(manifest, mode, manifestDir, path.dirname(path.resolve(outPath)));
   const data = {
     mode,
     scope: manifest.scope,

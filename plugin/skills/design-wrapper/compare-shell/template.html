@@ -75,6 +75,10 @@
     padding: 6px 12px; font-size: 12px; color: var(--muted);
     border-top: 1px solid var(--border);
   }
+  #verdict-error {
+    padding: 6px 12px; font-size: 12px; color: var(--danger);
+    border-top: 1px solid var(--border); background: var(--panel);
+  }
   #verdict {
     display: flex; gap: 8px; align-items: center;
     padding: 10px 12px; border-top: 1px solid var(--border);
@@ -108,6 +112,7 @@
     <div id="focus-stage"></div>
     <div id="focus-indicator"></div>
   </div>
+  <div id="verdict-error" role="alert" hidden></div>
   <div id="verdict">
     <button id="btn-pick" data-action="pick" disabled>Pick this</button>
     <button id="btn-reroll" data-action="reroll">Reroll</button>
@@ -259,6 +264,8 @@
   }
 
   function postEvent(payload) {
+    var errorEl = document.getElementById('verdict-error');
+    if (errorEl) errorEl.hidden = true;
     return fetch('/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -266,6 +273,14 @@
     }).then(function (res) {
       if (!res.ok) throw new Error('event post failed: ' + res.status);
       app.classList.add('mode-recorded');
+    }).catch(function (err) {
+      // A silently-swallowed failure here would leave the user believing
+      // their verdict was recorded when it wasn't — surface it inline
+      // instead of an unhandled rejection (review finding).
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = 'Could not record that action (' + err.message + ') — try again.';
+      }
     });
   }
 

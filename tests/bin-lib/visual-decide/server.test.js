@@ -194,6 +194,64 @@ test('AC6: idle timeout self-exits and writes server-stopped; any request resets
   }
 });
 
+test('review fix: /events writes to the state dir never trigger their own SSE reload (state dir nested inside the served dir)', async () => {
+  const dir = mkTmp('vd-content-');
+  fs.writeFileSync(path.join(dir, 'index.html'), '<h1>root</h1>');
+  const stateDir = path.join(dir, '.vd-state');
+  fs.mkdirSync(stateDir, { recursive: true });
+  const h = await startTestServer({ dir, stateDir });
+  try {
+    const reloadSeen = await new Promise((resolve) => {
+      const req = http.request(
+        { host: '127.0.0.1', port: h.info.port, path: `/stream?key=${h.key}`, method: 'GET' },
+        (res) => {
+          let buf = '';
+          const timer = setTimeout(() => {
+            req.destroy();
+            resolve(false);
+          }, 1200);
+          res.on('data', (chunk) => {
+            buf += chunk.toString();
+            if (buf.includes('event: reload')) {
+              clearTimeout(timer);
+              req.destroy();
+              resolve(true);
+            }
+          });
+        },
+      );
+      req.on('error', () => {});
+      req.end();
+      setTimeout(async () => {
+        await request(h.info.port, `/events?key=${h.key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'reroll', ts: 1 }),
+        });
+      }, 100);
+    });
+    assert.equal(reloadSeen, false, 'an /events POST must not trigger its own reload broadcast');
+  } finally {
+    h.stop();
+  }
+});
+
+test('review fix: unauthenticated requests never reset the idle timer', async () => {
+  const h = await startTestServer({ idleMinutes: 0.05 }); // ~3s
+  try {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1500);
+    });
+    await request(h.info.port, '/'); // no key — 401, must not reset idle
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1500);
+    });
+    assert.equal(fs.existsSync(path.join(h.stateDir, 'server-stopped')), true, 'idle timeout must fire on schedule despite unauthenticated traffic');
+  } finally {
+    h.stop();
+  }
+});
+
 test('AC8: module has zero non-builtin imports', () => {
   const src = fs.readFileSync(
     path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'visual-decide', 'server.js'),

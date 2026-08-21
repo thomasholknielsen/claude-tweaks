@@ -40,6 +40,24 @@ test('AC1 / AC9: live mode — one variant per manifest entry referencing its se
   assert.match(html, /classList\.toggle\('selected'/);
 });
 
+test('review fix: identity-scope live mode assembles a real page per variant, never src=a raw skin CSS file', () => {
+  const out = mkOut('live-identity.html');
+  const res = seedCli(['--manifest', path.join(FIXTURES, 'identity', 'manifest.json'), '--mode', 'live', '--out', out]);
+  assert.equal(res.code, 0, res.err);
+  const data = loadIsland(fs.readFileSync(out, 'utf8'));
+  const byId = Object.fromEntries(data.variants.map((v) => [v.id, v]));
+  for (const id of ['a', 'b', 'c']) {
+    assert.equal(/\.css$/.test(byId[id].src), false, `variant ${id}'s live src must not be a bare CSS file`);
+    const assembledPath = path.join(path.dirname(out), byId[id].src);
+    assert.equal(fs.existsSync(assembledPath), true, `expected an assembled file at ${assembledPath}`);
+    const assembledText = fs.readFileSync(assembledPath, 'utf8');
+    assert.match(assembledText, /SENTINEL_SHARED_MARKUP/);
+  }
+  assert.match(fs.readFileSync(path.join(path.dirname(out), byId.a.src), 'utf8'), /SENTINEL_SKIN_A/);
+  assert.doesNotMatch(fs.readFileSync(path.join(path.dirname(out), byId.a.src), 'utf8'), /SENTINEL_SKIN_B/);
+  assert.match(fs.readFileSync(path.join(path.dirname(out), byId.b.src), 'utf8'), /SENTINEL_SKIN_B/);
+});
+
 test('AC2 / AC7: durable mode — zero http(s), embeds every variant sentinel safely, stamps outcome metadata', () => {
   const out = mkOut('durable-layout.html');
   const res = seedCli(['--manifest', path.join(FIXTURES, 'layout', 'manifest.json'), '--mode', 'durable', '--out', out]);

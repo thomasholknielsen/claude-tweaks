@@ -80,11 +80,15 @@ async function waitFor(fn, { timeoutMs = 5000, intervalMs = 50 } = {}) {
   }
 }
 
+const MAX_PORT_PROBE_ATTEMPTS = 1000;
+
 // Upward port probe: bind a throwaway server at each candidate until one
-// succeeds. Starts at `base` and probes past any port that answers.
+// succeeds. Starts at `base` and probes past any port that answers, up to
+// MAX_PORT_PROBE_ATTEMPTS — an unbounded loop would spin forever against an
+// environment with the whole range occupied (review finding).
 async function findFreePortFrom(base) {
   let port = base;
-  for (;;) {
+  for (let attempt = 0; attempt < MAX_PORT_PROBE_ATTEMPTS; attempt += 1) {
     // eslint-disable-next-line no-await-in-loop
     const free = await new Promise((resolve) => {
       const probe = net.createServer();
@@ -96,6 +100,7 @@ async function findFreePortFrom(base) {
     if (free) return port;
     port += 1;
   }
+  throw new Error(`no free port found in ${base}..${port - 1} (${MAX_PORT_PROBE_ATTEMPTS} attempts)`);
 }
 
 async function cmdStart(opts) {
@@ -165,7 +170,10 @@ async function runDaemon(opts) {
     dir: path.resolve(opts.dir),
     stateDir: path.resolve(opts.state),
     port: Number(opts.port) || 0,
-    idleMinutes: Number(opts['idle-minutes']) || DEFAULT_IDLE_MINUTES,
+    // `|| DEFAULT` would silently replace an explicit `--idle-minutes 0`
+    // (Number('0') is falsy) with the 240-minute default — check presence,
+    // not truthiness (review finding).
+    idleMinutes: opts['idle-minutes'] !== undefined ? Number(opts['idle-minutes']) : DEFAULT_IDLE_MINUTES,
   });
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
@@ -184,7 +192,20 @@ async function cmdStop(opts) {
     process.stdout.write('already stopped\n');
     return;
   }
-  process.kill(info.pid, 'SIGTERM');
+  try {
+    process.kill(info.pid, 'SIGTERM');
+  } catch {
+    // TOCTOU: the process could have died between the pidAlive check above
+    // and this call (its own idle timeout fired, or an independent crash) —
+    // that's still "already stopped", not a failure (review finding).
+    try {
+      fs.writeFileSync(path.join(stateDir, 'server-stopped'), '');
+    } catch {
+      // best-effort
+    }
+    process.stdout.write('already stopped\n');
+    return;
+  }
   await waitFor(
     () => fs.existsSync(path.join(stateDir, 'server-stopped')) || !pidAlive(info.pid),
     { timeoutMs: 3000, intervalMs: 50 },
