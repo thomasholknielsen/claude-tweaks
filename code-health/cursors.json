@@ -62,5 +62,9 @@
   "evals/assertions": {
     "lastSweptMs": 1787195540471,
     "lastHash": "2d570d4ccd8fe15f9c797ff0b2b2d592517d063c"
+  },
+  "evals/fixtures": {
+    "lastSweptMs": 1787281679311,
+    "lastHash": "4b4f27b19695d306d6aca4fb8bda3d50aa848616"
   }
 }
