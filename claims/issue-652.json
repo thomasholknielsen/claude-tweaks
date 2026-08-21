@@ -1,7 +1,6 @@
 {
-  "runId": "2026-08-19T141908-record-652",
-  "sessionId": "a7d9e450-bda6-51ba-baad-4ee440044c18",
-  "claimedAt": "2026-08-19T14:24:33.602Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "released": true,
+  "runId": "2026-08-21T105702-spec-252-257-899-266-316-644-652",
+  "reason": "swept: remote holder inactive 40-80h with no PR, force-released bypassing ownership guard per explicit user confirmation",
+  "releasedAt": "2026-08-21T11:06:11.013Z"
 }
