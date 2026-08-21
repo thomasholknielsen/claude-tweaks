@@ -430,3 +430,16 @@ test('env -u NAME consumes its value — the unset name is not mistaken for the 
   assert.deepStrictEqual(gitTargets('env -u GIT_DIR git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
   assert.deepStrictEqual(gitTargets('env -u FOO npm test', '/repo'), []);
 });
+
+test('the ATTACHED-value env -C<dir> form resolves the target like the separate form — not skipped as a generic flag', () => {
+  // Real env (macOS and GNU alike) honors `-C/dir` with the value attached;
+  // treating it as a valueless flag left the resolved dir at the caller's
+  // cwd while git was still detected as lead — a silent-allow bypass.
+  assert.deepStrictEqual(gitTargets('env -C/main-checkout git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/main-checkout' }]);
+  assert.deepStrictEqual(gitTargets('env -Csub git push', '/repo'), [{ action: 'push', dir: '/repo/sub' }]);
+  assert.deepStrictEqual(gitTargets('env -C"$DIR" git commit -m "x"', '/repo'), []);
+});
+
+test('an attached env -uNAME form is consumed whole — git is still found as lead', () => {
+  assert.deepStrictEqual(gitTargets('env -uFOO git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});

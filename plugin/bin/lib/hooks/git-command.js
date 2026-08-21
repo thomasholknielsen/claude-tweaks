@@ -336,12 +336,20 @@ function findGitLead(t, dir) {
       const tok = t[i];
       if (SIMPLE_ASSIGNMENT_RE.test(tok)) { i += 1; continue; }
       if (tok === '-' || !tok.startsWith('-')) break;
-      if (tok === '-C' || tok === '--chdir' || tok.startsWith('--chdir=')) {
-        const raw = tok.startsWith('--chdir=') ? tok.slice('--chdir='.length) : t[i + 1];
+      // Both spellings env accepts: separate value (`-C <dir>`, `--chdir <dir>`)
+      // and attached value (`-C<dir>`, `--chdir=<dir>`). Skipping the attached
+      // short form as a generic flag left the resolved dir at the caller's cwd
+      // while git was still detected as lead — the same silent-allow bypass as
+      // the separate form, one spelling over.
+      if (tok === '-C' || tok === '--chdir' || tok.startsWith('--chdir=') || (tok.startsWith('-C') && tok.length > 2)) {
+        const attached = tok.startsWith('--chdir=') ? tok.slice('--chdir='.length)
+          : tok.startsWith('-C') && tok.length > 2 ? tok.slice(2)
+          : null;
+        const raw = attached !== null ? attached : t[i + 1];
         const resolved = resolveCd(dir, raw);
         if (resolved === null) unprovable = true;
         else dir = resolved;
-        i += tok.startsWith('--chdir=') ? 1 : 2;
+        i += attached !== null ? 1 : 2;
         continue;
       }
       if (tok === '-u' || tok === '--unset') { i += 2; continue; }
