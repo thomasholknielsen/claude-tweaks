@@ -2,7 +2,7 @@
 // initialization, judgment-payload validation, uniform SCANNED decision
 // lines, and outcome telemetry.
 //
-// Two entry points:
+// Three entry points:
 //   initState({ runDir, worklist, now, telemetryPath }) — called once by
 //     `plan`. Writes engine-state.json (worklist + empty results map), then
 //     immediately pre-resolves every CLOSED row: result 'na', a SCANNED line,
@@ -11,6 +11,19 @@
 //     once per OPEN row with the model's judgment payload. Validates,
 //     appends one SCANNED line and one telemetry line (unless dryRun), and
 //     updates engine-state.json.
+//   amendResult({ runDir, payload, now, telemetryPath }) — corrects a row
+//     already present in state.results (typically written by recordResult).
+//     Re-runs the same validation, overwrites the stored result, and appends
+//     an AMENDED decisions.md line instead of a second SCANNED line. Never
+//     re-appends telemetry — the original recordResult call already counted
+//     the row once.
+//
+// FORBIDDEN_VOCABULARY (imported from engine-render.js, not redefined here)
+// is checked against payload.detail and every payload.findings[].summary
+// before a row is ever written — a record-time pre-flight in front of
+// engine-render.js's own render-time defense-in-depth check of the same
+// pattern list, so a violation is rejected (retryable) instead of landing in
+// engine-state.json/decisions.md and only surfacing later at render time.
 //
 // IL-01 discipline: stored results are built by picking named fields off the
 // payload into a fresh object alongside derived fields (target from
@@ -20,6 +33,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+
+const { FORBIDDEN_VOCABULARY } = require('./engine-render');
 
 const STATE_FILE = 'engine-state.json';
 const DECISIONS_FILE = 'decisions.md';
@@ -95,6 +110,13 @@ function buildScannedLine({ isoTime: time, target, gate, gateReason, read, gapDe
   return `SCANNED ${time} — ${target}: gate ${gate} (${gateReason}); read ${n} (${paths}); gap detection: ${gapText}. Result: ${resultText}. Reversibility: ${reversibility}.`;
 }
 
+// Same shape as buildScannedLine, distinct verb prefix — decisions.md is no
+// longer strictly one line per row once a row has been amended; a trailing
+// AMENDED line follows the row's original SCANNED line.
+function buildAmendedLine(fields) {
+  return buildScannedLine(fields).replace(/^SCANNED /, 'AMENDED ');
+}
+
 // ---- telemetry -----------------------------------------------------------
 
 function telemetryOutcome(result, findings) {
@@ -118,6 +140,32 @@ function appendTelemetry(telemetryPath, { now, runId, rowId, gate, findings, res
 }
 
 // ---- payload validation ---------------------------------------------------
+
+// Record-time pre-flight for engine-render.js's FORBIDDEN_VOCABULARY list
+// (imported, never redefined here — see module header). Checks
+// payload.detail (when a string) and every payload.findings[].summary
+// (findings shape/typing already validated by the caller before this runs).
+// Throws the same recordResult:-style Error the other validatePayload checks
+// use, naming the offending field and pattern.
+function checkForbiddenVocabulary(payload) {
+  if (typeof payload.detail === 'string') {
+    for (const pattern of FORBIDDEN_VOCABULARY) {
+      if (pattern.test(payload.detail)) {
+        throw new Error(`recordResult: payload.detail matches forbidden vocabulary pattern ${pattern} (rowId '${payload.rowId}')`);
+      }
+    }
+  }
+  if (Array.isArray(payload.findings)) {
+    payload.findings.forEach((finding, index) => {
+      if (!finding || typeof finding.summary !== 'string') return;
+      for (const pattern of FORBIDDEN_VOCABULARY) {
+        if (pattern.test(finding.summary)) {
+          throw new Error(`recordResult: payload.findings[${index}].summary matches forbidden vocabulary pattern ${pattern} (rowId '${payload.rowId}')`);
+        }
+      }
+    });
+  }
+}
 
 function validatePayload(payload) {
   if (!payload || typeof payload !== 'object') {
@@ -161,6 +209,8 @@ function validatePayload(payload) {
   } else if (payload.findings !== undefined && !Array.isArray(payload.findings)) {
     throw new Error(`recordResult: payload.findings must be an array (rowId '${payload.rowId}')`);
   }
+
+  checkForbiddenVocabulary(payload);
 }
 
 // A row's disposition (from REGISTRY, via the worklist row) governs whether
@@ -263,4 +313,62 @@ function recordResult({ runDir, payload, now, dryRun, telemetryPath }) {
   return stored;
 }
 
-module.exports = { initState, recordResult, appendTelemetry };
+// Corrects a row already present in state.results — the amend counterpart to
+// recordResult, for when a wrong/forbidden value was already written and
+// hand-editing engine-state.json would otherwise be the only fix. Mirrors
+// recordResult except: (a) requires the row to already be recorded instead
+// of rejecting when it is; (b) has no "already recorded" throw; (c) appends
+// an AMENDED decisions.md line instead of a second SCANNED line; (d) never
+// re-appends telemetry — the original recordResult call already counted this
+// row once, and amending a stored result must not double-count it.
+function amendResult({ runDir, payload, now, telemetryPath }) {
+  validatePayload(payload);
+
+  const state = readEngineState(runDir);
+  const rows = worklistRows(state.worklist);
+  const row = rows.find((r) => r.id === payload.rowId);
+
+  if (!row) {
+    throw new Error(`amendResult: unknown rowId '${payload.rowId}' (not in the worklist)`);
+  }
+  if (row.gate === 'closed') {
+    throw new Error(`amendResult: row '${payload.rowId}' is closed and cannot be amended (${row.gateReason})`);
+  }
+  if (!state.results[payload.rowId]) {
+    throw new Error(`amendResult: row '${payload.rowId}' was never recorded — nothing to amend`);
+  }
+
+  validateDispositionForRow(payload, row);
+
+  const findings = Array.isArray(payload.findings) ? payload.findings : [];
+  const read = Array.isArray(payload.read) ? payload.read : [];
+
+  // Same IL-01 discipline as recordResult: pick named fields, never spread.
+  const stored = {
+    rowId: payload.rowId,
+    target: row.target,
+    result: payload.result,
+    detail: payload.detail,
+    findings,
+    read,
+    gapDetection: payload.gapDetection,
+  };
+
+  const time = isoTime(now);
+  const line = buildAmendedLine({
+    isoTime: time, target: row.target, gate: row.gate, gateReason: row.gateReason,
+    read, gapDetection: payload.gapDetection, result: payload.result, findings,
+  });
+  appendDecisionLine(runDir, line);
+
+  // No telemetry append — the original recordResult call already counted
+  // this rowId once; `telemetryPath` is accepted for a call-shape parity
+  // with recordResult but intentionally unused here.
+
+  state.results[payload.rowId] = stored;
+  writeEngineState(runDir, state);
+
+  return stored;
+}
+
+module.exports = { initState, recordResult, amendResult, appendTelemetry };
