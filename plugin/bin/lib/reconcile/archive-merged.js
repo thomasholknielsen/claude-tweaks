@@ -160,7 +160,30 @@ function archiveRunDir(root, runDir) {
     // guaranteed to commit anything afterward, so an uncommitted rename
     // would otherwise sit in the shared main checkout's index indefinitely.
     const commit = runGit(['commit', '-m', `[reconcile] archive run ${runId}`], root);
-    if (commit.failure) return { ok: false, reason: 'commit-failed' };
+    if (commit.failure) {
+      // #652: git mv already ran and physically moved the files before the
+      // commit failed (gpgsign requirement, a failing pre-commit/commit-msg
+      // hook, a lock file, a worktree-always-style policy gate). Left as-is,
+      // the retry guard above (`fs.existsSync(topWork)`/specWork) would never
+      // fire again on a later pass, since the old path is already gone —
+      // silently stranding a staged, uncommitted rename in the shared main
+      // checkout indefinitely. Revert the staged rename on disk AND in the
+      // index so this pass leaves the tree exactly as it found it, and the
+      // existing retry guard sees the old path again next time. Best-effort
+      // and never throws — a revert failure must still degrade to a reported
+      // skip, not an unhandled exception (this runs from SessionStart with no
+      // supervising human).
+      for (const [src, dest] of workMoves) {
+        runGit(['reset', '--', src, dest], root);
+        try {
+          fs.renameSync(dest, src);
+        } catch {
+          /* best-effort — the tree may stay partially dirty; still degrade
+             to a reported skip below rather than throwing. */
+        }
+      }
+      return { ok: false, reason: 'commit-failed' };
+    }
   }
 
   // Tracked-entry guard: a git-tracked file in the run dir outside work/
