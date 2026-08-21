@@ -28,7 +28,7 @@ produce.
 
 ```bash
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const records = queryRecords('specs', { unsynced: true });
   console.log(JSON.stringify(records));
 " > /tmp/backlog-refine-unsynced.json
@@ -38,12 +38,12 @@ For each unsynced record, attach a `createdAt` from its own last-commit date (th
 
 ```bash
 node -e "
-  const { deriveCreatedAtFromGit } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const records = require('/tmp/backlog-refine-unsynced.json');
   console.log(JSON.stringify(deriveCreatedAtFromGit(records)));
 " > /tmp/backlog-refine-unsynced-dated.json
 node -e "
-  const { mergeUnsyncedRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const { mergeUnsyncedRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const github = require('/tmp/backlog-refine-faceted.json');
   const unsynced = require('/tmp/backlog-refine-unsynced-dated.json');
   console.log(JSON.stringify(mergeUnsyncedRecords(github, unsynced)));
@@ -59,7 +59,7 @@ LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
 export FETCH_LIMIT="$LIMIT"
 gh issue list --label ready --state open --json number,title,labels,updatedAt --limit "$LIMIT" > /tmp/backlog-refine-ready.json
 node -e "
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const issues = require('/tmp/backlog-refine-ready.json');
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + issues.length + ' ready-labeled issues (backlog-fetch-limit) — there may be more. See .claude-tweaks/policy.yml.');
@@ -77,7 +77,7 @@ Immediately after, compute the whole refine worklist in one pass — this is wha
 
 ```bash
 node -e "
-  const { refineWorklist } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const { refineWorklist } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const fs = require('fs');
   const allRows = require('/tmp/backlog-refine-faceted.json');
   const p = '/tmp/backlog-refine-ready-faceted.json';

@@ -13,7 +13,7 @@ gh issue list --state open --json number,title,body --limit 200 > /tmp/wrapup-op
 
 ```bash
 node -e "
-  const { parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const records = require('/tmp/wrapup-open-records.json');
   const closedNum = ${CLOSED_NUM};
   const dependents = records
@@ -41,7 +41,7 @@ node -e "
 
 ```bash
 node -e "
-  const { buildNativeDependencyQuery } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { buildNativeDependencyQuery } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const records = require('/tmp/wrapup-open-records.json');
   const query = buildNativeDependencyQuery(records.map((r) => r.number));
   if (query) require('fs').writeFileSync('/tmp/wrapup-native-query.graphql', query);
@@ -58,7 +58,7 @@ if [ -s /tmp/wrapup-native-query.graphql ]; then
   fi
 fi
 node -e "
-  const { hasOpenNativeBlocker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { hasOpenNativeBlocker } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const records = require('/tmp/wrapup-open-records.json');
   const repoData = require('/tmp/wrapup-native-deps.json').data.repository;
   const closedNum = ${CLOSED_NUM};
@@ -80,7 +80,7 @@ On any GraphQL error this fails safe — skip the check for this run (an empty `
 
 ```bash
 node -e "
-  const { queryRecords, readRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords, readRecord } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const glob = require('fs').readdirSync('specs').filter((f) => /^\d+-.*\.md\$/.test(f));
   const closedNum = ${CLOSED_NUM};
   const openRecords = queryRecords('specs', {}); // excludes closed by default — correct for finding open dependents

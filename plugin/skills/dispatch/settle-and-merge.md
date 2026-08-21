@@ -66,7 +66,7 @@ trace of it.
    DISPATCH_RETRY_CEILING=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-retry-ceiling)
    gh api "repos/{owner}/{repo}/issues/${COMMENT_SOURCE}/comments?per_page=100" > "/tmp/dispatch-comments-${ISSUE}.json"
    node -e "
-     const { countFailedAttempts } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+     const { countFailedAttempts } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
      const comments = require(process.argv[1]);
      const attemptNumber = countFailedAttempts(comments) + 1;
      const ceiling = Number(process.argv[2] || 3);
@@ -89,7 +89,7 @@ trace of it.
    # (see its "Operational outcome evidence" section and _shared/autonomy-ceiling.md's
    # Revocation section for the full semantics).
    node -e "
-     const { attemptFailedCommentBody } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+     const { attemptFailedCommentBody } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
      const { attemptNumber, ceilingHit } = require(process.argv[1]);
      console.log(attemptFailedCommentBody({ attemptNumber, reason: process.argv[2], ceilingHit, classification: process.argv[3] }));
    " "/tmp/attempt-info-${ISSUE}.json" "$REASON" "$CLASSIFICATION" > /tmp/attempt-comment-body.md
@@ -121,7 +121,7 @@ trace of it.
 
    ```bash
    node -e "
-     const { extractNegativeEvidenceMarker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+     const { extractNegativeEvidenceMarker } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
      const fs = require('fs');
      const marker = extractNegativeEvidenceMarker(fs.readFileSync('/tmp/attempt-comment-body.md', 'utf8'));
      if (marker) console.log(marker);

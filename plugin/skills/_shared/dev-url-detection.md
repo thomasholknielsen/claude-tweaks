@@ -70,7 +70,7 @@ A responding port is **not** proof that the server is serving *this* checkout. W
 Detect a linked worktree (CWD is a worktree, not the primary checkout) by reusing this repo's own linked-worktree heuristic — `bin/lib/hooks/worktree-detect.js`'s `repoInfo()`, the same submodule guard and symlink-safe path resolution the `worktree-always` policy gate relies on — rather than hand-rolling git's own worktree-vs-primary-checkout comparison in raw bash:
 
 ```bash
-node -e "const { repoInfo } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/hooks/worktree-detect.js'); console.log(repoInfo(process.cwd()).isLinkedWorktree ? 'WORKTREE' : 'PRIMARY')"
+node -e "const { repoInfo } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/hooks/worktree-detect.js'); console.log(repoInfo(process.cwd()).isLinkedWorktree ? 'WORKTREE' : 'PRIMARY')"
 ```
 
 When the result is `WORKTREE`, for **each responding port** verify it is serving the active worktree before accepting it:

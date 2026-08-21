@@ -16,7 +16,7 @@ Before creating anything, build a fingerprint→number map of every existing mar
 
 ```bash
 node -e "
-  const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { extractFingerprint } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const issues = require('/tmp/specify-all-issues.json');
   const map = {};
   for (const i of issues) { const fp = extractFingerprint(i.body); if (fp && !(fp in map)) map[fp] = i.number; }
@@ -30,8 +30,8 @@ If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in
 
 ```bash
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
+  const { extractFingerprint } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const records = [...queryRecords('specs', {}), ...queryRecords('specs', { closed: true })];
   const map = {};
   for (const r of records) { const fp = extractFingerprint(r.body); if (fp && !(fp in map)) map[fp] = r.id; }
@@ -48,7 +48,7 @@ One parent per decomposition run (or per `phase-N`, when scoped — see Step 7's
 Parent body = design summary: the problem, the chosen approach, the key decisions, and why the alternatives lost. This is deliberately not the design doc pasted verbatim — it's the durable digest that has to survive Step 7 deleting the design doc. Prefix it with a one-line metadata block, `Surface: {value}` — reuse whatever Step 2.5a's whole-design-doc detection already produced (the canonical value list lives in `spec-template.md`). The parent never carries `Design-intent:` — parents are never built or polished directly, so creative intent has nothing to attach to.
 
 ```bash
-node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
+node -e "const {recordPayload}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const p=recordPayload({title:process.argv[1], body:process.argv[2], type:'feature', fingerprint:process.argv[3]});
   require('fs').writeFileSync('/tmp/specify-parent-payload.json', JSON.stringify(p))" "$PARENT_TITLE" "$PARENT_BODY" "${DESIGN_DOC_SLUG}:parent"
 
@@ -95,7 +95,7 @@ PARENT_NUM=$(basename "$PARENT_URL")
 
 ```bash
 PARENT_ID=$(node -e "const fs=require('fs');
-  const {createRecord, deriveSlug}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const {createRecord, deriveSlug}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const dir='specs';
   const existingSlugs=fs.existsSync(dir)
     ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
@@ -146,7 +146,7 @@ Deliverable-name-collisions section owns the check and the grep.
 
 ```bash
 UNIT_SLUG=$(node -e "const fs=require('fs');
-  const {deriveSlug}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const {deriveSlug}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const dir='specs';
   const onDisk=fs.existsSync(dir)
     ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
@@ -159,7 +159,7 @@ Reuse this same `$UNIT_SLUG` value below for both the fingerprint and, under `wo
 **Fingerprint** — `{design-doc-slug}:{unit-slug}` (`$UNIT_SLUG` from Slug derivation, above), the sub-issue half of the deterministic scheme the Idempotency section above defines.
 
 ```bash
-node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
+node -e "const {recordPayload}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const p=recordPayload({
     title: process.argv[1], body: process.argv[2], type: process.argv[3],
     risk: process.argv[4], size: process.argv[5], ceremony: process.argv[6], ready: true,
@@ -196,7 +196,7 @@ When this sub-issue's Framing verdict (above) was `solution-baked`, add `--label
 **`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-sub-issue-body.md` already carries the fingerprint marker, so the local write preserves it:
 
 ```bash
-SUB_ISSUE_ID=$(node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+SUB_ISSUE_ID=$(node -e "const {createRecord}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const body = require('fs').readFileSync('/tmp/specify-sub-issue-body.md', 'utf8');
   const record = createRecord('specs', {
     slug: process.argv[1],
@@ -222,7 +222,7 @@ to invalidate after each individual create, only after the whole batch, before S
 consumer reads the queue again:
 
 ```bash
-node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+node -e "require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
 ```
 
 ### Rules

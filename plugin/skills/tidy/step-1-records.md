@@ -26,7 +26,7 @@ Also pull any local fallback records left behind by a failed GitHub write — th
 
 ```bash
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   console.log(JSON.stringify(queryRecords('specs', { unsynced: true })));
 " > /tmp/tidy-unsynced.json
 ```
@@ -43,7 +43,7 @@ consumers of this scale — Step 3's design-doc age rows and Step 4.7's claim-st
 rows read different data sources and are not governed by `record-staleness-weeks`.
 
 The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `classifyStaleness`
-come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js')`
+come from `require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-buckets.js')`
 (`bin/lib/issues/record-buckets.js`).
 
 ### Shape 1 — backlog record stale
@@ -183,10 +183,10 @@ or out-of-vocabulary `risk`) makes the whole parent's aggregate unscored too, ma
 ```bash
 RISK_FLOOR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor)
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const { parentGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
-  const { TIERS } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
+  const { parentGateState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
+  const { TIERS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const [riskFloor] = process.argv.slice(1);
   const parents = queryRecords('specs', { isParentIssue: true });
   const gates = parents.map((p) => {
@@ -280,9 +280,9 @@ empty here:
 ```bash
 { read -r RISK_FLOOR; read -r SIZE_FLOOR; } < <(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor)
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
+  const { needsBackstop } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
   const [riskFloor, sizeFloor] = process.argv.slice(1);
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   queryRecords('specs', { closed: true })

@@ -5,7 +5,8 @@ const { sanitizeWorktreeName } = require('../../../plugin/bin/lib/worktree/name'
 
 // EnterWorktree's own charset (build/worktree-setup.md's Gotcha, mirrored from #689):
 // letters, digits, dots, underscores, dashes per /-segment, <=64 chars total.
-const VALID = /^[A-Za-z0-9._-]+$/;
+// '/' is the valid segment delimiter, so it's allowed between segments (#814).
+const VALID = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
 
 test('issue #689 own example: + maps to -', () => {
   const out = sanitizeWorktreeName('flow+spec-654-655');
@@ -19,9 +20,21 @@ test('space maps to -, runs of - collapse (adjacent space+# example)', () => {
   assert.match(out, VALID);
 });
 
-test('/ maps to -', () => {
+test('#814: / is preserved as the segment delimiter, not flattened', () => {
   const out = sanitizeWorktreeName('flow/spec/654/655');
-  assert.equal(out, 'flow-spec-654-655');
+  assert.equal(out, 'flow/spec/654/655');
+  assert.match(out, VALID);
+});
+
+test('#814: invalid characters within a segment are still sanitized while / is preserved', () => {
+  const out = sanitizeWorktreeName('flow/spec+654/655#');
+  assert.equal(out, 'flow/spec-654/655-');
+  assert.match(out, VALID);
+});
+
+test('#814 acceptance criterion: flow/spec-1-2-3 round-trips unchanged', () => {
+  const out = sanitizeWorktreeName('flow/spec-1-2-3');
+  assert.equal(out, 'flow/spec-1-2-3');
   assert.match(out, VALID);
 });
 

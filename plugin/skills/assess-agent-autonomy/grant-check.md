@@ -24,7 +24,7 @@ Read the record's full body (Current State / Deliverables / Acceptance Criteria)
 JSON. Extract the current `risk:*`/`size:*`/`ceremony:*` labels, if present:
 
 ```bash
-node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
+node -e "const {parseRecordFacets}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const d=require('/tmp/assess-grant-${N}.json');
   const {risk, size, ceremony}=parseRecordFacets(d.labels);
   console.log(JSON.stringify({risk, size, ceremony}))"

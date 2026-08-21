@@ -78,7 +78,7 @@ field. `engine-render.js`'s Change column is a plain string copy of `summary`; t
 only place this detail can surface on an engine-rendered console.
 
 ```js
-const { permittedInitiative } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/initiative-budget.js');
+const { permittedInitiative } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/initiative-budget.js');
 permittedInitiative({
   ceiling,                                  // resolved autonomy ceiling
   fix: { kind: 'pointer-repair', files, changedLines, brokenBy },

@@ -47,7 +47,7 @@ production incidents when `tidy`'s Rolling digest briefly used `gh issue list --
 what a `gh issue list --state all` pull would return, so it stales the session-scoped record
 snapshot (`_shared/record-queue-fetch.md`) if one exists for this session. Immediately after any
 such write succeeds, on either transport, call
-`require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)`
+`require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)`
 so the next consumer re-fetches instead of reading stale state. A no-op when no snapshot exists
 for this session (nothing to invalidate) or when `$CLAUDE_CODE_SESSION_ID` is unset (a
 snapshot-less caller was never caching in the first place).

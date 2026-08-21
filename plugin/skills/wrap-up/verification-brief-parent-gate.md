@@ -113,7 +113,7 @@ gh api "repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues" --jq '.[].number'
 # work-links: body-text — parse the parent's own task list
 gh issue view $PARENT_NUM --json body -q .body > /tmp/wrapup-parent-body.md
 node -e "
-  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
   console.log(JSON.stringify(parseSubIssues(fs.readFileSync('/tmp/wrapup-parent-body.md','utf8'))));
 "
@@ -125,7 +125,7 @@ query the reverse relationship instead — every record whose own `facets.parent
 closed alike (the same two-call merge `specify/record-creation.md:35` already uses):
 
 ```js
-const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
 const subIssueRecords = [...queryRecords('specs', { parent: PARENT_ID }), ...queryRecords('specs', { parent: PARENT_ID, closed: true })];
 const leaves = subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', facets: r.facets }));
 ```
@@ -347,7 +347,7 @@ itself carries no `facets.parent`, so this is a fresh query, not the sub-issue l
 filtered to the entry whose `.id === PARENT_ID`:
 
 ```js
-const { readRecord, writeRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const { readRecord, writeRecord } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
 const parentRecord = readRecord(parentPath);
 parentRecord.facets.acceptance = 'pending';
 parentRecord.body = parentRecord.body + '\n\n' + parentBriefTemplate;

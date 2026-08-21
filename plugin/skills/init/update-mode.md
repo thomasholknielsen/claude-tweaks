@@ -59,9 +59,9 @@ future template change is picked up with no edit here. Run:
 
 ```bash
 node -e "
-const {checkConformance} = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/init/claude-md-conformance');
+const {checkConformance} = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/init/claude-md-conformance');
 const fs = require('fs');
-const tpl = fs.readFileSync(process.env.CLAUDE_PLUGIN_ROOT + '/skills/init/claude-md-template.md','utf8');
+const tpl = fs.readFileSync('${CLAUDE_PLUGIN_ROOT}/skills/init/claude-md-template.md','utf8');
 const project = fs.existsSync('CLAUDE.md') ? fs.readFileSync('CLAUDE.md','utf8') : '';
 console.log(JSON.stringify(checkConformance({templateSource: tpl, projectClaudeMd: project}), null, 2));
 "
@@ -132,7 +132,7 @@ fast path, since the fast path would suppress the very offer this check exists t
 Detect by calling the same module `/claude-tweaks:harness-health` uses:
 
 ```bash
-node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd()).migratableKeys))"
+node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd()).migratableKeys))"
 ```
 
 An empty array means nothing to do — omit this check from the Drift Report entirely rather than
@@ -204,7 +204,7 @@ been retired from `POLICY_KEYS` entirely (e.g. `unattended-tier`, merged into `a
 `node -e` invocation already returns both fields — no second call needed):
 
 ```bash
-node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); const r=auditPolicy(process.cwd()); console.log(JSON.stringify(r.renamedKeys))"
+node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); const r=auditPolicy(process.cwd()); console.log(JSON.stringify(r.renamedKeys))"
 ```
 
 An empty array means nothing to do — omit this check from the Drift Report entirely, matching the

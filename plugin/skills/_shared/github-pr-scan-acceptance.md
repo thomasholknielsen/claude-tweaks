@@ -121,7 +121,7 @@ gh issue list --label family:parent --state all --json number,body --limit "$LIM
   > /tmp/tidy-parents-for-gap-legacy.json
 
 node -e "
-  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
   const LIMIT = Number(process.env.FETCH_LIMIT);
   const fetched = ['/tmp/tidy-parents-for-gap-new.json', '/tmp/tidy-parents-for-gap-legacy.json'].map(require);
@@ -270,9 +270,9 @@ straight off data already in hand — no second round-trip:
 ```bash
 { read -r RISK_FLOOR; read -r SIZE_FLOOR; } < <(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor)
 node -e "
-  const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { needsBackstop } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
+  const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const records = require('/tmp/tidy-closed-records.json');
   const subIssues = new Set(require('/tmp/tidy-acceptance-gap-sub-issues.json'));
   const [riskFloor, sizeFloor] = process.argv.slice(1);
@@ -429,7 +429,7 @@ above; no further `gh` calls:
 
 ```bash
 node -e "
-  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
   const parents = require('/tmp/tidy-parent-issues.json');
   const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
@@ -585,9 +585,9 @@ out-of-vocabulary) makes the whole parent's aggregate unscored too, matching
 ```bash
 RISK_FLOOR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor)
 node -e "
-  const { parentGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
-  const { parseRecordFacets, TIERS } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parentGateState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
+  const { parseRecordFacets, TIERS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const gates = require('/tmp/tidy-parent-gates.json'); // [{number, title, leaves, parentLabels}]
   const [riskFloor] = process.argv.slice(1);
   function maxRiskTier(leaves) {

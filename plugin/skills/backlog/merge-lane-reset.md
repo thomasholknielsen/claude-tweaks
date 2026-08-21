@@ -9,7 +9,7 @@ Before the grant-sweep in Step 3 runs, best-effort read the global merge-lane ci
 
 ```bash
 node -e "
-  const { readBreakerState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+  const { readBreakerState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
   console.log(JSON.stringify(readBreakerState(process.cwd())));
 "
 ```

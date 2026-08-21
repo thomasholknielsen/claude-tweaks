@@ -11,7 +11,7 @@ fi
 gh issue list --state open --json number --limit 200 > /tmp/dispatch-open-numbers.json
 WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
 node -e "
-  const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseRecordFacets, parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const issues = require('/tmp/dispatch-queue-raw.json');
   const openNumbers = new Set(require('/tmp/dispatch-open-numbers.json').map((i) => i.number));
   const eligiblePreDep = issues
@@ -32,7 +32,7 @@ for DEP in $(node -e "console.log(require('/tmp/dispatch-unresolved-deps.json').
 done
 node -e "
   const fs = require('fs');
-  const { parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const eligiblePreDep = require('/tmp/dispatch-eligible-pre-dep.json');
   const openNumbers = new Set(require('/tmp/dispatch-open-numbers.json').map((i) => i.number));
   const verifiedOpen = fs.existsSync('/tmp/dispatch-verified-open-deps.txt')
@@ -46,7 +46,7 @@ echo '{"data":{"repository":{}}}' > /tmp/dispatch-native-deps.json
 if [ "$WORK_LINKS" = "native" ]; then
   rm -f /tmp/dispatch-native-query.graphql
   node -e "
-    const { buildNativeDependencyQuery } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+    const { buildNativeDependencyQuery } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
     const eligible = require('/tmp/dispatch-eligible.json');
     const query = buildNativeDependencyQuery(eligible.map((i) => i.number));
     if (query) require('fs').writeFileSync('/tmp/dispatch-native-query.graphql', query);
@@ -63,8 +63,8 @@ if [ "$WORK_LINKS" = "native" ]; then
   fi
 fi
 node -e "
-  const { hasOpenNativeBlocker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const { hasOpenNativeBlocker } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const eligible = require('/tmp/dispatch-eligible.json');
   const repoData = require('/tmp/dispatch-native-deps.json').data.repository;
   const finalEligible = eligible.filter((i) => !hasOpenNativeBlocker(repoData['i' + i.number]));
