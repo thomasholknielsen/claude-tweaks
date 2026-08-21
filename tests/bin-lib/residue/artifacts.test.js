@@ -116,13 +116,27 @@ test('legacy root with fresh content is flagged remedy record', () => {
   assert.deepStrictEqual(validateFinding(r.findings[0]), []);
 });
 
-test('legacy root aged >30d, proven untracked, is flagged remedy auto', () => {
+test('legacy root aged >30d, even proven untracked, is remedy record — never auto: untracked proves non-tracked, not plugin-owned', () => {
   const root = tmpRoot();
   mkFile(path.join(root, 'screenshots/qa/run1/x.png'), OLD);
   const r = probeArtifacts({ cwd: root, now: NOW, run: UNTRACKED });
   assert.strictEqual(r.findings.length, 1);
   assert.strictEqual(r.findings[0].subject, 'screenshots');
-  assert.strictEqual(r.findings[0].remedy, 'auto');
+  assert.strictEqual(r.findings[0].remedy, 'record');
+  assert.ok(r.findings[0].evidence.includes('never auto-deleted'));
+});
+
+test('a user-owned gitignored traces/ archive (aged, untracked, zip-shaped) is never auto-deleted', () => {
+  // The traces/ shape heuristic (any first-level subdir containing a .zip at
+  // any depth) matches generic archives — e.g. a project's own Playwright
+  // trace store — and gitignored content is exactly as "untracked" as plugin
+  // residue. Neither discriminator proves ownership, so auto must never fire.
+  const root = tmpRoot();
+  mkFile(path.join(root, 'traces/2026-06-checkout-flow/trace.zip'), OLD);
+  const r = probeArtifacts({ cwd: root, now: NOW, run: UNTRACKED });
+  assert.strictEqual(r.findings.length, 1);
+  assert.strictEqual(r.findings[0].subject, 'traces');
+  assert.strictEqual(r.findings[0].remedy, 'record');
 });
 
 test('legacy root with tracked files yields NO finding — not the plugin\'s to delete', () => {

@@ -402,3 +402,31 @@ test('an env-var-prefixed cd changes the effective cwd, matching real bash — a
 test('an env-WRAPPED cd (as opposed to env-var-PREFIXED) does not change cwd, matching real bash — env execs a nonexistent "cd" binary and errors, so a following bare commit still targets the stale cwd', () => {
   assert.deepStrictEqual(gitTargets('env cd /var; git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
 });
+
+// env's arg-taking flags: skipping `-C`/`--chdir` without consuming the value
+// made the dir token the presumed command word ("not git" → silent allow),
+// while GNU env really runs git with that dir as its cwd — the exact bypass
+// shape for a worktree session mutating the protected main checkout.
+test("env -C <dir> git commit resolves the target to env's chdir dir, not the caller cwd", () => {
+  assert.deepStrictEqual(gitTargets('env -C /main-checkout git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/main-checkout' }]);
+});
+
+test('env --chdir=<dir> and env --chdir <dir> both resolve the target to the chdir dir', () => {
+  assert.deepStrictEqual(gitTargets('env --chdir=/main-checkout git push', '/repo'), [{ action: 'push', dir: '/main-checkout' }]);
+  assert.deepStrictEqual(gitTargets('env --chdir /main-checkout git push', '/repo'), [{ action: 'push', dir: '/main-checkout' }]);
+});
+
+test('a relative env -C value resolves against the effective cwd, and stacks with git\'s own -C', () => {
+  assert.deepStrictEqual(gitTargets('env -C sub git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo/sub' }]);
+  assert.deepStrictEqual(gitTargets('env -C /a git -C b commit -m "x"', '/repo'), [{ action: 'commit', dir: '/a/b' }]);
+});
+
+test('an unresolvable env -C value ($VAR, ~) yields no target — never a fabricated one', () => {
+  assert.deepStrictEqual(gitTargets('env -C "$DIR" git commit -m "x"', '/repo'), []);
+  assert.deepStrictEqual(gitTargets('env -C ~/x git commit -m "x"', '/repo'), []);
+});
+
+test('env -u NAME consumes its value — the unset name is not mistaken for the command word', () => {
+  assert.deepStrictEqual(gitTargets('env -u GIT_DIR git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env -u FOO npm test', '/repo'), []);
+});

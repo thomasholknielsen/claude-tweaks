@@ -189,6 +189,38 @@ test('every env-git `if` predicate this fix adds has a parser-recognized counter
   assert.deepStrictEqual(gitTargets('env git push', '/repo'), [{ action: 'push', dir: '/repo' }]);
 });
 
+// env's own flags ahead of git (`env -C <dir> git commit`, `env -u NAME git
+// push`) match none of the literal `env git ...` predicates above — the flag
+// sits between `env` and `git` — so without a `Bash(env -*)` predicate the
+// hook never spawns for exactly the shape findGitLead's -C/--chdir handling
+// exists to resolve (same #70 matcher/parser asymmetry).
+test('the `Bash(env -*)` predicate covers env-with-flags git shapes, in both PreToolUse and PostToolUse', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  for (const group of ['PreToolUse', 'PostToolUse']) {
+    const bashGroup = hooks.hooks[group].find((e) => e.matcher === 'Bash');
+    const ifs = bashGroup.hooks.map((h) => h.if).filter(Boolean);
+    assert.ok(ifs.includes('Bash(env -*)'),
+      `${group}'s Bash group is missing an "if": "Bash(env -*)" predicate — gitTargets resolves env-flag git shapes but the hook would never spawn for them`);
+  }
+
+  // Parser side: the shapes the predicate exists for really do resolve.
+  assert.deepStrictEqual(gitTargets('env -C /main-checkout git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/main-checkout' }]);
+  assert.deepStrictEqual(gitTargets('env -u FOO git push', '/repo'), [{ action: 'push', dir: '/repo' }]);
+});
+
+// #500's stampAdHocRunDir and #307's staleness backstop both hard-gate on
+// tool_name === 'EnterWorktree' in post-tool-use.js — a PostToolUse group
+// without an EnterWorktree matcher makes both dead at the registration seam
+// (the hook process never spawns), the exact dead-branch shape
+// policy-schema-coverage.md warns about.
+test('PostToolUse carries an EnterWorktree matcher group for the post-tool-use EnterWorktree handlers', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const group = hooks.hooks.PostToolUse.find((e) => e.matcher === 'EnterWorktree');
+  assert.ok(group, 'PostToolUse has no EnterWorktree matcher group — stampAdHocRunDir (#500) and the staleness backstop (#307) never run');
+  assert.ok(group.hooks.some((h) => typeof h.command === 'string' && h.command.includes('post-tool-use')),
+    'the EnterWorktree PostToolUse group must invoke hooks.js post-tool-use');
+});
+
 test('an unlisted Bash write shape is genuinely not detected', () => {
   // Proves the WRITE_SHAPES guard above is doing work rather than sitting
   // upstream of branches that would have matched anyway.
