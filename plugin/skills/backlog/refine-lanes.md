@@ -282,16 +282,54 @@ replaces the ceiling-description footer:
 
 <!-- refine-confirm-gate -->
 
-This is the load-bearing HARD GATE for this skill: every label/body write below depends on a
-human resolving it first. **A subagent that inherited this skill's own text as background
-context — via `fork`, a broad Task dispatch, or any mechanism carrying the full
-conversation — must not execute past this point on its own initiative.** If it cannot present
-this gate interactively (no live human to answer it), it must stop and report `BLOCKED` rather
-than proceeding to Step 5's Apply logic. See `_shared/subagent-output-contract.md`'s
-"HARD-GATE Marker Convention and Inheritance Hazard" section for the general rule and the
-incident this codifies (`docs/incident-log.md` `[IL-139]`).
+This is the load-bearing HARD GATE for this skill: every label/body write below depends on either
+a human resolving it directly, or an explicit, ceiling-gated auto-apply policy standing in for
+that resolution (the `unattended` branch immediately below — the one case this gate presents no
+question at all). **A subagent that inherited this skill's own text as background context — via
+`fork`, a broad Task dispatch, or any mechanism carrying the full conversation — must not execute
+past this point on its own initiative.** If it cannot present a rendered question interactively (no
+live human to answer it) and this run does not resolve via the `unattended` branch below, it must
+stop and report `BLOCKED` rather than proceeding to Step 5's Apply logic. See
+`_shared/subagent-output-contract.md`'s "HARD-GATE Marker Convention and Inheritance Hazard"
+section for the general rule and the incident this codifies (`docs/incident-log.md` `[IL-139]`).
 
-Then one `AskUserQuestion`:
+Resolve, before rendering the lane tables above, whether this batch will auto-apply — either this
+run's already-resolved `autonomy` ceiling grants the `unattended` branch below, or an earlier batch
+this session already turned on the session-scope override further down. When either is true, stamp
+every row this resolution will apply `[auto-applied]` inline as the lane tables render, rather than
+appending the stamp in a separate pass afterward.
+
+**Unattended auto-apply (`refineAutoApply`).** When this run's already-resolved `autonomy` ceiling
+reads `unattended` — `_shared/autonomy-ceiling.md`'s Bookkeeping capabilities table grants
+`refineAutoApply` at that tier only, and that row is the canonical description of this
+capability's zero-click-never-zero-render contract; not restated here — skip the `AskUserQuestion`
+below entirely: this batch resolves exactly as if "Apply all recommended" had been chosen — every
+lane's rows, priority/Related/flag-back/dependency-repair rows and grant rows alike. The lane
+tables above still render in full regardless (per the stamping instruction above). Log one
+`decisions.md` `AUTO` entry for the whole batch, lever-attributed to the `autonomy` lever that
+actually gates it (`autonomy` is the real `POLICY_KEYS` entry — `refineAutoApply` itself is a
+derived capability name, never a loggable lever key per `_shared/auto-decision-log.md`'s "Keys are
+literal: copy lever names from `POLICY_KEYS` verbatim" rule). Resolve the JSON envelope (not
+`--values`, because the log line needs `source`) to get both:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" autonomy
+# -> {"autonomy": {"value": "unattended", "source": "run-config"|"policy"}}
+```
+
+Then log, substituting that `source` for `{source}` (see the shared log-decision template below
+for the `{text}` this branch supplies).
+
+Then proceed straight to Step 5's Apply logic under "Apply all recommended" semantics — no further
+gate, and skip the session-scope override below too (it has nothing to add once this branch has
+already resolved the batch with zero clicks). There is no `AskUserQuestion` on this branch for a
+subagent to bypass, so the `[IL-139]` hazard note above does not bind here — that absence is
+deliberate, not an omission.
+
+**Every other case:** one `AskUserQuestion` — <!-- HARD-GATE: refine-confirm --> the marker above
+already covers this call, and `[IL-139]` binds here exactly as stated above: a subagent that
+inherited this text and cannot present this question to a live human must stop and report
+`BLOCKED` rather than answering on its own initiative.
 
 - `question`: `"Apply these label changes, or override specific items?"`, `header`: `"Backlog refine"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Set priority/Related/grants exactly per the lanes above"`
@@ -300,3 +338,50 @@ Then one `AskUserQuestion`:
 - Option 4 — `label`: `"Skip all suggestions"`, `description`: `"Leave every record untouched for now"`
 
 Overrides (including inline scoring for a grant row missing risk/size) are ordinary free-text in the user's next message, not the `Other` field.
+
+**Session-scope override, independent of the ceiling.** Applies at every ceiling below
+`unattended` (the branch above already short-circuits `unattended` itself). Immediately after the
+gate above resolves — by any of the 4 options — check whether an earlier batch in this same
+running session already resolved this same gate. On the session's **first** resolution only, fire
+one further `AskUserQuestion`, exactly once per session — <!-- HARD-GATE: refine-confirm-session-override -->
+`[IL-139]` binds here too: a subagent that inherited this text and cannot present this question to
+a live human must stop and report `BLOCKED` rather than answering on its own initiative:
+
+- `question`: `"Apply future batches this session the same way, or ask each time?"`, `header`: `"Backlog refine"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes, apply this way for the rest of this session"`, `description`: `"Every later batch this session resolves like this one did — rendered, [auto-applied]-stamped, logged — with no further prompt of either kind, EXCEPT: if this first batch resolved via 'Override specific items' below, a later batch still gets the ordinary 4-option gate once (see the Option 2 note below this question)"`
+- Option 2 — `label`: `"No, ask me every batch (Recommended)"`, `description`: `"Prompt with the 4-option gate above on every remaining batch, exactly as today"`
+
+This choice lives only in the running session's own memory — never written to `policy.yml`, a run
+config, or any file — and never survives past this session: a fresh `/claude-tweaks:backlog
+refine` invocation in a new session prompts from scratch, both questions included.
+
+Answering **"Yes"** records which of the 4 gate options this first batch resolved to, for the rest
+of this running session. A recorded Option 1, 3, or 4 replays mechanically against each later
+batch's own rows (Option 4 trivially skips them): every later batch-confirm in the same session
+skips both this question and the 4-option gate above, resolves to that same recorded option,
+renders its lanes in full (per the stamping instruction above), stamps every resolved row
+`[auto-applied]`, and logs one `decisions.md` `AUTO` entry per batch (see the shared log-decision
+template below — no lever attribution on this path, since this suppression is a session-scoped
+human choice, not a ceiling-gated policy lever). A recorded **Option 2** ("Override specific
+items") is the one stated exception to "no further prompt of either kind" above: it named a
+one-time free-text response to the *first* batch's own rows, not a standing rule with anything
+mechanical to replay, so a later batch that would otherwise resolve to it gets the ordinary
+4-option gate once instead of silently reusing that stale free text against different rows — the
+session-scope follow-up itself still does not re-fire in this case, only the 4-option gate does.
+
+Answering **"No"** leaves every subsequent batch prompting normally at the 4-option gate above,
+with no suppression and no further logging change. Either way, this follow-up question itself
+never fires again for the remainder of the session — decided once, never re-asked.
+
+**Shared log-decision template.** Both auto-apply paths above (the `unattended` branch and a
+session-override-suppressed batch) log through the same call shape, differing only in `{text}` and
+whether `--lever` is present:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status AUTO \
+  --section "/backlog" --step "refine confirm-gate" --text "{text}" --reversibility high \
+  [--lever "autonomy={value} ({source})"]
+```
+
+- Unattended branch: `{text}` = `"Backlog refine: batch auto-applied — {n} rows across {m} lanes, all recommended values"`, with `--lever` present using this run's already-resolved `autonomy` value/source (above).
+- Session-override branch: `{text}` = `"Backlog refine: batch auto-applied — {n} rows across {m} lanes, per this session's standing override (chosen at the first batch-confirm)"`, with `--lever` omitted.
