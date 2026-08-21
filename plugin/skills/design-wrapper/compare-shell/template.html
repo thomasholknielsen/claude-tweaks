@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compare</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f3f3f4;
+    --panel: #ffffff;
+    --fg: #1c1c1e;
+    --muted: #6b6b70;
+    --border: #d8d8dc;
+    --accent: #2563eb;
+    --danger: #9a3412;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17171a;
+      --panel: #1f1f23;
+      --fg: #eceef0;
+      --muted: #9a9aa2;
+      --border: #303035;
+      --accent: #6ea8fe;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  #note {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  #grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    padding: 12px;
+    overflow: auto;
+  }
+  .mode-focus #grid { display: none; }
+  .frame {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    cursor: pointer;
+  }
+  .frame.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .frame iframe { width: 100%; height: 100%; border: 0; pointer-events: none; }
+  .frame .label {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 2px 6px; font-size: 11px;
+    background: rgba(0, 0, 0, 0.55); color: #fff;
+  }
+  .frame.degraded { cursor: default; opacity: 0.6; }
+  .frame.degraded .label { background: var(--danger); }
+  #focus { flex: 1; display: none; flex-direction: column; }
+  .mode-focus #focus { display: flex; }
+  #focus-stage { flex: 1; position: relative; }
+  #focus-stage iframe { width: 100%; height: 100%; border: 0; }
+  #focus-indicator {
+    padding: 6px 12px; font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  #verdict {
+    display: flex; gap: 8px; align-items: center;
+    padding: 10px 12px; border-top: 1px solid var(--border);
+    background: var(--panel);
+  }
+  #verdict button {
+    font: inherit; padding: 6px 12px; border-radius: 4px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+    cursor: pointer;
+  }
+  #verdict button:disabled { opacity: 0.45; cursor: not-allowed; }
+  #verdict #btn-pick { border-color: var(--accent); color: var(--accent); }
+  #steer-input {
+    font: inherit; flex: 1; min-width: 120px; padding: 6px 8px;
+    border-radius: 4px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg);
+  }
+  #recorded {
+    display: none; align-items: center; justify-content: center;
+    flex: 1; font-size: 15px; color: var(--muted);
+  }
+  .mode-recorded #grid, .mode-recorded #focus, .mode-recorded #verdict { display: none; }
+  .mode-recorded #recorded { display: flex; }
+</style>
+</head>
+<body>
+<div id="app" class="mode-grid">
+  <div id="note">Grid shows every variant at a glance — use the focus view (click a frame, or press Enter) for fine typographic judgment.</div>
+  <div id="grid"></div>
+  <div id="focus">
+    <div id="focus-stage"></div>
+    <div id="focus-indicator"></div>
+  </div>
+  <div id="verdict">
+    <button id="btn-pick" data-action="pick" disabled>Pick this</button>
+    <button id="btn-reroll" data-action="reroll">Reroll</button>
+    <input id="steer-input" type="text" placeholder="Steer: guide the next pass&hellip;">
+    <button id="btn-steer" data-action="steer">Steer</button>
+    <button id="btn-exit" data-action="exit">Exit without pick</button>
+  </div>
+  <div id="recorded">recorded &mdash; return to the terminal</div>
+</div>
+<script id="vd-data" type="application/json">__VARIANT_DATA__</script>
+<script>
+(function () {
+  'use strict';
+  var MODE = "__MODE__"; // "live" | "durable"
+  var DATA = JSON.parse(document.getElementById('vd-data').textContent);
+  var variants = DATA.variants || [];
+
+  var app = document.getElementById('app');
+  var grid = document.getElementById('grid');
+  var focusStage = document.getElementById('focus-stage');
+  var focusIndicator = document.getElementById('focus-indicator');
+  var btnPick = document.getElementById('btn-pick');
+  var btnReroll = document.getElementById('btn-reroll');
+  var btnSteer = document.getElementById('btn-steer');
+  var btnExit = document.getElementById('btn-exit');
+  var steerInput = document.getElementById('steer-input');
+
+  var gridSelectedId = null;
+  var focusIndex = -1; // index into variants while in focus view
+
+  function pickableVariants() {
+    return variants.filter(function (v) { return !v.degraded; });
+  }
+
+  function makeIframe(v) {
+    var frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.setAttribute('loading', 'lazy');
+    if (MODE === 'live') {
+      frame.src = v.src;
+    } else {
+      frame.srcdoc = v.content || '';
+    }
+    return frame;
+  }
+
+  function buildGrid() {
+    variants.forEach(function (v) {
+      var cell = document.createElement('div');
+      cell.className = 'frame' + (v.degraded ? ' degraded' : '');
+      cell.dataset.variant = v.id;
+      if (!v.degraded) {
+        cell.appendChild(makeIframe(v));
+        cell.addEventListener('click', function () {
+          selectInGrid(v.id);
+        });
+      }
+      var label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = v.degraded ? (v.name + ' — ' + (v.reason || 'degraded')) : v.name;
+      cell.appendChild(label);
+      grid.appendChild(cell);
+    });
+  }
+
+  function selectInGrid(id) {
+    gridSelectedId = id;
+    Array.prototype.forEach.call(grid.querySelectorAll('.frame'), function (el) {
+      el.classList.toggle('selected', el.dataset.variant === id);
+    });
+    updatePickEnabled();
+  }
+
+  function updatePickEnabled() {
+    if (MODE !== 'live') return; // durable verdict controls stay disabled unconditionally
+    var target = app.classList.contains('mode-focus')
+      ? variants[focusIndex]
+      : variants.filter(function (v) { return v.id === gridSelectedId; })[0];
+    btnPick.disabled = !target || target.degraded;
+  }
+
+  function renderIndicator() {
+    var v = variants[focusIndex];
+    focusIndicator.textContent = (focusIndex + 1) + ' / ' + variants.length + ' — ' + (v ? v.name : '');
+  }
+
+  function showFocus(index) {
+    focusIndex = ((index % variants.length) + variants.length) % variants.length;
+    focusStage.innerHTML = '';
+    var v = variants[focusIndex];
+    if (!v.degraded) {
+      focusStage.appendChild(makeIframe(v));
+    } else {
+      var msg = document.createElement('div');
+      msg.className = 'label';
+      msg.style.position = 'static';
+      msg.textContent = v.name + ' — ' + (v.reason || 'degraded');
+      focusStage.appendChild(msg);
+    }
+    renderIndicator();
+    updatePickEnabled();
+  }
+
+  function enterFocus(id) {
+    var idx = variants.findIndex ? variants.findIndex(function (v) { return v.id === id; }) : indexOfId(id);
+    app.classList.remove('mode-grid');
+    app.classList.add('mode-focus');
+    showFocus(idx < 0 ? 0 : idx);
+  }
+
+  function indexOfId(id) {
+    for (var i = 0; i < variants.length; i += 1) {
+      if (variants[i].id === id) return i;
+    }
+    return -1;
+  }
+
+  function exitFocus() {
+    app.classList.remove('mode-focus');
+    app.classList.add('mode-grid');
+    updatePickEnabled();
+  }
+
+  grid.addEventListener('dblclick', function (e) {
+    var frame = e.target.closest ? e.target.closest('.frame') : null;
+    if (frame && !frame.classList.contains('degraded')) enterFocus(frame.dataset.variant);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (MODE !== 'live') return;
+    if (!app.classList.contains('mode-focus')) {
+      if (e.key === 'Enter' && gridSelectedId) enterFocus(gridSelectedId);
+      return;
+    }
+    if (e.key === 'ArrowRight') showFocus(focusIndex + 1);
+    else if (e.key === 'ArrowLeft') showFocus(focusIndex - 1);
+    else if (e.key === 'Escape') exitFocus();
+  });
+
+  function serializeEvent(kind, extra) {
+    var ts = Date.now();
+    switch (kind) {
+      case 'pick': return { type: 'pick', variant: extra.variant, ts: ts };
+      case 'reroll': return { type: 'reroll', ts: ts };
+      case 'steer': return { type: 'steer', text: extra.text, ts: ts };
+      case 'exit': return { type: 'exit', ts: ts };
+      default: throw new Error('unknown event kind: ' + kind);
+    }
+  }
+
+  function postEvent(payload) {
+    return fetch('/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(function (res) {
+      if (!res.ok) throw new Error('event post failed: ' + res.status);
+      app.classList.add('mode-recorded');
+    });
+  }
+
+  function attachVerdictHandlers() {
+    // Only reachable when MODE === 'live' — durable pages never call this,
+    // so no listener-attachment code path runs under the durable flag.
+    btnPick.addEventListener('click', function () {
+      var target = app.classList.contains('mode-focus') ? variants[focusIndex] : variants.filter(function (v) { return v.id === gridSelectedId; })[0];
+      if (!target || target.degraded) return;
+      postEvent(serializeEvent('pick', { variant: target.id }));
+    });
+    btnReroll.addEventListener('click', function () {
+      postEvent(serializeEvent('reroll', {}));
+    });
+    btnSteer.addEventListener('click', function () {
+      postEvent(serializeEvent('steer', { text: steerInput.value }));
+    });
+    btnExit.addEventListener('click', function () {
+      postEvent(serializeEvent('exit', {}));
+    });
+  }
+
+  function connectStream() {
+    if (typeof EventSource === 'undefined') return;
+    var es = new EventSource('/stream');
+    es.addEventListener('reload', function () {
+      location.reload();
+    });
+  }
+
+  buildGrid();
+  updatePickEnabled();
+
+  if (MODE === 'live') {
+    attachVerdictHandlers();
+    connectStream();
+  } else {
+    btnPick.disabled = true;
+    btnReroll.disabled = true;
+    btnSteer.disabled = true;
+    btnExit.disabled = true;
+    steerInput.disabled = true;
+    if (DATA.outcome) {
+      var meta = document.createElement('div');
+      meta.id = 'outcome-meta';
+      meta.style.display = 'none';
+      meta.dataset.winner = DATA.outcome.winner || '';
+      meta.dataset.seedKey = DATA.outcome.seedKey || '';
+      meta.dataset.rerollCount = String(DATA.outcome.rerollCount || 0);
+      meta.dataset.steerHistory = JSON.stringify(DATA.outcome.steerHistory || []);
+      meta.dataset.date = DATA.outcome.date || '';
+      document.body.appendChild(meta);
+    }
+  }
+})();
+</script>
+</body>
+</html>
