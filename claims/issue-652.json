@@ -1,6 +1,7 @@
 {
-  "released": true,
   "runId": "2026-08-21T105702-spec-252-257-899-266-316-644-652",
-  "reason": "swept: remote holder inactive 40-80h with no PR, force-released bypassing ownership guard per explicit user confirmation",
-  "releasedAt": "2026-08-21T11:06:11.013Z"
+  "sessionId": "4086bb7a-e4a2-4a27-9346-5f813d685c3b",
+  "claimedAt": "2026-08-21T11:07:17.599Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
