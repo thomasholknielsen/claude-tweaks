@@ -202,6 +202,51 @@ test('reference-repairs check fails when Initiative-Fix commit diff touches a fi
   assert.match(row.detail, /docs\/b\.md/);
 });
 
+test('acceptance-labeling check renders unknown (gh absent) when gh probe throws', () => {
+  const runDir = makeTmpDir('verify-acceptance-ghabsent-');
+  writeSpecFile(runDir, '900', 900);
+  const throwingGh = () => { throw new Error('gh: command not found'); };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: throwingGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'unknown');
+  assert.match(row.detail, /gh absent/);
+});
+
+test('acceptance-labeling check passes when demo:pending label and a brief comment both present', () => {
+  const runDir = makeTmpDir('verify-acceptance-pass-');
+  writeSpecFile(runDir, '900', 900);
+  const fakeGh = (args) => {
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('labels')) return JSON.stringify({ labels: [{ name: 'demo:pending' }] });
+    if (args.includes('comments')) return JSON.stringify({ comments: [{ body: '## Verification Brief\n### Confirmed\n' }] });
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'pass');
+});
+
+test('acceptance-labeling check fails when demo:pending label missing', () => {
+  const runDir = makeTmpDir('verify-acceptance-fail-');
+  writeSpecFile(runDir, '900', 900);
+  const fakeGh = (args) => {
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('labels')) return JSON.stringify({ labels: [] });
+    return JSON.stringify({ comments: [] });
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'fail');
+});
+
+test('acceptance-labeling check skips when no resolved issues found', () => {
+  const runDir = makeTmpDir('verify-acceptance-skip-');
+  const fakeGh = (args) => (args[0] === '--version' ? 'gh version 2.0.0' : '');
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'skip');
+});
+
 test('runVerify short-circuits to an all-unknown row set when runDir is null, never invoking check fns', () => {
   // Throwaway check scoped to this one test — name chosen so it can't collide
   // with a real check name Tasks 2-6 register ('plans-ledger', etc). Its fn

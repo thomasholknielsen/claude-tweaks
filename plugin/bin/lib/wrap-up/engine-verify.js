@@ -211,6 +211,72 @@ registerCheck('reference-repairs', ({ runDir, base, deps }) => {
   return { result: 'pass', detail: '' };
 });
 
+// ---- gh availability probe ------------------------------------------------
+function ghAvailable(deps) {
+  try {
+    deps.gh(['--version'], process.cwd());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---- acceptance labeling ---------------------------------------------------
+//
+// Reproduces execution-and-verification.md's existing per-backend,
+// per-parent-vs-non-parent check (the prose this record deletes). Deliberate
+// scope note (spec's own nuance, preserved here rather than re-derived): a
+// resolvable-parent record's brief lives on the PARENT, and correctly-gated
+// parents routinely have OTHER comments after the brief lands (the
+// Parent-Gate Procedure's already-posted-brief branch only adds the label,
+// posting nothing new) -- so this check tests whether ANY comment on the
+// target issue contains the brief, never only the most recent one. A
+// last-comment-only test would hard-stop a correctly-gated parent.
+registerCheck('acceptance-labeling', ({ runDir, deps }) => {
+  if (!ghAvailable(deps)) return { result: 'unknown', detail: 'gh absent' };
+  const issues = resolvedIssueNumbers(runDir);
+  if (!issues.length) return { result: 'skip', detail: 'no resolved issue numbers found' };
+  const failing = [];
+  for (const n of issues) {
+    let labelsRaw;
+    try {
+      labelsRaw = deps.gh(['issue', 'view', String(n), '--json', 'labels'], process.cwd());
+    } catch (err) {
+      failing.push(`#${n}: gh issue view failed (${err.message})`);
+      continue;
+    }
+    let labels;
+    try {
+      labels = JSON.parse(labelsRaw).labels || [];
+    } catch {
+      failing.push(`#${n}: could not parse labels JSON`);
+      continue;
+    }
+    if (!labels.some((l) => l.name === 'demo:pending')) {
+      failing.push(`#${n}: missing demo:pending label`);
+      continue;
+    }
+    let commentsRaw;
+    try {
+      commentsRaw = deps.gh(['issue', 'view', String(n), '--json', 'comments'], process.cwd());
+    } catch (err) {
+      failing.push(`#${n}: gh issue view (comments) failed (${err.message})`);
+      continue;
+    }
+    let comments;
+    try {
+      comments = JSON.parse(commentsRaw).comments || [];
+    } catch {
+      failing.push(`#${n}: could not parse comments JSON`);
+      continue;
+    }
+    const hasBrief = comments.some((c) => c.body && c.body.includes('## Verification Brief') && c.body.includes('### Confirmed'));
+    if (!hasBrief) failing.push(`#${n}: no comment carries a confirmed Verification Brief`);
+  }
+  if (failing.length) return { result: 'fail', detail: failing.join('; ') };
+  return { result: 'pass', detail: '' };
+});
+
 function runVerify({ runDir, base, deps = {} }) {
   const git = deps.git || defaultGit;
   const gh = deps.gh || defaultGh;
