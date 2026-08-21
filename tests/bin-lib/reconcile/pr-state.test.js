@@ -95,16 +95,35 @@ test('resolvePrStateAsync: does not block the event loop (real concurrency, not 
   // real non-blocking execFile lets them overlap, so wall time stays close
   // to one sleep regardless of N (#820 review — this is exactly the property
   // Phase 1.5's runWithConcurrency pooling in release-merged.js depends on).
+  //
+  // The pass/fail boundary is measured against a freshly-taken sequential
+  // baseline in the same run rather than a fixed wall-clock margin, so the
+  // assertion self-calibrates to whatever load this machine is under right
+  // now instead of flaking under concurrent sibling sessions (#1127 — a
+  // fixed "< 400ms" margin observed ~474ms under load while still passing
+  // 7/7 in isolation). A genuine regression to blocking behavior still
+  // fails: concurrent and sequential would both take ~3x150ms, so the
+  // concurrent/sequential ratio would sit near 1 instead of well under it.
   const wrapper = installGhWrapper('#!/bin/sh\nsleep 0.15\necho "[]"\n');
   try {
-    const start = Date.now();
+    const concurrentStart = Date.now();
     await Promise.all([
       resolvePrStateAsync('/tmp', 'branch-a'),
       resolvePrStateAsync('/tmp', 'branch-b'),
       resolvePrStateAsync('/tmp', 'branch-c'),
     ]);
-    const elapsed = Date.now() - start;
-    assert.ok(elapsed < 400, `expected concurrent execution well under 3x150ms=450ms, took ${elapsed}ms`);
+    const concurrentElapsed = Date.now() - concurrentStart;
+
+    const sequentialStart = Date.now();
+    await resolvePrStateAsync('/tmp', 'branch-d');
+    await resolvePrStateAsync('/tmp', 'branch-e');
+    await resolvePrStateAsync('/tmp', 'branch-f');
+    const sequentialElapsed = Date.now() - sequentialStart;
+
+    assert.ok(
+      concurrentElapsed < sequentialElapsed * 0.6,
+      `expected concurrent (${concurrentElapsed}ms) well under sequential (${sequentialElapsed}ms) — a blocking implementation would make these roughly equal`,
+    );
   } finally {
     wrapper.restore();
   }
