@@ -44,6 +44,13 @@ test('parseArgs: --run never passed leaves runEmpty false', () => {
   assert.strictEqual(opts.runEmpty, false);
 });
 
+test('parseArgs: a later non-empty --run clears runEmpty set by an earlier empty --run', () => {
+  const opts = parseArgs(['actions.json', '--run', '', '--run', '/repo/.claude-tweaks/pipelines/run-1']);
+  assert.strictEqual(opts.error, undefined);
+  assert.strictEqual(opts.run, '/repo/.claude-tweaks/pipelines/run-1');
+  assert.strictEqual(opts.runEmpty, false);
+});
+
 test('validateAction: rejects a non-integer issue', () => {
   assert.match(validateAction({ issue: 'x', addLabels: ['a'] }, 0), /must be a positive integer/);
 });
@@ -221,4 +228,15 @@ test('run: no --run flag at all stays silent — no empty-run stderr note', () =
   const code = run(['actions.json'], deps);
   assert.strictEqual(code, 0);
   assert.doesNotMatch(deps.calls.stderr.join(''), /--run was empty/);
+});
+
+test('run: a later non-empty --run after an earlier empty --run logs normally and never prints the empty-run note', () => {
+  const deps = fakeDeps({
+    readFile: () => JSON.stringify([{ issue: 118, addLabels: ['auto:build'] }]),
+  });
+  const code = run(['actions.json', '--run', '', '--run', '/repo/.claude-tweaks/pipelines/run-1'], deps);
+  assert.strictEqual(code, 0);
+  assert.doesNotMatch(deps.calls.stderr.join(''), /--run was empty/);
+  assert.strictEqual(deps.calls.appendEntry.length, 1);
+  assert.strictEqual(deps.calls.appendEntry[0].runDir, '/repo/.claude-tweaks/pipelines/run-1');
 });

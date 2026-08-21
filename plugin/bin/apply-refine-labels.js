@@ -39,7 +39,7 @@ function parseArgs(argv) {
       const val = next();
       if (val === undefined || val.startsWith('--')) return { error: '--run requires a value' };
       opts.run = val === '' ? null : val;
-      if (val === '') opts.runEmpty = true;
+      opts.runEmpty = val === '';
     }
     else if (a === '--repo') opts.repo = next();
     else return { error: `unknown argument: ${a}` };
