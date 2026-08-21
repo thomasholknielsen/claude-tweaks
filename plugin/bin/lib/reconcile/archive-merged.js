@@ -116,9 +116,11 @@ function listSpecDirs(runDir) {
 // this pass found it and restores what those guards look for. Best-effort and
 // never throws: a revert failure must still degrade to the caller's reported
 // skip, not an unhandled exception (this runs from SessionStart with no
-// supervising human).
+// supervising human). Returns true only when every pair ended back at its
+// original path in both index and disk; false means the tree is left partially
+// moved, which the caller reports as a distinct reason.
 function revertWorkMoves(root, workMoves) {
-  let allReverted = true;
+  let fullyReverted = true;
   for (const [src, dest] of workMoves) {
     const reset = runGit(['reset', '--', src, dest], root);
     if (reset.failure) {
@@ -130,17 +132,17 @@ function revertWorkMoves(root, workMoves) {
       // a worse state than doing nothing, since `git status` would then
       // show a staged addition with no file behind it. The same lock/hook
       // cause that can fail the commit can plausibly also fail this reset.
-      allReverted = false;
+      fullyReverted = false;
       continue;
     }
     try {
       fs.renameSync(dest, src);
     } catch {
       /* best-effort — the tree may stay partially dirty */
-      allReverted = false;
+      fullyReverted = false;
     }
   }
-  return allReverted;
+  return fullyReverted;
 }
 
 function archiveRunDir(root, runDir) {

@@ -1,7 +1,11 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { execFileSync } = require('child_process');
+const cp = require('child_process');
+// Destructured at require time, so this binding is a snapshot of the REAL
+// implementation — it stays callable as the pass-through inside the
+// compound-failure test's `t.mock.method(cp, 'execFileSync', ...)` below.
+const { execFileSync } = cp;
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -280,13 +284,11 @@ test('archiveRunDir: commit fails AND the revert reset also fails — file is no
   commitPath(root, `.claude-tweaks/pipelines/${runId}/work/79-spec.md`, '# spec 79\n');
   fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
 
-  const cp = require('child_process');
-  const real = cp.execFileSync;
   t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
-    if (cmd === 'git' && Array.isArray(args) && (args.includes('commit') || args.includes('reset'))) {
-      throw new Error(`simulated failure: git ${args.includes('commit') ? 'commit' : 'reset'}`);
-    }
-    return real.call(cp, cmd, args, opts);
+    const failingVerb = cmd === 'git' && Array.isArray(args)
+      && args.find((a) => a === 'commit' || a === 'reset');
+    if (failingVerb) throw new Error(`simulated failure: git ${failingVerb}`);
+    return execFileSync(cmd, args, opts);
   });
 
   const result = archiveRunDir(root, runDir);
