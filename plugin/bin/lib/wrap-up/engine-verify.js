@@ -261,22 +261,22 @@ registerCheck('worktree-removed', ({ runDir, expectations, deps }) => {
 //
 // existsSync-then-read is a TOCTOU by construction: this project's own
 // reconcile/archive processes concurrently prune exactly these pipeline
-// run-dirs. Wrapped in try/catch, degrading to "no headers found" (falls
-// through to the expectations-file fallback below) on any race, rather than
-// throwing uncaught -- matching every other read site in this module.
+// run-dirs. Reading straight off readdirSync (no existsSync guard -- a
+// missing work/ throws ENOENT the same as a mid-read prune) and wrapping in
+// try/catch degrades to "no headers found" (falls through to the
+// expectations-file fallback below) on either case, rather than throwing
+// uncaught -- matching every other read site in this module.
 function resolvedIssueNumbers(runDir) {
   const workDir = path.join(runDir, 'work');
   const fromHeaders = [];
   try {
-    if (fs.existsSync(workDir)) {
-      for (const entry of fs.readdirSync(workDir)) {
-        if (!entry.endsWith('-spec.md')) continue;
-        const content = fs.readFileSync(path.join(workDir, entry), 'utf8');
-        const m = content.match(/^record:\s*(\d+)/m);
-        if (m) fromHeaders.push(Number(m[1]));
-      }
+    for (const entry of fs.readdirSync(workDir)) {
+      if (!entry.endsWith('-spec.md')) continue;
+      const content = fs.readFileSync(path.join(workDir, entry), 'utf8');
+      const m = content.match(/^record:\s*(\d+)/m);
+      if (m) fromHeaders.push(Number(m[1]));
     }
-  } catch { /* work/ pruned mid-read (reconcile/archive race) -- fall through to the expectations fallback below */ }
+  } catch { /* work/ absent, or pruned mid-read (reconcile/archive race) -- fall through to the expectations fallback below */ }
   if (fromHeaders.length) return fromHeaders;
   const expPath = path.join(runDir, 'verify-expectations.json');
   if (fs.existsSync(expPath)) {
@@ -546,10 +546,11 @@ registerCheck('memory-updates', ({ expectations }) => {
   const missing = [];
   for (const { file, indexFile } of entries) {
     if (!fs.existsSync(file)) missing.push(`file missing: ${file}`);
-    if (indexFile && fs.existsSync(indexFile)) {
-      // existsSync-then-read is a TOCTOU -- an index file edited/removed
-      // between the check and the read degrades to "missing" here, same as
-      // the else-branch below, rather than throwing uncaught.
+    if (indexFile) {
+      // Read straight off the file rather than existsSync-then-read (a
+      // TOCTOU): a missing or mid-race-removed index file throws the same
+      // way, caught here and degraded to "missing" rather than throwing
+      // uncaught.
       let indexContent;
       try {
         indexContent = fs.readFileSync(indexFile, 'utf8');
@@ -559,8 +560,6 @@ registerCheck('memory-updates', ({ expectations }) => {
       }
       const base = path.basename(file, '.md');
       if (!indexContent.includes(base)) missing.push(`index line missing for ${base} in ${indexFile}`);
-    } else if (indexFile) {
-      missing.push(`index file missing: ${indexFile}`);
     }
   }
   if (missing.length) return { result: 'fail', detail: missing.join('; ') };
