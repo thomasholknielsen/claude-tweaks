@@ -118,14 +118,29 @@ function listSpecDirs(runDir) {
 // skip, not an unhandled exception (this runs from SessionStart with no
 // supervising human).
 function revertWorkMoves(root, workMoves) {
+  let allReverted = true;
   for (const [src, dest] of workMoves) {
-    runGit(['reset', '--', src, dest], root);
+    const reset = runGit(['reset', '--', src, dest], root);
+    if (reset.failure) {
+      // The index still matches what `git mv` staged (src removed, dest
+      // added) — leave the file where `git mv` physically put it too, so
+      // disk and index stay mutually consistent (still in the "moved"
+      // state, same as the pre-revert bug). Moving it back here would
+      // desync disk from an index entry that was never actually unstaged —
+      // a worse state than doing nothing, since `git status` would then
+      // show a staged addition with no file behind it. The same lock/hook
+      // cause that can fail the commit can plausibly also fail this reset.
+      allReverted = false;
+      continue;
+    }
     try {
       fs.renameSync(dest, src);
     } catch {
       /* best-effort — the tree may stay partially dirty */
+      allReverted = false;
     }
   }
+  return allReverted;
 }
 
 function archiveRunDir(root, runDir) {
@@ -183,8 +198,14 @@ function archiveRunDir(root, runDir) {
     // would otherwise sit in the shared main checkout's index indefinitely.
     const commit = runGit(['commit', '-m', `[reconcile] archive run ${runId}`], root);
     if (commit.failure) {
-      revertWorkMoves(root, workMoves);
-      return { ok: false, reason: 'commit-failed' };
+      // A partial revert (some pairs' `git reset` or disk move failed) is a
+      // distinct outcome from a clean one: the retry guard below keys on
+      // `fs.existsSync(workSrc)`, which only sees a pair again once it's
+      // genuinely back at its original path. `commit-failed-partial-revert`
+      // makes that distinction visible to callers/logs rather than
+      // collapsing both into the same reason string.
+      const fullyReverted = revertWorkMoves(root, workMoves);
+      return { ok: false, reason: fullyReverted ? 'commit-failed' : 'commit-failed-partial-revert' };
     }
   }
 

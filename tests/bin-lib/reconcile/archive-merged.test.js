@@ -39,9 +39,15 @@ function commitPath(root, relPath, content) {
 // Forces a REAL `git commit` failure via a failing pre-commit hook — the same
 // class of real-world cause named in #652's Technical Approach (gpgsign
 // requirement, a failing pre-commit/commit-msg hook, a policy gate) — rather
-// than mocking `runGit` (git-exec.js has no injectable-runner seam by design;
-// archive-merged.js destructures `runGit` at require time, so a
-// `t.mock.method` on the git-exec module wouldn't be observed anyway).
+// than mocking `runGit` (archive-merged.js destructures `runGit` at require
+// time, so a `t.mock.method` on the git-exec module's exported property
+// wouldn't be observed by archive-merged.js's already-bound reference).
+// The compound-failure test below takes a different tack — mocking
+// `child_process.execFileSync` itself, which git-exec.js's `runGit` calls via
+// property access at call time (`cp.execFileSync(...)`, not a destructured
+// const — see that file's own header comment) — since forcing `git reset`
+// itself to fail has no equivalent real-hook mechanism (`reset` has no
+// `pre-reset` hook the way `commit` does).
 function installFailingPreCommitHook(root) {
   const hookPath = path.join(root, '.git', 'hooks', 'pre-commit');
   fs.writeFileSync(hookPath, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
@@ -254,6 +260,51 @@ test('archiveRunDir: second pass after the commit-failure cause is resolved comp
   assert.equal(
     tracked.includes(`.claude-tweaks/pipelines/${runId}/work/78-spec.md`),
     false,
+  );
+});
+
+// #652 review finding (critical, converged across 3 independent lens agents):
+// revertWorkMoves ignored `git reset`'s result and unconditionally ran
+// fs.renameSync next — under the same lock-contention cause that can fail
+// `git commit`, `git reset` could plausibly fail too, and moving the file
+// back on disk while the index still holds the old staged rename would
+// desync disk from index (worse than the original bug: a coherent staged
+// rename becomes an incoherent one). The fix: only move the file back when
+// `git reset` actually succeeded; on reset failure, leave that pair exactly
+// where `git mv` put it (still consistent — matches the original bug's
+// state, not a new mismatched one) and report a distinguishable reason.
+test('archiveRunDir: commit fails AND the revert reset also fails — file is not moved back (no disk/index desync), reason distinguishes partial revert', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-79';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/work/79-spec.md`, '# spec 79\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const cp = require('child_process');
+  const real = cp.execFileSync;
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    if (cmd === 'git' && Array.isArray(args) && (args.includes('commit') || args.includes('reset'))) {
+      throw new Error(`simulated failure: git ${args.includes('commit') ? 'commit' : 'reset'}`);
+    }
+    return real.call(cp, cmd, args, opts);
+  });
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'commit-failed-partial-revert');
+
+  // The file stays at the archive (dest) location — NOT moved back — since
+  // the reset that would have made moving it back safe also failed.
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(
+    fs.existsSync(path.join(archiveDir, 'work', '79-spec.md')),
+    true,
+    'file must stay at the archive path when reset fails — moving it back would desync disk from the still-staged index',
+  );
+  assert.equal(
+    fs.existsSync(path.join(runDir, 'work', '79-spec.md')),
+    false,
+    'old path must NOT be resurrected on disk when the index was never actually unstaged',
   );
 });
 
