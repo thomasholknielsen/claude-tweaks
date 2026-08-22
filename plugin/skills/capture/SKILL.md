@@ -354,6 +354,8 @@ In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-
 AUTO {time} — Routing: defaulted to keep (no --route provided). Reversibility: high (record stays in backlog state; user can re-route via /tidy at any time).
 ```
 
+**Headless bar**: `--source`/`--defer-reason=` filings, `auto`, and chained paths absorb only if (a)'s path is a literal match and (b)'s `type:{t}` matches; else files fresh with `**Related:** #N`. If a run directory resolves, log `AUTO {time} — capture absorbed into #{N} (shared path + same type). Reversibility: medium (append is visible on #{N}).` per `_shared/auto-decision-log.md`.
+
 In interactive mode (or when explicitly opted in), present "Added: '{title}' (Type: {t}, Definition: {needed|clear})" (rationale clause per Judging Definition above, when applicable) and call `AskUserQuestion`:
 
 - `question`: `"What should happen with this?"`, `header`: `"Route idea"`, `multiSelect`: `false`
@@ -364,7 +366,7 @@ The call has 3 options only when absorb is visible, in either ordering above; ot
 
 > **Option 3 visibility:** Search for a candidate match on the topic keywords from the new backlog record, per the active driver from Backend Selection. `local-files` — search `specs/` for a record matching the keywords. `github-issues` — search open issues: `gh issue list --search "{keywords}" --state open --json number,title,labels,updatedAt --limit 5`, then for at most the top 2 candidates one `gh issue view {n} --json body` follow-up read before judging (the same search-narrow-then-fetch-full two-step `/specify`'s case 5 uses; the cap keeps the interactive path fast). Only show option 3 when either search returns a candidate. Without a candidate match, option 3 is omitted entirely — manual disambiguation against an unspecified record number is worse than no option at all.
 >
-> **High similarity** means both criteria hold, each anchored on a concrete shared artifact, not a similarity score: **(a) same file/subsystem** — the candidate's body (its `### Key Files` section when spec-shaped, else its title subject) and the capture's `Context:`/`Scope:` text name at least one identical file path or module/subsystem; **(b) same kind of change** — identical `type:{t}` value (the Type axis in `_shared/work-record.md`; `TYPE_LABELS` in `bin/lib/issues/record.js`) AND the same operation on that subject — matching verb-plus-target: both dedupe X, both fix the same failure, both extend the same surface.
+> **High similarity** means both criteria hold, each anchored on a concrete shared artifact, not a similarity score: **(a) same file/subsystem** — the candidate's body (its `### Key Files` section when spec-shaped, else its title subject) and the capture's `Context:`/`Scope:` text name at least one identical file path or module/subsystem; **(b) same kind of change** — identical `type:{t}` value (the Type axis in `_shared/work-record.md`; `TYPE_LABELS` in `bin/lib/issues/record.js`) AND the same operation on that subject — matching verb-plus-target: both dedupe X, both fix the same failure, both extend the same surface. Absorb never targets: (1) a closed record, (2) a `parent-issue` carrier, (3) a `bot:in-progress` carrier (per `_shared/work-record.md`); files fresh with `**Related:** #N` for all three.
 
 ### Route execution, by backend
 
