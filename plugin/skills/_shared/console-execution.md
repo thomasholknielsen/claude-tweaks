@@ -71,6 +71,11 @@ comment marker is the source of truth; `console.json.executedAt` is the local ca
 missing marker with a present reply comment is read as "executed, retry only the marker edit,"
 never as "not yet executed."
 
+That final write also sets `console.json.resolved: true` alongside `executedAt`, in the same
+operation. `readConsoleState` (`bin/lib/reconcile/archive-merged.js`) treats a non-empty
+`executedAt` as sufficient on its own, since `resolved` is not guaranteed by every historical
+writer — but this write order sets both.
+
 ## Idempotence
 
 A second reconciliation (or a live session racing one) detects either the resolved marker on the
@@ -86,7 +91,7 @@ step also asks via `AskUserQuestion`, using the same Approve all / Override / St
 just posted to the PR. Two surfaces, one answer: whichever resolves first wins.
 
 - **Chat answers first:** execute directly via this file's Execution routing above, then perform
-  the same Write order (reply comment, resolved marker, `console.json.executedAt`) so a later
+  the same Write order (reply comment, resolved marker, `console.json.executedAt`/`resolved`) so a later
   reconciler pass detects the resolved marker and no-ops rather than re-asking.
 - **PR ticks resolve first** (a human ticked boxes on the PR while the chat prompt was still open,
   or a reconciler pass executed it in the interim): before acting on the chat answer, re-check the
