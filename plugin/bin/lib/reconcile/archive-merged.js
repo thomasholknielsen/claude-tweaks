@@ -192,9 +192,20 @@ function archiveRunDir(root, runDir) {
     workMoves.push([specWork, path.join(specArchiveDir, 'work')]);
   }
   if (workMoves.length) {
+    // Pairs that succeeded before a later pair's `git mv` fails mid-loop —
+    // tracked separately from `workMoves` so a failure on e.g. the 2nd of 3
+    // pairs only attempts to revert the 1st (already-moved), never the 2nd
+    // (never touched, since the failing `git mv` never mutated it) or 3rd
+    // (never even attempted). Same partial-revert reasoning as the
+    // commit-failure branch below, applied one loop iteration earlier.
+    const succeededMoves = [];
     for (const [src, dest] of workMoves) {
       const mv = runGit(['mv', src, dest], root);
-      if (mv.failure) return { ok: false, reason: 'git-mv-failed' };
+      if (mv.failure) {
+        const fullyReverted = revertWorkMoves(root, succeededMoves);
+        return { ok: false, reason: fullyReverted ? 'git-mv-failed' : 'git-mv-failed-partial-revert' };
+      }
+      succeededMoves.push([src, dest]);
       movedEntries.push(path.relative(runDir, src));
     }
     // The git mv above only stages the rename — this check runs headlessly

@@ -311,6 +311,105 @@ test('archiveRunDir: commit fails AND the revert reset also fails — file is no
   );
 });
 
+// Task 1 (#1103): a git-mv failure partway through a multi-pair workMoves
+// loop (multi-spec parent run dir, two spec-{N}/work/ pairs) must not leave
+// the first, already-succeeded pair stranded mid-move — it must be reverted
+// the same way a commit failure already reverts everything (see the two
+// tests above). Before this fix, the loop returned 'git-mv-failed'
+// immediately on ANY pair's failure without ever reverting pairs that had
+// already succeeded earlier in the same loop.
+test('archiveRunDir: git mv fails on the SECOND of two spec work/ pairs — first pair is reverted, nothing left partially moved', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-1101-1102';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1101/work/1101-spec.md`, '# spec 1101\n');
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1102/work/1102-spec.md`, '# spec 1102\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  let mvCount = 0;
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    const isMv = cmd === 'git' && Array.isArray(args) && args[2] === 'mv';
+    if (isMv) {
+      mvCount += 1;
+      if (mvCount === 2) throw new Error('simulated failure: git mv (2nd pair)');
+    }
+    return execFileSync(cmd, args, opts);
+  });
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'git-mv-failed');
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+
+  // The first pair (spec-1101), which had already been git-mv'd
+  // successfully before the second pair's mv failed, must be reverted: back
+  // on disk at its original path, and NOT left at the archive path.
+  assert.equal(
+    fs.existsSync(path.join(runDir, 'spec-1101', 'work', '1101-spec.md')),
+    true,
+    'spec-1101/work must be restored to its original path',
+  );
+  assert.equal(
+    fs.readFileSync(path.join(runDir, 'spec-1101', 'work', '1101-spec.md'), 'utf8'),
+    '# spec 1101\n',
+  );
+  assert.equal(
+    fs.existsSync(path.join(archiveDir, 'spec-1101', 'work')),
+    false,
+    'spec-1101/work must not remain at the archive path',
+  );
+  const tracked = trackedFiles(root);
+  assert.ok(
+    tracked.includes(`.claude-tweaks/pipelines/${runId}/spec-1101/work/1101-spec.md`),
+    'spec-1101/work/1101-spec.md must be tracked again at its original path',
+  );
+
+  // The second pair (spec-1102) never actually moved — its mv call threw
+  // before touching disk — so it must still be exactly where it started.
+  assert.equal(
+    fs.existsSync(path.join(runDir, 'spec-1102', 'work', '1102-spec.md')),
+    true,
+    'spec-1102/work must still be at its original path (its mv never succeeded)',
+  );
+});
+
+// Pins that Task 1's change doesn't alter the already-correct
+// first-pair-failure path: revertWorkMoves(root, []) on an empty
+// succeededMoves list is a no-op (its loop never executes) and returns
+// fullyReverted: true, so the reason stays the plain 'git-mv-failed' string
+// exactly as before this fix.
+test('archiveRunDir: git mv fails on the first pair — no revert needed, reason is plain git-mv-failed (unchanged behavior)', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-1201-1202';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1201/work/1201-spec.md`, '# spec 1201\n');
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1202/work/1202-spec.md`, '# spec 1202\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  let mvCount = 0;
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    const isMv = cmd === 'git' && Array.isArray(args) && args[2] === 'mv';
+    if (isMv) {
+      mvCount += 1;
+      if (mvCount === 1) throw new Error('simulated failure: git mv (1st pair)');
+    }
+    return execFileSync(cmd, args, opts);
+  });
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'git-mv-failed');
+
+  // Neither pair moved — the first pair's mv is the one that failed, and the
+  // loop never reaches the second pair.
+  assert.equal(fs.existsSync(path.join(runDir, 'spec-1201', 'work', '1201-spec.md')), true);
+  assert.equal(fs.existsSync(path.join(runDir, 'spec-1202', 'work', '1202-spec.md')), true);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1201', 'work')), false);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1202', 'work')), false);
+});
+
 test('listSpecDirs: only spec-* subdirectories, ignores files and non-matching dirs; empty for unreadable dir', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'list-spec-dirs-'));
   fs.mkdirSync(path.join(dir, 'spec-1'));
