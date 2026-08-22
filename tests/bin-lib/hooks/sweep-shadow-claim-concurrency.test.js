@@ -65,7 +65,11 @@ test('claimFreeDest: N real OS processes racing the same preferred path each cla
       let stderr = '';
       p.stdout.on('data', (d) => { stdout += d; });
       p.stderr.on('data', (d) => { stderr += d; });
-      p.on('exit', (code) => (code === 0 ? resolve(stdout) : reject(new Error(`worker ${i} exited ${code}: ${stderr}`))));
+      // 'exit' can fire before the child's stdio streams have finished delivering
+      // buffered data to this process (Node docs: only 'close' guarantees that) —
+      // under CI I/O contention this raced 'claimed' being read back truncated,
+      // failing the existsSync assertion below on a path that never actually existed.
+      p.on('close', (code) => (code === 0 ? resolve(stdout) : reject(new Error(`worker ${i} exited ${code}: ${stderr}`))));
       p.on('error', reject);
     }));
   }
