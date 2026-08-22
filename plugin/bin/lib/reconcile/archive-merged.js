@@ -290,11 +290,22 @@ function archiveRunDir(root, runDir) {
     } catch {
       return { ok: false, reason: 'readdir-failed' };
     }
-    for (const name of specEntries.filter((n) => n !== 'work')) {
+    const specRemaining = specEntries.filter((n) => n !== 'work');
+    if (specRemaining.length) {
+      // Created once per spec dir rather than once per entry — recursive
+      // mkdirSync is idempotent either way, so this only drops redundant
+      // syscalls, and only runs at all when there's something to move here
+      // (it may already exist from the workMoves batch above).
+      try {
+        fs.mkdirSync(specArchiveDir, { recursive: true });
+      } catch {
+        return { ok: false, reason: 'move-failed' };
+      }
+    }
+    for (const name of specRemaining) {
       const src = path.join(specDir, name);
       if (!fs.existsSync(src)) continue;
       try {
-        fs.mkdirSync(specArchiveDir, { recursive: true });
         fs.renameSync(src, path.join(specArchiveDir, name));
       } catch {
         return { ok: false, reason: 'move-failed' };
