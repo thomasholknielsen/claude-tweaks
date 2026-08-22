@@ -154,14 +154,14 @@ test('the four health sweeps state materiality-floor-before-cap-digest ordering'
 });
 
 test('reflect\'s and visual-review\'s recommend-only Defer bullets state accept-time (not recommendation-time) digest write', () => {
-  const RECOMMEND_ONLY = [
-    'plugin/skills/reflect/full-mode.md',
-    'plugin/skills/visual-review/browser-review.md',
-  ];
-  for (const rel of RECOMMEND_ONLY) {
+  const RECOMMEND_ONLY = {
+    'plugin/skills/reflect/full-mode.md': /digest entry is written only when the human approves that row/,
+    'plugin/skills/visual-review/browser-review.md': /writes the digest entry once the human approves that row/,
+  };
+  for (const [rel, pattern] of Object.entries(RECOMMEND_ONLY)) {
     assert.match(
       read(rel),
-      /approves|approved/,
+      pattern,
       `${rel} should state the digest entry is written only once a human approves the recommendation`,
     );
   }
