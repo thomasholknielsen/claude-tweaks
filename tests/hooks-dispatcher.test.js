@@ -92,8 +92,8 @@ test('close-run warns when the run dir still holds un-archived work/ content (#1
   fs.writeFileSync(path.join(run, 'work', '1-spec.md'), '# 1\n');
   const result = runHook(['close-run', '--run', run], { cwd: project });
   assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /still holds un-archived git-tracked work\/ content/,
-    'expected close-run to warn about the un-archived work/ ordering hazard (#1103)');
+  assert.match(result.stdout, /still holds un-archived work\/ content/,
+    'expected close-run to note the pending archival as a routine informational reminder (#1103)');
   assert.match(result.stdout, /archive-run --run/);
 });
 
@@ -102,7 +102,7 @@ test('close-run does NOT warn about un-archived work/ when no work/ content exis
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   const result = runHook(['close-run', '--run', run], { cwd: project });
   assert.strictEqual(result.code, 0);
-  assert.doesNotMatch(result.stdout, /still holds un-archived git-tracked work\/ content/);
+  assert.doesNotMatch(result.stdout, /still holds un-archived work\/ content/);
 });
 
 test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {

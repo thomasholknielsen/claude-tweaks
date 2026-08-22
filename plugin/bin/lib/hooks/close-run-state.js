@@ -8,11 +8,15 @@ const fs = require('fs');
 const path = require('path');
 const ctxLib = require('./context');
 
-// A run dir still holds un-archived git-tracked work/ content if either the
-// top-level work/ (single-spec layout) or any spec-*/work/ (multi-spec
-// layout, materialize.md's Multi-record layout) exists on disk. Closing such
-// a run before it's archived is the ordering hazard #1103 reports — this
-// check surfaces it as an advisory field rather than blocking the close (the
+// A run dir still holds un-archived work/ content if either the top-level
+// work/ (single-spec layout) or any spec-*/work/ (multi-spec layout,
+// materialize.md's Multi-record layout) exists on disk — this is a plain
+// fs.existsSync check, not a git-tracked-ness check, so it can't (and
+// doesn't try to) distinguish tracked from untracked work/ content (#1103's
+// own originally-reported scenario had untracked work/{n}-spec.md). This is
+// the routine, expected state right after close-run in the normal wrap-up
+// sequence (archive-run always runs after, never before) — this check
+// surfaces it as an advisory field rather than blocking the close (the
 // escape-hatch use case — closing a stuck/foreign run manually — must still
 // work even when work/ hasn't landed).
 function hasUnarchivedWork(runDir) {

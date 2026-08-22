@@ -144,17 +144,36 @@ test('iterRunDirsWithState: stray dir is still yielded when it has no archive tw
   assert.deepStrictEqual(ctx.listRunDirs(project), [genuinelyOpen]);
 });
 
-// #208: archived is terminal regardless of the archive twin's own run-state —
-// existence of archive/{run-id}/ alone is authoritative, since that twin's
-// status field is exactly the untrustworthy resurrected data #208 fixes
-// (a later hook write can corrupt or resurrect it after the real archival).
-// Supersedes the pre-#208 assumption that a non-terminal archive twin meant
-// the archival hadn't "really" finished — AC3 states this explicitly.
-test('iterRunDirsWithState: #208 — a run-id present under archive/ is skipped even when that twin\'s own state is non-terminal', () => {
+// #1103 fix-wave-1: the existence-only check that used to make this pass
+// (`isArchivedRunId`, an fs.existsSync/statSync check with no read of the
+// twin's own run-state.json) is removed — it stranded ANY incomplete archive
+// attempt (archiveRunDir creates archive/{run-id}/ via fs.mkdirSync as its
+// very first action, before any content actually moves) as permanently
+// "already archived" the instant that mkdirSync ran, even when the real
+// content never moved — the literal double-nesting bug #1103 reports.
+// Supersedes the #208 test this replaces: a non-terminal (or absent) archive
+// twin state is no longer authoritative on its own — only a twin whose own
+// run-state.json genuinely reads status: 'clean' (the content-aware check a
+// few lines below in iterRunDirsWithState) hides the live run dir.
+test('iterRunDirsWithState: a run-id present under archive/ with a non-terminal twin state is now yielded — the existence-only #208 skip was removed by #1103\'s fix-wave-1', () => {
   const project = tmpProject();
-  mkRun(project, '2026-07-02T090000-spec-2'); // stray active-side dir, no local run-state.json
+  const live = mkRun(project, '2026-07-02T090000-spec-2'); // stray active-side dir, no local run-state.json
   mkRun(project, path.join('archive', '2026-07-02T090000-spec-2'), { status: 'active' }); // resurrected/corrupted twin state
-  assert.deepStrictEqual(ctx.listRunDirs(project), []);
+  assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
+});
+
+// #1103 fix-wave-1 regression test: archiveRunDir's very first action is
+// `fs.mkdirSync(archiveDir)` — before any content actually moves. If
+// archival then fails for any reason, that empty archive/{run-id}/
+// directory is left behind with no run-state.json of its own. This proves
+// the run is NOT considered done just because an archive directory happens
+// to exist — only a twin that genuinely reads status: 'clean' does that.
+test('iterRunDirsWithState: an incomplete archive twin (exists but not status:clean) does not hide the live run dir', () => {
+  const project = tmpProject();
+  const runId = '2026-07-03T090000-spec-7';
+  const live = mkRun(project, runId, { status: 'active' }); // real, still-open run
+  mkRun(project, path.join('archive', runId)); // archiveRunDir's mkdirSync ran, then failed before any move — no run-state.json at all
+  assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
 });
 
 test('listRunDirs is derived from listRunDirsWithState (same dirs, same order)', () => {

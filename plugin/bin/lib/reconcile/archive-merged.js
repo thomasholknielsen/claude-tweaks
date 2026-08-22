@@ -195,9 +195,13 @@ function archiveRunDir(root, runDir) {
     // Pairs that succeeded before a later pair's `git mv` fails mid-loop —
     // tracked separately from `workMoves` so a failure on e.g. the 2nd of 3
     // pairs only attempts to revert the 1st (already-moved), never the 2nd
-    // (never touched, since the failing `git mv` never mutated it) or 3rd
-    // (never even attempted). Same partial-revert reasoning as the
-    // commit-failure branch below, applied one loop iteration earlier.
+    // (assumed not mutated — `git mv` renames on disk before it writes the
+    // index, so a failure partway through its own operation could in
+    // principle leave the file physically moved with the index untouched;
+    // treated as "not moved" rather than attempting a revert against an
+    // unknown partial state) or 3rd (never even attempted). Same
+    // partial-revert reasoning as the commit-failure branch below, applied
+    // one loop iteration earlier.
     const succeededMoves = [];
     for (const [src, dest] of workMoves) {
       const mv = runGit(['mv', src, dest], root);

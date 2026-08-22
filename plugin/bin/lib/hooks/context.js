@@ -72,21 +72,6 @@ function findNonCanonicalRunDirs(cwd) {
     .sort();
 }
 
-// #208: archived-is-terminal invariant, reader side. An archived run-id must never reach the
-// isUnadoptedMint/status inspection below regardless of what its resurrected active-side
-// run-state.json (if any) claims — that data is exactly the untrustworthy resurrected shell
-// described in the record's Current State. Fails OPEN on a read error other than "doesn't
-// exist" (a permission error, e.g.) — never silently suppress a genuinely unfinished run over
-// an unrelated read failure (this record's AC4); the caller reports it exactly as it would
-// have before this filter existed.
-function isArchivedRunId(root, runId) {
-  try {
-    return fs.statSync(path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId)).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 // Lazily yields each candidate run dir (newest-first) paired with its
 // already-read state, reading run-state.json for one dir at a time instead
 // of mapping every candidate up front — callers that only need the first
@@ -123,7 +108,6 @@ function* iterRunDirsWithState(cwd) {
     .sort()
     .reverse();
   for (const name of names) {
-    if (isArchivedRunId(root, name)) continue;
     const dir = path.join(base, name);
     const state = readRunState(dir);
     if (state && state.status === 'clean') continue;
@@ -138,6 +122,22 @@ function* iterRunDirsWithState(cwd) {
     // every caller of this generator benefits: resolveRun's fallback scan,
     // the reconciler's archiveMerged pass, and session-start's unfinished-run
     // report all stop treating an already-archived run as still-open.
+    //
+    // #1103 fix-wave-1: this content-aware check is now the ONLY archive-twin
+    // check in this loop. An earlier existence-only check (`isArchivedRunId`,
+    // an fs.existsSync/statSync(...).isDirectory() probe with no read of the
+    // twin's own state) used to run first and skip on mere existence of
+    // archive/{name}/ — but archiveRunDir (archive-merged.js) creates that
+    // directory via fs.mkdirSync as its very FIRST action, before any
+    // content actually moves. Any failure after that point (git-mv-failed,
+    // commit-failed, tracked-entry, move-failed, …) left an empty or
+    // partially-populated archive/{name}/ with no cleanup path — which the
+    // existence-only check then treated as "already archived" forever,
+    // permanently stranding the live run dir and its real content (the
+    // literal double-nesting bug #1103 reports). Removed rather than
+    // reworked: this check already subsumes the sanctioned case (a
+    // genuinely completed archive) and, unlike the removed one, cannot be
+    // fooled by an incomplete archive attempt.
     const archiveState = readRunState(path.join(base, 'archive', name));
     if (archiveState && archiveState.status === 'clean') continue;
     yield { dir, state };

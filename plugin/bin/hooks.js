@@ -336,9 +336,10 @@ async function main(argv) {
       }
       if (r.notYetArchived) {
         process.stdout.write(
-          `claude-tweaks: run ${path.basename(runDir)} still holds un-archived git-tracked work/ content — ` +
-          'closing it now makes it invisible to the normal reconcile archival pass (a known ordering hazard, #1103). ' +
-          `Archive it first: node "${pluginRoot()}/bin/hooks.js" archive-run --run "${runDir}"\n`,
+          `claude-tweaks: run ${path.basename(runDir)} still holds un-archived work/ content — ` +
+          'expected at this point in the normal wrap-up sequence (close-run always runs before archive-run); ' +
+          'archival is still pending and will happen via the next routine reconcile pass, or you can archive it now: ' +
+          `node "${pluginRoot()}/bin/hooks.js" archive-run --run "${runDir}"\n`,
         );
       }
       if (!r.writeOk) {
