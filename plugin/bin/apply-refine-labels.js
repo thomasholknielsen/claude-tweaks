@@ -27,7 +27,7 @@ const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 const USAGE = 'usage: apply-refine-labels.js <actions.json> [--run <run-dir>] [--repo owner/name] [--help]\n';
 
 function parseArgs(argv) {
-  const opts = { file: null, run: null, repo: null, help: false };
+  const opts = { file: null, run: null, runEmpty: false, repo: null, help: false };
   if (argv[0] === '--help' || argv[0] === '-h') { opts.help = true; return opts; }
   if (argv[0] === undefined || argv[0].startsWith('--')) return { error: 'missing <actions.json> argument' };
   opts.file = argv[0];
@@ -36,8 +36,10 @@ function parseArgs(argv) {
     const next = () => argv[++i];
     if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--run') {
-      opts.run = next();
-      if (!opts.run || opts.run.startsWith('--')) return { error: '--run requires a value' };
+      const val = next();
+      if (val === undefined || val.startsWith('--')) return { error: '--run requires a value' };
+      opts.run = val === '' ? null : val;
+      opts.runEmpty = val === '';
     }
     else if (a === '--repo') opts.repo = next();
     else return { error: `unknown argument: ${a}` };
@@ -80,6 +82,9 @@ function run(argv, deps = realDeps) {
   if (opts.help) { deps.stdout(USAGE); return 0; }
 
   let runDir = null;
+  if (opts.runEmpty) {
+    deps.stderr('apply-refine-labels.js: --run was empty — proceeding without run-dir/decisions.md logging\n');
+  }
   if (opts.run) {
     // #790/[IL-127]: reject an unanchored --run before any gh/network work,
     // same guard bin/materialize.js's --run-dir applies.
