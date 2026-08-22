@@ -62,6 +62,18 @@ test('probe reporting subIssues unavailable exits 4 before any fetch', () => {
   assert.strictEqual(run(['5'], d), 4);
 });
 
+test('a throwing probe runner exits 3 with a network-failure message, not 4', () => {
+  const d = deps({ runner: () => { throw new Error('gh api graphql: connection reset'); } });
+  assert.strictEqual(run(['5'], d), 3);
+  assert.match(d.err.join(''), /capability probe failed/);
+  assert.match(d.err.join(''), /connection reset/);
+});
+
+test('a probe response that fails to JSON.parse also exits 3 (call/parse-layer failure), not 4', () => {
+  const d = deps({ runner: () => 'not json at all' });
+  assert.strictEqual(run(['5'], d), 3);
+});
+
 test('a GraphQL throw exits 3', () => {
   const d = deps({
     runner: (args) => {

@@ -18,8 +18,11 @@
 // invocation (non-positive-integer positional, unknown flag); 2 when `gh`
 // is absent or owner/repo cannot be resolved (no `--repo` and no readable
 // `origin` remote); 3 when the GraphQL call itself throws (network/API
-// failure, or fetchNativeSubIssues' own missing-repository guard); 4 when
-// capabilities-probe.js's probeSchema reports the subIssues GraphQL field
+// failure, or fetchNativeSubIssues' own missing-repository guard) — or when
+// capabilities-probe.js's probeSchemaStrict call fails outright (runner
+// throw, JSON.parse failure): a transient/network probe failure, distinct
+// from genuine capability absence (#1185); 4 when that same probe call
+// completes cleanly and reports the subIssues GraphQL field genuinely
 // unavailable on this host — the caller falls back to the per-parent REST
 // loop. Input is chunked at 50 numbers per fetchNativeSubIssues call,
 // merging byParent/retry across chunks. Repo root comes from
@@ -30,7 +33,7 @@
 
 const { execFileSync } = require('child_process');
 const { fetchNativeSubIssues } = require('./lib/issues/native-dependencies');
-const { probeSchema } = require('./lib/issues/capabilities-probe');
+const { probeSchemaStrict } = require('./lib/issues/capabilities-probe');
 const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--help]\n';
@@ -88,7 +91,14 @@ function run(argv, deps = realDeps) {
   if (!repoSpec) { deps.stderr('fetch-sub-issues.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
   const { owner, repo } = repoSpec;
 
-  if (!probeSchema(deps.runner).subIssues) {
+  let schema;
+  try {
+    schema = probeSchemaStrict(deps.runner);
+  } catch (err) {
+    deps.stderr(`fetch-sub-issues.js: subIssues capability probe failed — ${err && err.message ? err.message : String(err)}\n`);
+    return 3;
+  }
+  if (!schema.subIssues) {
     deps.stderr('fetch-sub-issues.js: the subIssues GraphQL field is unavailable on this host — fall back to the per-parent REST loop\n');
     return 4;
   }
