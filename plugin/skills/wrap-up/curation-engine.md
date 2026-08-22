@@ -9,7 +9,7 @@ Loaded by `/claude-tweaks:wrap-up` Phase 2 (ROUTE). Owns the plan/record/render 
 | Gate evaluation — which registry rows are open, and the plain-language reason each is open or closed | Reading the candidate files the worklist row points at |
 | Scope selection — the cap, the fast-lane narrowing, the `--skill-budget` / `--doc-budget` override, the journey frontmatter overlap, the renamed/deleted target set | Judging those candidates against the row's judge file |
 | Row ordering — registry order, always all eight rows, always in the same sequence | Deciding, per finding, whether it is applied or staged (within the precondition in section 3) |
-| The `SCANNED` audit line for every row, open and closed alike | Applying an approved edit and committing it |
+| The `SCANNED` audit line for every row, open and closed alike | Applying an approved edit in the working tree (a judge) — committed serially by the controller's serial-commit pass (section 4), never by the judge |
 | Outcome telemetry (`.claude-tweaks/wrap-up-outcomes.tsv`) | Emitting exactly one `record` payload per open row |
 | The Phase 2 phase-trace table and the Review Console's engine-fed sections | Nothing about formatting — the model never composes a trace row or a `SCANNED` line by hand |
 
