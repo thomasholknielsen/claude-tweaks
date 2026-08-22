@@ -396,6 +396,15 @@ async function main(argv) {
       );
       return 0;
     }
+    // #1130 AC4: same console gate decideArchive enforces on the reconcile
+    // path. 'none' stays allowed here — terminal status means close-run ran,
+    // i.e. wrap-up's own flow (incl. the empty-console fast path) completed;
+    // only a rendered-but-unanswered console blocks a direct archival.
+    const { readConsoleState } = require('./lib/reconcile/archive-merged');
+    if (readConsoleState(runDir) === 'unresolved') {
+      process.stdout.write('claude-tweaks: archival refused — console-unresolved (console.json rendered but not resolved; answer or resolve the console first)\n');
+      return 0;
+    }
     const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());
     if (!mainRoot) {
       process.stdout.write('claude-tweaks: could not resolve the main checkout root — run not archived\n');

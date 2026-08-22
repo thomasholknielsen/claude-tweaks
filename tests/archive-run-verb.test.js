@@ -92,6 +92,19 @@ test('archive-run: never prints a moved: line for a name absent from the fixture
   assert.doesNotMatch(result.stdout, /moved: staged/);
 });
 
+// #1130 AC4: the direct CLI verb is wrap-up's own archival route and already
+// requires terminal status, but a run parked with a rendered-but-unanswered
+// PR console (console.json present, resolved !== true) could still be
+// archived by a mistaken direct call — sweeping staged decisions before the
+// human answered. Parity with decideArchive's console-unresolved skip.
+test('archive-run: refuses a terminal run whose console.json is rendered but unresolved', () => {
+  const { root, runDir } = runDirFixture('clean');
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ commentIds: ['IC_x'], prNumber: 5, items: [], resolved: false }));
+  const result = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.match(result.stdout, /archival refused — console-unresolved/);
+  assert.ok(fs.existsSync(path.join(runDir, 'config.yml')), 'run dir must not be moved');
+});
+
 test('cleanup-procedures-execution.md Section B invokes archive-run instead of a hand-run recipe', () => {
   const text = fs.readFileSync(
     path.join(__dirname, '..', 'plugin', 'skills', 'wrap-up', 'cleanup-procedures-execution.md'),
