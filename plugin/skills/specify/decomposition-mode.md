@@ -206,7 +206,7 @@ SPECIFY_KEY_FILES=$(node -e "
 ")
 ```
 
-- **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it.
+- **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it. Exclude a record whose body carries a `{design-doc-slug}:{unit-slug}` fingerprint matching a unit in this run's list: it IS that unit, created by a prior partial run, and entering it twice would fabricate a self-dependency signal that flips Step 2.6's collapse verdict on resume.
 - **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 5's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the sub-issue's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet.
 
 ```bash
@@ -245,7 +245,7 @@ Present any detected implicit dependencies as part of the Step 9 summary. These 
 
 With Step 2's work-unit list final and Implicit Dependency Detection's overlap/dependency signals computed, decide whether this decomposition needs a parent record at all. `--granularity` never overrides this decision — that flag tunes Step 2's sizing targets only (see `SKILL.md`'s Input section).
 
-**The unit set counted here is Step 2's own design-doc-derived work-unit list for this run** — per `phase-N` scope when the run is phase-scoped, so a multi-phase doc decomposed one phase at a time counts each phase's units on their own and may legitimately keep a parent for one phase and collapse another. A unit already resolved by Step 3's Idempotency map (matched by its `{design-doc-slug}:{unit-slug}` fingerprint against a record a prior partial run created) still counts as exactly that one unit, and is never double-counted as both a work unit and an open record — so a resumed run re-derives the same verdict as the run it resumes.
+**The unit set counted here is Step 2's own design-doc-derived work-unit list for this run** — per `phase-N` scope when the run is phase-scoped, so a multi-phase doc decomposed one phase at a time counts each phase's units on their own and may legitimately keep a parent for one phase and collapse another. A unit a prior partial run already created still counts as exactly that one unit, never double-counted as both a work unit and an open record — Step 2's input-set assembly (above) excludes fingerprint-matched records for exactly this reason, so a resumed run re-derives the same verdict as the run it resumes.
 
 **1 work unit — always collapses.** No parent is created. The single unit becomes a standalone ready record (or, when `$ORIGIN_RECORD_NUM` is set, the origin record is shaped in place as that unit's create — see Step 3, `record-creation.md`'s Sub-issues section).
 

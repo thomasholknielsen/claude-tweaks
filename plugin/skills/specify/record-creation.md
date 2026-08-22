@@ -148,7 +148,7 @@ its sub-issues are accepted.
 
 **Only sub-issues get `ready`** — and only sub-issues carry `risk:*`/`size:*` scoring; a kept parent gets neither. One per work unit from Step 2, in any order — Step 4 does the linking once every number exists, so creation order doesn't matter.
 
-**Origin-set carve-out (1-unit collapse).** When Step 2.6 returned a 1-unit collapse *and* `$ORIGIN_RECORD_NUM` is set (`SKILL.md`'s `needs:definition` redirect, Resolve-the-input case 1), that unit gets **no fresh create**: compose its body exactly as below, then write it onto the origin record in place — `gh issue edit "$ORIGIN_RECORD_NUM" --body-file` plus the labels the create call would have applied, or `writeRecord` with the same facets under `local-files` — carrying the `{design-doc-slug}:{unit-slug}` fingerprint into that body so the Idempotency map above resolves it on any resumed run. Treat `$ORIGIN_RECORD_NUM` as this unit's `$SUB_ISSUE_NUM`/`$SUB_ISSUE_ID` from here on: Step 4's linking, Step 5's red-team and Step 6's self-review all run against it as an ordinary produced record, and Step 9 then only skips its closure — it writes nothing of its own. With `$ORIGIN_RECORD_NUM` unset (every other entry path), a 1-unit collapse creates one fresh standalone ready record, exactly as below.
+**Origin-set carve-out (1-unit collapse).** When Step 2.6 returned a 1-unit collapse *and* `$ORIGIN_RECORD_NUM` is set (`SKILL.md`'s `needs:definition` redirect, Resolve-the-input case 1), that unit gets **no fresh create**: compose its body exactly as below, then write it onto the origin record in place — `gh issue edit "$ORIGIN_RECORD_NUM" --body-file` plus the labels the create call would have applied and `--remove-label "needs:definition"` in the same edit (`local-files`: clear `facets.needsDefinition` in the same write — the record is now defined, so the redirect that routed here must not re-fire), or `writeRecord` with the same facets under `local-files` — carrying the `{design-doc-slug}:{unit-slug}` fingerprint into that body so the Idempotency map above resolves it on any resumed run. Treat `$ORIGIN_RECORD_NUM` as this unit's `$SUB_ISSUE_NUM`/`$SUB_ISSUE_ID` from here on: Step 4's linking, Step 5's red-team and Step 6's self-review all run against it as an ordinary produced record, and Step 9 then only skips its closure — it writes nothing of its own. With `$ORIGIN_RECORD_NUM` unset (every other entry path), a 1-unit collapse creates one fresh standalone ready record, exactly as below.
 
 When a sub-issue proposes building a new `bin/` CLI, check for a same-named deliverable already
 shipped or already proposed elsewhere before creating it — `_shared/issue-claims.md`'s
@@ -297,7 +297,8 @@ Branches on driver, then — for `github-issues` — on `work-links`.
   dependency edge lives at `issues/{dependent}/dependencies/blocked_by` — `bin/link-records.js`
   (over `bin/lib/issues/link.js`) resolves every needed id in one GraphQL call and issues the
   writes, so no per-edge `gh api` assembly happens here. Pass any kept parent, every sub-issue,
-  and every dependency edge as `dependent:blocker`:
+  and every dependency edge as `dependent:blocker` — under collapse there is no parent, so
+  leave `--parent`/`--subs` off and pass only edges (skip the call when there are none):
 
   ```bash
   # Step 3 captured $SUB_ISSUE_NUM per sub-issue — join them: SUB_ISSUE_NUMS="595,597,598".
