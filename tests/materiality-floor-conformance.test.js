@@ -166,3 +166,18 @@ test('review\'s and visual-review\'s recommend-only Defer bullets state accept-t
     );
   }
 });
+
+test('multi-branch adopter files cite materiality-floor.md at each of their two filing branches', () => {
+  const MULTI_BRANCH = [
+    'plugin/skills/review/step3-routing.md',
+    'plugin/skills/reflect/full-mode.md',
+    'plugin/skills/visual-review/browser-review.md',
+  ];
+  for (const rel of MULTI_BRANCH) {
+    const count = (read(rel).match(/_shared\/materiality-floor\.md/g) || []).length;
+    assert.ok(
+      count >= 2,
+      `${rel} should cite _shared/materiality-floor.md at both of its filing branches (found ${count})`,
+    );
+  }
+});
