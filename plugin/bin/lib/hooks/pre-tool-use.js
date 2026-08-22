@@ -29,6 +29,7 @@ const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
 const { runGit } = require('./git-exec');
+const { resolveIntegrationModel } = require('../policy-schema');
 
 function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
@@ -714,9 +715,27 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
 // no materialize commit yet (Common Step 1 still in progress), no resolved
 // run, or a target outside a linked worktree all no-op here.
 // `deps.resolveIntegrationModel` is an injectable override of the real
-// `resolveIntegrationModel` import (Task 3 wires the PR-stamp branch that
-// uses it) — unused by this task's own worktree-stamp check, but accepted
-// here so the signature never has to change again once Task 3 lands.
+// `resolveIntegrationModel` import, used by the PR-stamp branch below
+// (defaulting to the real import when a caller doesn't override it) — a
+// sandboxed test fixture repo has no real GitHub-backed remote, so the real
+// resolver can only ever return 'local-merge' in a test; injecting it is
+// what lets the pr-first deny path be exercised at all (gh-api-module-pattern's
+// injectable-runner convention). Unused by the worktree-stamp check above.
+// Graceful-degrade exemption for the PR-stamp check below: pr-early-run-lifecycle.md
+// mandates a "PR-early run lifecycle: ... FAILED" decisions.md log line whenever the
+// push or `gh pr create` genuinely fails (Steps 2 and 3). A run that logged this
+// legitimately has no PR to record and must not be denied for it — read-only,
+// best-effort: a missing or unreadable decisions.md resolves to false (no exemption
+// found), never throws.
+function hasLoggedPrDegrade(runDir) {
+  try {
+    const body = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+    return /PR-early run lifecycle:.*FAILED/i.test(body);
+  } catch {
+    return false;
+  }
+}
+
 function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}) {
   const toolName = ctx.input && ctx.input.tool_name;
   const isFileTool = GATE_COVERAGE.tools.includes(toolName);
@@ -735,6 +754,27 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}) {
       `recorded — build/worktree-setup.md Step 4.5 (record-worktree) is non-skippable, even when Spec Step 2 judges no ` +
       `further implementation is needed [IL-131]. Run: node "${pluginRoot()}/bin/hooks.js" record-worktree --run "${ctx.runDir}" "${wtRoot}"`,
     );
+  }
+
+  if (!ctx.runState.pr) {
+    const resolveModel = (deps && deps.resolveIntegrationModel) || resolveIntegrationModel;
+    const mainRoot = wtDetect.mainCheckoutRoot(wtRoot) || wtRoot;
+    let model;
+    try {
+      model = resolveModel(mainRoot);
+    } catch {
+      model = 'local-merge'; // fail open: an unresolvable model is not provably pr-first
+    }
+    if (model === 'pr-first' && !hasLoggedPrDegrade(ctx.runDir)) {
+      ctxLib.appendEvent(ctx.runDir, 'bookkeeping-stamp-deny', { stamp: 'record-pr', worktree: wtRoot });
+      return denyResult(
+        `claude-tweaks: this project resolves integration-model: pr-first and a materialize commit already landed in ` +
+        `${wtRoot}, but no PR is recorded for this run — build/worktree-setup.md Step 6 (the PR-early lifecycle draft-PR ` +
+        `open, _shared/pr-early-run-lifecycle.md) is non-skippable, even when Spec Step 2 judges no further ` +
+        `implementation is needed [IL-131]. Open it now, or — if the push/PR-create genuinely failed — log the ` +
+        `mandatory "PR-early run lifecycle: ... FAILED" line to decisions.md per pr-early-run-lifecycle.md before continuing.`,
+      );
+    }
   }
 
   return {};
@@ -900,4 +940,6 @@ module.exports = {
   DELETE_ONLY_PUSH_ALLOWLIST,
   shadowPipelineRunDir,
   checkPipelineShadowGuard,
+  checkBookkeepingStampsGate,
+  hasLoggedPrDegrade,
 };
