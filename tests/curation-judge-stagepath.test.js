@@ -264,3 +264,40 @@ test('probe: an mv failure is a loud diagnostic, exit 1, not a silent no-op', (t
   assert.ok(fs.existsSync(path.join(shadow, 'staged', 'x.md')), 'file still in the shadow — nothing lost');
   fs.chmodSync(path.join(runDir, 'staged'), 0o755);
 });
+
+// #1140: concurrent fan-out judges raced their own `git add`/`git commit` on the shared
+// worktree index (one judge's edit swept into a sibling's commit; a fabricated hash reported).
+// The fix is structural: judges never mutate git — the controller's serial-commit pass is the
+// single committer and the only writer of findings[].commit. These pins keep the three prose
+// surfaces (the §4 rule, the §3 contract row, skill-curation's apply step) from drifting back.
+test('curation-engine.md §4 forbids judge-side git mutations and documents the serial-commit pass with its audit', () => {
+  const s4 = ENGINE.slice(ENGINE.indexOf('## 4. Parallel dispatch'));
+  const para = s4.slice(
+    s4.indexOf('**No judge-side git mutations'),
+    s4.indexOf('**Judge self-verification'),
+  );
+  assert.ok(para.length > 0, 'the no-judge-side-git paragraph exists, before the self-verification paragraph');
+  assert.match(para, /never run `git add`, `git commit`/, 'the dispatch-prompt instruction forbids judge commits');
+  assert.match(para, /serial-commit pass/, 'names the controller-side pass');
+  assert.match(para, /git status --porcelain/, 'the commit audit checks the working tree');
+  assert.match(para, /judge-filled `commit`.*payload violation|payload violation.*judge-filled `commit`/s, 'a judge-filled commit hash is a violation');
+  assert.match(para, /one commit per finding/, 'commits stay per-finding (separate-commit reversibility)');
+  assert.match(para, /before any `record` call/, 'the pass runs before record, so payloads carry final hashes');
+});
+
+test('curation-engine.md §3 commit row and applied-precondition name the controller as the only committer', () => {
+  const row = ENGINE.split('\n').find((l) => l.startsWith('| `findings[].commit` |'));
+  assert.ok(row, 'commit contract row present');
+  assert.match(row, /controller/i, 'controller writes the field');
+  assert.match(row, /judge never commits/i, 'judges never commit');
+
+  assert.match(ENGINE, /committed on its own — by the controller's serial-commit pass \(section 4\), never by the judge/, 'applied-precondition follow-up names the controller');
+});
+
+test('skill-curation.md step 2 no longer instructs a judge-side commit', () => {
+  const CURATION = fs.readFileSync(path.join(SKILLS, 'wrap-up', 'skill-curation.md'), 'utf8');
+  assert.doesNotMatch(CURATION, /auto-apply now\. Commit\./, 'the old judge-commits wording is retired');
+  assert.match(CURATION, /never run `git add`\/`git commit`/, 'states the no-judge-commit rule');
+  assert.match(CURATION, /serial-commit pass/, 'cites the engine pass that commits instead');
+  assert.match(CURATION, /written by the controller at commit time/, 'the AUTO log entry is controller-written (only it knows the hash)');
+});
