@@ -105,6 +105,22 @@ test('capture/SKILL.md states bare auto keeps the keep default, absorbing only v
   );
 });
 
+// The silences table is the single source of truth for auto-mode behavior
+// (`_shared/auto-mode-contract.md`, "Per-skill `## Auto-mode behavior` tables
+// are deprecated"). The headless bar narrows that file's Capture row's
+// guarantee, so the row must name it — otherwise a skill following capture's
+// own "apply the silences-table row for /capture" instruction reads a table
+// that still says the auto default is unconditionally `keep`.
+test('auto-mode-contract.md\'s Capture routing row names the headless absorb bar', () => {
+  const row = read('plugin/skills/_shared/auto-mode-contract.md')
+    .split('\n')
+    .find((l) => l.startsWith('| Capture next-action routing |'));
+  assert.ok(row, 'the Capture next-action routing row must exist in the silences table');
+  assert.match(row, /headless absorb bar/);
+  assert.match(row, /agent-driven filing/);
+  assert.match(row, /defaults to `keep`/);
+});
+
 // --- never-lower size (raise-only) and never-write priority ---
 
 test('capture/SKILL.md re-judges size as raise-only, never lower', () => {
