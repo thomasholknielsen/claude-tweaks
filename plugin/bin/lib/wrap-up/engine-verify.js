@@ -26,7 +26,7 @@ const { execFileSync } = require('node:child_process');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 
 function defaultGit(args, cwd) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 });
 }
 
 function defaultGh(args, cwd) {

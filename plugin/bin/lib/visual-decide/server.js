@@ -263,6 +263,7 @@ function startServer({ dir, stateDir, port, idleMinutes }) {
           port: server.address().port,
           pid: process.pid,
           startedAt: Date.now(),
+          key,
         };
         try {
           fs.unlinkSync(stoppedPath);

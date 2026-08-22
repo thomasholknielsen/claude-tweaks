@@ -83,7 +83,7 @@ function fetchNativeSubIssues({ numbers, owner, repo, runner } = {}) {
       result.retry.push(n);
       continue;
     }
-    result.byParent.set(n, (conn.nodes || []).map((s) => s && s.number).filter((v) => v !== undefined));
+    result.byParent.set(n, (conn.nodes || []).map((s) => s && s.number).filter((v) => Number.isInteger(v)));
   }
   return result;
 }
