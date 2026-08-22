@@ -129,7 +129,7 @@ Lifecycle: backlog → brainstorm (optional) → `/claude-tweaks:specify` shapes
 
 ### Absorb means integrate, not append
 
-When absorbing a backlog record into an existing one, the absorbed content must be indistinguishable from original content — add to Deliverables/Acceptance Criteria/Technical Approach/Gotchas directly. Never an "Absorbed Scope" appendix — `/superpowers:writing-plans` may miss or mistreat it.
+When absorbing a backlog record into an existing one, the absorbed content must be indistinguishable from original content — add to Deliverables/Acceptance Criteria/Technical Approach/Gotchas directly. Never an "Absorbed Scope" appendix — `/superpowers:writing-plans` may miss or mistreat it. Carve-out: `/claude-tweaks:capture`'s absorb instead appends raw unshaped content under a dated `## Absorbed:` heading (its audit trail); this integrate rule governs a `/claude-tweaks:tidy` absorb of an already-scoped record.
 
 ---
 

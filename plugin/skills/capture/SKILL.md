@@ -57,7 +57,7 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 `$TITLE`/`$BODY`/`$TYPE` below are the same fields Entry Format and Adding an Entry (further down) have always asked for: `$BODY` is the `**Related:**`/`Context:`/`Scope:` block assembled per Entry Format; `$TYPE` is the guessed-then-confirmed Type from Adding an Entry.
 
-Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh **stub** capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with two exceptions below: the ceiling-gated chained shaping, and the Shaped-body branch's scored, born-`ready` filing (its own section below).
+Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh **stub** capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with three exceptions below: the ceiling-gated chained shaping, the Shaped-body branch's scored, born-`ready` filing (its own section below), and absorb's raise-only `size:` on the target record.
 
 **One exception, off by default.** Under `autonomy: trusted` or higher, and only when the
 `producer:capture` class carries a `clean` trust verdict, a fresh capture is chained straight into
@@ -329,6 +329,8 @@ without the rationale clause: `(Type: {t}, Definition: needed)` / `(Type: {t}, D
 
 After adding the record, route the item per the `--route` arg or by asking.
 
+Absorb never targets: (1) a closed record, (2) a `parent-issue` carrier, (3) a `bot:in-progress` carrier (per `_shared/work-record.md`); files fresh with `**Related:** #N` for all three.
+
 ### Routing via `--route` arg (front-loaded)
 
 `/claude-tweaks:capture` accepts `--route={brainstorm|keep|absorb:N}` to skip the post-capture prompt:
@@ -354,19 +356,17 @@ In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-
 AUTO {time} — Routing: defaulted to keep (no --route provided). Reversibility: high (record stays in backlog state; user can re-route via /tidy at any time).
 ```
 
-**Headless bar**: `--source`/`--defer-reason=` filings and chained paths absorb only if (a) is a literal path match and (b)'s `type:{t}` matches (both below) — standing in for (b)'s operation-match judgment (a bad merge is invisible; a duplicate isn't); else files fresh with `**Related:** #N`. Bare `auto` keeps the contract's `keep` default; it absorbs only via explicit front-loaded `--route=absorb:N`. If a run directory resolves, log `AUTO {time} — capture absorbed into #{N} (shared path + same type). Reversibility: medium (append is visible on #{N}).` per `_shared/auto-decision-log.md`.
-
-Absorb never targets: (1) a closed record, (2) a `parent-issue` carrier, (3) a `bot:in-progress` carrier (per `_shared/work-record.md`); files fresh with `**Related:** #N` for all three.
+**Headless bar** (judged at filing time — before any record is created and before the born-ready chain fires; an absorbing capture never files or chains): agent-driven filings (`$PIPELINE_RUN_DIR` set — the primary signal, per the Component-Skill Contract — `--source`, or `--defer-reason=`; explicit `--route` always wins) absorb only if (a) is a literal path match and (b)'s `type:{t}` matches (both below) — standing in for (b)'s operation-match judgment (a bad merge is invisible; a duplicate isn't); else files fresh with `**Related:** #N` (Entry Format's field on the stub branch; appended to the composed body before its single write on the Shaped-body branch). Bare `auto` keeps the contract's `keep` default; it absorbs only via explicit front-loaded `--route=absorb:N`. If a run directory resolves, log `AUTO {time} — capture absorbed into #{N} (shared path + same type). Reversibility: medium (append is visible on #{N}).` per `_shared/auto-decision-log.md`.
 
 In interactive mode (or when explicitly opted in), present "Added: '{title}' (Type: {t}, Definition: {needed|clear})" (rationale clause per Judging Definition above, when applicable) and call `AskUserQuestion`:
 
 - `question`: `"What should happen with this?"`, `header`: `"Route idea"`, `multiSelect`: `false`
-- **High similarity** (two-criteria bar below, met by one candidate): absorb is **Option 1** — `label`: `"Absorb into record {N} (Recommended)"`, `description`: `"This belongs in an existing record"` — Brainstorm and Keep follow as Options 2-3. Several candidates meeting the bar: recommend the one sharing the most file paths, tie-broken by most-recently-updated (`updatedAt` from the widened fetch); one click declines.
-- **Low or ambiguous similarity** (a candidate exists, bar not met): today's ordering stands — Option 1 `label`: `"Brainstorm directly"`, `description`: `"Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify"`; Option 2 `label`: `"Keep as backlog record"`, `description`: `"Not ready yet, will be reviewed during /claude-tweaks:tidy"`; Option 3 (conditional) `label`: `"Absorb into record {N}"`, `description`: `"This belongs in an existing record"`.
+- **High similarity** (two-criteria bar below, met by one candidate): absorb is **Option 1** — `label`: `"Absorb into record {N} (Recommended)"`, `description`: `"This belongs in an existing record"` — Brainstorm and Keep follow as Options 2-3. Several candidates meeting the bar: recommend the one sharing the most file paths, tie-broken by most-recently-updated (`updatedAt`); one click declines.
+- **Low or ambiguous similarity** (a candidate exists, bar not met): today's ordering stands — Brainstorm **(Recommended)**, Keep, absorb as conditional Option 3.
 
-The call has 3 options only when absorb is visible, in either ordering above; otherwise build it with Brainstorm and Keep only — never include an absorb option with a placeholder value.
+The call has 3 options only when absorb is visible, in either ordering; otherwise Brainstorm and Keep only — never an absorb option with a placeholder value.
 
-> **Option 3 visibility:** Search for a candidate match on the topic keywords from the new backlog record, per the active driver from Backend Selection. `local-files` — search `specs/` for a record matching the keywords. `github-issues` — search open issues: `gh issue list --search "{keywords}" --state open --json number,title,labels,updatedAt --limit 5`, then for at most the top 2 candidates one `gh issue view {n} --json body` follow-up read before judging (mirrors `/specify` case 5's two-step; caps latency). Only show option 3 when either search returns a candidate. Without a candidate match, option 3 is omitted entirely — manual disambiguation against an unspecified record number is worse than no option at all.
+> **Absorb visibility:** Search for a candidate on the new record's topic keywords, per the active driver from Backend Selection. `local-files` — search `specs/` for a record matching the keywords. `github-issues` — match the keywords against the open records in the session-scoped record snapshot (`_shared/record-queue-fetch.md`; its union field set already carries every field judging needs — no extra round-trip, no search index). Only show absorb when a candidate is found; otherwise absorb is omitted entirely — manual disambiguation against an unspecified record number is worse than no option. The recommended-absorb ordering applies under `github-issues` only.
 >
 > **High similarity** means both criteria hold, each anchored on a concrete shared artifact, not a similarity score: **(a) same file/subsystem** — the candidate's body (its `### Key Files` section when spec-shaped, else its title subject) and the capture's `Context:`/`Scope:` text name at least one identical file path or module/subsystem; **(b) same kind of change** — identical `type:{t}` value (the Type axis in `_shared/work-record.md`; `TYPE_LABELS` in `bin/lib/issues/record.js`) AND the same operation on that subject — matching verb-plus-target: both dedupe X, both fix the same failure.
 
@@ -393,7 +393,7 @@ This ensures every captured idea has an explicit next step — either immediate 
 
 - Just "nutrition" — too vague to act on later
 - Full spec with 20 tasks — that's a spec, not a backlog record
-- Notes about an existing spec ("spec 50 needs review") — put that on the spec itself
+- Notes about an existing spec ("spec 50 needs review") — absorb it into that spec
 
 ## Review Workflow
 
@@ -419,9 +419,9 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Capturing an idea that already has a spec | Duplicates intent across two files — annotate the spec so it stays the source of truth |
+| Capturing an idea that already has a spec | Duplicates intent across two files — absorb into it so it stays the source of truth |
 | A *human brain-dump* growing past the character budget to dodge the cap | Half-formed thinking that needs length needs `/superpowers:brainstorming`, not a longer stub. A supplied spec-shaped body is different — that is the Shaped-body branch's intended input, filed born-ready |
 | Never reviewing the backlog | Without periodic `/claude-tweaks:tidy` triage the backlog becomes a graveyard and ideas lose context |
 | Adding implementation details to a backlog record | A record captures *what* and *why* — *how* is brainstorming + spec territory and shifts faster than the idea |
 | Skipping `/superpowers:brainstorming` and jumping straight to specs | Specs encode unchallenged premises without the assumptions and constraints brainstorming surfaces |
-| Putting notes about existing specs into a new backlog record | Notes drift from the spec they describe — annotate the spec file so the note moves with the work |
+| Putting notes about existing specs into a new backlog record | Notes drift from the spec they describe — absorb into it so the note moves with the work |

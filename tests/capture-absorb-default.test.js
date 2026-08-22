@@ -36,6 +36,15 @@ test('capture/SKILL.md defines high similarity as two required criteria, includi
   assert.match(text, /same kind of change/);
 });
 
+// The bar is a conjunction, not a disjunction. Pinned separately so an
+// AND→OR rewrite ("either criterion holds") goes red here even though the
+// two criterion literals above survive it untouched.
+test('capture/SKILL.md requires BOTH criteria (AND, not OR)', () => {
+  const text = read(CAPTURE);
+  assert.match(text, /\*\*High similarity\*\* means both criteria hold/);
+  assert.doesNotMatch(text, /means either criterion holds/);
+});
+
 // --- multi-candidate tie-break (Deliverable 2 / AC1) ---
 
 test('capture/SKILL.md tie-breaks multiple qualifying candidates by most-recently-updated', () => {
@@ -56,10 +65,34 @@ test('capture/SKILL.md states the headless structural bar (shared literal path +
   );
 });
 
-test('capture/SKILL.md states the headless fail-toward-filing default with the literal "files fresh"', () => {
+// Anchored on the sentence, not a phrase count: a count survives inverting
+// the default ("absorbs anyway rather than files fresh"), which is the single
+// most consequential safety rule here.
+test('capture/SKILL.md states the headless fail-toward-filing default as "else files fresh with **Related:** #N"', () => {
   const text = read(CAPTURE);
-  const matches = text.match(/files fresh/g) || [];
-  assert.ok(matches.length >= 2, 'expected "files fresh" to appear at least twice (headless bar + exclusions)');
+  assert.match(text, /; else files fresh with `\*\*Related:\*\* #N`/);
+  assert.match(text, /files fresh with `\*\*Related:\*\* #N` for all three\./);
+});
+
+// The bar is judged before the record exists, so an absorbing capture never
+// files and never enters the born-ready chain (spec Non-Goal 1).
+test('capture/SKILL.md judges the headless bar at filing time, before creation and before the chain', () => {
+  const text = read(CAPTURE);
+  assert.match(
+    text,
+    /\*\*Headless bar\*\* \(judged at filing time — before any record is created and before the born-ready chain fires; an absorbing capture never files or chains\)/
+  );
+});
+
+// --- candidate lookup rides the session snapshot, never the search index ---
+
+test('capture/SKILL.md matches absorb candidates against the session-scoped record snapshot, not `gh issue list --search`', () => {
+  const text = read(CAPTURE);
+  assert.match(
+    text,
+    /match the keywords against the open records in the session-scoped record snapshot \(`_shared\/record-queue-fetch\.md`/
+  );
+  assert.doesNotMatch(text, /gh issue list --search/);
 });
 
 // --- bare-auto precedence (Task 4's fix) ---
