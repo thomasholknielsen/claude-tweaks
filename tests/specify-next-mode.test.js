@@ -241,6 +241,19 @@ test('shaping-mode.md Framing bullet cross-references next-mode.md\'s Untrusted-
   assert.ok(SHAPING_MODE_FLAT.includes("wrapped per that file's Untrusted-content boundary convention before being passed to `framing-check`"), 'shaping-mode.md Framing bullet missing the wrap-per-boundary-convention instruction');
 });
 
+test('shaping-mode.md Framing bullet also covers --chained\'s identical headless posture, not just next', () => {
+  // Review finding (#1041, medium, review-effort:medium reproduction-pair
+  // confirmed): the cross-reference sentence above was originally scoped
+  // in prose to "the `next` form's headless posture" only, even though
+  // next-mode.md's own `## Shape` section states shaping runs "under the
+  // same headless posture `--chained` uses" — the identical Framing bullet
+  // call site is reached, equally unreviewed, via --chained too. Pin that
+  // the sentence now names --chained explicitly rather than reading as
+  // next-only.
+  assert.ok(SHAPING_MODE_FLAT.includes('the same holds under `--chained`'), 'shaping-mode.md Framing bullet must explicitly extend the unreviewed-content treatment to --chained, not read as next-only');
+  assert.ok(SHAPING_MODE_FLAT.includes('sharing this identical headless posture at this call site'), 'shaping-mode.md Framing bullet must state --chained shares next\'s headless posture at this exact call site');
+});
+
 test('challenge/SKILL.md Called-from names next-mode.md\'s Framing Guard as a third call site', () => {
   // Minor 4 (#1041 final review): the Called-from sentence listed only
   // the two record-creation paths, omitting next-mode.md's Framing Guard
