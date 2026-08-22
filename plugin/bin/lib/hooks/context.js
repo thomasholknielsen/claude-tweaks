@@ -232,8 +232,8 @@ function resolveRunDir(cwd, env, sessionId) {
 // A caller in any live worktree other than the one recorded in the binding
 // classifies 'foreign' — same repo or different, both trees provably exist and differ.
 //
-// Authoritative semantics table: .claude-tweaks/pipelines/2026-08-20T185022-spec-1098/work/1098-spec.md
-// (committed on this branch).
+// Authoritative semantics table: .claude-tweaks/pipelines/archive/2026-08-20T185022-spec-1098/work/1098-spec.md
+// (merged and archived).
 function classifyOwnership(caller, runState) {
   const callerId = caller && typeof caller.sessionId === 'string' && caller.sessionId ? caller.sessionId : null;
   const ownerId = runState && typeof runState.sessionId === 'string' && runState.sessionId ? runState.sessionId : null;
