@@ -110,7 +110,7 @@ function localHasMerge(root, mergeCommit) {
     ? mergeCommit.oid : null;
   if (!oid) return null;
   const r = runGit(['merge-base', '--is-ancestor', oid, 'HEAD'], root);
-  return r.failure ? false : true;
+  return !r.failure;
 }
 
 // Moves-first, close-last ordering (the reverse of cleanup-procedures.md

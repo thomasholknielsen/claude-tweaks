@@ -11,7 +11,7 @@ const { classifyMirror } = require('../plugin/bin/lib/reconcile/classify');
 const { mirrorFastForward } = require('../plugin/bin/lib/reconcile/mirror-ff');
 const { decideReap } = require('../plugin/bin/lib/reconcile/reap-merged');
 const { decideRelease } = require('../plugin/bin/lib/reconcile/release-merged');
-const { decideArchive, readConsoleState } = require('../plugin/bin/lib/reconcile/archive-merged');
+const { decideArchive, readConsoleState, localHasMerge } = require('../plugin/bin/lib/reconcile/archive-merged');
 const { formatSummary } = require('../plugin/bin/lib/reconcile/format-summary');
 const { isWorktreeLocked } = require('../plugin/bin/lib/hooks/worktree-reap');
 const { reconcile } = require('../plugin/bin/lib/reconcile');
@@ -302,8 +302,6 @@ test('readConsoleState: {} (neither resolved nor executedAt) reads as unresolved
   fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({}));
   assert.strictEqual(readConsoleState(dir), 'unresolved');
 });
-
-const { localHasMerge } = require('../plugin/bin/lib/reconcile/archive-merged');
 
 // #1130: gh can report MERGED before the local main checkout has
 // fast-forwarded to include the merge commit. Archiving then moves only the
