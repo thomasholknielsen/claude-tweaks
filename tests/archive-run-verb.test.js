@@ -129,6 +129,29 @@ test('archive-run: archives a terminal run whose console.json carries executedAt
   assert.ok(fs.existsSync(path.join(archiveDir, 'config.yml')));
 });
 
+// #1130 AC2: the two-call dispatch handoff shape, walked end-to-end on ONE
+// run dir — call 1 (build,test) parks the run with a rendered-but-unanswered
+// PR console; between calls the run is closed terminal (close-run) but its
+// console is still unanswered, and archival must refuse even though status
+// is clean; then the console is executed (executedAt stamped, the only field
+// pre-resolved-era writers set) and the same archival call succeeds. This is
+// the exact sequence in which the original #657 incident's run was archived
+// prematurely.
+test('archive-run: parked-dispatch handoff — refuses while the parked console is unanswered, archives after execution stamps executedAt', () => {
+  const { root, runDir, runId } = runDirFixture('clean');
+  // Call 1 parked: console rendered to the PR, not yet answered.
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ commentIds: ['IC_park'], prNumber: 9, items: [{ id: 'staged-1', kind: 'staged' }] }));
+  const refused = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.match(refused.stdout, /archival refused — console-unresolved/);
+  assert.ok(fs.existsSync(path.join(runDir, 'config.yml')), 'parked run must stay in place');
+
+  // Call 2 (or a reconcile console pass) executes the console: executedAt stamped.
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ commentIds: ['IC_park'], prNumber: 9, items: [{ id: 'staged-1', kind: 'staged' }], executedAt: '2026-08-22T12:00:00Z' }));
+  const archived = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.match(archived.stdout, new RegExp(`archived ${runId}`));
+  assert.strictEqual(fs.existsSync(runDir), false);
+});
+
 test('cleanup-procedures-execution.md Section B invokes archive-run instead of a hand-run recipe', () => {
   const text = fs.readFileSync(
     path.join(__dirname, '..', 'plugin', 'skills', 'wrap-up', 'cleanup-procedures-execution.md'),

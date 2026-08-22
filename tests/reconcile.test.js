@@ -302,6 +302,13 @@ test('readConsoleState: {} (neither resolved nor executedAt) reads as unresolved
   fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({}));
   assert.strictEqual(readConsoleState(dir), 'unresolved');
 });
+// #1130 review: a whitespace-only executedAt is not a completion stamp — the
+// acceptance check trims before testing length, so it fails closed.
+test('readConsoleState: whitespace-only executedAt reads as unresolved', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
+  fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({ executedAt: '   ' }));
+  assert.strictEqual(readConsoleState(dir), 'unresolved');
+});
 
 // #1130: gh can report MERGED before the local main checkout has
 // fast-forwarded to include the merge commit. Archiving then moves only the

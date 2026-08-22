@@ -107,7 +107,17 @@ async function fetchPrComments(repoRoot, prNumber) {
 function preFetchSkipReason(consoleJson, now) {
   if (consoleJson === null) return 'no-console';
   if (consoleJson === undefined) return 'unparseable-console-json';
+  // #1130 review: a non-empty executedAt is execution's own completion stamp
+  // — consoles written before the write order also set `resolved: true`
+  // (console-execution.md) carry executedAt alone. Without this,
+  // an executed-but-unarchived console whose executingAt claim aged past
+  // RECLAIM_STALE_MS re-detected as `ready` on every pass (the PR checkbox
+  // stays ticked), re-applying Q#/M#/U# items that have no drift guard —
+  // and archive-merged.js's readConsoleState (which does accept executedAt)
+  // would classify the same file 'resolved' in the same reconcile pass.
+  // Same acceptance rule as readConsoleState: keep the two readers agreeing.
   if (consoleJson.resolved === true) return 'already-resolved';
+  if (typeof consoleJson.executedAt === 'string' && consoleJson.executedAt.trim().length > 0) return 'already-resolved';
   if (!isClaimReclaimable(consoleJson.executingAt, now)) return 'claimed';
   const commentIds = Array.isArray(consoleJson.commentIds) ? consoleJson.commentIds : [];
   if (!commentIds.length) return 'no-comment-ids';

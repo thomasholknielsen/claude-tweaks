@@ -64,17 +64,18 @@ when it happens anyway, surface it rather than executing: there is nowhere to ap
 **Reply comment first, then the resolved marker edit** on the console comment itself — never the
 reverse. Post one reply comment (`<!-- console-item: executed -->`) summarizing per-item outcomes
 (executed / declined / unexecutable / unexecutable-stale), then edit the console comment's first
-line to add `<!-- claude-tweaks-console-resolved -->`, then write `console.json.executedAt`. The
-comment marker is the source of truth; `console.json.executedAt` is the local cache. A split-brain
+line to add `<!-- claude-tweaks-console-resolved -->`, then write `console.json.executedAt` and
+`console.json.resolved: true` together, in one write. The comment marker is the source of truth;
+the `console.json` completion fields are the local cache. A split-brain
 (reply posted, marker edit failed partway) is repaired by the next detection pass: it keys
 "already executed" off the reply comment's presence on the PR, not off `console.json` alone, so a
 missing marker with a present reply comment is read as "executed, retry only the marker edit,"
 never as "not yet executed."
 
-That final write also sets `console.json.resolved: true` alongside `executedAt`, in the same
-operation. `readConsoleState` (`bin/lib/reconcile/archive-merged.js`) treats a non-empty
-`executedAt` as sufficient on its own, since `resolved` is not guaranteed by every historical
-writer — but this write order sets both.
+Both code readers of these completion fields — `readConsoleState`
+(`bin/lib/reconcile/archive-merged.js`) and `preFetchSkipReason` (`bin/lib/reconcile/console-execute.js`)
+— treat a non-empty `executedAt` as sufficient on its own, since consoles written before this
+write order set `resolved: true` carry `executedAt` alone; this write order sets both.
 
 ## Idempotence
 
