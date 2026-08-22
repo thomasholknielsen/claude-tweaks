@@ -755,14 +755,15 @@ function hasLoggedPrDegrade(runDir) {
 // resolvePolicyConfig (policy.yml + {runDir}/config.yml) — with fresh forge
 // detection kept ONLY as the fallback for a run that genuinely has not pinned
 // anything yet, exactly mirroring that CLI's own integration-model branch.
-// `git`/`readFile` are the small adapters that function's contract expects:
-// `git` returns stdout or throws, `readFile` returns null on any read failure.
+// `readFile` is the small adapter that function's contract expects (returns
+// null on any read failure). `git` is a no-spawn stub rather than a real
+// adapter: resolvePolicyConfig calls it exactly once, with
+// ['rev-parse', '--show-toplevel'], purely to learn the repo root it already
+// received as `mainRoot` here (wtDetect.mainCheckoutRoot's fs-only result) —
+// shelling out to re-derive a value the caller already has would undercut
+// the spawn budget I5 exists to protect.
 function resolveRunPinnedIntegrationModel(mainRoot, runDir) {
-  const git = (args) => {
-    const { stdout, failure } = runGit(args, mainRoot);
-    if (failure !== null || typeof stdout !== 'string') throw new Error(`git failed: ${failure}`);
-    return stdout;
-  };
+  const git = () => mainRoot;
   const readFile = (p) => {
     try { return fs.readFileSync(p, 'utf8'); } catch { return null; }
   };
@@ -830,17 +831,18 @@ function isStampsGateExemptTarget(ctx) {
 // sub-steps are documented to precede), a covered call is denied while either
 // stamp is still missing.
 //
-// Three checks now compose here, in this order:
+// Four checks now compose here, in this order:
 //   1. Coverage + cheap outs — the tool isn't covered, no run resolved, the
-//      run is already clean, or BOTH stamps are already present (the common
-//      case, and the one that must never pay for a git/gh spawn), the call
-//      site is outside a linked worktree, or this run's materialize commit
-//      has not landed yet.
+//      run is already clean, BOTH stamps are already present (the common
+//      case, and the one that must never pay for a git/gh spawn), or the
+//      call site is outside a linked worktree.
 //   2. Scoping — a Bash git target in an unrelated repository is not this
 //      run's business (mirrors E1's own mainRoot/actualMainRoot foreign-repo
 //      check below), and a write to the pipeline-bookkeeping tree or
 //      policy.yml is exempt (isStampsGateExemptTarget above).
-//   3. The two stamp checks themselves — record-worktree unconditionally,
+//   3. This run's materialize commit hasn't landed yet (hasMaterializeCommit
+//      above) — Common Step 1 is still legitimately in progress.
+//   4. The two stamp checks themselves — record-worktree unconditionally,
 //      record-pr only under a run pinned `integration-model: pr-first`
 //      (resolveRunPinnedIntegrationModel above) and with no logged degrade.
 // Ambiguity resolves to allow throughout, same posture as E1.
