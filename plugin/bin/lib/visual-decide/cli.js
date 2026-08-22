@@ -44,8 +44,12 @@ function pidAlive(pid) {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // ESRCH means the pid genuinely doesn't exist — dead. Any other error
+    // (notably EPERM) means the process exists but we can't signal it —
+    // alive, just unsignalable. Matches worktree-reap.js's isPidAlive /
+    // residue/probes/worktrees.js's defaultIsPidAlive.
+    return err && err.code !== 'ESRCH';
   }
 }
 

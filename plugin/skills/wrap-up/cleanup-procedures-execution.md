@@ -303,9 +303,13 @@ checks 1 or 3 fail.
    `runId` other than `$RUN_ID` mean a successor holds it: the CLI exits `4`, writes nothing,
    posts nothing, and appends `AUTO — skipped release of issue #{issue}: claim held by run
    {claim.runId}` to `decisions.md`; skip the remaining steps for this issue — a successor owns
-   it now. (An unreadable/corrupt blob fails closed the same way, with `holder: unreadable`, per
-   `_shared/issue-claims.md`'s Failure posture table's "Claim write rejected, blob classified
-   `'unreadable'`" row — treated as live, so it also skips and logs.)
+   it now. **An unreadable/corrupt blob is a distinct third outcome, not folded into either of
+   the two above:** the CLI exits `5` (never `4`), writes nothing, and appends `AUTO — skipped
+   release of issue #{issue}: claim blob is corrupt/unreadable` to `decisions.md` — this is not a
+   competing claim (there is no `holder` to report), so do not treat exit `5` the way exit `4`'s
+   "a successor owns it now" is treated; a corrupt blob can never self-resolve the way a live
+   holder's claim eventually expires via TTL. See `_shared/issue-claims.md`'s release
+   exit-code line.
 
    **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
    `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" in `cleanup-procedures.md`) —
