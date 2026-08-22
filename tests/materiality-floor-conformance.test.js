@@ -131,7 +131,9 @@ test('no adopter file restates the floor\'s three-axis definition', () => {
   for (const rel of ADOPTERS) {
     assert.doesNotMatch(
       read(rel),
-      /size:low.*priority:low.*risk:low/,
+      // `[\s\S]` (not `.`) so a restatement that wraps across lines — the shape the contract's
+      // own canonical sentence takes — cannot slip past this guard.
+      /size:low[\s\S]{0,150}priority:low[\s\S]{0,150}risk:low/i,
       `${rel} appears to restate the floor's definition instead of citing it`,
     );
   }
@@ -167,7 +169,7 @@ test('reflect\'s and visual-review\'s recommend-only Defer bullets state accept-
   }
 });
 
-test('multi-branch adopter files cite materiality-floor.md at each of their two filing branches', () => {
+test('multi-branch adopter files cite materiality-floor.md at each of their filing branches', () => {
   const MULTI_BRANCH = [
     'plugin/skills/review/step3-routing.md',
     'plugin/skills/reflect/full-mode.md',
@@ -177,7 +179,7 @@ test('multi-branch adopter files cite materiality-floor.md at each of their two 
     const count = (read(rel).match(/_shared\/materiality-floor\.md/g) || []).length;
     assert.ok(
       count >= 2,
-      `${rel} should cite _shared/materiality-floor.md at both of its filing branches (found ${count})`,
+      `${rel} should cite _shared/materiality-floor.md at every one of its filing branches (found ${count})`,
     );
   }
 });

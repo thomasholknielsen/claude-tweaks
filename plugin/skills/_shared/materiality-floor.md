@@ -91,7 +91,7 @@ the exact promotion and expiry procedures.
 
 ## Consumers
 
-Ten adopter files route below-floor findings here: `review/step3-routing.md`,
+These adopter files route below-floor findings here: `review/step3-routing.md`,
 `wrap-up/residue-sweep.md`, `wrap-up/leftover-routing.md`, `reflect/full-mode.md`,
 `reflect/hindsight-mode.md`, `visual-review/browser-review.md`, and the four health sweeps
 (`code-health`, `docs-health`, `harness-health`, `journey-health`) — see `docs/skill-graph.md` for

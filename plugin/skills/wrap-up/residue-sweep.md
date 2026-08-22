@@ -133,15 +133,24 @@ field is a hint for that drill, not a rule the gate is bound to follow. `_shared
 governs the routing: a proposal routed from here carries a `Defer-reason:` per this mapping — a
 locked worktree a live session holds → `blocked-external`; an open PR outside this run's blast
 radius → `blocked-external`; a red suite this run cannot fix → `genuinely-larger`; anything else
-stays `open` for Phase 2's drill, where the human picks the value. A `remedy: record` item Phase 2
-considers for "Route to a record" first applies `_shared/materiality-floor.md`'s floor test: an
+stays `open` for Phase 2's drill, where the human picks the value. A `remedy: record` item that
+reaches Phase 2's per-item drill first applies `_shared/materiality-floor.md`'s floor test: an
 item that fails to clear the materiality floor, with a `Defer-reason:` other than `tangential`, has
 its Step 1 option relabeled `"Digest — below floor"` in place of `"Route to a record"` — so the
 human sees the actual destination before choosing it, never silently substituted after approval;
 choosing it appends a digest entry instead of a record, skipping the composition below for that
-item. Otherwise it composes exactly as ledger Phase
+item. For an item whose reason the drill itself picks (the "anything else" case above), apply the
+test once that value is chosen, before the record is composed. Otherwise it composes exactly as ledger Phase
 3's branches do (`_shared/ledger-format.md`) — `specShapedBody`, the #621 mapping above supplying
 its `Defer-reason:`, landing born-ready, parked, or `needs:definition` by the same rules.
+
+**Not on the ledger-narrowing path.** `_shared/ledger-format.md`'s Phase 2 narrowing step
+(`ledgerNarrowing` at `trusted`+, `ledgerRouteRemainder` at `unattended`) removes an item whose
+blocker reason passes `clearsFloor` from this phase's remaining set entirely and auto-routes it to
+`Route to a record → Keep (backlog)` — it never reaches the Step 1 option above, so the materiality
+floor is not consulted on that path. `_shared/ledger-format.md` is deliberately not an adopter of
+the floor (#1262's own Current State names it a non-adopter); closing that gap is tracked on #1279
+alongside the digest's other coverage items.
 
 ## The judgment class — named triggers
 
