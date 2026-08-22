@@ -116,8 +116,10 @@ function preFetchSkipReason(consoleJson, now) {
   // and archive-merged.js's readConsoleState (which does accept executedAt)
   // would classify the same file 'resolved' in the same reconcile pass.
   // Same acceptance rule as readConsoleState: keep the two readers agreeing.
-  if (consoleJson.resolved === true) return 'already-resolved';
-  if (typeof consoleJson.executedAt === 'string' && consoleJson.executedAt.trim().length > 0) return 'already-resolved';
+  if (consoleJson.resolved === true
+    || (typeof consoleJson.executedAt === 'string' && consoleJson.executedAt.trim().length > 0)) {
+    return 'already-resolved';
+  }
   if (!isClaimReclaimable(consoleJson.executingAt, now)) return 'claimed';
   const commentIds = Array.isArray(consoleJson.commentIds) ? consoleJson.commentIds : [];
   if (!commentIds.length) return 'no-comment-ids';
