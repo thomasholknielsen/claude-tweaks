@@ -203,7 +203,7 @@ function seed({ manifestPath, mode, outPath }) {
   const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
   const dataJson = escapeForInlineScript(JSON.stringify(data));
   const output = template
-    .replace('__VARIANT_DATA__', dataJson)
+    .replace('__VARIANT_DATA__', () => dataJson)
     .replace('__MODE__', mode);
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
