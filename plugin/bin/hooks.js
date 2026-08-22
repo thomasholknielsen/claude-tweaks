@@ -33,6 +33,14 @@ function loadModule(event) {
   try { return require('./lib/hooks/' + event); } catch { return null; }
 }
 
+// Matches lib/hooks/pre-tool-use.js's pluginRoot() convention (also used
+// inline in session-start.js): resolve the real path when a session has it,
+// otherwise fall back to the unexpanded env-var literal so the printed
+// command text is still copy-pasteable in whatever shell reads it.
+function pluginRoot() {
+  return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
+}
+
 // Shared by the resolve-run-dir and spec-status subcommands below — each
 // previously defined its own identical `--flag value` lookup closure over a
 // different local array (`args` vs `rest`); one function taking the array
@@ -324,6 +332,13 @@ async function main(argv) {
           `claude-tweaks: closing run ${path.basename(runDir)} with no recorded wrap-up invocation — ` +
           'expected if wrap-up was run manually (typed slash commands leave no ledger event); ' +
           'otherwise consider /claude-tweaks:wrap-up before closing. Event recorded: close-without-wrapup.\n',
+        );
+      }
+      if (r.notYetArchived) {
+        process.stdout.write(
+          `claude-tweaks: run ${path.basename(runDir)} still holds un-archived git-tracked work/ content — ` +
+          'closing it now makes it invisible to the normal reconcile archival pass (a known ordering hazard, #1103). ' +
+          `Archive it first: node "${pluginRoot()}/bin/hooks.js" archive-run --run "${runDir}"\n`,
         );
       }
       if (!r.writeOk) {

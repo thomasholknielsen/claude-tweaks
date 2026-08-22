@@ -85,6 +85,26 @@ test('close-run on a run dir with no pre-existing run-state.json creates one and
   assert.strictEqual(readRunState(run).status, 'clean');
 });
 
+test('close-run warns when the run dir still holds un-archived work/ content (#1103)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(path.join(run, 'work'), { recursive: true });
+  fs.writeFileSync(path.join(run, 'work', '1-spec.md'), '# 1\n');
+  const result = runHook(['close-run', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /still holds un-archived git-tracked work\/ content/,
+    'expected close-run to warn about the un-archived work/ ordering hazard (#1103)');
+  assert.match(result.stdout, /archive-run --run/);
+});
+
+test('close-run does NOT warn about un-archived work/ when no work/ content exists', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['close-run', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /still holds un-archived git-tracked work\/ content/);
+});
+
 test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
   const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
