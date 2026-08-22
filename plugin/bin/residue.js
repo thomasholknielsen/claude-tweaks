@@ -106,11 +106,14 @@ function main() {
   // code, so check the script exists BEFORE ever invoking npm — verified
   // live: a directory with no package.json used to report a fabricated
   // "test suite exit 254" finding instead of `unknown`.
-  const suiteResult = opts.noSuite
-    ? { ran: false, reason: 'skipped via --no-suite', findings: [] }
-    : hasTestScript(cwd)
-      ? probeSuite({ scope, run: suiteRun })
-      : { ran: false, reason: 'no test command detected', findings: [] };
+  let suiteResult;
+  if (opts.noSuite) {
+    suiteResult = { ran: false, reason: 'skipped via --no-suite', findings: [] };
+  } else if (!hasTestScript(cwd)) {
+    suiteResult = { ran: false, reason: 'no test command detected', findings: [] };
+  } else {
+    suiteResult = probeSuite({ scope, run: suiteRun });
+  }
 
   // NOTE the runner shapes differ and are NOT interchangeable. probeBranches
   // calls run(['branch', ...]) — bare git args, so it gets the `git` wrapper.
