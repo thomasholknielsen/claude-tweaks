@@ -69,8 +69,7 @@ the exact promotion and expiry procedures.
 
 ## Consumers
 
-Nothing routes to this digest yet — the nine exhaust channels (review, wrap-up, the four health
-sweeps, visual-review, reflect) adopt this contract in a follow-up sub-issue. `/tidy`'s digest
-sweep (`tidy/digest-sweep.md`) is the first and, until that follow-up lands, only consumer — it
-manages the container's lifecycle (cluster promotion + expiry) regardless of whether anything has
-routed to it yet.
+Nothing routes to the digest yet — the exhaust channels named in the follow-up sub-issue adopt
+this contract there. `/tidy`'s digest sweep (`tidy/digest-sweep.md`) is the first and, until that
+follow-up lands, only consumer — it manages the container's lifecycle (cluster promotion + expiry)
+regardless of whether anything has routed to it yet.
