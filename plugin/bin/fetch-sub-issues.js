@@ -42,7 +42,12 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') { opts.help = true; }
-    else if (a === '--repo') { opts.repo = argv[++i]; }
+    else if (a === '--repo') {
+      const v = argv[i + 1];
+      if (!v || v.startsWith('--')) return { error: 'missing value for --repo' };
+      opts.repo = v;
+      i++;
+    }
     else if (a.startsWith('--')) { return { error: `unknown argument: ${a}` }; }
     else {
       const n = Number(a);

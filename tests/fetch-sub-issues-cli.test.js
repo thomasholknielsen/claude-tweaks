@@ -73,6 +73,30 @@ test('a GraphQL throw exits 3', () => {
   assert.strictEqual(run(['5'], d), 3);
 });
 
+test('trailing --repo with no value is malformed — exit 1, no network call', () => {
+  const d = deps({
+    ghAvailable: () => { throw new Error('should not be called'); },
+    remoteUrl: () => { throw new Error('should not be called'); },
+  });
+  assert.strictEqual(run(['5', '--repo'], d), 1);
+  assert.match(d.err.join(''), /missing value for --repo/);
+  assert.deepStrictEqual(d.calls, []);
+});
+
+test('--repo followed by another flag is rejected as missing a value, not treated as the value', () => {
+  const d = deps({
+    ghAvailable: () => { throw new Error('should not be called'); },
+    remoteUrl: () => { throw new Error('should not be called'); },
+  });
+  assert.strictEqual(run(['5', '--repo', '--help'], d), 1);
+  assert.match(d.err.join(''), /missing value for --repo/);
+});
+
+test('--repo owner/name (well-formed) is unaffected', () => {
+  const d = deps();
+  assert.strictEqual(run(['5', '--repo', 'o/r'], d), 0);
+});
+
 test('non-integer positional exits 1; gh absent exits 2', () => {
   assert.strictEqual(run(['abc'], deps()), 1);
   assert.strictEqual(run(['5'], deps({ ghAvailable: () => false })), 2);
