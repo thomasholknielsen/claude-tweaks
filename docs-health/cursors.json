@@ -43,5 +43,8 @@
   },
   "doc:decisions/0014-hook-read-key-renames-carry-a-transitional-twin": {
     "lastAuditedMs": 1787293023951
+  },
+  "doc:decisions/0015-plugin-payload-boundary-is-the-plugin-subtree": {
+    "lastAuditedMs": 1787378667408
   }
 }
