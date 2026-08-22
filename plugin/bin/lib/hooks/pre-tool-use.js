@@ -82,8 +82,14 @@ const WORK_SPEC_TAIL_RE = /^(?:spec-[^/\\]+[/\\])?work(?:[/\\]\d+-spec\.md)?$/;
 // failure (no commits yet, git unavailable) resolves to false — ambiguity
 // never triggers the gate, same posture as every other check in this file.
 function hasMaterializeCommit(worktreeRoot) {
+  // 'spec-*/work' (no trailing wildcard) does NOT match, empirically: git's
+  // default (non-glob-magic) pathspec wildcard support only applies to the
+  // FINAL path component of a pattern — a wildcard directory component
+  // followed by a literal tail never matches, even under explicit
+  // `:(glob)` magic. 'spec-*/work/*' keeps the wildcard trailing so the
+  // multi-record form (spec-{slug}/work/{n}-spec.md) is actually reached.
   const { stdout, failure } = runGit(
-    ['log', '--oneline', '-1', '--', 'work', 'spec-*/work'],
+    ['log', '--oneline', '-1', '--', 'work', 'spec-*/work/*'],
     worktreeRoot,
   );
   if (failure) return false;
@@ -696,6 +702,44 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   return {};
 }
 
+// Bookkeeping-stamps gate: build/SKILL.md Spec Step 1 marks record-worktree
+// (Common Step 1 Step 4.5) and, under integration-model: pr-first, the
+// PR-early lifecycle's draft-PR open (Step 6) as non-skippable — a build
+// agent's own "already satisfied by prior work" judgment has twice (IL-131,
+// its recurrence on record #893) swept past both anyway despite the bolded
+// prose. This is the mechanical backstop: once a materialize commit has
+// landed (hasMaterializeCommit above — the exact precondition both
+// sub-steps are documented to precede), a covered call is denied if either
+// stamp is still missing. Ambiguity resolves to allow, same posture as E1:
+// no materialize commit yet (Common Step 1 still in progress), no resolved
+// run, or a target outside a linked worktree all no-op here.
+// `deps.resolveIntegrationModel` is an injectable override of the real
+// `resolveIntegrationModel` import (Task 3 wires the PR-stamp branch that
+// uses it) — unused by this task's own worktree-stamp check, but accepted
+// here so the signature never has to change again once Task 3 lands.
+function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  const isFileTool = GATE_COVERAGE.tools.includes(toolName);
+  const isGitWrite = toolName === 'Bash' && Array.isArray(commandGitTargets) && commandGitTargets.length > 0;
+  if (!isFileTool && !isGitWrite) return {};
+  if (!ctx.runDir || !ctx.runState) return {};
+  if (ctx.runState.status === 'clean') return {};
+  const { repoRoot: wtRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(ctx.cwd);
+  if (indeterminate || !wtRoot || !isLinkedWorktree) return {};
+  if (!hasMaterializeCommit(wtRoot)) return {};
+
+  if (!ctx.runState.worktree) {
+    ctxLib.appendEvent(ctx.runDir, 'bookkeeping-stamp-deny', { stamp: 'record-worktree', worktree: wtRoot });
+    return denyResult(
+      `claude-tweaks: a materialize commit already landed in ${wtRoot} but this run's worktree assignment was never ` +
+      `recorded — build/worktree-setup.md Step 4.5 (record-worktree) is non-skippable, even when Spec Step 2 judges no ` +
+      `further implementation is needed [IL-131]. Run: node "${pluginRoot()}/bin/hooks.js" record-worktree --run "${ctx.runDir}" "${wtRoot}"`,
+    );
+  }
+
+  return {};
+}
+
 function runInner(ctx, indeterminateTargets, teardownWarnings) {
   const teardown = checkTeardownGate(ctx, teardownWarnings);
   if (teardown.json) return teardown;
@@ -712,6 +756,9 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
 
   const gate = checkWorktreeRequired(ctx, commandGitTargets, indeterminateTargets);
   if (gate.json) return gate;
+
+  const stamps = checkBookkeepingStampsGate(ctx, commandGitTargets);
+  if (stamps.json) return stamps;
 
   if (!ctx.runDir || !ctx.runState || !ctx.runState.worktree) return {};
   if (ctx.runState.status === 'clean') return {};

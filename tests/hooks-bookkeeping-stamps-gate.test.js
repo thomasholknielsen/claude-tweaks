@@ -67,3 +67,59 @@ test('bookkeeping-stamps gate: multi-record materialize commit (spec-{slug}/work
   assert.ok(out.json, 'multi-record spec-{slug}/work/{n}-spec.md form must also be recognized as a landed materialize commit');
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
 });
+
+test('bookkeeping-stamps gate: materialize commit landed, run resolved, no worktree stamp -> deny', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, null, undefined);
+  const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
+  assert.ok(out.json, 'expected a deny result');
+  const spec = out.json.hookSpecificOutput;
+  assert.strictEqual(spec.permissionDecision, 'deny');
+  assert.match(spec.permissionDecisionReason, /record-worktree/);
+  assert.match(spec.permissionDecisionReason, /IL-131/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  // appendEvent flattens `data` onto the event object (see context.js's
+  // appendEvent and tests/hooks-dispatcher.test.js's events[0].tool/path
+  // precedent) — there is no nested `.data` key, unlike the brief's literal
+  // text for this assertion.
+  assert.ok(events.some((e) => e.type === 'bookkeeping-stamp-deny' && e.stamp === 'record-worktree'));
+});
+
+test('bookkeeping-stamps gate: same deny fires for a Bash git-commit call, not just Edit/Write', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  fs.writeFileSync(path.join(wt, 'other.txt'), 'x'); // staged content for the commit below
+  execFileSync('git', ['-C', wt, 'add', 'other.txt']);
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, null, undefined);
+  const out = pre.run({ input: bashInput('git commit -m "unrelated fix"', wt), runDir: run, runState: { status: 'active' }, cwd: wt });
+  assert.ok(out.json, 'expected a deny result for a Bash git-commit call too');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-worktree/);
+});
+
+test('bookkeeping-stamps gate: materialize commit landed AND worktree stamp present -> allow (pr-first check runs but resolves local-merge, no origin remote on this fixture)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined);
+  // No origin remote on this fixture repo -> resolveIntegrationModel resolves
+  // 'local-merge' (detectIntegrationModel's own fail-open first check), so the
+  // PR-stamp branch (Task 3) never denies here even with runState.pr unset.
+  const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt });
+  assert.deepStrictEqual(out, {});
+});
+
+test('bookkeeping-stamps gate: main checkout (not a linked worktree) -> allow regardless of stamps', () => {
+  const main = gitRepo();
+  commitMaterializedSpec(main, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, null, undefined);
+  const out = pre.run({ input: editInput(path.join(main, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: main });
+  assert.deepStrictEqual(out, {});
+});
