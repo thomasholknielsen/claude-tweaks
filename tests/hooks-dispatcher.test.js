@@ -11,7 +11,15 @@ const { linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
-function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
+// #1130: never let an omitted cwd fall through to the spawned subprocess's
+// own process.cwd() — that is the test runner's real working directory, and
+// when npm test runs from a real checkout, hooks that walk
+// .claude-tweaks/pipelines/ from there write fixture events into REAL run
+// dirs (the #657 pollution incident). Calls that don't care about cwd get an
+// isolated, non-git sandbox instead.
+const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-sandbox-'));
+
+function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
       input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
@@ -580,4 +588,58 @@ test('check-resume-freshness: no resolvable --run path reports the not-found lin
   const result = runHook(['check-resume-freshness', '--run', path.join(project, 'nope')], { cwd: project });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /--run path rejected/);
+});
+
+// #1130: a runHook call that omits cwd BOTH in execFileSync's options and in
+// the JSON payload used to fall through to the spawned subprocess's own
+// process.cwd() — the test runner's real working directory. When that
+// directory sits inside a real checkout, iterRunDirsWithState walked the
+// REAL .claude-tweaks/pipelines/ and appendEvent wrote fixture literals into
+// a real run's events.jsonl (the #657 incident's pollution mechanism). The
+// hardened helper defaults to an isolated sandbox dir instead, so the decoy
+// "real" run dir below must stay byte-untouched.
+//
+// Note (verified during Step 3): the brief's original Bash/`git commit`
+// payload never reaches appendEvent, pre- or post-fix — E1's wd-deny path
+// requires `safeReal(ctx.runState.worktree)` to resolve, and the decoy
+// `/tmp/wt-decoy` doesn't exist on disk, so runInner returns early before
+// ever writing. Per Step 3's fallback instruction, this uses a Write-tool
+// payload targeting a path inside the decoy repo instead (mirroring 'a
+// resolved deny appends a gate-denial event' above) — checkWorktreeRequired's
+// gate-denial write depends on `ownedRun`, which IS resolved from `ctx.cwd`
+// (via resolveRun's iterRunDirsWithState(cwd) scan), so this payload
+// discriminates pre/post-fix correctly: pre-fix, cwd falls through to the
+// decoy repo and ownedRun resolves to the decoy run; post-fix, cwd is the
+// isolated sandbox, which has no `.claude-tweaks/pipelines/` at all, so
+// ownedRun.dir is null and appendEvent no-ops.
+test('a hook spawned with no cwd anywhere cannot write into a real run dir reachable from the test runner process.cwd()', () => {
+  const decoyRepo = gitRepo();
+  fs.mkdirSync(path.join(decoyRepo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(decoyRepo, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+  const decoyRun = path.join(decoyRepo, '.claude-tweaks', 'pipelines', '2026-08-01T090000-record-9');
+  fs.mkdirSync(decoyRun, { recursive: true });
+  fs.writeFileSync(path.join(decoyRun, 'run-state.json'), JSON.stringify({ status: 'active', worktree: '/tmp/wt-decoy', sessionId: 'decoy-owner' }));
+  const eventsPath = path.join(decoyRun, 'events.jsonl');
+
+  const realCwd = process.cwd();
+  process.chdir(decoyRepo);
+  try {
+    // Write-shaped payload with NO cwd field, NO options.cwd, NO
+    // PIPELINE_RUN_DIR, NO session_id: pre-fix, this resolves cwd to
+    // process.cwd() (= decoyRepo) and can append a gate-denial event to the
+    // decoy run via ownedRun's unfiltered fallback resolution.
+    runHook(['pre-tool-use'], {
+      input: JSON.stringify({
+        tool_name: 'Write',
+        tool_input: { file_path: path.join(decoyRepo, 'a.txt') },
+      }),
+    });
+  } finally {
+    process.chdir(realCwd);
+  }
+
+  assert.strictEqual(fs.existsSync(eventsPath), false,
+    'decoy run dir must receive no events from a cwd-omitting hook spawn');
+  const state = JSON.parse(fs.readFileSync(path.join(decoyRun, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.status, 'active', 'decoy run-state.json must be untouched');
 });

@@ -18,7 +18,15 @@ const { reconcile } = require('../plugin/bin/lib/reconcile');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
-function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
+// #1130: never let an omitted cwd fall through to the spawned subprocess's
+// own process.cwd() — that is the test runner's real working directory, and
+// when npm test runs from a real checkout, hooks that walk
+// .claude-tweaks/pipelines/ from there write fixture events into REAL run
+// dirs (the #657 pollution incident). Calls that don't care about cwd get an
+// isolated, non-git sandbox instead.
+const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-sandbox-'));
+
+function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
       input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
