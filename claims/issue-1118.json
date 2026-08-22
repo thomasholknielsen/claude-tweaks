@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-22T101933-record-1118",
-  "sessionId": "bfcdb9cb-03df-4775-8c95-5679f94a658d",
-  "claimedAt": "2026-08-22T10:21:17.754Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "abandoned: spec 1118 (duplicate of closed #1011; AC conflicts with #1011's deliberate divergence decision)",
+  "releasedAt": "2026-08-22T10:26:58.107Z"
 }
