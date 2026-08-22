@@ -1,6 +1,6 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) via `record.js`'s `partitionByOpenBodyBlockers`/`partitionByOpenNativeBlockers` — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent.
 
 ```bash
 eval "$(node -e "
@@ -13,11 +13,13 @@ eval "$(node -e "
     DISPATCH_UNRESOLVED_DEPS: 'dispatch-unresolved-deps.json',
     DISPATCH_VERIFIED_OPEN_DEPS: 'dispatch-verified-open-deps.txt',
     DISPATCH_ELIGIBLE: 'dispatch-eligible.json',
+    DISPATCH_BLOCKED_EXCLUDED_BODY: 'dispatch-blocked-excluded-body.json',
     DISPATCH_NATIVE_DEPS: 'dispatch-native-deps.json',
     DISPATCH_NATIVE_QUERY: 'dispatch-native-query.graphql',
     DISPATCH_NATIVE_DEPS_TMP: 'dispatch-native-deps.tmp.json',
     DISPATCH_NATIVE_DEPS_ERR: 'dispatch-native-deps.err',
     DISPATCH_GROUPS: 'dispatch-groups.json',
+    DISPATCH_BLOCKED_EXCLUDED: 'dispatch-blocked-excluded.json',
   };
   for (const [varName, filename] of Object.entries(files)) {
     const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
@@ -54,16 +56,17 @@ for DEP in $(node -e "console.log(require(process.argv[1]).join(' '))" "$DISPATC
 done
 node -e "
   const fs = require('fs');
-  const { parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const { partitionByOpenBodyBlockers } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const eligiblePreDep = require(process.argv[1]);
   const openNumbers = new Set(require(process.argv[2]).map((i) => i.number));
   const verifiedOpen = fs.existsSync(process.argv[3])
     ? fs.readFileSync(process.argv[3], 'utf8').trim().split('\n').filter(Boolean).map(Number)
     : [];
   for (const dep of verifiedOpen) openNumbers.add(dep);
-  const eligible = eligiblePreDep.filter((i) => !parseDependencies(i.body).some((dep) => openNumbers.has(dep)));
+  const { eligible, excluded } = partitionByOpenBodyBlockers(eligiblePreDep, openNumbers);
   fs.writeFileSync(process.argv[4], JSON.stringify(eligible));
-" "$DISPATCH_ELIGIBLE_PRE_DEP" "$DISPATCH_OPEN_NUMBERS" "$DISPATCH_VERIFIED_OPEN_DEPS" "$DISPATCH_ELIGIBLE"
+  fs.writeFileSync(process.argv[5], JSON.stringify(excluded));
+" "$DISPATCH_ELIGIBLE_PRE_DEP" "$DISPATCH_OPEN_NUMBERS" "$DISPATCH_VERIFIED_OPEN_DEPS" "$DISPATCH_ELIGIBLE" "$DISPATCH_BLOCKED_EXCLUDED_BODY"
 echo '{"data":{"repository":{}}}' > "$DISPATCH_NATIVE_DEPS"
 if [ "$WORK_LINKS" = "native" ]; then
   rm -f "$DISPATCH_NATIVE_QUERY"
@@ -85,11 +88,12 @@ if [ "$WORK_LINKS" = "native" ]; then
   fi
 fi
 node -e "
-  const { hasOpenNativeBlocker } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const fs = require('fs');
+  const { partitionByOpenNativeBlockers } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const eligible = require(process.argv[1]);
   const repoData = require(process.argv[2]).data.repository;
-  const finalEligible = eligible.filter((i) => !hasOpenNativeBlocker(repoData['i' + i.number]));
+  const { eligible: finalEligible, excluded: excludedNative } = partitionByOpenNativeBlockers(eligible, repoData);
   const items = finalEligible.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
   const byId = new Map(finalEligible.map((i) => [i.number, i]));
   for (const item of items) {
@@ -99,7 +103,9 @@ node -e "
   }
   const groups = groupByFileOverlap(items).map((ids) => ids.map((id) => byId.get(id)));
   console.log(JSON.stringify(groups));
-" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" > "$DISPATCH_GROUPS"
+  const excludedBody = require(process.argv[3]);
+  fs.writeFileSync(process.argv[4], JSON.stringify([...excludedBody, ...excludedNative]));
+" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" "$DISPATCH_BLOCKED_EXCLUDED_BODY" "$DISPATCH_BLOCKED_EXCLUDED" > "$DISPATCH_GROUPS"
 ```
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.

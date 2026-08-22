@@ -7,6 +7,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const BIN = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'visual-decide.js');
+const CLI_LIB = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'visual-decide', 'cli.js');
 
 function mkTmp(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -125,6 +126,51 @@ test('AC6 (CLI path): fractional --idle-minutes self-exits and status reflects s
   });
   const status = run(['status', '--state', stateDir]);
   assert.equal(status.out.trim(), 'stopped');
+});
+
+test('#1231: pidAlive treats EPERM as alive (unsignalable, not dead) and ESRCH as dead', () => {
+  // eslint-disable-next-line global-require
+  const { pidAlive } = require(CLI_LIB);
+  const originalKill = process.kill;
+  try {
+    process.kill = (pid, signal) => {
+      if (signal !== 0) return originalKill(pid, signal);
+      const err = new Error('EPERM test double');
+      err.code = 'EPERM';
+      throw err;
+    };
+    assert.equal(pidAlive(1), true, 'EPERM must be reported as alive (live-but-unsignalable)');
+
+    process.kill = (pid, signal) => {
+      if (signal !== 0) return originalKill(pid, signal);
+      const err = new Error('ESRCH test double');
+      err.code = 'ESRCH';
+      throw err;
+    };
+    assert.equal(pidAlive(999999), false, 'ESRCH must still be reported as dead');
+  } finally {
+    process.kill = originalKill;
+  }
+});
+
+test('#1232: server-info persists a real key, and readInfo (the function cmdStatus reads info.key through) resolves it — never undefined', async () => {
+  const dir = mkTmp('vd-content-');
+  const stateDir = mkTmp('vd-state-');
+  const started = run(['start', '--dir', dir, '--state', stateDir, '--idle-minutes', '5']);
+  try {
+    assert.equal(started.code, 0, started.err);
+    const info = JSON.parse(started.out);
+    assert.notEqual(info.key, undefined, 'server-info must persist a key field');
+    assert.match(info.url, new RegExp(`\\?key=${info.key}$`), 'persisted key must match the key embedded in url');
+
+    // eslint-disable-next-line global-require
+    const { readInfo } = require(CLI_LIB);
+    const reread = readInfo(stateDir);
+    assert.notEqual(reread.key, undefined, 'readInfo (cmdStatus\'s own read path) must resolve a real, non-undefined key');
+    assert.equal(reread.key, info.key);
+  } finally {
+    await stopQuiet(stateDir);
+  }
 });
 
 test('AC8: cli.js and bin entry have zero non-builtin imports', () => {
