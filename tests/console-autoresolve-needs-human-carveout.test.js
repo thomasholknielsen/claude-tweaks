@@ -15,11 +15,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const WRAPUP = fs.readFileSync(path.join(ROOT, 'plugin/skills/wrap-up/review-console.md'), 'utf8');
-const MULTISPEC = fs.readFileSync(path.join(ROOT, 'plugin/skills/flow/multispec-review-console.md'), 'utf8');
-const SETTLE = fs.readFileSync(path.join(ROOT, 'plugin/skills/dispatch/settle-and-merge.md'), 'utf8');
-
 const collapse = (s) => s.replace(/\s+/g, ' ');
+
+// Collapsed at read time — every assertion in this suite runs on collapsed text, as do
+// the frozen controls below, so no call site can forget it [IL-66].
+const read = (rel) => collapse(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+const WRAPUP_FLAT = read('plugin/skills/wrap-up/review-console.md');
+const MULTISPEC_FLAT = read('plugin/skills/flow/multispec-review-console.md');
+const SETTLE_FLAT = read('plugin/skills/dispatch/settle-and-merge.md');
 
 // Frozen pre-change excerpts (string literals, never read from history) — the bytes the
 // change replaced. Each carries the "defaults to merge" anchor (or, for settle, the
@@ -65,50 +68,48 @@ function occurrencesMissingCarveout(collapsed, window) {
 const WINDOW = 700;
 
 test('single-spec console: carve-out present and go-red-proven', () => {
-  assertPinned(collapse(WRAPUP), CARVEOUT_HEADING, PRE_CHANGE_WRAPUP_BULLET, 'wrap-up/review-console.md');
+  assertPinned(WRAPUP_FLAT, CARVEOUT_HEADING, PRE_CHANGE_WRAPUP_BULLET, 'wrap-up/review-console.md');
 });
 
 test('single-spec console: needs-human resolves the merge half to leave-PR-open, never merge', () => {
-  assertPinned(collapse(WRAPUP), CARVEOUT_RESOLUTION, PRE_CHANGE_WRAPUP_BULLET, 'wrap-up/review-console.md');
+  assertPinned(WRAPUP_FLAT, CARVEOUT_RESOLUTION, PRE_CHANGE_WRAPUP_BULLET, 'wrap-up/review-console.md');
 });
 
 test('single-spec console: consoleAutoResolve default-merge never overrides the verdict', () => {
-  assertPinned(collapse(WRAPUP), CARVEOUT_PRECEDENCE, PRE_CHANGE_WRAPUP_BULLET, 'wrap-up/review-console.md');
+  assertPinned(WRAPUP_FLAT, CARVEOUT_PRECEDENCE, PRE_CHANGE_WRAPUP_BULLET, 'wrap-up/review-console.md');
 });
 
 test('single-spec console: no "defaults to merge" without the exception adjacent', () => {
-  const collapsed = collapse(WRAPUP);
-  assert.ok(/defaults to merge/.test(collapsed), 'anchor vanished — adjacency claim is vacuous');
-  assert.strictEqual(occurrencesMissingCarveout(collapsed, WINDOW), 0,
+  assert.ok(/defaults to merge/.test(WRAPUP_FLAT), 'anchor vanished — adjacency claim is vacuous');
+  assert.strictEqual(occurrencesMissingCarveout(WRAPUP_FLAT, WINDOW), 0,
     'wrap-up/review-console.md: a "defaults to merge" statement lacks the needs-human carve-out within its window');
 });
 
 test('multi-spec console: carve-out present and go-red-proven', () => {
-  assertPinned(collapse(MULTISPEC), CARVEOUT_HEADING, PRE_CHANGE_MULTISPEC_SENTENCE, 'flow/multispec-review-console.md');
+  assertPinned(MULTISPEC_FLAT, CARVEOUT_HEADING, PRE_CHANGE_MULTISPEC_SENTENCE, 'flow/multispec-review-console.md');
 });
 
 test('multi-spec console: needs-human resolves the merge half to leave-PR-open, never merge', () => {
-  assertPinned(collapse(MULTISPEC), CARVEOUT_RESOLUTION, PRE_CHANGE_MULTISPEC_SENTENCE, 'flow/multispec-review-console.md');
+  assertPinned(MULTISPEC_FLAT, CARVEOUT_RESOLUTION, PRE_CHANGE_MULTISPEC_SENTENCE, 'flow/multispec-review-console.md');
 });
 
 test('multi-spec console: consoleAutoResolve default-merge never overrides the verdict', () => {
-  assertPinned(collapse(MULTISPEC), CARVEOUT_PRECEDENCE, PRE_CHANGE_MULTISPEC_SENTENCE, 'flow/multispec-review-console.md');
+  assertPinned(MULTISPEC_FLAT, CARVEOUT_PRECEDENCE, PRE_CHANGE_MULTISPEC_SENTENCE, 'flow/multispec-review-console.md');
 });
 
 test('multi-spec console: no "defaults to merge" without the exception adjacent', () => {
-  const collapsed = collapse(MULTISPEC);
-  assert.ok(/defaults to merge/.test(collapsed), 'anchor vanished — adjacency claim is vacuous');
-  assert.strictEqual(occurrencesMissingCarveout(collapsed, WINDOW), 0,
+  assert.ok(/defaults to merge/.test(MULTISPEC_FLAT), 'anchor vanished — adjacency claim is vacuous');
+  assert.strictEqual(occurrencesMissingCarveout(MULTISPEC_FLAT, WINDOW), 0,
     'flow/multispec-review-console.md: a "defaults to merge" statement lacks the needs-human carve-out within its window');
 });
 
 test('multi-spec carve-out names the single-spec file it mirrors', () => {
-  assert.match(collapse(MULTISPEC), /Needs-human carve-out[\s\S]{0,600}?wrap-up\/review-console\.md/,
+  assert.match(MULTISPEC_FLAT, /Needs-human carve-out[\s\S]{0,600}?wrap-up\/review-console\.md/,
     'multispec carve-out must cite wrap-up/review-console.md (mirror consistency)');
 });
 
 test('settle-and-merge: needs-human verdict survives into the console short-circuit', () => {
-  assertPinned(collapse(SETTLE), CARVEOUT_PRECEDENCE, PRE_CHANGE_SETTLE_LAYER2, 'dispatch/settle-and-merge.md');
+  assertPinned(SETTLE_FLAT, CARVEOUT_PRECEDENCE, PRE_CHANGE_SETTLE_LAYER2, 'dispatch/settle-and-merge.md');
 });
 
 test('adjacency helper is itself discriminating (counting-helper proof)', () => {
