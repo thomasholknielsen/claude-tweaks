@@ -374,6 +374,52 @@ test('archiveRunDir: git mv fails on the SECOND of two spec work/ pairs — firs
   );
 });
 
+// Review finding: the mid-loop revert path (test above) had no coverage for
+// the case where the revert ITSELF also fails, unlike the pre-existing
+// commit-failed-partial-revert path which pins that exact sibling case. The
+// 1st pair's `git mv` succeeds, the 2nd pair's `git mv` fails (triggering
+// the mid-loop revert), and the revert's `git reset` on the 1st pair also
+// fails — the reason string must distinguish this from a clean revert.
+test('archiveRunDir: git mv fails on the SECOND pair AND the revert reset for the first pair also fails — reason is git-mv-failed-partial-revert', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-1103-1104';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1103/work/1103-spec.md`, '# spec 1103\n');
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1104/work/1104-spec.md`, '# spec 1104\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  let mvCount = 0;
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    const isMv = cmd === 'git' && Array.isArray(args) && args[2] === 'mv';
+    const isReset = cmd === 'git' && Array.isArray(args) && args[2] === 'reset';
+    if (isMv) {
+      mvCount += 1;
+      if (mvCount === 2) throw new Error('simulated failure: git mv (2nd pair)');
+    }
+    if (isReset) throw new Error('simulated failure: git reset (revert)');
+    return execFileSync(cmd, args, opts);
+  });
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'git-mv-failed-partial-revert');
+
+  // The first pair stays at the archive path — the reset that would make
+  // moving it back safe also failed, same disk/index-consistency reasoning
+  // as the commit-failed-partial-revert sibling test above.
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(
+    fs.existsSync(path.join(archiveDir, 'spec-1103', 'work', '1103-spec.md')),
+    true,
+    'spec-1103/work must stay at the archive path when its revert reset fails',
+  );
+  assert.equal(
+    fs.existsSync(path.join(runDir, 'spec-1103', 'work', '1103-spec.md')),
+    false,
+    'spec-1103/work must NOT be resurrected on disk when the index was never actually unstaged',
+  );
+});
+
 // Pins that Task 1's change doesn't alter the already-correct
 // first-pair-failure path: revertWorkMoves(root, []) on an empty
 // succeededMoves list is a no-op (its loop never executes) and returns

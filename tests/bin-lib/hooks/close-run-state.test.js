@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { closeRunState } = require('../../../plugin/bin/lib/hooks/close-run-state');
+const { closeRunState, hasUnarchivedWork } = require('../../../plugin/bin/lib/hooks/close-run-state');
 
 function makeTmpRunDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'close-run-state-test-'));
@@ -45,6 +45,17 @@ test('closeRunState: notYetArchived is false when no work/ subdirectory exists a
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// Review finding: the defensive readdirSync catch (fail-open — an unreadable
+// run dir is reported as having no unarchived work, matching the function's
+// own header comment: this must never block a stuck/foreign run's manual
+// close) had no direct test. A non-existent runDir exercises it exactly —
+// fs.existsSync(work) returns false without throwing, then
+// fs.readdirSync(runDir) throws ENOENT.
+test('hasUnarchivedWork: unreadable/non-existent run dir fails open (returns false), never throws', () => {
+  const missing = path.join(os.tmpdir(), 'close-run-state-test-does-not-exist-' + Date.now());
+  assert.strictEqual(hasUnarchivedWork(missing), false);
 });
 
 test('closeRunState: refused-foreign case never reaches the notYetArchived check', () => {
