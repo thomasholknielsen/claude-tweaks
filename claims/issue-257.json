@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-21T105702-spec-252-257-899-266-316-644-652",
-  "reason": "issue already has active PR #869 (draft, branch worktree-record-257) — claims registry was out of sync; releasing to avoid duplicate build",
-  "releasedAt": "2026-08-21T11:13:07.720Z"
+  "runId": "2026-08-22T004058-record-257",
+  "sessionId": "e13be436-f65b-437f-a075-7b9631b764fd",
+  "claimedAt": "2026-08-22T01:56:06.379Z",
+  "ttlHours": 72,
+  "host": "0ef421c45794"
 }
