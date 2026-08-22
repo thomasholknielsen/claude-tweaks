@@ -821,6 +821,21 @@ function isStampsGateExemptTarget(ctx) {
   return isPipelineBookkeeping(repoRoot, targetPath) || isPolicyFile(repoRoot, targetPath);
 }
 
+// Shared outcome for both stamp checks in checkBookkeepingStampsGate below —
+// each is an always-return branch (see the header comment there), so this
+// returns the value the caller returns directly. A provably foreign-owned
+// run (isForeignSessionCall above) downgrades the deny to an allow + warning;
+// otherwise it denies. Only the stamp name and the two message bodies vary.
+function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText) {
+  if (isForeignSessionCall(ctx)) {
+    ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { stamp, worktree: wtRoot });
+    warnings.push(warnText);
+    return {};
+  }
+  ctxLib.appendEvent(ctx.runDir, 'bookkeeping-stamp-deny', { stamp, worktree: wtRoot });
+  return denyResult(denyText);
+}
+
 // Bookkeeping-stamps gate: build/SKILL.md Spec Step 1 marks record-worktree
 // (Common Step 1 Step 4.5) and, under integration-model: pr-first, the
 // PR-early lifecycle's draft-PR open (Step 6) as non-skippable — a build
@@ -904,18 +919,12 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   if (!hasMaterializeCommit(wtRoot, ctx.runDir)) return {};
 
   if (!ctx.runState.worktree) {
-    if (isForeignSessionCall(ctx)) {
-      ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { stamp: 'record-worktree', worktree: wtRoot });
-      warnings.push(
-        `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} has a landed materialize commit but no recorded ` +
-        `worktree assignment; allowing this call because it comes from a different session than the one that ` +
-        `recorded the run. If this IS that pipeline's work, record it from the owning session — never with a bare ` +
-        `record-worktree, which would target this run's state from outside it (docs/hooks.md).`,
-      );
-      return {};
-    }
-    ctxLib.appendEvent(ctx.runDir, 'bookkeeping-stamp-deny', { stamp: 'record-worktree', worktree: wtRoot });
-    return denyResult(
+    return stampCheckOutcome(
+      ctx, 'record-worktree', wtRoot, warnings,
+      `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} has a landed materialize commit but no recorded ` +
+      `worktree assignment; allowing this call because it comes from a different session than the one that ` +
+      `recorded the run. If this IS that pipeline's work, record it from the owning session — never with a bare ` +
+      `record-worktree, which would target this run's state from outside it (docs/hooks.md).`,
       `claude-tweaks: a materialize commit already landed in ${wtRoot} but this run's worktree assignment was never ` +
       `recorded — build/worktree-setup.md Step 4.5 (record-worktree) is non-skippable, even when Spec Step 2 judges no ` +
       `further implementation is needed [IL-131]. Run: node "${pluginRoot()}/bin/hooks.js" record-worktree --run "${ctx.runDir}" "${wtRoot}"`,
@@ -932,18 +941,12 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
       model = 'local-merge'; // fail open: an unresolvable model is not provably pr-first
     }
     if (model === 'pr-first' && !hasLoggedPrDegrade(ctx.runDir)) {
-      if (isForeignSessionCall(ctx)) {
-        ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { stamp: 'record-pr', worktree: wtRoot });
-        warnings.push(
-          `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} resolves integration-model: pr-first and has a ` +
-          `landed materialize commit but no recorded PR; allowing this call because it comes from a different session ` +
-          `than the one that recorded the run. If this IS that pipeline's work, open and record the PR from the ` +
-          `owning session rather than stamping another session's run state (docs/hooks.md).`,
-        );
-        return {};
-      }
-      ctxLib.appendEvent(ctx.runDir, 'bookkeeping-stamp-deny', { stamp: 'record-pr', worktree: wtRoot });
-      return denyResult(
+      return stampCheckOutcome(
+        ctx, 'record-pr', wtRoot, warnings,
+        `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} resolves integration-model: pr-first and has a ` +
+        `landed materialize commit but no recorded PR; allowing this call because it comes from a different session ` +
+        `than the one that recorded the run. If this IS that pipeline's work, open and record the PR from the ` +
+        `owning session rather than stamping another session's run state (docs/hooks.md).`,
         `claude-tweaks: this project resolves integration-model: pr-first and a materialize commit already landed in ` +
         `${wtRoot}, but no PR is recorded for this run — build/worktree-setup.md Step 6 (the PR-early lifecycle draft-PR ` +
         `open, _shared/pr-early-run-lifecycle.md) is non-skippable, even when Spec Step 2 judges no further ` +
