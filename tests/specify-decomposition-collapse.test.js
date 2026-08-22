@@ -232,6 +232,30 @@ test('record-creation.md\'s Decision Rationale has a no-parent fallback', () => 
   assert.match(text, /Under collapse, no parent exists to hold it: fold it into each produced record's own body/);
 });
 
+// --- review-gate findings (independent /review pass on the finished branch) ---
+
+test('the origin-set carve-out preserves the origin body as `## Original request`', () => {
+  // The carve-out replaces the origin record's whole body with a sub-issue-shaped
+  // one. Shaping mode treats `## Original request` as the record's ground truth and
+  // verifies it on read-back; without this clause the 1-unit collapse is the ONE
+  // /specify path that destroys the human's original ask — and Step 7 then deletes
+  // the design doc, so nothing else retains it.
+  const text = read(RECORD_CREATION);
+  assert.match(text, /This write replaces the origin's own body, so preserve that body as a `## Original request` block/);
+  // The Framing bullet's blanket "sub-issues have no Original request block" claim
+  // must not contradict the carve-out it now shares a file with.
+  assert.doesNotMatch(text, /Sub-issues have no `## Original request` block/);
+});
+
+test('spec-template.md\'s canonical `Parent:` field reference is conditional on a kept parent', () => {
+  // record-creation.md names spec-template.md as the canonical field reference, so
+  // leaving this copy unconditional would have an agent composing a `Parent:` line
+  // onto a record that has no parent.
+  const text = read('plugin/skills/specify/spec-template.md');
+  assert.match(text, /\*\*and only when that decomposition kept a parent\*\*/);
+  assert.match(text, /only when Step 2\.6 kept a parent; omitted otherwise \(a collapsed decomposition/);
+});
+
 // --- byte ceiling ---
 
 test('every touched specify file remains within the context-cost ceiling', () => {

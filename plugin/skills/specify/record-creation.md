@@ -132,15 +132,14 @@ PARENT_ID=$(node -e "const fs=require('fs');
 ```
 
 `isParentIssue: true` is the local-files parity for the `parent-issue` label above — the same
-queryable-parent problem, on the backend where there is no label at all. `local-store.js`
-serializes it as an `is-parent-issue: true` frontmatter line and parses it back into
-`facets.isParentIssue`; no sub-issue ever sets it (it stays at its `false` default).
-`/claude-tweaks:demo`'s Approve step reads it to decide whether to close the parent record once
-its sub-issues are accepted.
+queryable-parent problem, on the backend with no labels at all. `local-store.js` serializes it as
+an `is-parent-issue: true` frontmatter line and parses it back into `facets.isParentIssue`; no
+sub-issue ever sets it, so it stays `false` there. `/claude-tweaks:demo`'s Approve step reads it
+to decide whether to close the parent once its sub-issues are accepted.
 
 `$PARENT_NUM` / `$PARENT_ID` is now captured — every sub-issue below links back to it.
 
-**If parent creation fails** (`gh` unreachable, transient API error): fall back to `local-store.js` for the parent — same `unsynced: true` fallback as the sub-issue-level one below — and run the rest of this decomposition on the local driver too, so sub-issues have a real parent to link to instead of a GitHub record that doesn't exist. `/tidy`'s Sync finding reconciles the parent and its sub-issues later.
+**If parent creation fails** (`gh` unreachable, transient API error): fall back to `local-store.js` for the parent — the same `unsynced: true` fallback as below — and run the rest of this decomposition on the local driver too, so sub-issues have a real parent to link to instead of a GitHub record that doesn't exist. `/tidy`'s Sync finding reconciles them later.
 
 **Resuming after a partial run:** nothing parent-specific — the Idempotency map above already covers it. A `{design-doc-slug}:parent` marker match means a prior run created this parent; reuse the mapped number and skip the create, exactly as with any sub-issue. Never fall back to a title search — `gh issue list --search` rides the search index this step deliberately avoids.
 
@@ -148,13 +147,13 @@ its sub-issues are accepted.
 
 **Only sub-issues get `ready`** — and only sub-issues carry `risk:*`/`size:*` scoring; a kept parent gets neither. One per work unit from Step 2, in any order — Step 4 does the linking once every number exists, so creation order doesn't matter.
 
-**Origin-set carve-out (1-unit collapse).** When Step 2.6 returned a 1-unit collapse *and* `$ORIGIN_RECORD_NUM` is set (`SKILL.md`'s `needs:definition` redirect, Resolve-the-input case 1), that unit gets **no fresh create**: compose its body exactly as below, then write it onto the origin record in place — `gh issue edit "$ORIGIN_RECORD_NUM" --body-file` plus the labels the create call would have applied and `--remove-label "needs:definition"` in the same edit (`local-files`: clear `facets.needsDefinition` in the same write — the record is now defined, so the redirect that routed here must not re-fire), or `writeRecord` with the same facets under `local-files` — carrying the `{design-doc-slug}:{unit-slug}` fingerprint into that body so the Idempotency map above resolves it on any resumed run. Treat `$ORIGIN_RECORD_NUM` as this unit's `$SUB_ISSUE_NUM`/`$SUB_ISSUE_ID` from here on: Step 4's linking, Step 5's red-team and Step 6's self-review all run against it as an ordinary produced record, and Step 9 then only skips its closure — it writes nothing of its own. With `$ORIGIN_RECORD_NUM` unset (every other entry path), a 1-unit collapse creates one fresh standalone ready record, exactly as below.
+**Origin-set carve-out (1-unit collapse).** When Step 2.6 returned a 1-unit collapse *and* `$ORIGIN_RECORD_NUM` is set (`SKILL.md`'s `needs:definition` redirect, Resolve-the-input case 1), that unit gets **no fresh create**: compose its body exactly as below, then write it onto the origin record in place — `gh issue edit "$ORIGIN_RECORD_NUM" --body-file` plus the labels the create call would have applied and `--remove-label "needs:definition"` in the same edit; under `local-files`, `writeRecord` with those same facets and `facets.needsDefinition` cleared (the record is now defined — the redirect that routed here must not re-fire) — carrying the `{design-doc-slug}:{unit-slug}` fingerprint into that body so the Idempotency map above resolves it on any resumed run. **This write replaces the origin's own body, so preserve that body as a `## Original request` block in the composed one** — shaping mode's ground-truth rule (`shaping-mode.md`), and the last record of what was originally asked once Step 7 deletes the design doc. Treat `$ORIGIN_RECORD_NUM` as this unit's `$SUB_ISSUE_NUM`/`$SUB_ISSUE_ID` from here on: Step 4's linking, Step 5's red-team and Step 6's self-review all run against it as an ordinary produced record, and Step 9 then only skips its closure. With `$ORIGIN_RECORD_NUM` unset (every other entry path), a 1-unit collapse creates one fresh standalone ready record, exactly as below.
 
 When a sub-issue proposes building a new `bin/` CLI, check for a same-named deliverable already
 shipped or already proposed elsewhere before creating it — `_shared/issue-claims.md`'s
 Deliverable-name-collisions section owns the check and the grep.
 
-**Tasks never become records.** A sub-issue's own internal breakdown — the Deliverables checklist, the Acceptance Criteria list — stays exactly that: a checklist inside the sub-issue's body. `/superpowers:writing-plans` turns it into an execution plan at build time; nothing at this granularity spawns a further issue per task.
+**Tasks never become records.** A sub-issue's internal breakdown — its Deliverables and Acceptance Criteria checklists — stays a checklist inside its own body; `/superpowers:writing-plans` turns it into an execution plan at build time, and nothing at this granularity spawns a further issue per task.
 
 **Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents (`shaping-mode.md` in this skill's directory), just run once per sub-issue instead of once per shaped record. When Step 2.5b-ii's variant exploration ran and the user accepted a scaffold direction for this sub-issue's surface, also prefix `Visual-reference: {scaffold path}` (`design-pre-steps.md` Step 2.5b-ii item 5) — omit the line entirely when Step 2.5b-ii was skipped, declined, or not offered (the canonical field reference lives in `spec-template.md`). Under `work-backend: github-issues` + `work-links: body-text`, and only when Step 2.6 kept the parent, also prefix `Parent: #$PARENT_NUM` — already known at this point (Parent record, above, runs first) and the only combination where nothing else records a sub-issue's own parent (`spec-template.md`). Under collapse, omit this line entirely — there is no `$PARENT_NUM` to reference.
 
@@ -164,7 +163,7 @@ Deliverable-name-collisions section owns the check and the grep.
 
 **Ceremony** — invoke the canonical ceremony-check pattern (`_shared/ceremony-check-invocation.md`) against this sub-issue's own composed body — never a kept parent, which carries no `ceremony:*` label either. **This call site's delta:** per-leaf (once per sub-issue in the decomposition loop), without `#{n}` (no sub-issue number exists yet). The verdict becomes `$SUB_ISSUE_CEREMONY` below, written into the sub-issue's own create call — writeback happens via record creation itself, not a separate stamp.
 
-**Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this sub-issue's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `solution:unjustified` on the sub-issue and fold the RATIONALE's named assumptions into that sub-issue's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. Sub-issues have no `## Original request` block, so the composed body is the whole input here.
+**Framing** — invoke `/claude-tweaks:challenge` in `framing-check` mode (`Skill(skill: "claude-tweaks:challenge", args: "framing-check")`) against this sub-issue's own composed body — never the parent, which carries no scoring labels either. On `FRAMING: solution-baked`, stamp `solution:unjustified` on the sub-issue and fold the RATIONALE's named assumptions into that sub-issue's `## Gotchas` bullets. On `FRAMING: open`, stamp nothing. A freshly created sub-issue has no `## Original request` block, so the composed body is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode.
 
 **Per-sub-issue invocation.** Both the Ceremony and Framing calls above run once per sub-issue, inside this per-sub-issue loop — `#{n}` is omitted from both (`ceremony-check`'s own documented pre-numbering exception, `assess-agent-autonomy/SKILL.md`'s Input section; `framing-check` mirrors it here for the identical reason — no sub-issue number exists until the create call further below) — never reused or rendered from memory for a later sub-issue in the same decomposition. **Self-check before creating:** count the bare `ceremony-check`/`framing-check` invocations made since the previous sub-issue's create call (or since the start of this loop, for the first sub-issue) and confirm it is exactly one of each before this create call runs — a divergent verdict across sub-issues in the same decomposition is only valid when each sub-issue had its own invocation, made inside its own since-the-last-create window.
 
@@ -234,7 +233,7 @@ SUB_ISSUE_NUM=$(basename "$SUB_ISSUE_URL")
 
 When this sub-issue's Framing verdict (above) was `solution-baked`, add `--label "solution:unjustified"` to the create call; on `open` add nothing — the label is presence-only, and absence is the common case.
 
-**`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `"$SPECIFY_SUB_ISSUE_BODY"` already carries the fingerprint marker, so the local write preserves it:
+**`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above. One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `"$SPECIFY_SUB_ISSUE_BODY"` already carries the fingerprint marker, so the local write preserves it:
 
 ```bash
 SPECIFY_SUB_ISSUE_BODY=$(node -e "
@@ -256,15 +255,14 @@ Add a `facets.solutionUnjustified: true` key to the object above only when this 
 
 Capture `$SUB_ISSUE_NUM` / `$SUB_ISSUE_ID` for every sub-issue (created or resumed via the Idempotency map) — Step 4's linking pass consumes them.
 
-**Write-path resilience.** A `gh` create failure for one sub-issue (any kept parent already exists on GitHub by this point) falls back to `local-store.js` for that sub-issue only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch. Don't abort the whole decomposition over one failed sub-issue. `/tidy`'s Sync finding reconciles the local sub-issue onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link gets noted and the pass continues, it doesn't roll back everything already created.
+**Write-path resilience.** A `gh` create failure for one sub-issue (any kept parent already exists on GitHub by this point) falls back to `local-store.js` for that sub-issue only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch rather than aborting the whole decomposition over one failure. `/tidy`'s Sync finding reconciles it onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link is noted and the pass continues; nothing already created rolls back.
 
-**Body size ceiling.** A sub-issue body pushing past roughly 50KB (GitHub's hard cap is 65,536 characters) is a decomposition smell, not a formatting problem — split the unit further rather than shipping an oversized sub-issue.
+**Body size ceiling.** A sub-issue body past roughly 50KB (GitHub's hard cap is 65,536 characters) is a decomposition smell, not a formatting problem — split the unit further.
 
 **Snapshot invalidation.** Once every `gh issue create` call in this step's batch (every
-sub-issue, plus a kept parent) has run, invalidate the session-scoped record snapshot once — this step's own
-Idempotency map stays correct in-memory for the rest of the batch without it, so there is no need
-to invalidate after each individual create, only after the whole batch, before Step 4 or any later
-consumer reads the queue again:
+sub-issue, plus a kept parent) has run, invalidate the session-scoped record snapshot once — the
+Idempotency map above stays correct in-memory for the rest of the batch, so invalidation is needed
+only after the whole batch, before Step 4 or any later consumer reads the queue again:
 
 ```bash
 node -e "require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
