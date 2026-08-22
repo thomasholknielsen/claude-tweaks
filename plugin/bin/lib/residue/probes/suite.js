@@ -15,6 +15,7 @@ function probeSuite({ scope, run } = {}) {
   const result = run();
   if (result === null) return { ran: false, reason: 'could not run the project test command', findings: [] };
   if (result.timedOut) return { ran: false, reason: 'test command timed out', findings: [] };
+  if (result.bufferOverflowed) return { ran: false, reason: 'test output exceeded capture buffer', findings: [] };
   if (result.code === 0) return { ran: true, reason: null, findings: [] };
 
   const allFailing = String(result.stdout || '').split('\n').filter((l) => l.startsWith('not ok'));
