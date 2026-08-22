@@ -26,12 +26,17 @@ const STEPS_AND_GATES = read('plugin', 'skills', 'flow', 'steps-and-gates.md');
 const WRAP_EXEC = read('plugin', 'skills', 'wrap-up', 'execution-and-verification.md');
 const HOOKS_JS = read('plugin', 'bin', 'hooks.js');
 
-test('the run marker is the unconditional first line of the PR body', () => {
+test('the run marker is the unconditional first line of the PR body, with its plain-text companion immediately after', () => {
   assert.match(
     LIFECYCLE,
-    /<!-- claude-tweaks-run: \{run-id\} -->\n\n### Spec summary/,
-    'the sweep and reconciler key on this marker to recognize a plugin-created PR without a local run-dir join — it must never be conditional or buried',
+    /<!-- claude-tweaks-run: \{run-id\} -->\nclaude-tweaks-run: \{run-id\}\n\n### Spec summary/,
+    'the sweep and reconciler key on the HTML-comment marker for a gh-present recognition; the plain-text companion (#929) is what a gh-absent MCP read sees instead, since the HTML-comment form is invisibly stripped from that read path',
   );
+});
+
+test('the phase checklist carries a plain-text delimiter pair alongside the HTML-comment pair (#929)', () => {
+  assert.match(LIFECYCLE, /\[claude-tweaks-phases-start\]/);
+  assert.match(LIFECYCLE, /\[claude-tweaks-phases-end\]/);
 });
 
 test('the push at run start is its own Bash call, never chained', () => {
@@ -89,11 +94,11 @@ test('the skip/degrade table names local-merge, push failure, gh-create failure,
   }
 });
 
-test('gh-absent is distinguished from a plain failure by the absence of an MCP fallback for pull requests', () => {
+test('gh-absent now has a documented MCP fallback for PR create/update, using the dual-marker scheme (#929)', () => {
   assert.match(
     LIFECYCLE,
-    /no pull-request row.*no MCP fallback|no MCP fallback.*pull requests/s,
-    '_shared/github-write-transport.md carries no pull-request row — unlike issue operations, there is no fallback transport to attempt',
+    /mcp__github__create_pull_request.*update_pull_request.*documented fallback|documented fallback.*mcp__github__create_pull_request/s,
+    '_shared/github-write-transport.md now documents a PR create/update exception — #929 replaced the stale "no MCP fallback" claim once the dual-marker scheme made a gh-absent PR recognizable',
   );
 });
 
