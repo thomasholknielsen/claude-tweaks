@@ -121,6 +121,29 @@ test('the parent-record guard in SKILL.md is untouched by this change', () => {
   assert.match(text, /Parent-record guard \(before the `needs:definition` check\)/);
 });
 
+// --- AC4 gap: origin-closure wording ---
+
+test('decomposition-mode.md Step 9 contains the literal "Superseded by decomposition:" closure wording', () => {
+  const text = read(DECOMPOSITION_MODE);
+  assert.match(text, /Superseded by decomposition:/);
+});
+
+// --- AC1 gap: collapse step reading-order position ---
+
+test('Step 2.6 Collapse Decision appears between Implicit Dependency Detection and Step 2.5 in reading order', () => {
+  const text = read(DECOMPOSITION_MODE);
+  const idxImplicitDependency = text.indexOf('### Implicit Dependency Detection');
+  const idxStep26 = text.indexOf('## Step 2.6: Collapse Decision');
+  const idxStep25 = text.indexOf('## Step 2.5: Design Pre-Steps');
+
+  assert.ok(idxImplicitDependency >= 0, 'Implicit Dependency Detection heading not found');
+  assert.ok(idxStep26 >= 0, 'Step 2.6: Collapse Decision heading not found');
+  assert.ok(idxStep25 >= 0, 'Step 2.5: Design Pre-Steps heading not found');
+
+  assert.ok(idxStep26 > idxImplicitDependency, 'Step 2.6 should come after Implicit Dependency Detection');
+  assert.ok(idxStep25 > idxStep26, 'Step 2.5 should come after Step 2.6 (backwards numbering in reading order)');
+});
+
 // --- byte ceiling ---
 
 test('every touched specify file remains within the context-cost ceiling', () => {
