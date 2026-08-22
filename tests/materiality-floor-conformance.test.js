@@ -16,6 +16,7 @@ const FLOOR = read('plugin/skills/_shared/materiality-floor.md');
 const GATE = read('plugin/skills/_shared/deferral-gate.md');
 const SWEEP = read('plugin/skills/tidy/digest-sweep.md');
 const TIDY_SKILL = read('plugin/skills/tidy/SKILL.md');
+const TIDY_RECORDS = read('plugin/skills/tidy/step-1-records.md');
 
 test('materiality-floor.md states the floor definition (all three low axes, fail-toward-filing)', () => {
   assert.ok(/size:low/i.test(FLOOR));
@@ -49,8 +50,39 @@ test('materiality-floor.md states expiry is a logged retention decision, not ski
   assert.ok(FLOOR.includes('Archival is a logged retention decision reachable only'));
 });
 
+test('materiality-floor.md defines {area} as an exact-match grouping key', () => {
+  const entryIdx = FLOOR.indexOf('## Entry format');
+  const containerIdx = FLOOR.indexOf('## Container');
+  const section = FLOOR.slice(entryIdx, containerIdx);
+  assert.ok(entryIdx !== -1 && containerIdx > entryIdx, 'Entry format section must precede Container');
+  assert.ok(/`\{area\}` is the subsystem/.test(section), '{area} must be defined, not just referenced');
+  assert.ok(/exact match/i.test(section), 'the definition must state that clustering groups on it by exact match');
+});
+
+test('materiality-floor.md exempts the digest container from record-scoped sweeps', () => {
+  assert.ok(FLOOR.includes('The digest issue is a container, not a work record.'));
+  assert.ok(FLOOR.includes('isBacklog'), 'the exemption must name the predicate that would otherwise claim it');
+  assert.ok(/never (?:shaped|scored|promoted|closed)/.test(FLOOR));
+});
+
+test('tidy Shape 1 carries the digest-container staleness exemption the contract promises', () => {
+  const shape1 = TIDY_RECORDS.slice(
+    TIDY_RECORDS.indexOf('### Shape 1'),
+    TIDY_RECORDS.indexOf('### Shape 2'),
+  );
+  assert.ok(shape1.length > 0, 'Shape 1 section must exist');
+  assert.match(shape1, /Digest containers are exempt/);
+  assert.ok(shape1.includes('_shared/materiality-floor.md'));
+  assert.match(shape1, /Keep — materiality-floor digest container/);
+});
+
 test('deferral-gate.md\'s bundling bullet cites materiality-floor.md by literal path', () => {
-  assert.ok(GATE.includes('_shared/materiality-floor.md'));
+  const bullet = GATE.split('\n').find((l) => l.includes('"Bundle of small items"'));
+  assert.ok(bullet, 'deferral-gate.md must still carry the "Bundle of small items" bad-reason bullet');
+  assert.ok(
+    bullet.includes('_shared/materiality-floor.md'),
+    'the citation must sit on the bundling bullet itself, not merely somewhere else in the file',
+  );
 });
 
 test('digest-sweep.md states the cluster-promotion threshold, per-line marker, and always-promotable rule', () => {

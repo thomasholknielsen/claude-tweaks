@@ -33,6 +33,13 @@ fails toward filing an ordinary issue, never toward the digest.
 - [{area}] {one-line finding} — {file refs} — Defer-reason: {value} — {provenance}
 ```
 
+`{area}` is the subsystem the finding belongs to, written as a stable, low-cardinality, lowercase
+token: the skill name (`tidy`, `review`), the `bin/lib/` module (`issues`, `hooks`), or the
+top-level tree (`docs`, `tests`) the `{file refs}` sit under — never a sentence and never a
+slash-prefixed command name. `tidy/digest-sweep.md`'s cluster promotion groups on this field by
+exact match, so improvised per-run phrasings of the same area (`tidy` vs `/tidy` vs `the tidy
+skill`) silently keep a real cluster below the ≥3 threshold forever.
+
 `{provenance}` is the pipeline run-id when a run directory resolves (`$PIPELINE_RUN_DIR`'s
 basename), else the invoking skill's name. The entry itself is the durable audit trail — a
 no-run-dir routing is never unlogged.
@@ -47,6 +54,17 @@ comment per item. All writes go through `_shared/github-write-transport.md`. Rou
 append-only; the one sanctioned exception is the `/tidy` digest sweep's promotion/expiry marker
 edits (`tidy/digest-sweep.md`). A creation race that leaves two open `digest` issues is repaired
 by that same sweep: merge the newer issue's comments into the older, then close the newer.
+
+**The digest issue is a container, not a work record.** It carries no stage label by design, so
+every record-scoped sweep that reads the open-issue queue classifies it as an ordinary backlog
+record (`bin/lib/issues/record-buckets.js`'s `isBacklog` — stage `backlog` is the no-label
+default). Every such sweep exempts a `digest`-labeled issue the same way `/tidy`'s Shape 1 already
+exempts `parent-issue` (`tidy/step-1-records.md`): a digest issue is never shaped, scored,
+promoted, or closed as a record. Without that exemption the container is `isBacklog` forever and
+crosses any staleness threshold, where Shape 1's default recommendation is `Delete or Promote` —
+closing the container out from under every entry it holds. Only the digest sweep's own lifecycle
+(`tidy/digest-sweep.md`'s 100-comment rollover) ever closes a digest issue, and it bootstraps the
+replacement in the same move.
 
 **`work-backend: local-files`:** `specs/digest.md`, entries appended in place (single-writer
 backend, no rollover needed). Promotion marks the entry line with a trailing `→ {id}`. Expiry
