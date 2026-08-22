@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const {
-  rankNextToBuild, blockersOf, findUnresolvedDependencyProse, transitiveUnblocksCount, buildChains,
+  rankNextToBuild, blockersOf, findUnresolvedDependencyProse, priorityBandOf,
 } = require('../../../plugin/bin/lib/issues/ranking');
 const { parseRecordFacets } = require('../../../plugin/bin/lib/issues/record');
 
@@ -221,86 +221,21 @@ test('findUnresolvedDependencyProse: unsynced candidate with prose mention and N
   assert.deepEqual(findUnresolvedDependencyProse([emptyBlockedBy]), [{ id: 32, mention: 'Blocked by #3 in prose' }]);
 });
 
-// --- transitiveUnblocksCount + buildChains (#515) ---
+// --- priorityBandOf (#1101: exported so overview-mode.md's Shape stage can
+// reuse the guarded band lookup instead of reimplementing it without the
+// PRIORITIES.includes() check, which produced NaN on an out-of-vocabulary
+// facets.priority value) ---
 
-const chainFixture = [
-  { id: 418, blockedBy: [], facets: {} },
-  { id: 419, blockedBy: [418], facets: {} },
-  { id: 420, blockedBy: [419], facets: {} },
-];
-
-test('transitiveUnblocksCount: linear chain head counts every transitively blocked candidate', () => {
-  const counts = transitiveUnblocksCount(chainFixture);
-  assert.equal(counts.get(418), 2);
-  assert.equal(counts.get(419), 1);
-  assert.equal(counts.get(420), 0);
+test('priorityBandOf: ranks high < medium < low', () => {
+  assert.ok(priorityBandOf({ facets: { priority: 'high' } }) < priorityBandOf({ facets: { priority: 'medium' } }));
+  assert.ok(priorityBandOf({ facets: { priority: 'medium' } }) < priorityBandOf({ facets: { priority: 'low' } }));
 });
 
-test('buildChains: linear chain linearizes head-first as one chain', () => {
-  const result = buildChains(chainFixture);
-  assert.deepEqual(result, { chains: [[418, 419, 420]], independents: [], cycles: [] });
+test('priorityBandOf: absent priority sorts last (band 3), not NaN', () => {
+  assert.equal(priorityBandOf({ facets: {} }), 3);
 });
 
-test('buildChains: diamond linearizes as one component without duplicating any record', () => {
-  const diamond = [
-    { id: 1, blockedBy: [], facets: {} },
-    { id: 2, blockedBy: [1], facets: {} },
-    { id: 3, blockedBy: [1], facets: {} },
-    { id: 4, blockedBy: [2, 3], facets: {} },
-  ];
-  const result = buildChains(diamond);
-  assert.deepEqual(result.chains, [[1, 2, 3, 4]]);
-  assert.deepEqual(result.independents, []);
-  assert.deepEqual(result.cycles, []);
-});
-
-test('cycle fixture: both helpers terminate; buildChains routes the component to cycles', () => {
-  const cyclic = [
-    { id: 7, blockedBy: [8], facets: {} },
-    { id: 8, blockedBy: [7], facets: {} },
-    { id: 9, blockedBy: [], facets: {} },
-  ];
-  const counts = transitiveUnblocksCount(cyclic);
-  assert.ok(Number.isFinite(counts.get(7)));
-  assert.ok(Number.isFinite(counts.get(8)));
-  const result = buildChains(cyclic);
-  assert.deepEqual(result.chains, []);
-  assert.deepEqual(result.independents, [9]);
-  assert.deepEqual(result.cycles, [{ ids: [7, 8] }]);
-});
-
-test('buildChains: singletons pass through as independents', () => {
-  const singles = [
-    { id: 5, blockedBy: [], facets: {} },
-    { id: 6, facets: {} },
-  ];
-  assert.deepEqual(buildChains(singles), { chains: [], independents: [5, 6], cycles: [] });
-});
-
-test('out-of-set blockers contribute nothing to either helper', () => {
-  const set = [
-    { id: 10, blockedBy: [999], facets: {} },
-    { id: 11, blockedBy: [10], facets: {} },
-  ];
-  assert.equal(transitiveUnblocksCount(set).get(10), 1);
-  assert.equal(transitiveUnblocksCount(set).has(999), false);
-  const result = buildChains(set);
-  assert.deepEqual(result.chains, [[10, 11]]);
-  assert.deepEqual(result.cycles, []);
-});
-
-test('buildChains: a mixed-priority ready batch orders by priority band, not by id (#515)', () => {
-  const mixedBatch = [
-    { id: 1, blockedBy: [], facets: {} },
-    { id: 2, blockedBy: [1], facets: { priority: 'low' } },
-    { id: 3, blockedBy: [1], facets: { priority: 'high' } },
-  ];
-  const result = buildChains(mixedBatch);
-  assert.deepEqual(result.chains, [[1, 3, 2]], 'id 3 (priority:high) must precede id 2 (priority:low) in the ready batch even though 2 < 3');
-});
-
-test('buildChains: independents sort ascending by id regardless of input order (#515)', () => {
-  const outOfOrder = [{ id: 6, facets: {} }, { id: 5, facets: {} }];
-  const result = buildChains(outOfOrder);
-  assert.deepEqual(result.independents, [5, 6], 'independents must sort, not merely reflect input order');
+test('priorityBandOf: an out-of-vocabulary priority value falls back to band 3 instead of NaN', () => {
+  assert.equal(priorityBandOf({ facets: { priority: 'urgent' } }), 3);
+  assert.ok(Number.isFinite(priorityBandOf({ facets: { priority: 'urgent' } })));
 });
