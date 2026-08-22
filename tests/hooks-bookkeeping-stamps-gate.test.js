@@ -226,3 +226,39 @@ test('hasLoggedPrDegrade: false when decisions.md does not exist', () => {
   const { run } = mkRunDir(project, '/nonexistent', undefined);
   assert.strictEqual(pre.hasLoggedPrDegrade(run), false);
 });
+
+test('regression (IL-131 recurrence, records #118/#893): a build agent that materializes then edits code directly — no record-worktree, no record-pr — is denied on its very first code edit, not silently allowed through', () => {
+  // Reproduces the exact trigger: build judged "already satisfied by prior
+  // work," skipped straight from the materialize commit to editing
+  // implementation code, never calling record-worktree or record-pr.
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '893-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, null, undefined); // record-worktree never ran
+
+  // The first tool call after materialize: an Edit to some already-satisfied
+  // file, exactly the "nothing further to implement" shortcut IL-131 describes.
+  const out = pre.run({
+    input: editInput(path.join(wt, 'plugin', 'skills', 'build', 'SKILL.md')),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+
+  assert.ok(out.json, 'expected the sweep-past-both-stamps case to be caught, not silently allowed');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-worktree/);
+
+  // Simulate remediation: run record-worktree, retry the same edit.
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active', worktree: wt }));
+  const retry = pre.run({
+    input: editInput(path.join(wt, 'plugin', 'skills', 'build', 'SKILL.md')),
+    runDir: run,
+    runState: { status: 'active', worktree: wt },
+    cwd: wt,
+  });
+  // No origin remote on this fixture -> local-merge, so the PR-stamp branch
+  // never applies here; the edit is now allowed once the worktree stamp lands.
+  assert.deepStrictEqual(retry, {});
+});
