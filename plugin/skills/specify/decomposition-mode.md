@@ -206,7 +206,7 @@ SPECIFY_KEY_FILES=$(node -e "
 ")
 ```
 
-- **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it. Exclude a record whose body carries a `{design-doc-slug}:{unit-slug}` fingerprint matching a unit in this run's list: it IS that unit, created by a prior partial run, and entering it twice would fabricate a self-dependency signal that flips Step 2.6's collapse verdict on resume.
+- **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it. Exclude a record whose body fingerprint matches a unit in this run's list: it IS that unit from a prior partial run — double-entry would fabricate a self-dependency signal and flip Step 2.6's verdict on resume.
 - **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 5's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the sub-issue's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet.
 
 ```bash
@@ -239,7 +239,7 @@ Present any detected implicit dependencies as part of the Step 9 summary. These 
 
 > **Algorithm shared with /claude-tweaks:help:** both /specify and /help call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — /specify runs it at creation time; /help re-runs it at dashboard time to catch new conflicts from records that started building after /specify ran.
 
-> **Why this matters:** An explicit `Blocked by #N` link captures a logical dependency (sub-issue B needs sub-issue A's API). File-based overlap captures a physical dependency (both sub-issues modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
+> **Why this matters:** `Blocked by #N` captures a logical dependency (B needs A's API); file overlap captures a physical one (both touch the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
 
 ## Step 2.6: Collapse Decision
 
@@ -322,9 +322,9 @@ Read `red-team.md` in this skill's directory for the dispatch prompt (Template A
 
 Before deleting the design doc, look at every record you wrote with fresh eyes — including the red-team findings just written in Step 5. Fix issues inline — no subagent, no separate review pass. This is also the last chance to catch content the design doc captured but no sub-issue implements.
 
-"Wrote" means created or edited in this run. A sub-issue resumed via Step 3's Idempotency map that Step 5 skipped (already clean — no unresolved findings) and that this run made no further edits to does not need a fresh self-review pass; its prior run already completed one. Scope checks 1-5 below to sub-issues this run actually created, plus any resumed sub-issue Step 5 dispatched against (because it still carried unresolved findings) or that Step 4's linking pass edited.
+"Wrote" means created or edited in this run. A sub-issue resumed via Step 3's Idempotency map, skipped by Step 5 (already clean), and unedited this run needs no fresh pass — its prior run completed one. Scope checks 1-5 below to sub-issues this run created, plus any resumed one Step 5 dispatched against or Step 4's linking edited.
 
-> **Parallel execution (conditional):** When N ≥ 3 sub-issue records are produced, run scope and ambiguity checks across all sub-issues concurrently — `gh issue view` per sub-issue under `work-backend: github-issues`, `Read` per record file under `work-backend: local-files` — plus `Grep` over the fetched bodies for placeholder patterns.
+> **Parallel execution (conditional):** When N ≥ 3 sub-issue records are produced, run scope and ambiguity checks concurrently — `gh issue view` per sub-issue under `work-backend: github-issues`, `Read` per record file under `work-backend: local-files` — plus `Grep` over the fetched bodies for placeholder patterns.
 
 1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section, over every record body (every sub-issue, plus the parent when Step 2.6 kept one). Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to sub-issue N" — fix them now. Also confirm every `<!-- ambiguity: ... -->` marker Step 5's red-team wrote has been resolved and **deleted**, with one exception: a marker whose finding Step 5 staged for the Review Console stays — that sub-issue's `ready` is already cleared, and its resolution is the console's decision, not this step's. On every sub-issue that remains `ready`, zero may remain: a `ready` sub-issue still carrying one fails `_shared/work-record.md`'s spec-shaped structural check, which treats `<!-- ambiguity:` as an unresolved placeholder marker exactly like `TBD`/`TODO`.
 2. **Internal consistency** — across the sub-issues in this decomposition, do referenced types, model names, and endpoint signatures match? A function called `clearLayers()` in sub-issue 42 but `clearFullLayers()` in sub-issue 43 is a bug.
