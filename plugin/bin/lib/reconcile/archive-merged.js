@@ -67,11 +67,19 @@ function decideArchive(prState, consoleState) {
     return { action: 'skip', reason: prState.state === 'OPEN' ? 'pr-open' : 'pr-closed-unmerged' };
   }
   if (consoleState === 'unresolved') return { action: 'skip', reason: 'console-unresolved' };
+  // #1130: this sweep's population is non-terminal runs only
+  // (iterRunDirsWithState skips status:'clean'), so an absent console.json
+  // here always means wrap-up never rendered a console for this run — never
+  // the empty-console fast path, which closes the run terminal and archives
+  // via the archive-run verb without ever reaching this sweep. Archiving on
+  // mere PR-merge swept live runs with pending staged decisions (#657).
+  if (consoleState === 'none') return { action: 'skip', reason: 'console-never-rendered' };
   return { action: 'archive' };
 }
 
-// 'unresolved' | 'resolved' | 'none' (no console.json rendered — archival
-// under the "or no console rendered" clause is not blocked on it).
+// 'unresolved' | 'resolved' | 'none' (no console.json rendered — #1130:
+// blocks this sweep's archival; the empty-console fast path archives via the
+// archive-run verb instead).
 function readConsoleState(runDir) {
   let raw;
   try { raw = fs.readFileSync(path.join(runDir, 'console.json'), 'utf8'); } catch { return 'none'; }
@@ -81,6 +89,21 @@ function readConsoleState(runDir) {
   } catch {
     return 'unresolved'; // unparseable console state fails closed — never silently archived
   }
+}
+
+// #1130: gh's MERGED state is a remote fact; the local main checkout may not
+// have fast-forwarded to include the merge commit yet. The run dir's tracked
+// work/ subtree only reaches the main checkout via that merge, so archiving
+// early moves only the gitignored half and strands work/ (the #657 symptom).
+// true = merge commit is in local history; false = definitively not (safe to
+// retry next pass); null = oid unavailable/malformed — treated by the caller
+// as not-yet-verifiable, same skip-and-retry.
+function localHasMerge(root, mergeCommit) {
+  const oid = mergeCommit && typeof mergeCommit.oid === 'string' && /^[0-9a-f]{40}$/.test(mergeCommit.oid)
+    ? mergeCommit.oid : null;
+  if (!oid) return null;
+  const r = runGit(['merge-base', '--is-ancestor', oid, 'HEAD'], root);
+  return r.failure ? false : true;
 }
 
 // Moves-first, close-last ordering (the reverse of cleanup-procedures.md
@@ -437,6 +460,12 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
     const consoleState = readConsoleState(dir);
     const decision = decideArchive(prState, consoleState);
     if (decision.action === 'skip') { skipped.push({ runDir: dir, reason: decision.reason }); continue; }
+
+    const hasMerge = localHasMerge(root, prState.mergeCommit);
+    if (hasMerge !== true) {
+      skipped.push({ runDir: dir, reason: hasMerge === false ? 'local-behind-merge' : 'merge-commit-unknown' });
+      continue;
+    }
     if (dryRun) { archived.push(dir); continue; }
 
     const result = archiveRunDir(root, dir);
@@ -450,4 +479,5 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
 module.exports = {
   archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
   isOrphanedMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
+  localHasMerge,
 };
