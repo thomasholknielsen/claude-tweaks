@@ -892,7 +892,7 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   // Purely an optimization; it changes no deny/allow outcome.
   if (ctx.runState.worktree && ctx.runState.pr) return {};
 
-  const { repoRoot: wtRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(ctx.cwd);
+  const { repoRoot: wtRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(ctx.cwd || process.cwd());
   if (indeterminate || !wtRoot || !isLinkedWorktree) return {};
 
   // Foreign-repo scoping for the Bash branch (whole-branch review I2.2):
