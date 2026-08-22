@@ -240,6 +240,24 @@ Present any detected implicit dependencies as part of the Step 9 summary. These 
 
 > **Why this matters:** An explicit `Blocked by #N` link captures a logical dependency (sub-issue B needs sub-issue A's API). File-based overlap captures a physical dependency (both sub-issues modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
 
+## Step 2.6: Collapse Decision
+
+With Step 2's work-unit list final and Implicit Dependency Detection's overlap/dependency signals computed, decide whether this decomposition needs a parent record at all. `--granularity` never overrides this decision — that flag tunes Step 2's sizing targets only (see `SKILL.md`'s Input section).
+
+**1 work unit — always collapses.** No parent is created. The single unit becomes a standalone ready record (or, when `$ORIGIN_RECORD_NUM` is set, the origin record is shaped in place — see Step 9).
+
+**2 work units — collapses only when independent.** Read Implicit Dependency Detection's own outputs for these two units (never re-derive dependency-ness from prose, and never read the adjacent Ceiling-headroom flag, which is a byte-budget annotation from the same grouping pass, not a dependency signal):
+
+- A `Blocked by #N` flag between the two units (from Overlap Analysis or the Implicit Dependency Detection table) → **dependency-ordered — keep the parent.**
+- An internal-conflict row (Overlap-Type table: "grouped with another new work unit from this decomposition") between the two units → **dependency-ordered — keep the parent.**
+- The strangler-fig `early-production` two-sub-issue shape (Decomposition Heuristics table: implement-behind-a-flag, then remove-the-old-path) → **always parent-keeping** — the parent tracks the flag-then-remove sequence; this shape never collapses regardless of the two signals above.
+- Neither signal present, and not the strangler-fig shape → **independent — collapses.** No parent is created; the two units become two ordinary ready records, cross-linked via a `Related: #N` body line on each (see `record-creation.md`'s Linking section for the exact format).
+- **Ambiguous** (a signal exists but this step cannot confidently classify it as dependency-ordering the two units) → **keep the parent.** Ambiguity resolves toward tracking, never toward collapse.
+
+**3+ work units — never collapses.** Unchanged: a parent is always created, exactly as today. The strangler-fig `established` three-sub-issue shape is one instance of this — it is 3+ units by construction and was never in scope for collapse.
+
+Carry this decision forward as this run's collapse verdict — `parent kept` / `2-unit collapse` / `1-unit collapse` — for Step 3's record creation (`record-creation.md`), Step 9's origin-closure and summary (below), and every other step that references "the parent."
+
 ## Step 2.5: Design Pre-Steps (frontend specs only)
 
 Before creating sub-issue records, run frontend detection and two design pre-steps when the design doc covers a frontend surface — these capture design context (`shape`) and creative direction (`design-intent:`) so the resulting specs carry both forward to `/build` and `/flow`'s polish phase. For the frontend-detection sniff rules, the shape pre-step auto/interactive behavior, and the design-intent question + answer-mapping table, read `design-pre-steps.md` in this skill's directory.
