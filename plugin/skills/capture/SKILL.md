@@ -357,11 +357,10 @@ AUTO {time} — Routing: defaulted to keep (no --route provided). Reversibility:
 In interactive mode (or when explicitly opted in), present "Added: '{title}' (Type: {t}, Definition: {needed|clear})" (rationale clause per Judging Definition above, when applicable) and call `AskUserQuestion`:
 
 - `question`: `"What should happen with this?"`, `header`: `"Route idea"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Brainstorm directly"`, `description`: `"Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify"`
-- Option 2 — `label`: `"Keep as backlog record"`, `description`: `"Not ready yet, will be reviewed during /claude-tweaks:tidy"`
-- Option 3 (conditional) — `label`: `"Absorb into record {N}"`, `description`: `"This belongs in an existing record"`
+- **High similarity** (the two-criteria bar below, met by exactly one candidate): absorb is **Option 1** — `label`: `"Absorb into record {N} (Recommended)"`, `description`: `"This belongs in an existing record"` — with Brainstorm and Keep following as Options 2-3 (labels/descriptions below). Several candidates meeting the bar: recommend the one sharing the most file paths with the capture, tie-broken by most-recently-updated (`updatedAt` from the widened fetch). Nothing is silently merged — one click to decline.
+- **Low or ambiguous similarity** (a candidate exists, bar not met): today's ordering stands — Option 1 `label`: `"Brainstorm directly"`, `description`: `"Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify"`; Option 2 `label`: `"Keep as backlog record"`, `description`: `"Not ready yet, will be reviewed during /claude-tweaks:tidy"`; Option 3 (conditional) `label`: `"Absorb into record {N}"`, `description`: `"This belongs in an existing record"`.
 
-The call has 3 options only when Option 3 is visible; otherwise build it with the first 2 options only — never include Option 3 with a placeholder value.
+The call has 3 options only when absorb is visible, in either ordering above; otherwise build it with Brainstorm and Keep only — never include an absorb option with a placeholder value.
 
 > **Option 3 visibility:** Search for a candidate match on the topic keywords from the new backlog record, per the active driver from Backend Selection. `local-files` — search `specs/` for a record matching the keywords. `github-issues` — search open issues: `gh issue list --search "{keywords}" --state open --json number,title,labels,updatedAt --limit 5`, then for at most the top 2 candidates one `gh issue view {n} --json body` follow-up read before judging (the same search-narrow-then-fetch-full two-step `/specify`'s case 5 uses; the cap keeps the interactive path fast). Only show option 3 when either search returns a candidate. Without a candidate match, option 3 is omitted entirely — manual disambiguation against an unspecified record number is worse than no option at all.
 >
