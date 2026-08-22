@@ -148,6 +148,25 @@ function revertWorkMoves(root, workMoves) {
   return fullyReverted;
 }
 
+// Review finding: the two plain fs.renameSync loops below (gitignored
+// content — no git index involved, so revertWorkMoves' git-reset step
+// doesn't apply) had no revert-on-failure, unlike the git-tracked workMoves
+// loop above — the same partial-move hazard #1103 fixed for `git mv` was
+// still reachable here. Best-effort and never throws, matching
+// revertWorkMoves' contract; the failed entry itself is never included in
+// movedPairs, same reasoning as revertWorkMoves' own failed-pair handling.
+function revertPlainMoves(movedPairs) {
+  let fullyReverted = true;
+  for (const [src, dest] of movedPairs) {
+    try {
+      fs.renameSync(dest, src);
+    } catch {
+      fullyReverted = false;
+    }
+  }
+  return fullyReverted;
+}
+
 function archiveRunDir(root, runDir) {
   const runId = path.basename(runDir);
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
@@ -271,14 +290,18 @@ function archiveRunDir(root, runDir) {
     // exist (created by the workMoves batch above), so a whole-dir rename
     // would fail ENOTEMPTY; their contents move entry-by-entry in the
     // dedicated spec loop below instead.
+    const movedThisPass = [];
     for (const name of entries.filter((n) => n !== 'work' && !specDirs.includes(n))) {
       const src = path.join(runDir, name);
       if (!fs.existsSync(src)) continue;
+      const dest = path.join(archiveDir, name);
       try {
-        fs.renameSync(src, path.join(archiveDir, name));
+        fs.renameSync(src, dest);
       } catch {
-        return { ok: false, reason: 'move-failed' };
+        const fullyReverted = revertPlainMoves(movedThisPass);
+        return { ok: false, reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert' };
       }
+      movedThisPass.push([src, dest]);
       movedEntries.push(name);
     }
   }
@@ -313,14 +336,18 @@ function archiveRunDir(root, runDir) {
         return { ok: false, reason: 'move-failed' };
       }
     }
+    const specMovedThisPass = [];
     for (const name of specRemaining) {
       const src = path.join(specDir, name);
       if (!fs.existsSync(src)) continue;
+      const dest = path.join(specArchiveDir, name);
       try {
-        fs.renameSync(src, path.join(specArchiveDir, name));
+        fs.renameSync(src, dest);
       } catch {
-        return { ok: false, reason: 'move-failed' };
+        const fullyReverted = revertPlainMoves(specMovedThisPass);
+        return { ok: false, reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert' };
       }
+      specMovedThisPass.push([src, dest]);
       movedEntries.push(path.join(specName, name));
     }
     try {

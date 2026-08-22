@@ -374,6 +374,84 @@ test('archiveRunDir: git mv fails on the SECOND of two spec work/ pairs — firs
   );
 });
 
+// Review finding: the top-level gitignored-entries loop (below the
+// tracked-entry guard) had no revert-on-failure — a later entry's
+// fs.renameSync failure left an earlier entry stranded at the archive path
+// while the run dir reported failure, the same partial-move hazard #1103
+// fixed for `git mv`, just for plain filesystem moves instead.
+test('archiveRunDir: a later gitignored top-level entry fails to move — the earlier one is reverted back to the run dir', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-1401';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  fs.writeFileSync(path.join(runDir, 'config.yml'), 'auto-mode: true\n');
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n');
+
+  // Only intercepts config.yml/decisions.md's own moves — run-state.json is
+  // deliberately left alone: archiveRunDir's interim 'archiving' claim
+  // (writeRunState) also targets archiveDir/run-state.json via its own
+  // internal tmp-file rename, so asserting on that path here would be
+  // testing the claim write, not the entries loop under test.
+  const realRename = fs.renameSync;
+  let entryRenameCount = 0;
+  t.mock.method(fs, 'renameSync', (src, dest) => {
+    const base = path.basename(String(src));
+    if (base !== 'config.yml' && base !== 'decisions.md') return realRename(src, dest);
+    entryRenameCount += 1;
+    if (entryRenameCount === 2) throw new Error('simulated failure: fs.renameSync (2nd entry)');
+    return realRename(src, dest);
+  });
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'move-failed');
+  assert.equal(entryRenameCount, 3, 'first entry moved, second entry failed, first entry reverted');
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'config.yml')), false);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'decisions.md')), false);
+  assert.equal(fs.existsSync(path.join(runDir, 'config.yml')), true);
+  assert.equal(fs.existsSync(path.join(runDir, 'decisions.md')), true);
+});
+
+// Same hazard, same fix, for the per-spec gitignored-entries loop (multi-spec
+// parent layout) — a later entry within one spec dir's own pass fails, the
+// earlier entry within that SAME spec dir is reverted.
+test('archiveRunDir: a later gitignored spec-N entry fails to move — the earlier one in that spec dir is reverted', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-1402-1403';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(path.join(runDir, 'spec-1402'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'spec-1402', 'a.md'), '# a\n');
+  fs.writeFileSync(path.join(runDir, 'spec-1402', 'b.md'), '# b\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  // Counts only content-move renames — see the sibling test above for why
+  // the interim-claim tmp-file rename is excluded.
+  const realRename = fs.renameSync;
+  let entryRenameCount = 0;
+  t.mock.method(fs, 'renameSync', (src, dest) => {
+    if (String(src).includes('.tmp-')) return realRename(src, dest);
+    entryRenameCount += 1;
+    // 1st content move: top-level run-state.json — let it succeed so only
+    // the spec-dir loop's own pass is under test. Fail the spec dir's 2nd
+    // entry (2nd content move within that spec dir = overall 3rd).
+    if (entryRenameCount === 3) throw new Error('simulated failure: fs.renameSync (spec entry)');
+    return realRename(src, dest);
+  });
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'move-failed');
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1402', 'a.md')), false);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1402', 'b.md')), false);
+  assert.equal(fs.existsSync(path.join(runDir, 'spec-1402', 'a.md')), true);
+  assert.equal(fs.existsSync(path.join(runDir, 'spec-1402', 'b.md')), true);
+});
+
 // Review finding: the mid-loop revert path (test above) had no coverage for
 // the case where the revert ITSELF also fails, unlike the pre-existing
 // commit-failed-partial-revert path which pins that exact sibling case. The
