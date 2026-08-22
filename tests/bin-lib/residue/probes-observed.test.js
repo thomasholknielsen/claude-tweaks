@@ -41,6 +41,13 @@ test('a timed-out suite does not run, rather than reporting green', () => {
   assert.match(r.reason, /timed out/);
 });
 
+test('a buffer-overflowed suite run does not run, rather than reporting a fabricated failure', () => {
+  const r = probeSuite({ scope: SCOPE, run: () => ({ code: null, stdout: '', bufferOverflowed: true }) });
+  assert.strictEqual(r.ran, false);
+  assert.deepStrictEqual(r.findings, []);
+  assert.match(r.reason, /capture buffer/);
+});
+
 test('the release probe is inert outside claude-tweaks', () => {
   const r = probeRelease({ scope: SCOPE, manifest: { name: 'some-other-plugin', version: '1.0.0' }, run: () => null });
   assert.strictEqual(r.ran, false);
