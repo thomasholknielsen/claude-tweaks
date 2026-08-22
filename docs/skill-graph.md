@@ -454,6 +454,8 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `bin/lib/reconcile/` | `/tidy`'s scan procedures run `reconcile()` at their own trigger points (`scan-procedures.md` Step 4.5's own `reconcile()` call; any `console.ready` follow-up per `_shared/console-execution.md`) and the report's **Applied automatically** section renders its outcomes (`result.claims` / `result.worktrees` / `result.branches` / `result.remoteBranches`) — tidy consumes convergence results, never re-implements the checks; `step-6-auto.md`'s reconcile-converged rows point at the check modules for evidence conditions. |
 | `_shared/github-rate-limit.md` | `scan-procedures.md`'s claim-listing pre-check cites this contract to recognize and classify a rate-limit failure before applying its existing skip-the-sweep-step outcome. |
 | `_shared/reverify-before-write.md` | `step-6-auto.md`'s `[parent-gate]` row cites this contract for its own pre-write reverify — re-reads the gate's live `due` status immediately before opening it, rather than trusting the scan's snapshot from before the batch-approval wait. |
+| `_shared/materiality-floor.md` | `tidy/digest-sweep.md` (Step 5.6) is the contract's first and, until #1262 lands, only consumer — it manages the digest container's full lifecycle (bootstrap-race repair, cluster promotion, expiry). |
+| `_shared/deferral-gate.md` | `_shared/materiality-floor.md` applies strictly after this gate — an item reaching the digest already carries a valid `Defer-reason:` from here; the floor never decides whether to fix. |
 
 ## visual-review
 
