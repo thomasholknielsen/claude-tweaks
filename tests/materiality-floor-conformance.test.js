@@ -45,7 +45,8 @@ test('materiality-floor.md states both container shapes', () => {
 });
 
 test('materiality-floor.md states expiry is a logged retention decision, not skipped work', () => {
-  assert.ok(FLOOR.toLowerCase().includes('not skipped work') || FLOOR.includes('## Expiry is not skipped work'));
+  assert.ok(FLOOR.includes('## Expiry is not skipped work'));
+  assert.ok(FLOOR.includes('Archival is a logged retention decision reachable only'));
 });
 
 test('deferral-gate.md\'s bundling bullet cites materiality-floor.md by literal path', () => {

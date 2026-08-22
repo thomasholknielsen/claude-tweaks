@@ -94,6 +94,7 @@ are about to apply.
 | Definition (1) | `needs:definition` | Marks a record naming a genuine open choice with no tradeoff made yet, rather than a single clear ask; stamped by `/capture` and `/feedback` at filing time (a content judgment, not a structural heuristic), absent means the ask read clear |
 | Provenance (1) | `shaped:headless` | Marks a record shaped by `/specify`'s headless `next` unit with no human review of the resulting spec body — absent means either a human shaped it, or it predates this feature. Writer: `/specify` `next` mode only, applied in the same call as `ready` — never on an interactively-shaped record. Readers: the grant gate (`evaluateGrantGate`, #969), `/backlog attention`, and `/assess-agent-autonomy`'s `grant-check.md` Step 2 Judge (weighs this provenance toward a conservative verdict, #969). Never blocks an interactive human grant. |
 | Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
+| Container (1) | `digest` | marks the rolling digest issue container for below-materiality-floor deferred findings, per `_shared/materiality-floor.md` |
 
 Retired names: `family:parent`, `framing:baked` (now `solution:unjustified`) — [IL-85] PERMANENT read-side support remains for adopter repos; removable only at a major version that drops pre-rename repo support.
 

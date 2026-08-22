@@ -12,8 +12,12 @@ predictable failure mode.
 
 Route to the digest only when the item would be filed at **all three**: `size:low` AND
 `priority:low` AND `risk:low` (`_shared/work-record.md`'s Label taxonomy table — Risk/Size/Priority
-rows). An unscored or ambiguous axis counts as **not low** — the floor fails toward filing an
-ordinary issue, never toward the digest.
+rows), judged at filing time by the routing skill itself — not read off an existing label, since
+most filing paths never stamp `priority:*` (it is an optional family; only `/backlog refine`,
+`/backlog attention`, `/dispatch`, and `/specify`'s `next` mode write it). The routing skill judges
+all three axes as it would score a fresh filing, including the unstamped priority axis. An axis the
+routing skill genuinely cannot judge, or judges ambiguously, counts as **not low** — the floor
+fails toward filing an ordinary issue, never toward the digest.
 
 ## Overrides
 
