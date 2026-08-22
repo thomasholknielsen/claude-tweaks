@@ -22,7 +22,13 @@ const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-archrun-sandbox-'
 
 function runHook(args, { cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
-    const stdout = execFileSync('node', [HOOKS, ...args], { cwd, encoding: 'utf8', env: { ...process.env, ...env } });
+    // #1130: `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var
+    // so a call that doesn't explicitly pass one can't resolve against
+    // whatever real run happens to be ambient in this test runner's own
+    // process.env (e.g. when npm test itself runs inside a /flow-dispatched
+    // shell). A caller that needs a run dir still passes it explicitly via
+    // `env`, which wins because it spreads last.
+    const stdout = execFileSync('node', [HOOKS, ...args], { cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env } });
     return { code: 0, stdout };
   } catch (e) {
     return { code: e.status, stdout: e.stdout || '' };
@@ -103,6 +109,24 @@ test('archive-run: refuses a terminal run whose console.json is rendered but unr
   const result = runHook(['archive-run', '--run', runDir], { cwd: root });
   assert.match(result.stdout, /archival refused — console-unresolved/);
   assert.ok(fs.existsSync(path.join(runDir, 'config.yml')), 'run dir must not be moved');
+});
+
+// #1130: no production path writes `resolved` (console-execution's own
+// completion write only stamped `executedAt`) — pinning readConsoleState to
+// `resolved === true` alone made this verb's console gate refuse every real
+// answered console forever, since close-run had already made the run
+// terminal before this verb ever runs. A non-empty `executedAt` with no
+// `resolved` field must archive successfully.
+test('archive-run: archives a terminal run whose console.json carries executedAt but no resolved field', () => {
+  const { root, runDir, runId } = runDirFixture('clean');
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({
+    commentIds: ['IC_x'], prNumber: 5, items: [], executedAt: '2026-08-20T10:00:00Z',
+  }));
+  const result = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.doesNotMatch(result.stdout, /archival refused/);
+  assert.ok(!fs.existsSync(runDir), 'run dir must be moved');
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(path.join(archiveDir, 'config.yml')));
 });
 
 test('cleanup-procedures-execution.md Section B invokes archive-run instead of a hand-run recipe', () => {

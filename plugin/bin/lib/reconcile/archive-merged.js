@@ -79,13 +79,20 @@ function decideArchive(prState, consoleState) {
 
 // 'unresolved' | 'resolved' | 'none' (no console.json rendered — #1130:
 // blocks this sweep's archival; the empty-console fast path archives via the
-// archive-run verb instead).
+// archive-run verb instead). 'resolved' fires on `resolved === true` OR a
+// non-empty string `executedAt` — no production path writes `resolved` today
+// (`_shared/console-execution.md`'s final console.json write only stamps
+// `executedAt`, per its own completion marker), so `executedAt` alone is the
+// real completion signal this must key on; `resolved` stays recognized for
+// forward compat with any writer that does set it explicitly.
 function readConsoleState(runDir) {
   let raw;
   try { raw = fs.readFileSync(path.join(runDir, 'console.json'), 'utf8'); } catch { return 'none'; }
   try {
     const parsed = JSON.parse(raw);
-    return parsed && parsed.resolved === true ? 'resolved' : 'unresolved';
+    const resolved = parsed && (parsed.resolved === true
+      || (typeof parsed.executedAt === 'string' && parsed.executedAt.length > 0));
+    return resolved ? 'resolved' : 'unresolved';
   } catch {
     return 'unresolved'; // unparseable console state fails closed — never silently archived
   }

@@ -369,7 +369,7 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'archive-run') {
-    const { archiveRunDir } = require('./lib/reconcile/archive-merged');
+    const { archiveRunDir, readConsoleState } = require('./lib/reconcile/archive-merged');
     const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
     const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
@@ -400,7 +400,6 @@ async function main(argv) {
     // path. 'none' stays allowed here — terminal status means close-run ran,
     // i.e. wrap-up's own flow (incl. the empty-console fast path) completed;
     // only a rendered-but-unanswered console blocks a direct archival.
-    const { readConsoleState } = require('./lib/reconcile/archive-merged');
     if (readConsoleState(runDir) === 'unresolved') {
       process.stdout.write('claude-tweaks: archival refused — console-unresolved (console.json rendered but not resolved; answer or resolve the console first)\n');
       return 0;

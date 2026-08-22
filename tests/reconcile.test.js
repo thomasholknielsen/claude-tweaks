@@ -30,7 +30,13 @@ const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-sandbox-'))
 function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
-      input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
+      // #1130: `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var
+      // so a call that doesn't explicitly pass one can't resolve against
+      // whatever real run happens to be ambient in this test runner's own
+      // process.env (e.g. when npm test itself runs inside a /flow-dispatched
+      // shell). A caller that needs a run dir still passes it explicitly via
+      // `env`, which wins because it spreads last.
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
@@ -279,6 +285,21 @@ test('readConsoleState: {resolved:true} reads as resolved', () => {
 test('readConsoleState: unparseable content fails closed to unresolved, never silently archived', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
   fs.writeFileSync(path.join(dir, 'console.json'), '{not json');
+  assert.strictEqual(readConsoleState(dir), 'unresolved');
+});
+// #1130: no production path writes `resolved` (`_shared/console-execution.md`'s
+// Write order only ever stamped `executedAt`) — `readConsoleState` gating
+// solely on `resolved === true` made the archive branch unreachable for
+// every real console-carrying run. A non-empty `executedAt` is
+// console-execution's own completion stamp and must read as 'resolved' too.
+test('readConsoleState: {executedAt} with no resolved field reads as resolved', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
+  fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({ executedAt: '2026-08-20T10:00:00Z' }));
+  assert.strictEqual(readConsoleState(dir), 'resolved');
+});
+test('readConsoleState: {} (neither resolved nor executedAt) reads as unresolved', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
+  fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({}));
   assert.strictEqual(readConsoleState(dir), 'unresolved');
 });
 

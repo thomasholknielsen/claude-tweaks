@@ -22,7 +22,13 @@ const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-sandbox-'));
 function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
-      input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
+      // #1130: `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var
+      // so a call that doesn't explicitly pass one can't resolve against
+      // whatever real run happens to be ambient in this test runner's own
+      // process.env (e.g. when npm test itself runs inside a /flow-dispatched
+      // shell). A caller that needs a run dir still passes it explicitly via
+      // `env`, which wins because it spreads last.
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
@@ -642,4 +648,42 @@ test('a hook spawned with no cwd anywhere cannot write into a real run dir reach
     'decoy run dir must receive no events from a cwd-omitting hook spawn');
   const state = JSON.parse(fs.readFileSync(path.join(decoyRun, 'run-state.json'), 'utf8'));
   assert.strictEqual(state.status, 'active', 'decoy run-state.json must be untouched');
+});
+
+// #1130 (env leak): resolveRun checks env.PIPELINE_RUN_DIR BEFORE any cwd
+// scan (plugin/bin/lib/hooks/context.js's resolveRun). Every /flow-dispatched
+// shell carries an ambient PIPELINE_RUN_DIR pointed at that run's own
+// directory. runHook's `{ ...process.env, ...env }` spread forwards that
+// ambient value to every spawned hooks.js call whose own `env` option doesn't
+// override it — so a call site that never mentions PIPELINE_RUN_DIR at all
+// still resolves against whatever real run dir happens to be ambient in the
+// TEST RUNNER's own process.env when `npm test` itself runs inside a
+// /flow-dispatched shell. Reproduced live by the reviewer: record-pr fixture
+// calls wrote `pr:{number:7,url:"..."}` into a stand-in foreign run dir this
+// way. The guard (`PIPELINE_RUN_DIR: ''` between the process.env spread and
+// the caller's env) neutralizes the ambient value so only an explicit
+// call-site `env.PIPELINE_RUN_DIR` can select a run dir.
+test('record-pr does not resolve against an ambient PIPELINE_RUN_DIR the call site never passed', () => {
+  const decoyRepo = gitRepo();
+  const decoyRun = path.join(decoyRepo, '.claude-tweaks', 'pipelines', '2026-08-02T090000-record-9');
+  fs.mkdirSync(decoyRun, { recursive: true });
+  fs.writeFileSync(path.join(decoyRun, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  // Simulate a /flow-dispatched shell: PIPELINE_RUN_DIR ambient in the test
+  // runner's OWN process.env, pointed at the decoy run — NOT passed via this
+  // call's `env` option.
+  const savedAmbient = process.env.PIPELINE_RUN_DIR;
+  process.env.PIPELINE_RUN_DIR = decoyRun;
+  let result;
+  try {
+    result = runHook(['record-pr', '7', 'https://github.com/o/r/pull/7']);
+  } finally {
+    if (savedAmbient === undefined) delete process.env.PIPELINE_RUN_DIR;
+    else process.env.PIPELINE_RUN_DIR = savedAmbient;
+  }
+
+  assert.match(result.stdout, /no pipeline run dir found/,
+    'a call site that never passed PIPELINE_RUN_DIR must not resolve one from the test runner\'s ambient env');
+  const state = JSON.parse(fs.readFileSync(path.join(decoyRun, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.pr, undefined, 'decoy run-state.json must gain no pr field from the ambient env leak');
 });
