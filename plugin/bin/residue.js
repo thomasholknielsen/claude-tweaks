@@ -90,7 +90,7 @@ function main() {
     try {
       return { code: 0, stdout: execFileSync('npm', ['test'], { cwd, encoding: 'utf8', timeout: 600000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }) };
     } catch (err) {
-      if (err && err.killed) return { code: null, stdout: '', timedOut: true };
+      if (err && (err.killed || err.code === 'ETIMEDOUT')) return { code: null, stdout: '', timedOut: true };
       if (err && err.code === 'ENOBUFS') return { code: null, stdout: '', bufferOverflowed: true };
       if (err && typeof err.status === 'number') return { code: err.status, stdout: String(err.stdout || '') };
       return null;

@@ -3,7 +3,8 @@
 // This is the `blast-radius` class: a suite red at close time is this run's
 // own concern regardless of why it's red — the session hit it, so it belongs
 // in the report under every scope, not just `repo`. A suite that could not be
-// run, or timed out, reports `ran: false` — never green.
+// run, timed out, or overflowed the output capture buffer, reports
+// `ran: false` — never green.
 'use strict';
 
 const { makeFinding } = require('../finding');
