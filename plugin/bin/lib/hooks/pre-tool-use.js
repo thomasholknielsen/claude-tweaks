@@ -73,6 +73,23 @@ const POLICY_FILE = path.join('.claude-tweaks', 'policy.yml');
 // worktree — only the one tracked, committed-on-branch artifact this section documents.
 const WORK_SPEC_TAIL_RE = /^(?:spec-[^/\\]+[/\\])?work(?:[/\\]\d+-spec\.md)?$/;
 
+// Materialize-commit sentinel for the bookkeeping-stamps gate below: a
+// committed work/{n}-spec.md (or its multi-record spec-{slug}/work/{n}-spec.md
+// form) on the current branch is the signal that build/SKILL.md Spec Step 1's
+// materialize commit already landed — the exact precondition
+// build/worktree-setup.md Step 4.5 (record-worktree) and Step 6 (PR-early
+// lifecycle) are documented to precede. Read-only, best-effort: any git
+// failure (no commits yet, git unavailable) resolves to false — ambiguity
+// never triggers the gate, same posture as every other check in this file.
+function hasMaterializeCommit(worktreeRoot) {
+  const { stdout, failure } = runGit(
+    ['log', '--oneline', '-1', '--', 'work', 'spec-*/work'],
+    worktreeRoot,
+  );
+  if (failure) return false;
+  return Boolean(stdout && stdout.trim());
+}
+
 // git always reports/accepts forward-slash paths regardless of platform —
 // used for GATE_COVERAGE's prose-facing rendering and for comparing against
 // `git diff --cached --name-only` output in isPolicyOnlyCommit below.
