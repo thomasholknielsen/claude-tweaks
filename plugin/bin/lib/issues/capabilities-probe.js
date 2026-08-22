@@ -37,31 +37,50 @@ function defaultRunner(args) {
 // pass their own `args`/`extract`/`fallback`, no shared mutable state), so
 // this is purely deduplicating the try/parse/catch skeleton itself, not
 // coupling the two probes' failure behavior together.
-function runGraphQLProbe(runner, args, extract, fallback) {
+//
+// `strict` (default false) is an opt-in escape hatch for a caller that needs
+// to distinguish "the runner/parse/extract step itself failed" from "it ran
+// cleanly and reported absence" — when true, the caught error is rethrown
+// instead of swallowed to `fallback`. probeSchema/probeCapabilities (below)
+// never pass it: /init's one-time persisted driver choice still wants the
+// unconditional fail-safe-to-false posture this module was designed for.
+function runGraphQLProbe(runner, args, extract, fallback, { strict = false } = {}) {
   try {
     const out = runner(args);
     const parsed = JSON.parse(out);
     return extract(parsed);
-  } catch {
+  } catch (err) {
+    if (strict) throw err;
     return fallback;
   }
 }
 
+const SCHEMA_PROBE_ARGS = ['api', 'graphql', '-f', 'query={ __type(name: "Issue") { fields { name } } }'];
+
+function extractSchema(parsed) {
+  const fields = parsed?.data?.__type?.fields;
+  const names = Array.isArray(fields) ? fields.map((f) => f && f.name) : [];
+  return {
+    subIssues: names.includes('subIssues'),
+    dependencies: names.includes('blockedBy'),
+  };
+}
+
 // One call: introspect the Issue type's field names on this GitHub host.
 function probeSchema(runner) {
-  return runGraphQLProbe(
-    runner,
-    ['api', 'graphql', '-f', 'query={ __type(name: "Issue") { fields { name } } }'],
-    (parsed) => {
-      const fields = parsed?.data?.__type?.fields;
-      const names = Array.isArray(fields) ? fields.map((f) => f && f.name) : [];
-      return {
-        subIssues: names.includes('subIssues'),
-        dependencies: names.includes('blockedBy'),
-      };
-    },
-    { subIssues: false, dependencies: false },
-  );
+  return runGraphQLProbe(runner, SCHEMA_PROBE_ARGS, extractSchema, { subIssues: false, dependencies: false });
+}
+
+// Strict variant of probeSchema: rethrows on any runner/JSON.parse/extract
+// failure instead of failing safe to {subIssues:false, dependencies:false}.
+// Used only by bin/fetch-sub-issues.js's call site, which needs to map "the
+// probe call itself failed" to a different exit code (3, transient/network)
+// than "the probe ran and genuinely reports the field absent" (4, capability
+// absence) — see that file's header comment and #1185. probeCapabilities/
+// probeIssueTypes (/init's persisted driver choice) are untouched and keep
+// calling the non-strict probeSchema above.
+function probeSchemaStrict(runner) {
+  return runGraphQLProbe(runner, SCHEMA_PROBE_ARGS, extractSchema, undefined, { strict: true });
 }
 
 // One call: does this repo's org have Issue Types enabled?
@@ -83,4 +102,4 @@ function probeCapabilities({ owner, repo, runner = defaultRunner } = {}) {
   return { types, subIssues: schema.subIssues, dependencies: schema.dependencies };
 }
 
-module.exports = { probeCapabilities, probeSchema };
+module.exports = { probeCapabilities, probeSchema, probeSchemaStrict };
