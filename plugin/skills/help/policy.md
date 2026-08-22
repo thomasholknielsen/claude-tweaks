@@ -13,7 +13,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --all
 Returns the full config JSON — one entry per key: `{value, source, summary, category, tier, type, default}`.
 
 ```bash
-node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.argv[1])))" "$(git rev-parse --show-toplevel)"
+node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.argv[1])))" "$(git rev-parse --show-toplevel)"
 ```
 
 Returns `{unrecognizedKeys, invalidValues, migratableKeys, renamedKeys}`.
@@ -103,8 +103,8 @@ This section replaces SKILL.md's own `## Next Actions` block for the `policy` mo
 **Main-checkout pre-check (run BEFORE offering apply options at all):** check the held snapshot's `worktree-always` value, the session's checkout, and the running plugin build's version:
 
 ```bash
-node -e "const { repoInfo } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/hooks/worktree-detect.js'); console.log(repoInfo(process.cwd()).isLinkedWorktree ? 'WORKTREE' : 'PRIMARY')"
-node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/.claude-plugin/plugin.json').version)"
+node -e "const { repoInfo } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/hooks/worktree-detect.js'); console.log(repoInfo(process.cwd()).isLinkedWorktree ? 'WORKTREE' : 'PRIMARY')"
+node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json').version)"
 ```
 
 When `worktree-always` is `true` AND the first command prints `PRIMARY` (a main checkout, not a linked worktree), the write gate's general Edit/Write/commit posture is denied for everything EXCEPT `.claude-tweaks/policy.yml` itself — `_shared/policy-schema-coverage.md`'s coverage block is the canonical statement of that exemption's terms (path identity, and the allowlisted policy-only commit); do not restate the grammar here. On a plugin build whose version compares greater than `6.86.0` (the last release without the exemption — compare with `bin/lib/changelog.js`'s `compareVersions`, per `skills/init/bootstrap/version-check.md`'s pattern), that exemption is live: proceed to the `AskUserQuestion` below as normal, then apply each approved edit as an isolated Edit/Write to `.claude-tweaks/policy.yml` followed by `git add .claude-tweaks/policy.yml` and then, as a **separate** Bash call, a bare `git commit -m "..."` — never chained with `&&` (the allowlist rejects every shell operator, so a chained form is denied whole), and staging nothing else in that commit, or the staged-set proof fails and the commit is denied.
@@ -132,7 +132,7 @@ printf '%s\n' "{key}: {value}" >> "$(git rev-parse --show-toplevel)/.claude-twea
 1. Per key, in the user's selection order: validate the approved value before writing its line to `.claude-tweaks/policy.yml`.
 
    ```bash
-   node -e "const {resolveValue}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(resolveValue(process.argv[1], process.argv[2])))" "{key}" "{raw-value}"
+   node -e "const {resolveValue}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); console.log(JSON.stringify(resolveValue(process.argv[1], process.argv[2])))" "{key}" "{raw-value}"
    ```
 
    `resolveValue` coerces silently to the schema default on an invalid value — parse the output and compare `String(parsedValue)` against the raw `{raw-value}` string: a mismatch means the value was rejected. (`resolveValue` returns numbers and booleans already coerced to their real type, not strings — comparing the parsed value directly against the raw string, without the `String()` wrap, inverts the check for every integer or boolean key.) A rejected key is reported (key + rejected value) and its line is never written; continue validating and writing the rest of the batch.

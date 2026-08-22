@@ -55,6 +55,14 @@ files:
 - **Should understand:** This is the flag's existing posture for every unsupported input shape (design doc, topic, decomposition, and now a comma-list batch): ignore with a notice rather than error. `/capture`'s single-record chain contract is unchanged.
 - **Red flags:** The whole invocation refused; the batch shaped headlessly with no `## Next Actions`.
 
+### 7. Include a decomposition parent — the batch refuses whole
+- **URL:** `/claude-tweaks:specify #701,#416,#703` (where `#416` carries `parent-issue`, or is an unlabeled legacy parent with a `## Leaves` table)
+- **Action:** Include a decomposition-parent reference as one batch element.
+- **Should feel:** The same all-or-nothing honesty as an unresolvable element — every parent offender named in one message, nothing shaped, no per-offender prompting mid-batch.
+- **Should understand:** The case-1 parent-record guard runs per element before anything is written. A labeled (tier-1) parent still gets its mis-shape residue (`ready`, scoring, ceremony, `solution:unjustified`) silently stripped — repair of wrong state, not shaping — and the failure message names any strip that ran. A sniff-only (tier-2) hit resolves like the guard's headless branch inside a batch — no prompt, since a prompt could not change the fail-all outcome — and the message points at `/claude-tweaks:specify #416` to repair interactively.
+- **Red flags:** The parent shaped and marked `ready`; the non-parent elements shaped despite the fail-all posture; an `AskUserQuestion` firing mid-batch for a tier-2 offender; a residue strip that ran but went unmentioned.
+
 ## Origin
+- Step 7 added for #1071 (parent-record guard: batch fail-all, tier-2 refuse-without-prompt, reported residue strip)
 - Steps 1 and 3 updated for #705 (range-form input, mandatory read-back verification after each write)
-- Related specs: #705, #695/#702 (comma-list batch form and this journey's original steps)
+- Related specs: #1071, #705, #695/#702 (comma-list batch form and this journey's original steps)

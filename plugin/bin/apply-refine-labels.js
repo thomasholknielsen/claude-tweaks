@@ -22,11 +22,12 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const wtDetect = require('./lib/hooks/worktree-detect');
 const { appendEntry, formatEntry } = require('./lib/log-decision/append');
+const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: apply-refine-labels.js <actions.json> [--run <run-dir>] [--repo owner/name] [--help]\n';
 
 function parseArgs(argv) {
-  const opts = { file: null, run: null, repo: null, help: false };
+  const opts = { file: null, run: null, runEmpty: false, repo: null, help: false };
   if (argv[0] === '--help' || argv[0] === '-h') { opts.help = true; return opts; }
   if (argv[0] === undefined || argv[0].startsWith('--')) return { error: 'missing <actions.json> argument' };
   opts.file = argv[0];
@@ -35,18 +36,15 @@ function parseArgs(argv) {
     const next = () => argv[++i];
     if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--run') {
-      opts.run = next();
-      if (!opts.run || opts.run.startsWith('--')) return { error: '--run requires a value' };
+      const val = next();
+      if (val === undefined || val.startsWith('--')) return { error: '--run requires a value' };
+      opts.run = val === '' ? null : val;
+      opts.runEmpty = val === '';
     }
     else if (a === '--repo') opts.repo = next();
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
-}
-
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
 }
 
 function isPosInt(n) { return Number.isInteger(n) && n > 0; }
@@ -65,8 +63,8 @@ function validateAction(a, i) {
 
 const realDeps = {
   gh: (args) => execFileSync('gh', args, { encoding: 'utf8' }),
-  ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
-  remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  ghAvailable,
+  remoteUrl,
   readFile: (f) => fs.readFileSync(f, 'utf8'),
   cwd: () => process.cwd(),
   mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
@@ -84,6 +82,9 @@ function run(argv, deps = realDeps) {
   if (opts.help) { deps.stdout(USAGE); return 0; }
 
   let runDir = null;
+  if (opts.runEmpty) {
+    deps.stderr('apply-refine-labels.js: --run was empty — proceeding without run-dir/decisions.md logging\n');
+  }
   if (opts.run) {
     // #790/[IL-127]: reject an unanchored --run before any gh/network work,
     // same guard bin/materialize.js's --run-dir applies.

@@ -14,6 +14,8 @@ matrix row.
 Preflight (Detection Ladder, `work-backend: local-files` complete stop) is documented once in
 `SKILL.md` — read it before this file if you haven't; nothing here restates it.
 
+Every temp file this mode writes below resolves through `bin/lib/session-tmp.js`'s `sessionTmpPath`, per `_shared/session-tmp-root.md`'s session-scoped temp-root convention (cited once here, not restated per script).
+
 ## Step 0: Ceiling gate (whole-run, before any candidate fetch)
 
 Gate 1 of the chain (`bin/lib/issues/grant-gate.js`'s first two checks) is ceiling-wide, not
@@ -58,10 +60,21 @@ any one of them looks bad. Independent from, not a replacement for, `trust.js`'s
 revocation (#268) — a class can read `clean` while this breaker is tripped, and vice versa.
 
 ```bash
+eval "$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = {
+    ST_BACKLOG_GRANT_WATCHED: 'backlog-grant-watched.json',
+  };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
 node -e "
-  const { readWatched } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+  const { readWatched } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
   console.log(JSON.stringify(readWatched(process.cwd())));
-" > /tmp/backlog-grant-watched.json
+" > "$ST_BACKLOG_GRANT_WATCHED"
 ```
 
 An empty `{}` means nothing to sweep — skip straight to Step 1. Otherwise, for every
@@ -77,7 +90,7 @@ An empty `{}` means nothing to sweep — skip straight to Step 1. Otherwise, for
 
    ```bash
    node -e "
-     const { classifyWatchedRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+     const { classifyWatchedRecord } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
      // entry = { number, grantedAt, lastKnownState: watched[number].lastKnownState, state, closedAt, labels }
      // gitLog: [{ sha, message }] from the already-fetched integration-branch log
      const result = classifyWatchedRecord(entry, gitLog, Date.now(), windowDays);
@@ -115,9 +128,20 @@ Reuses `refine-mode.md`'s own grant-fetch shape and `dispatch/SKILL.md`'s pagina
 own eligibility:
 
 ```bash
+eval "$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = {
+    ST_BACKLOG_GRANT_READY: 'backlog-grant-ready.json',
+  };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
 LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
-gh issue list --label ready --state open --json number,title,body,labels,createdAt --limit "$LIMIT" > /tmp/backlog-grant-ready.json
-if [ "$(node -e "console.log(require('/tmp/backlog-grant-ready.json').length)")" = "$LIMIT" ]; then
+gh issue list --label ready --state open --json number,title,body,labels,createdAt --limit "$LIMIT" > "$ST_BACKLOG_GRANT_READY"
+if [ "$(node -e "console.log(require('$ST_BACKLOG_GRANT_READY').length)")" = "$LIMIT" ]; then
   echo "WARNING: fetched exactly $LIMIT ready-labeled issues (backlog-fetch-limit) — there may be more. See .claude-tweaks/policy.yml." >&2
 fi
 ```
@@ -128,16 +152,30 @@ set below, though, is data every session-scoped record snapshot already carries 
 `state` on every row) — read it from there instead of a second bare fetch:
 
 ```bash
+eval "$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = {
+    ST_BACKLOG_GRANT_ALL_RECORDS: 'backlog-grant-all-records.json',
+    ST_BACKLOG_GRANT_OPEN_NUMBERS: 'backlog-grant-open-numbers.json',
+    ST_BACKLOG_GRANT_READY: 'backlog-grant-ready.json',
+    ST_BACKLOG_GRANT_CANDIDATES: 'backlog-grant-candidates.json',
+  };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
 {Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md),
- with {tmp-records-file} = /tmp/backlog-grant-all-records.json}
+ with {tmp-records-file} = $ST_BACKLOG_GRANT_ALL_RECORDS}
 node -e "
-  const records = require('/tmp/backlog-grant-all-records.json').filter((i) => i.state === 'OPEN');
-  require('fs').writeFileSync('/tmp/backlog-grant-open-numbers.json', JSON.stringify(records.map((i) => ({ number: i.number }))));
+  const records = require('$ST_BACKLOG_GRANT_ALL_RECORDS').filter((i) => i.state === 'OPEN');
+  require('fs').writeFileSync('$ST_BACKLOG_GRANT_OPEN_NUMBERS', JSON.stringify(records.map((i) => ({ number: i.number }))));
 "
 node -e "
-  const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const issues = require('/tmp/backlog-grant-ready.json');
-  const openNumbers = new Set(require('/tmp/backlog-grant-open-numbers.json').map((i) => i.number));
+  const { parseRecordFacets, parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const issues = require('$ST_BACKLOG_GRANT_READY');
+  const openNumbers = new Set(require('$ST_BACKLOG_GRANT_OPEN_NUMBERS').map((i) => i.number));
   const candidates = issues
     .map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))
     .filter((i) => i.facets.origin !== null)               // by:* sweep origin only (gate 3, pre-filtered here for cheapness)
@@ -148,7 +186,7 @@ node -e "
       return deps.every((d) => !openNumbers.has(d));         // no open 'Blocked by #N'
     });
   console.log(JSON.stringify(candidates));
-" > /tmp/backlog-grant-candidates.json
+" > "$ST_BACKLOG_GRANT_CANDIDATES"
 ```
 
 The `facets.origin !== null` filter is a cheap pre-pass on the same gate-3 condition
@@ -174,21 +212,34 @@ pure module cannot make itself):
 **Phase A — gates 1-3, pure, no LLM call:**
 
 ```bash
+eval "$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = {
+    ST_BACKLOG_GRANT_CANDIDATES: 'backlog-grant-candidates.json',
+    ST_BACKLOG_GRANT_TRUST_ROWS: 'backlog-grant-trust-rows.json',
+    ST_BACKLOG_GRANT_PHASE_A: 'backlog-grant-phase-a.json',
+  };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
 node -e "
-  const { evaluateGrantGate } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-gate.js');
-  const candidates = require('/tmp/backlog-grant-candidates.json');
+  const { evaluateGrantGate } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-gate.js');
+  const candidates = require('$ST_BACKLOG_GRANT_CANDIDATES');
   const policy = { ceiling: '$CEILING', grantOriginationEnabled: $([ \"$OPT_IN\" = 'true' ] && echo true || echo false), riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR' };
   // trustVerdicts: built the same way refine-mode.md's Trust Signal section builds its 'rows'
   // Map — trustRows() + resolveProvenance()/riskBand() over the fetched + git-log evidence, per
   // _shared/trust-table.md's Fetch section. Omitted here for brevity; reuse that section's script
   // verbatim, substituting this mode's candidate set.
-  const trustVerdicts = require('/tmp/backlog-grant-trust-rows.json'); // Map-shaped: [[classKey, row], ...]
+  const trustVerdicts = require('$ST_BACKLOG_GRANT_TRUST_ROWS'); // Map-shaped: [[classKey, row], ...]
   const results = candidates.map((c) => ({
     number: c.number,
     result: evaluateGrantGate({ record: { number: c.number, labels: c.labels, body: c.body, facets: c.facets }, policy, trustVerdicts: new Map(trustVerdicts) }),
   }));
   console.log(JSON.stringify(results));
-" > /tmp/backlog-grant-phase-a.json
+" > "$ST_BACKLOG_GRANT_PHASE_A"
 ```
 
 Every result with `failedKey` set is a **skip** — do not invoke `grant-check` for it (the whole
@@ -220,8 +271,8 @@ FLOOR_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge
 MERGE_SENSITIVE_PATHS=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '1p')   # line 1: merge-sensitive-paths (raw comma string; empty = none)
 FLEET_DAILY_GRANT_CAP=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '2p')   # line 2: fleet-daily-grant-cap (empty = unset/uncapped)
 node -e "
-  const { evaluateGrantGate } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grant-gate.js');
-  const { readBreakerState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+  const { evaluateGrantGate } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-gate.js');
+  const { readBreakerState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
   // ... same record/policy/trustVerdicts as Phase A, plus:
   const keyFiles = /* parsed from the record body's '### Key Files' list, one path per bullet */;
   const sensitivePaths = /* MERGE_SENSITIVE_PATHS from the resolver call above, split on ',' */;
@@ -283,7 +334,7 @@ else
   if [ "$AUTO_MERGE" = "true" ]; then
     gh issue edit "$ISSUE" --add-label auto:merge
     node -e "
-      const { writeWatched } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/merge-lane-breaker.js');
+      const { writeWatched } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
       writeWatched(process.cwd(), (current) => ({ ...current, ['$ISSUE']: { grantedAt: new Date().toISOString() } }));
     "
   fi

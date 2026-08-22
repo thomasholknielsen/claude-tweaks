@@ -86,6 +86,8 @@ On a `conflict` outcome, this **is** the approval gate `/claude-tweaks:journeys`
 
 For each new journey identified, create a file at the resolved path (`docs/journeys/{journey-name}.md` under the plugin form, or the resolved project-form filename once known — the plugin form for this run when a conflict was staged rather than resolved) using the template + key principles in `journey-template.md` in this skill's directory. The template covers frontmatter, persona/goal/entry-point/success-state framing, the per-step structure (URL / Action / Should feel / Should understand / Red flags), and the Origin trailer.
 
+**Multi-spec shared worktree (#786):** when this invocation is running inside a multi-spec `/flow` run's shared worktree (`MULTISPEC_SHARED_WORKTREE=1` is set, or `$PIPELINE_RUN_DIR`'s basename is `spec-{N}`), suffix `{journey-name}` with `-{N}` before writing — `docs/journeys/{journey-name}-{N}.md` — so two specs whose generated journey names collide (or one spec that happens to reuse another's slug) never overwrite each other's file. `{N}` is the record id, same as `flow/multi-spec.md`'s `spec-{N}/` subdirectory keying. Outside a multi-spec shared worktree, write the unsuffixed `docs/journeys/{journey-name}.md` exactly as before — this rule changes nothing for a single-spec `/flow` run.
+
 ## Step 3: Update Existing Journey Files
 
 If the work modifies or extends an existing journey:

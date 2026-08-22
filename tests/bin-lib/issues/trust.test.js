@@ -192,14 +192,14 @@ test('open records are excluded — trust is about outcomes', () => {
   assert.equal(rows.length, 0);
 });
 
-test('parent-linked leaves do not count toward a cell reaching MIN_SAMPLES', () => {
-  // Seven un-dispositioned leaves plus one approved parent must not grade a cell
-  // `clean` — the leaves were never judged, and total is what makes 8 mean 8.
-  const leaves = Array.from({ length: 7 }, (_, i) => ({
+test('parent-linked sub-issues do not count toward a cell reaching MIN_SAMPLES', () => {
+  // Seven un-dispositioned sub-issues plus one approved parent must not grade a cell
+  // `clean` — the sub-issues were never judged, and total is what makes 8 mean 8.
+  const subIssues = Array.from({ length: 7 }, (_, i) => ({
     number: i + 1, state: 'CLOSED', labels: [], body: '', hasParent: true,
   }));
   const parent = { number: 99, state: 'CLOSED', labels: ['demo:approved'], body: '' };
-  const rows = trustRows([...leaves, parent]);
+  const rows = trustRows([...subIssues, parent]);
   assert.equal(rows.every((r) => r.total < MIN_SAMPLES), true);
   assert.equal(rows.every((r) => r.verdict === 'insufficient-evidence'), true);
 });

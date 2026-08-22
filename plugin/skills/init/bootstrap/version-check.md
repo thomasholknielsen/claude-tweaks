@@ -24,14 +24,14 @@ the grep finds no `plugin-version:` line) identically: as if the marker were abs
 **Read the installed version:**
 
 ```bash
-INSTALLED_VERSION=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/.claude-plugin/plugin.json').version)")
+INSTALLED_VERSION=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json').version)")
 ```
 
 **Compare (only when `$MARKER_VERSION` is non-empty):**
 
 ```bash
 node -e "
-  const { compareVersions } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/changelog.js');
+  const { compareVersions } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/changelog.js');
   console.log(compareVersions(process.argv[1], process.argv[2]));
 " "$MARKER_VERSION" "$INSTALLED_VERSION"
 ```
@@ -50,8 +50,8 @@ run Steps 1-8 fully, skip the changelog notice.
 ```bash
 node -e "
   const fs = require('fs');
-  const { extractChangelogRange } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/changelog.js');
-  const changelog = fs.readFileSync(process.env.CLAUDE_PLUGIN_ROOT + '/CHANGELOG.md', 'utf8');
+  const { extractChangelogRange } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/changelog.js');
+  const changelog = fs.readFileSync('${CLAUDE_PLUGIN_ROOT}/CHANGELOG.md', 'utf8');
   console.log(JSON.stringify(extractChangelogRange(changelog, process.argv[1], process.argv[2])));
 " "$MARKER_VERSION" "$INSTALLED_VERSION"
 ```

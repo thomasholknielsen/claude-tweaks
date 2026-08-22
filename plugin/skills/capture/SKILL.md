@@ -109,9 +109,9 @@ snapshot section) — reuse `/tmp/ct-gitlog-{session-id}.txt`
 (`record-snapshot.js`'s `gitLogPath($CLAUDE_CODE_SESSION_ID)`) when fresh, else regenerate it:
 
 ```bash
-GITLOG=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').gitLogPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
+GITLOG=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').gitLogPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
 if [ -n "$GITLOG" ] && node -e "
-  const { isFresh } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js');
+  const { isFresh } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js');
   process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
 " "$GITLOG" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
   cp "$GITLOG" /tmp/capture-trust-git-log.txt
@@ -124,7 +124,7 @@ fi
 ```bash
 node -e "
   const fs = require('fs');
-  const root = process.env.CLAUDE_PLUGIN_ROOT;
+  const root = '${CLAUDE_PLUGIN_ROOT}';
   const { trustRows, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
   const issues = require('/tmp/capture-trust-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
@@ -176,7 +176,7 @@ toward the grant.
 2. Build the payload via `recordPayload` and create the issue. Both temp files below key off `$CLAUDE_CODE_SESSION_ID` (the same session identity `_shared/issue-claims.md` stamps on a claim) rather than a fixed name — a concurrent `/capture` invocation against the same checkout gets its own path, never this session's:
 
    ```bash
-   node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
+   node -e "const {recordPayload}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
      const p=recordPayload({title:process.argv[1], body:process.argv[2], type:process.argv[3], origin:'capture'});
      require('fs').writeFileSync('/tmp/capture-' + (process.env.CLAUDE_CODE_SESSION_ID||'') + '-payload.json', JSON.stringify(p))" "$TITLE" "$BODY" "$TYPE"
 
@@ -210,7 +210,7 @@ toward the grant.
    remove this step's own temp files, now that `gh issue create` has read them:
 
    ```bash
-   node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+   node -e "require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
    rm -f "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-payload.json" "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md"
    ```
 
@@ -224,7 +224,7 @@ Write the record via `local-store.js`'s `createRecord` — no `unsynced` facet (
 
 ```bash
 node -e "const fs=require('fs');
-  const {createRecord, deriveSlug}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const {createRecord, deriveSlug}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const dir='specs';
   const existingSlugs=fs.existsSync(dir)
     ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])

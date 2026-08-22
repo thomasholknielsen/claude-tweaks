@@ -37,6 +37,18 @@ items in a scope route through this file's `list_issues` row, PR-backed items in
 degrade per-item with a narrower message instead. This resolves the gap deliberately (a
 documented per-item degrade) rather than leaving it implicit.
 
+**Exception: PR create/update (#929).** Create and update *are* covered, just not by a table
+row — `gh pr create --body-file`/`gh pr edit --body-file` locally,
+`mcp__github__create_pull_request`/`mcp__github__update_pull_request` when `gh` is absent.
+Unlike every read-side gap named above, this is a write, and the MCP server's PR-body
+sanitization (`_shared/pr-early-run-lifecycle.md`'s "Root cause" section) only ever touches
+what a *read* returns to the LLM — `create_pull_request`/`update_pull_request` write the
+`body` parameter straight through, unsanitized. A caller composing a PR body with
+`_shared/pr-early-run-lifecycle.md`'s dual-marker scheme (HTML comment + plain-text
+companion) can use either transport interchangeably for creation/update; only a *later read*
+of that body needs to pick its marker form per-transport (same file, Phase-checklist update
+section).
+
 **Never use `search_issues` (or `gh issue list --search`) for a find-by-marker/dedup lookup.**
 Both ride an eventually-consistent search index — this caused three real duplicate-digest
 production incidents when `tidy`'s Rolling digest briefly used `gh issue list --search`
@@ -47,7 +59,7 @@ production incidents when `tidy`'s Rolling digest briefly used `gh issue list --
 what a `gh issue list --state all` pull would return, so it stales the session-scoped record
 snapshot (`_shared/record-queue-fetch.md`) if one exists for this session. Immediately after any
 such write succeeds, on either transport, call
-`require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)`
+`require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)`
 so the next consumer re-fetches instead of reading stale state. A no-op when no snapshot exists
 for this session (nothing to invalidate) or when `$CLAUDE_CODE_SESSION_ID` is unset (a
 snapshot-less caller was never caching in the first place).

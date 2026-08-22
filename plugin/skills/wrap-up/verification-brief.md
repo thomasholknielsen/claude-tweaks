@@ -301,7 +301,7 @@ to the record body (after any existing content), and write the record with
 `facets.acceptance = 'pending'`:
 
 ```js
-const { readRecord, writeRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const { readRecord, writeRecord } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
 const record = readRecord(filePath);
 record.facets.acceptance = 'pending';
 record.body = record.body + '\n\n' + briefTemplate;

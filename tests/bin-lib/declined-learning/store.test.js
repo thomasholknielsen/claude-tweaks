@@ -10,11 +10,14 @@ function makeStore() {
   const data = {};
   const mkdirSync = () => {};
   const writeFile = (p, content) => { data[p] = content; };
+  const rename = (from, to) => { data[to] = data[from]; delete data[from]; };
   const readFile = (p) => {
     if (!(p in data)) { const e = new Error(`ENOENT: no such file, open '${p}'`); e.code = 'ENOENT'; throw e; }
     return data[p];
   };
-  return { data, mkdirSync, writeFile, readFile };
+  return {
+    data, mkdirSync, writeFile, rename, readFile,
+  };
 }
 
 const STORE_REL = path.join('.claude-tweaks', 'declined-learning', 'store.json');
@@ -46,27 +49,32 @@ test('readStore: valid JSON that is not an object (e.g. an array) -> {}', () => 
 
 // ---- writeStore ----------------------------------------------------------
 
-test('writeStore: creates the containing directory and writes JSON at the derived path', () => {
+test('writeStore: creates the containing directory and writes JSON at the derived path (via an atomic tmp-file rename)', () => {
   const mkdirCalls = [];
   const writeCalls = [];
+  const renameCalls = [];
   const mkdirSync = (p, opts) => mkdirCalls.push({ p, opts });
   const writeFile = (p, content) => writeCalls.push({ p, content });
+  const rename = (from, to) => renameCalls.push({ from, to });
   const payload = { 'feedback-deadbeef': { declinedAt: '2026-08-20T00:00:00Z', reason: 'not applicable', source: 'feedback' } };
 
-  store.writeStore(payload, { mkdirSync, writeFile });
+  store.writeStore(payload, { mkdirSync, writeFile, rename });
 
   assert.equal(mkdirCalls.length, 1);
   assert.equal(mkdirCalls[0].p, path.dirname(STORE_REL));
   assert.deepEqual(mkdirCalls[0].opts, { recursive: true });
   assert.equal(writeCalls.length, 1);
-  assert.equal(writeCalls[0].p, STORE_REL);
   assert.deepEqual(JSON.parse(writeCalls[0].content), payload);
+  assert.equal(renameCalls.length, 1);
+  assert.equal(renameCalls[0].from, writeCalls[0].p, 'renamed from the exact tmp path writeFile was called with');
+  assert.equal(renameCalls[0].to, STORE_REL);
 });
 
 test('writeStore: propagates a real write failure to the caller rather than swallowing it', () => {
   const mkdirSync = () => {};
   const writeFile = () => { throw new Error('ENOSPC: no space left on device'); };
-  assert.throws(() => store.writeStore({}, { mkdirSync, writeFile }), /ENOSPC/);
+  const rename = () => {};
+  assert.throws(() => store.writeStore({}, { mkdirSync, writeFile, rename }), /ENOSPC/);
 });
 
 // ---- recordDecline + lookupDecline (annotation lookup) --------------------

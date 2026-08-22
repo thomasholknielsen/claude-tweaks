@@ -16,12 +16,12 @@ Resolution order — stop at the first that applies:
    gh issue view {n} --json labels > {ctx-dir}/record-{n}.json
    ```
    ```bash
-   node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js'); const d=JSON.parse(require('fs').readFileSync(process.argv[1])); const {risk,size}=parseRecordFacets(d.labels); console.log(JSON.stringify({risk,size}))" "{ctx-dir}/record-{n}.json"
+   node -e "const {parseRecordFacets}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js'); const d=JSON.parse(require('fs').readFileSync(process.argv[1])); const {risk,size}=parseRecordFacets(d.labels); console.log(JSON.stringify({risk,size}))" "{ctx-dir}/record-{n}.json"
    ```
 
    **`local-files`:**
    ```bash
-   node -e "const {readRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+   node -e "const {readRecord}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
      const {risk, size}=readRecord(process.argv[1]).facets;
      console.log(JSON.stringify({risk, size}))" "{record-file-path}"
    ```

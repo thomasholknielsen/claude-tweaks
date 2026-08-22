@@ -263,17 +263,17 @@ test('accepts label objects ({name}) as well as plain strings', () => {
 });
 
 // ── extractKeyFiles: the `### Key Files` fallthrough (#154) ──────────────────
-// /specify-produced leaves and /capture records carry no by:* origin label, so
+// /specify-produced sub-issues and /capture records carry no by:* origin label, so
 // they reach the fallthrough below the four health-sweep branches. Before #154
 // that fallthrough was a bare `return []`, and every such record reported zero
 // key files — making groupByFileOverlap emit singletons regardless of real
 // overlap, which is exactly the collision guard /dispatch relies on.
 
-const SPECIFY_LEAF_LABELS = ['ready', 'type:feature', 'auto:build', 'priority:high', 'risk:medium', 'size:medium', 'ceremony:standard'];
+const SPECIFY_SUB_ISSUE_LABELS = ['ready', 'type:feature', 'auto:build', 'priority:high', 'risk:medium', 'size:medium', 'ceremony:standard'];
 
-test('extracts backticked paths from a /specify-produced leaf\'s ### Key Files subsection', () => {
+test('extracts backticked paths from a /specify-produced sub-issue\'s ### Key Files subsection', () => {
   const issue = {
-    labels: SPECIFY_LEAF_LABELS,
+    labels: SPECIFY_SUB_ISSUE_LABELS,
     body: [
       'Surface: backend',
       '',
@@ -299,7 +299,7 @@ test('stops at the next heading rather than scraping backticked paths out of ###
   // The Gotchas section routinely names files in backticks. Bleeding past the
   // section boundary would union unrelated records on an incidental mention.
   const issue = {
-    labels: SPECIFY_LEAF_LABELS,
+    labels: SPECIFY_SUB_ISSUE_LABELS,
     body: [
       '### Key Files',
       '',
@@ -317,7 +317,7 @@ test('ignores a trailing annotation, including one containing commas and bold ma
   // Real annotations from #146/#150. A comma inside the annotation must not be
   // treated as a path separator the way code-health's `Files:` line does.
   const issue = {
-    labels: SPECIFY_LEAF_LABELS,
+    labels: SPECIFY_SUB_ISSUE_LABELS,
     body: [
       '### Key Files',
       '',
@@ -335,7 +335,7 @@ test('takes the first backticked span when a list item names an alternative', ()
   // Real shape from record #154's own body:
   //   - `bin/lib/issues/tests/` or `tests/` (add — fixture-based coverage)
   const issue = {
-    labels: SPECIFY_LEAF_LABELS,
+    labels: SPECIFY_SUB_ISSUE_LABELS,
     body: '### Key Files\n\n- `bin/lib/issues/tests/` or `tests/` (add — fixture-based coverage)',
   };
   assert.deepStrictEqual(extractKeyFiles(issue), ['bin/lib/issues/tests/']);
@@ -345,7 +345,7 @@ test('skips an unfilled `{path}` template placeholder instead of grouping record
   // spec-template.md ships "- `{path}` — {what changes}". Two records that both
   // carry the unfilled template would otherwise union on the literal "{path}".
   const issue = {
-    labels: SPECIFY_LEAF_LABELS,
+    labels: SPECIFY_SUB_ISSUE_LABELS,
     body: '### Key Files\n\n- `{path}` — {what changes}\n- `src/real.js` (modify)',
   };
   assert.deepStrictEqual(extractKeyFiles(issue), ['src/real.js']);
@@ -364,7 +364,7 @@ test('returns [] for a record whose body has no ### Key Files section', () => {
 
 test('returns [] for a ### Key Files section that exists but lists no backticked path', () => {
   const issue = {
-    labels: SPECIFY_LEAF_LABELS,
+    labels: SPECIFY_SUB_ISSUE_LABELS,
     body: '### Key Files\n\n_To be determined during the build._\n\n### Gotchas\n',
   };
   assert.deepStrictEqual(extractKeyFiles(issue), []);
@@ -398,8 +398,8 @@ test('#146 and #150 real bodies land in ONE bundle of two, not two singletons', 
       require('node:path').join(__dirname, 'fixtures', `record-${n}-body.md`),
       'utf8',
     );
-  const issue146 = { id: 146, labels: SPECIFY_LEAF_LABELS, body: readFixture(146) };
-  const issue150 = { id: 150, labels: SPECIFY_LEAF_LABELS, body: readFixture(150) };
+  const issue146 = { id: 146, labels: SPECIFY_SUB_ISSUE_LABELS, body: readFixture(146) };
+  const issue150 = { id: 150, labels: SPECIFY_SUB_ISSUE_LABELS, body: readFixture(150) };
 
   const files146 = extractKeyFiles(issue146);
   const files150 = extractKeyFiles(issue150);

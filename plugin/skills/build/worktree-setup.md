@@ -2,7 +2,9 @@
 
 Runs only when the user specified `worktree` (or it's the default). Skipped entirely in `current-branch` mode.
 
-**Skip when already in a shared worktree (multi-spec).** If `MULTISPEC_SHARED_WORKTREE=1` is set, or superpowers Step 0 detects the session is already inside a linked worktree (`GIT_DIR != GIT_COMMON`, and not a submodule), the run's single shared worktree already exists and the pipeline is running inside it. **Skip this entire procedure** — do not create a nested worktree and do not finish the branch between specs. `/flow` created the worktree once up front and finishes it once at the end of the multi-spec run (see `skills/flow/multi-spec.md`, "Shared worktree").
+**Skip creation when already inside an externally-created worktree.** If `MULTISPEC_SHARED_WORKTREE=1` is set, or superpowers Step 0 detects the session is already inside a linked worktree (`GIT_DIR != GIT_COMMON`, and not a submodule), a worktree for this run already exists and the pipeline is running inside it. This condition is not exclusive to multi-spec runs — `/claude-tweaks:dispatch` Step 5 creates and enters a group's worktree directly (`dispatch/sequential-execution.md`) before dispatching either Task call, for a singleton group exactly as for a bundle, so a dispatched `/flow`/`/build` invocation hits this same `GIT_DIR != GIT_COMMON` detection on its very first commit. **Skip steps 1-3 and 5** — do not create a nested worktree, and (multi-spec only) do not finish the branch between specs; `/flow` created the shared worktree once up front and finishes it once at the end of the multi-spec run (see `skills/flow/multi-spec.md`, "Shared worktree").
+
+**Still run Step 4.5 (record the assignment) even on this skip path.** It is the one step in this procedure a worktree created outside it never receives on its own: `/flow`'s multi-spec up-front creation already runs this file's full procedure (including Step 4.5) when it creates the shared worktree, but `dispatch/sequential-execution.md`'s `EnterWorktree` call stamps nothing — a dispatched run arrives at this point with no `run-state.json` `worktree` field at all. Step 4.5 is documented there as "an idempotent restamp," so running it unconditionally here is always safe, never destructive to a prior stamp. Without this, the working-directory hook (E1) denies this run's very first commit — the gap #778 traced to this guard, and the retry-with-restamp workaround `dispatch/task-prompt.md` documents for a denied first commit exists only because this step was skipped instead of re-run. Step 6 (open the draft PR) is unaffected either way — it is invoked separately from `build/SKILL.md` Spec Step 1, never from within this numbered procedure (see Step 6 below).
 
 ## Base ref — branch from local HEAD, not stale origin
 
@@ -31,12 +33,14 @@ approximate it (#689).
 
 **Pattern:** `{skill}-spec-{N1}-{N2}…` for a multi-spec run (see `flow/multi-spec.md`'s "Shared
 worktree" section for how `{N1}…` is assembled), or the record's own slug for a single-record
-run. Either source can carry characters `EnterWorktree` rejects — a `/`-separated branch-name
-convention, an ad hoc `+` join, spaces, a `#` from an issue reference — so **sanitize whichever
-slug is derived, every time, before it reaches `EnterWorktree`.** Use
-`bin/lib/worktree/name.js`'s `sanitizeWorktreeName()`: it maps every character outside
-`[A-Za-z0-9._-]` to `-`, collapses runs of `-` to one, and caps the result at 64 chars — the same
-rule stated above, as one canonical, unit-tested implementation rather than three independently
+run. Either source can carry characters within a segment that `EnterWorktree` rejects — an ad
+hoc `+` join, spaces, a `#` from an issue reference — so **sanitize whichever slug is derived,
+every time, before it reaches `EnterWorktree`.** A `/`-separated branch-name convention (e.g.
+`flow/spec-{N1}-{N2}`) is fine as-is: `/` is the valid segment delimiter, not a character to
+strip (#814). Use `bin/lib/worktree/name.js`'s `sanitizeWorktreeName()`: within each
+`/`-segment it maps every character outside `[A-Za-z0-9._-]` to `-`, collapses runs of `-` to
+one, preserves `/` as the segment delimiter, and caps the result at 64 chars — the same rule
+stated above, as one canonical, unit-tested implementation rather than three independently
 re-derived regexes.
 
 ## Procedure

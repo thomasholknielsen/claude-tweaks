@@ -26,7 +26,7 @@ Also pull any local fallback records left behind by a failed GitHub write — th
 
 ```bash
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   console.log(JSON.stringify(queryRecords('specs', { unsynced: true })));
 " > /tmp/tidy-unsynced.json
 ```
@@ -43,7 +43,7 @@ consumers of this scale — Step 3's design-doc age rows and Step 4.7's claim-st
 rows read different data sources and are not governed by `record-staleness-weeks`.
 
 The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `classifyStaleness`
-come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js')`
+come from `require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-buckets.js')`
 (`bin/lib/issues/record-buckets.js`).
 
 ### Shape 1 — backlog record stale
@@ -163,7 +163,7 @@ absent, and a sweep needing no `gh` must not inherit that skip; that scope's own
 the full reasoning, including what `_shared/forge-detection.md`'s Detection Ladder (which that scope runs behind) does and does not gate on.
 
 Classification is entirely `parentGateState`'s (`bin/lib/issues/acceptance.js`) — do not
-reimplement it. That predicate is backend-agnostic: it takes `{leaves, parentLabels}` (the shipped
+reimplement it. That predicate is backend-agnostic: it takes `{subIssues, parentLabels}` (the shipped
 signature's own key names), and a local parent's disposition translates to the one-element
 `['demo:' + facets.acceptance]` (empty when unset), exactly as
 `wrap-up/verification-brief.md`'s **Evaluate the gate** does for this driver.
@@ -183,10 +183,10 @@ or out-of-vocabulary `risk`) makes the whole parent's aggregate unscored too, ma
 ```bash
 RISK_FLOOR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor)
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const { parentGateState } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
-  const { TIERS } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
+  const { parentGateState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
+  const { TIERS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const [riskFloor] = process.argv.slice(1);
   const parents = queryRecords('specs', { isParentIssue: true });
   const gates = parents.map((p) => {
@@ -199,22 +199,22 @@ node -e "
       title: p.title,
       path: p.path,
       parentLabels: p.facets.acceptance ? ['demo:' + p.facets.acceptance] : [],
-      leaves: subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', risk: r.facets.risk })),
+      subIssues: subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', risk: r.facets.risk })),
     };
   });
-  function maxRiskTier(leaves) {
+  function maxRiskTier(subIssues) {
     let hasUnscored = false;
     let maxIndex = -1;
-    for (const leaf of leaves) {
-      const index = TIERS.indexOf(leaf.risk);
+    for (const subIssue of subIssues) {
+      const index = TIERS.indexOf(subIssue.risk);
       if (index === -1) { hasUnscored = true; continue; }
       if (index > maxIndex) maxIndex = index;
     }
     return hasUnscored ? undefined : TIERS[maxIndex];
   }
   gates
-    .filter((f) => exceedsOversightFloor({ risk: maxRiskTier(f.leaves) }, { riskFloor, sizeFloor: null }).exceeds)
-    .filter((f) => parentGateState({ leaves: f.leaves, parentLabels: f.parentLabels }) === 'due')
+    .filter((f) => exceedsOversightFloor({ risk: maxRiskTier(f.subIssues) }, { riskFloor, sizeFloor: null }).exceeds)
+    .filter((f) => parentGateState({ subIssues: f.subIssues, parentLabels: f.parentLabels }) === 'due')
     .forEach((f) => console.log(f.path + '\t[parent-gate] ' + f.id + ': ' + f.title + ' — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo ' + f.id));
 " "$RISK_FLOOR"
 ```
@@ -280,9 +280,9 @@ empty here:
 ```bash
 { read -r RISK_FLOOR; read -r SIZE_FLOOR; } < <(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor)
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const { needsBackstop } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/acceptance.js');
-  const { exceedsOversightFloor } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/oversight-floor.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
+  const { needsBackstop } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
+  const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
   const [riskFloor, sizeFloor] = process.argv.slice(1);
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   queryRecords('specs', { closed: true })

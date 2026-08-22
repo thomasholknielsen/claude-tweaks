@@ -94,7 +94,7 @@ If `target` is `null`, report "nothing due for the deep tier" and skip the rest 
 
 Otherwise:
 
-0. **Check for recent QA evidence.** Glob `screenshots/qa/*/report.json`, take the most recent by timestamp prefix. If none exists, skip to sub-step 1. Read the stories directory and collect the `id` of every story with `journey: {target.id}`, reusing `_shared/journey-coverage-check.md`'s cross-reference (don't recompute it independently). If the journey has no stories at all, skip to sub-step 1 — there is no possible QA evidence to check.
+0. **Check for recent QA evidence.** Glob `.claude-tweaks/artifacts/screenshots/qa/*/report.json`, take the most recent by timestamp prefix. If none exists, skip to sub-step 1. Read the stories directory and collect the `id` of every story with `journey: {target.id}`, reusing `_shared/journey-coverage-check.md`'s cross-reference (don't recompute it independently). If the journey has no stories at all, skip to sub-step 1 — there is no possible QA evidence to check.
 
    Otherwise, read that report.json and run:
    ```bash

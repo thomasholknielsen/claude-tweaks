@@ -8,6 +8,13 @@
 // it in-process against real gitRepo()/linkedWorktreeOf() fixtures, chdir'd
 // per test, with deps stubbed to prove the anchoring check runs BEFORE any
 // gh/network call: a rejection must never reach deps.ghAvailable.
+//
+// #959: a --run-dir resolving INSIDE a linked worktree is no longer an
+// unconditional rejection — this CLI only ever writes to the documented
+// worktree-local exception (work/{n}-spec.md), so the check now accepts
+// "anchored under the main checkout" OR "inside a linked worktree", and
+// rejects only a --run-dir that is neither (e.g. a foreign checkout, or
+// nowhere near any git repo).
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -38,6 +45,7 @@ function fakeDeps(overrides = {}) {
     cwd: () => process.cwd(),
     mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
     isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
+    isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
     mkdirp: () => { throw new Error('mkdirp should never be called when --run-dir is rejected'); },
     writeFile: () => { throw new Error('writeFile should never be called when --run-dir is rejected'); },
     stdout: () => {},
@@ -46,25 +54,38 @@ function fakeDeps(overrides = {}) {
   };
 }
 
-test('reject: --run-dir is a bare-relative path resolving inside the linked worktree', () => {
+test('#959 accept: --run-dir is a bare-relative path resolving inside the linked worktree', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   const deps = fakeDeps();
   const code = withCwd(wt, () => run(['1', '--run-dir', path.join('.claude-tweaks', 'pipelines', 'x')], deps));
+  // Rejected downstream by the stubbed ghAvailable()=false, NOT by anchoring.
   assert.strictEqual(code, 2);
-  assert.match(deps.calls.stderr.join(''), /resolves outside the main checkout/i);
-  assert.strictEqual(deps.calls.ghAvailable, 0, 'must reject before ever checking gh availability');
+  assert.doesNotMatch(deps.calls.stderr.join(''), /resolves outside the main checkout/i);
+  assert.strictEqual(deps.calls.ghAvailable, 1, 'a worktree-relative --run-dir must now reach the gh-availability check');
 });
 
-test('reject: --run-dir is absolute but resolves inside the linked worktree', () => {
+test('#959 accept: --run-dir is absolute and resolves inside the linked worktree', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   const deps = fakeDeps();
   const abs = path.join(wt, '.claude-tweaks', 'pipelines', 'x');
   const code = withCwd(wt, () => run(['1', '--run-dir', abs], deps));
   assert.strictEqual(code, 2);
+  assert.doesNotMatch(deps.calls.stderr.join(''), /resolves outside the main checkout/i);
+  assert.strictEqual(deps.calls.ghAvailable, 1, 'a worktree-relative --run-dir must now reach the gh-availability check');
+});
+
+test('#959 reject: --run-dir resolves inside a DIFFERENT git checkout (foreign repo, not the main checkout or its own worktree)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const foreign = gitRepo();
+  const deps = fakeDeps();
+  const abs = path.join(foreign, '.claude-tweaks', 'pipelines', 'x');
+  const code = withCwd(wt, () => run(['1', '--run-dir', abs], deps));
+  assert.strictEqual(code, 2);
   assert.match(deps.calls.stderr.join(''), /resolves outside the main checkout/i);
-  assert.strictEqual(deps.calls.ghAvailable, 0);
+  assert.strictEqual(deps.calls.ghAvailable, 0, 'a foreign checkout must still be rejected, not just "not the main checkout"');
 });
 
 test('accept: --run-dir is absolute and anchored under the main checkout', () => {

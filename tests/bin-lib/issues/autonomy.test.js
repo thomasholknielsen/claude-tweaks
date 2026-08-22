@@ -259,6 +259,7 @@ test('bookkeepingPermissions at supervised unlocks nothing', () => {
     queueWriteAutoFile: false,
     opsAckAutoAcknowledge: false,
     consoleAutoResolve: false,
+    refineAutoApply: false,
     ledgerRouteRemainder: false,
   });
 });
@@ -269,16 +270,18 @@ test('bookkeepingPermissions at trusted unlocks ledger narrowing and queue-write
     queueWriteAutoFile: true,
     opsAckAutoAcknowledge: false,
     consoleAutoResolve: false,
+    refineAutoApply: false,
     ledgerRouteRemainder: false,
   });
 });
 
-test('bookkeepingPermissions at unattended unlocks all three', () => {
+test('bookkeepingPermissions at unattended unlocks all four', () => {
   assert.deepEqual(bookkeepingPermissions('unattended'), {
     ledgerNarrowing: true,
     queueWriteAutoFile: true,
     opsAckAutoAcknowledge: true,
     consoleAutoResolve: true,
+    refineAutoApply: true,
     ledgerRouteRemainder: true,
   });
 });
@@ -301,6 +304,27 @@ test('bookkeepingPermissions at unattended unlocks consoleAutoResolve and ledger
   assert.strictEqual(result.ledgerRouteRemainder, true);
 });
 
+test('bookkeepingPermissions gates refineAutoApply at unattended only, same as consoleAutoResolve (#1178)', () => {
+  assert.strictEqual(bookkeepingPermissions('supervised').refineAutoApply, false);
+  assert.strictEqual(bookkeepingPermissions('trusted').refineAutoApply, false);
+  assert.strictEqual(bookkeepingPermissions('unattended').refineAutoApply, true);
+});
+
+test('reverting refineAutoApply\'s tier threshold fails the trusted-tier assertion (test discriminates)', () => {
+  // Mirrors the discrimination test below for consoleAutoResolve/ledgerRouteRemainder:
+  // gate refineAutoApply on 'trusted' instead of 'unattended' and the
+  // trusted-tier case must diverge from the real implementation.
+  const wronglyGated = (ceiling) => {
+    const tier = CEILINGS.includes(ceiling) ? ceiling : 'supervised';
+    const atLeastLocal = (t, min) => CEILINGS.indexOf(t) >= CEILINGS.indexOf(min);
+    return {
+      ...bookkeepingPermissions(tier),
+      refineAutoApply: atLeastLocal(tier, 'trusted'),
+    };
+  };
+  assert.notDeepEqual(wronglyGated('trusted'), bookkeepingPermissions('trusted'));
+});
+
 test('bookkeepingPermissions falls back to supervised for undefined or an unrecognized tier', () => {
   const supervised = bookkeepingPermissions('supervised');
   assert.deepEqual(bookkeepingPermissions(undefined), supervised);
@@ -319,6 +343,7 @@ test('reverting bookkeepingPermissions\' tier thresholds fails the trusted-tier 
       queueWriteAutoFile: atLeastLocal(tier, 'unattended'),
       opsAckAutoAcknowledge: atLeastLocal(tier, 'unattended'),
       consoleAutoResolve: atLeastLocal(tier, 'unattended'),
+      refineAutoApply: atLeastLocal(tier, 'unattended'),
       ledgerRouteRemainder: atLeastLocal(tier, 'unattended'),
     };
   };
@@ -341,6 +366,7 @@ test('reverting bookkeepingPermissions\' new-key tier thresholds fails the trust
       queueWriteAutoFile: atLeastLocal(tier, 'trusted'),
       opsAckAutoAcknowledge: atLeastLocal(tier, 'unattended'),
       consoleAutoResolve: atLeastLocal(tier, 'trusted'),
+      refineAutoApply: atLeastLocal(tier, 'unattended'),
       ledgerRouteRemainder: atLeastLocal(tier, 'trusted'),
     };
   };

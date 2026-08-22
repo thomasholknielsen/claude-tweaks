@@ -21,7 +21,7 @@ When `--all` was passed (no `<skill>` argument), skip straight to the `--all` br
 ```bash
 export INTEGRATION_BRANCH="<Step F1's resolved branch, or empty if nothing resolved>"
 node -e "
-  const { compareRoutineRecords, freshnessNote } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/routine-template-parser.js');
+  const { compareRoutineRecords, freshnessNote } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/routine-template-parser.js');
   const r = compareRoutineRecords({ branch: process.env.INTEGRATION_BRANCH || undefined });
   console.log(JSON.stringify({ ...r, note: freshnessNote(r) }, null, 2));
 "
@@ -74,7 +74,7 @@ In `--all` mode, use `record.filename` in place of `{PREFIXED_NAME}` (never deri
 **Step 3.** Compare the record's `template_version` against the current template file's (already read in Step 1) `template_version`. If they differ, flag it: "this routine was created from template v{N}; the template is now at v{M} — run `update {skill}` to re-sync." A live routine holds a frozen *copy* of the prompt it was created from, so a version gap means every firing since has executed the old text; `skills/_shared/routine-template-schema.md`'s "Re-provisioning after a template change" section covers the cases this recourse doesn't reach (a routine with no instantiated record). Also compare the record's `kernel_version` against the schema's current one: Step 1 already read `$CURRENT` once per run via `grep -m1 '^kernel_version:' "${CLAUDE_PLUGIN_ROOT}/skills/_shared/routine-template-schema.md"`. If that grep yielded nothing (the schema file is unreadable — plugin install missing or mangled), report "kernel_version unresolved — cannot judge kernel staleness (check the plugin install)" for the whole run and skip the kernel comparison for every record — never report kernel-stale off an unresolved current. Otherwise, with `$RECORDED` = the record's own `kernel_version` field and `$CURRENT` = Step 1's grep result, run the helper rather than comparing by hand:
 
 ```bash
-node -e "const {kernelFreshness}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/routine-template-parser.js');
+node -e "const {kernelFreshness}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/routine-template-parser.js');
   console.log(kernelFreshness(process.argv[1], process.argv[2]))" "$RECORDED" "$CURRENT"
 ```
 

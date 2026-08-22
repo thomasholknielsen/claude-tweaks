@@ -10,7 +10,7 @@
 const path = require('path');
 const { execFileSync, execFile } = require('child_process');
 const { promisify } = require('util');
-const { runGit } = require('../hooks/git-exec');
+const { runGit, repoSlugOf } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { readRunState } = require('../hooks/context');
 const { classifyClaimBlob, releasePayload } = require('../issues/claims');
@@ -99,13 +99,6 @@ function ghApi(args) {
 // swallows failures; writeTombstoneShared composes its own argv and needs the throw).
 function ghRunner(args) {
   return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, windowsHide: true });
-}
-
-function repoSlugOf(repoRoot) {
-  const remote = runGit(['remote', 'get-url', 'origin'], repoRoot);
-  if (remote.failure || !remote.stdout) return null;
-  const m = /[:/]([^/]+\/[^/]+?)(\.git)?$/.exec(remote.stdout);
-  return m ? m[1] : null;
 }
 
 // Both delegate to claim-store.js's one contents-API implementation.

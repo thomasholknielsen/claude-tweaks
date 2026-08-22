@@ -113,7 +113,7 @@ gh api "repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues" --jq '.[].number'
 # work-links: body-text — parse the parent's own task list
 gh issue view $PARENT_NUM --json body -q .body > /tmp/wrapup-parent-body.md
 node -e "
-  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
   console.log(JSON.stringify(parseSubIssues(fs.readFileSync('/tmp/wrapup-parent-body.md','utf8'))));
 "
@@ -125,17 +125,17 @@ query the reverse relationship instead — every record whose own `facets.parent
 closed alike (the same two-call merge `specify/record-creation.md:35` already uses):
 
 ```js
-const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
 const subIssueRecords = [...queryRecords('specs', { parent: PARENT_ID }), ...queryRecords('specs', { parent: PARENT_ID, closed: true })];
-const leaves = subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', facets: r.facets }));
+const subIssues = subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', facets: r.facets }));
 ```
 
 For each sub-issue number resolved above (`work-backend: github-issues`), fetch its current state
-**and labels** in one call — `gh issue view {n} --json state,labels` — to build the `leaves`
-array `parentGateState({leaves, parentLabels})` (`bin/lib/issues/acceptance.js`) reads, with each
-leaf's `facets` (`parseRecordFacets(labels)`, `bin/lib/issues/record.js`) attached alongside
+**and labels** in one call — `gh issue view {n} --json state,labels` — to build the `subIssues`
+array `parentGateState({subIssues, parentLabels})` (`bin/lib/issues/acceptance.js`) reads, with each
+sub-issue's `facets` (`parseRecordFacets(labels)`, `bin/lib/issues/record.js`) attached alongside
 `state`. `facets` is fetched here, once, and reused by the Oversight-floor check's `maxRiskTier`
-call below — no second per-leaf round-trip.
+call below — no second per-sub-issue round-trip.
 
 Then fetch the **parent's** own current labels — the other argument that predicate takes, and
 the one nothing above has produced yet. Both entry shapes need this: the parent-side entry
@@ -154,7 +154,7 @@ gh issue view $PARENT_NUM --json labels -q '[.labels[].name]'
 **Sub-issue-side entries only** — see "Two entry shapes" above. The parent-side entry never has a
 sub-issue mid-close, so every sub-issue's live state is read as-is, with no special-casing.
 
-**Every sub-issue number in `$CLOSING_SUB_ISSUES` counts as `CLOSED`** when building the `leaves`
+**Every sub-issue number in `$CLOSING_SUB_ISSUES` counts as `CLOSED`** when building the `subIssues`
 array, regardless of what `gh` reports for it. `$CLOSING_SUB_ISSUES` is the set of sub-issues
 *this run* is closing, supplied by the caller. Every sub-issue-side caller evaluates the gate
 while its own sub-issues are still open — all three label **before** the close lands — so reading
@@ -163,7 +163,7 @@ fires.
 
 The set overrides state; it never adds sub-issues. Only members of `$CLOSING_SUB_ISSUES` that
 the enumeration above already returned are affected — a member belonging to a different parent,
-or to no parent at all, is simply irrelevant to this parent's `leaves` array.
+or to no parent at all, is simply irrelevant to this parent's `subIssues` array.
 
 **A sub-issue-side entry arriving without an explicit `$CLOSING_SUB_ISSUES` defaults to the
 one-element set `{the sub-issue in hand}` — never to the empty set.** That default is what keeps
@@ -206,7 +206,7 @@ because the symptom is a silent no-op.
 
 ## Evaluate the gate
 
-Call `parentGateState({ leaves, parentLabels })`, where `parentLabels` is the parent's current
+Call `parentGateState({ subIssues, parentLabels })`, where `parentLabels` is the parent's current
 labels (`work-backend: github-issues`) or, under `work-backend: local-files`, the one-element
 translation of its `facets.acceptance` (`parent.facets.acceptance ? ['demo:' + parent.facets.acceptance] : []`):
 
@@ -224,9 +224,9 @@ way the non-parent path's Oversight-floor gate does:
 node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor
 ```
 
-Compute `maxTier = maxRiskTier(leaves.map((l) => l.facets))` (`bin/lib/issues/oversight-floor.js`
-— each leaf's already-fetched `risk:*` facets from **Enumerate the parent's sub-issues** above;
-a leaf missing `risk` entirely, or carrying an out-of-vocabulary value, makes `maxTier` `undefined`
+Compute `maxTier = maxRiskTier(subIssues.map((s) => s.facets))` (`bin/lib/issues/oversight-floor.js`
+— each sub-issue's already-fetched `risk:*` facets from **Enumerate the parent's sub-issues** above;
+a sub-issue missing `risk` entirely, or carrying an out-of-vocabulary value, makes `maxTier` `undefined`
 so the call below fails closed as `unscored` rather than being silently outvoted by its siblings).
 Call:
 
@@ -242,7 +242,7 @@ own (`specify/record-creation.md`'s Parent record section), so there is nothing 
 regardless.
 
 - **`exceeds: false`** — the parent closes cleanly: no `demo:pending`, no brief, same as a
-  below-floor leaf record on the non-parent path. Stop here; do not compose the parent brief.
+  below-floor sub-issue record on the non-parent path. Stop here; do not compose the parent brief.
 - **`exceeds: true`** — proceed to **Compose the parent brief** below, exactly as `due` alone
   used to trigger before this gate existed.
 
@@ -347,7 +347,7 @@ itself carries no `facets.parent`, so this is a fresh query, not the sub-issue l
 filtered to the entry whose `.id === PARENT_ID`:
 
 ```js
-const { readRecord, writeRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const { readRecord, writeRecord } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
 const parentRecord = readRecord(parentPath);
 parentRecord.facets.acceptance = 'pending';
 parentRecord.body = parentRecord.body + '\n\n' + parentBriefTemplate;

@@ -400,33 +400,31 @@ test('recordResult with no telemetryPath skips telemetry silently', () => {
   assert.doesNotThrow(() => recordResult({ runDir, payload, now: FIXED_NOW }));
 });
 
-test('recordResult rejects a payload.detail matching FORBIDDEN_VOCABULARY before the row is written', () => {
+test('recordResult rejects a payload.detail matching FORBIDDEN_VOCABULARY — nothing written', () => {
   const runDir = makeRunDir();
   const telemetryPath = path.join(runDir, 'outcomes.tsv');
   const worklist = makeWorklist();
   initState({ runDir, worklist, now: FIXED_NOW, telemetryPath });
+  const decisionsBefore = fs.readFileSync(decisionsPath(runDir), 'utf8');
 
   const payload = {
     version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run',
-    detail: 'flagged via domain-overlap check',
+    detail: 'saw a domain-overlap issue while scanning',
   };
 
   assert.throws(
     () => recordResult({ runDir, payload, now: FIXED_NOW, telemetryPath }),
-    /forbidden vocabulary/
+    /payload\.detail matches forbidden vocabulary/
   );
 
   const state = readState(runDir);
   assert.strictEqual(Object.prototype.hasOwnProperty.call(state.results, 'skills'), false);
-
-  const decisions = fs.readFileSync(decisionsPath(runDir), 'utf8');
-  assert.doesNotMatch(decisions, /Skills: gate open/);
-
+  assert.strictEqual(fs.readFileSync(decisionsPath(runDir), 'utf8'), decisionsBefore);
   const tsv = fs.readFileSync(telemetryPath, 'utf8');
-  assert.doesNotMatch(tsv, /\tskills\topen\t/);
+  assert.doesNotMatch(tsv, /\tskills\t/);
 });
 
-test('recordResult rejects a findings[].summary matching FORBIDDEN_VOCABULARY before the row is written', () => {
+test('recordResult rejects a findings[].summary matching FORBIDDEN_VOCABULARY, naming the entry', () => {
   const runDir = makeRunDir();
   const worklist = makeWorklist();
   initState({ runDir, worklist, now: FIXED_NOW });
@@ -434,13 +432,13 @@ test('recordResult rejects a findings[].summary matching FORBIDDEN_VOCABULARY be
   const payload = {
     version: 1, rowId: 'journeys', result: 'findings', gapDetection: 'run',
     findings: [
-      { kind: 'additive', summary: 'contains domain-overlap wording', targetPath: 'docs/journeys/j1.md', action: 'applied', stagePath: null, commit: null },
+      { kind: 'additive', summary: 'noted the gap detection result', targetPath: 'docs/journeys/j1.md', action: 'staged', stagePath: null, commit: null },
     ],
   };
 
   assert.throws(
     () => recordResult({ runDir, payload, now: FIXED_NOW }),
-    /forbidden vocabulary/
+    /findings\[0\]\.summary matches forbidden vocabulary/
   );
 
   const state = readState(runDir);
@@ -460,71 +458,106 @@ test('recordResult accepts a payload.detail that does not match FORBIDDEN_VOCABU
   assert.doesNotThrow(() => recordResult({ runDir, payload, now: FIXED_NOW }));
 });
 
-test('amendResult corrects a previously-recorded row and appends an AMENDED decisions.md line', () => {
+test('amendResult corrects a previously-recorded row and appends a distinct AMENDED line', () => {
   const runDir = makeRunDir();
   const telemetryPath = path.join(runDir, 'outcomes.tsv');
   const worklist = makeWorklist();
   initState({ runDir, worklist, now: FIXED_NOW, telemetryPath });
 
-  const original = {
-    version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'original detail',
-  };
-  recordResult({ runDir, payload: original, now: FIXED_NOW, telemetryPath });
+  recordResult({
+    runDir, telemetryPath, now: FIXED_NOW,
+    payload: { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'original detail' },
+  });
+  const decisionsAfterRecord = fs.readFileSync(decisionsPath(runDir), 'utf8').trim().split('\n');
+  assert.match(decisionsAfterRecord[decisionsAfterRecord.length - 1], /^SCANNED .* — Skills:/);
 
-  const tsvBefore = fs.readFileSync(telemetryPath, 'utf8');
-
-  const amendment = {
-    version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'corrected detail',
-  };
-  const stored = amendResult({ runDir, payload: amendment, now: FIXED_NOW, telemetryPath });
-
-  assert.strictEqual(stored.detail, 'corrected detail');
+  const amended = amendResult({
+    runDir, telemetryPath, now: FIXED_NOW,
+    payload: { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'corrected detail' },
+  });
+  assert.strictEqual(amended.detail, 'corrected detail');
 
   const state = readState(runDir);
   assert.strictEqual(state.results.skills.detail, 'corrected detail');
 
-  const decisions = fs.readFileSync(decisionsPath(runDir), 'utf8');
-  assert.match(decisions, /^AMENDED .* — Skills: gate open/m);
+  const decisionsAfterAmend = fs.readFileSync(decisionsPath(runDir), 'utf8').trim().split('\n');
+  assert.strictEqual(decisionsAfterAmend.length, decisionsAfterRecord.length + 1);
+  assert.match(decisionsAfterAmend[decisionsAfterAmend.length - 1], /^AMENDED .* — Skills: gate open/);
+});
 
-  // No double-counted telemetry for the amended row.
+test('amendResult does not double-append telemetry for the amended row', () => {
+  const runDir = makeRunDir();
+  const telemetryPath = path.join(runDir, 'outcomes.tsv');
+  const worklist = makeWorklist();
+  initState({ runDir, worklist, now: FIXED_NOW, telemetryPath });
+
+  recordResult({
+    runDir, telemetryPath, now: FIXED_NOW,
+    payload: { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' },
+  });
+  const tsvBefore = fs.readFileSync(telemetryPath, 'utf8');
+  const skillsLinesBefore = tsvBefore.split('\n').filter((l) => l.includes('\tskills\t')).length;
+  assert.strictEqual(skillsLinesBefore, 1);
+
+  amendResult({
+    runDir, telemetryPath, now: FIXED_NOW,
+    payload: { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'corrected' },
+  });
+
   const tsvAfter = fs.readFileSync(telemetryPath, 'utf8');
-  assert.strictEqual(tsvAfter, tsvBefore);
+  assert.strictEqual(tsvAfter, tsvBefore); // untouched by amendResult
 });
 
-test('amendResult rejects a row that was never recorded', () => {
+test('amendResult re-runs FORBIDDEN_VOCABULARY validation — a forbidden amend is rejected, original untouched', () => {
   const runDir = makeRunDir();
   const worklist = makeWorklist();
   initState({ runDir, worklist, now: FIXED_NOW });
 
-  const payload = { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' };
+  recordResult({
+    runDir, now: FIXED_NOW,
+    payload: { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'original detail' },
+  });
 
   assert.throws(
-    () => amendResult({ runDir, payload, now: FIXED_NOW }),
-    /not.*recorded|amend/i
-  );
-});
-
-test('amendResult re-runs full payload validation, including the FORBIDDEN_VOCABULARY check', () => {
-  const runDir = makeRunDir();
-  const worklist = makeWorklist();
-  initState({ runDir, worklist, now: FIXED_NOW });
-
-  const original = { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' };
-  recordResult({ runDir, payload: original, now: FIXED_NOW });
-
-  const badAmendment = {
-    version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run',
-    detail: 'flagged via domain-overlap check',
-  };
-
-  assert.throws(
-    () => amendResult({ runDir, payload: badAmendment, now: FIXED_NOW }),
-    /forbidden vocabulary/
+    () => amendResult({
+      runDir, now: FIXED_NOW,
+      payload: { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run', detail: 'a domain-overlap correction' },
+    }),
+    /payload\.detail matches forbidden vocabulary/
   );
 
-  // Original stored result is untouched by the rejected amend attempt.
   const state = readState(runDir);
-  assert.strictEqual(state.results.skills.detail, undefined);
+  assert.strictEqual(state.results.skills.detail, 'original detail'); // unchanged
+  const decisions = fs.readFileSync(decisionsPath(runDir), 'utf8');
+  assert.doesNotMatch(decisions, /^AMENDED/m);
+});
+
+test('amendResult throws when the row was never recorded — nothing to amend', () => {
+  const runDir = makeRunDir();
+  const worklist = makeWorklist();
+  initState({ runDir, worklist, now: FIXED_NOW });
+
+  assert.throws(
+    () => amendResult({
+      runDir, now: FIXED_NOW,
+      payload: { version: 1, rowId: 'skills', result: 'clean', gapDetection: 'run' },
+    }),
+    /never recorded/
+  );
+});
+
+test('amendResult throws when the row is closed', () => {
+  const runDir = makeRunDir();
+  const worklist = makeWorklist();
+  initState({ runDir, worklist, now: FIXED_NOW });
+
+  assert.throws(
+    () => amendResult({
+      runDir, now: FIXED_NOW,
+      payload: { version: 1, rowId: 'docs', result: 'clean', gapDetection: 'run' },
+    }),
+    /closed/
+  );
 });
 
 test('now defaults to the current time when omitted', () => {

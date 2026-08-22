@@ -46,6 +46,18 @@ function isDirectory(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
 
+// #280: the one signal that distinguishes "harness-isolation left a real run
+// dir trapped in this worktree" from "an ordinary stray directory that
+// happens to sit under .claude-tweaks/pipelines/". A bare `mkdir` produces a
+// directory too — that must never match — so the bar is that a pipeline step
+// actually WROTE to it: one of the three files every initialized run dir
+// carries at least one of (decisions.md from Manifesto/standalone-fallback
+// init, run-state.json from a hook write, config.yml from the Manifesto).
+function isInitializedRunDir(dir) {
+  return ['decisions.md', 'run-state.json', 'config.yml']
+    .some((marker) => fs.existsSync(path.join(dir, marker)));
+}
+
 // Resolves an explicit `--run <path>` argument, validating it's a real
 // directory, or falls back to ctxLib.resolveRunDir when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
@@ -92,6 +104,26 @@ function resolveRunArg(args, cwd, env) {
       };
     }
     if (!wtDetect.isAnchoredUnderRoot(resolved, mainRoot)) {
+      // #280: the general case above (a bare or stray worktree-local
+      // directory) stays rejected — that's the [IL-96]/[IL-127] shadow this
+      // anchoring check exists to prevent. The one narrow exception: a
+      // session whose harness refused every write to the main checkout for
+      // the whole session has no anchored copy to name at all, so its run
+      // dir was legitimately initialized worktree-local as the only
+      // available option (the incident this record documents). Adopt it
+      // ONLY when (a) it is already an INITIALIZED run dir — not merely a
+      // directory that exists, the same bar `isInitializedRunDir` states —
+      // and (b) no same-named run dir already exists under the main
+      // checkout, which would make that copy the authoritative one instead.
+      // Both conditions must hold: an ordinary run with no worktree-local
+      // dir at all never has (a), so it can never spuriously match this
+      // fallback ([IL-127]'s own acceptance criterion).
+      const mainCandidate = path.join(mainRoot, '.claude-tweaks', 'pipelines', path.basename(resolved));
+      if (isInitializedRunDir(resolved) && !isDirectory(mainCandidate)) {
+        return {
+          runDir: resolved, invalidRunArg: null, rest, explicit: true, worktreeLocalFallback: true,
+        };
+      }
       return {
         runDir: null,
         invalidRunArg: `${candidate} (exists, but not anchored under the main checkout at ${mainRoot} — refusing a worktree-relative shadow run dir; see resolve-run-dir)`,
@@ -104,6 +136,15 @@ function resolveRunArg(args, cwd, env) {
   return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };
 }
 
+// #280: prints the worktree-local-fallback disclosure resolveRunArg's
+// `worktreeLocalFallback` flag calls for — shared by every call site so a
+// future one can't silently omit it the way six of the seven did before this
+// fix (review finding: the disclosure was wired only at record-worktree).
+function reportWorktreeLocalFallback(runDir, worktreeLocalFallback) {
+  if (!worktreeLocalFallback) return;
+  process.stdout.write(`claude-tweaks: --run ${runDir} resolved via the worktree-local fallback (#280) — no anchored copy exists under the main checkout; this run's state lives only in this worktree until merge.\n`);
+}
+
 async function main(argv) {
   const cmd = argv[2];
   if (cmd === 'record-worktree') {
@@ -111,8 +152,11 @@ async function main(argv) {
     // below — without it, this always fell through to resolveRunDir's
     // "newest non-terminal run" fallback, which a stale never-closed run
     // could win over the run genuinely making this call.
-    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const {
+      runDir, invalidRunArg, rest, worktreeLocalFallback,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     const worktreeArg = rest[0];
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — worktree not recorded\n`);
     } else if (runDir && worktreeArg) {
@@ -206,7 +250,8 @@ async function main(argv) {
     // run-state.json is written only through hooks.js verbs (CLAUDE.md's
     // write-ownership rule) — this is the sanctioned verb for the pr-early
     // run lifecycle's { number, url } field (#409).
-    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const numberArg = rest[0];
     const urlArg = rest[1];
     const number = Number(numberArg);
@@ -234,7 +279,8 @@ async function main(argv) {
     // the multi-spec PARENT run dir (where manifest.yml lives — see
     // multi-spec.md's "Run directory layout"), never a per-spec
     // PIPELINE_RUN_DIR subdirectory.
-    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const specArg = flagVal(rest, '--spec');
     const statusArg = flagVal(rest, '--status');
     const phaseArg = flagVal(rest, '--phase');
@@ -260,7 +306,8 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'close-run') {
-    const { runDir, invalidRunArg, explicit } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);
     } else if (runDir) {
@@ -292,7 +339,8 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'teardown-run') {
-    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const mode = argv.includes('--merged') ? 'merged' : (argv.includes('--abandoned') ? 'abandoned' : null);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not torn down\n`);
@@ -307,7 +355,8 @@ async function main(argv) {
   if (cmd === 'archive-run') {
     const { archiveRunDir } = require('./lib/reconcile/archive-merged');
     const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
-    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not archived\n`);
       return 0;
@@ -357,7 +406,8 @@ async function main(argv) {
     // Read-only: never writes run-state.json. Skills call this immediately
     // before any of the three resume paths' safe-to-resume ruling
     // (skills/_shared/run-resume-freshness.md).
-    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — resume freshness not checked\n`);
       return 0;
@@ -428,6 +478,49 @@ async function main(argv) {
       // full per-item census — see format-summary.js for the aggregation.
       process.stdout.write(require('./lib/reconcile/format-summary').formatSummary(out) + '\n');
     }
+    return 0;
+  }
+  if (cmd === 'reconcile-summary') {
+    // #644 Deliverable 3 — the plain one-line residue summary
+    // `/claude-tweaks:flow`'s closing report shells out for. Composed
+    // without re-running the background checks (release/archive/
+    // archive-branches/remote-prune/reap already ran off the hot path via
+    // `reconcile-background`, most recently under `session-start.js`) —
+    // this reads that persisted `summary.archived` count plus the residue
+    // cache both `archive`/`reap` already maintain (Deliverable 2), and
+    // runs only the cheap, git-only `mirror` check fresh (mirror-ff.js
+    // never shells to `gh` — see index.js's own preflight comment on why
+    // it's excluded from the gh-health gate), since mirror's own RESULT
+    // never persists anywhere (it only ever runs inline at SessionStart —
+    // see that file's FAST_CHECKS comment). The call itself still reaches
+    // reconcile()'s end-of-pass freshness stamp, though, which is a
+    // DIFFERENT persistence path this call must opt out of — see
+    // `skipCacheStamp` below.
+    const cwd = process.cwd();
+    const root = wtDetect.mainCheckoutRoot(cwd) || cwd;
+    const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
+    let archivedCount = 0;
+    try {
+      const status = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+      archivedCount = (status.summary && typeof status.summary.archived === 'number') ? status.summary.archived : 0;
+    } catch { /* no background pass has completed yet — 0 archived is accurate */ }
+
+    let mirror = null;
+    try {
+      // skipCacheStamp: true — this narrow mirror-only probe must not stamp
+      // the shared reconcile-cache.json `lastRunAt` session-start.js's own
+      // FAST_CHECKS call gates its `skipIfFresh` freshness check on; doing
+      // so would make the next SessionStart within DEFAULT_TTL_MS believe
+      // its own mirror/red-tip/console pass already ran and skip it,
+      // silently suppressing red-tip's CI-failure surfacing after every
+      // successful `/claude-tweaks:flow` completion (see index.js's own
+      // comment on this option).
+      const mirrorResult = await require('./lib/reconcile').reconcile({ cwd, checks: ['mirror'], skipCacheStamp: true });
+      mirror = mirrorResult.mirror;
+    } catch { /* best-effort — mirror shows n/a rather than blocking this summary */ }
+
+    const { formatReconcileSummary } = require('./lib/reconcile/residue-summary');
+    process.stdout.write(formatReconcileSummary(root, { archivedCount, mirror }) + '\n');
     return 0;
   }
   if (cmd === 'reconcile-background') {

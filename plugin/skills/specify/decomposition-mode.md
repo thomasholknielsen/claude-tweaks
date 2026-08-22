@@ -20,7 +20,20 @@ When Step 9 completes, return to `SKILL.md`'s `## Next Actions` block.
 > **Parallel execution:** Use parallel tool calls aggressively — all reads and searches below are independent and should run concurrently. Front-load all I/O before analysis.
 
 1. **The design doc** — understand what was decided, the scope, and the technical approach
-2. **Open records** — the record store itself is the current landscape; there is no separate index file to read. Query once, per driver, fetching the union of fields both this step and Step 3's Idempotency map need so Step 3 can reuse this same fetch instead of paying for a second round-trip: `work-backend: github-issues` — read through the session-scoped record snapshot (`_shared/record-queue-fetch.md`'s Session-scoped record snapshot section: `{Session-scoped record snapshot's read-fresh-or-fetch block, with {tmp-records-file} = /tmp/specify-all-issues.json}`), then filter in-memory to `state === 'OPEN'` and run `parseRecordFacets` (`bin/lib/issues/record.js`) over each issue's `labels` for this step's Landscape/Overlap Analysis use. Reading `--state all` here (rather than `--state open`) is deliberate — Step 3's Idempotency map needs the closed records too, and reuses `/tmp/specify-all-issues.json` directly instead of re-fetching (see Step 3). The snapshot's own `backlog-fetch-limit` cap (default 1000, superseding the previous hardcoded 500 this step used before the shared snapshot existed) matches the `--state all` convention `/code-health`/`/harness-health`/`/journey-health`/`/docs-health` already use for their own `--state all` fetches — a combined open+closed fetch capped too low can silently push older open issues out (pigeonhole: a fixed number of slots shared between both states, returned newest-first by default), narrowing this step's Landscape/Overlap Analysis coverage versus an open-only fetch. `work-backend: local-files` — `queryRecords('specs', {})` (`bin/lib/issues/local-store.js`), which returns parsed `facets` directly.
+2. **Open records** — the record store itself is the current landscape; there is no separate index file to read. Resolve this run's session-scoped temp paths once, per `_shared/session-tmp-root.md` (cited throughout this file and `record-creation.md` rather than restated):
+
+   ```bash
+   SPECIFY_ALL_ISSUES=$(node -e "
+     const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+     console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-all-issues.json') || require('path').join(require('os').tmpdir(), 'specify-all-issues.json'))
+   ")
+   SPECIFY_KEY_FILES=$(node -e "
+     const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+     console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-key-files.json') || require('path').join(require('os').tmpdir(), 'specify-key-files.json'))
+   ")
+   ```
+
+   Query once, per driver, fetching the union of fields both this step and Step 3's Idempotency map need so Step 3 can reuse this same fetch instead of paying for a second round-trip: `work-backend: github-issues` — read through the session-scoped record snapshot (`_shared/record-queue-fetch.md`'s Session-scoped record snapshot section: `{Session-scoped record snapshot's read-fresh-or-fetch block, with {tmp-records-file} = "$SPECIFY_ALL_ISSUES"}`), then filter in-memory to `state === 'OPEN'` and run `parseRecordFacets` (`bin/lib/issues/record.js`) over each issue's `labels` for this step's Landscape/Overlap Analysis use. Reading `--state all` here (rather than `--state open`) is deliberate — Step 3's Idempotency map needs the closed records too, and reuses `"$SPECIFY_ALL_ISSUES"` directly instead of re-fetching (see Step 3). The snapshot's own `backlog-fetch-limit` cap (default 1000, superseding the previous hardcoded 500 this step used before the shared snapshot existed) matches the `--state all` convention `/code-health`/`/harness-health`/`/journey-health`/`/docs-health` already use for their own `--state all` fetches — a combined open+closed fetch capped too low can silently push older open issues out (pigeonhole: a fixed number of slots shared between both states, returned newest-first by default), narrowing this step's Landscape/Overlap Analysis coverage versus an open-only fetch. `work-backend: local-files` — `queryRecords('specs', {})` (`bin/lib/issues/local-store.js`), which returns parsed `facets` directly.
 3. **Every open record's body** (from the query above) — scan for overlap with the design doc's scope; feeds the File Reference Map below.
 4. **Recent git log** — check if any part of the design has already been implemented
 5. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing sub-issue records that `/superpowers:writing-plans` can act on. When a sub-issue's Technical Approach tells the builder to mirror an existing sibling pattern (e.g., "copy `{facet}`'s existing parse in `{file}` exactly"), grep for every other file implementing that same pattern (`grep -rn "facets\.{facet}\b"` or equivalent) and list all of them under Key Files — not just the file the cited instance happened to live in. A shared facet/field commonly has more than one parity implementation (e.g. a GitHub-label driver and a local-files driver); naming only one lets the other silently drift out of sync (`record #472`).
@@ -29,28 +42,40 @@ When Step 9 completes, return to `SKILL.md`'s `## Next Actions` block.
 
 Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every open record's body to build a file→record map. Never let the raw record bodies re-enter the model's context for this step — call the existing extractor and redirect its output:
 
-`work-backend: github-issues` (reads `/tmp/specify-all-issues.json`, the same `--state all` snapshot Step 1 above already fetched):
+`work-backend: github-issues` (reads this run's session-scoped `specify-all-issues.json`, the same `--state all` snapshot Step 1 above already fetched — re-resolved here since a fresh bash invocation does not inherit Step 1's shell variables, `_shared/session-tmp-root.md`):
 
 ```bash
+SPECIFY_ALL_ISSUES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-all-issues.json') || require('path').join(require('os').tmpdir(), 'specify-all-issues.json'))
+")
+SPECIFY_KEY_FILES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-key-files.json') || require('path').join(require('os').tmpdir(), 'specify-key-files.json'))
+")
 node -e "
-  const { extractKeyFiles } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
-  const issues = require('/tmp/specify-all-issues.json').filter((i) => i.state === 'OPEN');
+  const { extractKeyFiles } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const issues = require('$SPECIFY_ALL_ISSUES').filter((i) => i.state === 'OPEN');
   console.log(JSON.stringify(issues.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }))));
-" > /tmp/specify-key-files.json
+" > "$SPECIFY_KEY_FILES"
 ```
 
 `work-backend: local-files` (over every file `queryRecords('specs', {})` returns, reference by record id instead of `#N`):
 
 ```bash
+SPECIFY_KEY_FILES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-key-files.json') || require('path').join(require('os').tmpdir(), 'specify-key-files.json'))
+")
 node -e "
-  const { extractKeyFilesSection } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { extractKeyFilesSection } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const records = queryRecords('specs', {});
   console.log(JSON.stringify(records.map((r) => ({ id: r.id, keyFiles: extractKeyFilesSection(r.body) }))));
-" > /tmp/specify-key-files.json
+" > "$SPECIFY_KEY_FILES"
 ```
 
-`/tmp/specify-key-files.json` is `[{id, keyFiles}]` — feed this into the file→record map, e.g.:
+`"$SPECIFY_KEY_FILES"` is `[{id, keyFiles}]` — feed this into the file→record map, e.g.:
 
 ```
 src/components/ShoppingList.tsx → #41, #45
@@ -171,7 +196,14 @@ Each is independently buildable with clear dependencies (73 → 74 → 75).
 
 ### Implicit Dependency Detection
 
-After decomposing into work units, before creating any records, build the input set — every new work unit plus every open record (from the file reference map in Step 1), each as `{id, keyFiles}` — and write it to `/tmp/specify-key-files.json`:
+After decomposing into work units, before creating any records, build the input set — every new work unit plus every open record (from the file reference map in Step 1), each as `{id, keyFiles}` — and write it to this run's session-scoped key-files path (`_shared/session-tmp-root.md`; re-resolved here since a fresh bash invocation does not inherit Step 1's shell variables):
+
+```bash
+SPECIFY_KEY_FILES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-key-files.json') || require('path').join(require('os').tmpdir(), 'specify-key-files.json'))
+")
+```
 
 - **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it.
 - **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 5's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the sub-issue's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet.
@@ -179,11 +211,11 @@ After decomposing into work units, before creating any records, build the input 
 ```bash
 node -e "
   const items = ${WORK_UNIT_KEY_FILES_JSON}.concat(${OPEN_RECORD_KEY_FILES_JSON}); // both assembled above: [{id, keyFiles}]
-  require('fs').writeFileSync('/tmp/specify-key-files.json', JSON.stringify(items));
+  require('fs').writeFileSync('$SPECIFY_KEY_FILES', JSON.stringify(items));
 "
 node -e "
-  const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
-  const items = require('/tmp/specify-key-files.json'); // [{id, keyFiles}] — new work units + open records
+  const { groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const items = require('$SPECIFY_KEY_FILES'); // [{id, keyFiles}] — new work units + open records
   console.log(JSON.stringify(groupByFileOverlap(items).filter(g => g.length > 1)));
 "
 ```
@@ -259,7 +291,7 @@ Before deleting the design doc, dispatch persona-instantiated agents in one para
 
 **Freshly-created sub-issues only.** Skip this dispatch for a sub-issue resumed via Step 3's Idempotency map whose fetched body already shows zero unresolved `<!-- ambiguity: -->` markers and no `## Open Questions` section — that sub-issue completed red-team and self-review in a prior run, and re-dispatching would duplicate findings against content already resolved. Dispatch normally for every sub-issue actually created in this run, and for any resumed sub-issue that still carries unresolved markers or an open `## Open Questions` table from an interrupted prior run.
 
-Each agent's input is a record reference, never inlined content: `work-backend: github-issues` — the sub-issue's number plus a `gh issue view` read instruction; `work-backend: local-files` — the sub-issue's record file path. Never both in the same dispatch. Findings are written **back into the record body** — inline `<!-- ambiguity: ... -->` HTML comments next to flagged sentences, or rows in an appended `## Open Questions` table — via compose-then-write-once, the same discipline every write in this skill uses. No mid-flow prompt — Step 6 Self-Review picks them up.
+Each agent's input is a record reference, never inlined content: `work-backend: github-issues` — the sub-issue's number plus a `gh issue view` read instruction; `work-backend: local-files` — the sub-issue's record file path. Never both in the same dispatch. Findings are written **back into the record body** — inline `<!-- ambiguity: ... -->` HTML comments next to flagged sentences, or rows in an appended `## Open Questions` table — via compose-then-write-once, the same discipline every write in this skill uses, after the per-persona dedup and severity floor in `red-team.md`'s write-back procedure. A decision-worthy finding (critical, or one whose resolution would change the sub-issue's Deliverables/Acceptance-Criteria scope) is staged for the Review Console with the sub-issue's `ready` cleared, rather than left for Step 6 to self-resolve. No mid-flow prompt — Step 6 Self-Review picks up everything below that bar.
 
 Read `red-team.md` in this skill's directory for the dispatch prompt (Template A block must remain inlined verbatim in the dispatch prompt at runtime per the Subagent Contract), the persona lens questions, and the write-back procedure.
 
@@ -273,7 +305,7 @@ Before deleting the design doc, look at every record you wrote with fresh eyes �
 
 > **Parallel execution (conditional):** When N ≥ 3 sub-issue records are produced, run scope and ambiguity checks across all sub-issues concurrently — `gh issue view` per sub-issue under `work-backend: github-issues`, `Read` per record file under `work-backend: local-files` — plus `Grep` over the fetched bodies for placeholder patterns.
 
-1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section, over every record body (parent and sub-issues). Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to sub-issue N" — fix them now. Also confirm every `<!-- ambiguity: ... -->` marker Step 5's red-team wrote has been resolved and **deleted** — zero may remain: a `ready` sub-issue still carrying one fails `_shared/work-record.md`'s spec-shaped structural check, which treats `<!-- ambiguity:` as an unresolved placeholder marker exactly like `TBD`/`TODO`.
+1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section, over every record body (parent and sub-issues). Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to sub-issue N" — fix them now. Also confirm every `<!-- ambiguity: ... -->` marker Step 5's red-team wrote has been resolved and **deleted**, with one exception: a marker whose finding Step 5 staged for the Review Console stays — that sub-issue's `ready` is already cleared, and its resolution is the console's decision, not this step's. On every sub-issue that remains `ready`, zero may remain: a `ready` sub-issue still carrying one fails `_shared/work-record.md`'s spec-shaped structural check, which treats `<!-- ambiguity:` as an unresolved placeholder marker exactly like `TBD`/`TODO`.
 2. **Internal consistency** — across the sub-issues in this decomposition, do referenced types, model names, and endpoint signatures match? A function called `clearLayers()` in sub-issue 42 but `clearFullLayers()` in sub-issue 43 is a bug.
 3. **Scope check** — is each sub-issue genuinely a single work unit (3-8 tasks)? If one is doing two things, split it now. If two are doing the same thing, merge them.
 4. **Ambiguity check** — could any acceptance criterion be interpreted two different ways? Pick one and make it explicit.

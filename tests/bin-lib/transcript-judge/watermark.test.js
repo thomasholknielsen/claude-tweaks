@@ -12,11 +12,14 @@ function makeStore() {
   const store = {};
   const mkdirSync = () => {};
   const writeFile = (p, content) => { store[p] = content; };
+  const rename = (from, to) => { store[to] = store[from]; delete store[from]; };
   const readFile = (p) => {
     if (!(p in store)) { const e = new Error(`ENOENT: no such file, open '${p}'`); e.code = 'ENOENT'; throw e; }
     return store[p];
   };
-  return { store, mkdirSync, writeFile, readFile };
+  return {
+    store, mkdirSync, writeFile, rename, readFile,
+  };
 }
 
 const TRANSCRIPT = '/Users/x/.claude/projects/foo/session-abc123.jsonl';
@@ -58,25 +61,31 @@ test('readWatermark: corrupt/malformed JSON -> null, no throw', () => {
 
 // ---- writeWatermark + read-back round trip ---------------------------------
 
-test('writeWatermark: creates the watermarks directory and writes JSON at the derived path', () => {
+test('writeWatermark: creates the watermarks directory and writes JSON at the derived path (via an atomic tmp-file rename)', () => {
   const mkdirCalls = [];
   const writeCalls = [];
+  const renameCalls = [];
   const mkdirSync = (p, opts) => mkdirCalls.push({ p, opts });
   const writeFile = (p, content) => writeCalls.push({ p, content });
+  const rename = (from, to) => renameCalls.push({ from, to });
   const data = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 1024, evaluatedAt: '2026-08-17T00:00:00Z', filedRecords: [], dismissedFingerprints: [] };
 
-  watermark.writeWatermark(TRANSCRIPT, data, { mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, data, { mkdirSync, writeFile, rename });
 
   assert.equal(mkdirCalls.length, 1);
   assert.equal(mkdirCalls[0].p, path.dirname(WATERMARK_REL));
   assert.deepEqual(mkdirCalls[0].opts, { recursive: true });
   assert.equal(writeCalls.length, 1);
-  assert.equal(writeCalls[0].p, WATERMARK_REL);
   assert.deepEqual(JSON.parse(writeCalls[0].content), data);
+  assert.equal(renameCalls.length, 1);
+  assert.equal(renameCalls[0].from, writeCalls[0].p);
+  assert.equal(renameCalls[0].to, WATERMARK_REL);
 });
 
 test('read-back round trip: write then read returns the exact data written', () => {
-  const { mkdirSync, writeFile, readFile } = makeStore();
+  const {
+    mkdirSync, writeFile, rename, readFile,
+  } = makeStore();
   const data = {
     transcriptPath: TRANSCRIPT,
     bytesAtDispatch: 6815744,
@@ -85,19 +94,21 @@ test('read-back round trip: write then read returns the exact data written', () 
     dismissedFingerprints: ['feedback-deadbeef'],
   };
 
-  watermark.writeWatermark(TRANSCRIPT, data, { mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, data, { mkdirSync, writeFile, rename });
   const result = watermark.readWatermark(TRANSCRIPT, { readFile });
 
   assert.deepEqual(result, data);
 });
 
 test('writeWatermark: overwrites an existing watermark (the --full reset primitive)', () => {
-  const { mkdirSync, writeFile, readFile } = makeStore();
+  const {
+    mkdirSync, writeFile, rename, readFile,
+  } = makeStore();
   const first = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 100, evaluatedAt: 'a', filedRecords: ['#1'], dismissedFingerprints: [] };
   const second = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 9999, evaluatedAt: 'b', filedRecords: [], dismissedFingerprints: [] };
 
-  watermark.writeWatermark(TRANSCRIPT, first, { mkdirSync, writeFile });
-  watermark.writeWatermark(TRANSCRIPT, second, { mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, first, { mkdirSync, writeFile, rename });
+  watermark.writeWatermark(TRANSCRIPT, second, { mkdirSync, writeFile, rename });
   const result = watermark.readWatermark(TRANSCRIPT, { readFile });
 
   assert.deepEqual(result, second);
@@ -106,19 +117,22 @@ test('writeWatermark: overwrites an existing watermark (the --full reset primiti
 test('writeWatermark: propagates a real write failure to the caller rather than swallowing it', () => {
   const mkdirSync = () => {};
   const writeFile = () => { throw new Error('ENOSPC: no space left on device'); };
+  const rename = () => {};
   assert.throws(
-    () => watermark.writeWatermark(TRANSCRIPT, { transcriptPath: TRANSCRIPT }, { mkdirSync, writeFile }),
+    () => watermark.writeWatermark(TRANSCRIPT, { transcriptPath: TRANSCRIPT }, { mkdirSync, writeFile, rename }),
     /ENOSPC/,
   );
 });
 
 test('readWatermark/writeWatermark: consumer round-trip is isolated per consumer', () => {
-  const { mkdirSync, writeFile, readFile } = makeStore();
+  const {
+    mkdirSync, writeFile, rename, readFile,
+  } = makeStore();
   const feedbackData = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 10, evaluatedAt: 'a', filedRecords: [], dismissedFingerprints: [] };
   const reflectData = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 20, evaluatedAt: 'b', filedRecords: ['insight-1'] };
 
-  watermark.writeWatermark(TRANSCRIPT, feedbackData, { consumer: 'feedback', mkdirSync, writeFile });
-  watermark.writeWatermark(TRANSCRIPT, reflectData, { consumer: 'reflect', mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, feedbackData, { consumer: 'feedback', mkdirSync, writeFile, rename });
+  watermark.writeWatermark(TRANSCRIPT, reflectData, { consumer: 'reflect', mkdirSync, writeFile, rename });
 
   assert.deepEqual(watermark.readWatermark(TRANSCRIPT, { consumer: 'feedback', readFile }), feedbackData);
   assert.deepEqual(watermark.readWatermark(TRANSCRIPT, { consumer: 'reflect', readFile }), reflectData);

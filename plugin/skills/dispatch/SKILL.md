@@ -93,13 +93,15 @@ Common to all four selection forms — group membership must be computed over th
 
 The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` — see Anti-Patterns.
 
-Read `queue-pull-script.md` in this skill's directory and run its script verbatim — it produces `/tmp/dispatch-groups.json`, which every selection form below reads. That file also carries the MCP-path substitution and the queue-pull-notes pointer.
+Read `queue-pull-script.md` in this skill's directory and run its script verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), which every selection form below reads. That file also carries the MCP-path substitution and the queue-pull-notes pointer.
 
 The `bot:*` filter here is the cheap label-based pre-filter — labels are projection, not truth (`_shared/work-record.md`). The authoritative unclaimed check is `/flow`'s Step 2.8 atomic 201/422 claim attempt (`flow/claim-targets.md`) — a record can pass this pre-filter and still turn out contested by the time the first Task call actually claims it. A group of size 1 is a **singleton**; size 2+ is a **bundle** — both dispatch the same way in Step 5, with a different `/flow` invocation shape only.
 
 ### Step 3: Select
 
-**Zero eligible groups (all forms).** Step 2's `groups` array can legitimately be empty — the common steady state right after a dispatch drain, or after an `auto:build` queue with nothing new authorized since the last firing. This is not an error: report "nothing eligible this firing" and stop before Step 4 — do not render a zero-option `AskUserQuestion` (bare mode) or proceed with a `null` pick (`next`, whose ranking script below writes `null` to `/tmp/dispatch-next-pick.json` exactly for this case). A headless (`next`) firing with no eligible groups is a cheap no-op, per `routine-template.yml`'s own notes — report nothing and exit cleanly, no self-report, no `PushNotification`.
+**Zero eligible groups (all forms).** Step 2's `groups` array can legitimately be empty — the common steady state right after a dispatch drain, or after an `auto:build` queue with nothing new authorized since the last firing. This is not an error: report "nothing eligible this firing" and stop before Step 4 — do not render a zero-option `AskUserQuestion` (bare mode) or proceed with a `null` pick (`next`, whose ranking script below writes `null` to this run's session-scoped `dispatch-next-pick.json` — `_shared/session-tmp-root.md` — exactly for this case). A headless (`next`) firing with no eligible groups is a cheap no-op, per `routine-template.yml`'s own notes — report nothing and exit cleanly, no self-report, no `PushNotification`.
+
+**Blocked-exclusion report (refs #1101).** Read this run's session-scoped `dispatch-blocked-excluded.json` (`queue-pull-script.md`'s own output, `{number, blockedBy: [ids]}[]`) — every otherwise-`auto:build`-eligible candidate the queue pull dropped for an open blocked-by dependency, whether via a body-text `Blocked by #N` line or (`work-links: native`) a native `blockedBy` link. When non-empty, render one line before the rest of this step's own output: `{n} excluded — blocked by an open dependency: #{a} (blocked by #{x}), #{b} (blocked by #{y}, #{z})`. **Exception — the headless `next` steady state above:** when this is the `next` form and the zero-eligible-groups case just above applies, render nothing here either, same as that case's own rule — a persistently-blocked queue must not turn an intended-silent Routine firing into per-firing noise on an otherwise cheap no-op. Every other case (bare/`#N`/`#N,#M,...` regardless of group count, or `next` when at least one group is eligible) renders normally. Render nothing at all when the exclusion array is empty, the same no-line-when-clean convention this skill already follows elsewhere. A two-member dependency cycle needs no special detection: each member independently fails the same open-blocker check the other does, so both appear here, each naming the other. This is where the visibility `/claude-tweaks:backlog overview`'s now-retired per-record Dispatch paste block used to carry directly disappeared to — this report is its replacement, at the one place blockers are actually evaluated.
 
 **Bare** `/dispatch` — render a batch table, one row per group from Step 2 (skip this and the rest of Step 3 entirely if the zero-groups case above applies):
 
@@ -122,10 +124,19 @@ Selecting more groups than `{batch-size}` is not an error — the extra selectio
 **`next`** — no human decision. Pick exactly ONE group by this literal ordering: `priority:high` > `priority:medium` > `priority:low` > unprioritized, oldest-first within each band. **A group's rank = its highest-priority member** — find each group's highest-priority (then oldest) member as its representative, then sort groups by that representative's priority band and `createdAt`. When `--priority <band>` (Input table above) is present, filter to only groups whose representative's band matches before ranking — this lets multiple differently-scheduled Routines each own a distinct slice of the queue instead of competing for the same top-of-queue pick:
 
 ```bash
+eval "$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  const os = require('os'); const path = require('path');
+  const files = { DISPATCH_GROUPS: 'dispatch-groups.json', DISPATCH_NEXT_PICK: 'dispatch-next-pick.json' };
+  for (const [varName, filename] of Object.entries(files)) {
+    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
+    console.log(varName + '=' + JSON.stringify(p));
+  }
+")"
 node -e "
   const RANK = { high: 0, medium: 1, low: 2 };
   const bandOf = (r) => (r.facets.priority ? RANK[r.facets.priority] : 3);
-  const groups = require('/tmp/dispatch-groups.json');
+  const groups = require(process.argv[2]);
   const representative = (g) => g.slice().sort((a, b) =>
     bandOf(a) - bandOf(b) || new Date(a.createdAt) - new Date(b.createdAt))[0];
   const priorityFilter = process.argv[1] || null; // '--priority' value, or unset
@@ -134,7 +145,7 @@ node -e "
   const ranked = candidates
     .sort((x, y) => bandOf(x.rep) - bandOf(y.rep) || new Date(x.rep.createdAt) - new Date(y.rep.createdAt));
   console.log(JSON.stringify(ranked.length ? ranked[0].group : null));
-" "$PRIORITY_FILTER" > /tmp/dispatch-next-pick.json
+" "$PRIORITY_FILTER" "$DISPATCH_GROUPS" > "$DISPATCH_NEXT_PICK"
 ```
 
 A `null` result here (no eligible groups, or none matching `--priority`) is the zero-eligible-groups case documented at the top of this step — report nothing eligible and stop, do not proceed to Step 4.

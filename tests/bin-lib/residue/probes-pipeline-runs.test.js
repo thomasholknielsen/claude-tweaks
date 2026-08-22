@@ -36,6 +36,24 @@ test('an un-archived clean run dir is reported with remedy auto', () => {
   assert.match(findings[0].subject, /2026-01-01T000000-spec-1/);
 });
 
+// #1011 audited this probe against the same class of gap #499 fixed in
+// probeBranches (unconditional blast-radius tagging regardless of which
+// session's artifact it is) and concluded this probe is NOT the same class:
+// unlike a merged-but-undeleted branch (which could still belong to a LIVE
+// concurrent session), a `status: 'clean'` run dir is a terminal,
+// self-reported "nothing left to do but archive" state — inert regardless of
+// which session's wrap-up produced it. This test pins that a clean run dir
+// belonging to an unrelated record is still correctly tagged blast-radius,
+// confirming the divergence from probeBranches is deliberate, not a
+// regression waiting to happen.
+test('a clean run dir belonging to an unrelated record is still blast-radius (deliberate divergence from probeBranches)', () => {
+  const root = makeFixture();
+  writeRun(root, '2026-01-01T000000-record-999', { status: 'clean' });
+  const { findings } = probePipelineRuns({ cwd: root });
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].scope, 'blast-radius', 'a clean run dir is inert regardless of which session produced it');
+});
+
 test('a non-clean run dir is not reported', () => {
   const root = makeFixture();
   writeRun(root, '2026-01-01T000000-spec-2', { status: 'interrupted' });

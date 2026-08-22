@@ -11,7 +11,7 @@
 // pure, no-network module.
 'use strict';
 
-const { buildNativeDependencyQuery, hasOpenNativeBlocker } = require('./record');
+const { buildNativeDependencyQuery, hasOpenNativeBlocker, buildNativeSubIssuesQuery } = require('./record');
 
 // { numbers, owner, repo, runner } -> Map<number, {blockedBy: number[], openBlocker: boolean}>.
 // ONE batched, aliased GraphQL call (buildNativeDependencyQuery) resolving
@@ -53,4 +53,39 @@ function fetchNativeDependencies({ numbers, owner, repo, runner } = {}) {
   return result;
 }
 
-module.exports = { fetchNativeDependencies };
+// { numbers, owner, repo, runner } -> { byParent: Map<number, number[]>, retry: number[] }.
+// ONE batched, aliased GraphQL call (buildNativeSubIssuesQuery) resolving every
+// parent's native subIssues connection at once — work-links: native.
+//
+// Error posture differs from fetchNativeDependencies above by design (#1097's
+// error ladder): a null/missing data.repository still THROWS (whole-response
+// failure, same as above), but a single missing alias — or an alias whose
+// pageInfo.hasNextPage is true (more sub-issues than one first:100 page) —
+// routes that parent onto `retry` for the caller's per-parent REST fallback
+// instead of failing the whole batch. Never lands in byParent as [] — an
+// empty entry would read as "confirmed no sub-issues" and re-admit that
+// parent's sub-issues into trust cells as ungraded evidence (#723's shape).
+function fetchNativeSubIssues({ numbers, owner, repo, runner } = {}) {
+  const result = { byParent: new Map(), retry: [] };
+  const query = buildNativeSubIssuesQuery(numbers);
+  if (!query) return result;
+  const out = runner(['api', 'graphql', '-f', `query=${query}`, '-f', `owner=${owner}`, '-f', `repo=${repo}`]);
+  const parsed = JSON.parse(out);
+  const repository = parsed && parsed.data && parsed.data.repository;
+  if (!repository) {
+    const errs = Array.isArray(parsed && parsed.errors) ? parsed.errors.map((e) => e && e.message).filter(Boolean) : [];
+    throw new Error(`missing repository — no sub-issue data for ${numbers.map((n) => `#${n}`).join(', ')}${errs.length ? ` (GraphQL: ${errs.join('; ')})` : ''}`);
+  }
+  for (const n of numbers) {
+    const node = repository[`i${n}`];
+    const conn = node && node.subIssues;
+    if (!conn || (conn.pageInfo && conn.pageInfo.hasNextPage)) {
+      result.retry.push(n);
+      continue;
+    }
+    result.byParent.set(n, (conn.nodes || []).map((s) => s && s.number).filter((v) => Number.isInteger(v)));
+  }
+  return result;
+}
+
+module.exports = { fetchNativeDependencies, fetchNativeSubIssues };

@@ -1,0 +1,7 @@
+{
+  "scope": "layout",
+  "seedKey": "seed-no-outcome",
+  "variants": [
+    { "id": "a", "name": "A", "files": ["a.html"] }
+  ]
+}

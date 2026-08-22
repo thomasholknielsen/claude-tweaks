@@ -63,8 +63,8 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    ```bash
    gh issue list --state open --json number,title,labels --limit 200 > /tmp/pr-scan-records.json
    node -e "
-     const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-     const { isPendingAuthorization } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/pending-authorization.js');
+     const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+     const { isPendingAuthorization } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/pending-authorization.js');
      const issues = require('/tmp/pr-scan-records.json');
      const faceted = issues.map((i) => parseRecordFacets(i.labels));
      const withFacets = issues.map((i, idx) => ({ number: i.number, title: i.title, facets: faceted[idx] }));
@@ -81,7 +81,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
    Surface all three as the `[queue]` Output Contract row below — bare counts only, per the Output Contract's own documented shape. No per-record enumeration is produced or needed here.
 
-9. **Unarmed ready PR** — a green, gate-passed, granted or grantable, plugin-created PR whose `--auto` was never armed. "Plugin-created" is detected purely GitHub-side, from the PR body's `<!-- claude-tweaks-run: {run-id} -->` marker (stamped by `_shared/pr-early-run-lifecycle.md`'s PR-open template) or the `<!-- tidy-housekeeping-pr -->` marker (stamped by `/claude-tweaks:tidy` Step 7 at creation) — no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.
+9. **Unarmed ready PR** — a green, gate-passed, granted or grantable, plugin-created PR whose `--auto` was never armed. "Plugin-created" is detected purely GitHub-side, from the PR body's `<!-- claude-tweaks-run: {run-id} -->` marker (stamped by `_shared/pr-early-run-lifecycle.md`'s PR-open template) or one of the two mechanical-housekeeping markers — `<!-- tidy-housekeeping-pr -->` (stamped by `/claude-tweaks:tidy` Step 7 at creation) or `<!-- wrap-up-residue-pr -->` (stamped by `wrap-up/residue-sweep.md`'s pr-first landing path — the same low-judgment, purely-mechanical shape as a tidy Step-7 commit, gated by the identical `housekeeping-auto-merge` lever) — no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.
 
    ```bash
    UNARMED_AGE=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values pr-unarmed-age-hours)
@@ -94,7 +94,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
      const AGE_HOURS = Number(process.env.UNARMED_AGE);
      const now = Date.now();
      const RUN_MARKER = /<!-- claude-tweaks-run: [^\s]+ -->/;
-     const HOUSEKEEPING_MARKER = /<!-- tidy-housekeeping-pr -->/;
+     const HOUSEKEEPING_MARKER = /<!-- (?:tidy-housekeeping-pr|wrap-up-residue-pr) -->/;
      const prs = require('/tmp/pr-scan-unarmed.json');
      const candidates = prs.filter((pr) => {
        if (pr.isDraft || pr.autoMergeRequest) return false;
@@ -139,7 +139,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
        : [];
      const labelsByIssue = new Map(links.map((l) => [l.number, l.labels]));
      candidates.forEach((pr) => {
-       const isHousekeeping = /<!-- tidy-housekeeping-pr -->/.test(pr.body || '');
+       const isHousekeeping = /<!-- (?:tidy-housekeeping-pr|wrap-up-residue-pr) -->/.test(pr.body || '');
        let granted;
        if (isHousekeeping) {
          granted = HOUSEKEEPING;
@@ -175,7 +175,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
       NUM=$(echo "$FNAME" | sed -E 's/^issue-([0-9]+)\.json$/\1/')
       CONTENT=$(gh api "repos/{owner}/{repo}/contents/claims/${FNAME}?ref=claims-registry" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
       node -e "
-        const { classifyClaimBlob } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/claims.js');
+        const { classifyClaimBlob } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
         const c = classifyClaimBlob(process.argv[2] || null, Date.now());
         if (c.state !== 'live' && c.state !== 'stale') process.exit(0);
         const parsed = JSON.parse(process.argv[2]);
@@ -271,8 +271,8 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    ```bash
    gh issue list --label ready --state open --json number,labels --limit 200 > /tmp/triage-queue-ready.json
    node -e "
-     const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-     const { isPendingAuthorization } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/pending-authorization.js');
+     const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+     const { isPendingAuthorization } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/pending-authorization.js');
      const issues = require('/tmp/triage-queue-ready.json');
      const pending = issues.filter((i) => isPendingAuthorization(parseRecordFacets(i.labels))).length;
      console.log(pending);

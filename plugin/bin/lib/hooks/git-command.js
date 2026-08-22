@@ -301,41 +301,74 @@ function skipGlobalFlags(t, i, dir) {
   return { index: i, dir, unprovable };
 }
 
-// Finds the index of the real `git` command word in a segment's raw token
-// array, looking past three equivalent shapes a real shell treats identically
-// to a bare `git` invocation (#590):
+// Finds the real `git` command word in a segment's raw token array, looking
+// past three equivalent shapes a real shell treats identically to a bare
+// `git` invocation (#590):
 //   - leading `NAME=value` assignment tokens: `FOO=1 git commit -m x`
 //   - the `env` builtin, plus ITS OWN leading flags/assignments, ahead of the
 //     real command: `env git commit -m x`, `env -i git commit -m x`,
 //     `env FOO=1 git commit -m x`
 //   - a directory-qualified executable ending in `/git`: `/usr/bin/git commit`
 // (any combination of the three also resolves, e.g. `FOO=1 /usr/bin/git …`
-// or `env FOO=1 /usr/bin/git …`.) Returns -1 when, after normalization, the
-// leading token still isn't `git` — ambiguity resolves to "not git" (allow),
-// the same never-fabricate-a-target posture as the rest of this module.
-function findGitLead(t) {
+// or `env FOO=1 /usr/bin/git …`.)
+//
+// Returns `{ index, dir, unprovable }` — `index` is -1 when, after
+// normalization, the leading token still isn't `git` (ambiguity resolves to
+// "not git", the same never-fabricate-a-target posture as the rest of this
+// module). `dir` starts at the caller's effective cwd and moves when env's
+// own `-C <dir>` / `--chdir[=]<dir>` flag changes where the command runs —
+// skipping those flags without consuming their value made
+// `env -C <main-checkout> git commit` read as not-git at all (the dir token
+// became the presumed lead) and `env --chdir=/x git commit` resolve its
+// target against the wrong directory. `-u`/`--unset <name>` likewise
+// consumes its value so the name is never mistaken for the command word.
+// Still not full env(1) parsing (see #590's Gotchas): `-S`/`--split-string`
+// re-splits an opaque program string, which is statically unknowable — the
+// same deliberately-uncovered class as `sh -c`/`python -c` (see
+// fileWriteTargets' header) — so it falls through to the not-git default.
+function findGitLead(t, dir) {
+  let unprovable = false;
   let i = 0;
   while (i < t.length && SIMPLE_ASSIGNMENT_RE.test(t[i])) i += 1;
   if (t[i] === 'env') {
     i += 1;
-    // env's own flags (-i, etc.) and any NAME=value pairs preceding the real
-    // command — not full env-flag parsing (see #590's Gotchas: a narrower,
-    // deliberately scoped normalization, not a general env(1) implementation).
-    while (i < t.length && (SIMPLE_ASSIGNMENT_RE.test(t[i]) || (t[i] !== '-' && t[i].startsWith('-')))) i += 1;
+    while (i < t.length) {
+      const tok = t[i];
+      if (SIMPLE_ASSIGNMENT_RE.test(tok)) { i += 1; continue; }
+      if (tok === '-' || !tok.startsWith('-')) break;
+      // Both spellings env accepts: separate value (`-C <dir>`, `--chdir <dir>`)
+      // and attached value (`-C<dir>`, `--chdir=<dir>`). Skipping the attached
+      // short form as a generic flag left the resolved dir at the caller's cwd
+      // while git was still detected as lead — the same silent-allow bypass as
+      // the separate form, one spelling over.
+      if (tok === '-C' || tok === '--chdir' || tok.startsWith('--chdir=') || (tok.startsWith('-C') && tok.length > 2)) {
+        const attached = tok.startsWith('--chdir=') ? tok.slice('--chdir='.length)
+          : tok.startsWith('-C') && tok.length > 2 ? tok.slice(2)
+          : null;
+        const raw = attached !== null ? attached : t[i + 1];
+        const resolved = resolveCd(dir, raw);
+        if (resolved === null) unprovable = true;
+        else dir = resolved;
+        i += attached !== null ? 1 : 2;
+        continue;
+      }
+      if (tok === '-u' || tok === '--unset') { i += 2; continue; }
+      i += 1;
+    }
   }
-  if (i >= t.length) return -1;
+  if (i >= t.length) return { index: -1, dir, unprovable };
   const lead = t[i];
-  if (lead === 'git' || lead.endsWith('/git')) return i;
-  return -1;
+  if (lead === 'git' || lead.endsWith('/git')) return { index: i, dir, unprovable };
+  return { index: -1, dir, unprovable };
 }
 
 function gitTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
-    const lead = findGitLead(t);
-    if (lead === -1) return;
-    const { index: i, dir, unprovable } = skipGlobalFlags(t, lead + 1, effCwd);
-    if (unprovable) return;
+    const lead = findGitLead(t, effCwd);
+    if (lead.index === -1) return;
+    const { index: i, dir, unprovable } = skipGlobalFlags(t, lead.index + 1, lead.dir);
+    if (lead.unprovable || unprovable) return;
     if (dir === null) return; // cwd UNKNOWN and no provable -C — no target
     const sub = t[i];
     if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir });

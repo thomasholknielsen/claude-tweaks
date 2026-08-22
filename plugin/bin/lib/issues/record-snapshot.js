@@ -38,6 +38,12 @@ function gitLogPath(sessionId) {
   return path.join(os.tmpdir(), `ct-gitlog-${id}.txt`);
 }
 
+function subIssuesPath(sessionId) {
+  const id = resolveSessionId(sessionId);
+  if (!id) return null;
+  return path.join(os.tmpdir(), `ct-subissues-${id}.json`);
+}
+
 // Fresh iff the file exists and its mtime is younger than ttlSeconds. Any stat
 // failure (missing, unreadable) reads as not-fresh — the caller's job is then
 // to fetch and write a new one, never to error out over a cache miss.
@@ -61,12 +67,14 @@ function writeSnapshot(filePath, records) {
   fs.writeFileSync(filePath, JSON.stringify(records));
 }
 
-// Deletes both the record snapshot and its companion git-log dump for a
-// session, tolerating either already being absent. Called after any
-// `gh issue create`/`edit`/`close` (or the MCP equivalent) — see
-// _shared/github-write-transport.md's note on the CRUD mapping table.
+// Deletes the record snapshot, its companion git-log dump, and the sub-issues
+// snapshot for a session, tolerating any of the three already being absent.
+// Called after any `gh issue create`/`edit`/`close` (or the MCP equivalent) —
+// see _shared/github-write-transport.md's note on the CRUD mapping table —
+// and after a sub_issues link write (bin/link-records.js), which changes the
+// same parent/sub-issue facts the sub-issues snapshot caches.
 function invalidateSnapshot(sessionId) {
-  for (const p of [snapshotPath(sessionId), gitLogPath(sessionId)]) {
+  for (const p of [snapshotPath(sessionId), gitLogPath(sessionId), subIssuesPath(sessionId)]) {
     if (!p) continue;
     try {
       fs.unlinkSync(p);
@@ -78,8 +86,10 @@ function invalidateSnapshot(sessionId) {
 
 module.exports = {
   UNION_FIELDS,
+  resolveSessionId,
   snapshotPath,
   gitLogPath,
+  subIssuesPath,
   isFresh,
   readSnapshot,
   writeSnapshot,

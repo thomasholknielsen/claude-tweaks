@@ -418,6 +418,21 @@ function buildNativeDependencyQuery(numbers) {
   return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
 }
 
+// candidate parent-issue numbers -> one batched, aliased GraphQL query requesting
+// each parent's native subIssues connection (work-links: native). first:100 is the
+// connection page size requested, not a claim about any platform-side cap on
+// sub-issue count; pageInfo.hasNextPage is the actual guard callers must honor —
+// it fires whenever a parent has more sub-issues than fit in one page, whatever
+// that cap turns out to be, so a truncated page is never mistaken for a complete
+// one. Same alias/null conventions as buildNativeDependencyQuery above.
+function buildNativeSubIssuesQuery(numbers) {
+  if (!Array.isArray(numbers) || numbers.length === 0) return null;
+  const fields = numbers
+    .map((n) => `i${n}: issue(number:${n}){ number subIssues(first:100){ nodes{ number } pageInfo{ hasNextPage } } }`)
+    .join('\n      ');
+  return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
+}
+
 // one candidate's parsed aliased response value (the { number, blockedBy: { nodes } }
 // shape buildNativeDependencyQuery's query produces per alias) -> true when at least
 // one blockedBy node is still OPEN. Mirrors parseDependencies' role for the
@@ -427,6 +442,55 @@ function hasOpenNativeBlocker(issueNode) {
   const nodes = issueNode && issueNode.blockedBy && issueNode.blockedBy.nodes;
   if (!Array.isArray(nodes)) return false;
   return nodes.some((n) => n && n.state === 'OPEN');
+}
+
+// candidates[] (each with .number), openBlockerIdsFn: candidate -> number[] of
+// the open blocker ids excluding it (empty when none) -> { eligible, excluded }.
+// The shared partition shape both blocked-by checks below need: split on
+// whether the candidate has any open blocker, carrying the actual blocker
+// id(s) for whichever candidates get dropped instead of discarding them
+// (dispatch/SKILL.md's Blocked-exclusion report, #1101). A two-member
+// dependency cycle needs no special handling here: each member's
+// `openBlockerIdsFn` independently names the other, so both land in
+// `excluded` — the cycle is visible as two entries pointing at each other,
+// not a distinct code path.
+function partitionByOpenBlockers(candidates, openBlockerIdsFn) {
+  const eligible = [];
+  const excluded = [];
+  for (const c of candidates) {
+    const openBlockers = openBlockerIdsFn(c);
+    if (openBlockers.length > 0) excluded.push({ number: c.number, blockedBy: openBlockers });
+    else eligible.push(c);
+  }
+  return { eligible, excluded };
+}
+
+// candidates[] (each with .number and .body), openNumbers: Set<number> -> { eligible, excluded }.
+// The same open-body-text-dependency predicate dispatch/queue-pull-script.md's own
+// eligibility filter already applies (parseDependencies + an open id), via
+// partitionByOpenBlockers above.
+function partitionByOpenBodyBlockers(candidates, openNumbers) {
+  return partitionByOpenBlockers(candidates, (c) => parseDependencies(c.body).filter((dep) => openNumbers.has(dep)));
+}
+
+// candidates[] (each with .number), repoData: the native GraphQL response's
+// repository{} object (i{number} aliases, buildNativeDependencyQuery's shape) ->
+// { eligible, excluded }, same shape as partitionByOpenBodyBlockers above, for
+// work-links: native. hasOpenNativeBlocker only ever returned a boolean; this is
+// the identical OPEN-state filter, keeping the actual blocker numbers instead of
+// discarding them. A candidate missing from repoData (no `i{n}` alias — e.g. the
+// project isn't on work-links: native, per queue-pull-script.md's `{}` placeholder)
+// has no nodes to check and stays eligible, matching hasOpenNativeBlocker's own
+// no-array-of-nodes -> false behavior. Same fails-safe guard as hasOpenNativeBlocker:
+// a malformed response (nodes present but not an array, e.g. a schema mismatch)
+// degrades to "no blockers resolved", never throws .filter-is-not-a-function.
+function partitionByOpenNativeBlockers(candidates, repoData) {
+  return partitionByOpenBlockers(candidates, (c) => {
+    const node = repoData && repoData['i' + c.number];
+    const rawNodes = node && node.blockedBy && node.blockedBy.nodes;
+    const nodes = Array.isArray(rawNodes) ? rawNodes : [];
+    return nodes.filter((n) => n && n.state === 'OPEN').map((n) => n.number);
+  });
 }
 
 // body -> array of {number, assumption} for every line-anchored
@@ -517,4 +581,5 @@ module.exports = {
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, extractVerifiedAsOf, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
+  buildNativeSubIssuesQuery, partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
 };

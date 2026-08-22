@@ -11,11 +11,13 @@
 // main checkout (resolveTarget — a worktree-local shadow is refused, never silently
 // written, matching bin/log-decision.js's guard [IL-127]). runId = basename(<run-dir>).
 // Exit 0 released; 3 already released or swept (404/409/422 — comment still posted);
-// 4 skipped, claim held by another run (nothing written); 1 failed; 2 malformed
-// invocation or `gh` absent — the MCP path in _shared/github-write-transport.md is the
-// documented fallback there, deliberately not grown into this CLI. Logging is
-// bookkeeping, never a gate: the exit code always reflects the release outcome, never
-// whether decisions.md was written.
+// 4 skipped, claim held by another run (nothing written); 5 skipped, claim blob is
+// corrupt/unreadable (nothing written — distinct from 4: a corrupt blob can never
+// self-resolve the way a live holder's claim eventually expires; do not retry-and-wait
+// on exit 5 the way exit 4 permits); 1 failed; 2 malformed invocation or `gh` absent —
+// the MCP path in _shared/github-write-transport.md is the documented fallback there,
+// deliberately not grown into this CLI. Logging is bookkeeping, never a gate: the exit
+// code always reflects the release outcome, never whether decisions.md was written.
 'use strict';
 
 const path = require('path');
@@ -24,7 +26,7 @@ const release = require('./lib/release-claim/release');
 const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/append');
 
 const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--repo owner/name] [--section "/<skill>"] [--step <text>] [--help]\n';
-const EXIT = { released: 0, 'already-released': 3, 'skipped-not-owner': 4, failed: 1 };
+const EXIT = { released: 0, 'already-released': 3, 'skipped-not-owner': 4, unreadable: 5, failed: 1 };
 
 function parseArgs(argv) {
   const o = { issue: null, run: null, reason: null, link: null, removeGrants: false, removeInProgress: false, repo: null, section: null, step: null, help: false };
@@ -65,6 +67,7 @@ const realDeps = {
 
 function decisionText(issue, r, reason, link) {
   if (r.outcome === 'failed') return `release of #${issue} FAILED (${reason}): ${r.error}`;
+  if (r.outcome === 'unreadable') return `skipped release of issue #${issue}: claim blob is corrupt/unreadable — cannot determine ownership (not a competing claim; repair or force-release required, see _shared/issue-claims.md)`;
   if (r.outcome === 'skipped-not-owner') return `skipped release of issue #${issue}: claim held by run ${r.holder}`;
   const detail = r.outcome === 'already-released' ? ' — already released or swept' : '';
   let text = `released claim on #${issue} (${reason})${link ? `; link ${link}` : ''}${detail}`;
@@ -104,7 +107,7 @@ function run(argv, deps = realDeps) {
   let target;
   try { target = resolveTarget({ runDir, cwd: deps.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
   if (target.ok) {
-    const reversibility = (r.outcome === 'skipped-not-owner' || r.outcome === 'failed') ? 'n/a' : 'high';
+    const reversibility = (r.outcome === 'skipped-not-owner' || r.outcome === 'unreadable' || r.outcome === 'failed') ? 'n/a' : 'high';
     const entry = formatEntry({ status: 'AUTO', now: deps.now(), step: o.step || 'Section E', text: decisionText(issue, r, reason, o.link), reversibility });
     try { appendEntry({ runDir, section: o.section, entry }); logged = true; } catch (err) { deps.stderr(`release-claim.js: decisions.md not written (${err && err.message})\n`); }
   } else if (target.reason === 'not-anchored') {

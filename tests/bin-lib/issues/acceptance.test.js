@@ -111,21 +111,21 @@ const CLOSED = (n) => ({ number: n, state: 'CLOSED' });
 const OPEN = (n) => ({ number: n, state: 'OPEN' });
 
 test('parentGateState is incomplete while any sub-issue is open', () => {
-  assert.equal(parentGateState({ leaves: [CLOSED(1), OPEN(2)], parentLabels: [] }), 'incomplete');
+  assert.equal(parentGateState({ subIssues: [CLOSED(1), OPEN(2)], parentLabels: [] }), 'incomplete');
 });
 
 test('parentGateState is due when every sub-issue is closed and the parent is unlabelled', () => {
-  assert.equal(parentGateState({ leaves: [CLOSED(1), CLOSED(2)], parentLabels: [] }), 'due');
+  assert.equal(parentGateState({ subIssues: [CLOSED(1), CLOSED(2)], parentLabels: [] }), 'due');
 });
 
 test('parentGateState is gated once the parent carries demo:pending', () => {
-  assert.equal(parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:pending'] }), 'gated');
+  assert.equal(parentGateState({ subIssues: [CLOSED(1)], parentLabels: ['demo:pending'] }), 'gated');
 });
 
 test('parentGateState is resolved once a verdict is recorded', () => {
-  assert.equal(parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:approved'] }), 'resolved');
+  assert.equal(parentGateState({ subIssues: [CLOSED(1)], parentLabels: ['demo:approved'] }), 'resolved');
   assert.equal(
-    parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:changes-requested'] }),
+    parentGateState({ subIssues: [CLOSED(1)], parentLabels: ['demo:changes-requested'] }),
     'resolved',
   );
 });
@@ -133,13 +133,13 @@ test('parentGateState is resolved once a verdict is recorded', () => {
 test('parentGateState reports gated even if a sub-issue reopens after gating', () => {
   // The label is the authoritative record of what was applied; a reopened sub-issue
   // must not cause the sweep to re-gate an already-gated parent.
-  assert.equal(parentGateState({ leaves: [OPEN(1)], parentLabels: ['demo:pending'] }), 'gated');
+  assert.equal(parentGateState({ subIssues: [OPEN(1)], parentLabels: ['demo:pending'] }), 'gated');
 });
 
 test('parentGateState never reports due for a parent with no discoverable sub-issues', () => {
   // A parent whose sub-issues cannot be resolved is a resolution failure, not a
   // complete parent — gating it would demand a verdict on work nobody built.
-  assert.equal(parentGateState({ leaves: [], parentLabels: [] }), 'incomplete');
+  assert.equal(parentGateState({ subIssues: [], parentLabels: [] }), 'incomplete');
   assert.equal(parentGateState({}), 'incomplete');
   assert.equal(parentGateState(), 'incomplete');
 });

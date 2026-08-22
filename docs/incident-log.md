@@ -946,6 +946,8 @@ The generalizable rule: an instruction sequenced correctly in a skill file — a
 
 **Recurrence (record #893, 2026-08-20):** the same failure reproduced against the identical trigger — build judged #893's Acceptance Criteria already satisfied by prior work (#902, `08098fe7`) — despite #525's bolded non-skippable language already being live in the installed `build/SKILL.md` text at the time. Both the `record-worktree` stamp and the PR-early draft-PR open were silently skipped again, with no `decisions.md` log entry either way; `/claude-tweaks:review`/`/claude-tweaks:wrap-up` discovered and backfilled both by hand. This shows the #525 prose fix did not hold under a second live occurrence of the same trigger — see the backlog candidate staged from this run's reflect pass proposing a structural (hook- or engine-level) enforcement instead of a third prose iteration.
 
+**Resolution (record #991, 2026-08-22):** the second recurrence's own backlog candidate — investigate structural, hook-level enforcement rather than a third prose iteration — was built as `pre-tool-use.js`'s `checkBookkeepingStampsGate` (`docs/hooks.md`'s bookkeeping-stamps-gate bullet): a covered Edit/Write/NotebookEdit/commit/push is now denied once a materialize commit has landed but `record-worktree` and (under `integration-model: pr-first`) `record-pr` weren't stamped, with a decisions.md degrade-log exemption preserving the legitimate push/PR-create-failure path. This closes the loop IL-131's own generalizable rule named: a sub-step whose failure mode is silent needed enforcement at the point of use, not correct sequencing or bolded prose alone.
+
 ## IL-132 — A spec renamed a contract surface and its Key Files listed only the files the work would write
 
 Spec #518 (tidy report redesign, 2026-08-16) renamed the sections of `/claude-tweaks:tidy`'s report — the surface every scan tag routes into. Its `### Key Files` listed the files the work would author: `skills/tidy/SKILL.md`, `step-6-auto.md`, `step-6-interactive.md`. It did not list `skills/tidy/scan-procedures.md`, whose Collection routing table binds each scan tag to a report section *by that section's name*. Nothing upstream named that file: the design doc didn't, the record body didn't, and the implementer — whose file list is the spec's Key Files — never opened it. The rename shipped with the routing table still pointing at the old section names, and the branch's whole-branch review raised it as a Critical finding. Fixed in-wave (`97363bca` re-pointed the routing, `6d8cf6ac` fixed the resulting claim-tag routing split), so it never reached `main`; the cost was a review cycle plus two follow-up commits on a spec that had already passed its own task-scoped review.
@@ -1122,3 +1124,32 @@ one-line comment on the fixture.
 
 Cost on the #500 run: moderate (~10 min) — one direct-verification pass to confirm a
 false-positive "high" severity finding before it could be staged or acted on.
+
+## IL-143 — Three bugs masked by fixtures whose values production never produces
+
+Record #900's build of `wrap-up-engine.js verify` shipped three separate defects in
+`plugin/bin/lib/wrap-up/engine-verify.js` that its own test suite could not see, each for the
+same reason: the fixture supplied a value simpler than the one production always supplies.
+
+`worktree-removed` (86f935eb) matched live worktrees by `path.basename(runDir)`. A real run dir
+is always `{ISO-timestamp}-{spec-slug}` while a worktree path/branch carries the slug alone, so
+the raw basename never matches — but both fixtures passed `runDir: '/tmp/spec-900'`, where
+basename and slug coincide, and the check read as correct. `acceptance-labeling` (b3fa97be)
+queried the sub-issue directly and expected the full Verification Brief on the issue; no fixture
+modelled a record with a resolvable parent, and none modelled the pr-first pointer-plus-brief
+form that is this project's own default integration mode, so neither real routing path was ever
+executed. `archiveRelativeId` (ae5e2cb1) — rated Critical by the whole-branch re-review — was
+built on `runIdFromRunDir`'s ISO-timestamp-stripping, while `archive-merged.js`'s
+`archiveRunDir()` archives to `archive/{full basename, timestamp included}`, so
+`resolveArchivedRunDir` could locate no real archived run at all; every archive-path fixture used
+a timestamp-free id (`test-archived-parent-900`, `test-archived-singlespec-900`), so the strip
+regex was never exercised.
+
+Each was caught by a different mechanism — a task-level reviewer, a whole-branch
+live-verification review, a scoped re-review — and never by the suite, which stayed green through
+all three. Each fix's real content was one or two fixture values changed to the production shape
+(`/tmp/2026-01-01T000000-spec-900`, `2026-01-01T000000-spec-18`, a parent-carrying issue, a
+pr-first PR), after which the existing assertions failed on their own.
+
+Cost on the #900 run: high — three extra fix rounds inside one record, the last of them a
+Critical regression introduced by a fix round and caught only because a re-review was run at all.

@@ -28,6 +28,7 @@
 
 const { execFileSync } = require('child_process');
 const { fetchNativeDependencies } = require('./lib/issues/native-dependencies');
+const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: resolve-blockers.js <n> [--repo owner/name] [--help]\n';
 
@@ -41,21 +42,24 @@ function parseArgs(argv) {
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') opts.help = true;
-    else if (a === '--repo') opts.repo = argv[++i];
+    else if (a === '--repo') {
+      const v = argv[i + 1];
+      if (!v || v.startsWith('--')) return { error: 'missing value for --repo' };
+      opts.repo = v;
+      i++;
+    }
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
 }
 
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
 const realDeps = {
-  ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
-  remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
-  runner: (args) => execFileSync('gh', args, { encoding: 'utf8' }),
+  ghAvailable,
+  remoteUrl,
+  // 5s bound: one GraphQL call per record — gh-api-module-pattern's default
+  // single-call convention (#1154; fetch-sub-issues.js's wider 30s is only
+  // for its 50-alias batch shape, which this single-record call isn't).
+  runner: (args) => execFileSync('gh', args, { encoding: 'utf8', timeout: 5000 }),
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
 };

@@ -11,7 +11,7 @@ Given a `LABELS` array of `[name, description]` pairs:
 
 ```bash
 node -e "
-  const { ensureLabelPayload } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js');
+  const { ensureLabelPayload } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/labels.js');
   const labels = ${LABELS_JSON};
   console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));
 " > /tmp/label-bootstrap-payloads.json
