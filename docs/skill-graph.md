@@ -514,5 +514,7 @@ skills at once) was split into four per-pair entries, three of which merged with
 existing reciprocal; the fourth, `journey-health` → `backlog`, is the only entry here with
 no single source row of its own.
 
-Source of the navigational-vs-binding classification:
-`docs/superpowers/specs/2026-08-04-relationship-triage-verdicts.md`.
+Source of the navigational-vs-binding classification: was
+`docs/superpowers/specs/2026-08-04-relationship-triage-verdicts.md` — deleted (`cb3f0266`,
+#930), along with the rest of `docs/superpowers/specs/`. Same "was … — deleted" convention
+the `assess-agent-autonomy` section's two design-doc rows already use.
