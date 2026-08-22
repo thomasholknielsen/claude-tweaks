@@ -328,7 +328,9 @@ comments (the chronological reconciliation log). Format:
 ```
 
 **`Parent: #N`** — a decomposition-mode-only body-metadata line (`spec-template.md`), present on a
-sub-issue's body only under `work-backend: github-issues` + `work-links: body-text` — the one
+sub-issue's body only under `work-backend: github-issues` + `work-links: body-text` **and only when
+that decomposition kept a parent** (`/specify`'s Step 2.6 collapse decision can produce parentless
+records — `specify/decomposition-mode.md`) — the one
 combination where nothing else records a sub-issue's own parent (`work-links: native`'s sub-issue
 relationship is queryable from either side; `local-files` carries `facets.parent`). This is what
 lets `/claude-tweaks:review`'s Step 1.6 resolve a sub-issue's parent without a native relationship

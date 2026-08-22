@@ -1,14 +1,15 @@
-# Specify — Decomposition Mode (design doc to parent + sub-issues)
+# Specify — Decomposition Mode (design doc to sub-issues, parent when Step 2.6 keeps one)
 
 Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 2 (a design doc path),
 case 3 (a topic matching an existing design doc), case 4 (a bare topic, after `/superpowers:brainstorming`
 produces the doc), or case 5 where the matched record's topic already has a design doc. Decomposes
-one design doc into a parent record plus ready sub-issue records.
+one design doc into ready sub-issue records, plus a parent record when Step 2.6 keeps one.
 
 Step numbering (Steps 1-9, including the 2.5 / 2.5d sub-steps) matches `SKILL.md`'s pre-split
-numbering exactly, so existing cross-references from other skills and from this skill's own
-sub-files (`design-pre-steps.md`, `record-creation.md`, `red-team.md`, `spec-template.md`) keep
-pointing at the right step. Shaping mode never reaches any of them — it runs `shaping-mode.md` in
+numbering for every step that predates the split, so existing cross-references from other skills
+and from this skill's own sub-files (`design-pre-steps.md`, `record-creation.md`, `red-team.md`,
+`spec-template.md`) keep pointing at the right step. **Step 2.6 (Collapse Decision) is the one
+addition** — a new step, not a renumbering, so no pre-existing cross-reference moved. Shaping mode never reaches any of them — it runs `shaping-mode.md` in
 this skill's directory instead and exits straight to `SKILL.md`'s `## Next Actions`.
 
 When Step 9 completes, return to `SKILL.md`'s `## Next Actions` block.
@@ -244,14 +245,16 @@ Present any detected implicit dependencies as part of the Step 9 summary. These 
 
 With Step 2's work-unit list final and Implicit Dependency Detection's overlap/dependency signals computed, decide whether this decomposition needs a parent record at all. `--granularity` never overrides this decision — that flag tunes Step 2's sizing targets only (see `SKILL.md`'s Input section).
 
-**1 work unit — always collapses.** No parent is created. The single unit becomes a standalone ready record (or, when `$ORIGIN_RECORD_NUM` is set, the origin record is shaped in place — see Step 9).
+**The unit set counted here is Step 2's own design-doc-derived work-unit list for this run** — per `phase-N` scope when the run is phase-scoped, so a multi-phase doc decomposed one phase at a time counts each phase's units on their own and may legitimately keep a parent for one phase and collapse another. A unit already resolved by Step 3's Idempotency map (matched by its `{design-doc-slug}:{unit-slug}` fingerprint against a record a prior partial run created) still counts as exactly that one unit, and is never double-counted as both a work unit and an open record — so a resumed run re-derives the same verdict as the run it resumes.
+
+**1 work unit — always collapses.** No parent is created. The single unit becomes a standalone ready record (or, when `$ORIGIN_RECORD_NUM` is set, the origin record is shaped in place as that unit's create — see Step 3, `record-creation.md`'s Sub-issues section).
 
 **2 work units — collapses only when independent.** Read Implicit Dependency Detection's own outputs for these two units (never re-derive dependency-ness from prose, and never read the adjacent Ceiling-headroom flag, which is a byte-budget annotation from the same grouping pass, not a dependency signal):
 
 - A `Blocked by #N` flag between the two units (from Overlap Analysis or the Implicit Dependency Detection table) → **dependency-ordered — keep the parent.**
 - An internal-conflict row (Overlap-Type table: "grouped with another new work unit from this decomposition") between the two units → **dependency-ordered — keep the parent.**
 - The strangler-fig `early-production` two-sub-issue shape (Decomposition Heuristics table: implement-behind-a-flag, then remove-the-old-path) → **always parent-keeping** — the parent tracks the flag-then-remove sequence; this shape never collapses regardless of the two signals above.
-- Neither signal present, and not the strangler-fig shape → **independent — collapses.** No parent is created; the two units become two ordinary ready records, cross-linked via a `Related: #N` body line on each (see `record-creation.md`'s Linking section for the exact format).
+- Neither signal present, and not the strangler-fig shape → **independent — collapses.** No parent is created; the two units become two ordinary ready records, cross-linked via a `**Related:** #N` body line on each (see `record-creation.md`'s Linking section for the exact format).
 - **Ambiguous** (a signal exists but this step cannot confidently classify it as dependency-ordering the two units) → **keep the parent.** Ambiguity resolves toward tracking, never toward collapse.
 
 **3+ work units — never collapses.** Unchanged: a parent is always created, exactly as today. The strangler-fig `established` three-sub-issue shape is one instance of this — it is 3+ units by construction and was never in scope for collapse.
@@ -297,11 +300,11 @@ Place these recommendations in the Step 9 summary under a `### Diagram suggestio
 
 ## Step 3: Create the records
 
-When Step 2.6 kept the parent, records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Under collapse (Step 2.6), there is no parent — every produced record is created independently, using deterministic fingerprints for idempotent resume across partial or concurrent runs exactly as today. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the full procedure: the Idempotency (resume path) map, Parent record creation, and Sub-issue creation (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
+When Step 2.6 kept the parent, records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Under collapse (Step 2.6), there is no parent — every produced record is created independently, using deterministic fingerprints for idempotent resume across partial or concurrent runs exactly as today. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the full procedure: the Idempotency (resume path) map, Parent record creation (skipped under collapse), and Sub-issue creation — including the origin-set carve-out where a 1-unit collapse's "create" is an in-place write onto the origin record (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
 
 ## Step 4: Link and order
 
-Every parent and sub-issue number now exists. This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it. Read `record-creation.md` in this skill's directory for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
+Every record this run is going to create now has a number (a parent's, under a kept parent; every unit's own, under collapse). This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it. Read `record-creation.md` in this skill's directory for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
 
 ## Step 5: Multi-Persona Red-Team
 
@@ -323,7 +326,7 @@ Before deleting the design doc, look at every record you wrote with fresh eyes �
 
 > **Parallel execution (conditional):** When N ≥ 3 sub-issue records are produced, run scope and ambiguity checks across all sub-issues concurrently — `gh issue view` per sub-issue under `work-backend: github-issues`, `Read` per record file under `work-backend: local-files` — plus `Grep` over the fetched bodies for placeholder patterns.
 
-1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section, over every record body (parent and sub-issues). Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to sub-issue N" — fix them now. Also confirm every `<!-- ambiguity: ... -->` marker Step 5's red-team wrote has been resolved and **deleted** — zero may remain: a `ready` sub-issue still carrying one fails `_shared/work-record.md`'s spec-shaped structural check, which treats `<!-- ambiguity:` as an unresolved placeholder marker exactly like `TBD`/`TODO`.
+1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section, over every record body (every sub-issue, plus the parent when Step 2.6 kept one). Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to sub-issue N" — fix them now. Also confirm every `<!-- ambiguity: ... -->` marker Step 5's red-team wrote has been resolved and **deleted** — zero may remain: a `ready` sub-issue still carrying one fails `_shared/work-record.md`'s spec-shaped structural check, which treats `<!-- ambiguity:` as an unresolved placeholder marker exactly like `TBD`/`TODO`.
 2. **Internal consistency** — across the sub-issues in this decomposition, do referenced types, model names, and endpoint signatures match? A function called `clearLayers()` in sub-issue 42 but `clearFullLayers()` in sub-issue 43 is a bug.
 3. **Scope check** — is each sub-issue genuinely a single work unit (3-8 tasks)? If one is doing two things, split it now. If two are doing the same thing, merge them.
 4. **Ambiguity check** — could any acceptance criterion be interpreted two different ways? Pick one and make it explicit.
@@ -377,7 +380,7 @@ Present a summary. The `Collapse outcome` line below renders in every decomposit
 - {ref} "{title}" — {what was added/changed}
 
 ### Artifacts Removed
-- Design doc: `docs/superpowers/specs/{filename}` (absorbed into the parent + sub-issue records)
+- Design doc: `docs/superpowers/specs/{filename}` (absorbed into the records this run produced)
 
 ### Diagram suggestions (optional — render only when Step 2.5d emitted any)
 - {one or two `**Diagram suggestion:** …` blocks emitted by Step 2.5d}
@@ -388,7 +391,7 @@ Present a summary. The `Collapse outcome` line below renders in every decomposit
 **`needs:definition` origin closure.** When `$ORIGIN_RECORD_NUM` is set (this run was reached via the `needs:definition` redirect — `specify/SKILL.md`'s Resolve-the-input case 1), what happens to the origin record depends on this run's collapse decision (Step 2.6):
 
 - **Parent kept, or 2-unit collapse** — every unit this run produced is a record distinct from the origin. Close the origin now, using the same number list the Work Units Created table above already assembled: post a comment on `$ORIGIN_RECORD_NUM` in that table's own list format, "Superseded by decomposition: #{ref1}, #{ref2}, ..." (`work-backend: github-issues`: `gh issue comment "$ORIGIN_RECORD_NUM" --body "..."` then `gh issue close "$ORIGIN_RECORD_NUM"`; `local-files`: append the note to the record body and mark it closed via `local-store.js`). This is unchanged from before collapse existed, for the parent-kept case; the 2-unit-collapse case closes the origin the identical way, just naming two ordinary records instead of a parent plus two leaves.
-- **1-unit collapse** — the single work unit and the origin are the same thing: there is no second record to point the origin at. Shape the origin record in place instead of closing it: write the unit's spec-shaped body onto `$ORIGIN_RECORD_NUM` (the same body composition Step 3 would otherwise use for a fresh sub-issue) and stamp its `{design-doc-slug}:{unit-slug}` fingerprint into it. The origin is never closed in this branch — it lives on, now shaped. A crashed-and-resumed run finds this fingerprint on `$ORIGIN_RECORD_NUM` itself via the ordinary Idempotency map lookup (`record-creation.md`), exactly as it would find any other unit's fingerprint on a fresh record.
+- **1-unit collapse** — the single work unit and the origin are the same thing, so there is no second record to point the origin at and **this step closes nothing**. Step 3 already ran its origin-set carve-out to shape the origin record in place as that unit's own create — body plus `{design-doc-slug}:{unit-slug}` fingerprint, `record-creation.md`'s Sub-issues section — so Steps 4-7 all ran against a real, existing record. The origin is never closed in this branch; it lives on, now shaped.
 
 When `$ORIGIN_RECORD_NUM` is unset (every other entry path — cases 2-5), this whole paragraph is a no-op, unchanged from before.
 
@@ -396,13 +399,13 @@ When `$ORIGIN_RECORD_NUM` is unset (every other entry path — cases 2-5), this 
 
 | Action | Detail | Ref |
 |--------|--------|-----|
-| Operational | {parent kept: "Created parent record {parent-ref} + {N} sub-issue records"} / {2-unit collapse: "Created 2 independent records (no parent), cross-linked via `Related:` — {ref1}, {ref2}"} / {1-unit collapse: "Shaped {ref} in place (no new record created)"} | `{hash}` (local-files) / `—` (github-issues — creates already landed via API, no commit) |
+| Operational | {parent kept: "Created parent record {parent-ref} + {N} sub-issue records"} / {2-unit collapse: "Created 2 independent records (no parent), cross-linked via `**Related:**` — {ref1}, {ref2}"} / {1-unit collapse, `$ORIGIN_RECORD_NUM` set: "Shaped origin record {ref} in place (no new record created)"} / {1-unit collapse, `$ORIGIN_RECORD_NUM` unset: "Created 1 standalone ready record (no parent) — {ref}"} | `{hash}` (local-files) / `—` (github-issues — creates already landed via API, no commit) |
 | Operational | Deleted design doc | `{hash}` |
 
-**Commit whatever this run wrote to disk — the skill's terminal action, run whether or not anything ends up staged.** This covers only artifacts that are files: the design-doc deletion/marker from Step 7, and — under `work-backend: local-files` — the parent and sub-issue record files plus Step 4's linking edits, composed and written across Steps 3-4 but not yet committed. A clean `github-issues` run has nothing to commit for the records themselves — every parent/sub-issue create and edit already landed via the API in Steps 3-5, the same no-commit case Shaping mode documents — **except** any sub-issue (or the whole batch, if the parent itself fell back) that Step 3's write-path resilience wrote to `local-store.js` after a `gh` failure; that file needs this commit exactly like a `local-files` record does. A full (non-`phase-N`) decomposition may therefore have nothing staged beyond the design doc's `git rm`; a `phase-N` run already committed its own marker back in Step 7, so it may have nothing staged at all. None of this affects durability — a sub-issue is durable the moment its create/write call lands, not when this step commits it. What used to be true of spec files no longer applies: sub-issues don't need to exist in committed history before a pipeline can run them; `/claude-tweaks:flow #N` (or a local record id) materializes a sub-issue into a build-time file only when a pipeline actually runs it (spec 20's contract), independent of this commit.
+**Commit whatever this run wrote to disk — the skill's terminal action, run whether or not anything ends up staged.** This covers only artifacts that are files: the design-doc deletion/marker from Step 7, and — under `work-backend: local-files` — the sub-issue record files (plus the parent's, when Step 2.6 kept one) plus Step 4's linking edits, composed and written across Steps 3-4 but not yet committed. A clean `github-issues` run has nothing to commit for the records themselves — every create and edit already landed via the API in Steps 3-5, the same no-commit case Shaping mode documents — **except** any sub-issue (or the whole batch, if a kept parent itself fell back) that Step 3's write-path resilience wrote to `local-store.js` after a `gh` failure; that file needs this commit exactly like a `local-files` record does. A full (non-`phase-N`) decomposition may therefore have nothing staged beyond the design doc's `git rm`; a `phase-N` run already committed its own marker back in Step 7, so it may have nothing staged at all. None of this affects durability — a sub-issue is durable the moment its create/write call lands, not when this step commits it. What used to be true of spec files no longer applies: sub-issues don't need to exist in committed history before a pipeline can run them; `/claude-tweaks:flow #N` (or a local record id) materializes a sub-issue into a build-time file only when a pipeline actually runs it (spec 20's contract), independent of this commit.
 
 ```bash
-git add specs/ docs/   # local-files driver: parent/sub-issue record files + link edits; docs/: design-doc removal/marker
+git add specs/ docs/   # local-files driver: record files (sub-issues + any kept parent) + link edits; docs/: design-doc removal/marker
 git status --porcelain   # empty is a valid outcome (github-issues, or a phase-N run) — commit only if something is staged
 git commit -m "{message describing the sub-issues created}"   # skip when nothing is staged
 git log --oneline -1   # verify it landed when a commit was made (see _shared/git-discipline.md)
