@@ -297,7 +297,7 @@ Place these recommendations in the Step 9 summary under a `### Diagram suggestio
 
 ## Step 3: Create the records
 
-Records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it, using deterministic fingerprints for idempotent resume across partial or concurrent runs. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the full procedure: the Idempotency (resume path) map, Parent record creation, and Sub-issue creation (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
+When Step 2.6 kept the parent, records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Under collapse (Step 2.6), there is no parent — every produced record is created independently, using deterministic fingerprints for idempotent resume across partial or concurrent runs exactly as today. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the full procedure: the Idempotency (resume path) map, Parent record creation, and Sub-issue creation (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
 
 ## Step 4: Link and order
 
@@ -361,7 +361,7 @@ When fully consumed, do NOT keep these around. They create dangling references a
 
 ## Step 9: Summary and Commit
 
-Present a summary:
+Present a summary. The `Collapse outcome` line below renders in every decomposition run, collapse taken or not — not only when a parent was skipped:
 
 ```markdown
 ## Specification: {design doc topic}
@@ -370,6 +370,8 @@ Present a summary:
 | Record | Title | Type | Blocked by | Est. tasks |
 |--------|-------|------|------------|------------|
 | {ref} | {title} | {type} | {refs or —} | {count} |
+
+**Collapse outcome:** {parent kept | collapsed: 2 units, independent | collapsed: 1 unit} — {one-line reason, e.g. "no `Blocked by` or internal-conflict signal between the two units" / "single work unit, no parent needed"}
 
 ### Existing Records Modified
 - {ref} "{title}" — {what was added/changed}
@@ -383,7 +385,12 @@ Present a summary:
 
 `{ref}` is `#{N}` under `work-backend: github-issues`, the bare record id under `local-files` — same convention as Step 1's Overlap Analysis.
 
-**`needs:definition` origin closure.** When `$ORIGIN_RECORD_NUM` is set (this run was reached via the `needs:definition` redirect — `specify/SKILL.md`'s Resolve-the-input case 1), close that origin record now that the parent and every sub-issue this run produced exist, using the same number list the Work Units Created table above already assembled: post a comment on `$ORIGIN_RECORD_NUM` in that table's own list format, e.g. "Superseded by decomposition: #{parent}, #{sub1}, #{sub2}, ..." (`work-backend: github-issues`: `gh issue comment "$ORIGIN_RECORD_NUM" --body "..."` then `gh issue close "$ORIGIN_RECORD_NUM"`; `local-files`: append the note to the record body and mark it closed via `local-store.js`). When `$ORIGIN_RECORD_NUM` is unset (every other entry path — cases 2-5), this is a no-op: decomposition mode unconditionally produces exactly one parent record every run, so there is never a produced-sub-issues-with-no-parent case this needs to special-case.
+**`needs:definition` origin closure.** When `$ORIGIN_RECORD_NUM` is set (this run was reached via the `needs:definition` redirect — `specify/SKILL.md`'s Resolve-the-input case 1), what happens to the origin record depends on this run's collapse decision (Step 2.6):
+
+- **Parent kept, or 2-unit collapse** — every unit this run produced is a record distinct from the origin. Close the origin now, using the same number list the Work Units Created table above already assembled: post a comment on `$ORIGIN_RECORD_NUM` in that table's own list format, "Superseded by decomposition: #{ref1}, #{ref2}, ..." (`work-backend: github-issues`: `gh issue comment "$ORIGIN_RECORD_NUM" --body "..."` then `gh issue close "$ORIGIN_RECORD_NUM"`; `local-files`: append the note to the record body and mark it closed via `local-store.js`). This is unchanged from before collapse existed, for the parent-kept case; the 2-unit-collapse case closes the origin the identical way, just naming two ordinary records instead of a parent plus one leaf.
+- **1-unit collapse** — the single work unit and the origin are the same thing: there is no second record to point the origin at. Shape the origin record in place instead of closing it: write the unit's spec-shaped body onto `$ORIGIN_RECORD_NUM` (the same body composition Step 3 would otherwise use for a fresh sub-issue) and stamp its `{design-doc-slug}:{unit-slug}` fingerprint into it. The origin is never closed in this branch — it lives on, now shaped. A crashed-and-resumed run finds this fingerprint on `$ORIGIN_RECORD_NUM` itself via the ordinary Idempotency map lookup (`record-creation.md`), exactly as it would find any other unit's fingerprint on a fresh record.
+
+When `$ORIGIN_RECORD_NUM` is unset (every other entry path — cases 2-5), this whole paragraph is a no-op, unchanged from before.
 
 ### Actions Performed
 
