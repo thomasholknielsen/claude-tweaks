@@ -4,11 +4,11 @@ Loaded by `/claude-tweaks:specify` Step 3 onward, decomposition mode only — sh
 
 ## Step 3: Create the records
 
-Records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Every body is composed fully in memory before any write call — compose-then-write-once, the same discipline Shaping mode uses.
+When `decomposition-mode.md`'s Step 2.6 kept the parent, records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Under collapse, there is no parent — every produced record is created independently, in any order. Every body is composed fully in memory before any write call — compose-then-write-once, the same discipline Shaping mode uses.
 
 ### Idempotency (resume path)
 
-Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each sub-issue. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard. **A unit slug must never be the literal string `parent`** — that value is reserved for the parent record's own fingerprint; a sub-issue slugified to `parent` would collide with it in the map below.
+Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each sub-issue. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard. **A unit slug must never be the literal string `parent`** — that value is reserved for the parent record's own fingerprint; a sub-issue slugified to `parent` would collide with it in the map below. Under collapse (`decomposition-mode.md` Step 2.6), no `{design-doc-slug}:parent` fingerprint is ever minted — a resumed collapsed run's fingerprint→number map has only unit fingerprints to match against, and finds every already-created record that way; it never checks for a parent checkpoint.
 
 Before creating anything, build a fingerprint→number map of every existing marker, once. Resolve this run's session-scoped temp paths inside whichever driver branch below actually runs (`_shared/session-tmp-root.md`) — a fresh bash invocation does not inherit shell variables from a separate fence, so each branch resolves its own paths rather than relying on a shared preamble fence:
 
@@ -55,7 +55,7 @@ Then, immediately before **each individual create** — parent included, and not
 
 ### Parent record
 
-One parent per decomposition run (or per `phase-N`, when scoped — see Step 7's phase table). Type is always `feature` — the parent is a summary record, not agent-sized work: **parents never get `ready`**, and they carry no `risk:*`/`size:*` scoring at all.
+Skip this whole section entirely when Step 2.6 (`decomposition-mode.md`) decided to collapse — no parent record, no `{design-doc-slug}:parent` fingerprint is ever minted, and Step 3 proceeds straight to Sub-issues below with no `$PARENT_NUM`/`$PARENT_ID` for them to link to. Otherwise, exactly one parent per decomposition run (or per `phase-N`, when scoped — see Step 7's phase table), unchanged from before collapse existed. Type is always `feature` — the parent is a summary record, not agent-sized work: **parents never get `ready`**, and they carry no `risk:*`/`size:*` scoring at all.
 
 Parent body = design summary: the problem, the chosen approach, the key decisions, and why the alternatives lost. This is deliberately not the design doc pasted verbatim — it's the durable digest that has to survive Step 7 deleting the design doc. Prefix it with a one-line metadata block, `Surface: {value}` — reuse whatever Step 2.5a's whole-design-doc detection already produced (the canonical value list lives in `spec-template.md`). The parent never carries `Design-intent:` — parents are never built or polished directly, so creative intent has nothing to attach to.
 
@@ -161,7 +161,7 @@ Deliverable-name-collisions section owns the check and the grep.
 
 **Tasks never become records.** A sub-issue's own internal breakdown — the Deliverables checklist, the Acceptance Criteria list — stays exactly that: a checklist inside the sub-issue's body. `/superpowers:writing-plans` turns it into an execution plan at build time; nothing at this granularity spawns a further issue per task.
 
-**Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents (`shaping-mode.md` in this skill's directory), just run once per sub-issue instead of once per shaped record. When Step 2.5b-ii's variant exploration ran and the user accepted a scaffold direction for this sub-issue's surface, also prefix `Visual-reference: {scaffold path}` (`design-pre-steps.md` Step 2.5b-ii item 5) — omit the line entirely when Step 2.5b-ii was skipped, declined, or not offered (the canonical field reference lives in `spec-template.md`). Under `work-backend: github-issues` + `work-links: body-text`, also prefix `Parent: #$PARENT_NUM` — already known at this point (Parent record, above, runs first) and the only combination where nothing else records a sub-issue's own parent (`spec-template.md`).
+**Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents (`shaping-mode.md` in this skill's directory), just run once per sub-issue instead of once per shaped record. When Step 2.5b-ii's variant exploration ran and the user accepted a scaffold direction for this sub-issue's surface, also prefix `Visual-reference: {scaffold path}` (`design-pre-steps.md` Step 2.5b-ii item 5) — omit the line entirely when Step 2.5b-ii was skipped, declined, or not offered (the canonical field reference lives in `spec-template.md`). Under `work-backend: github-issues` + `work-links: body-text`, and only when Step 2.6 kept the parent, also prefix `Parent: #$PARENT_NUM` — already known at this point (Parent record, above, runs first) and the only combination where nothing else records a sub-issue's own parent (`spec-template.md`). Under collapse, omit this line entirely — there is no `$PARENT_NUM` to reference.
 
 **Type** — matches the parent (`feature`) unless the unit is clearly a defect fix (a bug report, a regression, broken behavior) — override to `bug` in that case.
 
@@ -292,6 +292,8 @@ Every parent and sub-issue number now exists. This pass wires the relationships 
 ### Linking
 
 Branches on driver, then — for `github-issues` — on `work-links`.
+
+**Independent 2-unit collapse (Step 2.6, `decomposition-mode.md`) — `Related:` cross-links, not parent/child.** When Step 2.6 collapsed two independent units, there is no parent to link either sub-issue to. Instead, each of the two records gets a line-anchored, greppable `Related: #N` body line pointing at the other — `work-backend: github-issues`, both `work-links` values (GitHub's own automatic `#N`-mention timeline cross-reference exists but is not greppable record-body text, which is why this explicit line is written even under `work-links: native`); `work-backend: local-files`, the identical `Related: {id}` body line, no new frontmatter facet. Write this via the same compose-then-write-once discipline as every other body edit in this skill — append the line to each record's already-composed body before its create call, not as a separate edit afterward.
 
 **`work-backend: github-issues`, `work-links: native`:**
 
