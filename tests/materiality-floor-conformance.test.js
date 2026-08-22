@@ -153,7 +153,7 @@ test('the four health sweeps state materiality-floor-before-cap-digest ordering'
   }
 });
 
-test('review\'s and visual-review\'s recommend-only Defer bullets state accept-time (not recommendation-time) digest write', () => {
+test('reflect\'s and visual-review\'s recommend-only Defer bullets state accept-time (not recommendation-time) digest write', () => {
   const RECOMMEND_ONLY = [
     'plugin/skills/reflect/full-mode.md',
     'plugin/skills/visual-review/browser-review.md',

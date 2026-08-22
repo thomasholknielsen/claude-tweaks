@@ -271,7 +271,7 @@ Read `/tmp/code-health-payloads.json`. The command:
 
 **Step 9 — FILE / REOPEN ISSUES.**
 
-Read `filing.md` in this skill's directory and apply it. It owns the whole filing procedure: the born-`ready` rule, the materiality floor before the drain-rate cap and digest mode (`_shared/materiality-floor.md`, `_shared/health-filing-digest.md`), the retry-queue drain and regressed-reopen mechanics (`_shared/health-filing-mechanics.md`'s canonical shape, as `{BINARY}` = `code-health.js`, `{PREFIX}` = `code-health`), label bootstrapping, the interactive file-all/route-individually gate (`_shared/health-filing-gate.md`), and the `work-types` Type-expression branch. `/code-health` never edits anything directly — it only judges and files.
+Read `filing.md` in this skill's directory and apply it. It owns the whole filing procedure: the born-`ready` rule, the drain-rate cap and digest mode (`_shared/health-filing-digest.md`), the retry-queue drain and regressed-reopen mechanics (`_shared/health-filing-mechanics.md`'s canonical shape, as `{BINARY}` = `code-health.js`, `{PREFIX}` = `code-health`), label bootstrapping, the interactive file-all/route-individually gate (`_shared/health-filing-gate.md`), and the `work-types` Type-expression branch. `/code-health` never edits anything directly — it only judges and files.
 
 **Step 9.5 — Confirm health-state persistence.**
 
