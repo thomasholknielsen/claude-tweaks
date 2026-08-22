@@ -134,9 +134,11 @@ governs the routing: a proposal routed from here carries a `Defer-reason:` per t
 locked worktree a live session holds → `blocked-external`; an open PR outside this run's blast
 radius → `blocked-external`; a red suite this run cannot fix → `genuinely-larger`; anything else
 stays `open` for Phase 2's drill, where the human picks the value. A `remedy: record` item Phase 2
-routes to a record composes exactly as ledger Phase 3's branches do (`_shared/ledger-format.md`) —
-`specShapedBody`, the #621 mapping above supplying its `Defer-reason:`, landing born-ready, parked,
-or `needs:definition` by the same rules.
+routes to a record first applies `_shared/materiality-floor.md`'s floor test: an item that fails to
+clear the floor, with a `Defer-reason:` other than `tangential`, becomes a digest entry instead of a
+record — skip the composition below for that item. Otherwise it composes exactly as ledger Phase
+3's branches do (`_shared/ledger-format.md`) — `specShapedBody`, the #621 mapping above supplying
+its `Defer-reason:`, landing born-ready, parked, or `needs:definition` by the same rules.
 
 ## The judgment class — named triggers
 
