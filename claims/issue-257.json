@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-22T004058-record-257",
-  "sessionId": "e13be436-f65b-437f-a075-7b9631b764fd",
-  "claimedAt": "2026-08-22T01:56:06.379Z",
-  "ttlHours": 72,
-  "host": "0ef421c45794"
+  "reason": "duplicate-build collision: two open draft PRs already exist for #257 (PR #869 — build/test/review PASS, wrap-up complete, awaiting human merge; PR #1241 — accidental duplicate from an earlier run, has uncommitted extra fixes stashed). This run's own worktree (giggly-bouncing-swing, branch worktree-giggly-bouncing-swing) produced a third unpushed duplicate build of the same Check C work. Root cause tracked in open issue #1224 (dispatch queue-pull doesn't exclude issues with an already-open PR). Releasing without merging or opening a new PR — resolving which of the 3 candidate branches to keep is a human/dispatcher decision, not a review/polish/wrap-up call.",
+  "releasedAt": "2026-08-22T02:10:45.946Z"
 }
