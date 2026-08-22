@@ -107,3 +107,62 @@ test('tidy/SKILL.md stays within its context-cost ceiling', () => {
   const bytes = Buffer.byteLength(TIDY_SKILL, 'utf8');
   assert.ok(bytes <= 40960, `tidy/SKILL.md is ${bytes} bytes, over the 40960 ceiling`);
 });
+
+const ADOPTERS = [
+  'plugin/skills/review/step3-routing.md',
+  'plugin/skills/wrap-up/residue-sweep.md',
+  'plugin/skills/wrap-up/leftover-routing.md',
+  'plugin/skills/reflect/full-mode.md',
+  'plugin/skills/reflect/hindsight-mode.md',
+  'plugin/skills/visual-review/browser-review.md',
+  'plugin/skills/code-health/filing.md',
+  'plugin/skills/docs-health/SKILL.md',
+  'plugin/skills/harness-health/filing.md',
+  'plugin/skills/journey-health/SKILL.md',
+];
+
+for (const rel of ADOPTERS) {
+  test(`${rel} cites materiality-floor.md at its filing point`, () => {
+    assert.match(read(rel), /_shared\/materiality-floor\.md/);
+  });
+}
+
+test('no adopter file restates the floor\'s three-axis definition', () => {
+  for (const rel of ADOPTERS) {
+    assert.doesNotMatch(
+      read(rel),
+      /size:low.*priority:low.*risk:low/,
+      `${rel} appears to restate the floor's definition instead of citing it`,
+    );
+  }
+});
+
+test('the four health sweeps state materiality-floor-before-cap-digest ordering', () => {
+  const HEALTH_FILES = [
+    'plugin/skills/code-health/filing.md',
+    'plugin/skills/docs-health/SKILL.md',
+    'plugin/skills/harness-health/filing.md',
+    'plugin/skills/journey-health/SKILL.md',
+  ];
+  for (const rel of HEALTH_FILES) {
+    assert.match(
+      read(rel),
+      /[Bb]efore the (drain-rate cap check|cap check)/,
+      `${rel} should state the floor is consulted before its own cap digest check`,
+    );
+  }
+});
+
+test('review\'s and visual-review\'s recommend-only Defer bullets state accept-time (not recommendation-time) digest write', () => {
+  const RECOMMEND_ONLY = [
+    'plugin/skills/reflect/full-mode.md',
+    'plugin/skills/visual-review/browser-review.md',
+  ];
+  for (const rel of RECOMMEND_ONLY) {
+    assert.match(
+      read(rel),
+      /approves|approved/,
+      `${rel} should state the digest entry is written only once a human approves the recommendation`,
+    );
+  }
+});

@@ -91,7 +91,10 @@ the exact promotion and expiry procedures.
 
 ## Consumers
 
-Nothing routes to the digest yet — the exhaust channels named in the follow-up sub-issue adopt
-this contract there. `/tidy`'s digest sweep (`tidy/digest-sweep.md`) is the first and, until that
-follow-up lands, only consumer — it manages the container's lifecycle (cluster promotion + expiry)
-regardless of whether anything has routed to it yet.
+Ten adopter files route below-floor findings here: `review/step3-routing.md`,
+`wrap-up/residue-sweep.md`, `wrap-up/leftover-routing.md`, `reflect/full-mode.md`,
+`reflect/hindsight-mode.md`, `visual-review/browser-review.md`, and the four health sweeps
+(`code-health`, `docs-health`, `harness-health`, `journey-health`) — see `docs/skill-graph.md` for
+the full per-skill relationship. `/tidy`'s digest sweep (`tidy/digest-sweep.md`) manages the
+container's lifecycle (cluster promotion + expiry) independent of which adopters are actively
+routing to it.
