@@ -19,6 +19,21 @@ function readRunState(runDir) {
   try { return JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8')); } catch { return null; }
 }
 
+// How long an archive twin's 'archiving' claim (archive-merged.js's
+// archiveRunDir) blocks other archival attempts on the same run dir before
+// it's treated as abandoned. Minutes, not hours (unlike ORPHAN_MINT_TTL_MS,
+// archive-merged.js's own 24h constant for a different case) — a real
+// archival completes in seconds; anything still 'archiving' after this long
+// crashed or hung, and the run dir must become archivable again rather than
+// staying stuck behind a dead claim.
+const ARCHIVE_CLAIM_TTL_MS = 5 * 60 * 1000;
+
+function isStaleClaim(archiveState, now = Date.now()) {
+  const updatedAt = Date.parse(archiveState.updatedAt);
+  if (Number.isNaN(updatedAt)) return true;
+  return (now - updatedAt) > ARCHIVE_CLAIM_TTL_MS;
+}
+
 // An unadopted mint — a directory mkdir'd by dispatch Step 4 or flow Step 2.8
 // that no invocation ever initialized — carries neither run-state.json nor
 // decisions.md. Fallback attribution must never guess into one: a mint that
@@ -140,6 +155,17 @@ function* iterRunDirsWithState(cwd) {
     // fooled by an incomplete archive attempt.
     const archiveState = readRunState(path.join(base, 'archive', name));
     if (archiveState && archiveState.status === 'clean') continue;
+    // #1103 follow-up: a fresh 'archiving' claim (archive-merged.js writes
+    // this the instant it mkdir's archiveDir, before moving anything) means
+    // another process is already mid-archival of this exact run dir right
+    // now — skip it here too, or a second unlocked `reconcile` invocation
+    // (dispatch/tidy's pre-step; `reconcile-background` holds its own lock
+    // and never races itself) racing the same run dir would double-move it.
+    // TTL-bounded, unlike the removed existence-only check, so a claim left
+    // behind by a crashed or failed attempt expires and stops blocking this
+    // run dir instead of stranding it forever — the exact failure mode the
+    // existence-only check's removal (above) fixed.
+    if (archiveState && archiveState.status === 'archiving' && !isStaleClaim(archiveState)) continue;
     yield { dir, state };
   }
 }

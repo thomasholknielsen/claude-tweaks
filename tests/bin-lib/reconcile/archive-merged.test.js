@@ -410,6 +410,42 @@ test('archiveRunDir: git mv fails on the first pair — no revert needed, reason
   assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1202', 'work')), false);
 });
 
+// #1103 second-round finding: removing context.js's existence-only
+// archive-twin skip widened a race between two concurrent, unlocked
+// `reconcile` invocations selecting the same run dir. archiveRunDir now
+// writes a content-aware 'archiving' claim the instant it mkdir's
+// archiveDir — before any content moves — so a second scan's
+// iterRunDirsWithState still skips this run dir for the duration of the
+// call, and the claim survives (with a fresh updatedAt) even on failure, so
+// a crashed/failed attempt's claim is visible until context.js's TTL
+// expires it, rather than vanishing immediately and reopening the race.
+test('archiveRunDir: writes an interim "archiving" claim to the archive twin before attempting any move, and it survives a failure', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-1301';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/work/1301-spec.md`, '# spec 1301\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  let mvCount = 0;
+  const before = Date.now();
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    const isMv = cmd === 'git' && Array.isArray(args) && args[2] === 'mv';
+    if (isMv) {
+      mvCount += 1;
+      throw new Error('simulated failure: git mv');
+    }
+    return execFileSync(cmd, args, opts);
+  });
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(mvCount, 1);
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  const claim = JSON.parse(fs.readFileSync(path.join(archiveDir, 'run-state.json'), 'utf8'));
+  assert.equal(claim.status, 'archiving');
+  assert.ok(Date.parse(claim.updatedAt) >= before, 'claim must carry a fresh updatedAt for TTL staleness checks');
+});
+
 test('listSpecDirs: only spec-* subdirectories, ignores files and non-matching dirs; empty for unreadable dir', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'list-spec-dirs-'));
   fs.mkdirSync(path.join(dir, 'spec-1'));

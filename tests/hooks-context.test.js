@@ -176,6 +176,33 @@ test('iterRunDirsWithState: an incomplete archive twin (exists but not status:cl
   assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
 });
 
+// #1103 second-round finding: removing the existence-only archive-twin skip
+// (test above) widened a race — two concurrent, unlocked `reconcile`
+// invocations (dispatch/tidy's own pre-step; only `reconcile-background`
+// holds a lock) could both select the same merged run dir for archival
+// before either's status:'clean' write lands. archiveRunDir now writes a
+// content-aware 'archiving' claim the instant it mkdir's archiveDir — this
+// proves a fresh claim still hides the run dir from a second scan.
+test('iterRunDirsWithState: a fresh archiving claim on the archive twin hides the live run dir (concurrent-archival protection)', () => {
+  const project = tmpProject();
+  const runId = '2026-07-04T090000-spec-9';
+  mkRun(project, runId, { status: 'active' });
+  mkRun(project, path.join('archive', runId), { status: 'archiving', updatedAt: new Date().toISOString() });
+  assert.deepStrictEqual(ctx.listRunDirs(project), []);
+});
+
+// The claim must expire — unlike the removed existence-only check, a claim
+// left behind by a crashed or failed archival attempt must not strand the
+// run dir forever. A 10-minute-old claim is well past the 5-minute TTL.
+test('iterRunDirsWithState: a stale archiving claim (crashed attempt) does not hide the live run dir', () => {
+  const project = tmpProject();
+  const runId = '2026-07-04T090000-spec-10';
+  const live = mkRun(project, runId, { status: 'active' });
+  const staleTs = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  mkRun(project, path.join('archive', runId), { status: 'archiving', updatedAt: staleTs });
+  assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
+});
+
 test('listRunDirs is derived from listRunDirsWithState (same dirs, same order)', () => {
   const project = tmpProject();
   const a = mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });

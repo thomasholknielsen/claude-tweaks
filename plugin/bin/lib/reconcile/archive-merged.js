@@ -156,6 +156,17 @@ function archiveRunDir(root, runDir) {
   } catch {
     return { ok: false, reason: 'mkdir-failed' };
   }
+  // #1103 follow-up: mkdirSync above is the earliest point a second,
+  // concurrent, UNLOCKED `reconcile` invocation (dispatch/tidy's own
+  // pre-step, not `reconcile-background`, which holds a lock) could pick the
+  // same run dir before this call finishes moving anything. The removed
+  // existence-only check (see context.js's comment on the same #1103) used
+  // to make that window near-zero; this interim, content-aware, TTL-bounded
+  // claim restores that protection without reintroducing the
+  // permanently-stranded-on-failure bug the existence-only check caused —
+  // context.js's staleness check lets a crashed/failed attempt's claim
+  // expire instead of blocking every future archival of this run forever.
+  writeRunState(archiveDir, { status: 'archiving', worktree: null });
 
   // Collects the actual set of entries this call moves, in move order — so
   // a caller reporting what happened (e.g. hooks.js archive-run's "moved:"
