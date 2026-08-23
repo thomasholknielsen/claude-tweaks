@@ -29,11 +29,11 @@ const { execFileSync } = require('child_process');
 const { detectIntegrationModel, POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
 const { deriveMergeVerification } = require('./lib/merge-verification');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
-const wtDetect = require('./lib/hooks/worktree-detect');
+const { anchoredOrOutsideMessage } = require('./lib/run-dir-guard');
 
 function fail(msg) {
   process.stderr.write(`resolve-policy: ${msg}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 function gitRoot(args) {
@@ -61,7 +61,11 @@ function main(argv) {
     const arg = args.shift();
     if (arg === '--run') {
       const value = args.shift();
-      if (value === undefined || value.startsWith('--')) {
+      // A blank or whitespace-only value (the shape an unset
+      // $PIPELINE_RUN_DIR expands to in shell) is rejected the same as a
+      // genuinely missing one — it must never reach the --run anchoring
+      // check below as a blank string (#1138).
+      if (value === undefined || value.startsWith('--') || value.trim() === '') {
         fail('--run requires a value');
         return;
       }
@@ -98,13 +102,8 @@ function main(argv) {
   // pre-existing "does not exist" message echoes the value as given; the
   // reject message here names the realpath-resolved candidate instead.
   if (runDir !== null) {
-    const anchor = wtDetect.checkRunDirAnchoredOrOutside(runDir, process.cwd());
-    if (!anchor.ok) {
-      fail(anchor.reason === 'foreign-checkout'
-        ? wtDetect.unanchoredRunDirShadowMessage(anchor.resolved, anchor.mainRoot, '--run')
-        : wtDetect.unanchoredRunDirNoRepoMessage(process.cwd()));
-      return;
-    }
+    const message = anchoredOrOutsideMessage(runDir, process.cwd(), '--run');
+    if (message) { fail(message); return; }
   }
   if (runDir !== null) {
     let isDirectory = false;

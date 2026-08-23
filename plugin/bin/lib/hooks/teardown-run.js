@@ -89,6 +89,10 @@ function teardownRun(runDir, opts = {}) {
   // unconditionally, the same shape as close-run's own implicit path. A foreign-owned run refuses
   // the WHOLE teardown (no archive, no worktree removal, no branch/ref delete) rather than
   // partially acting — tearing down another session's live run out from under it is the hazard.
+  // `state.notYetArchived` (closeRunState's #1103 advisory field, surfaced as a warning by
+  // hooks.js's standalone close-run verb) is deliberately left unread here — Step 2 immediately
+  // below calls archiveRunDir itself, so by the time a caller could see this value the content
+  // it describes is already being archived. Do not wire up the same warning here too.
   const state = closeRunState(runDir, { explicit: false, sessionId });
 
   if (state.status === 'refused-foreign') {

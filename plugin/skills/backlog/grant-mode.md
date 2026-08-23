@@ -301,7 +301,7 @@ this record's own AC 4).
 Identical rule to `refine-mode.md` Step 3.5 — for every candidate Phase C resolves to
 `grant: true`, re-verify the fetched body against `_shared/work-record.md`'s spec-shaped
 definition (`## Current State`/`## Deliverables`/`## Acceptance Criteria` present and non-empty,
-no `TBD`/`TODO`/`<!-- ambiguity:` markers) before writing any label — labels are projection, not
+no `TBD`/`TODO`/`<!-- ambiguity:` markers outside the verbatim-preserved `## Original request` section) before writing any label — labels are projection, not
 truth. A failing record downgrades to a skip with `failedKey: 'not-spec-shaped'` (this module's
 own addition, not part of `grant-gate.js`'s chain, since body re-verification is a caller-level
 concern the same way it is in `refine-mode.md`) — log it the same way as any other skip, comment

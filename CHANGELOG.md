@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.105.0 — Wrap-up verify verb (#900) and closure-gate hardening, autonomy-ceiling auto-resolve for backlog batch-confirm (#1178), session-tmp-root shared-contract migration (#266), design-wrapper compare-shell template+seeder (#1203) and visual-decision contract rewrite (#1204) on the visual-decide serve-and-capture CLI (#1202/#1205), overview per-stage batch commands (#1101), apply-refine-labels empty --run fix (#1173), and 4 whole-branch-review correctness fixes (#1229-#1232); also carries #172, #230, #316, #343, #344, #345, #652, #899
+
+Wrap-up verify verb (#900) and closure-gate hardening, autonomy-ceiling auto-resolve for backlog batch-confirm (#1178), session-tmp-root shared-contract migration (#266), design-wrapper compare-shell template+seeder (#1203) and visual-decision contract rewrite (#1204) on the visual-decide serve-and-capture CLI (#1202/#1205), overview per-stage batch commands (#1101), apply-refine-labels empty --run fix (#1173), and 4 whole-branch-review correctness fixes (#1229-#1232); also carries #172, #230, #316, #343, #344, #345, #652, #899.
+
 ## v6.104.1 — Whole-branch pre-release review fixes (hooks.js worktree-local-fallback disclosure, declined-learning store race + atomic writes, sweep-shadow TOCTOU race, fetch-sub-issues zero-arg contract, pr-state bulk-query pagination guard, code-health dot-dir scan-failure fail-safe, worktree-name empty-segment fix, wrap-up-residue-pr sweep backstop, repo-resolve/json-store dedup); reconcile archival catch-up also carries #244, #478, #486, #522, #959
 
 Whole-branch pre-release review fixes (hooks.js worktree-local-fallback disclosure, declined-learning store race + atomic writes, sweep-shadow TOCTOU race, fetch-sub-issues zero-arg contract, pr-state bulk-query pagination guard, code-health dot-dir scan-failure fail-safe, worktree-name empty-segment fix, wrap-up-residue-pr sweep backstop, repo-resolve/json-store dedup); reconcile archival catch-up also carries #244, #478, #486, #522, #959.

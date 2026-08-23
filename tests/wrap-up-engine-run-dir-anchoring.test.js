@@ -62,6 +62,28 @@ test('accept: --run-dir is absolute and anchored under the main checkout', () =>
   assert.doesNotMatch(out.stderr, /resolves outside the main checkout/i);
 });
 
+// #1138: an empty or whitespace-only --run-dir value (the shape an unset
+// $PIPELINE_RUN_DIR expands to in shell) must be treated as no value at all
+// — falling through to the pre-existing "missing --run-dir" usage-exit path,
+// never reaching the anchoring check as a blank string.
+test('#1138 reject: empty --run-dir value falls through to the usage-exit path, never the anchoring check', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const out = runPlan(['--run-dir', '', '--base', 'HEAD'], wt);
+  assert.strictEqual(out.code, 2);
+  assert.match(out.stderr, /usage: wrap-up-engine\.js/);
+  assert.doesNotMatch(out.stderr, /resolves outside the main checkout/i);
+});
+
+test('#1138 reject: whitespace-only --run-dir value degrades the same as empty', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const out = runPlan(['--run-dir', '   ', '--base', 'HEAD'], wt);
+  assert.strictEqual(out.code, 2);
+  assert.match(out.stderr, /usage: wrap-up-engine\.js/);
+  assert.doesNotMatch(out.stderr, /resolves outside the main checkout/i);
+});
+
 test('reject: --run-dir resolves under a directory with no git repo ancestor at all — distinct message, not the worktree-shadow wording', () => {
   // #790 Finding 5: mainCheckoutRoot() returning null (no .git anywhere up
   // the ancestor chain) is a DIFFERENT failure than "exists, but resolves

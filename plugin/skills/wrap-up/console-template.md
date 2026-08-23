@@ -96,8 +96,9 @@ A Diátaxis-genre instance (Tutorial/How-To/Reference/Explanation, surfaced in D
 #### Reference repairs (from the Broken references curation row)
 
 Render this section whenever the broken-reference sweep found a surviving reference, in either of
-two states. **Applied** rows are reported, not re-approved — they already happened, in their own
-`Initiative-Fix:` commit, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
+two states. **Applied** rows are reported, not re-approved — they already happened, committed by
+the controller's serial-commit pass (`curation-engine.md` section 4) with the `Initiative-Fix:`
+trailer, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
 **Staged** rows are ordinary approval rows like any other in this console.
 
 | # | State | Target | Repair | Broken by | Why |

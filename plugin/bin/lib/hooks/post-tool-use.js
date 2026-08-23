@@ -418,9 +418,7 @@ function stampAdHocRunDir(ctx) {
       // would sit as a mis-attributable "unowned" fallback candidate for a
       // totally different session (the #721 cross-contamination shape).
       // Best-effort: remove the mint rather than leave that trap behind.
-      try { fs.rmdirSync(path.join(result.path, 'staged')); } catch { /* best-effort */ }
-      try { fs.unlinkSync(path.join(result.path, 'decisions.md')); } catch { /* best-effort */ }
-      try { fs.rmdirSync(result.path); } catch { /* best-effort */ }
+      ctxLib.rollbackMint(result.path);
     }
   } catch { /* never break a session over bookkeeping */ }
 }

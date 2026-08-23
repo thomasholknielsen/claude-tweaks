@@ -167,7 +167,7 @@ This table is the human-readable half of `bin/lib/wrap-up/registry.js`; `tests/w
 
 ### Run the engine
 
-**Multi-spec defer:** when `MULTISPEC_CURATION_DEFER=1` is set, skip this per-spec `plan`/`record`/`render` sequence entirely — no `spec-{N}/engine-state.json` is created for this spec. The batch-scope registry pass at end-of-run (`skills/flow/multispec-batch-curation.md`) evaluates the full 8-row registry once, against the parent run dir, after the final spec's pipeline reaches Phase 4 or the run aborts. Proceed to Phase 3.
+**Multi-spec defer:** when `MULTISPEC_CURATION_DEFER=1` is set, skip this per-spec `plan`/`record`/`render` sequence entirely — no `spec-{N}/engine-state.json` is created for this spec. The batch-scope registry pass at end-of-run (`skills/flow/multispec-batch-curation.md`) evaluates the full registry once, against the parent run dir, after the final spec's pipeline reaches Phase 4 or the run aborts. Proceed to Phase 3.
 
 Otherwise: read `curation-engine.md` in this skill's directory and execute its invocation sequence — it owns the plan/record/render commands, the payload contract, the parallel-dispatch rule, and the prose fallback. This read is unconditional whenever this step actually runs.
 
@@ -222,9 +222,9 @@ Informational only — this feeds Phase 4's Next Actions and must never gate, bl
 
 This step **plans** the cleanup — it does not execute. Actual deletions and archival run at execution time *after* the nothing-left-behind gate and the Review Console approve them.
 
-Cleanup enumerates 8 items, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule).
+Cleanup enumerates the items below, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule).
 
-First check whether **any** of the 8 conditions holds for this run — record-based work (items 1, 5, 7), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), or a pipeline run directory exists (8):
+First check whether **any** of the following conditions holds for this run — record-based work (items 1, 5, 7), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), or a pipeline run directory exists (8):
 
 - **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into the report and the execution step.
 - **None holds** → report "No cleanup actions apply" and skip this step entirely; do not read the file.
