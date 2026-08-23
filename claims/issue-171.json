@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "record-171",
-  "sessionId": "68d0dd7d-b29f-4dc9-9274-98c1fe184f5f",
-  "claimedAt": "2026-08-23T14:25:07.849Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "never-started: corrected claim identity to full timestamped run dir",
+  "releasedAt": "2026-08-23T14:25:34.237Z"
 }
