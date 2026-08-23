@@ -24,7 +24,7 @@ The resolved directory contains `config.yml` (Manifesto answers / policy — abs
 
 ## Resolving it: `resolve-run-dir` (preferred over composing `$RUN_ROOT` by hand)
 
-`node plugin/bin/hooks.js resolve-run-dir [--spec-slug <s>] [--mode auto] [--standalone <name>] [--create] [--root-only]`
+`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir [--spec-slug <s>] [--mode auto] [--standalone <name>] [--create] [--root-only]`
 (`bin/lib/hooks/run-dir-resolve.js`) implements steps 1, 2, and 4 above on top of
 `bin/lib/hooks/worktree-detect.js`'s `mainCheckoutRoot()` — the same anchoring the Bash snippet
 below computes, but as a single command every citing skill step calls instead of restating that
