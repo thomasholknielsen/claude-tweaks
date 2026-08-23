@@ -21,8 +21,14 @@ matches compare-shell's `serializeEvent` serializer, `plugin/skills/design-wrapp
 
 No other `type` value is valid. A consumer that needs to recognize an event checks `type` against
 exactly this set. `tweak` nudges a single design token in the live focus view — a hue, a spacing
-scale, a corner radius — without triggering a full reroll; it never changes which variant is
-selected, only how the currently-focused one renders.
+scale, a corner radius — without triggering a full reroll. It never changes which variant is
+selected, and it never restyles the judged candidate itself: the focused variant renders inside a
+cross-origin sandboxed `<iframe sandbox="allow-scripts">` (deliberately without `allow-same-origin`,
+a security boundary this feature must not loosen), which a parent-page CSS custom property cannot
+reach. `tweak` records a token nudge and previews it only in the compare-shell's own UI — a numeric
+readout and a preview swatch, both driven by the same `--tweak-*` custom properties the event
+carries — while the judged candidate's rendering is untouched. This is a stated, deliberate scope
+boundary, not a gap.
 
 ## Turn loop
 
@@ -30,11 +36,18 @@ selected, only how the currently-focused one renders.
    (`visual-decide.js start --dir <round-dir> --state <state-dir>`).
 2. Present the returned keyed URL to the user and **end the turn** — this is an interactive-only
    mechanism; no `$PIPELINE_RUN_DIR` path may reach it (see Security posture below).
-3. The user acts in the browser — clicking Pick / Reroll / Steer / Exit posts one event to
-   `/events`.
+3. The user acts in the browser — clicking Pick / Reroll / Steer / Exit, or dragging a tweak
+   lever, posts one event to `/events`.
 4. **Any terminal message resumes** the round. On resume, read `{state}/events` in full and act on
    the **last event** — the final line of the file in append order. Duplicate events (the user
    clicked twice, or a retry) collapse to that final line; earlier lines are not replayed.
+
+`tweak` events are not verdicts. On resume, act on the **last non-`tweak` event** in the file,
+treating any trailing `tweak` events as accumulated token-preview state rather than the resume
+signal — they record what the shell's own panel is currently showing, not a decision the consuming
+skill needs to act on. An events file containing only `tweak` events (no pick/reroll/steer/exit at
+all) is treated the same as an empty events file: it routes to the fallback `AskUserQuestion`
+below.
 
 ## Precedence — terminal text vs. the events file
 
@@ -43,6 +56,11 @@ The terminal text overrides the events file **only** when it explicitly names a 
 the words pick/reroll/steer/exit, or an unambiguous equivalent naming a variant or direction
 ("go with B", "reroll these"). When the terminal text and the events file disagree and the text
 is ambiguous, **ask** via the fallback `AskUserQuestion` rather than guessing.
+
+`tweak` is deliberately not part of this list — it is a slider nudge a human performs in the
+browser, not a verdict a human types as terminal text ("go with B" has no tweak equivalent). The
+precedence rule above governs verdict actions only; `tweak` events never participate in it (see
+the Turn loop's non-`tweak` resume rule above).
 
 **Empty or absent events file** → the fallback question (pre-upgrade behavior — the same
 `AskUserQuestion` call site the consuming skill already had before adopting this contract).
