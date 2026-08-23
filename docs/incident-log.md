@@ -1176,3 +1176,31 @@ loop between the finding and the commit ever executed the one-line search that w
 falsified it.
 
 Cost on the #1264 run: moderate — one extra fix round in the same session; nothing shipped.
+
+## IL-145 — A hand-edited generated file passed review because the generator itself was never checked
+
+During spec #326's build (harden `track-issue-fixes.yml` edge cases, 2026-08-23), the build agent
+hand-edited `.github/workflows/track-issue-fixes.yml` directly to satisfy all 6 acceptance
+criteria — actionlint passed, the diff read correctly, and every AC was independently verifiable
+against the checked-in YAML alone. What the diff never touched was
+`plugin/bin/lib/issue-branch-tracking.js`'s `generateWorkflowYaml()`, the actual `/init`
+single-source-of-truth generator every consuming project's copy of the workflow is written from
+— documented in the module's own header comment ("No network here — /init writes the generated
+YAML") and in `init/bootstrap/step-16-non-default-branch-issue-tracking.md`'s explicit "do not
+hand-author" instruction. The spec's Key Files section named only the YAML file, and
+`ceremony-profile: fast-lane` skips `/review`'s Step 1 Spec Compliance Check, which is the step
+that would normally cross-check a spec's Key Files against what the diff actually touched — so no
+gate in the pipeline would have caught this. It surfaced only because review ran an unprompted
+`grep -rl` for existing test coverage of the target file before trusting the AC-verified diff, and
+found `tests/issue-branch-tracking.test.js` importing the untouched generator.
+
+Fixed in the same run: all 4 code-level hardening changes ported into `generateWorkflowYaml()`,
+the committed YAML regenerated from it (byte-identical, diff-verified), and the stale test
+(`generateWorkflowYaml skips posting a duplicate tracking comment when one for this SHA already
+exists`) replaced along with 4 new generator-output assertions and 2 revert-commit end-to-end
+fixture tests. Verified test discrimination by reverting the generator change and confirming 6 of
+the new tests failed as expected.
+
+Cost on the #326 run: moderate — one extra fix round within the same review pass; the actual
+shipped `plugin/` payload (every other project's `/init` output) would otherwise have carried none
+of the 4 hardening fixes despite every AC reading as met against this repo's own copy.
