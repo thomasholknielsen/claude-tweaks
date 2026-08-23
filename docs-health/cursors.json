@@ -46,5 +46,8 @@
   },
   "doc:decisions/0015-plugin-payload-boundary-is-the-plugin-subtree": {
     "lastAuditedMs": 1787378667408
+  },
+  "doc:donts": {
+    "lastAuditedMs": 1787465088985
   }
 }
