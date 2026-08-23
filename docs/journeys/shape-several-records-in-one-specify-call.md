@@ -2,6 +2,7 @@
 files:
   - plugin/skills/specify/SKILL.md
   - plugin/skills/specify/shaping-mode.md
+  - plugin/skills/specify/design-pre-steps.md
 ---
 
 # Shape Several Records in One /specify Call
@@ -65,4 +66,5 @@ files:
 ## Origin
 - Step 7 added for #1071 (parent-record guard: batch fail-all, tier-2 refuse-without-prompt, reported residue strip)
 - Steps 1 and 3 updated for #705 (range-form input, mandatory read-back verification after each write)
-- Related specs: #1071, #705, #695/#702 (comma-list batch form and this journey's original steps)
+- Steps 1-3 updated for #357 (UI-stack decision point — batch table gains a `Ui-stack: —` column alongside `Design-intent:`, resolved by the same single batch decision)
+- Related specs: #1071, #705, #695/#702 (comma-list batch form and this journey's original steps), #357
