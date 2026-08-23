@@ -1,6 +1,7 @@
 ---
 files:
   - plugin/skills/capture/SKILL.md
+  - plugin/skills/capture/routing.md
   - plugin/skills/_shared/auto-mode-contract.md
   - plugin/skills/_shared/work-record.md
 ---
@@ -25,7 +26,7 @@ files:
 - **URL:** the same prompt, where a candidate exists but only one half of the bar holds
 - **Action:** Read the three options: `"Brainstorm directly"` **(Recommended)** / `"Keep as backlog record"` / absorb, conditional and last.
 - **Should feel:** The absorb route stays reachable without being urged — a near-match is offered, not pushed.
-- **Should understand:** The ordering is the whole signal. The call carries 3 options only when absorb is visible, in either ordering; when no candidate was found at all, it is Brainstorm and Keep only. The recommended-absorb ordering of step 1 applies under `github-issues` only.
+- **Should understand:** The ordering is the whole signal. The call carries 3 options only when absorb is visible, in either ordering; when no candidate was found at all, it is Brainstorm and Keep only. The recommended-absorb ordering of step 1 applies on both drivers — `local-files` evaluates the same two-criteria bar via its own facet fields, so there is no driver-scoped restriction here.
 - **Red flags:** Absorb rendered as Recommended on a one-criterion match; a two-option prompt that silently dropped a real candidate; the same prompt asked twice for one capture.
 
 ### 3. An excluded target — closed / decomposition parent / `bot:in-progress` files fresh
