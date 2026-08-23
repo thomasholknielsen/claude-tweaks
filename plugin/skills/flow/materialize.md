@@ -54,6 +54,7 @@ fingerprint: {fp}                  # omitted when none
 blocked-by: [n1, n2]               # omitted when none — see Populating the header
 surface: {web|mobile|desktop|backend|infra|terminal}
 design-intent: {value}             # omitted for backend/infra
+ui-stack: {value}                  # omitted for backend/infra, and whenever the body carries no Ui-stack: line
 design-seed: {opaque token}        # omitted unless the body already carries Design-seed:
 parked-at-shaping: true            # omitted unless the record was parked when shaped
 ---
@@ -72,6 +73,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 | `blocked-by` | `/flow`'s multi-spec dependency-aware ordering — DAG construction, cycle detection, and Prerequisites check (`multi-spec.md`) |
 | `surface` | `/claude-tweaks:design-wrapper` wrapper Layer-2 detection (via /build Common Step 1.7 and /flow polish phase) |
 | `design-intent` | design wrapper polish-mode intent-driven dispatch |
+| `ui-stack` | `/claude-tweaks:build` Common Step 1.7 (`design-prebuild.md`) forwards it into the implementer subagent's prompt; `/claude-tweaks:design-wrapper` documents the read side in `frontend-detection.md` |
 | `design-seed` | Audit snapshot of the Impeccable direction contract's seed key — a build's direction is unreproducible without it, since Impeccable 4.x is deliberately non-deterministic by dice. No mechanical reader consumes it at build time; `/claude-tweaks:demo` reads the record body's own `Design-seed:` line, not this copy |
 | `parked-at-shaping` | `/wrap-up` Section E release-with-abandon restores `parked` |
 
@@ -94,17 +96,18 @@ Every field except `surface`/`design-intent`/`design-seed` (next section) and `b
 
 `surface` / `design-intent` / `design-seed` are the exceptions — via the lift rule below. `ceremony` is a partial exception, the same shape as `blocked-by`: free from Resolution's already-fetched facets in the common case, one extra invocation only in the fallback case above. `blocked-by` is a partial exception too: free under `work-links: body-text`/`local-files`, one extra read under `work-links: native` — see its bullet above.
 
-## The Surface / Design-intent / Design-seed lift rule
+## The Surface / Design-intent / Ui-stack / Design-seed lift rule
 
 `/specify`'s Metadata block (`spec-template.md`) writes plain body-metadata lines at the very top of every shaped record body:
 
 ```
 Surface: {web | mobile | desktop | backend | infra | terminal}
 Design-intent: {bold | quiet | minimal | delightful | onboarding | none}
+Ui-stack: {free-form component-library/styling-approach string, or an explicit no-preference answer}
 Design-seed: {opaque token — never written by /specify; see below}
 ```
 
-(`Design-intent:` is omitted on backend/infra records — Step 2.5a's frontend detection only asks the design-intent question for a frontend surface.) These are body text, not labels and not frontmatter — `parseRecordFacets`/`readRecord` never see them. Lift them verbatim by reading the fetched body's leading metadata block — every line before the first blank line, not a fixed line count, since which of these lines are present varies per record: the header's `surface:` copies the body's `Surface:` value; `design-intent:` copies `Design-intent:` when that line is present in the body, omitted from the header otherwise; `design-seed:` copies `Design-seed:` on the same present-or-omitted rule. Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — a record whose body still declares it needs re-shaping via `/specify` first, since a sub-issue that's genuinely both frontend and backend at once is a decomposition smell, not a valid surface value.
+(`Design-intent:` is omitted on backend/infra records — Step 2.5a's frontend detection only asks the design-intent question for a frontend surface.) These are body text, not labels and not frontmatter — `parseRecordFacets`/`readRecord` never see them. Lift them verbatim by reading the fetched body's leading metadata block — every line before the first blank line, not a fixed line count, since which of these lines are present varies per record: the header's `surface:` copies the body's `Surface:` value; `design-intent:` copies `Design-intent:` when that line is present in the body, omitted from the header otherwise; `ui-stack:` copies `Ui-stack:` on the same present-or-omitted rule; `design-seed:` copies `Design-seed:` on the same present-or-omitted rule. Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — a record whose body still declares it needs re-shaping via `/specify` first, since a sub-issue that's genuinely both frontend and backend at once is a decomposition smell, not a valid surface value.
 
 `Design-seed:` differs from its two neighbours in **when its value exists**, and materialization must not assume otherwise. `Surface:`/`Design-intent:` are written by `/specify`, so they are always already there by the time a record is materialized. `Design-seed:` is written *after* the build, by `/claude-tweaks:design-wrapper`'s `review` mode reading the built artifact's Impeccable direction contract (`_shared/design-contract.md`). Materialization runs at the *start* of a build — so on the very run that produces a seed, there is nothing to lift, and the header correctly omits the line. It appears in the header of *subsequent* materializations of the same record: a rebuild, a follow-up, a re-run after changes were requested. That is not a gap to work around; it is the field's normal lifecycle, and the header's copy is an audit snapshot either way.
 
