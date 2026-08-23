@@ -137,6 +137,7 @@ Before forming any finding, run these mechanical checks and treat their output a
    A bare reference sitting inside imperative instruction text ("Run `/X`", "`/X` handles it") — as opposed to a Relationship-to-Other-Skills table row or other descriptive prose, where a bare short name is never passed to a tool call — is evidence for a `best-practice` finding: the `Skill` tool requires the fully-qualified name, and a bare short form fails at invocation time. Distinguishing actionable text from descriptive prose requires reading the surrounding section, not just the grep hit — treat this as a candidate list to triage, not a verdict. Feed confirmed hits into dimension 8's best-practice judgment.
 9. **Context-cost bloat scan** (any kind). Run the mechanical detector over the target, with the target's siblings supplying the corpus baseline:
    ```bash
+   setopt nullglob 2>/dev/null || shopt -s nullglob 2>/dev/null
    node -e "
    const { bloatReport } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/skill-audit/bloat.js');
    const [target, ...corpus] = process.argv.slice(1);
@@ -144,7 +145,7 @@ Before forming any finding, run these mechanical checks and treat their output a
    " "<target-path>" "<root>"/.claude/skills/*.md "<root>"/.claude/skills/*/*.md
    ```
 
-   List both skill layouts — a project uses one or the other, and a glob matching nothing is skipped rather than erroring. Quote the substituted root but leave the `*` unquoted: a project path containing a space otherwise splits into several bad paths, and quoting the whole pattern stops it globbing at all. Auditing this plugin's own skills, the corpus is `"<root>"/skills/*/*.md` instead.
+   List both skill layouts — a project uses one or the other. On zsh (this project's shell), an unmatched glob aborts the whole command with `no matches found` by default — it is bash, not zsh, where an unmatched glob is skipped (expanded to its own literal pattern text, which the `require`d corpus reader then simply finds no such file for). The `setopt nullglob 2>/dev/null || shopt -s nullglob 2>/dev/null` guard line normalizes this: it enables nullglob under whichever shell is running (the `setopt` form succeeds under zsh and short-circuits the `||`; it fails under bash, where the `shopt` form runs instead), so an unmatched glob expands to nothing in both shells and only the layout that actually exists reaches `corpus`. Quote the substituted root but leave the `*` unquoted: a project path containing a space otherwise splits into several bad paths, and quoting the whole pattern stops it globbing at all. Auditing this plugin's own skills, the corpus is `"<root>"/skills/*/*.md` instead.
 
    It reports four signals: files over the 40 KB soft ceiling, Anti-Pattern rows more than twice the corpus median byte length, provenance-narration phrasing (text addressed to whoever edited the file rather than to the model running it), and adjacent table rows whose right-hand cells are identical or near-identical. Every reported line is evidence dimension 9 weighs, never a finding on its own — see the bloat-signal guard in Step 2 for what each signal's legitimate form looks like. When the corpus yields fewer than 20 Anti-Pattern rows the report prints `NO BASELINE` and the row signal was **not evaluated**: read that as "not checked," never as "clean."
 
