@@ -3,6 +3,9 @@ files:
   - plugin/skills/design-wrapper/modes/explore.md
   - plugin/skills/design-wrapper/SKILL.md
   - plugin/skills/design-wrapper/impeccable-plugin.md
+  - plugin/skills/design-wrapper/compare-shell/template.html
+  - plugin/skills/design-wrapper/compare-shell/seed-compare.mjs
+  - plugin/skills/_shared/visual-decision.md
 ---
 
 # Explore Competing Design Identities at a Project's Genesis
