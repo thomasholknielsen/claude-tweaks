@@ -1,6 +1,6 @@
 // bin/lib/issues/materialize-format.js
-// Pure: the shape gate, the Surface/Design-intent/Design-seed lift, and the
-// pinned-header composition documented in skills/flow/materialize.md. No
+// Pure: the shape gate, the Surface/Design-intent/Ui-stack/Design-seed lift,
+// and the pinned-header composition documented in skills/flow/materialize.md. No
 // network — bin/materialize.js does the gh/local-store fetch and the file
 // write; this module is what both that CLI and its tests import so the
 // header format has exactly one implementation instead of a copy per caller.

@@ -6,7 +6,7 @@ Common Step 1.7 of `/claude-tweaks:build`. Loaded only when the build is in reco
 
 Before dispatching implementation, invoke the design wrapper to lazy-load Impeccable's reference files plus any project-specific design context (root `PRODUCT.md` from `/impeccable:impeccable init`, root `DESIGN.md` from `/impeccable:impeccable document`). The wrapper handles its own detection (non-frontend specs skip cleanly) and availability checks (no Impeccable installed → skip cleanly).
 
-**Surface source:** `surface` (the gate condition SKILL.md's Common Step 1.7 checks before invoking this file's procedure) comes from the materialized header's `surface:` field — lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`'s Surface / Design-intent / Design-seed lift rule. `design-intent` lifts from the same header/body source but is consumed downstream by `/claude-tweaks:design-wrapper polish`, not by this pre-build gate.
+**Surface source:** `surface` (the gate condition SKILL.md's Common Step 1.7 checks before invoking this file's procedure) comes from the materialized header's `surface:` field — lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`'s Surface / Design-intent / Ui-stack / Design-seed lift rule. `design-intent` lifts from the same header/body source but is consumed downstream by `/claude-tweaks:design-wrapper polish`, not by this pre-build gate.
 
 ## Skip this step entirely when
 

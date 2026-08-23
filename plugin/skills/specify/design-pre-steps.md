@@ -157,9 +157,20 @@ For the canonical enumeration of `Design-intent:` values, read the body-metadata
 
 Sets the `Ui-stack:` body-metadata line that `/claude-tweaks:build`'s Design Pre-Build step (Common Step 1.7) forwards into the implementer subagent's prompt as an explicit component-library/styling-approach mandate — see `design-prebuild.md` in the `/claude-tweaks:build` skill's directory.
 
-**`--chained` (shaping mode's headless component invocation):** never ask. Write `Ui-stack: none — no preference, defer to reference codebase` and skip both branches below entirely, the same rule Step 2.5c's own `--chained` branch applies to `Design-intent:`. Log per `_shared/auto-decision-log.md` when a run directory resolves (`AUTO {time} — Step 2.5c2: ui-stack=none (--chained headless default). Reversibility: high.`), otherwise note it in the returned output only.
+**`--chained` (shaping mode's headless component invocation):** never ask — but still resolve the policy value first. This deliberately does **not** mirror Step 2.5c's own `--chained` branch, which writes `Design-intent: none` unconditionally: `none` *is* the `design-intent` schema default, so that unconditional write already matches policy in the common case. `ui-stack` carries no schema default, so an unconditional sentinel would silently discard a real, explicitly-set project policy value with no equivalent fallback. Resolve it with the same invocation the Auto mode branch below uses — `UI_STACK=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" ui-stack)` — then apply per the resolved value:
 
-**The `next` form never reaches this step**, for the same reason Step 2.5c's own note states: `next-mode.md`'s Flag rejection step pre-resolves `Design-intent: none` before `shaping-mode.md` is ever entered, and this step never runs on that path either.
+- Value is non-empty → write the `Ui-stack:` body-metadata line using the policy value verbatim. Log per `_shared/auto-decision-log.md` when a run directory resolves:
+  ```
+  AUTO {time} — Step 2.5c2: applied ui-stack="{value}" from project policy (--chained headless). Reversibility: high.
+  ```
+- Value is empty (no pipeline run dir, or `ui-stack` unset in `policy.yml`) → write `Ui-stack: none — no preference, defer to reference codebase`. Log:
+  ```
+  AUTO {time} — Step 2.5c2: ui-stack=none (--chained headless default, no policy value). Reversibility: high.
+  ```
+
+When no run directory resolves, note the outcome in the returned output only, as Step 2.5c's `--chained` branch does. Either way, **never** call `AskUserQuestion` on this path: the Auto mode branch's KEPT-PROMPT fallback for an empty value does not apply under `--chained` — the flag outranks it, and the sentinel is the headless answer. Only the *value* resolution differs from Step 2.5c's branch; the never-ask invariant is identical.
+
+**The `next` form never reaches this step**, for the same reason Step 2.5c's own note states: `next-mode.md`'s Flag rejection step pre-resolves both lines before `shaping-mode.md` is ever entered, and this step never runs on that path either. It pre-resolves `Ui-stack:` on the same policy-first, sentinel-fallback rule this `--chained` branch applies — not an unconditional sentinel — for the same no-schema-default reason.
 
 **Auto mode:** resolve `ui-stack` — `UI_STACK=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" ui-stack)`. Apply per the resolved value:
 
@@ -167,7 +178,7 @@ Sets the `Ui-stack:` body-metadata line that `/claude-tweaks:build`'s Design Pre
   ```
   AUTO {time} — Step 2.5c2: applied ui-stack="{value}" from pipeline config. Reversibility: high.
   ```
-- Value is empty (no pipeline run dir, or `ui-stack` unset in `policy.yml` — the key carries no schema default) → fall back to KEPT-PROMPT (ask the user inline). This is in the "not silenced" list when explicitly left open, the same reasoning Step 2.5c's own unset case documents. Log:
+- Value is empty (no pipeline run dir, or `ui-stack` unset in `policy.yml` — the key carries no schema default) → fall back to KEPT-PROMPT (ask the user inline). This is in `_shared/auto-mode-contract.md`'s "not silenced" list: unset is the only open state for `ui-stack`, since the key has no schema default to distinguish "explicitly left open" from "never set" the way `design-intent`'s `none` does. Log:
   ```
   KEPT-PROMPT {time} — Step 2.5c2: ui-stack not set in policy; surfaced inline.
   ```

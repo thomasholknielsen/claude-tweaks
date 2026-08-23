@@ -208,7 +208,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Code modifications outside the skill's documented scope | If a skill is asked to do X and would modify Y to make X work, that's a scope expansion the user must authorize. Exempt only for a **pointer repair** — a reference broken *by this run's own change* — and only when `autonomy` is `trusted` or `unattended`; see `_shared/initiative-budget.md` for the narrow, capped, logged carve-out. The exemption is causal, not size-based: a small edit the run merely *noticed* it could make is still a scope expansion, at every ceiling |
 | Resolution of merge conflicts in worktree finishing | Conflict resolution requires intent the model cannot infer |
 | Design intent (when manifesto value is `none` AND skill detects creative work) | Creative direction is user-only when explicitly left open |
-| Ui-stack (when manifesto value is unset AND skill detects frontend work) | Component-library/styling preference is user-only when explicitly left open |
+| Ui-stack (when the `ui-stack` policy value is unset AND skill detects frontend work) | Component-library/styling preference is user-only when unset. `policy.yml` only — `ui-stack` has no Manifesto lever, and the key carries no schema default, so unset is its only open state |
 
 ## Forbidden under auto
 
