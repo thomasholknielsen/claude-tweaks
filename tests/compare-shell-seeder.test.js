@@ -25,6 +25,24 @@ function seedCli(args) {
   return { code: res.status, out: res.stdout || '', err: res.stderr || '' };
 }
 
+// Shared fixture for the manifest.tweaks test group below: one variant 'a'
+// backed by a.html, with sensible durable-mode defaults (seedKey, outcome)
+// an individual test can override — e.g. `outcome: undefined` to omit it
+// for a live-mode test (JSON.stringify drops undefined properties).
+function writeTweaksManifest(dirPrefix, overrides) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), dirPrefix));
+  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
+  const manifestPath = path.join(dir, 'manifest.json');
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    scope: 'layout',
+    seedKey: 'seed-tweaks-default',
+    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
+    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
+    ...overrides,
+  }));
+  return manifestPath;
+}
+
 test('AC1 / AC9: live mode — one variant per manifest entry referencing its served path, /events + /stream wiring, focus-view indicator + grid selection affordances', () => {
   const out = mkOut('live-layout.html');
   const res = seedCli(['--manifest', path.join(FIXTURES, 'layout', 'manifest.json'), '--mode', 'live', '--out', out]);
@@ -209,16 +227,10 @@ test('unit: escapeForInlineScript neutralizes </script regardless of case', asyn
 });
 
 test('AC1207-D3: durable mode bakes manifest.tweaks into outcome.tweaks', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-tweaks-'));
-  const manifestPath = path.join(dir, 'manifest.json');
-  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
-  fs.writeFileSync(manifestPath, JSON.stringify({
-    scope: 'layout',
+  const manifestPath = writeTweaksManifest('compare-shell-tweaks-', {
     seedKey: 'seed-tweaks-1',
-    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
-    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
     tweaks: [{ token: 'hue', value: '210' }, { token: 'corner-radius', value: '4' }],
-  }));
+  });
   const out = mkOut('durable-tweaks.html');
   const res = seedCli(['--manifest', manifestPath, '--mode', 'durable', '--out', out]);
   assert.equal(res.code, 0, res.err);
@@ -237,79 +249,51 @@ test('AC1207-D3: durable mode with no manifest.tweaks defaults outcome.tweaks to
 });
 
 test('AC1207-D3: a non-array manifest.tweaks is a refusal', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-bad-tweaks-'));
-  const manifestPath = path.join(dir, 'manifest.json');
-  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
-  fs.writeFileSync(manifestPath, JSON.stringify({
-    scope: 'layout',
+  const manifestPath = writeTweaksManifest('compare-shell-bad-tweaks-', {
     seedKey: 'seed-bad-tweaks',
-    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
-    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
     tweaks: { token: 'hue', value: '210' },
-  }));
+  });
   const res = seedCli(['--manifest', manifestPath, '--mode', 'durable', '--out', mkOut('x.html')]);
   assert.notEqual(res.code, 0);
   assert.match(res.err, /manifest\.tweaks must be an array/);
 });
 
 test('#1207 finding 6: a manifest.tweaks entry missing string token/value fields is a refusal, not a silent pass', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-malshaped-tweaks-'));
-  const manifestPath = path.join(dir, 'manifest.json');
-  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
-  fs.writeFileSync(manifestPath, JSON.stringify({
-    scope: 'layout',
+  const manifestPath = writeTweaksManifest('compare-shell-malshaped-tweaks-', {
     seedKey: 'seed-malshaped-tweaks',
-    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
-    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
     tweaks: ['hello', 42],
-  }));
+  });
   const res = seedCli(['--manifest', manifestPath, '--mode', 'durable', '--out', mkOut('x.html')]);
   assert.notEqual(res.code, 0, 'a tweaks array of non-{token,value} entries must be refused, not silently accepted');
   assert.match(res.err, /manifest\.tweaks entry .* must have string token and value fields/);
 });
 
 test('#1207 finding 6: a manifest.tweaks entry with non-string token/value fields is a refusal', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-numeric-tweaks-'));
-  const manifestPath = path.join(dir, 'manifest.json');
-  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
-  fs.writeFileSync(manifestPath, JSON.stringify({
-    scope: 'layout',
+  const manifestPath = writeTweaksManifest('compare-shell-numeric-tweaks-', {
     seedKey: 'seed-numeric-tweaks',
-    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
-    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
     tweaks: [{ token: 'hue', value: 210 }],
-  }));
+  });
   const res = seedCli(['--manifest', manifestPath, '--mode', 'durable', '--out', mkOut('x.html')]);
   assert.notEqual(res.code, 0, 'a numeric value field must be refused — the shape contract is string token, string value');
   assert.match(res.err, /must have string token and value fields/);
 });
 
 test('review finding: a null manifest.tweaks entry is a SeedError refusal, not a raw TypeError', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-null-tweaks-'));
-  const manifestPath = path.join(dir, 'manifest.json');
-  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
-  fs.writeFileSync(manifestPath, JSON.stringify({
-    scope: 'layout',
+  const manifestPath = writeTweaksManifest('compare-shell-null-tweaks-', {
     seedKey: 'seed-null-tweaks',
-    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
-    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
     tweaks: [null],
-  }));
+  });
   const res = seedCli(['--manifest', manifestPath, '--mode', 'durable', '--out', mkOut('x.html')]);
   assert.notEqual(res.code, 0, 'a null tweaks entry must be refused, not crash with a raw TypeError');
   assert.match(res.err, /manifest\.tweaks entry .* must have string token and value fields/);
 });
 
 test('#1207 finding 7: manifest.tweaks is validated only in durable mode — a malshaped tweaks entry does not block live mode', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-live-tweaks-'));
-  const manifestPath = path.join(dir, 'manifest.json');
-  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
-  fs.writeFileSync(manifestPath, JSON.stringify({
-    scope: 'layout',
+  const manifestPath = writeTweaksManifest('compare-shell-live-tweaks-', {
     seedKey: 'seed-live-tweaks',
-    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
+    outcome: undefined,
     tweaks: ['not', 'shaped', 'right'],
-  }));
+  });
   const res = seedCli(['--manifest', manifestPath, '--mode', 'live', '--out', mkOut('x.html')]);
   assert.equal(res.code, 0, res.err);
 });
