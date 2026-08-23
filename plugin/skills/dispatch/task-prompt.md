@@ -106,6 +106,14 @@ and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
 
+Before choosing which OUTCOME value to report, check the record's actual state rather than
+inferring it from what this call itself did earlier: read `claims/issue-{n}.json` (does the
+claim's `runId` still match this run, is it `live`?), the record's current labels
+(`bot:in-progress`, `auto:merge`), and `run-state.json`'s `pr` object (does it already carry a
+`number`/`url`, and if so, is that PR still open or already merged?). A completed hand-off (a
+`pr` object recorded, or a merge already landed) is not the same state as a genuinely still-open
+run awaiting a human -- report `pending-review` only for the latter.
+
 OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
 
 GROUP: {comma-joined issue numbers}
@@ -130,9 +138,12 @@ under this model — the merge already happened, or didn't, by the time you repo
 **`integration-model: local-merge`** — report `ready-to-merge` when the group's Auto-merge gate
 passed both layers and you already applied acceptance labeling for every member -- never
 `merged`. You do not merge yourself on this path: a Task-tool subagent cannot reach the main
-checkout. Stop right after labeling -- do not run worktree removal, claim release, or run-dir
-archival; the dispatching session completes all three after it merges, per
-`settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
+checkout, and for the same structural reason (`settle-and-merge.md`'s outcome-independent
+constraint) you cannot run worktree removal either. Stop right after labeling. Claim release and
+run-dir archival stay deferred too, but for a distinct reason: the merge that would make them
+safe hasn't happened yet -- not because they inherit the worktree constraint. The dispatching
+session completes all three (worktree removal, claim release, run-dir archival) after it merges,
+per `settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
 
 `pending-review` also covers what `pr-opened` used to name separately: under pr-first the PR
 already exists from run start (`_shared/pr-early-run-lifecycle.md`), so there is no longer a
