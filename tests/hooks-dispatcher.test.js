@@ -645,6 +645,7 @@ test('check-staged-inventory: reports OK when decisions.md has no STAGED entries
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-3');
   fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), 'AUTO 14:32:14 — Step 1.5: scope-creep applied. Reversibility: high.');
   const result = runHook(['check-staged-inventory', '--run', run], { cwd: project });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /staged inventory OK for 2026-08-01T000000-record-3 \(0 STAGED entries\)/);
