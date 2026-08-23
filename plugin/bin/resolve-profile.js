@@ -42,7 +42,7 @@ const path = require('path');
 const { resolve, PROFILES } = require('./lib/model-profiles/profiles');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 const { readFailedModels, recordFailure, invalidateFailures } = require('./lib/model-profiles/session-failures');
-const wtDetect = require('./lib/hooks/worktree-detect');
+const { anchoredOrOutsideMessage } = require('./lib/run-dir-guard');
 
 function fail(msg) {
   process.stderr.write(`resolve-profile: ${msg}\n`);
@@ -110,13 +110,8 @@ function main(argv) {
   // raw runDir string is kept for all downstream use — the reject message
   // names the realpath-resolved candidate instead.
   if (runDir !== undefined) {
-    const anchor = wtDetect.checkRunDirAnchoredOrOutside(runDir, process.cwd());
-    if (!anchor.ok) {
-      fail(anchor.reason === 'foreign-checkout'
-        ? wtDetect.unanchoredRunDirShadowMessage(anchor.resolved, anchor.mainRoot)
-        : wtDetect.unanchoredRunDirNoRepoMessage(process.cwd()));
-      return;
-    }
+    const message = anchoredOrOutsideMessage(runDir, process.cwd(), '--run-dir');
+    if (message) { fail(message); return; }
   }
 
   let policy = {};
