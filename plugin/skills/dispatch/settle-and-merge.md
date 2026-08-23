@@ -1,6 +1,6 @@
 # Dispatch — Settle + Auto-merge Gate
 
-Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the Auto-merge gate (an `auto:merge`-granted group reaching `/wrap-up`'s Review Console) — both are conditional branches that don't run on the common clean-pending-review path, so they're kept out of `SKILL.md`'s always-loaded body.
+Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the Auto-merge gate (a group whose every member carries auto:merge or a matured auto:merge-pending, reaching `/wrap-up`'s Review Console) — both are conditional branches that don't run on the common clean-pending-review path, so they're kept out of `SKILL.md`'s always-loaded body.
 
 **The Auto-merge gate splits across two threads; Settle does not.** Settle (below) runs entirely inside whichever Task call hits the failure, as it always has. The Auto-merge gate's authorization check, content judgment, and acceptance labeling also run inside the second Task call — but its actual merge execution cannot: a Task-tool subagent is cwd-pinned to the worktree it inherited at launch and cannot reach the main checkout (`dispatch/SKILL.md` Step 5's sequential-execution note: "A Task-tool subagent is always launched cwd-pinned to the dispatching session's own worktree"). That final step runs in the *dispatching session's own thread* instead, per **Dispatching-session merge execution** at the end of this file.
 
@@ -194,7 +194,7 @@ trace of it.
 
 A `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before the next retry, per step 3 above — that record doesn't get another unsupervised shot at auto-merge until a human re-grants it at `/claude-tweaks:backlog refine`. A `transient`-classified failure preserves `auto:merge` — the retry-ceiling counting below still runs unconditionally regardless of classification (an attempt is an attempt), but classification alone no longer determines merge trust the way it did before.
 
-## Auto-merge gate (`auto:merge` groups only)
+## Auto-merge gate (auto:merge or matured auto:merge-pending groups only)
 
 Because a bundle shares one branch/worktree, the merge decision is necessarily group-wide even though blast radius is attributed per record below: **every member of the group must carry `auto:merge`, either already or via a matured `auto:merge-pending`** (see Authorization below) for the gate to apply at all — a group with even one `auto:build`-only member falls back to the normal pending-review path for the whole group; mixed grants inside one bundle are never split at merge time, and a group with even one still-pending, not-yet-matured member falls back the same way (the group's *slowest* member's veto window governs the whole group, same as its slowest member's review verdict already does below).
 
