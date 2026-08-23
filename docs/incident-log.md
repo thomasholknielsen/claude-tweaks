@@ -1153,3 +1153,26 @@ pr-first PR), after which the existing assertions failed on their own.
 
 Cost on the #900 run: high — three extra fix rounds inside one record, the last of them a
 Critical regression introduced by a fix round and caught only because a re-review was run at all.
+
+## IL-144 — A reviewer's "this text is duplicated elsewhere" premise, ruled on without a grep
+
+During spec #1264's build (capture absorb-by-default, 2026-08-22, the #1261-#1264 multi-spec
+run), a final-review finding (N1) argued that a 483-byte block in
+`plugin/skills/capture/SKILL.md` was redundant because it "restates all three option labels
+verbatim" elsewhere in the file. The fix wave was operating under a byte budget against the
+~40 KB sub-file ceiling, so the finding was attractive: it freed exactly the bytes the wave
+needed. The deletion was planned and shipped in `974e3471`.
+
+The premise was false for two of the three labels — only one was actually restated. The deleted
+block was the only place the other two option labels' copy existed, so `/claude-tweaks:capture`'s
+Brainstorm and Keep option text vanished from the skill. It was caught by controller adjudication
+reading the pre-deletion text, not by the review that proposed it or the fix agent that executed
+it, and had to be restored in `22ef09f4`.
+
+A "delete the duplicate" finding reads as the safest class of edit there is — nothing is being
+invented, only de-duplicated — so it clears a reviewer's bar on the strength of its own claim.
+And a byte-budget pressure makes it *more* attractive rather than more suspect. Nothing in the
+loop between the finding and the commit ever executed the one-line search that would have
+falsified it.
+
+Cost on the #1264 run: moderate — one extra fix round in the same session; nothing shipped.
