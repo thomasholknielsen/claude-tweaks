@@ -153,7 +153,15 @@ function sweep(cwd, { runDir, worktree } = {}) {
   const args = [HOOKS_JS, 'sweep-shadow'];
   if (runDir !== undefined) args.push('--run', runDir);
   if (worktree !== undefined) args.push('--worktree', worktree);
-  return spawnSync(process.execPath, args, { cwd, encoding: 'utf8', timeout: 30_000, env: process.env });
+  // #1270: neutralize any ambient PIPELINE_RUN_DIR (present in every
+  // /flow-dispatched shell) so a case that omits `runDir` (the deliberate
+  // "unset" probe this helper's own comment above documents) resolves the
+  // verb's own unset-arg fallback rather than silently picking up a real run
+  // dir this test never named — same defense-in-depth convention #1130
+  // established for every other bin/hooks.js test spawn helper.
+  return spawnSync(process.execPath, args, {
+    cwd, encoding: 'utf8', timeout: 30_000, env: { ...process.env, PIPELINE_RUN_DIR: '' },
+  });
 }
 
 test('probe: a same-basename collision keeps the anchored file, moves the shadow copy to .shadow-dup, and says so', (t) => {
