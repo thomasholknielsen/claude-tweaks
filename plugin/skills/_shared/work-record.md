@@ -173,9 +173,9 @@ not-authorized state** — no label means no autonomous action, ever.
   human grant at `/backlog refine` always writes `auto:merge` directly — see that row above).
   Additive on `auto:build`, mutually exclusive with `auto:merge` (a record carries at most one
   of the two at a time). Inert for queue selection exactly like `auto:merge` — dispatch still
-  queries `auto:build` only. Matures into `auto:merge` at `/claude-tweaks:dispatch`'s existing
-  Auto-merge gate / merge-consult checkpoint once older than the `grant-veto-window-hours`
-  policy key (default 24) and not vetoed — see the maturation bullet below.
+  queries `auto:build` only. Matures into `auto:merge` at either maturation site's existing
+  merge-consult checkpoint once older than the `grant-veto-window-hours` policy key (default 24)
+  and not vetoed — see the maturation bullet below.
 - **Machinery may only remove grants, never originate them** (save for the two carve-outs
   below, both shut by default or narrowly scoped). Failure handling is
   classification-driven (via `/claude-tweaks:assess-agent-autonomy`'s `failure-check` mode):
@@ -203,17 +203,18 @@ not-authorized state** — no label means no autonomous action, ever.
   behind a further opt-in, since `grant-veto-window-hours` ships with a concrete default (24h)
   and a machine-originated merge grant with zero human awareness window is exactly the case a
   standing veto window exists to close.
-- A **second, narrower machine carve-out — maturation, not origination**, at two sites: `/claude-tweaks:dispatch`'s Auto-merge gate (`dispatch/settle-and-merge.md`), promoting a
+- A **second, narrower machine carve-out — maturation, not origination** (#309), at two sites:
+  `/claude-tweaks:dispatch`'s Auto-merge gate (`dispatch/settle-and-merge.md`), promoting an
   `auto:merge-pending` **group** to `auto:merge` once every member's pending grant clears
-  `grant-veto-window-hours` (default 24) unvetoed; and `/wrap-up`'s Auto-merge short-circuit
-  (`wrap-up/auto-merge-short-circuit.md`, `#309`), doing the same for one record outside a
-  dispatched group. A veto is a human removing `auto:merge-pending` before maturation — permanent, since
-  nothing re-adds it: `/backlog grant`'s own candidate fetch excludes any record already carrying
-  `auto:build` (which `auto:merge-pending` is always additive on), so a vetoed record is never
-  re-evaluated by the origination gate chain again without a fresh, unrelated human re-grant.
-  This carve-out never originates a fresh grant — it only promotes a grant the origination
-  opt-in above already authorized to mature, only inside one of these two sites' own
-  merge-consult checkpoint — never a standalone scheduled job.
+  `grant-veto-window-hours` unvetoed; and `/wrap-up`'s Auto-merge short-circuit
+  (`wrap-up/auto-merge-short-circuit.md`), doing the same for one record outside a dispatched
+  group. A veto is a human removing `auto:merge-pending` before maturation — permanent, since
+  nothing re-adds it: `/backlog grant`'s own candidate fetch excludes any record already
+  carrying `auto:build` (which `auto:merge-pending` is always additive on), so a vetoed record
+  is never re-evaluated by the origination gate chain again without a fresh, unrelated human
+  re-grant. This carve-out never originates a fresh grant — it only promotes a grant the
+  origination opt-in above already authorized to mature, inside one of these two sites' own
+  merge-consult checkpoint, never a standalone scheduled job.
 
 ## Acceptance semantics
 

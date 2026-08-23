@@ -6,12 +6,23 @@
 // `auto:merge-pending` before maturation, with nothing re-adding it — see
 // `_shared/work-record.md`'s Grant semantics maturation carve-out).
 //
-// Called by dispatch's existing Auto-merge gate Authorization layer
-// (`skills/dispatch/settle-and-merge.md`) at its normal merge-consult
-// checkpoint — never a separate scheduled job, per `docs/donts.md`'s
-// [IL-94].
+// Called at the two Auto-merge gate Authorization layers that already exist —
+// dispatch's group gate (`skills/dispatch/settle-and-merge.md`) and wrap-up's
+// singleton short-circuit (`skills/wrap-up/auto-merge-short-circuit.md`) — at
+// their normal merge-consult checkpoint, never a separate scheduled job, per
+// `docs/donts.md`'s [IL-94].
 
+// Mirrors skills/backlog/grant-mode.md's audit-comment marker, narrowed to the
+// `pending` variant and capturing its date. `fleet-counters.js`'s
+// GRANT_AUDIT_RE matches the same marker family for a different purpose.
 const PENDING_GRANT_MARKER_RE = /<!--\s*grant-mode-audit:\s*date=(\S+)\s+auto-merge=pending\s*-->/g;
+
+// The `grant-veto-window-hours` schema default (`bin/lib/policy-schema.js`),
+// restated here only as a belt-and-braces fallback for a caller that passes an
+// absent or invalid value; the resolver supplies it normally.
+const DEFAULT_VETO_WINDOW_HOURS = 24;
+
+const HOUR_MS = 60 * 60 * 1000;
 
 // commentBodies: string[] — an issue's fetched comment bodies (any order).
 // Returns the Date of the LATEST `auto-merge=pending` grant-mode-audit
@@ -23,10 +34,10 @@ function extractPendingGrantedAt(commentBodies) {
   let latest = null;
   for (const body of bodies) {
     if (typeof body !== 'string') continue;
-    PENDING_GRANT_MARKER_RE.lastIndex = 0;
-    let m;
-    while ((m = PENDING_GRANT_MARKER_RE.exec(body)) !== null) {
-      const parsed = new Date(m[1]);
+    // matchAll clones the regex, so the module-level /g literal's lastIndex is
+    // never carried between bodies (an exec loop would need resetting).
+    for (const match of body.matchAll(PENDING_GRANT_MARKER_RE)) {
+      const parsed = new Date(match[1]);
       if (Number.isNaN(parsed.getTime())) continue;
       if (!latest || parsed.getTime() > latest.getTime()) latest = parsed;
     }
@@ -37,24 +48,20 @@ function extractPendingGrantedAt(commentBodies) {
 // hasPendingLabel/hasMergeLabel: booleans from a fresh `gh issue view
 // --json labels` read. pendingSince: Date | null — normally
 // extractPendingGrantedAt's return value. vetoWindowHours: the resolved
-// grant-veto-window-hours policy value (falls back to the schema default,
-// 24, when absent/invalid — belt-and-braces alongside the resolver's own
-// default). now: Date | epoch-ms (injected clock for tests).
+// grant-veto-window-hours policy value (DEFAULT_VETO_WINDOW_HOURS when absent
+// or invalid). now: Date | epoch-ms (injected clock for tests).
 //
-// Returns { mature, state, reason, ageHours?, windowHours? }. `state` is one
-// of:
-//   'already-mature'    — auto:merge is already present; nothing to do.
+// Returns { mature, state, reason, ageHours?, windowHours? }. `state` is one of:
+//   'already-mature'     — auto:merge is already present; nothing to do.
 //   'not-pending'        — no auto:merge-pending label (never granted, or a
 //                          human vetoed it — both read identically here).
 //   'unknown-age'        — pending label present but no discoverable grant
 //                          timestamp; treated as not yet matured (fail safe).
-//   'within-veto-window'  — pending, timestamped, but still younger than the
+//   'within-veto-window' — pending, timestamped, but still younger than the
 //                          veto window.
 //   'matured'            — pending, timestamped, and past the veto window —
 //                          the caller should promote it now.
 function evaluateMaturation({ hasPendingLabel, hasMergeLabel, pendingSince, vetoWindowHours, now } = {}) {
-  const nowMs = now instanceof Date ? now.getTime() : (typeof now === 'number' ? now : Date.now());
-
   if (hasMergeLabel === true) {
     return { mature: true, state: 'already-mature', reason: 'auto:merge already present' };
   }
@@ -65,10 +72,14 @@ function evaluateMaturation({ hasPendingLabel, hasMergeLabel, pendingSince, veto
     return { mature: false, state: 'unknown-age', reason: 'pending grant timestamp could not be determined from the audit trail — treated as not yet matured' };
   }
 
-  const windowHours = (typeof vetoWindowHours === 'number' && Number.isFinite(vetoWindowHours) && vetoWindowHours >= 0)
+  const windowHours = Number.isFinite(vetoWindowHours) && vetoWindowHours >= 0
     ? vetoWindowHours
-    : 24;
-  const ageHours = (nowMs - pendingSince.getTime()) / (60 * 60 * 1000);
+    : DEFAULT_VETO_WINDOW_HOURS;
+
+  let nowMs = Date.now();
+  if (now instanceof Date) nowMs = now.getTime();
+  else if (typeof now === 'number') nowMs = now;
+  const ageHours = (nowMs - pendingSince.getTime()) / HOUR_MS;
 
   if (ageHours < windowHours) {
     return { mature: false, state: 'within-veto-window', reason: `pending grant is ${ageHours.toFixed(1)}h old, veto window is ${windowHours}h`, ageHours, windowHours };

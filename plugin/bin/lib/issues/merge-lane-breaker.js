@@ -85,13 +85,13 @@ function readWatched(root, opts) {
   return store(opts).readStateWithMeta(root).values.watched;
 }
 
-// mutatorFn: (currentWatched) -> nextWatched. As of #309, dispatch's
-// Auto-merge gate (settle-and-merge.md's Phase 2, and the wrap-up singleton
-// short-circuit's equivalent step) is the only write path that ADDS an entry
-// (seeded with { grantedAt }, at the moment a pending grant matures) —
-// grant-mode.md's own Step 4 no longer seeds it directly. Step 0.5 is the
-// only path that updates an existing entry's lastKnownState or prunes a
-// resolved-good one — both go through this same function.
+// mutatorFn: (currentWatched) -> nextWatched. As of #309, the two maturation
+// sites ADD an entry (seeded with { grantedAt }, at the moment a pending grant
+// matures): dispatch's Auto-merge gate (settle-and-merge.md's Phase 2) and
+// wrap-up's singleton short-circuit (auto-merge-short-circuit.md's
+// Authorization step) — grant-mode.md's own Step 4 no longer seeds it directly.
+// Step 0.5 is the only path that updates an existing entry's lastKnownState or
+// prunes a resolved-good one — all go through this same function.
 function writeWatched(root, mutatorFn, opts) {
   return store(opts).writeState(root, (current) => ({ ...current, watched: mutatorFn(current.watched) }));
 }

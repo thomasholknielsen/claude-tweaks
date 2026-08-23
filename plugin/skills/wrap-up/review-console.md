@@ -30,8 +30,8 @@ labels carry `auto:merge` or `auto:merge-pending` (re-fetch via `gh issue view -
 the header's `grants:` field is a snapshot for audit only; a pending label still routes here so
 `auto-merge-short-circuit.md`'s own maturation check can run — see #309) OR
 `manifesto-authorized-merge.md`'s applicability check passes (the `merge-authorization` lever,
-#715), read `auto-merge-short-circuit.md` in this
-skill's directory and follow it in full — the single-record version of
+#715), read `auto-merge-short-circuit.md` in this skill's directory and follow it in
+full — the single-record version of
 `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
 `/claude-tweaks:dispatch` was involved. That file routes on `_shared/integration-model.md`'s
 `pr-first`/`local-merge` split. Otherwise skip it entirely; do not read the file.

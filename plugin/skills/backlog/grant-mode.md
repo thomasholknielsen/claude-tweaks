@@ -61,10 +61,11 @@ Reads `merge-lane/watched.json` — the set of records whose merge trust origina
 mode's headless path (as of #309, seeded when either `dispatch/settle-and-merge.md`'s Auto-merge
 gate or `wrap-up/auto-merge-short-circuit.md`'s singleton short-circuit matures a record's
 `auto:merge-pending` to `auto:merge` — these two are the only write paths that add an entry;
-this mode's own Step 4 no longer writes it directly, since a still-pending grant has
-nothing yet for the breaker to watch) — and classifies each against fresh evidence, tripping
-`merge-lane/breaker.json` repo-wide the moment any one of them looks bad. Independent from, not a replacement for, `trust.js`'s per-class
-revocation (#268) — a class can read `clean` while this breaker is tripped, and vice versa.
+this mode's own Step 4 no longer writes it directly, since a still-pending grant has nothing
+yet for the breaker to watch) — and classifies each against fresh evidence, tripping
+`merge-lane/breaker.json` repo-wide the moment any one of them looks bad. Independent from,
+not a replacement for, `trust.js`'s per-class revocation (#268) — a class can read `clean`
+while this breaker is tripped, and vice versa.
 
 ```bash
 eval "$(node -e "
@@ -328,9 +329,9 @@ is a human-gate action (`_shared/work-record.md`'s permission matrix: `/backlog 
 **Grant rows** (Phase C `grant: true`): bootstrap `auto:build` (+`auto:merge-pending` when
 `result.autoMerge`) per `_shared/label-bootstrap.md`, same `LABELS_JSON` pair `refine-mode.md`
 Step 5 uses. `auto:merge-pending` is a waypoint, not the final merge grant — it matures to
-`auto:merge` at `/claude-tweaks:dispatch`'s existing Auto-merge gate Authorization layer, gated
-by `grant-veto-window-hours` and vetoable by a human removing the label before then (see
-`_shared/work-record.md`'s Grant semantics). `bot:blocked` candidates take the **re-authorize**
+`auto:merge` at either merge-consult checkpoint named in `_shared/work-record.md`'s Grant
+semantics maturation carve-out, gated by `grant-veto-window-hours` and vetoable by a human
+removing the label before then. `bot:blocked` candidates take the **re-authorize**
 path — strip `bot:blocked`, grant **`auto:build` only, never `auto:merge`/`auto:merge-pending`**,
 regardless of what `result.autoMerge` says (mirrors `refine-mode.md` Step 3's `re-authorize
 (bot:blocked)` row: "a prior failure means the human's renewed judgment is the point" — this
@@ -350,8 +351,8 @@ fi
 
 Unlike before #309, this step no longer seeds `merge-lane/watched.json` — a pending grant hasn't
 merged anything yet, so there is nothing for the circuit breaker to watch. That seed now happens
-in `dispatch/settle-and-merge.md`'s Auto-merge gate, at the moment `auto:merge-pending` actually
-matures into `auto:merge` (see that file).
+at whichever maturation site actually promotes `auto:merge-pending` to `auto:merge` — Step 0.5
+above names both.
 
 Post the audit comment (evidence snapshot — see the Audit format below), then log to
 `decisions.md`.
