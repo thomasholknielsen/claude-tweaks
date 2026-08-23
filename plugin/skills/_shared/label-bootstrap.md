@@ -100,6 +100,7 @@ one-time provision-now offer, which uses this list whole):
   ["bot:blocked",       "Bot state: retry ceiling or merge-verification park — needs human re-triage before autonomous retry"],
   ["demo:pending",           "Acceptance: built and verified — awaiting human sign-off via /claude-tweaks:demo"],
   ["demo:approved",          "Acceptance: a human verified this record does what was asked"],
+  ["demo:approved-batch",    "Acceptance: approved via /demo's #N,#M batch — no per-record walkthrough"],
   ["demo:changes-requested", "Acceptance: a human found a gap during sign-off — see the linked follow-up record"],
   ["wontfix",           "Closed as not-planned; health skills will not re-file findings with this fingerprint"],
   ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],

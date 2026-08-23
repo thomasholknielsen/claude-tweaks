@@ -329,9 +329,9 @@ parent silently un-suppresses its sub-issues back into `total`, the same failure
 One row per cell, in the module's own `key` sort order (already stable — do not re-sort, and
 never cap or truncate the row count; see the row-count note below):
 
-| Provenance | Risk | Total | Approved | Changes Requested | Operational | Negative Evidence | Undispositioned | Coverage | Not Planned | Follow-ups | Verdict |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| {provenance} | {band} | {total} | {approved} | {changesRequested} | {operationalGood} | {negativeEvidence} | {undispositioned} | {coverage} | {notPlanned} | {followUps} | {verdict} |
+| Provenance | Risk | Total | Approved | Approved (Batch) | Changes Requested | Operational | Negative Evidence | Undispositioned | Coverage | Not Planned | Follow-ups | Verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| {provenance} | {band} | {total} | {approved} | {approvedBatch} | {changesRequested} | {operationalGood} | {negativeEvidence} | {undispositioned} | {coverage} | {notPlanned} | {followUps} | {verdict} |
 
 Render `{coverage}` as a percentage with no decimals (`row.coverage`, e.g. `0.125` renders `13%`).
 
@@ -358,6 +358,21 @@ way every other column does — a known-bad outcome is not an unknown one — so
 holds, superseding the pre-#268 formula that summed only the first three into `dispositioned`. A
 non-zero cell here reads `mixed` even when `Changes Requested` and `Follow-ups` are both `0` — the
 same precedence a `changes-requested` disposition already had.
+
+**Approved (Batch) is the subset of Approved that was sign-off via a `/claude-tweaks:demo`
+`#N,#M` batch invocation rather than a dedicated single-record session** — a legitimate,
+deliberately cheap path (`_shared/work-record.md`'s Acceptance provenance row), distinguished by
+the `demo:approved-batch` label `bin/lib/issues/acceptance.js`'s `approvalProvenance` reads back.
+Both invocation shapes run the same per-item walkthrough (`skills/demo/SKILL.md` Step 2) — the
+marker distinguishes a rapid multi-item pass from a single-record session, not whether a
+walkthrough happened. A pre-existing `demo:approved` with no marker reads as single-record-backed,
+so this column is `0` for every cell graded before the signal existed. **A cell whose Approved
+evidence is entirely Approved (Batch), with no Operational corroboration, cannot reach `clean`**
+— it demotes to `mixed` the same way a non-zero Negative Evidence does (`trust.js`'s
+`batchOnly`), because a batch sign-off, while legitimate, is a shallower verification signal than
+this table otherwise grades autonomy on. `Approved (Batch)` equal to `Approved` with `Operational`
+at `0` is the tell; read
+them together the same way Coverage and Not Planned are read together below.
 
 **Coverage is the fraction of a class's closed records that carry any verdict at all**
 (`dispositioned / total`), and it is the figure that says whether a Verdict column can be
