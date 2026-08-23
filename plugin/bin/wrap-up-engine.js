@@ -59,7 +59,16 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     const hasValue = i + 1 < argv.length && !argv[i + 1].startsWith('--');
-    if (a === '--run-dir' && hasValue) { out.runDir = argv[i + 1]; i += 1; continue; }
+    // A blank or whitespace-only value (the shape an unset $PIPELINE_RUN_DIR
+    // expands to in shell) is treated as no value at all — out.runDir stays
+    // null, so every existing `if (!args.runDir) usageExit();` check below
+    // already rejects it before any guard or I/O runs (#1138). A plain
+    // empty string is already falsy and caught the same way without this
+    // check; this closes the whitespace-only gap specifically.
+    if (a === '--run-dir' && hasValue) {
+      out.runDir = argv[i + 1].trim() === '' ? null : argv[i + 1];
+      i += 1; continue;
+    }
     if (a === '--base' && hasValue) { out.base = argv[i + 1]; i += 1; continue; }
     if (a === '--ceremony' && hasValue) { out.ceremony = argv[i + 1]; i += 1; continue; }
     if (a === '--skill-budget' && hasValue) { out.skillBudget = argv[i + 1]; i += 1; continue; }

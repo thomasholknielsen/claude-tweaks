@@ -54,7 +54,11 @@ function fail(msg) {
 // --unattended` eats the next flag as the stance — both silent.
 function requireValue(args, flag) {
   const v = args.shift();
-  if (v === undefined || v.startsWith('--')) fail(`${flag} requires a value`);
+  // A blank or whitespace-only value (the shape an unset $PIPELINE_RUN_DIR
+  // expands to in shell) is rejected the same as a genuinely missing one —
+  // it must never reach the --run-dir anchoring check or tally path
+  // composition below as a blank string (#1138).
+  if (v === undefined || v.startsWith('--') || v.trim() === '') fail(`${flag} requires a value`);
   return v;
 }
 

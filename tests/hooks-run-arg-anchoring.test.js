@@ -112,6 +112,27 @@ test('#280: reject — a worktree-local INITIALIZED run dir is NOT adopted when 
   assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
 });
 
+// #1138: an empty or whitespace-only --run value (the shape an unset
+// $PIPELINE_RUN_DIR expands to in shell) must be rejected at parse time —
+// "--run requires a value" — before it ever reaches the anchoring check.
+test('#1138 reject: empty --run value — "--run requires a value", never the anchoring-check wording', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const out = runRecordWorktree(['--run', '', wt], wt);
+  assert.match(out.stdout, /--run requires a value/);
+  assert.doesNotMatch(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+});
+
+test('#1138 reject: whitespace-only --run value degrades the same as empty', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const out = runRecordWorktree(['--run', '   ', wt], wt);
+  assert.match(out.stdout, /--run requires a value/);
+  assert.doesNotMatch(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+});
+
 test('reject: --run resolves under a directory with no git repo ancestor at all — distinct message, not the worktree-shadow wording', () => {
   // #790 Finding 5: mainCheckoutRoot() returning null (no .git anywhere up
   // the ancestor chain) is a DIFFERENT failure than "exists, but resolves

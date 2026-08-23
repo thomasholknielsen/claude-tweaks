@@ -81,8 +81,16 @@ function resolveRunArg(args, cwd, env) {
     return { runDir: ctxLib.resolveRunDir(cwd, env), invalidRunArg: null, rest: args, explicit: false };
   }
   const rest = args.slice();
-  const candidate = rest[flagIdx + 1] || null;
+  const rawCandidate = rest[flagIdx + 1];
+  // An empty or whitespace-only value (the shape an unset $PIPELINE_RUN_DIR
+  // expands to in shell) must never reach the guards/statSync/path-composition
+  // below as a blank path (#1138) — reject it here, at the earliest parse
+  // point, before any of that runs.
+  const candidate = (rawCandidate && rawCandidate.trim() !== '') ? rawCandidate : null;
   rest.splice(flagIdx, 2);
+  if (rawCandidate !== undefined && candidate === null) {
+    return { runDir: null, invalidRunArg: '--run requires a value', rest, explicit: true };
+  }
   // An explicit --run must resolve to a real directory — falling back to
   // resolveRunDir's "newest non-terminal run" scan on a bad path would
   // silently record against the WRONG run, defeating the reason --run

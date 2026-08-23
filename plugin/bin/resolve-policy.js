@@ -61,7 +61,11 @@ function main(argv) {
     const arg = args.shift();
     if (arg === '--run') {
       const value = args.shift();
-      if (value === undefined || value.startsWith('--')) {
+      // A blank or whitespace-only value (the shape an unset
+      // $PIPELINE_RUN_DIR expands to in shell) is rejected the same as a
+      // genuinely missing one — it must never reach the --run anchoring
+      // check below as a blank string (#1138).
+      if (value === undefined || value.startsWith('--') || value.trim() === '') {
         fail('--run requires a value');
         return;
       }

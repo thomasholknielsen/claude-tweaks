@@ -73,7 +73,14 @@ function parseArgs(argv) {
     const a = argv[i];
     const next = () => argv[++i];
     if (a === '--help' || a === '-h') opts.help = true;
-    else if (a === '--run-dir') opts.runDir = next();
+    else if (a === '--run-dir') {
+      // A blank or whitespace-only value (the shape an unset
+      // $PIPELINE_RUN_DIR expands to in shell) is treated as no value at
+      // all — the existing `if (!opts.runDir)` check below already rejects
+      // it before any guard or I/O runs (#1138).
+      const v = next();
+      opts.runDir = v && v.trim() !== '' ? v : null;
+    }
     else if (a === '--repo') opts.repo = next();
     else if (a === '--ceremony') opts.ceremony = next();
     else if (a === '--multi-record-slug') opts.multiRecordSlug = next();
