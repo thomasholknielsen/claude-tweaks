@@ -244,11 +244,23 @@ For a `#N[,#M...]` batch this step runs per item, immediately after that item's 
 batched across items — so the next ref's Step 1 starts only once this ref's label swap (or
 follow-up filing) has landed.
 
-**Label-backed entries** (Step 1's `#N` lookup): bootstrap `demo:approved` and
-`demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
-the first swap this run.
+**Label-backed entries** (Step 1's `#N` lookup): bootstrap `demo:approved`,
+`demo:changes-requested`, and `demo:approved-batch` via the check-then-create loop from
+`_shared/label-bootstrap.md` before the first swap this run.
 
-- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant. For a decomposition parent — `parent-issue` in its labels (`work-backend: github-issues`) or `facets.isParentIssue === true` (`work-backend: local-files`) — close it too: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the parent issue was ever accepted. `work-backend: github-issues`: `gh issue close {n} --reason completed`. `work-backend: local-files`: `closeRecord(path)` (`bin/lib/issues/local-store.js`), run **after** the `writeRecord` call above — `closeRecord` does its own fresh read of the file, so calling it second means it preserves the `acceptance: 'approved'` facet just written rather than racing it.
+**Provenance signal (Approve only).** A per-record walkthrough-backed approval and a
+`#N,#M` batch sign-off are otherwise byte-identical on the wire, so the Approve action below
+records which one this verdict was: a bare `#N` invocation or the no-argument session-recall
+path ran Step 2's per-item walkthrough — walkthrough-backed, the default, nothing extra
+written. A `#N,#M...` batch invocation (more than one ref in this run's list — see Input) is
+batch-sourced — the Approve action additionally applies `demo:approved-batch`
+(`work-backend: local-files`: `facets.acceptanceProvenance = 'batch'`), so
+`bin/lib/issues/trust.js`'s coverage/verdict computation (via `acceptance.js`'s
+`approvalProvenance`) can read it back. A pre-existing `demo:approved` label carries no such
+marker and reads as walkthrough-backed — the safer default, since promoting an unlabeled
+historical approval to "batch" would understate coverage rather than overstate it.
+
+- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` — for a batch-sourced verdict (per the Provenance signal note above), add `--add-label demo:approved-batch` to the same invocation (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`, plus `facets.acceptanceProvenance = 'batch'` on the same write, batch-sourced only — omitted entirely for a walkthrough-backed verdict). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant. For a decomposition parent — `parent-issue` in its labels (`work-backend: github-issues`) or `facets.isParentIssue === true` (`work-backend: local-files`) — close it too: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the parent issue was ever accepted. `work-backend: github-issues`: `gh issue close {n} --reason completed`. `work-backend: local-files`: `closeRecord(path)` (`bin/lib/issues/local-store.js`), run **after** the `writeRecord` call above — `closeRecord` does its own fresh read of the file, so calling it second means it preserves the `acceptance: 'approved'` facet just written rather than racing it.
 - **Request changes** — prompt for a short reason inline, then:
   1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`. For a decomposition parent — `parent-issue` in its labels (`work-backend: github-issues`) or `facets.isParentIssue === true` (`work-backend: local-files`), the same two-driver test the Approve branch above uses — nothing further follows this: the parent stays open, since a changes-requested verdict means the parent issue's work is not done.
   2. File a linked follow-up record: backlog stage (no `ready` — a one-line reason isn't
