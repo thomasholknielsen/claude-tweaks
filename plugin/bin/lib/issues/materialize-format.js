@@ -9,6 +9,14 @@
 const REQUIRED_SECTIONS = ['## Current State', '## Deliverables', '## Acceptance Criteria'];
 const PLACEHOLDER_RE = /\bTBD\b|\bTODO\b|<!--\s*ambiguity:/;
 
+// Everything from the `## Original request` heading to end of body is a
+// verbatim copy of the record's original title/body (shaping-mode.md's
+// preservation rule — always the terminal section, and it may contain the
+// original body's own nested `## ` headings). Markers inside it are the
+// original capture's own text, never unresolved authored placeholders, so
+// the placeholder gate tests only the text before it (refs #1240).
+const ORIGINAL_REQUEST_RE = /^## Original request[ \t]*$/m;
+
 // body -> the text of section `## {name}` up to the next `## ` heading (or
 // end of body). null when the heading itself is absent.
 function sectionText(body, name) {
@@ -25,7 +33,7 @@ function sectionText(body, name) {
 // every failing section by its plain name ("Current State", not "## Current
 // State") plus, when present, the string 'unresolved-placeholder' — the same
 // gate materialize.md's "Materialization hard gate" describes: every
-// section present and non-empty, no TBD/TODO/<!-- ambiguity: marker anywhere.
+// section present and non-empty, no TBD/TODO/<!-- ambiguity: marker anywhere outside the verbatim-preserved `## Original request` section (that heading to end of body).
 function shapeGate(body) {
   const text = typeof body === 'string' ? body : '';
   const missing = [];
@@ -34,7 +42,9 @@ function shapeGate(body) {
     const section = sectionText(text, name);
     if (section === null || section.length === 0) missing.push(name);
   }
-  if (PLACEHOLDER_RE.test(text)) missing.push('unresolved-placeholder');
+  const originalRequestAt = text.search(ORIGINAL_REQUEST_RE);
+  const authored = originalRequestAt === -1 ? text : text.slice(0, originalRequestAt);
+  if (PLACEHOLDER_RE.test(authored)) missing.push('unresolved-placeholder');
   return missing.length ? { ok: false, missing } : { ok: true, missing: [] };
 }
 
