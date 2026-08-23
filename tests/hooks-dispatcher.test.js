@@ -58,6 +58,11 @@ function gitRepo() {
   return fs.realpathSync(dir);
 }
 
+function writeWorktreeAlwaysPolicy(project) {
+  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+}
+
 test('invariant: every event exits 0 on garbage stdin, no stdout noise', () => {
   for (const ev of ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop']) {
     const r = runHook([ev], { input: '%%%not json%%%' });
@@ -431,8 +436,7 @@ test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_F
 
 test('e2e: pre-tool-use CLI denies an Edit when worktree-always policy is set in the main checkout', () => {
   const project = gitRepo();
-  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+  writeWorktreeAlwaysPolicy(project);
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: path.join(project, 'a.txt') } }),
     cwd: project,
@@ -443,8 +447,7 @@ test('e2e: pre-tool-use CLI denies an Edit when worktree-always policy is set in
 
 function policyRepoWithRun() {
   const project = gitRepo();
-  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+  writeWorktreeAlwaysPolicy(project);
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   // #721: touch decisions.md so this run dir is adopted and reachable by
@@ -469,10 +472,52 @@ test('a resolved deny appends a gate-denial event', () => {
   assert.strictEqual(events[0].path, target);
 });
 
+// #1270 regression: the #1130 fix (`PIPELINE_RUN_DIR: ''` in runHook's spread,
+// proven above at 'record-pr does not resolve against an ambient
+// PIPELINE_RUN_DIR...') guards run-state.json field writes. This is the sibling
+// proof for events.jsonl specifically — the artifact #1270's own Current State
+// named (`gate-denial`/`wd-foreign-session`/`close-without-wrapup` entries
+// landing in a REAL run's events.jsonl). Ambient PIPELINE_RUN_DIR is set on
+// THIS test runner's own process.env — exactly the shape a /flow-dispatched
+// shell running `npm test` carries — pointed at a decoy "real" run dir
+// entirely separate from the fixture project below, so if runHook's guard
+// ever regressed, the gate-denial event triggered here would land in the
+// decoy instead of (or in addition to) the correctly cwd-resolved run.
+test('#1270: a gate-denial event never lands in an ambient PIPELINE_RUN_DIR the call site never passed', () => {
+  const decoyRepo = gitRepo();
+  const decoyRun = path.join(decoyRepo, '.claude-tweaks', 'pipelines', '2026-08-02T090000-record-9');
+  fs.mkdirSync(decoyRun, { recursive: true });
+  fs.writeFileSync(path.join(decoyRun, 'decisions.md'), '');
+  const decoyEventsPath = path.join(decoyRun, 'events.jsonl');
+
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'a.txt');
+
+  const savedAmbient = process.env.PIPELINE_RUN_DIR;
+  process.env.PIPELINE_RUN_DIR = decoyRun;
+  let result;
+  try {
+    result = runHook(['pre-tool-use'], {
+      input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+      cwd: project,
+    });
+  } finally {
+    if (savedAmbient === undefined) delete process.env.PIPELINE_RUN_DIR;
+    else process.env.PIPELINE_RUN_DIR = savedAmbient;
+  }
+
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/);
+  assert.strictEqual(fs.existsSync(decoyEventsPath), false,
+    'ambient PIPELINE_RUN_DIR must receive no events.jsonl entries from a call site that never passed it');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1, 'the real (cwd-resolved) run dir must still receive its own event');
+  assert.strictEqual(events[0].type, 'gate-denial');
+});
+
 test('a deny with no resolved run dir writes nothing and still denies', () => {
   const project = gitRepo();
-  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+  writeWorktreeAlwaysPolicy(project);
   // Deliberately no .claude-tweaks/pipelines/ run dir at all, so
   // ctxLib.resolveRun finds nothing and ownedRun.dir is null — the
   // documented, accepted gap: ad-hoc work with no run dir records nothing.
@@ -620,8 +665,7 @@ test('check-resume-freshness: no resolvable --run path reports the not-found lin
 // ownedRun.dir is null and appendEvent no-ops.
 test('a hook spawned with no cwd anywhere cannot write into a real run dir reachable from the test runner process.cwd()', () => {
   const decoyRepo = gitRepo();
-  fs.mkdirSync(path.join(decoyRepo, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(decoyRepo, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+  writeWorktreeAlwaysPolicy(decoyRepo);
   const decoyRun = path.join(decoyRepo, '.claude-tweaks', 'pipelines', '2026-08-01T090000-record-9');
   fs.mkdirSync(decoyRun, { recursive: true });
   fs.writeFileSync(path.join(decoyRun, 'run-state.json'), JSON.stringify({ status: 'active', worktree: '/tmp/wt-decoy', sessionId: 'decoy-owner' }));

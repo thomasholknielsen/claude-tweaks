@@ -20,8 +20,13 @@ const HOOKS_JS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
 function runRecordWorktree(args, cwd) {
   try {
+    // #1270: neutralize any ambient PIPELINE_RUN_DIR (present in every
+    // /flow-dispatched shell) so this spawn can't silently resolve against a
+    // real run dir it never named — every case here already passes --run
+    // explicitly, but this guard is the same defense-in-depth convention
+    // #1130 established for every other bin/hooks.js test spawn helper.
     const stdout = execFileSync('node', [HOOKS_JS, 'record-worktree', ...args], {
-      cwd, timeout: 15000,
+      cwd, timeout: 15000, env: { ...process.env, PIPELINE_RUN_DIR: '' },
     });
     return { code: 0, stdout: stdout.toString('utf8') };
   } catch (e) {
