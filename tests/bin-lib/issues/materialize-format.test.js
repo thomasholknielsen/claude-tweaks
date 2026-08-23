@@ -207,6 +207,18 @@ test('materialize CLI: happy path writes {run-dir}/work/{n}-spec.md with the com
   assert.match(content, /^# 1: A record$/m);
 });
 
+test('materialize CLI: happy path lifts a Ui-stack: line into the header and JSON envelope', () => {
+  const runDir = mkRunDir('run-ui-stack');
+  const body = SHAPED_BODY.replace('Surface: backend', 'Surface: web\nUi-stack: shadcn/ui + Tailwind');
+  const { deps, out, written } = cliDeps({ ghView: () => ghJson({ body }) });
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
+  assert.equal(code, 0);
+  const env = JSON.parse(out.join(''));
+  assert.equal(env.uiStack, 'shadcn/ui + Tailwind');
+  const content = written[path.join(runDir, 'work', '1-spec.md')];
+  assert.match(content, /^ui-stack: shadcn\/ui \+ Tailwind$/m);
+});
+
 test('materialize CLI: an unshaped record fails the gate (exit 1), pointing at /specify', () => {
   const runDir = mkRunDir();
   const { deps, err } = cliDeps({ ghView: () => ghJson({ body: 'no sections here' }) });
