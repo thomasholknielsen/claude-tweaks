@@ -38,15 +38,19 @@ trace of it.
 
 1. The CLI in step 2 performs the ownership read itself (`claims/issue-{n}.json` on `claims-registry`, per `_shared/issue-claims.md`'s "The lock" and Ownership rule) and exits `4` — writing nothing — when the blob's `runId` doesn't match `basename($PIPELINE_RUN_DIR)` — the group directory dispatch minted before claiming and this Task call received directly (`dispatch/task-prompt.md`): a mismatch means a successor already broke the stale claim and now holds the lock. Skip the rest of this step for that record and move to the next one — no manual read.
 2. Release the claim and remove `bot:in-progress` in one command — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" "$ISSUE" --run "$PIPELINE_RUN_DIR" --reason "failed: {gate}" --remove-in-progress --section "/dispatch" --step "Settle"` (reason per `_shared/issue-claims.md`'s Release triggers table; label removal best-effort, the CLI logs a warning and continues on failure). Same CLI `wrap-up/cleanup-procedures-execution.md` Section E uses — the exit-code contract lives there, not restated here.
-3. **Classify the failure and act on `auto:merge` accordingly.** Invoke `/claude-tweaks:assess-agent-autonomy` in `failure-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "failure-check #{n}")`. If `CLASSIFICATION` is `correctness` or `ambiguous`, revoke `auto:merge` if present — today's behavior for this class, unchanged:
+3. **Classify the failure and act on `auto:merge`/`auto:merge-pending` accordingly.** Invoke `/claude-tweaks:assess-agent-autonomy` in `failure-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "failure-check #{n}")`. If `CLASSIFICATION` is `correctness` or `ambiguous`, revoke `auto:merge` if present, and `auto:merge-pending` if present — today's behavior for this class, unchanged for `auto:merge`, extended so a still-maturing grant is equally revocable (a record carries at most one of the two at a time per `_shared/work-record.md`'s Grant semantics, so at most one of these two checks fires, but check both since which one is present isn't assumed):
 
    ```bash
-   if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx auto:merge; then
+   LIVE_LABELS=$(gh issue view "$ISSUE" --json labels -q '.labels[].name')
+   if echo "$LIVE_LABELS" | grep -qx auto:merge; then
      gh issue edit "$ISSUE" --remove-label auto:merge
+   fi
+   if echo "$LIVE_LABELS" | grep -qx auto:merge-pending; then
+     gh issue edit "$ISSUE" --remove-label auto:merge-pending
    fi
    ```
 
-   If `CLASSIFICATION` is `transient`, **preserve** `auto:merge` — do not remove it. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
+   If `CLASSIFICATION` is `transient`, **preserve** `auto:merge`/`auto:merge-pending` — do not remove either. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
 
    Log this decision to `{run-dir}/decisions.md`, the same `Rationale:`-suffixed shape
    `grant-check`'s two callers already use (`backlog/grant-mode.md`, `backlog/refine-mode.md`) —
@@ -55,7 +59,7 @@ trace of it.
    is the same either way, only its prose shape differs):
 
    ```
-   AUTO {time} — Settle: failure-check classified #{n} as {CLASSIFICATION} (NOTIFY_NOW={NOTIFY_NOW}) — {revoked | preserved} auto:merge. Rationale: {RATIONALE}.
+   AUTO {time} — Settle: failure-check classified #{n} as {CLASSIFICATION} (NOTIFY_NOW={NOTIFY_NOW}) — {revoked | preserved} auto:merge/auto:merge-pending. Rationale: {RATIONALE}.
    ```
 
 4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` via the canonical resolver), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct.
@@ -189,7 +193,7 @@ trace of it.
    # tests/bin-lib/issues/labels.test.js pins); never restate the description text here.
    ```
 
-   Then remove `auto:build` and, if still present (a `transient`-classified attempt preserves it per step 3 above, so it can still be there at the ceiling), `auto:merge` too — per `_shared/issue-claims.md`'s canonical rule, the retry ceiling removes **all** `auto:*` labels, not just whichever one step 3 didn't already strip. Add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
+   Then remove `auto:build` and, if still present (a `transient`-classified attempt preserves it per step 3 above, so it can still be there at the ceiling), `auto:merge` or `auto:merge-pending` too — per `_shared/issue-claims.md`'s canonical rule, the retry ceiling removes **all** `auto:*` labels, not just whichever one step 3 didn't already strip. Add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
 7. **If `false`:** leave `auto:build` in place — the next `dispatch next` firing pulls it again naturally (the claim was already released). There is nothing further to downgrade in the common case: step 3 revoked `auto:merge` unless the failure was classified transient, and that conditional revocation *is* the failure-downgrade rule in this model. Unlike the pre-grants design there is no separate two-tier label to step down between — a record either still has `auto:build` (and can retry) or, at the ceiling, has neither.
 
 A `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before the next retry, per step 3 above — that record doesn't get another unsupervised shot at auto-merge until a human re-grants it at `/claude-tweaks:backlog refine`. A `transient`-classified failure preserves `auto:merge` — the retry-ceiling counting below still runs unconditionally regardless of classification (an attempt is an attempt), but classification alone no longer determines merge trust the way it did before.
