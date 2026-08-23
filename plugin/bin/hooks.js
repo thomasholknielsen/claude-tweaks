@@ -166,17 +166,21 @@ function resolveRunArg(args, cwd, env) {
         : null;
       const inPipelines = !!relFromPipelines && !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
       const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
-      const runIdSegment = relParts[0] === 'archive' ? relParts[1] : relParts[0];
+      const isArchiveShape = relParts[0] === 'archive';
+      const runIdSegment = isArchiveShape ? relParts[1] : relParts[0];
       const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
       const mainCandidate = inPipelines ? path.join(mainRoot, '.claude-tweaks', 'pipelines', relFromPipelines) : null;
       // #1183 fix-wave: an archive/{id} shadow must also be checked against a LIVE
       // (non-archived) copy of the same run-id under the main checkout — a run can be
       // live under one id while a worktree-local session independently archived its own
       // local copy under the same id; checking only the archive/{id} path would miss that.
-      const mainLiveCandidate = (inPipelines && relParts[0] === 'archive' && runIdSegment)
+      const mainLiveCandidate = (inPipelines && isArchiveShape && runIdSegment)
         ? path.join(mainRoot, '.claude-tweaks', 'pipelines', runIdSegment)
         : null;
-      const twinExists = isDirectory(mainCandidate) || (!!mainLiveCandidate && isDirectory(mainLiveCandidate));
+      // isDirectory already fails closed (try/catch) on a null path, so no
+      // separate truthiness guard is needed for mainLiveCandidate — mirrors
+      // how mainCandidate above is passed through unguarded.
+      const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate);
       if (sameRepo && inPipelines && runIdShaped && isInitializedRunDir(resolved) && !twinExists) {
         return {
           runDir: resolved, invalidRunArg: null, rest, explicit: true, worktreeLocalFallback: true,

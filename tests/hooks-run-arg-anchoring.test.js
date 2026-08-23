@@ -125,15 +125,30 @@ test('reject: --run resolves under a directory with no git repo ancestor at all 
   assert.doesNotMatch(out.stdout, /worktree recorded/);
 });
 
+// Shared by the #1183 tests below: every "reject" case must show the
+// anchoring-rejection message and must NOT report either a successful record
+// or a #280 fallback adoption; every "accept via fallback" case must report
+// both the fallback disclosure and a successful record. Naming the assertion
+// intent here keeps each test's own setup (its distinct fixture shape) the
+// only thing left to read at the call site.
+function assertShadowRejected(out) {
+  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+}
+
+function assertFallbackAdopted(out) {
+  assert.match(out.stdout, /worktree-local fallback \(#280\)/i);
+  assert.match(out.stdout, /worktree recorded/);
+}
+
 test('#1183: reject — an arbitrary non-repo directory with a stray config.yml is not adopted via the #280 fallback', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   const stray = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-stray-'));
   fs.writeFileSync(path.join(stray, 'config.yml'), '');
   const out = runRecordWorktree(['--run', stray, wt], wt);
-  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
-  assert.doesNotMatch(out.stdout, /worktree recorded/);
-  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+  assertShadowRejected(out);
 });
 
 test('#1183: reject — an unrelated git repo (not a worktree of this repo) with a config.yml is not adopted via the #280 fallback', () => {
@@ -142,9 +157,7 @@ test('#1183: reject — an unrelated git repo (not a worktree of this repo) with
   const otherRepo = gitRepo();
   fs.writeFileSync(path.join(otherRepo, 'config.yml'), '');
   const out = runRecordWorktree(['--run', otherRepo, wt], wt);
-  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
-  assert.doesNotMatch(out.stdout, /worktree recorded/);
-  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+  assertShadowRejected(out);
 });
 
 test('#1183: reject — a worktree shadow of a nested pipelines/{parent}/spec-N run dir is refused when the anchored copy exists at the correct nested path', () => {
@@ -158,9 +171,7 @@ test('#1183: reject — a worktree shadow of a nested pipelines/{parent}/spec-N 
   const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', parentRunId, specSub]);
   fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
   const out = runRecordWorktree(['--run', trapped, wt], wt);
-  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
-  assert.doesNotMatch(out.stdout, /worktree recorded/);
-  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+  assertShadowRejected(out);
 });
 
 test('#1183: accept — a worktree shadow of a nested pipelines/{parent}/spec-N run dir adopts via the #280 fallback when no anchored copy exists at all', () => {
@@ -171,8 +182,7 @@ test('#1183: accept — a worktree shadow of a nested pipelines/{parent}/spec-N 
   const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', parentRunId, specSub]);
   fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
   const out = runRecordWorktree(['--run', trapped, wt], wt);
-  assert.match(out.stdout, /worktree-local fallback \(#280\)/i);
-  assert.match(out.stdout, /worktree recorded/);
+  assertFallbackAdopted(out);
 });
 
 test('#1183: reject — a worktree shadow of an archived pipelines/archive/{id} run dir is refused when the anchored copy exists', () => {
@@ -183,9 +193,7 @@ test('#1183: reject — a worktree shadow of an archived pipelines/archive/{id} 
   const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', 'archive', archivedRunId]);
   fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
   const out = runRecordWorktree(['--run', trapped, wt], wt);
-  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
-  assert.doesNotMatch(out.stdout, /worktree recorded/);
-  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+  assertShadowRejected(out);
 });
 
 test('#1183 fix-wave: accept — a worktree-local INITIALIZED run dir reached through a symlinked path component still adopts via the #280 fallback', () => {
@@ -204,8 +212,7 @@ test('#1183 fix-wave: accept — a worktree-local INITIALIZED run dir reached th
   fs.symlinkSync(wt, wtLink, 'dir');
   const viaSymlink = path.join(wtLink, '.claude-tweaks', 'pipelines', '2026-01-01T000000-spec-1183sym');
   const out = runRecordWorktree(['--run', viaSymlink, wt], wt);
-  assert.match(out.stdout, /worktree-local fallback \(#280\)/i);
-  assert.match(out.stdout, /worktree recorded/);
+  assertFallbackAdopted(out);
 });
 
 test('#1183 fix-wave: reject — a worktree-local archive/{id} shadow is refused when a LIVE (non-archived) run dir exists under the same id at the main checkout', () => {
@@ -220,7 +227,5 @@ test('#1183 fix-wave: reject — a worktree-local archive/{id} shadow is refused
   const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', 'archive', runId]);
   fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
   const out = runRecordWorktree(['--run', trapped, wt], wt);
-  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
-  assert.doesNotMatch(out.stdout, /worktree recorded/);
-  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+  assertShadowRejected(out);
 });
