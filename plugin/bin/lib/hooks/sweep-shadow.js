@@ -111,7 +111,17 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
   // partial sweep into a silent, indistinguishable-from-clean exit 0.
   const shadowStaged = path.join(shadow, 'staged');
   let stagedIsDir = false;
-  try { stagedIsDir = fs.statSync(shadowStaged).isDirectory(); } catch { /* no shadow staged/ — nothing to sweep */ }
+  try {
+    stagedIsDir = fs.statSync(shadowStaged).isDirectory();
+  } catch (e) {
+    // ENOENT (target genuinely doesn't exist) is the only clean no-op case.
+    // Any other failure — e.g. a permission-denied parent directory one
+    // level up the shadow path, ENOTDIR, ELOOP, EIO — must surface, not be
+    // silently treated as "nothing to sweep" (#1305).
+    if (!e || e.code !== 'ENOENT') {
+      lines.push(`sweep: failed to check for shadow staged/ — ${(e && e.code) || e}`);
+    }
+  }
   if (stagedIsDir) {
     let entries;
     try {
@@ -152,7 +162,14 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
   // ---- stray shadow decisions.md ----
   const shadowDecisions = path.join(shadow, 'decisions.md');
   let decisionsLstat = null;
-  try { decisionsLstat = fs.lstatSync(shadowDecisions); } catch { /* none — nothing to relocate */ }
+  try {
+    decisionsLstat = fs.lstatSync(shadowDecisions);
+  } catch (e) {
+    // Same ENOENT-only short-circuit as the staged/ gate above (#1305).
+    if (!e || e.code !== 'ENOENT') {
+      lines.push(`sweep: failed to check for shadow decisions.md — ${(e && e.code) || e}`);
+    }
+  }
   if (decisionsLstat && decisionsLstat.isFile()) {
     // lstat().isFile() is already false for a symlink (it never follows),
     // so this one check subsumes the bash pair `[ -f ... ] && [ ! -L ... ]`.

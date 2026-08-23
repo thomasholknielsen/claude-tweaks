@@ -100,6 +100,50 @@ test('a clean sweep relocates shadow decisions.md entries exactly once — a sec
   assert.equal((anchoredAfterSecond.match(/- second entry/g) || []).length, 1, 'still exactly one copy after a second run');
 });
 
+test('#1305: permission-denied PARENT dir (not the target) at the staged/ entry gate produces a diagnostic, not a silent clean sweep', () => {
+  const { root, runDir, wt, shadow } = setup();
+  // Deny traversal into `shadow` itself — the PARENT of `shadow/staged` —
+  // rather than chmod-ing `shadow/staged` directly (that exercises the
+  // readdir failure covered above, not this stat() entry gate).
+  fs.chmodSync(shadow, 0o000);
+  try {
+    const result = sweepShadow({ runRoot: root, pipelineRunDir: runDir, worktree: wt });
+    assert.equal(result.diagnostic, true, 'a permission-denied parent dir must surface as a diagnostic, not a clean sweep');
+    assert.ok(
+      result.lines.some((l) => l.startsWith('sweep: failed to check for shadow staged/')),
+      `expected a "failed to check for shadow staged/" line, got: ${JSON.stringify(result.lines)}`,
+    );
+  } finally {
+    fs.chmodSync(shadow, 0o755);
+  }
+});
+
+test('#1305: permission-denied PARENT dir (not the target) at the decisions.md entry gate produces a diagnostic, not a silent clean sweep', () => {
+  const { root, runDir, wt, shadow } = setup();
+  // Same PARENT-directory denial as above, for the decisions.md gate.
+  fs.chmodSync(shadow, 0o000);
+  try {
+    const result = sweepShadow({ runRoot: root, pipelineRunDir: runDir, worktree: wt });
+    assert.equal(result.diagnostic, true, 'a permission-denied parent dir must surface as a diagnostic, not a clean sweep');
+    assert.ok(
+      result.lines.some((l) => l.startsWith('sweep: failed to check for shadow decisions.md')),
+      `expected a "failed to check for shadow decisions.md" line, got: ${JSON.stringify(result.lines)}`,
+    );
+  } finally {
+    fs.chmodSync(shadow, 0o755);
+  }
+});
+
+test('#1305: a genuinely absent shadow (no staged/, no decisions.md) is still a clean no-op — ENOENT unaffected', () => {
+  const { root, runDir, wt } = setup();
+  // `shadow` exists (created by setup()) but is empty — both gates hit a
+  // genuine ENOENT on their respective targets, not a parent-permission
+  // failure. Must remain a clean, diagnostic-free sweep.
+  const result = sweepShadow({ runRoot: root, pipelineRunDir: runDir, worktree: wt });
+  assert.equal(result.diagnostic, false, `genuine ENOENT must stay a clean no-op: ${JSON.stringify(result.lines)}`);
+  assert.deepEqual(result.lines, []);
+});
+
 test('unlink-before-append: a shadow decisions.md with no "- " entry lines is dropped and unlinked, not left behind', () => {
   const { root, runDir, wt, shadow } = setup();
   const shadowDecisions = path.join(shadow, 'decisions.md');
