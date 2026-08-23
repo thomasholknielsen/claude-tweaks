@@ -69,6 +69,10 @@ Each `kind: branch` finding is a **remote-tracking** branch (of the integration 
 
 Each `kind: artifact` finding is aged QA-artifact residue (an aged dir under `.claude-tweaks/artifacts/`, or a legacy pre-relocation `screenshots/`/`traces/` root) — collect as `[git] {subject} — {evidence} — Delete` when `remedy: auto`, or `— Delete (judgment)` when `remedy: record`.
 
+Each `kind: pipeline-run` finding is an un-archived clean run directory (`run-state.json` status `clean`, not yet moved under `.claude-tweaks/pipelines/archive/`) — collect as `[git] {subject} — {evidence} — Archive` (`remedy` is always `auto` for this kind — the archival move documented in `wrap-up/cleanup-procedures.md` Section B).
+
+This step's per-kind coverage above is not a fixed list — treat `bin/residue.js`'s probe directory (`bin/lib/residue/probes/`) as the authoritative kind set under `--scope repo`, and give any probe added there a paragraph here (or an explicit exclusion note) before relying on the assertion in `step-6-auto.md` that every Step 4.5 pass reads it. `kind: pr` is the one deliberate exception: Step 4.8 below fetches PRs directly instead of reading it from this CLI — see that step's own "Not re-pointed at `bin/residue.js`" paragraph for why.
+
 **Build branches (local, any merge state):** Run `git -C "{REPO_ROOT}" branch --list "build/*"`. The CLI above has no equivalent for this — it can only ever report merged, remote-tracking branches, so a local-only or still-unmerged `build/*` branch (including one being actively worked on) is outside its domain entirely.
 
 | Status | Recommendation |

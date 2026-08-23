@@ -133,7 +133,7 @@ Backlog record → Design Doc → Ready record(s) → Code → Stories → TEST_
 | `/claude-tweaks:capture` | Backlog record | — |
 | `/claude-tweaks:challenge` | — | — |
 | `/superpowers:brainstorming` | Design Doc | — |
-| `/claude-tweaks:specify` | Ready record(s) — shapes an existing record in place, or creates a parent + ready sub-issues | Design Doc |
+| `/claude-tweaks:specify` | Ready record(s) — shapes an existing record in place, or creates ready sub-issues (plus a parent when kept) | Design Doc |
 | `/claude-tweaks:build` | Code (+ Journeys via /journeys) | — |
 | `/claude-tweaks:journeys` | Journey files | — |
 | `/claude-tweaks:stories` | Story YAML files | — |

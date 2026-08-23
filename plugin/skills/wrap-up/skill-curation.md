@@ -57,7 +57,7 @@ An empty findings array is valid here — it still records `lastAuditedSha`/`las
 For each proposed change:
 
 1. Classify as **additive** (new examples, new anti-patterns, new section appended) or **restructural** (changing existing wording, moving content, renaming sections, splitting/merging skills).
-2. **Additive + reversibility:high + confidence:high** → auto-apply now. Commit. This rule applies whether or not a ledger entry seeded the change. Log entry:
+2. **Additive + reversibility:high + confidence:high** → auto-apply now: make the edit in the working tree only — never run `git add`/`git commit` (`curation-engine.md` section 4's serial-commit pass is the single committer; it audits the edit, commits it, and writes this log entry with the hash only it knows). This rule applies whether or not a ledger entry seeded the change. Log entry (written by the controller at commit time):
    ```
    AUTO 14:52:24 — Skills row: applied additive update to {skill}/SKILL.md ({section}). Reversibility: high; commit: {hash}.
    ```

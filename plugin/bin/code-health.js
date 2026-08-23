@@ -35,7 +35,7 @@ function validateRiskArg(value, { argName, cmdName, consequence }) {
     `${cmdName}: --${argName} "${value}" is not a recognized risk tier ` +
     `(must be one of ${Object.keys(RISK_RANK).join('|')}) — ${consequence}\n`,
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 function parseArgs(argv) {
@@ -71,7 +71,8 @@ function cmdStatus(args) {
       `(must be one of ${[...FAIL_ON_VALUES].join('|')}) — an unrecognized value silently disables ` +
       'the gate (always exits 0) regardless of how many regressed/risk-high findings actually exist.\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   const cache = readCache(root);
@@ -103,11 +104,13 @@ function cmdStatus(args) {
 
   if (failOn === 'regressed' && counts.regressed > 0) {
     process.stdout.write(`FAIL: ${counts.regressed} regressed finding(s)\n` + line);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (failOn === 'risk-high' && counts.riskHigh > 0) {
     process.stdout.write(`FAIL: ${counts.riskHigh} open risk-high finding(s)\n` + line);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   process.stdout.write(line);
 }
@@ -116,23 +119,27 @@ function cmdPullIssues(args) {
   const { pullReconIssues } = require('./lib/code-health/pull-issues');
   if (!args.issues) {
     process.stderr.write('usage: code-health.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   validateRiskArg(args['min-severity'], {
     argName: 'min-severity',
     cmdName: 'pull-issues',
     consequence: 'an unrecognized value silently disables the severity filter instead of restricting output.',
   });
+  if (process.exitCode) return;
   let issuesJson;
   try {
     issuesJson = JSON.parse(fs.readFileSync(args.issues, 'utf8'));
   } catch {
     process.stderr.write(`pull-issues: could not read or parse issues file: ${args.issues}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (!Array.isArray(issuesJson)) {
     process.stderr.write('pull-issues: issues file must contain a JSON array\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const briefs = pullReconIssues({
     label: args.label || 'code-health',
@@ -154,7 +161,8 @@ function cmdValidateFindings(args) {
       'usage: code-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] ' +
       '[--run-id <id>] [--slice <id>] [--min-risk <level>] [--dry-run]\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   if (!args.dryRun && !args.slice) {
@@ -163,7 +171,8 @@ function cmdValidateFindings(args) {
       'the round-robin cursor for this slice never persists and rotation state silently drifts. ' +
       'Pass --dry-run to preview without it.\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   validateRiskArg(args['min-risk'], {
@@ -171,17 +180,20 @@ function cmdValidateFindings(args) {
     cmdName: 'validate-findings',
     consequence: 'an unrecognized value silently remembers every finding instead of filing it, including high-risk ones.',
   });
+  if (process.exitCode) return;
 
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
   } catch (err) {
     process.stderr.write(`validate-findings: could not read or parse findings file: ${findingsPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (!Array.isArray(raw)) {
     process.stderr.write('validate-findings: findings file must contain a JSON array\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   // 1. Validate every finding; drop malformed ones with a logged reason.
@@ -212,6 +224,16 @@ function cmdValidateFindings(args) {
   // 3. Dedup against the issue index and local cache.
   const cache = readCache(root);
   const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
+  // Durable twin of the local cache's wontfix suppressions (#171) — read
+  // once, up front, so decide() can honor a wontfix suppression persisted on
+  // an earlier firing even when this firing's local cache is empty (a fresh
+  // scheduled-Routine container). Read unconditionally, including in
+  // --dry-run mode, so a dry-run preview reflects the same suppression a
+  // real run would apply. readDurableState/readState never throws (see
+  // health-core/durable-state.js's "Reads never throw" comment) — an
+  // unreachable health-state branch degrades to {} on its own, printing a
+  // trace to stderr, same as every other durable-state read in this codebase.
+  const durableDeclined = readDurableState(root).declined || {};
   // Collected as raw candidates, not a pre-computed delta object — the
   // "already remembered, don't touch it" decision is made later, inside
   // writeDurableState's mutator (buildValidateFindingsUpdate), against
@@ -224,17 +246,24 @@ function cmdValidateFindings(args) {
   const rememberCandidates = [];
   const payloads = [];
   const seen = new Set();
+  const wontfixSuppressed = [];
   for (const finding of survivors) {
     if (seen.has(finding.id)) continue; // intra-run dedup
     seen.add(finding.id);
 
-    const decision = decide(finding, issueIndex, cache, { threshold: args['min-risk'] || 'high' });
+    const decision = decide(finding, issueIndex, cache, { threshold: args['min-risk'] || 'high', durableDeclined });
     if (decision.action === 'suppress') {
       // A wontfix match is a standing decision meant to survive into gh-unavailable runs
       // (dedup.js's `cached.status === 'wontfix'` cache-only fallback depends on this write
       // existing — without it, that fallback path can never fire, and a wontfix'd finding can
       // get re-filed the next time gh is unreachable).
       cache[finding.id] = { status: 'wontfix', issue: decision.issue || null, severity: finding.severity, risk: finding.risk };
+      // A fresh reading of a live `wontfix`-labelled issue (not already
+      // durable) — persist it into the durable declined slice below so it
+      // survives a later firing whose local cache is empty too (#171). The
+      // cache-level and durable-level suppress branches carry no `reason`
+      // (they're already durable/persisted; re-persisting is a no-op).
+      if (decision.reason === 'wontfix-label') wontfixSuppressed.push(finding.id);
       continue;
     }
     if (decision.action === 'skip') continue;
@@ -274,7 +303,7 @@ function cmdValidateFindings(args) {
       const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId), null, { recursive: sliceRecursive(sliceId, root) }) } : {};
       const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
       // Named rather than inlined into the mutator call below, for readability.
-      const mutatorInput = { areasSwept, hashes, rememberCandidates, runRecord };
+      const mutatorInput = { areasSwept, hashes, rememberCandidates, runRecord, wontfixSuppressed };
       const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, mutatorInput));
       if (!result.ok) {
         process.stderr.write(
@@ -357,7 +386,7 @@ function main(argv) {
     'commands: validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues, ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 if (require.main === module) main(process.argv.slice(2));
