@@ -93,26 +93,61 @@ function ageBasisMs(dir) {
   return { basisMs: fs.statSync(dir).mtimeMs, file: null };
 }
 
-// Does this legacy root look like the pre-relocation plugin layout?
-function legacyShapeMatches(rel, base) {
-  const entries = fs.readdirSync(base, { withFileTypes: true });
-  if (rel === 'screenshots') {
-    return entries.some((entry) => entry.isDirectory() && LEGACY_SHAPE_SUBDIRS.includes(entry.name));
-  }
-  return entries.some((entry) => entry.isDirectory() && containsZip(path.join(base, entry.name)));
-}
-
-function containsZip(dir) {
+// Recursive: does `dir` contain a .zip file at any depth, and what's the
+// newest file's `{ mtimeMs, file }` under it (file relative to dir) — merges
+// what used to be two separate recursive descents of the same subtree
+// (containsZip + newestFileMtimeMs) into one (#1177).
+function zipAndNewest(dir) {
+  let hasZip = false;
+  let newest = { mtimeMs: null, file: null };
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     const p = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (containsZip(p)) return true;
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.zip')) {
-      return true;
+      const child = zipAndNewest(p);
+      if (child.hasZip) hasZip = true;
+      if (child.newest.mtimeMs !== null && (newest.mtimeMs === null || child.newest.mtimeMs > newest.mtimeMs)) {
+        newest = { mtimeMs: child.newest.mtimeMs, file: path.join(entry.name, child.newest.file) };
+      }
+    } else if (entry.isFile()) {
+      if (entry.name.toLowerCase().endsWith('.zip')) hasZip = true;
+      const m = fs.statSync(p).mtimeMs;
+      if (newest.mtimeMs === null || m > newest.mtimeMs) newest = { mtimeMs: m, file: entry.name };
     }
   }
-  return false;
+  return { hasZip, newest };
+}
+
+// Single-pass replacement for legacyShapeMatches + ageBasisMs on the same
+// `base` — previously two separate fs.readdirSync(base) walks (#1177): one
+// top-level readdirSync, computing the shape-match signal and the age basis
+// together instead of walking the tree twice. Shape rule per `rel`: for
+// 'screenshots', an immediate child directory named per LEGACY_SHAPE_SUBDIRS;
+// otherwise, any immediate child directory containing a .zip at any depth
+// (zipAndNewest's `hasZip`, exactly matching the retired containsZip's
+// semantics — a .zip directly at base's own top level does not count).
+function legacyShapeAndAge(rel, base) {
+  const entries = fs.readdirSync(base, { withFileTypes: true });
+  let shaped = false;
+  let newest = { mtimeMs: null, file: null };
+  for (const entry of entries) {
+    const p = path.join(base, entry.name);
+    if (entry.isDirectory()) {
+      if (rel === 'screenshots' && LEGACY_SHAPE_SUBDIRS.includes(entry.name)) shaped = true;
+      const child = zipAndNewest(p);
+      if (rel !== 'screenshots' && child.hasZip) shaped = true;
+      if (child.newest.mtimeMs !== null && (newest.mtimeMs === null || child.newest.mtimeMs > newest.mtimeMs)) {
+        newest = { mtimeMs: child.newest.mtimeMs, file: path.join(entry.name, child.newest.file) };
+      }
+    } else if (entry.isFile()) {
+      const m = fs.statSync(p).mtimeMs;
+      if (newest.mtimeMs === null || m > newest.mtimeMs) newest = { mtimeMs: m, file: entry.name };
+    }
+  }
+  const basis = newest.mtimeMs !== null
+    ? { basisMs: newest.mtimeMs, file: newest.file }
+    : { basisMs: fs.statSync(base).mtimeMs, file: null };
+  return { shaped, basis };
 }
 
 // 'untracked' (proven empty), 'tracked', or 'unproven'. `run` is the `git`
@@ -177,8 +212,9 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
     if (!stat.isDirectory()) continue;
 
     let shaped;
+    let basis;
     try {
-      shaped = legacyShapeMatches(rel, base);
+      ({ shaped, basis } = legacyShapeAndAge(rel, base));
     } catch (err) {
       failed.push(`${rel} (${errLabel(err)})`);
       continue;
@@ -188,13 +224,6 @@ function probeArtifacts({ cwd, now = Date.now(), run } = {}) {
     const tracked = trackedState({ run, rel, root });
     if (tracked === 'tracked') continue; // real, version-controlled project content
 
-    let basis;
-    try {
-      basis = ageBasisMs(base);
-    } catch (err) {
-      failed.push(`${rel} (${errLabel(err)})`);
-      continue;
-    }
     const aged = now - basis.basisMs > THIRTY_DAYS_MS;
     const proven = tracked === 'untracked';
     const evidence = aged
