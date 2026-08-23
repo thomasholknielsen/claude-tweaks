@@ -174,7 +174,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Stories v1 detection (`/stories` Step 1) | Regenerate all / diff / cancel | Auto-skip migration; stage as "legacy stories detected" |
 | Story journey link suggestions (`/stories` Step 6) | Apply all / override | Auto-apply (mechanical mapping) |
 | Init Phase 3 classification | Confirm / override | Auto-confirm when detection confidence ≥ 0.8 and signals are consistent |
-| Capture next-action routing | Numbered options | Apply `--route` arg if set; else default to `keep` (record stays in backlog state — most conservative) |
+| Capture next-action routing | Numbered options | Apply `--route` arg if set; else, on an **agent-driven filing** (`$PIPELINE_RUN_DIR` set, `--source`, or `--defer-reason=`), `capture/SKILL.md`'s headless absorb bar decides at filing time — absorb into the matched record when its structural bar (shared literal file path + identical `type:{t}`) is met, otherwise file fresh with `**Related:** #N`. Every other `auto` invocation defaults to `keep` (record stays in backlog state — most conservative) |
 | Reflect insight routing | Per-item decision | Auto-route: defer (default), keep (tangential — stages a record proposal for the Review Console, stays in backlog state); a safety regression is KEPT-PROMPT — always surfaces inline, `auto` never silently auto-applies it |
 | Wrap-up Phase 3 leftover routing | Per-item decision | Apply `leftover-default` policy from manifesto (default `defer`) |
 | Wrap-up's Skills curation row | Apply all / override | Auto-apply purely additive changes (new examples, anti-patterns) — including those the independent domain scan surfaces, not only ledger-seeded ones; stage restructures and new-skill candidates |

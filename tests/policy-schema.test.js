@@ -89,8 +89,11 @@ test('POLICY_KEYS entries are unique', () => {
   // 59 -> 60, #357 (ui-stack decision point): ui-stack — free-form string
   // naming the UI component library/styling approach a frontend build should
   // use, mirrors integration-branch's no-static-default shape.
-  assert.strictEqual(POLICY_KEYS.length, 60);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 60);
+  // 60 -> 61, #1137 (brainstorming auto-continue): specify-auto-continue —
+  // lets a session invoke /claude-tweaks:specify on an approved brainstorming
+  // design doc immediately, see skills/specify/SKILL.md's Auto-continue section.
+  assert.strictEqual(POLICY_KEYS.length, 61);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 61);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

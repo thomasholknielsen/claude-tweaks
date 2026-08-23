@@ -44,23 +44,21 @@ function probeBranches({ scope, integrationBranch, run } = {}) {
   }
   const remoteRef = resolveRemoteRef(integrationBranch, run);
   const remoteName = remoteRef.split('/')[0];
-  // Prune stale remote-tracking refs before reading `--merged` — a local
-  // `refs/remotes/<remote>/*` entry that the actual upstream branch already
-  // deleted (auto-deleted on merge, or cleaned up by a sibling tidy pass)
-  // otherwise reads as "merged, not deleted" forever, and a fix-now attempt
-  // against it 422s. `git remote prune` is used over `git fetch --prune` for
-  // offline tolerance — no new refs need fetching for a `--merged` read, only
-  // stale ones need clearing. On failure (offline / network error), degrade
-  // to the unpruned read below rather than failing the probe outright —
-  // mirrors the `out === null` -> `{ran: false, ...}` handling for the
-  // merged-branch read itself, one line down. This is the first command on
-  // this probe's `run` seam to contact a remote at all (`git config` and
-  // `git branch -r --merged` below are both local-only), so — unlike every
-  // other call through this seam — it needs an explicit bound: a
-  // slow/black-holed remote must degrade like any other prune failure, not
-  // hang the whole probe. 15s comfortably covers a real prune (normally
-  // sub-second) without masking a genuine hang as a fast failure.
-  const degraded = run(['remote', 'prune', remoteName], { timeout: 15000 }) === null;
+  // No `git remote prune` here: this probe's findings are read-only
+  // report output — a `kind: branch` finding is never deleted off the back
+  // of this call. The actual deletion of a proven-merged remote branch runs
+  // through reconcile's own `remote-prune` check (`bin/lib/reconcile/
+  // prune-remote.js`), which fetches and prunes origin itself, immediately
+  // before it deletes, using its own (stronger) merged-PR-plus-cherry-
+  // equivalence evidence — see that module's header. `/tidy`'s Step 6 auto
+  // table states this split explicitly: a merged remote branch reconcile
+  // did not already dispose of Stages at every tier rather than
+  // auto-deleting, because a pushed branch deletion is an outward-facing
+  // write `/tidy` never applies on its own. A prune here bought this probe
+  // nothing but an up-to-15s network round-trip and a destructive,
+  // reflog-less ref mutation on every read-only invocation (`--scope
+  // blast-radius`, `residue.js --json` for reporting) — including runs
+  // whose findings this same scope guarantees get filtered out below.
   const cmd = ['branch', '-r', '--format=%(refname:short)', '--merged', remoteRef];
   const out = run(cmd);
   if (out === null) {
@@ -72,12 +70,6 @@ function probeBranches({ scope, integrationBranch, run } = {}) {
   // the integration branch's own remote — proposing a delete on another
   // remote's main is the worst thing this probe could produce.
   const remotePrefix = `${remoteName}/`;
-  // Degrade tag lives in `evidence`, not a new field — `finding.js`'s
-  // fingerprint basis is `kind`/`scope`/`subject` only, so this never mints a
-  // duplicate id for the same branch across a pruned and an unpruned run.
-  const degradeTag = degraded
-    ? ` (unpruned-read: git remote prune ${remoteName} failed — this deletion may 422 if the branch was already removed upstream)`
-    : '';
   const findings = [];
   for (const name of out.split('\n').filter(Boolean)) {
     if (name === remoteRef) continue;
@@ -96,7 +88,7 @@ function probeBranches({ scope, integrationBranch, run } = {}) {
       scope: 'observed',
       subject: name,
       remedy: 'auto',
-      evidence: `git ${cmd.join(' ')} — merged, not deleted${degradeTag}`,
+      evidence: `git ${cmd.join(' ')} — merged, not deleted`,
     }));
   }
   return { ran: true, reason: null, findings };

@@ -119,9 +119,12 @@ test('a blob owned by another run exits skipped-not-owner and writes nothing', (
   assert.equal(f.calls.length, 1, 'only the read');
 });
 
-test('unreadable blob fails closed to skipped-not-owner; other PUT failures -> failed with no comment', () => {
+test('unreadable/corrupt blob gets its own distinct outcome, never conflated with a live competing claim; other PUT failures -> failed with no comment', () => {
   const u = fakeRunner({ content: 'not json' });
-  assert.equal(releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'r', runner: u.runner, now: NOW }).outcome, 'skipped-not-owner');
+  const ur = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'r', runner: u.runner, now: NOW });
+  assert.equal(ur.outcome, 'unreadable');
+  assert.notEqual(ur.outcome, 'skipped-not-owner', 'must be mechanically distinguishable from a live-held competing claim, not just by message text');
+  assert.equal(u.calls.length, 1, 'only the read — nothing written for a corrupt blob');
   const f = fakeRunner({ content: live(OWN), putThrows: 'HTTP 500 boom' });
   const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'r', runner: f.runner, now: NOW });
   assert.equal(r.outcome, 'failed');
