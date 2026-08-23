@@ -284,6 +284,22 @@ test('#1207 finding 6: a manifest.tweaks entry with non-string token/value field
   assert.match(res.err, /must have string token and value fields/);
 });
 
+test('review finding: a null manifest.tweaks entry is a SeedError refusal, not a raw TypeError', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-null-tweaks-'));
+  const manifestPath = path.join(dir, 'manifest.json');
+  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    scope: 'layout',
+    seedKey: 'seed-null-tweaks',
+    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
+    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
+    tweaks: [null],
+  }));
+  const res = seedCli(['--manifest', manifestPath, '--mode', 'durable', '--out', mkOut('x.html')]);
+  assert.notEqual(res.code, 0, 'a null tweaks entry must be refused, not crash with a raw TypeError');
+  assert.match(res.err, /manifest\.tweaks entry .* must have string token and value fields/);
+});
+
 test('#1207 finding 7: manifest.tweaks is validated only in durable mode — a malshaped tweaks entry does not block live mode', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-live-tweaks-'));
   const manifestPath = path.join(dir, 'manifest.json');

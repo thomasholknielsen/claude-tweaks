@@ -111,7 +111,7 @@ function validateManifest(manifest, mode, manifestDir) {
         throw new SeedError('manifest.tweaks must be an array of { token, value } entries');
       }
       for (const tweak of manifest.tweaks) {
-        if (typeof tweak.token !== 'string' || typeof tweak.value !== 'string') {
+        if (typeof tweak !== 'object' || tweak === null || typeof tweak.token !== 'string' || typeof tweak.value !== 'string') {
           throw new SeedError(`manifest.tweaks entry ${JSON.stringify(tweak)} must have string token and value fields`);
         }
       }
