@@ -181,6 +181,11 @@ function resolveRunArg(args, cwd, env) {
       // separate truthiness guard is needed for mainLiveCandidate — mirrors
       // how mainCandidate above is passed through unguarded.
       const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate);
+      // `inPipelines` is provably implied by `runIdShaped` here (relParts, and so
+      // runIdSegment, is only ever populated when inPipelines is true) — kept explicit
+      // anyway as a self-documenting invariant a future edit to relParts/runIdSegment's
+      // derivation could otherwise silently break without either variable's own name
+      // signaling that it depends on the other.
       if (sameRepo && inPipelines && runIdShaped && isInitializedRunDir(resolved) && !twinExists) {
         return {
           runDir: resolved, invalidRunArg: null, rest, explicit: true, worktreeLocalFallback: true,
