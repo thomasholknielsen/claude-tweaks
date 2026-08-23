@@ -44,5 +44,25 @@ test('AC2 (#1207): a tweak lever applies a --tweak-{token} CSS custom property a
   const text = readTemplate();
   assert.match(text, /function applyTweak\(token, value\) \{/);
   assert.match(text, /document\.documentElement\.style\.setProperty\('--tweak-' \+ token, value\)/);
-  assert.match(text, /applyTweak\(token, value\);\s*\n\s*postEvent\(serializeEvent\('tweak', \{ token: token, value: value \}\)\)/);
+  assert.match(text, /applyTweak\(token, value\);\s*\n\s*if \(readout\) readout\.textContent = value;\s*\n\s*postEvent\(serializeEvent\('tweak', \{ token: token, value: value \}\)\)/);
+});
+
+test('AC2 (#1207): a preview swatch renders in the compare-shell UI itself and is driven by the --tweak-* custom properties applyTweak sets', () => {
+  const text = readTemplate();
+  assert.match(text, /<div id="tweak-swatch">/, 'expected a #tweak-swatch element in the tweak panel markup');
+  const swatchCss = text.match(/#tweak-swatch \{([\s\S]*?)\}/);
+  assert.ok(swatchCss, 'expected a #tweak-swatch CSS rule');
+  assert.match(swatchCss[1], /var\(--tweak-/, 'expected the #tweak-swatch rule to read at least one --tweak-* custom property, closing the "nothing reads --tweak-*" gap');
+});
+
+test('AC2 (#1207): a live readout span updates in the same input handler that calls applyTweak/postEvent', () => {
+  const text = readTemplate();
+  for (const token of ['hue', 'spacing-scale', 'corner-radius']) {
+    assert.match(text, new RegExp(`<span class="tweak-readout" data-token="${token}">`), `expected a readout span for data-token="${token}"`);
+  }
+  assert.match(
+    text,
+    /applyTweak\(token, value\);\s*\n\s*if \(readout\) readout\.textContent = value;\s*\n\s*postEvent/,
+    'expected the readout textContent update to happen inside the same input handler, between applyTweak and postEvent',
+  );
 });

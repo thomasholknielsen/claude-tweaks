@@ -82,6 +82,13 @@
   }
   #tweaks label { display: flex; align-items: center; gap: 4px; }
   #tweaks input[type="range"] { width: 96px; }
+  .tweak-readout { min-width: 2.5em; text-align: right; }
+  #tweak-swatch {
+    width: 28px; height: 28px;
+    border-radius: calc(var(--tweak-corner-radius, 8) * 1px);
+    background: hsl(calc(var(--tweak-hue, 0) * 1deg), 70%, 55%);
+    transform: scaleX(var(--tweak-spacing-scale, 1));
+  }
   #verdict-error {
     padding: 6px 12px; font-size: 12px; color: var(--danger);
     border-top: 1px solid var(--border); background: var(--panel);
@@ -119,9 +126,10 @@
     <div id="focus-stage"></div>
     <div id="focus-indicator"></div>
     <div id="tweaks">
-      <label>Hue <input id="tweak-hue" type="range" min="0" max="360" step="1" value="0" data-token="hue"></label>
-      <label>Spacing <input id="tweak-spacing" type="range" min="0.75" max="1.5" step="0.05" value="1" data-token="spacing-scale"></label>
-      <label>Radius <input id="tweak-radius" type="range" min="0" max="24" step="1" value="8" data-token="corner-radius"></label>
+      <label>Hue <input id="tweak-hue" type="range" min="0" max="360" step="1" value="0" data-token="hue"><span class="tweak-readout" data-token="hue">0</span></label>
+      <label>Spacing <input id="tweak-spacing" type="range" min="0.75" max="1.5" step="0.05" value="1" data-token="spacing-scale"><span class="tweak-readout" data-token="spacing-scale">1</span></label>
+      <label>Radius <input id="tweak-radius" type="range" min="0" max="24" step="1" value="8" data-token="corner-radius"><span class="tweak-readout" data-token="corner-radius">8</span></label>
+      <div id="tweak-swatch"></div>
     </div>
   </div>
   <div id="verdict-error" role="alert" hidden></div>
@@ -325,10 +333,12 @@
     // Only reachable when MODE === 'live' — mirrors attachVerdictHandlers'
     // own live-only gating above.
     tweakInputs.forEach(function (input) {
+      var readout = document.querySelector('.tweak-readout[data-token="' + input.dataset.token + '"]');
       input.addEventListener('input', function () {
         var token = input.dataset.token;
         var value = input.value;
         applyTweak(token, value);
+        if (readout) readout.textContent = value;
         postEvent(serializeEvent('tweak', { token: token, value: value }));
       });
     });
