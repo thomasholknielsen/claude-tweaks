@@ -75,6 +75,13 @@
     padding: 6px 12px; font-size: 12px; color: var(--muted);
     border-top: 1px solid var(--border);
   }
+  #tweaks {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 6px 12px; font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  #tweaks label { display: flex; align-items: center; gap: 4px; }
+  #tweaks input[type="range"] { width: 96px; }
   #verdict-error {
     padding: 6px 12px; font-size: 12px; color: var(--danger);
     border-top: 1px solid var(--border); background: var(--panel);
@@ -111,6 +118,11 @@
   <div id="focus">
     <div id="focus-stage"></div>
     <div id="focus-indicator"></div>
+    <div id="tweaks">
+      <label>Hue <input id="tweak-hue" type="range" min="0" max="360" step="1" value="0" data-token="hue"></label>
+      <label>Spacing <input id="tweak-spacing" type="range" min="0.75" max="1.5" step="0.05" value="1" data-token="spacing-scale"></label>
+      <label>Radius <input id="tweak-radius" type="range" min="0" max="24" step="1" value="8" data-token="corner-radius"></label>
+    </div>
   </div>
   <div id="verdict-error" role="alert" hidden></div>
   <div id="verdict">
@@ -139,6 +151,7 @@
   var btnSteer = document.getElementById('btn-steer');
   var btnExit = document.getElementById('btn-exit');
   var steerInput = document.getElementById('steer-input');
+  var tweakInputs = Array.prototype.slice.call(document.querySelectorAll('#tweaks input[data-token]'));
 
   var gridSelectedId = null;
   var focusIndex = -1; // index into variants while in focus view
@@ -304,6 +317,23 @@
     });
   }
 
+  function applyTweak(token, value) {
+    document.documentElement.style.setProperty('--tweak-' + token, value);
+  }
+
+  function attachTweakHandlers() {
+    // Only reachable when MODE === 'live' — mirrors attachVerdictHandlers'
+    // own live-only gating above.
+    tweakInputs.forEach(function (input) {
+      input.addEventListener('input', function () {
+        var token = input.dataset.token;
+        var value = input.value;
+        applyTweak(token, value);
+        postEvent(serializeEvent('tweak', { token: token, value: value }));
+      });
+    });
+  }
+
   function connectStream() {
     if (typeof EventSource === 'undefined') return;
     var es = new EventSource('/stream');
@@ -318,12 +348,14 @@
   if (MODE === 'live') {
     attachVerdictHandlers();
     connectStream();
+    attachTweakHandlers();
   } else {
     btnPick.disabled = true;
     btnReroll.disabled = true;
     btnSteer.disabled = true;
     btnExit.disabled = true;
     steerInput.disabled = true;
+    tweakInputs.forEach(function (input) { input.disabled = true; });
     if (DATA.outcome) {
       var meta = document.createElement('div');
       meta.id = 'outcome-meta';
