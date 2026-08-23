@@ -62,6 +62,18 @@ test('probe reporting subIssues unavailable exits 4 before any fetch', () => {
   assert.strictEqual(run(['5'], d), 4);
 });
 
+test('a throwing probe runner exits 3 with a network-failure message, not 4', () => {
+  const d = deps({ runner: () => { throw new Error('gh api graphql: connection reset'); } });
+  assert.strictEqual(run(['5'], d), 3);
+  assert.match(d.err.join(''), /capability probe failed/);
+  assert.match(d.err.join(''), /connection reset/);
+});
+
+test('a probe response that fails to JSON.parse also exits 3 (call/parse-layer failure), not 4', () => {
+  const d = deps({ runner: () => 'not json at all' });
+  assert.strictEqual(run(['5'], d), 3);
+});
+
 test('a GraphQL throw exits 3', () => {
   const d = deps({
     runner: (args) => {
@@ -71,6 +83,30 @@ test('a GraphQL throw exits 3', () => {
     },
   });
   assert.strictEqual(run(['5'], d), 3);
+});
+
+test('trailing --repo with no value is malformed — exit 1, no network call', () => {
+  const d = deps({
+    ghAvailable: () => { throw new Error('should not be called'); },
+    remoteUrl: () => { throw new Error('should not be called'); },
+  });
+  assert.strictEqual(run(['5', '--repo'], d), 1);
+  assert.match(d.err.join(''), /missing value for --repo/);
+  assert.deepStrictEqual(d.calls, []);
+});
+
+test('--repo followed by another flag is rejected as missing a value, not treated as the value', () => {
+  const d = deps({
+    ghAvailable: () => { throw new Error('should not be called'); },
+    remoteUrl: () => { throw new Error('should not be called'); },
+  });
+  assert.strictEqual(run(['5', '--repo', '--help'], d), 1);
+  assert.match(d.err.join(''), /missing value for --repo/);
+});
+
+test('--repo owner/name (well-formed) is unaffected', () => {
+  const d = deps();
+  assert.strictEqual(run(['5', '--repo', 'o/r'], d), 0);
 });
 
 test('non-integer positional exits 1; gh absent exits 2', () => {

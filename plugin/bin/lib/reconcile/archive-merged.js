@@ -67,20 +67,51 @@ function decideArchive(prState, consoleState) {
     return { action: 'skip', reason: prState.state === 'OPEN' ? 'pr-open' : 'pr-closed-unmerged' };
   }
   if (consoleState === 'unresolved') return { action: 'skip', reason: 'console-unresolved' };
+  // #1130: this sweep's population is non-terminal runs only
+  // (iterRunDirsWithState skips status:'clean'), so an absent console.json
+  // here always means wrap-up never rendered a console for this run — never
+  // the empty-console fast path, which closes the run terminal and archives
+  // via the archive-run verb without ever reaching this sweep. Archiving on
+  // mere PR-merge swept live runs with pending staged decisions (#657).
+  if (consoleState === 'none') return { action: 'skip', reason: 'console-never-rendered' };
   return { action: 'archive' };
 }
 
-// 'unresolved' | 'resolved' | 'none' (no console.json rendered — archival
-// under the "or no console rendered" clause is not blocked on it).
+// 'unresolved' | 'resolved' | 'none' (no console.json rendered — #1130:
+// blocks this sweep's archival; the empty-console fast path archives via the
+// archive-run verb instead). 'resolved' fires on `resolved === true` OR a
+// non-empty (post-trim) string `executedAt` — the documented write order
+// (`_shared/console-execution.md`) now sets both in the final console.json
+// write, but consoles written before that change carry `executedAt` alone,
+// so either counts. console-execute.js's preFetchSkipReason applies the
+// same acceptance rule — keep the two readers agreeing, or an executed
+// console classifies 'resolved' here while re-detecting as `ready` there.
 function readConsoleState(runDir) {
   let raw;
   try { raw = fs.readFileSync(path.join(runDir, 'console.json'), 'utf8'); } catch { return 'none'; }
   try {
     const parsed = JSON.parse(raw);
-    return parsed && parsed.resolved === true ? 'resolved' : 'unresolved';
+    const resolved = parsed && (parsed.resolved === true
+      || (typeof parsed.executedAt === 'string' && parsed.executedAt.trim().length > 0));
+    return resolved ? 'resolved' : 'unresolved';
   } catch {
     return 'unresolved'; // unparseable console state fails closed — never silently archived
   }
+}
+
+// #1130: gh's MERGED state is a remote fact; the local main checkout may not
+// have fast-forwarded to include the merge commit yet. The run dir's tracked
+// work/ subtree only reaches the main checkout via that merge, so archiving
+// early moves only the gitignored half and strands work/ (the #657 symptom).
+// true = merge commit is in local history; false = definitively not (safe to
+// retry next pass); null = oid unavailable/malformed — treated by the caller
+// as not-yet-verifiable, same skip-and-retry.
+function localHasMerge(root, mergeCommit) {
+  const oid = mergeCommit && typeof mergeCommit.oid === 'string' && /^[0-9a-f]{40}$/.test(mergeCommit.oid)
+    ? mergeCommit.oid : null;
+  if (!oid) return null;
+  const r = runGit(['merge-base', '--is-ancestor', oid, 'HEAD'], root);
+  return !r.failure;
 }
 
 // Moves-first, close-last ordering (the reverse of cleanup-procedures.md
@@ -148,6 +179,25 @@ function revertWorkMoves(root, workMoves) {
   return fullyReverted;
 }
 
+// Review finding: the two plain fs.renameSync loops below (gitignored
+// content — no git index involved, so revertWorkMoves' git-reset step
+// doesn't apply) had no revert-on-failure, unlike the git-tracked workMoves
+// loop above — the same partial-move hazard #1103 fixed for `git mv` was
+// still reachable here. Best-effort and never throws, matching
+// revertWorkMoves' contract; the failed entry itself is never included in
+// movedPairs, same reasoning as revertWorkMoves' own failed-pair handling.
+function revertPlainMoves(movedPairs) {
+  let fullyReverted = true;
+  for (const [src, dest] of movedPairs) {
+    try {
+      fs.renameSync(dest, src);
+    } catch {
+      fullyReverted = false;
+    }
+  }
+  return fullyReverted;
+}
+
 function archiveRunDir(root, runDir) {
   const runId = path.basename(runDir);
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
@@ -156,6 +206,17 @@ function archiveRunDir(root, runDir) {
   } catch {
     return { ok: false, reason: 'mkdir-failed' };
   }
+  // #1103 follow-up: mkdirSync above is the earliest point a second,
+  // concurrent, UNLOCKED `reconcile` invocation (dispatch/tidy's own
+  // pre-step, not `reconcile-background`, which holds a lock) could pick the
+  // same run dir before this call finishes moving anything. The removed
+  // existence-only check (see context.js's comment on the same #1103) used
+  // to make that window near-zero; this interim, content-aware, TTL-bounded
+  // claim restores that protection without reintroducing the
+  // permanently-stranded-on-failure bug the existence-only check caused —
+  // context.js's staleness check lets a crashed/failed attempt's claim
+  // expire instead of blocking every future archival of this run forever.
+  writeRunState(archiveDir, { status: 'archiving', worktree: null });
 
   // Collects the actual set of entries this call moves, in move order — so
   // a caller reporting what happened (e.g. hooks.js archive-run's "moved:"
@@ -192,9 +253,24 @@ function archiveRunDir(root, runDir) {
     workMoves.push([specWork, path.join(specArchiveDir, 'work')]);
   }
   if (workMoves.length) {
+    // Pairs that succeeded before a later pair's `git mv` fails mid-loop —
+    // tracked separately from `workMoves` so a failure on e.g. the 2nd of 3
+    // pairs only attempts to revert the 1st (already-moved), never the 2nd
+    // (assumed not mutated — `git mv` renames on disk before it writes the
+    // index, so a failure partway through its own operation could in
+    // principle leave the file physically moved with the index untouched;
+    // treated as "not moved" rather than attempting a revert against an
+    // unknown partial state) or 3rd (never even attempted). Same
+    // partial-revert reasoning as the commit-failure branch below, applied
+    // one loop iteration earlier.
+    const succeededMoves = [];
     for (const [src, dest] of workMoves) {
       const mv = runGit(['mv', src, dest], root);
-      if (mv.failure) return { ok: false, reason: 'git-mv-failed' };
+      if (mv.failure) {
+        const fullyReverted = revertWorkMoves(root, succeededMoves);
+        return { ok: false, reason: fullyReverted ? 'git-mv-failed' : 'git-mv-failed-partial-revert' };
+      }
+      succeededMoves.push([src, dest]);
       movedEntries.push(path.relative(runDir, src));
     }
     // The git mv above only stages the rename — this check runs headlessly
@@ -245,14 +321,18 @@ function archiveRunDir(root, runDir) {
     // exist (created by the workMoves batch above), so a whole-dir rename
     // would fail ENOTEMPTY; their contents move entry-by-entry in the
     // dedicated spec loop below instead.
+    const movedThisPass = [];
     for (const name of entries.filter((n) => n !== 'work' && !specDirs.includes(n))) {
       const src = path.join(runDir, name);
       if (!fs.existsSync(src)) continue;
+      const dest = path.join(archiveDir, name);
       try {
-        fs.renameSync(src, path.join(archiveDir, name));
+        fs.renameSync(src, dest);
       } catch {
-        return { ok: false, reason: 'move-failed' };
+        const fullyReverted = revertPlainMoves(movedThisPass);
+        return { ok: false, reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert' };
       }
+      movedThisPass.push([src, dest]);
       movedEntries.push(name);
     }
   }
@@ -275,15 +355,30 @@ function archiveRunDir(root, runDir) {
     } catch {
       return { ok: false, reason: 'readdir-failed' };
     }
-    for (const name of specEntries.filter((n) => n !== 'work')) {
-      const src = path.join(specDir, name);
-      if (!fs.existsSync(src)) continue;
+    const specRemaining = specEntries.filter((n) => n !== 'work');
+    if (specRemaining.length) {
+      // Created once per spec dir rather than once per entry — recursive
+      // mkdirSync is idempotent either way, so this only drops redundant
+      // syscalls, and only runs at all when there's something to move here
+      // (it may already exist from the workMoves batch above).
       try {
         fs.mkdirSync(specArchiveDir, { recursive: true });
-        fs.renameSync(src, path.join(specArchiveDir, name));
       } catch {
         return { ok: false, reason: 'move-failed' };
       }
+    }
+    const specMovedThisPass = [];
+    for (const name of specRemaining) {
+      const src = path.join(specDir, name);
+      if (!fs.existsSync(src)) continue;
+      const dest = path.join(specArchiveDir, name);
+      try {
+        fs.renameSync(src, dest);
+      } catch {
+        const fullyReverted = revertPlainMoves(specMovedThisPass);
+        return { ok: false, reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert' };
+      }
+      specMovedThisPass.push([src, dest]);
       movedEntries.push(path.join(specName, name));
     }
     try {
@@ -373,6 +468,12 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
     const consoleState = readConsoleState(dir);
     const decision = decideArchive(prState, consoleState);
     if (decision.action === 'skip') { skipped.push({ runDir: dir, reason: decision.reason }); continue; }
+
+    const hasMerge = localHasMerge(root, prState.mergeCommit);
+    if (hasMerge !== true) {
+      skipped.push({ runDir: dir, reason: hasMerge === false ? 'local-behind-merge' : 'merge-commit-unknown' });
+      continue;
+    }
     if (dryRun) { archived.push(dir); continue; }
 
     const result = archiveRunDir(root, dir);
@@ -386,4 +487,5 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
 module.exports = {
   archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
   isOrphanedMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
+  localHasMerge,
 };

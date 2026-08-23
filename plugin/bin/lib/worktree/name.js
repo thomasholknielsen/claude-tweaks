@@ -30,7 +30,11 @@ function sanitizeWorktreeName(name) {
     .map((segment) => segment.replace(/[^A-Za-z0-9._-]/g, '-').replace(/-+/g, '-'))
     .filter(Boolean)
     .join('/')
-    .slice(0, MAX_LEN);
+    .slice(0, MAX_LEN)
+    // The MAX_LEN slice runs after the empty-segment filter, so a cap that
+    // lands exactly on a segment boundary can cut mid-`/` and leave a
+    // trailing slash the filter never saw — re-trim it here.
+    .replace(/\/$/, '');
 }
 
 module.exports = { sanitizeWorktreeName, MAX_LEN };

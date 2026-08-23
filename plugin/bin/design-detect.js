@@ -26,7 +26,7 @@ const {
 
 function fail(msg) {
   process.stderr.write(`design-detect: ${msg}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 function readStdin() {
@@ -50,7 +50,7 @@ function parseArgs(argv) {
       case '--design-integration': out.designIntegration = next(); break;
       case '--claude-md': out.claudeMdPath = next(); break;
       case '--platform': out.platform = next(); break;
-      default: fail(`unknown argument "${a}"`);
+      default: fail(`unknown argument "${a}"`); return out;
     }
   }
   return out;
@@ -94,9 +94,11 @@ function resolveDesignIntegration(args) {
 
 function main(argv) {
   const args = parseArgs(argv.slice(2));
-  if (!args.mode) fail('--mode is required');
+  if (process.exitCode) return;
+  if (!args.mode) { fail('--mode is required'); return; }
   if (!Object.prototype.hasOwnProperty.call(MODE_LAYERS, args.mode)) {
     fail(`unknown mode "${args.mode}" — must be one of: ${Object.keys(MODE_LAYERS).join(', ')}`);
+    return;
   }
 
   const result = evaluate({

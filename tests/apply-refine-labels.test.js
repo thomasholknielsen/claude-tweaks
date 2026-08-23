@@ -51,6 +51,17 @@ test('parseArgs: a later non-empty --run clears runEmpty set by an earlier empty
   assert.strictEqual(opts.runEmpty, false);
 });
 
+// #1138: a whitespace-only value is the same "$PIPELINE_RUN_DIR resolved to
+// nothing" shape that motivated #1173's degrade-to-omitted design — it must
+// degrade the same way, not slip past the `=== ''` check and reach the
+// anchoring guard as a truthy-but-blank path.
+test('parseArgs: --run "   " (whitespace-only) degrades to omitted, same as "" — not an error, not passed through', () => {
+  const opts = parseArgs(['actions.json', '--run', '   ']);
+  assert.strictEqual(opts.error, undefined);
+  assert.strictEqual(opts.run, null);
+  assert.strictEqual(opts.runEmpty, true);
+});
+
 test('validateAction: rejects a non-integer issue', () => {
   assert.match(validateAction({ issue: 'x', addLabels: ['a'] }, 0), /must be a positive integer/);
 });
