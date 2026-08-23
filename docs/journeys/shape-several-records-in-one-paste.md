@@ -2,6 +2,7 @@
 files:
   - plugin/skills/specify/SKILL.md
   - plugin/skills/specify/shaping-mode.md
+  - plugin/skills/specify/design-pre-steps.md
 ---
 
 # Shape Several Backlog Records in One Paste via /specify
@@ -44,4 +45,5 @@ files:
 ## Origin
 - Created during build of #695 (specify + demo `#N,#M` batch argument)
 - Steps 1-4 built in this session
-- Related specs: #695, #685 (tidy's command-grouped Yours section, whose group heads produce the paste line this journey starts from)
+- Step 2 updated for #357 (UI-stack decision point — batch table gains a `Ui-stack: —` column alongside `Design-intent:`, backend/infra records asked neither question)
+- Related specs: #695, #685 (tidy's command-grouped Yours section, whose group heads produce the paste line this journey starts from), #357
