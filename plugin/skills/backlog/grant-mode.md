@@ -381,6 +381,11 @@ Machine-granted by /claude-tweaks:backlog grant (headless).
 <!-- grant-mode-audit: date={YYYY-MM-DDTHH:MM:SSZ} auto-merge={true|false|pending} -->
 ```
 
+This step only ever writes `pending` or `false` now, mirroring the "Grants applied" line right
+above it — `true` is a pre-#309 legacy value this marker's own regex (`fleet-counters.js`'s
+`GRANT_AUDIT_RE`) still has to match for backward-compat counting against comments posted before
+this change, never a value a fresh comment from this step writes going forward.
+
 The trailing HTML comment is the durable, greppable marker Step 2's cap-seeding count reads back
 (`date=` truncated to the UTC calendar date for same-day comparison) — same dual-purpose
 human-readable-plus-machine-marker convention `_shared/work-record.md`'s fingerprint marker
