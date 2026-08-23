@@ -60,12 +60,14 @@ function dispositionState(labels) {
 // Provenance modifier for an 'approved' disposition — always stacked alongside
 // demo:approved, never its own disposition state (see ACCEPTANCE_BY_LABEL above,
 // which never matches it). /claude-tweaks:demo's Step 3 Approve action applies
-// this label only for a #N,#M batch-sourced verdict; a per-record walkthrough
-// leaves it off. A record whose demo:approved predates this signal (or was
-// applied by any other path) carries no marker and reads as 'walkthrough' — the
-// safer default, since promoting an unlabeled historical approval to 'batch'
-// would understate coverage rather than overstate it (bin/lib/issues/trust.js's
-// sole consumer).
+// this label only for a #N,#M batch-invocation verdict; a single-record verdict
+// (bare #N, or no-argument session-recall) leaves it off — both run the same
+// per-item walkthrough, so this marks which invocation shape produced the
+// verdict, not whether a walkthrough happened. A record whose demo:approved
+// predates this signal (or was applied by any other path) carries no marker
+// and reads as 'walkthrough' (single-record-backed) — the safer default, since
+// promoting an unlabeled historical approval to 'batch' would understate
+// coverage rather than overstate it (bin/lib/issues/trust.js's sole consumer).
 const APPROVAL_PROVENANCE_LABEL = 'demo:approved-batch';
 
 function approvalProvenance(labels) {

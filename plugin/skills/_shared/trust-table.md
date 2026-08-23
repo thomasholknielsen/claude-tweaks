@@ -360,15 +360,18 @@ non-zero cell here reads `mixed` even when `Changes Requested` and `Follow-ups` 
 same precedence a `changes-requested` disposition already had.
 
 **Approved (Batch) is the subset of Approved that was sign-off via a `/claude-tweaks:demo`
-`#N,#M` batch invocation rather than a per-record walkthrough** — a legitimate, deliberately
-cheap path (`_shared/work-record.md`'s Acceptance provenance row), distinguished by the
-`demo:approved-batch` label `bin/lib/issues/acceptance.js`'s `approvalProvenance` reads back. A
-pre-existing `demo:approved` with no marker reads as walkthrough-backed, so this column is `0`
-for every cell graded before the signal existed. **A cell whose Approved evidence is entirely
-Approved (Batch), with no Operational corroboration, cannot reach `clean`** — it demotes to
-`mixed` the same way a non-zero Negative Evidence does (`trust.js`'s `batchOnly`), because a
-batch sign-off, while legitimate, is not itself the human verification this table grades
-autonomy on. `Approved (Batch)` equal to `Approved` with `Operational` at `0` is the tell; read
+`#N,#M` batch invocation rather than a dedicated single-record session** — a legitimate,
+deliberately cheap path (`_shared/work-record.md`'s Acceptance provenance row), distinguished by
+the `demo:approved-batch` label `bin/lib/issues/acceptance.js`'s `approvalProvenance` reads back.
+Both invocation shapes run the same per-item walkthrough (`skills/demo/SKILL.md` Step 2) — the
+marker distinguishes a rapid multi-item pass from a single-record session, not whether a
+walkthrough happened. A pre-existing `demo:approved` with no marker reads as single-record-backed,
+so this column is `0` for every cell graded before the signal existed. **A cell whose Approved
+evidence is entirely Approved (Batch), with no Operational corroboration, cannot reach `clean`**
+— it demotes to `mixed` the same way a non-zero Negative Evidence does (`trust.js`'s
+`batchOnly`), because a batch sign-off, while legitimate, is a shallower verification signal than
+this table otherwise grades autonomy on. `Approved (Batch)` equal to `Approved` with `Operational`
+at `0` is the tell; read
 them together the same way Coverage and Not Planned are read together below.
 
 **Coverage is the fraction of a class's closed records that carry any verdict at all**
