@@ -49,7 +49,7 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 → Collect each as: `[plan] {filename} — {recommendation}`
 
-Also glob `docs/plans/*-ledger.md` — the per-feature pipeline ledgers `/claude-tweaks:ledger` creates (`docs/plans/YYYY-MM-DD-{feature}-ledger.md`, `_shared/ledger-format.md`) and `/claude-tweaks:wrap-up` Step 10 deletes on successful completion. A pipeline that never reaches wrap-up leaves its ledger behind permanently; nothing else sweeps for it.
+Also glob `docs/plans/*-ledger.md` — the per-feature pipeline ledgers `/claude-tweaks:ledger` creates (`docs/plans/YYYY-MM-DD-{feature}-ledger.md`, `_shared/ledger-format.md`) and `/claude-tweaks:wrap-up`'s Phase 4 execution step deletes on successful completion. A pipeline that never reaches wrap-up leaves its ledger behind permanently; nothing else sweeps for it.
 
 For each matched file, read its content — cheap, these files are a few KB — and classify:
 
