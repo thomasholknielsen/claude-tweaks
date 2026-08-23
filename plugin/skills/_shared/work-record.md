@@ -253,7 +253,7 @@ What `ready` asserts and the gate re-verifies. **Deliberately structural-plus-mi
 
 - The sections `Current State`, `Deliverables`, and `Acceptance Criteria` are present.
 - Each of those sections is non-empty.
-- No unresolved placeholder markers anywhere in the body: `TBD`, `TODO`, `<!-- ambiguity:`.
+- No unresolved placeholder markers (`TBD`, `TODO`, `<!-- ambiguity:`) anywhere in the body **outside the verbatim-preserved `## Original request` section** — everything from that heading to end of body is exempt: shaping-mode's preservation rule mandates that copy byte-exact, so a marker inherited there is the original capture's own text, not an unresolved authored placeholder (#1240).
 
 Content *quality* is explicitly NOT part of this check — judging whether the deliverables
 are the right ones is the shaper's (`/specify`) and the human gate's job. The structural
