@@ -28,7 +28,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
      │                     Design Doc          ◄───  brainstorm
      │                     (specify can invoke brainstorm directly on topic input)
      │
-  specify ──────────────►  Ready record(s)    (writes surface: + design-intent: body metadata)
+  specify ──────────────►  Ready record(s)    (writes surface: + design-intent: + ui-stack: body metadata)
      │  calls: design shape (frontend only — appends Impeccable shape output to design doc)
      │  calls: visualize (diagram suggestion, all surfaces)
      │                     (deletes Design Doc)
