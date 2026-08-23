@@ -74,5 +74,9 @@
   "evals/tests": {
     "lastSweptMs": 1787454611372,
     "lastHash": "c07a5a77fa030598cb30796665e841b8f46914e4"
+  },
+  "perf": {
+    "lastSweptMs": 1787454708153,
+    "lastHash": "c49f25c101a9d51bd23cb8d69415c44412faac05"
   }
 }
