@@ -115,6 +115,8 @@ Consequently, nothing may treat a missing `design-seed:` as an error or a reason
 
 This is a lift, not a move: the body keeps its own `Surface:`/`Design-intent:`/`Ui-stack:`/`Design-seed:` lines exactly where they were written — see Composing the file below.
 
+**Adding a fifth metadata line:** `liftMetadata`'s field regexes (`materialize-format.js`) use `[ \t]*` (never `\s*`) before their capture group — `\s` matches `\n`, so a bare "Field:" line with no value would otherwise cross into the next metadata line and misread its content as this field's own value. #357 shipped this hazard latent on two closed-enum fields before catching and fixing it repo-wide; a new field's regex must follow the same same-line-only pattern from the start.
+
 ## Composing the file
 
 ```
