@@ -21,6 +21,12 @@ Invoke `/claude-tweaks:design-wrapper pre-build <spec>`. Pass the record referen
 
 When the resolved record/spec carries a `Visual-reference:` body-metadata line (written by `/specify` Step 2.5b-ii — see `specify/design-pre-steps.md`), read that scaffold file directly (it is a small, already-committed static HTML file) and include its full contents in the implementer subagent's prompt as the concrete, already-selected visual direction — in addition to, not instead of, the loaded Impeccable references and the text brief. Frame it explicitly: "This is the accepted visual direction from shape-time exploration — port its structure, hierarchy, and visual treatment into the real component architecture; it is a north star, not a screenshot to trace verbatim (real data wiring, routing, accessibility semantics, and framework conventions still need to be built properly)." Absence of `Visual-reference:` is normal (most records won't have one) — proceed exactly as today.
 
+## Ui-stack mandate (when present)
+
+When the resolved record/spec's materialized header carries a `ui-stack:` field (lifted from the record body's `Ui-stack:` metadata line per `skills/flow/materialize.md`'s Surface / Design-intent / Ui-stack / Design-seed lift rule), include it verbatim in the implementer subagent's prompt as an explicit, non-negotiable constraint — not a suggestion the implementer may override with whatever a copied reference codebase happens to use. Frame it explicitly: "UI stack for this build: {ui-stack value}. Use this component library / styling approach for all new frontend code in this task — do not default to plain inline styles or a different library, even if a reference codebase nearby uses one." An `ui-stack` value of `none — no preference, defer to reference codebase` (or any of its variant phrasings) is itself a signal — omit the mandate line entirely in that case and let the implementer infer from the reference codebase as it does today, since that is the explicit answer the record's author gave.
+
+Absence of `ui-stack:` (a pre-#357 record, or a record whose specify pass predates this field) is normal — proceed exactly as today, with no UI-stack guidance in the prompt.
+
 ## Result handling
 
 | Wrapper return | Build behavior |

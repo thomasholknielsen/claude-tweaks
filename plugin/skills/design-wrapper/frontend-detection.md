@@ -66,13 +66,13 @@ A backend project that touches only `.ts`/`.js` files outside `/components/`, `/
 
 ## Layer 2 — Body-metadata lines (read by wrapper via the materialized header — spec 20; written by `/specify`)
 
-Every sub-issue record may declare two design-related body-metadata lines: `Surface:` and `Design-intent:`. `/specify` writes both on every new sub-issue record. The wrapper reads `Surface:` for Layer 2 detection and `Design-intent:` for `polish` mode's intent-driven dispatch — both lifted into the materialized header at build time (spec 20's contract).
+Every sub-issue record may declare three design-related body-metadata lines: `Surface:`, `Design-intent:`, and `Ui-stack:`. `/specify` writes all three on every new frontend sub-issue record (`Design-intent:`/`Ui-stack:` omitted for backend/infra). The wrapper reads `Surface:` for Layer 2 detection and `Design-intent:` for `polish` mode's intent-driven dispatch; `Ui-stack:` is read by `/claude-tweaks:build`'s Design Pre-Build step (`build/design-prebuild.md`), not by the wrapper itself — all three lifted into the materialized header at build time (spec 20's contract for the first two; #357 for `Ui-stack:`).
 
 **The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the body-metadata block description near the top of the fenced template). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — never restate the enumeration as a second authority. A file at the point of writing may inline a reader-facing slice of the values (`specify/shaping-mode.md`'s Metadata block does, to spare shaping mode a read of the larger template) only when it names `spec-template.md` as canonical for the full field set in the same breath and states the hand-sync obligation; anything that reads the fields — this skill included — points here instead of copying.
 
 For Layer 2 detection, see `Surface:` values in `skills/specify/spec-template.md` (canonical source for the value enumeration). The Layer 2 pass/skip/fall-through decision table itself lives in `SKILL.md`'s "Universal preconditions" Step 1 (Layer 2 section, this skill's own directory) — the operational procedure every mode's Step 1 actually runs; this file doesn't restate it, to avoid the two drifting apart.
 
-`Design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode. See the spec template's body-metadata block description for its enumeration.
+`Design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode. `Ui-stack:` is not read in Layer 2 either — it has no enumeration to route on, only a free-form value forwarded verbatim into the implementer's prompt (`build/design-prebuild.md`'s Ui-stack mandate section). See the spec template's body-metadata block description for `Design-intent:`'s enumeration and `Ui-stack:`'s field description.
 
 ## Detection precedence summary
 
