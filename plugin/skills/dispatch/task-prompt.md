@@ -117,7 +117,7 @@ on the `claims-registry` branch, not a working-tree file -- fetch it the same wa
 `_shared/issue-claims.md` describes) to see whether the claim's `runId` still matches this run
 and is `live`; check the record's current labels (`bot:in-progress`, `auto:merge`); and read
 `run-state.json`'s `pr` object for a recorded `number`/`url` -- when one is recorded, resolve its
-live state with `gh pr view {number} --json state,isDraft,url` rather than assuming from the
+live state with `gh pr view {number} --repo {owner}/{repo} --json state,isDraft,url` rather than assuming from the
 recorded object alone, since it carries no state field. A completed hand-off (a live PR already
 recorded, or `state: MERGED`) is not the same state as a genuinely still-open run awaiting a
 human -- report `pending-review` only for the latter.
