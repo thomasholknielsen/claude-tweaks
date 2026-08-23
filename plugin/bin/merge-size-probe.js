@@ -26,7 +26,7 @@ const USAGE = 'usage: merge-size-probe.js [--integration-branch <branch>] [--hea
 function fail(msg) {
   const firstLine = String(msg).split('\n')[0];
   process.stderr.write(`merge-size-probe: ${firstLine}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 function main(argv) {

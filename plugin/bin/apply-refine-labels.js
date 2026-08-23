@@ -38,8 +38,13 @@ function parseArgs(argv) {
     else if (a === '--run') {
       const val = next();
       if (val === undefined || val.startsWith('--')) return { error: '--run requires a value' };
-      opts.run = val === '' ? null : val;
-      opts.runEmpty = val === '';
+      // #1173's own degrade-to-omitted design (not a hard reject) also
+      // covers a whitespace-only value — the same $PIPELINE_RUN_DIR shape
+      // that motivated #1173, just unresolved to spaces rather than nothing
+      // (#1138: no blank-ish value may reach the anchoring guard below).
+      const isBlank = val.trim() === '';
+      opts.run = isBlank ? null : val;
+      opts.runEmpty = isBlank;
     }
     else if (a === '--repo') opts.repo = next();
     else return { error: `unknown argument: ${a}` };

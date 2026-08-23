@@ -54,6 +54,27 @@ function fakeDeps(overrides = {}) {
   };
 }
 
+// #1138: an empty or whitespace-only --run-dir value must be rejected at
+// parse time, before ghAvailable or any anchoring check runs — matching the
+// existing "missing required --run-dir" treatment of a genuinely absent one.
+test('#1138 reject: empty --run-dir value never reaches ghAvailable or the anchoring check', () => {
+  const main = gitRepo();
+  const deps = fakeDeps();
+  const code = withCwd(main, () => run(['1', '--run-dir', ''], deps));
+  assert.strictEqual(code, 2);
+  assert.match(deps.calls.stderr.join(''), /missing required --run-dir/);
+  assert.strictEqual(deps.calls.ghAvailable, 0, 'must never reach the gh-availability check with a blank --run-dir');
+});
+
+test('#1138 reject: whitespace-only --run-dir value degrades the same as empty', () => {
+  const main = gitRepo();
+  const deps = fakeDeps();
+  const code = withCwd(main, () => run(['1', '--run-dir', '   '], deps));
+  assert.strictEqual(code, 2);
+  assert.match(deps.calls.stderr.join(''), /missing required --run-dir/);
+  assert.strictEqual(deps.calls.ghAvailable, 0);
+});
+
 test('#959 accept: --run-dir is a bare-relative path resolving inside the linked worktree', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);

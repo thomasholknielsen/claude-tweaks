@@ -101,6 +101,28 @@ test('unnamedRecordsGate: an exact single-record CHANGELOG mention (no range) al
   assert.deepStrictEqual(gate.unnamed, []);
 });
 
+// #1181: a record can re-enter materializedRecordsSince's added set many
+// releases after it actually shipped (e.g. a reconcile archive-move commit
+// re-adding its spec file at a new path) — the CHANGELOG lookback must scan
+// every past entry, not only the newest one.
+test('unnamedRecordsGate: a record named only in an OLDER (non-newest) CHANGELOG entry still clears it [AC1, historical lookback]', () => {
+  const deps = baseDeps({
+    diffOutput: ADDED_700,
+    changelog: '# Changelog\n\n## v6.75.0 — Recent\n\nUnrelated work, #710.\n\n## v6.71.0 — Older\n\nShipped #700 five releases ago.\n',
+  });
+  const gate = unnamedRecordsGate(deps, { summary: '' });
+  assert.deepStrictEqual(gate.unnamed, [], 'a mention several entries back must still clear #700, not only the newest entry');
+});
+
+test('unnamedRecordsGate: a record named nowhere in ANY past CHANGELOG entry stays unnamed [AC2, negative control]', () => {
+  const deps = baseDeps({
+    diffOutput: ADDED_700,
+    changelog: '# Changelog\n\n## v6.75.0 — Recent\n\nUnrelated work, #710.\n\n## v6.71.0 — Older\n\nUnrelated work, #650.\n',
+  });
+  const gate = unnamedRecordsGate(deps, { summary: '' });
+  assert.deepStrictEqual(gate.unnamed, [700], 'no entry mentions #700 — it must still be flagged');
+});
+
 test('unnamedRecordsGate: --allow-unnamed excludes the record from `unnamed` and reports it in `allowed`', () => {
   const deps = baseDeps({ diffOutput: ADDED_700 });
   const gate = unnamedRecordsGate(deps, { summary: '', allow: [700] });
