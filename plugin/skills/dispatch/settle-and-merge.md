@@ -4,14 +4,18 @@ Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the
 
 **The Auto-merge gate splits across two threads; Settle does not.** Settle (below) runs entirely inside whichever Task call hits the failure, as it always has. The Auto-merge gate's authorization check, content judgment, and acceptance labeling also run inside the second Task call — but its actual merge execution cannot: a Task-tool subagent is cwd-pinned to the worktree it inherited at launch and cannot reach the main checkout (`dispatch/SKILL.md` Step 5's sequential-execution note: "A Task-tool subagent is always launched cwd-pinned to the dispatching session's own worktree"). That final step runs in the *dispatching session's own thread* instead, per **Dispatching-session merge execution** at the end of this file.
 
-**The `ExitWorktree`/worktree-removal constraint is structural and outcome-independent.** A
-Task-tool subagent that did not itself `EnterWorktree` a worktree can never run `ExitWorktree`
-or `git worktree remove` on it, regardless of which outcome this call ultimately reports — the
-cwd-pinning fact above already explains why the merge itself can't run here; worktree teardown
-is blocked for the identical structural reason on every branch below, not only the merge path.
-The local-merge Auto-merge-gate branch and the conflict-abort branch (both further down) state
-their own claim-release and run-dir-archival disposition separately — neither is inherited from
-this constraint.
+**The `ExitWorktree`/worktree-removal constraint is structural, when it applies, and
+outcome-independent within its scope.** A Task-tool subagent that did not itself `EnterWorktree`
+a worktree can never run `ExitWorktree` or `git worktree remove` on it, regardless of which
+outcome that call ultimately reports — the cwd-pinning fact above already explains why the merge
+itself can't run there either; worktree teardown is blocked for the identical structural reason
+on every Task-call branch below (Settle, and the Auto-merge gate's own Task-call branches), not
+only the merge path. The `Dispatching-session merge execution` section further down runs outside
+any Task call, so this constraint does not apply there at all — its own conflict-abort branch
+states a distinct, non-structural reason for parking worktree teardown alongside claim release
+and run-dir archival. Wherever this constraint DOES apply, the branch below still states its own
+claim-release and run-dir-archival disposition separately — neither is inherited from this
+constraint.
 
 **MCP path, file-wide.** Every label read/edit and comment operation in this file that isn't called out individually below (e.g. the `gh issue view --json labels` / `gh issue edit --remove-label` pair in Settle step 3, and the failure-comment post in step 5) uses the standard CRUD mapping from `_shared/github-write-transport.md`: `issue_write` (update mode) for label edits, `add_issue_comment` for comments, `issue_read` for reads. The one call site with special MCP-path handling — the retry-ceiling comment fetch (step 4 below) — already has its own dedicated note.
 
