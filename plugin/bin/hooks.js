@@ -33,6 +33,14 @@ function loadModule(event) {
   try { return require('./lib/hooks/' + event); } catch { return null; }
 }
 
+// Matches lib/hooks/pre-tool-use.js's pluginRoot() convention (also used
+// inline in session-start.js): resolve the real path when a session has it,
+// otherwise fall back to the unexpanded env-var literal so the printed
+// command text is still copy-pasteable in whatever shell reads it.
+function pluginRoot() {
+  return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
+}
+
 // Shared by the resolve-run-dir and spec-status subcommands below — each
 // previously defined its own identical `--flag value` lookup closure over a
 // different local array (`args` vs `rest`); one function taking the array
@@ -73,8 +81,16 @@ function resolveRunArg(args, cwd, env) {
     return { runDir: ctxLib.resolveRunDir(cwd, env), invalidRunArg: null, rest: args, explicit: false };
   }
   const rest = args.slice();
-  const candidate = rest[flagIdx + 1] || null;
+  const rawCandidate = rest[flagIdx + 1];
+  // An empty or whitespace-only value (the shape an unset $PIPELINE_RUN_DIR
+  // expands to in shell) must never reach the guards/statSync/path-composition
+  // below as a blank path (#1138) — reject it here, at the earliest parse
+  // point, before any of that runs.
+  const candidate = (rawCandidate && rawCandidate.trim() !== '') ? rawCandidate : null;
   rest.splice(flagIdx, 2);
+  if (rawCandidate !== undefined && candidate === null) {
+    return { runDir: null, invalidRunArg: '--run requires a value', rest, explicit: true };
+  }
   // An explicit --run must resolve to a real directory — falling back to
   // resolveRunDir's "newest non-terminal run" scan on a bad path would
   // silently record against the WRONG run, defeating the reason --run
@@ -104,22 +120,81 @@ function resolveRunArg(args, cwd, env) {
       };
     }
     if (!wtDetect.isAnchoredUnderRoot(resolved, mainRoot)) {
-      // #280: the general case above (a bare or stray worktree-local
+      // #280/#1183: the general case above (a bare or stray worktree-local
       // directory) stays rejected — that's the [IL-96]/[IL-127] shadow this
       // anchoring check exists to prevent. The one narrow exception: a
       // session whose harness refused every write to the main checkout for
       // the whole session has no anchored copy to name at all, so its run
       // dir was legitimately initialized worktree-local as the only
-      // available option (the incident this record documents). Adopt it
-      // ONLY when (a) it is already an INITIALIZED run dir — not merely a
-      // directory that exists, the same bar `isInitializedRunDir` states —
-      // and (b) no same-named run dir already exists under the main
-      // checkout, which would make that copy the authoritative one instead.
-      // Both conditions must hold: an ordinary run with no worktree-local
-      // dir at all never has (a), so it can never spuriously match this
-      // fallback ([IL-127]'s own acceptance criterion).
-      const mainCandidate = path.join(mainRoot, '.claude-tweaks', 'pipelines', path.basename(resolved));
-      if (isInitializedRunDir(resolved) && !isDirectory(mainCandidate)) {
+      // available option (the incident #280 documents). Adopt it ONLY when
+      // ALL of:
+      //   (a) resolved sits inside a linked worktree of THIS SAME repo — not
+      //       an arbitrary directory, and not an unrelated repo's checkout
+      //       (#1183: the old check never verified this at all — any
+      //       directory carrying a stray marker file was adopted);
+      //   (b) that path, relative to the worktree's own
+      //       .claude-tweaks/pipelines/, has a run-id-shaped leading segment
+      //       (the same `RUN_ID_RE` shape context.js's own run-dir
+      //       enumeration, iterRunDirsWithState, uses to distinguish a real
+      //       pipeline run dir from an arbitrary directory);
+      //   (c) it is already an INITIALIZED run dir — not merely a directory
+      //       that exists, the same bar isInitializedRunDir states; and
+      //   (d) no same-named run dir already exists at the SAME
+      //       pipelines-relative path under the main checkout, which would
+      //       make that copy the authoritative one instead — and, for an
+      //       archive/{id} shadow specifically, no LIVE (non-archived) run
+      //       dir exists under that same id either, since a run can be live
+      //       under one id while a worktree-local session independently
+      //       archived its own local copy under the same id (#1183 fix-wave).
+      // #1183: (d) used to join only path.basename(resolved), so a nested
+      // multi-spec shadow (pipelines/{parent}/spec-N) or an archived shadow
+      // (pipelines/archive/{id}) computed the wrong main-checkout candidate
+      // (pipelines/spec-N, pipelines/{id} — neither ever exists) and was
+      // adopted even though the anchored copy existed at the correct
+      // nested/archived path. Comparing the full pipelines-relative path
+      // fixes both shapes without special-casing either — an archive/{id}
+      // shadow's run-id segment is relParts[1] (the archived run keeps its
+      // original run-id-shaped directory name one level deeper); every
+      // other shape's run-id segment is relParts[0].
+      const candidateRepo = wtDetect.repoInfo(resolved);
+      // #1183 fix-wave: repoInfo's repoRoot is realpath'd internally (safeReal),
+      // but `resolved` above is not — a symlinked path component (macOS /tmp is
+      // the common case) then makes the relative-path comparison below compare
+      // a canonical root against a lexical path, producing a spurious `..`
+      // prefix and wrongly rejecting a legitimate candidate. Realpath resolved
+      // here too, mirroring pre-tool-use.js's shadowPipelineRunDir
+      // (`const real = realTarget(resolved) || resolved;`). Only used for this
+      // comparison — `runDir` below still returns the unresolved `resolved`,
+      // matching isAnchoredUnderRoot(resolved, mainRoot) above.
+      const realResolved = wtDetect.safeReal(resolved) || resolved;
+      const sameRepo = !candidateRepo.indeterminate && candidateRepo.repoRoot && candidateRepo.isLinkedWorktree
+        && wtDetect.mainCheckoutRoot(candidateRepo.repoRoot) === mainRoot;
+      const relFromPipelines = sameRepo
+        ? path.relative(path.join(candidateRepo.repoRoot, '.claude-tweaks', 'pipelines'), realResolved)
+        : null;
+      const inPipelines = !!relFromPipelines && !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
+      const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
+      const isArchiveShape = relParts[0] === 'archive';
+      const runIdSegment = isArchiveShape ? relParts[1] : relParts[0];
+      const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
+      const mainCandidate = inPipelines ? path.join(mainRoot, '.claude-tweaks', 'pipelines', relFromPipelines) : null;
+      // #1183 fix-wave: an archive/{id} shadow must also be checked against a LIVE
+      // (non-archived) copy of the same run-id under the main checkout — a run can be
+      // live under one id while a worktree-local session independently archived its own
+      // local copy under the same id; checking only the archive/{id} path would miss that.
+      const mainLiveCandidate = (inPipelines && isArchiveShape && runIdSegment)
+        ? path.join(mainRoot, '.claude-tweaks', 'pipelines', runIdSegment)
+        : null;
+      // isDirectory already fails closed (try/catch) on a null path, so no
+      // separate truthiness guard is needed for mainLiveCandidate — mirrors
+      // how mainCandidate above is passed through unguarded.
+      const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate);
+      // `inPipelines` is provably implied by `runIdShaped` here (relParts, and so
+      // runIdSegment, is only ever populated when inPipelines is true) — kept explicit
+      // anyway as a self-documenting invariant a future edit to relParts/runIdSegment's
+      // derivation could otherwise silently break without either variable's own name
+      // signaling that it depends on the other.
+      if (sameRepo && inPipelines && runIdShaped && isInitializedRunDir(resolved) && !twinExists) {
         return {
           runDir: resolved, invalidRunArg: null, rest, explicit: true, worktreeLocalFallback: true,
         };
@@ -326,6 +401,14 @@ async function main(argv) {
           'otherwise consider /claude-tweaks:wrap-up before closing. Event recorded: close-without-wrapup.\n',
         );
       }
+      if (r.notYetArchived) {
+        process.stdout.write(
+          `claude-tweaks: run ${path.basename(runDir)} still holds un-archived work/ content — ` +
+          'expected at this point in the normal wrap-up sequence (close-run always runs before archive-run); ' +
+          'archival is still pending and will happen via the next routine reconcile pass, or you can archive it now: ' +
+          `node "${pluginRoot()}/bin/hooks.js" archive-run --run "${runDir}"\n`,
+        );
+      }
       if (!r.writeOk) {
         process.stdout.write(`claude-tweaks: failed to close run ${path.basename(runDir)} — run-state.json could not be written\n`);
       }
@@ -353,7 +436,7 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'archive-run') {
-    const { archiveRunDir } = require('./lib/reconcile/archive-merged');
+    const { archiveRunDir, readConsoleState } = require('./lib/reconcile/archive-merged');
     const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
     const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
@@ -378,6 +461,14 @@ async function main(argv) {
         `claude-tweaks: ${path.basename(runDir)} is ${state.status} — not archived; ` +
         'run close-run first (or let the owning session finish)\n',
       );
+      return 0;
+    }
+    // #1130 AC4: same console gate decideArchive enforces on the reconcile
+    // path. 'none' stays allowed here — terminal status means close-run ran,
+    // i.e. wrap-up's own flow (incl. the empty-console fast path) completed;
+    // only a rendered-but-unanswered console blocks a direct archival.
+    if (readConsoleState(runDir) === 'unresolved') {
+      process.stdout.write('claude-tweaks: archival refused — console-unresolved (console.json rendered but not resolved; answer or resolve the console first)\n');
       return 0;
     }
     const mainRoot = wtDetect.mainCheckoutRoot(process.cwd());

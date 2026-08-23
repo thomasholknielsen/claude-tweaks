@@ -4,16 +4,40 @@
 // either the foreign-owner refusal or the wrap-up warn-tier check only needs
 // to land once. Pure decision + one write; callers own their own message text.
 'use strict';
+const fs = require('fs');
+const path = require('path');
 const ctxLib = require('./context');
+
+// A run dir still holds un-archived work/ content if either the top-level
+// work/ (single-spec layout) or any spec-*/work/ (multi-spec layout,
+// materialize.md's Multi-record layout) exists on disk — this is a plain
+// fs.existsSync check, not a git-tracked-ness check, so it can't (and
+// doesn't try to) distinguish tracked from untracked work/ content (#1103's
+// own originally-reported scenario had untracked work/{n}-spec.md). This is
+// the routine, expected state right after close-run in the normal wrap-up
+// sequence (archive-run always runs after, never before) — this check
+// surfaces it as an advisory field rather than blocking the close (the
+// escape-hatch use case — closing a stuck/foreign run manually — must still
+// work even when work/ hasn't landed).
+function hasUnarchivedWork(runDir) {
+  if (fs.existsSync(path.join(runDir, 'work'))) return true;
+  let entries;
+  try {
+    entries = fs.readdirSync(runDir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  return entries.some((e) => e.isDirectory() && e.name.startsWith('spec-') && fs.existsSync(path.join(runDir, e.name, 'work')));
+}
 
 // Returns one of:
 //   { status: 'refused-foreign' }
 //     — an implicit (`explicit: false`) run resolution landed on a run
 //       recorded by a different, still-active session; nothing was written.
-//   { status: 'closed', foreignOwner, wrapupSeen, writeOk }
+//   { status: 'closed', foreignOwner, wrapupSeen, writeOk, notYetArchived }
 //     — the run-state write was attempted (and `writeOk` reports whether it
-//       succeeded); `foreignOwner`/`wrapupSeen` let the caller render the
-//       same advisory lines close-run always has.
+//       succeeded); `foreignOwner`/`wrapupSeen`/`notYetArchived` let the
+//       caller render the same advisory lines close-run always has.
 function closeRunState(runDir, { explicit = false, sessionId = null } = {}) {
   const prev = ctxLib.readRunState(runDir);
   const foreignOwner = !!(prev && typeof prev.sessionId === 'string' && prev.sessionId && sessionId && prev.sessionId !== sessionId);
@@ -36,8 +60,9 @@ function closeRunState(runDir, { explicit = false, sessionId = null } = {}) {
     ctxLib.appendEvent(runDir, 'close-without-wrapup', {});
   }
 
+  const notYetArchived = hasUnarchivedWork(runDir);
   const writeOk = !!ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
-  return { status: 'closed', foreignOwner, wrapupSeen, writeOk };
+  return { status: 'closed', foreignOwner, wrapupSeen, writeOk, notYetArchived };
 }
 
-module.exports = { closeRunState };
+module.exports = { closeRunState, hasUnarchivedWork };

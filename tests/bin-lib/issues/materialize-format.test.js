@@ -65,6 +65,18 @@ test('shapeGate: multiple missing sections are all reported at once', () => {
   assert.deepEqual(gate.missing.sort(), ['Acceptance Criteria', 'Current State', 'Deliverables']);
 });
 
+test('shapeGate: placeholder markers inside a verbatim ## Original request section pass — even after nested ## headings (refs #1240)', () => {
+  const body = SHAPED_BODY + '\n\n## Original request\n\nOld title\n\nOrigin: capture\n\n## Current State\n\nThe regex flags a three-letter marker: TBD.\n\n## Deliverables\n\n- [ ] exact set TBD at build time\n\nTODO: revisit\n\n<!-- ambiguity: which api? -->';
+  assert.deepEqual(shapeGate(body), { ok: true, missing: [] });
+});
+
+test('shapeGate: a genuine marker in an authored section still fails when an Original request section is also present', () => {
+  const body = SHAPED_BODY.replace('- [ ] do a thing', '- [ ] do a thing TBD') + '\n\n## Original request\n\nOld title\n\nclean original text';
+  const gate = shapeGate(body);
+  assert.equal(gate.ok, false);
+  assert.ok(gate.missing.includes('unresolved-placeholder'));
+});
+
 // ---- liftMetadata ----------------------------------------------------------
 
 test('liftMetadata: reads Surface/Design-intent/Design-seed from the leading metadata block', () => {
@@ -244,4 +256,13 @@ test('materialize CLI: gh absent exits 2', () => {
   const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
   assert.equal(code, 2);
   assert.match(err.join(''), /`gh` is required/);
+});
+
+test('materialize CLI: a record whose only markers sit in ## Original request materializes successfully (refs #1240)', () => {
+  const runDir = mkRunDir('run-1240');
+  const { deps, out, written } = cliDeps({ ghView: () => ghJson({ body: SHAPED_BODY + '\n\n## Original request\n\nOld title\n\n## Deliverables\n\n- [ ] exact set TBD at build time' }) });
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
+  assert.equal(code, 0);
+  const expectedFile = path.join(runDir, 'work', '1-spec.md');
+  assert.ok(written[expectedFile].includes('## Original request'));
 });
