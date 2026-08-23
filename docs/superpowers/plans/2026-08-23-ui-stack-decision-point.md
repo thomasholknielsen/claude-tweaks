@@ -456,7 +456,7 @@ git commit -m "Add Step 2.5c2 UI-stack question to design-pre-steps.md"
 - Consumes: Task 6's `Ui-stack:` value.
 - Produces: the record body's `Ui-stack:` line, present at the point `bin/materialize.js` (Task 2/3) later lifts it.
 
-- [ ] **Step 1: Update shaping-mode.md's Metadata block subsection**
+- [x] **Step 1: Update shaping-mode.md's Metadata block subsection**
 
 In `plugin/skills/specify/shaping-mode.md`, in the "### Metadata block" section's opening paragraph (line 90), extend the sentence "When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:`" to also cover Step 2.5c2:
 
@@ -475,7 +475,7 @@ In the same paragraph, extend the batch-table sentence ("render one batch table 
 
 Change `recommended intent pre-filled` to `recommended intent and UI stack pre-filled`.
 
-- [ ] **Step 2: Update the frontend metadata block example**
+- [x] **Step 2: Update the frontend metadata block example**
 
 Change (lines 92-95):
 
@@ -492,7 +492,7 @@ Design-intent: {value}
 Ui-stack: {value}
 ```
 
-- [ ] **Step 3: Update the backend/infra example's surrounding sentence**
+- [x] **Step 3: Update the backend/infra example's surrounding sentence**
 
 Change (line 97):
 
@@ -506,7 +506,7 @@ to:
 Backend/infra records omit the `Design-intent:` and `Ui-stack:` lines entirely — both only apply when Step 2.5a detected a frontend surface:
 ```
 
-- [ ] **Step 4: Add a Ui-stack reference table**
+- [x] **Step 4: Add a Ui-stack reference table**
 
 Immediately after the existing `| Design-intent: | Meaning |` table (lines 114-121), insert:
 
@@ -514,7 +514,7 @@ Immediately after the existing `| Design-intent: | Meaning |` table (lines 114-1
 `Ui-stack:` has no fixed enumeration — it's a free-form string (component library name, styling approach, or an explicit no-preference answer). See `design-pre-steps.md`'s Step 2.5c2 for the preset options offered interactively.
 ```
 
-- [ ] **Step 5: Update the cross-reference sentence**
+- [x] **Step 5: Update the cross-reference sentence**
 
 Change (line 123):
 
@@ -528,7 +528,7 @@ to:
 `spec-template.md` stays canonical for the full metadata-block field set these two tables slice — including `Design-seed:`/`Visual-reference:`/`Parent:`, which shaping mode never writes. The `Design-intent:` one-liners above restate `design-pre-steps.md`'s Step 2.5c `AskUserQuestion` descriptions; keep both tables in sync by hand if either enum ever changes. `Ui-stack:` has no enum to restate — Step 2.5c2's preset options are documentation, not a closed value set.
 ```
 
-- [ ] **Step 6: Update Compose-then-write-once**
+- [x] **Step 6: Update Compose-then-write-once**
 
 Change (lines 155-157):
 
@@ -553,7 +553,7 @@ Ui-stack: {value}
 ```
 ```
 
-- [ ] **Step 7: Update record-creation.md's Sub-issues body composition**
+- [x] **Step 7: Update record-creation.md's Sub-issues body composition**
 
 In `plugin/skills/specify/record-creation.md:164`, change:
 
@@ -567,12 +567,12 @@ to:
 **Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}` and `Ui-stack: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents
 ```
 
-- [ ] **Step 8: Verify prose conformance**
+- [x] **Step 8: Verify prose conformance**
 
 Run: `npm test`
 Expected: PASS
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add plugin/skills/specify/shaping-mode.md plugin/skills/specify/record-creation.md
@@ -591,7 +591,7 @@ git commit -m "Wire Ui-stack into shaping-mode.md and record-creation.md's write
 - Consumes: the materialized header's `ui-stack:` field (Task 2/3/4).
 - Produces: the implementer subagent's prompt carries an explicit UI-stack mandate whenever the record declares one — closing the loop the spec's "Observed failure" describes.
 
-- [ ] **Step 1: Add a Ui-stack section to design-prebuild.md**
+- [x] **Step 1: Add a Ui-stack section to design-prebuild.md**
 
 In `plugin/skills/build/design-prebuild.md`, immediately after the existing "## Visual-reference scaffold (when present)" section (ending at line 19), insert a new section:
 
@@ -604,7 +604,7 @@ When the resolved record/spec's materialized header carries a `ui-stack:` field 
 Absence of `ui-stack:` (a pre-#357 record, or a record whose specify pass predates this field) is normal — proceed exactly as today, with no UI-stack guidance in the prompt.
 ```
 
-- [ ] **Step 2: Update frontend-detection.md's field-count paragraph**
+- [x] **Step 2: Update frontend-detection.md's field-count paragraph**
 
 In `plugin/skills/design-wrapper/frontend-detection.md:69`, change:
 
@@ -618,7 +618,7 @@ to:
 Every sub-issue record may declare three design-related body-metadata lines: `Surface:`, `Design-intent:`, and `Ui-stack:`. `/specify` writes all three on every new frontend sub-issue record (`Design-intent:`/`Ui-stack:` omitted for backend/infra). The wrapper reads `Surface:` for Layer 2 detection and `Design-intent:` for `polish` mode's intent-driven dispatch; `Ui-stack:` is read by `/claude-tweaks:build`'s Design Pre-Build step (`build/design-prebuild.md`), not by the wrapper itself — all three lifted into the materialized header at build time (spec 20's contract for the first two; #357 for `Ui-stack:`).
 ```
 
-- [ ] **Step 3: Update the Design-intent cross-reference line**
+- [x] **Step 3: Update the Design-intent cross-reference line**
 
 In `plugin/skills/design-wrapper/frontend-detection.md:75`, change:
 
@@ -632,12 +632,12 @@ to:
 `Design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode. `Ui-stack:` is not read in Layer 2 either — it has no enumeration to route on, only a free-form value forwarded verbatim into the implementer's prompt (`build/design-prebuild.md`'s Ui-stack mandate section). See the spec template's body-metadata block description for `Design-intent:`'s enumeration and `Ui-stack:`'s field description.
 ```
 
-- [ ] **Step 4: Verify prose conformance**
+- [x] **Step 4: Verify prose conformance**
 
 Run: `npm test`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugin/skills/build/design-prebuild.md plugin/skills/design-wrapper/frontend-detection.md
