@@ -67,7 +67,7 @@ Rewrite the record's body into six sections, in this literal shape (`spec-templa
 
 Absorb the record's existing content into whichever section it belongs in — a human-filed or captured record's raw text usually becomes Current State plus Deliverables context, with Acceptance Criteria freshly written since raw captures rarely state them explicitly. A record already filed in this shape — every `by:code-health`/`by:harness-health`/`by:journey-health`/`by:docs-health` record is spec-shaped and agent-sized by construction, per `_shared/work-record.md`'s born-ready rule — needs near-zero translation: verify the sections are present and non-empty and move on rather than rewriting content that's already correct.
 
-One authoring constraint on the composed prose itself: never write the literal placeholder tokens `TBD`, `TODO`, or `<!-- ambiguity:` anywhere in a composed body — not even as a *mention* (e.g. "…not as a TODO in the files"). `_shared/work-record.md`'s spec-shaped-body check, re-run by `/claude-tweaks:backlog refine`'s Step 3.5 and the grant gate, greps for these tokens with no context sensitivity, so a prose mention flags the record as carrying an unresolved placeholder and downgrades it back out of `ready`. Paraphrase instead ("a deferred-work comment", "an unresolved marker").
+One authoring constraint on the composed prose itself: never write the literal placeholder tokens `TBD`, `TODO`, or `<!-- ambiguity:` anywhere in a composed body — not even as a *mention* (e.g. "…not as a TODO in the files"). `_shared/work-record.md`'s spec-shaped-body check, re-run by `/claude-tweaks:backlog refine`'s Step 3.5 and the grant gate, greps for these tokens with no context sensitivity, so a prose mention flags the record as carrying an unresolved placeholder and downgrades it back out of `ready`. Paraphrase instead ("a deferred-work comment", "an unresolved marker"). A marker *inherited* inside the preserved `## Original request` copy is different — it is sanctioned: the spec-shaped-body checks exempt that section (#1240), and the verbatim copy must never be hand-edited to remove one.
 
 When a human-filed defect report names a specific affected file, function, or exact error string, do a cheap sanity check before shaping: grep the named artifact against the codebase. A miss doesn't necessarily mean the report is wrong (the code may be newer, or the artifact may genuinely live elsewhere) — but it's a fact-check worth doing at shaping time rather than discovering it mid-build, after a worktree and (under `pr-first`) a draft PR already exist (`#174`).
 
@@ -83,7 +83,7 @@ Before editing, keep the record's fetched title and body exactly as they were. A
 {original body, verbatim}
 ```
 
-The shaped sections above are `/specify`'s editorial interpretation; `## Original request` is the record's ground truth if that interpretation ever needs to be checked or redone.
+The shaped sections above are `/specify`'s editorial interpretation; `## Original request` is the record's ground truth if that interpretation ever needs to be checked or redone. The preserved copy is exempt from the spec-shaped-body placeholder check (#1240), so preservation stays byte-exact even when the original text carries a literal `TBD`/`TODO`/ambiguity marker.
 
 ### Metadata block
 
@@ -226,7 +226,7 @@ Immediately after each record's write lands — the `gh issue edit`/`writeRecord
 Assert, against the re-fetched result:
 - `ready` is present, plus every scoring label this record's stamp step (above) added or already carried (`risk:*`, `size:*`, `ceremony:*`, Type). When this pass was entered via the `next` form's headless posture, `shaped:headless` is present too — the atomicity guarantee above is only as good as this check catching a partial write of the two-flag call.
 - The five spec-shaped sections (`## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, `## Gotchas`) plus `## Original request` are all present in the re-fetched body.
-- No unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) survived into the written body (these exact literals — assertion targets, not composed-body mentions — see the placeholder-token rule above).
+- No unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) survived into the written body outside the preserved `## Original request` section (these exact literals — assertion targets, not composed-body mentions — see the placeholder-token rule above).
 - `parked` is absent from the re-fetched labels — the stamp step above always removes it on promotion.
 - When this record's framing verdict (stamp step above) was `open`, `solution:unjustified` (and the pre-rename spelling `framing:baked`) are absent. When the verdict was `solution-baked`, `solution:unjustified` is present instead, and the Gotchas section carries the folded assumption bullets the stamp step wrote.
 
