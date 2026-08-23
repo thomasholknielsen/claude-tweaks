@@ -298,6 +298,30 @@ test('skill-curation.md step 2 no longer instructs a judge-side commit', () => {
   const CURATION = fs.readFileSync(path.join(SKILLS, 'wrap-up', 'skill-curation.md'), 'utf8');
   assert.doesNotMatch(CURATION, /auto-apply now\. Commit\./, 'the old judge-commits wording is retired');
   assert.match(CURATION, /never run `git add`\/`git commit`/, 'states the no-judge-commit rule');
-  assert.match(CURATION, /serial-commit pass/, 'cites the engine pass that commits instead');
+  assert.match(CURATION, /serial-commit\s+pass/, 'cites the engine pass that commits instead');
   assert.match(CURATION, /written by the controller at commit time/, 'the AUTO log entry is controller-written (only it knows the hash)');
+});
+
+test('curation-engine.md §4 keeps the Initiative-Fix trailer carve-out for the references row', () => {
+  const s4 = ENGINE.slice(ENGINE.indexOf('## 4. Parallel dispatch'));
+  const para = s4.slice(
+    s4.indexOf('**No judge-side git mutations'),
+    s4.indexOf('**Judge self-verification'),
+  );
+  assert.match(para, /Initiative-Fix: \{run-id\}/, 'the trailer carve-out for the references row survives in the serial-commit paragraph');
+});
+
+// reference-sweep.md ~line 72 used to claim the judge itself made the commit ("in their own
+// commit with the `Initiative-Fix: {run-id}` trailer"). #1140's fix moved commit ownership to the
+// controller's serial-commit pass; the judge-side phrasing must not survive, and the new
+// controller-commits wording must be present.
+test('reference-sweep.md no longer claims the judge makes its own Initiative-Fix commit', () => {
+  const REF_SWEEP = fs.readFileSync(path.join(SKILLS, 'wrap-up', 'reference-sweep.md'), 'utf8');
+  assert.doesNotMatch(
+    REF_SWEEP,
+    /in their own commit with the `Initiative-Fix: \{run-id\}` trailer/,
+    'the old judge-side commit phrasing is retired',
+  );
+  assert.match(REF_SWEEP, /serial-commit\s+pass/, 'names the controller-side pass that actually commits');
+  assert.match(REF_SWEEP, /never a judge-side commit/, 'states the repair is applied as a working-tree edit only');
 });
