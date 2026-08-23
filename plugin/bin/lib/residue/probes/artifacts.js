@@ -33,6 +33,10 @@
 // Per-root ENOENT is clean (a project that has only ever run /browse has no
 // traces/ root); any OTHER read failure fails the whole probe loudly — a
 // partial scan must never report as a clean sweep (sibling probes' contract).
+// The aged-dir scan below is directories-only by design, not by omission:
+// every producer under these three roots writes a per-run/session
+// subdirectory (`test/qa-procedures.md`'s `RUN_DIR`, `journey-health/SKILL.md`'s
+// `screenshots/qa/*/report.json` glob), never a loose first-level file.
 'use strict';
 
 const fs = require('node:fs');

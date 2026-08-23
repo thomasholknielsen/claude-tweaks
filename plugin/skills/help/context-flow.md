@@ -71,7 +71,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/deepen` | Changed files / spec scope, module call sites | Depth refactors (in-place) or staged candidates (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`, plus `staged/deepen-collapse-{n}.patch` for narrow collapses per `_shared/staged-patch.md` — never the ledger) | — |
 | `/reflect` | Changed files, review summary (in full mode), ledger | Ledger items (phase depends on invoker: `review/hindsight`, `wrap-up`, or `reflect`) | — |
 | `/test` | CLAUDE.md (for commands), `stories/*.yaml` (in qa/all mode) | `TEST_PASSED=true`, QA report (when stories exist), `docs/plans/*-ledger.md` (QA findings and observations) | — |
-| `/test` (qa mode) | `stories/*.yaml` | `.claude-tweaks/artifacts/screenshots/qa/report.json`, `.claude-tweaks/artifacts/screenshots/qa/report.md`, `TEST_PASSED=true`, `docs/plans/*-ledger.md` (QA findings and observations) | — |
+| `/test` (qa mode) | `stories/*.yaml` | `.claude-tweaks/artifacts/screenshots/qa/[YYYYMMDD]_[HHMMSS]_[hex]/` (`report.json` + `report.md`, per-run — see `test/qa-procedures.md`'s `RUN_DIR`), `TEST_PASSED=true`, `docs/plans/*-ledger.md` (QA findings and observations) | — |
 | `/browse` | — | `.claude-tweaks/artifacts/screenshots/browse/` | — |
 | `/research` | Web sources (built-in `/deep-research` or `WebSearch`/`WebFetch`) | `.claude-tweaks/research/[YYYY-MM-DD]-[slug]/` (`report.md` + `sources.json`) | — |
 | `/visualize` | `DESIGN.md` tokens (when present) | `docs/journeys/{name}-{type}.html`, `docs/plans/{spec}-{type}.html`, or `docs/diagrams/{slug}.html` (context-free fallback) | — |
