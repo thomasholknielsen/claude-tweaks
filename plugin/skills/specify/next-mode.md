@@ -13,11 +13,12 @@ does — no shaping logic is duplicated here.
 `phase-N`, `--surface`, `--granularity`, and `--chained` are each rejected
 with a one-line notice when combined with `next` on the command line: "next
 takes no modifiers — {flag} ignored." This form always resolves
-`Design-intent: none` internally (mirroring `--chained`'s own headless
+`Design-intent: none` and `Ui-stack: none — no preference, defer to
+reference codebase` internally (mirroring `--chained`'s own headless
 default) without prompting, since a headless firing has nobody to answer
-Step 2.5c's design-intent question. Report the rejection notice, then
-proceed with `next`'s own procedure below — a rejected flag is a warning,
-never a hard stop.
+Step 2.5c's design-intent question or Step 2.5c2's UI-stack question.
+Report the rejection notice, then proceed with `next`'s own procedure
+below — a rejected flag is a warning, never a hard stop.
 
 ## Preflight
 
@@ -339,8 +340,10 @@ Read `shaping-mode.md` in this skill's directory and follow its procedure
 directly against the record fetched above, under the same headless posture
 `--chained` uses: `next`-mode is a named entry path in `shaping-mode.md`'s
 own header, Step 2.5c's design-intent question resolves to
-`Design-intent: none` without prompting (already established in Flag
-rejection above), and no `## Next Actions` renders at the end (headless —
+`Design-intent: none` and Step 2.5c2's UI-stack question resolves to
+`Ui-stack: none — no preference, defer to reference codebase` without
+prompting (already established in Flag rejection above), and no
+`## Next Actions` renders at the end (headless —
 nobody is present to answer it; `shaping-mode.md`'s own return clause
 names the `next` form's headless posture as a second reason to skip that
 render, alongside `--chained`). Shaping mode's own `ready` stamp is what
