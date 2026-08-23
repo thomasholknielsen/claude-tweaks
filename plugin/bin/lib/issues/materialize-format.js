@@ -59,15 +59,33 @@ function liftMetadata(body) {
   const blankAt = text.indexOf('\n\n');
   const block = blankAt === -1 ? text : text.slice(0, blankAt);
   const out = {};
-  const surfaceMatch = /^Surface:\s*(\S+)/m.exec(block);
+  // [ \t]* (not \s*) before every capture group deliberately: \s matches
+  // \n, so a greedy \s* on a bare "Field:" line (no value) would consume
+  // the newline and let (\S+)/(.+)$ capture the FOLLOWING line's content
+  // instead of correctly failing to match. Same-line-only whitespace keeps
+  // a bare line a no-match, never a misread of the next field (refs #357).
+  const surfaceMatch = /^Surface:[ \t]*(\S+)/m.exec(block);
   if (surfaceMatch) out.surface = surfaceMatch[1] === 'frontend' ? 'web' : surfaceMatch[1];
-  const intentMatch = /^Design-intent:\s*(\S+)/m.exec(block);
+  const intentMatch = /^Design-intent:[ \t]*(\S+)/m.exec(block);
   if (intentMatch) out.designIntent = intentMatch[1];
-  const uiStackMatch = /^Ui-stack:\s*(.+)$/m.exec(block);
+  const uiStackMatch = /^Ui-stack:[ \t]*(.+)$/m.exec(block);
   if (uiStackMatch) out.uiStack = uiStackMatch[1].trim();
-  const seedMatch = /^Design-seed:\s*(\S+)/m.exec(block);
+  const seedMatch = /^Design-seed:[ \t]*(\S+)/m.exec(block);
   if (seedMatch) out.designSeed = seedMatch[1];
   return out;
+}
+
+// Double-quote a scalar for the YAML-shaped header when it contains a
+// character that would change its meaning to a real YAML parser (`:`
+// starts a mapping, `#` starts a comment) or leading/trailing whitespace
+// that YAML would strip. `ui-stack` is this header's one free-form field —
+// every other optional field is a closed enum or opaque token with no such
+// risk, so this is not called for them (refs #357).
+function yamlSafeScalar(value) {
+  if (/[:#]/.test(value) || /^\s|\s$/.test(value)) {
+    return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  }
+  return value;
 }
 
 // fields -> the YAML frontmatter block (including the --- delimiters), per
@@ -87,7 +105,7 @@ function composeHeader({ record, origin, risk, size, ceremony, grants, fingerpri
   if (Array.isArray(blockedBy) && blockedBy.length) lines.push(`blocked-by: [${blockedBy.join(', ')}]`);
   if (surface) lines.push(`surface: ${surface}`);
   if (designIntent) lines.push(`design-intent: ${designIntent}`);
-  if (uiStack) lines.push(`ui-stack: ${uiStack}`);
+  if (uiStack) lines.push(`ui-stack: ${yamlSafeScalar(uiStack)}`);
   if (designSeed) lines.push(`design-seed: ${designSeed}`);
   if (parkedAtShaping) lines.push('parked-at-shaping: true');
   lines.push('---');

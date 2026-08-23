@@ -96,6 +96,16 @@ test('liftMetadata: Ui-stack omitted when the line is absent', () => {
   assert.equal('uiStack' in lifted, false);
 });
 
+test('liftMetadata: a bare Design-intent: line (no value) does not swallow the next metadata line (refs #357)', () => {
+  const body = 'Surface: web\nDesign-intent:\nUi-stack: shadcn/ui + Tailwind\n\n## Current State\nx';
+  assert.deepEqual(liftMetadata(body), { surface: 'web', uiStack: 'shadcn/ui + Tailwind' });
+});
+
+test('liftMetadata: a bare Ui-stack: line (no value) does not swallow the next metadata line (refs #357)', () => {
+  const body = 'Surface: web\nDesign-intent: quiet\nUi-stack:\nDesign-seed: abc123\n\n## Current State\nx';
+  assert.deepEqual(liftMetadata(body), { surface: 'web', designIntent: 'quiet', designSeed: 'abc123' });
+});
+
 test('liftMetadata: legacy Surface: frontend reads as web', () => {
   assert.deepEqual(liftMetadata('Surface: frontend\n\n## Current State\nx'), { surface: 'web' });
 });
@@ -124,6 +134,20 @@ test('composeHeader: risk/size/fingerprint/blocked-by/surface/design-intent/ui-s
     assert.doesNotMatch(header, new RegExp('^' + key, 'm'), `${key} should be omitted when its value is absent`);
   }
   assert.match(header, /^grants: \[build\]$/m);
+});
+
+test('composeHeader: a ui-stack value containing ":" or "#" is double-quoted, not emitted as unsafe bare YAML (refs #357)', () => {
+  const header = composeHeader({
+    record: 5, origin: 'human', ceremony: 'standard', grants: {}, uiStack: 'Tailwind: v4 # beta',
+  });
+  assert.match(header, /^ui-stack: "Tailwind: v4 # beta"$/m);
+});
+
+test('composeHeader: a ui-stack value with no special characters stays bare, unquoted', () => {
+  const header = composeHeader({
+    record: 5, origin: 'human', ceremony: 'standard', grants: {}, uiStack: 'shadcn/ui + Tailwind',
+  });
+  assert.match(header, /^ui-stack: shadcn\/ui \+ Tailwind$/m);
 });
 
 test('composeHeader: every optional field present renders in the documented order', () => {

@@ -16,8 +16,8 @@ takes no modifiers — {flag} ignored." This form always resolves
 `Design-intent: none` internally, and resolves `Ui-stack:` from the
 `ui-stack` project policy — the same `bin/resolve-policy.js --values ...
 ui-stack` invocation Step 2.5c2's own `--chained` branch runs
-(`design-pre-steps.md`), against the run dir `## Decision-log fallback`
-below names — writing the policy value verbatim when it is non-empty and
+(`design-pre-steps.md`), against the run dir the **Decision-log fallback**
+paragraph below names — writing the policy value verbatim when it is non-empty and
 falling back to `Ui-stack: none — no preference, defer to reference
 codebase` only when it is empty. Both mirror `--chained`'s own headless
 posture, including that policy-first resolution: `design-intent` needs no

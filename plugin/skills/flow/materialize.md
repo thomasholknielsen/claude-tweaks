@@ -54,7 +54,7 @@ fingerprint: {fp}                  # omitted when none
 blocked-by: [n1, n2]               # omitted when none — see Populating the header
 surface: {web|mobile|desktop|backend|infra|terminal}
 design-intent: {value}             # omitted for backend/infra
-ui-stack: {value}                  # omitted for backend/infra, and whenever the body carries no Ui-stack: line
+ui-stack: {value}                  # omitted for backend/infra, and whenever the body carries no Ui-stack: line — double-quoted when the value contains `:`/`#` or leading/trailing whitespace, since it's the one free-form field in this header (materialize-format.js's yamlSafeScalar)
 design-seed: {opaque token}        # omitted unless the body already carries Design-seed:
 parked-at-shaping: true            # omitted unless the record was parked when shaped
 ---
