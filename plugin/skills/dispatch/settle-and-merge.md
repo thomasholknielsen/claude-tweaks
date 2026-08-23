@@ -196,11 +196,47 @@ A `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before t
 
 ## Auto-merge gate (`auto:merge` groups only)
 
-Because a bundle shares one branch/worktree, the merge decision is necessarily group-wide even though blast radius is attributed per record below: **every member of the group must carry `auto:merge`** for the gate to apply at all — a group with even one `auto:build`-only member falls back to the normal pending-review path for the whole group; mixed grants inside one bundle are never split at merge time.
+Because a bundle shares one branch/worktree, the merge decision is necessarily group-wide even though blast radius is attributed per record below: **every member of the group must carry `auto:merge`, either already or via a matured `auto:merge-pending`** (see Authorization below) for the gate to apply at all — a group with even one `auto:build`-only member falls back to the normal pending-review path for the whole group; mixed grants inside one bundle are never split at merge time, and a group with even one still-pending, not-yet-matured member falls back the same way (the group's *slowest* member's veto window governs the whole group, same as its slowest member's review verdict already does below).
 
 When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check two layers before presenting it for approval:
 
-1. **Authorization** — `auto:merge` was present on every member of the group when Step 4 claimed it (true by construction).
+1. **Authorization** — read each group member's live labels and comments fresh (`gh issue view {n} --json labels,comments`). A member already carrying `auto:merge` satisfies this layer directly, unchanged. A member instead carrying `auto:merge-pending` (never both at once — see `_shared/work-record.md`'s Grant semantics) attempts maturation right now — this checkpoint is the "existing merge-consult step" `grant-veto-window-hours` binds to, per `docs/donts.md`'s `[IL-94]`; there is no separate scheduled job:
+
+   ```bash
+   GRANT_VETO_WINDOW_HOURS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values grant-veto-window-hours)
+   node -e "
+     const { evaluateMaturation, extractPendingGrantedAt } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-maturation.js');
+     // labels: this member's fetched label name array (issue.labels[].name).
+     // comments: this member's fetched comment body array (issue.comments[].body).
+     const pendingSince = extractPendingGrantedAt(comments);
+     const result = evaluateMaturation({
+       hasPendingLabel: labels.includes('auto:merge-pending'),
+       hasMergeLabel: labels.includes('auto:merge'),
+       pendingSince,
+       vetoWindowHours: Number('$GRANT_VETO_WINDOW_HOURS'),
+       now: new Date(),
+     });
+     console.log(JSON.stringify(result));
+   "
+   ```
+
+   - **`result.state === 'already-mature'`** — `auto:merge` was already present; this member satisfies Authorization exactly as before #309.
+   - **`result.state === 'matured'`** — promote now:
+
+     ```bash
+     gh issue edit {n} --remove-label auto:merge-pending --add-label auto:merge
+     node -e "
+       const { writeWatched } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
+       writeWatched(process.cwd(), (current) => ({ ...current, ['{n}']: { grantedAt: new Date().toISOString() } }));
+     "
+     ```
+
+     This is the seed write `grant-mode.md`'s own Step 4 used to perform at grant time before #309 — it now happens here, at the moment merge trust actually activates, since a still-pending grant has nothing yet for the circuit breaker to watch. Log:
+     `AUTO {time} — Auto-merge gate: matured #{n}'s auto:merge-pending to auto:merge ({result.ageHours}h old, past the {result.windowHours}h veto window). Reversibility: high (label re-removable; no merge has happened yet). [lever: grant-veto-window-hours={result.windowHours} (source)]`.
+     This member now satisfies Authorization exactly as an already-`auto:merge` member does.
+   - **`result.state` is `within-veto-window`, `not-pending`, or `unknown-age`** — this member does not satisfy Authorization this firing. Per this section's own group-wide rule above, the **whole group** falls back to the normal pending-review path — do not promote any other member of the group either, even one whose own window has independently elapsed (mixed grants are never split at merge time, same rule an `auto:build`-only member already gets). Log:
+     `AUTO {time} — Auto-merge gate: #{n}'s auto:merge-pending has not matured ({result.reason}) — group falls back to pending-review. Reversibility: n/a (no label change). [lever: grant-veto-window-hours={result.windowHours || GRANT_VETO_WINDOW_HOURS} (source)]`.
+     A `not-pending` result with no `auto:merge` either is exactly a human veto — permanent, since nothing re-adds `auto:merge-pending` (`/backlog grant`'s own candidate fetch already excludes any record carrying an existing `auto:build` grant, so a previously-granted-then-vetoed record is never re-evaluated by that gate chain again without a fresh human grant).
 2. **Content judgment** — for each member of the group, invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`. This weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary (`bin/lib/issues/blast-radius.js`) holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — was `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md`, deleted `d83f0720`. **Every member's verdict must be `auto-merge`** for the group to proceed — a single `needs-human` verdict anywhere in the group falls the whole group back to the normal pending-review path.
 
 **Both layers pass — acceptance labeling runs first, for every member of the group.** This gate bypasses `/wrap-up`'s Phase 4 execution step, which is where acceptance labeling normally happens, so this gate must perform it itself. For each record in the group, run `wrap-up/verification-brief.md` starting from its **Routing** section — **one record at a time, never batched or concurrent.** Sequencing is what makes the once-per-parent idempotence below hold: each invocation re-reads the parent's labels, so a second member of the same parent sees the first's `demo:pending` and no-ops. Run two concurrently and both read no label, both compose, and both post — two briefs on one parent. That file owns the routing: a record with a resolvable parent goes to its Parent-Gate Procedure (the parent gets the one gate; this sub-issue gets none), and everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to a group member independently of that routing: an `auto:merge`'d sub-issue is exactly the population `_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope exists to catch. One brief and one label per record with no resolvable parent — the merge decision is group-wide, but acceptance is a per-record judgment and a group's members can differ in observation-plan kind and in what shipped for each. A parent-linked sub-issue is routed to the Parent-Gate Procedure instead. **Pass the whole group's record numbers as `$CLOSING_SUB_ISSUES` on every one of these per-member invocations** — not just the member in hand. That is the set `verification-brief.md`'s **Self-inclusion rule** reads: every number in it counts as `CLOSED` when the parent's `leaves` array is built (it overrides state, never adds sub-issues — a group member from another parent, or from none, is simply irrelevant to this parent). The whole group is the correct set here because the single merge below carries one `Fixes #{issue}` line per record, so the group closes together; every record is still open at this point (label before merge, below), and counting only the member in hand would make a group holding two or more sub-issues of one parent evaluate `incomplete` on every one of them, labeling nothing at all — sub-issue or parent — and leaving the parent to `/tidy`'s backstop that the eager gate exists to pre-empt. With the group's set passed, the first such member reaches `due` and gates the parent; the parent's remaining members re-fetch the parent's labels, read `gated`, and no-op — one brief and one `demo:pending` per parent, never a second. `/tidy`'s `parent-gate` sweep stays the backstop for parents this gate never sees at all: a sub-issue closed by hand, or a dispatch run that ended before this gate.
