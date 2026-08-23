@@ -49,6 +49,22 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 → Collect each as: `[plan] {filename} — {recommendation}`
 
+Also glob `docs/plans/*-ledger.md` — the per-feature pipeline ledgers `/claude-tweaks:ledger` creates (`docs/plans/YYYY-MM-DD-{feature}-ledger.md`, `_shared/ledger-format.md`) and `/claude-tweaks:wrap-up`'s Phase 4 execution step deletes on successful completion. A pipeline that never reaches wrap-up leaves its ledger behind permanently; nothing else sweeps for it.
+
+For each matched file, read its content — cheap, these files are a few KB — and classify:
+
+| Status | Recommendation |
+|--------|---------------|
+| Any row's `Status` column reads `open` (`_shared/ledger-format.md`'s non-terminal status — "these items block pipeline completion") | Keep |
+| No `open` row (every row is a terminal status per `_shared/ledger-format.md`, or the ledger has zero rows), AND a directory under `.claude-tweaks/pipelines/` (not `archive/`) still exists whose name contains the ledger's own record/spec number(s) — extract every `#{N}` token appearing anywhere in the ledger's first line (real headings vary: a colon-prefixed list, a trailing `(#N)`, or embedded mid-sentence — scan the whole line, don't anchor to one position), or the filename's `{feature}` slug when the first line carries no `#{N}` token at all | Keep |
+| No `open` row AND no matching directory anywhere under `.claude-tweaks/pipelines/` (absent, or present only under `archive/`) | Delete (orphan) |
+
+The `Status` column is authoritative — directory placement (live/archived/absent) only breaks ties when no `open` row exists. Never classify by directory alone: archival is a time-based sweep, decoupled from whether a ledger's items were ever resolved — `2026-08-16-spec-276-528-529-530-ledger.md` and `2026-08-20-record-827-ledger.md` both carry a genuine `open` row despite already-archived run directories, exactly the case this rule exists to catch.
+
+Before recommending Delete, also sanity-check that no open work record's body references the ledger's filename or feature slug — a quick judgment read, not a scripted grep across every open record (Step 4 stays in the main thread precisely because its rule set is cheap).
+
+→ Collect each as: `[ledger] {filename} — {recommendation}`
+
 ## Step 4.5: Audit Git Worktrees, Build Branches, and Artifact Residue
 
 **Working-directory discipline:** every `git` command in this step (and in any dispatched parallel agent) MUST be anchored with `git -C "{REPO_ROOT}"` (or run after `cd "{REPO_ROOT}"`). `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before any agent fires. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`. CWD does not propagate reliably across parallel agents — without the anchor, branch deletions and worktree removals can land in the wrong checkout.
