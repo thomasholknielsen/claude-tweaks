@@ -4,6 +4,15 @@ Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the
 
 **The Auto-merge gate splits across two threads; Settle does not.** Settle (below) runs entirely inside whichever Task call hits the failure, as it always has. The Auto-merge gate's authorization check, content judgment, and acceptance labeling also run inside the second Task call — but its actual merge execution cannot: a Task-tool subagent is cwd-pinned to the worktree it inherited at launch and cannot reach the main checkout (`dispatch/SKILL.md` Step 5's sequential-execution note: "A Task-tool subagent is always launched cwd-pinned to the dispatching session's own worktree"). That final step runs in the *dispatching session's own thread* instead, per **Dispatching-session merge execution** at the end of this file.
 
+**The `ExitWorktree`/worktree-removal constraint is structural and outcome-independent.** A
+Task-tool subagent that did not itself `EnterWorktree` a worktree can never run `ExitWorktree`
+or `git worktree remove` on it, regardless of which outcome this call ultimately reports — the
+cwd-pinning fact above already explains why the merge itself can't run here; worktree teardown
+is blocked for the identical structural reason on every branch below, not only the merge path.
+The local-merge Auto-merge-gate branch and the conflict-abort branch (both further down) state
+their own claim-release and run-dir-archival disposition separately — neither is inherited from
+this constraint.
+
 **MCP path, file-wide.** Every label read/edit and comment operation in this file that isn't called out individually below (e.g. the `gh issue view --json labels` / `gh issue edit --remove-label` pair in Settle step 3, and the failure-comment post in step 5) uses the standard CRUD mapping from `_shared/github-write-transport.md`: `issue_write` (update mode) for label edits, `add_issue_comment` for comments, `issue_read` for reads. The one call site with special MCP-path handling — the retry-ceiling comment fetch (step 4 below) — already has its own dedicated note.
 
 This blanket mapping also covers the `gh` calls the Auto-merge gate's acceptance-labeling step
@@ -231,12 +240,14 @@ convergently at its next trigger point, same as `_shared/pr-first-merge.md` stat
 **Both layers pass — merge (`integration-model: local-merge`):** this Task call never touches
 the main checkout — a Task-tool subagent launched by dispatch is cwd-pinned to the worktree it
 inherited at launch and cannot reach a sibling directory (see the note at the top of this file).
-Do not run `git merge`, do not run `ExitWorktree`/`git worktree remove`, and do not run
-wrap-up's own Item 4 (worktree removal), Item 7 (issue claim release), or Item 8 (run-dir
-archival) — all three depend on a merge that has not happened yet. Items 1, 2, 3, 5, and 6 are
-unaffected (not merge-dependent) and may still run normally as part of this call's own wrap-up
-execution. Report `OUTCOME: ready-to-merge` (see `task-prompt.md`'s second-call template) and
-return — `Dispatching-session merge execution (local-merge fallback)`, below, is what actually
+This call cannot run `git merge`, `ExitWorktree`, or `git worktree remove` — the structural,
+outcome-independent constraint stated at the top of this file. Separately, wrap-up's own Item 4
+(worktree removal), Item 7 (issue claim release), and Item 8 (run-dir archival) all stay deferred
+on this branch specifically because the merge that would make them safe has not happened yet and
+this outcome is not terminal — not because they inherit the worktree constraint. Items 1, 2, 3,
+5, and 6 are unaffected (not merge-dependent) and may still run normally as part of this call's
+own wrap-up execution. Report `OUTCOME: ready-to-merge` (see `task-prompt.md`'s second-call
+template) and return — `Dispatching-session merge execution (local-merge fallback)`, below, is what actually
 merges, in `dispatch/SKILL.md` Step 6, in the dispatching session's own thread, immediately after
 this call's report is read.
 
@@ -310,4 +321,4 @@ Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already p
 
 **That claim covers what wrap-up *found*, not everything its Phase 4 execution step *does*.** Acceptance labeling is an action the second Task call already performed, before ever reporting `ready-to-merge` — not something this section repeats.
 
-**If the merge conflicts, or the branch guard aborts:** `git merge --abort` if a merge is actually in progress. Conflict resolution requires judgment a headless run can't supply. Leave the worktree and run dir parked exactly as an ordinary un-pushed `pending-review` outcome does today (`dispatch/SKILL.md`'s Reporting section) — no Item 4/7/8 cleanup on this branch; a human resuming the parked run handles it normally. **One accepted residual:** `close-run` already ran, above, before this conflict was discovered — unlike a normal `pending-review` outcome, this run is no longer E1-protected while parked. Not fixed here; there is no "reopen-run" mechanic to reverse it. Report this group's outcome as `pending-review` (not `ready-to-merge`, which is a transient signal, never terminal), and log why the auto-merge path was abandoned.
+**If the merge conflicts, or the branch guard aborts:** `git merge --abort` if a merge is actually in progress. Conflict resolution requires judgment a headless run can't supply. This call cannot run `ExitWorktree`/`git worktree remove` — the same structural constraint stated at the top of this file. Claim release and run-dir archival are also parked here, but for a distinct reason: the run genuinely isn't finished and a human needs to resolve the conflict, exactly the ordinary un-pushed `pending-review` case `dispatch/SKILL.md`'s Reporting section already parks for the same rationale — not because they're grouped with worktree removal. Leave the worktree and run dir parked accordingly; a human resuming the parked run handles all three normally. **One accepted residual:** `close-run` already ran, above, before this conflict was discovered — unlike a normal `pending-review` outcome, this run is no longer E1-protected while parked. Not fixed here; there is no "reopen-run" mechanic to reverse it. Report this group's outcome as `pending-review` (not `ready-to-merge`, which is a transient signal, never terminal), and log why the auto-merge path was abandoned.
