@@ -253,6 +253,32 @@ test('findRunsByWorktreePath returns [] when nothing matches or the path is empt
   assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, null), []);
 });
 
+// #1177: rollbackMint was extracted from post-tool-use.js's inline
+// staged/decisions.md/dir-removal sequence — pin its own behavior directly
+// here rather than only transitively via post-tool-use's test suite.
+test('rollbackMint: removes staged/, decisions.md, and the directory itself', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-07-01T090000-record-500-adhoc-standalone');
+  fs.mkdirSync(path.join(run, 'staged'));
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
+  ctx.rollbackMint(run);
+  assert.ok(!fs.existsSync(run), 'the mint directory must be gone');
+});
+
+test('rollbackMint: each step is independently best-effort — a partial mint (no staged/) still removes decisions.md and the directory', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-07-02T090000-record-501-adhoc-standalone');
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
+  ctx.rollbackMint(run);
+  assert.ok(!fs.existsSync(run), 'the mint directory must still be removed despite no staged/ subdirectory');
+});
+
+test('rollbackMint: never throws on a directory that does not exist at all', () => {
+  const project = tmpProject();
+  const missing = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-03T090000-record-502-adhoc-standalone');
+  assert.doesNotThrow(() => ctx.rollbackMint(missing));
+});
+
 test('writeRunState merges, stamps updatedAt; readRunState round-trips', () => {
   const project = tmpProject();
   const run = mkRun(project, '2026-07-01T090000-spec-1');

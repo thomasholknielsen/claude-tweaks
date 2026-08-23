@@ -52,6 +52,19 @@ function isUnadoptedMint(dir, state) {
   return !fs.existsSync(path.join(dir, 'decisions.md'));
 }
 
+// #1177: best-effort removal of a mint's own layout (staged/, decisions.md,
+// then the directory itself) — used by post-tool-use.js's stampAdHocRunDir
+// when writeRunState fails after the mint has already touched decisions.md
+// (which isUnadoptedMint above would otherwise read as "adopted", leaving a
+// mis-attributable candidate behind for a different session, #721). Each
+// step is independently best-effort — an already-partial mint (e.g. no
+// staged/ dir yet) must not abort the later steps.
+function rollbackMint(dirPath) {
+  try { fs.rmdirSync(path.join(dirPath, 'staged')); } catch { /* best-effort */ }
+  try { fs.unlinkSync(path.join(dirPath, 'decisions.md')); } catch { /* best-effort */ }
+  try { fs.rmdirSync(dirPath); } catch { /* best-effort */ }
+}
+
 // Run dirs are named as ISO-timestamp-prefixed slugs (e.g. 2026-07-01T090000-spec-1).
 // Other siblings under pipelines/ — notably archive/, the wrap-up archival
 // destination — are not runs. archive/ sorts AFTER ISO names lexically, so an
@@ -488,4 +501,5 @@ function appendEvent(runDir, type, data, attribution) {
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, classifyOwnership, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
   readRunState, writeRunState, appendEvent, scanWrapupEvents, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
+  rollbackMint,
 };
