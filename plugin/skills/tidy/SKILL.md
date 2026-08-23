@@ -74,6 +74,11 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 
 **Step 4.7's four backstop scans are likewise a separate file.** Their rules live in `issue-claims-backstops.md`, not in `scan-procedures.md` (which keeps only a stub under each `### Backstop:` heading). Read `issue-claims-backstops.md` and inline it **whole** into the Issue Claims agent's prompt, directly after `scan-procedures.md`'s own Step 4.7 section — see that file's own header for why the ordering matters.
 
+**The digest sweep is likewise a separate file.** Its rules live in `digest-sweep.md`, not in
+`scan-procedures.md`. Read `digest-sweep.md` and inline it **whole** into the relevant agent's
+prompt whenever this sweep is in scope — see that file's own header for the no-op condition and
+the three procedures (bootstrap-race repair, cluster promotion, expiry).
+
 | Step | Data source | Output prefix |
 |------|-------------|--------------|
 | 1 (rules in `step-1-records.md`) | Open work records — `gh issue list` facet-parsed by `record.js`'s `parseRecordFacets` (`github-issues`), or `local-store.js`'s `queryRecords('specs', {})` (`local-files`); those two plus `writeRecord` are the whole record driver in `bin/lib/issues/{record,local-store}.js`. Under `local-files` only, Shapes 7 and 8 each run their own `queryRecords` pass, since the shared fetch above returns open records only: Shape 7 pairs an open-parent query (`{ isParentIssue: true }`) with an open+closed sub-issue merge per parent, and Shape 8 queries closed records directly (`{ closed: true }`) and keeps every one that is not a decomposed sub-issue — a closed parent surfaces there, only sub-issues are suppressed | `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` (Shape 5.5 — retired-label hygiene, `github-issues` only) / `[parent-gate]` / `[acceptance-gap]` (those last two `local-files` only — Step 4.8 emits both on the other driver) |
@@ -87,6 +92,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4.95 (main thread, parallel with the agent batch) | `plugin/bin/calibration-report.js` — report-only, no scope tag of its own | `[calibration]` |
 | 5 (sequential, after Step 1) | `ready` records not yet claimed | `[sizing]` |
 | 5.5 (parallel, independent of every other step) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
+| 5.6 (rules in `digest-sweep.md`) | The `digest`-labeled rolling issue (`github-issues`) or `specs/digest.md` (`local-files`) | `[digest]` |
 
 There is no Step 2 — it merged into Step 1 (see Scope Selection above). The rest of the numbering is unchanged from before this merge, including the decimal sub-steps under Step 4, so existing cross-references from other skills keep pointing at the right step.
 
@@ -123,7 +129,7 @@ Lifecycle: backlog → brainstorm (optional) → `/claude-tweaks:specify` shapes
 
 ### Absorb means integrate, not append
 
-When absorbing a backlog record into an existing one, the absorbed content must be indistinguishable from original content — add to Deliverables/Acceptance Criteria/Technical Approach/Gotchas directly. Never an "Absorbed Scope" appendix — `/superpowers:writing-plans` may miss or mistreat it.
+When absorbing a backlog record into an existing one, the absorbed content must be indistinguishable from original content — add to Deliverables/Acceptance Criteria/Technical Approach/Gotchas directly. Never an "Absorbed Scope" appendix — `/superpowers:writing-plans` may miss or mistreat it. Carve-out: `/claude-tweaks:capture`'s absorb instead appends raw unshaped content under a dated `## Absorbed:` heading (its audit trail); this integrate rule governs every `/claude-tweaks:tidy` absorb, scoped or stub.
 
 ---
 

@@ -104,3 +104,15 @@ test('an empty component sandwiched between two real segments is dropped entirel
   assert.equal(out, 'flow/spec-123');
   assert.match(out, VALID);
 });
+
+// #1184: the MAX_LEN slice runs AFTER the empty-segment filter, so a 63-char
+// first segment + '/rest' slices at exactly index 63 — landing on the '/'
+// itself and leaving a trailing slash the filter never saw (it only ever
+// sees pre-slice segments).
+test('a MAX_LEN slice landing exactly on a segment boundary does not leave a trailing slash', () => {
+  const out = sanitizeWorktreeName('a'.repeat(63) + '/rest');
+  assert.equal(out.length, 63, 'the trailing / must be trimmed, not counted toward the 64-char cap');
+  assert.equal(out, 'a'.repeat(63));
+  assert.ok(!out.endsWith('/'), 'no trailing slash must survive the cap');
+  assert.match(out, VALID);
+});

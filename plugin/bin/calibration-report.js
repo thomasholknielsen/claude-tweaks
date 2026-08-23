@@ -22,12 +22,17 @@ function parseArgs(argv) {
       // instead of the requested window. Review finding #901.
       if (raw === undefined || !Number.isFinite(parsed) || parsed <= 0) {
         process.stderr.write(`--runs requires a positive number, got: ${raw}\n`);
-        process.exit(2);
+        process.exitCode = 2;
+        return null;
       }
       out.runs = parsed;
     } else if (a === '--json') out.json = true;
     else if (a === '--root') out.root = argv[++i];
-    else { process.stderr.write(`unknown flag: ${a}\n`); process.exit(2); }
+    else {
+      process.stderr.write(`unknown flag: ${a}\n`);
+      process.exitCode = 2;
+      return null;
+    }
   }
   return out;
 }
@@ -119,16 +124,19 @@ function renderText(result, ceiling) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (!args) return;
   const tsvPath = path.join(args.root, '.claude-tweaks', 'wrap-up-outcomes.tsv');
   const tsv = readTsv(tsvPath);
   if (!tsv) {
     process.stdout.write(`no telemetry yet (${tsvPath} absent)\n`);
-    process.exit(0);
+    process.exitCode = 0;
+    return;
   }
   let runs = loadRuns(args.root);
   if (!runs) {
     process.stdout.write('no archived runs found\n');
-    process.exit(0);
+    process.exitCode = 0;
+    return;
   }
   if (runs.length === 0 && tsv.rows.length > 0) {
     const runIds = new Set(tsv.rows.map(r => r.runId));
@@ -142,7 +150,7 @@ function main() {
   const ceiling = resolveAutonomyCeiling(args.root);
   if (args.json) process.stdout.write(JSON.stringify(result) + '\n');
   else process.stdout.write(renderText(result, ceiling));
-  process.exit(0);
+  process.exitCode = 0;
 }
 
 main();

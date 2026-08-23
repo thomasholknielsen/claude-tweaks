@@ -123,3 +123,50 @@ test('buildValidateFindingsUpdate: passes through unrelated current fields (e.g.
   });
   assert.deepStrictEqual(next.retryQueue, current.retryQueue);
 });
+
+// #171 — wontfixSuppressed is folded into the durable `declined` slice
+// (mergeWontfixIntoDeclined), the same durable-suppression hand-off
+// harness-health/journey-health/docs-health already perform, so a wontfix
+// label read this run survives a later firing whose local cache is empty.
+test('buildValidateFindingsUpdate: wontfixSuppressed fingerprints are merged into declined', () => {
+  const current = baseCurrent();
+  const next = buildValidateFindingsUpdate(current, {
+    areasSwept: [],
+    hashes: {},
+    rememberCandidates: [],
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    wontfixSuppressed: ['codehealth-suppress01'],
+    now: 500,
+  });
+  assert.deepStrictEqual(next.declined, { 'codehealth-suppress01': { lastSeenMs: 500, origin: 'wontfix-label' } });
+});
+
+test('buildValidateFindingsUpdate: an existing declined entry is preserved (first write wins) and merged with new suppressions', () => {
+  const current = baseCurrent({
+    declined: { 'codehealth-existing-decl': { lastSeenMs: 1, origin: 'wontfix-label' } },
+  });
+  const next = buildValidateFindingsUpdate(current, {
+    areasSwept: [],
+    hashes: {},
+    rememberCandidates: [],
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    wontfixSuppressed: ['codehealth-existing-decl', 'codehealth-new-decl'],
+    now: 999,
+  });
+  assert.deepStrictEqual(next.declined, {
+    'codehealth-existing-decl': { lastSeenMs: 1, origin: 'wontfix-label' },
+    'codehealth-new-decl': { lastSeenMs: 999, origin: 'wontfix-label' },
+  });
+});
+
+test('buildValidateFindingsUpdate: no wontfixSuppressed (undefined) leaves declined unchanged (backward compatible with pre-#171 callers)', () => {
+  const current = baseCurrent({ declined: { 'codehealth-prior': { lastSeenMs: 1, origin: 'wontfix-label' } } });
+  const next = buildValidateFindingsUpdate(current, {
+    areasSwept: [],
+    hashes: {},
+    rememberCandidates: [],
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    now: 1,
+  });
+  assert.deepStrictEqual(next.declined, { 'codehealth-prior': { lastSeenMs: 1, origin: 'wontfix-label' } });
+});
