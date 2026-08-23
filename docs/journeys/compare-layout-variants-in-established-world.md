@@ -3,6 +3,7 @@ files:
   - plugin/skills/design-wrapper/modes/explore.md
   - plugin/skills/design-wrapper/SKILL.md
   - plugin/skills/design-wrapper/compare-shell/template.html
+  - plugin/skills/design-wrapper/compare-shell/seed-compare.mjs
   - plugin/skills/_shared/visual-decision.md
 ---
 
@@ -31,10 +32,10 @@ files:
 
 ### 3. Fine-tune the focused variant — browser
 - **URL:** Same server URL, double-clicked into a single variant's focus view
-- **Action:** Nudge the hue / spacing-scale / corner-radius sliders — each move updates a live readout and a small preview swatch, and posts a `tweak` event to the round's event log.
+- **Action:** Nudge the hue / spacing-scale / corner-radius sliders — every tick of a drag updates the live readout and the preview swatch, while the `tweak` event is posted once, on release (a keyboard or click step, being discrete, posts its one event immediately).
 - **Should feel:** An instant, in-panel preview of the token nudge — no page reload, no new variant dealt, no full reroll.
 - **Should understand:** The swatch previews the *shell's own* panel, not the focused variant itself — the variant renders in a sandboxed iframe the tweak deliberately never reaches. Tweaking never changes which variant is under consideration; only `pick` does that.
-- **Red flags:** A tweak triggering a reroll or changing the grid's selected variant; the swatch appearing to restyle the variant's own iframe (it can't, and shouldn't).
+- **Red flags:** A tweak triggering a reroll or changing the grid's selected variant; the swatch appearing to restyle the variant's own iframe (it can't, and shouldn't); one drag posting an event per tick instead of a single event on release.
 
 ### 4. Pick and carry forward — browser + terminal
 - **URL:** The same reused verdict question: pick / reroll / steer / canon standing exit (listed last).
