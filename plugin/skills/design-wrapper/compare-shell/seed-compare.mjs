@@ -96,16 +96,25 @@ function validateManifest(manifest, mode, manifestDir) {
     }
   }
 
-  if (manifest.tweaks !== undefined && !Array.isArray(manifest.tweaks)) {
-    throw new SeedError('manifest.tweaks must be an array of { token, value } entries');
-  }
-
   if (mode === 'durable') {
     if (!manifest.outcome) {
       throw new SeedError('durable mode requires manifest.outcome');
     }
     if (!seen.has(manifest.outcome.winner)) {
       throw new SeedError(`outcome.winner "${manifest.outcome.winner}" not found among variants[].id`);
+    }
+    // manifest.tweaks is durable-mode only (see the header comment) — live
+    // mode never bakes it into DATA at all, so validating it there would
+    // refuse manifests over a field that's silently dropped anyway.
+    if (manifest.tweaks !== undefined) {
+      if (!Array.isArray(manifest.tweaks)) {
+        throw new SeedError('manifest.tweaks must be an array of { token, value } entries');
+      }
+      for (const tweak of manifest.tweaks) {
+        if (typeof tweak.token !== 'string' || typeof tweak.value !== 'string') {
+          throw new SeedError(`manifest.tweaks entry ${JSON.stringify(tweak)} must have string token and value fields`);
+        }
+      }
     }
   }
 }
