@@ -946,6 +946,8 @@ The generalizable rule: an instruction sequenced correctly in a skill file — a
 
 **Recurrence (record #893, 2026-08-20):** the same failure reproduced against the identical trigger — build judged #893's Acceptance Criteria already satisfied by prior work (#902, `08098fe7`) — despite #525's bolded non-skippable language already being live in the installed `build/SKILL.md` text at the time. Both the `record-worktree` stamp and the PR-early draft-PR open were silently skipped again, with no `decisions.md` log entry either way; `/claude-tweaks:review`/`/claude-tweaks:wrap-up` discovered and backfilled both by hand. This shows the #525 prose fix did not hold under a second live occurrence of the same trigger — see the backlog candidate staged from this run's reflect pass proposing a structural (hook- or engine-level) enforcement instead of a third prose iteration.
 
+**Resolution (record #991, 2026-08-22):** the second recurrence's own backlog candidate — investigate structural, hook-level enforcement rather than a third prose iteration — was built as `pre-tool-use.js`'s `checkBookkeepingStampsGate` (`docs/hooks.md`'s bookkeeping-stamps-gate bullet): a covered Edit/Write/NotebookEdit/commit/push is now denied once a materialize commit has landed but `record-worktree` and (under `integration-model: pr-first`) `record-pr` weren't stamped, with a decisions.md degrade-log exemption preserving the legitimate push/PR-create-failure path. This closes the loop IL-131's own generalizable rule named: a sub-step whose failure mode is silent needed enforcement at the point of use, not correct sequencing or bolded prose alone.
+
 ## IL-132 — A spec renamed a contract surface and its Key Files listed only the files the work would write
 
 Spec #518 (tidy report redesign, 2026-08-16) renamed the sections of `/claude-tweaks:tidy`'s report — the surface every scan tag routes into. Its `### Key Files` listed the files the work would author: `skills/tidy/SKILL.md`, `step-6-auto.md`, `step-6-interactive.md`. It did not list `skills/tidy/scan-procedures.md`, whose Collection routing table binds each scan tag to a report section *by that section's name*. Nothing upstream named that file: the design doc didn't, the record body didn't, and the implementer — whose file list is the spec's Key Files — never opened it. The rename shipped with the routing table still pointing at the old section names, and the branch's whole-branch review raised it as a Critical finding. Fixed in-wave (`97363bca` re-pointed the routing, `6d8cf6ac` fixed the resulting claim-tag routing split), so it never reached `main`; the cost was a review cycle plus two follow-up commits on a spec that had already passed its own task-scoped review.
@@ -1151,3 +1153,26 @@ pr-first PR), after which the existing assertions failed on their own.
 
 Cost on the #900 run: high — three extra fix rounds inside one record, the last of them a
 Critical regression introduced by a fix round and caught only because a re-review was run at all.
+
+## IL-144 — A reviewer's "this text is duplicated elsewhere" premise, ruled on without a grep
+
+During spec #1264's build (capture absorb-by-default, 2026-08-22, the #1261-#1264 multi-spec
+run), a final-review finding (N1) argued that a 483-byte block in
+`plugin/skills/capture/SKILL.md` was redundant because it "restates all three option labels
+verbatim" elsewhere in the file. The fix wave was operating under a byte budget against the
+~40 KB sub-file ceiling, so the finding was attractive: it freed exactly the bytes the wave
+needed. The deletion was planned and shipped in `974e3471`.
+
+The premise was false for two of the three labels — only one was actually restated. The deleted
+block was the only place the other two option labels' copy existed, so `/claude-tweaks:capture`'s
+Brainstorm and Keep option text vanished from the skill. It was caught by controller adjudication
+reading the pre-deletion text, not by the review that proposed it or the fix agent that executed
+it, and had to be restored in `22ef09f4`.
+
+A "delete the duplicate" finding reads as the safest class of edit there is — nothing is being
+invented, only de-duplicated — so it clears a reviewer's bar on the strength of its own claim.
+And a byte-budget pressure makes it *more* attractive rather than more suspect. Nothing in the
+loop between the finding and the commit ever executed the one-line search that would have
+falsified it.
+
+Cost on the #1264 run: moderate — one extra fix round in the same session; nothing shipped.

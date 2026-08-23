@@ -95,7 +95,7 @@ Parse each issue body for its fingerprint marker and build an array of `{ number
 
 **Transport and outcomes:** apply `_shared/health-issue-index.md` with `{SKILL}` = `code-health`, `{ISSUES_FILE}` = `/tmp/code-health-open.json`. `gh` absent means rebuild the index via MCP `list_issues`, never skip; `ISSUES_FILE=""` is only for "no transport reaches GitHub", and is reported.
 
-A matched issue carrying the `wontfix` label is a standing suppression decision, not a skip or reopen: `validate-findings` (Step 8) suppresses re-filing entirely and persists `status: 'wontfix'` to the local cache — which a Routine's fresh container recreates empty, so it covers repeat *local* runs only. The MCP transport above covers the headless path.
+A matched issue carrying the `wontfix` label is a standing suppression decision, not a skip or reopen: `validate-findings` (Step 8) suppresses re-filing entirely and persists `status: 'wontfix'` to the local cache — a Routine's fresh container recreates that cache empty, covering repeat *local* runs only on its own. The MCP transport above covers `gh`-absent headless runs; (#171) the suppression is also persisted durably to the `declined` slice on the `health-state` branch (`decide()`'s `durableDeclined` param, `mergeWontfixIntoDeclined`) — read via `git fetch`, so it survives GitHub being unreachable outright, or a label applied before this container existed.
 
 **Digest-mode fold.** Before writing `/tmp/code-health-open.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `code-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 8 rather than being re-judged or re-digested.
 

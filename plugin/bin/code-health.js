@@ -224,6 +224,16 @@ function cmdValidateFindings(args) {
   // 3. Dedup against the issue index and local cache.
   const cache = readCache(root);
   const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
+  // Durable twin of the local cache's wontfix suppressions (#171) — read
+  // once, up front, so decide() can honor a wontfix suppression persisted on
+  // an earlier firing even when this firing's local cache is empty (a fresh
+  // scheduled-Routine container). Read unconditionally, including in
+  // --dry-run mode, so a dry-run preview reflects the same suppression a
+  // real run would apply. readDurableState/readState never throws (see
+  // health-core/durable-state.js's "Reads never throw" comment) — an
+  // unreachable health-state branch degrades to {} on its own, printing a
+  // trace to stderr, same as every other durable-state read in this codebase.
+  const durableDeclined = readDurableState(root).declined || {};
   // Collected as raw candidates, not a pre-computed delta object — the
   // "already remembered, don't touch it" decision is made later, inside
   // writeDurableState's mutator (buildValidateFindingsUpdate), against
@@ -236,17 +246,24 @@ function cmdValidateFindings(args) {
   const rememberCandidates = [];
   const payloads = [];
   const seen = new Set();
+  const wontfixSuppressed = [];
   for (const finding of survivors) {
     if (seen.has(finding.id)) continue; // intra-run dedup
     seen.add(finding.id);
 
-    const decision = decide(finding, issueIndex, cache, { threshold: args['min-risk'] || 'high' });
+    const decision = decide(finding, issueIndex, cache, { threshold: args['min-risk'] || 'high', durableDeclined });
     if (decision.action === 'suppress') {
       // A wontfix match is a standing decision meant to survive into gh-unavailable runs
       // (dedup.js's `cached.status === 'wontfix'` cache-only fallback depends on this write
       // existing — without it, that fallback path can never fire, and a wontfix'd finding can
       // get re-filed the next time gh is unreachable).
       cache[finding.id] = { status: 'wontfix', issue: decision.issue || null, severity: finding.severity, risk: finding.risk };
+      // A fresh reading of a live `wontfix`-labelled issue (not already
+      // durable) — persist it into the durable declined slice below so it
+      // survives a later firing whose local cache is empty too (#171). The
+      // cache-level and durable-level suppress branches carry no `reason`
+      // (they're already durable/persisted; re-persisting is a no-op).
+      if (decision.reason === 'wontfix-label') wontfixSuppressed.push(finding.id);
       continue;
     }
     if (decision.action === 'skip') continue;
@@ -286,7 +303,7 @@ function cmdValidateFindings(args) {
       const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId), null, { recursive: sliceRecursive(sliceId, root) }) } : {};
       const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
       // Named rather than inlined into the mutator call below, for readability.
-      const mutatorInput = { areasSwept, hashes, rememberCandidates, runRecord };
+      const mutatorInput = { areasSwept, hashes, rememberCandidates, runRecord, wontfixSuppressed };
       const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, mutatorInput));
       if (!result.ok) {
         process.stderr.write(

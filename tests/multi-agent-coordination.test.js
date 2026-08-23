@@ -703,15 +703,20 @@ test('/specify red-team integration: ambiguous draft spec → red-team flags it 
     'Open Questions table must contain the general-location finding',
   );
 
-  // Decision-log entry schema for one staged finding. Note: "Written to
-  // record as" (not "spec") — skills/specify/red-team.md's Step 4 template
-  // uses "record" (the record-model terminology this repo migrated to), a
-  // wording the previous self-authored regex ("Written to spec as .+")
-  // never caught because it only ever checked its own hand-typed string.
-  const entry =
-    `- STAGED 11:22:33 — Red-team: persona "Skeptical Reviewer" flagged ambiguity at Acceptance Criteria 1. ` +
-    `Written to record as <!-- ambiguity: --> marker.`;
-  assert.match(entry, decisionLogPattern(SPECIFY_RED_TEAM, ['Red-team: persona']));
+  // Decision-log entry schemas, derived live from skills/specify/red-team.md's
+  // write-back step 7: one AUTO summary per record (never one entry per
+  // finding), plus one STAGED entry per decision-worthy finding staged for the
+  // Review Console. Deriving both patterns from the doc means a real rewording
+  // of either documented template fails here — the same anti-self-reference
+  // rationale decisionLogPattern's own comment explains.
+  const summaryEntry =
+    `- AUTO 11:22:33 — Red-team #517: Implementer 1 / Skeptical Reviewer 1 (2 medium; 0 merged, 0 info dropped). ` +
+    `Written back as 1 inline <!-- ambiguity: --> markers + 1 Open Questions rows in one recomposed-body write. Reversibility: high.`;
+  assert.match(summaryEntry, decisionLogPattern(SPECIFY_RED_TEAM, ['Red-team', 'Written back as']));
+  const stagedEntry =
+    `- STAGED 11:22:33 — Red-team #517: decision-worthy finding "retry storage undefined" ` +
+    `staged for Review Console at staged/red-team-517-retry-storage.md; ready cleared pending resolution.`;
+  assert.match(stagedEntry, decisionLogPattern(SPECIFY_RED_TEAM, ['Red-team', 'staged for Review Console']));
 });
 
 test('/specify red-team integration: zero findings → Open Questions section is omitted entirely (no empty placeholder)', () => {
