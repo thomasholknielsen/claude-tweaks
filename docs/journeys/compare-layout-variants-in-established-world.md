@@ -2,6 +2,8 @@
 files:
   - plugin/skills/design-wrapper/modes/explore.md
   - plugin/skills/design-wrapper/SKILL.md
+  - plugin/skills/design-wrapper/compare-shell/template.html
+  - plugin/skills/_shared/visual-decision.md
 ---
 
 # Compare Layout Variants of a New Surface in an Established World
@@ -27,7 +29,14 @@ files:
 - **Should understand:** Variants differ in framing only (modal vs inline form for the same save action is fine); behavior variation (autosave vs explicit save) is spec territory and never appears here.
 - **Red flags:** A variant introducing a new palette/type voice/motif; variants that differ in actual behavior.
 
-### 3. Pick and carry forward — browser + terminal
+### 3. Fine-tune the focused variant — browser
+- **URL:** Same server URL, double-clicked into a single variant's focus view
+- **Action:** Nudge the hue / spacing-scale / corner-radius sliders — each move updates a live readout and a small preview swatch, and posts a `tweak` event to the round's event log.
+- **Should feel:** An instant, in-panel preview of the token nudge — no page reload, no new variant dealt, no full reroll.
+- **Should understand:** The swatch previews the *shell's own* panel, not the focused variant itself — the variant renders in a sandboxed iframe the tweak deliberately never reaches. Tweaking never changes which variant is under consideration; only `pick` does that.
+- **Red flags:** A tweak triggering a reroll or changing the grid's selected variant; the swatch appearing to restyle the variant's own iframe (it can't, and shouldn't).
+
+### 4. Pick and carry forward — browser + terminal
 - **URL:** The same reused verdict question: pick / reroll / steer / canon standing exit (listed last).
 - **Action:** Pick a winner — the mode returns its path as `visual_reference`; the caller writes the `Visual-reference:` body-metadata line. Or exit without picking — the explore dir is deleted and the mode returns a skip.
 - **Should feel:** `DESIGN.md` is never at risk — this scope reads it and never writes it; approval refines the task concept, not the identity.
