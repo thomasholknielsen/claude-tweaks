@@ -146,6 +146,12 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   // call needs was already independently verified by gates 1-3 above, so this
   // call is confirmatory, not a new judgment.
   const permitted = permittedGrants({ ceiling, row, grantOriginationEnabled: pol.grantOriginationEnabled });
+  // NOTE (#309): this boolean means "this class of record earns merge
+  // trust" — it does NOT decide which label represents that trust. The
+  // caller (backlog/grant-mode.md's Step 4) applies `auto:merge-pending`
+  // when this is true, never `auto:merge` directly; maturation to
+  // `auto:merge` happens later, at dispatch's Auto-merge gate. This module
+  // stays a pure "does the class qualify" decision either way.
   let autoMerge = permitted.grants.bornAuthorized.granted === true;
 
   // Global merge-lane circuit breaker (#311) — a second, independent,

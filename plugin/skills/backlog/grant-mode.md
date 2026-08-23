@@ -11,6 +11,10 @@ gate chain that still requires a clean trust verdict, agent-filed origin, a cont
 regardless of every other key — see `_shared/work-record.md`'s new `/backlog grant` permission
 matrix row.
 
+As of #309, a gate-chain pass that would have granted merge trust applies `auto:merge-pending`
+instead of `auto:merge` directly — see `_shared/work-record.md`'s Grant semantics for the full
+pending-then-mature flow and why this replaces the old immediate-grant behavior outright.
+
 Preflight (Detection Ladder, `work-backend: local-files` complete stop) is documented once in
 `SKILL.md` — read it before this file if you haven't; nothing here restates it.
 
@@ -318,13 +322,17 @@ is a human-gate action (`_shared/work-record.md`'s permission matrix: `/backlog 
 
 ## Step 4: Apply
 
-**Grant rows** (Phase C `grant: true`): bootstrap `auto:build` (+`auto:merge` when
+**Grant rows** (Phase C `grant: true`): bootstrap `auto:build` (+`auto:merge-pending` when
 `result.autoMerge`) per `_shared/label-bootstrap.md`, same `LABELS_JSON` pair `refine-mode.md`
-Step 5 uses. `bot:blocked` candidates take the **re-authorize** path — strip `bot:blocked`, grant
-**`auto:build` only, never `auto:merge`**, regardless of what `result.autoMerge` says (mirrors
-`refine-mode.md` Step 3's `re-authorize (bot:blocked)` row: "a prior failure means the human's
-renewed judgment is the point" — this mode has no human in the loop for this decision, so the
-conservative floor is to never restore `auto:merge` on a re-authorization headlessly, full stop):
+Step 5 uses. `auto:merge-pending` is a waypoint, not the final merge grant — it matures to
+`auto:merge` at `/claude-tweaks:dispatch`'s existing Auto-merge gate Authorization layer, gated
+by `grant-veto-window-hours` and vetoable by a human removing the label before then (see
+`_shared/work-record.md`'s Grant semantics). `bot:blocked` candidates take the **re-authorize**
+path — strip `bot:blocked`, grant **`auto:build` only, never `auto:merge`/`auto:merge-pending`**,
+regardless of what `result.autoMerge` says (mirrors `refine-mode.md` Step 3's `re-authorize
+(bot:blocked)` row: "a prior failure means the human's renewed judgment is the point" — this
+mode has no human in the loop for this decision, so the conservative floor is to never restore
+merge trust on a re-authorization headlessly, full stop):
 
 ```bash
 if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx bot:blocked; then
@@ -332,19 +340,15 @@ if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx bot:block
 else
   gh issue edit "$ISSUE" --add-label auto:build
   if [ "$AUTO_MERGE" = "true" ]; then
-    gh issue edit "$ISSUE" --add-label auto:merge
-    node -e "
-      const { writeWatched } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
-      writeWatched(process.cwd(), (current) => ({ ...current, ['$ISSUE']: { grantedAt: new Date().toISOString() } }));
-    "
+    gh issue edit "$ISSUE" --add-label auto:merge-pending
   fi
 fi
 ```
 
-The `writeWatched` call above is the **only** write path that adds a `merge-lane/watched.json`
-entry (#311's own Deliverables) — it fires exactly when `auto:merge` is actually granted (never on
-a `bot:blocked` re-authorization, which grants `auto:build` only), since a build-only grant has no
-merge for the breaker to ever need to watch.
+Unlike before #309, this step no longer seeds `merge-lane/watched.json` — a pending grant hasn't
+merged anything yet, so there is nothing for the circuit breaker to watch. That seed now happens
+in `dispatch/settle-and-merge.md`'s Auto-merge gate, at the moment `auto:merge-pending` actually
+matures into `auto:merge` (see that file).
 
 Post the audit comment (evidence snapshot — see the Audit format below), then log to
 `decisions.md`.
@@ -368,9 +372,9 @@ Machine-granted by /claude-tweaks:backlog grant (headless).
 - Origin: {origin}
 - grant-check: clear — {rationale}
 - Floors: merge-sensitive-paths clear, risk:{risk}, daily-grant-cap {n/a | "N of M"}
-- Grants applied: auto:build{ + auto:merge}
+- Grants applied: auto:build{ + auto:merge-pending}
 
-<!-- grant-mode-audit: date={YYYY-MM-DDTHH:MM:SSZ} auto-merge={true|false} -->
+<!-- grant-mode-audit: date={YYYY-MM-DDTHH:MM:SSZ} auto-merge={true|false|pending} -->
 ```
 
 The trailing HTML comment is the durable, greppable marker Step 2's cap-seeding count reads back
@@ -382,7 +386,7 @@ already uses.
 
 ```
 AUTO {time} — Backlog grant: ceiling gate not satisfied (ceiling={x}, opt-in={y}) — nothing to do this firing.
-AUTO {time} — Backlog grant: granted auto:build{ + auto:merge} to #{n} (class {classKey}, verdict clean). Rationale: {grant-check RATIONALE}.
+AUTO {time} — Backlog grant: granted auto:build{ + auto:merge-pending} to #{n} (class {classKey}, verdict clean). Rationale: {grant-check RATIONALE}.
 AUTO {time} — Backlog grant: re-authorized #{n} — stripped bot:blocked, granted auto:build only.
 AUTO {time} — Backlog grant: skipped #{n} — {failedKey}: {reason}.
 ```
