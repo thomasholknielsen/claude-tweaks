@@ -384,15 +384,16 @@ record stays unshaped and still eligible (a recoverable state), and the
 failure is the shaping-stage failure the paragraph above describes.
 
 **Decision-log fallback.** Every auto-resolved decision this firing
-produces (the framing verdict, the design-intent resolution already
-established by Flag rejection above, and this file's headless posture
-driving the `shaped:headless` inclusion in shaping mode's write) logs to
-`$RUN_DIR/decisions.md` per `_shared/auto-decision-log.md`'s schema — the
-same convention `## Claim` and `## Release` sections use for the same
-firing. When a Routine fires with no explicit pipeline run dir configured,
-`$RUN_DIR` resolves via `_shared/pipeline-run-dir.md`'s standalone-auto
-fallback, ensuring every auto-resolved decision is recorded in that
-fallback run dir's audit log, not only in the firing's returned output.
+produces (the framing verdict, the design-intent and UI-stack resolutions
+already established by Flag rejection above, and this file's headless
+posture driving the `shaped:headless` inclusion in shaping mode's write)
+logs to `$RUN_DIR/decisions.md` per `_shared/auto-decision-log.md`'s
+schema — the same convention `## Claim` and `## Release` sections use for
+the same firing. When a Routine fires with no explicit pipeline run dir
+configured, `$RUN_DIR` resolves via `_shared/pipeline-run-dir.md`'s
+standalone-auto fallback, ensuring every auto-resolved decision is
+recorded in that fallback run dir's audit log, not only in the firing's
+returned output.
 
 ## Release
 
