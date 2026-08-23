@@ -86,8 +86,11 @@ test('POLICY_KEYS entries are unique', () => {
   // doc-convention-how-to, doc-convention-reference, doc-convention-explanation,
   // doc-convention-journey — one enum key per newly-wired Diátaxis/Journey genre,
   // same shape as doc-convention-adr.
-  assert.strictEqual(POLICY_KEYS.length, 59);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 59);
+  // 59 -> 60, #309 (veto-window maturation): grant-veto-window-hours — how
+  // long a machine-granted auto:merge-pending grant must sit unvetoed before
+  // /claude-tweaks:dispatch's Auto-merge gate matures it to auto:merge.
+  assert.strictEqual(POLICY_KEYS.length, 60);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 60);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
