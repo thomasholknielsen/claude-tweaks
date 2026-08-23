@@ -58,7 +58,7 @@ Rules:
 
 > **No decisions during scanning.** Steps 1-4.95 and 5.5 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-Steps split by cost, the same way `skills/help/status-scan.md`'s Execution model does. A step whose scan rules are substantial enough to inline, or that does real `gh` work, earns a Task agent. Steps 4, 4.6, 4.9, and 4.95 are none of those — their entire rule set is a four-row table over a `Glob` of the plan directories, a single `Read` of `docs/REGISTRY.md`, and one Skill-tool call that shells out to a JSON-emitting script (twice — the design-wrapper doctor check and the calibration read-out), respectively — so dispatching them as agents would pay the full inherited `CLAUDE.md` cost to run one `Glob`. They run in the main thread instead.
+Steps split by cost, the same way `skills/help/status-scan.md`'s Execution model does. A step whose scan rules are substantial enough to inline, or that does real `gh` work, earns a Task agent. Steps 4, 4.6, 4.9, and 4.95 are none of those — their entire rule set is the classification tables in `scan-procedures.md` Step 4 over a `Glob` of the plan and ledger directories, a single `Read` of `docs/REGISTRY.md`, and one Skill-tool call that shells out to a JSON-emitting script (twice — the design-wrapper doctor check and the calibration read-out), respectively — so dispatching them as agents would pay the full inherited `CLAUDE.md` cost to run one `Glob`. They run in the main thread instead.
 
 **Extracted — read `scan-execution.md` in this skill's directory.** That file carries the dispatch
 contract, model profile, output template, and column semantics for the agent-backed steps, plus

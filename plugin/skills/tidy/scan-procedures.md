@@ -51,14 +51,17 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 Also glob `docs/plans/*-ledger.md` — the per-feature pipeline ledgers `/claude-tweaks:ledger` creates (`docs/plans/YYYY-MM-DD-{feature}-ledger.md`, `_shared/ledger-format.md`) and `/claude-tweaks:wrap-up` Step 10 deletes on successful completion. A pipeline that never reaches wrap-up leaves its ledger behind permanently; nothing else sweeps for it.
 
-For each matched file, extract its `{feature}` slug (the filename with the leading `YYYY-MM-DD-` date and the trailing `-ledger.md` suffix stripped) and check `.claude-tweaks/pipelines/` (every entry except `archive/`) for a directory whose name contains that slug as a substring — a pipeline run directory's own `{spec-slug}` (`_shared/pipeline-run-dir.md`) commonly embeds the same feature identifier (e.g. ledger `2026-08-14-record-390-ledger.md` ↔ run directory `2026-08-14T…-record-390`), though the two naming schemes are independently derived and not guaranteed identical:
+For each matched file, read its content — cheap, these files are a few KB — and classify:
 
 | Status | Recommendation |
 |--------|---------------|
-| A directory under `.claude-tweaks/pipelines/` (not `archive/`) matches the slug | Keep |
-| No matching directory anywhere under `.claude-tweaks/pipelines/` (absent, or present only under `archive/`) | Delete (orphan) |
+| Any row's `Status` column reads `open` (`_shared/ledger-format.md`'s non-terminal status — "these items block pipeline completion") | Keep |
+| No `open` row (every row is a terminal status — `fixed`/`deferred`/`accepted`/`acknowledged`/`observation` — or the ledger has zero rows), AND a directory under `.claude-tweaks/pipelines/` (not `archive/`) still exists whose name contains the ledger's own record/spec number(s) — parsed from its `# Open Items — #{N}[,#{M}...]: {title}` heading, or from the filename's `{feature}` slug when the heading carries no `#{N}` | Keep |
+| No `open` row AND no matching directory anywhere under `.claude-tweaks/pipelines/` (absent, or present only under `archive/`) | Delete (orphan) |
 
-Absence of the run directory is the safer orphan signal than file age alone — a pipeline that's merely paused, not abandoned, still has its run directory on disk (just inactive); only a genuinely finished-and-archived or abandoned-and-swept run leaves the ledger with nothing to match. Before recommending Delete, also sanity-check that no open work record's body references the ledger's filename or feature slug — a quick judgment read, not a scripted grep across every open record (Step 4 stays in the main thread precisely because its rule set is cheap).
+The ledger's own `Status` column is the authoritative signal — a `fixed`/`deferred`/`accepted` disposition means the pipeline resolved that item regardless of where its run directory ended up, while an `open` row means real unresolved work exists no matter what the directory layout says. Directory placement (live, archived, or absent) only breaks ties for a ledger with zero recorded items yet, or with terminal-only items whose owning pipeline might still be actively running. Never classify by directory presence alone without reading the ledger's own status rows first — `.claude-tweaks/pipelines/` archival (a 30-day compaction sweep, or any other convergence check) is decoupled from whether an individual ledger's items were ever resolved, so "archived" alone is not proof the underlying work finished; two ledgers in the current corpus (`2026-08-16-spec-276-528-529-530-ledger.md`, `2026-08-20-record-827-ledger.md`) carry a genuine `open` row while their pipeline directories are already under `archive/` — exactly the case this rule exists to catch.
+
+Before recommending Delete, also sanity-check that no open work record's body references the ledger's filename or feature slug — a quick judgment read, not a scripted grep across every open record (Step 4 stays in the main thread precisely because its rule set is cheap).
 
 → Collect each as: `[ledger] {filename} — {recommendation}`
 
