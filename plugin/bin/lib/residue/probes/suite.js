@@ -3,7 +3,8 @@
 // This is the `blast-radius` class: a suite red at close time is this run's
 // own concern regardless of why it's red — the session hit it, so it belongs
 // in the report under every scope, not just `repo`. A suite that could not be
-// run, or timed out, reports `ran: false` — never green.
+// run, timed out, or overflowed the output capture buffer, reports
+// `ran: false` — never green.
 'use strict';
 
 const { makeFinding } = require('../finding');
@@ -15,6 +16,7 @@ function probeSuite({ scope, run } = {}) {
   const result = run();
   if (result === null) return { ran: false, reason: 'could not run the project test command', findings: [] };
   if (result.timedOut) return { ran: false, reason: 'test command timed out', findings: [] };
+  if (result.bufferOverflowed) return { ran: false, reason: 'test output exceeded capture buffer', findings: [] };
   if (result.code === 0) return { ran: true, reason: null, findings: [] };
 
   const allFailing = String(result.stdout || '').split('\n').filter((l) => l.startsWith('not ok'));
