@@ -134,8 +134,7 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
   // partial sweep into a silent, indistinguishable-from-clean exit 0.
   const shadowStaged = path.join(shadow, 'staged');
   const stagedStat = statOrDiagnose(fs.statSync, shadowStaged, 'shadow staged/', lines);
-  const stagedIsDir = stagedStat ? stagedStat.isDirectory() : false;
-  if (stagedIsDir) {
+  if (stagedStat && stagedStat.isDirectory()) {
     let entries;
     try {
       entries = fs.readdirSync(shadowStaged).sort();
