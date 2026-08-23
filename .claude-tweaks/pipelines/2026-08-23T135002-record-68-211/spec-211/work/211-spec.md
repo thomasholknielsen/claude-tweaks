@@ -95,3 +95,16 @@ Context: The `RemoteTrigger` tool exposes a `create_webhook_trigger` action (`PO
 
 Scope: A `pull_request.opened` trigger filtered to non-draft PRs whose head branch doesn't match `claude/*` would give this repo cloud-side `/claude-tweaks:review` on every PR. The filter grammar covers author, title, body, base branch, head branch, labels, is-draft, and is-merged, each with equals / contains / starts-with / is-one-of / is-not-one-of / matches-regex (whole-value: `.*hotfix.*`, not `hotfix`). Two preconditions: the Claude GitHub App must be installed on the repo (`/web-setup` grants clone access but does **not** enable webhook delivery), and per-routine and per-account hourly event caps apply during the research preview, with events beyond the cap dropped rather than queued.
 
+## Blocked / Future Work
+
+This build (`2026-08-23T135002-record-68-211`, dispatched as a `dispatch-record-68-211` file-overlap bundle with #68) could not implement this record's core deliverable — the `create_webhook_trigger` integration and the doc-vs-tool contradiction resolution — because the `RemoteTrigger` tool is not available in this build session. Probed via `ToolSearch select:RemoteTrigger`: no matching deferred tool found. This is a Claude Code CLI worktree agent session (dispatched by `/claude-tweaks:dispatch`), not an interactive `/claude-tweaks:routine` invocation, and `RemoteTrigger` appears to be gated to the latter.
+
+Per this record's own Technical Approach ("verify the tool action's actual behavior... before committing to skill prose"), writing the webhook-trigger creation path without that verification would risk shipping incorrect assumptions about `create_webhook_trigger`'s required fields, response shape, and filter grammar — exactly the failure mode this record's Deliverables section exists to avoid. No implementation was attempted for that reason.
+
+**What unblocks it:** a session with the `RemoteTrigger` tool loaded (an interactive `/claude-tweaks:routine`-capable session) needs to:
+1. Call `create_webhook_trigger` against a real (or documented dry-run) routine and record its actual required fields, response shape, and any App-not-installed error behavior.
+2. Resolve the doc-vs-tool contradiction (find and correct whichever of the public routines doc's "web UI only" claim or the tool surface itself is stale).
+3. Extend `create-and-update.md` with the webhook-trigger creation path, informed by step 1's findings.
+
+Tracked as ledger item #2 in `docs/plans/2026-08-23-record-68-211-ledger.md` (phase `build`, status `open`).
+

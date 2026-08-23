@@ -155,3 +155,11 @@ Note for whoever picks this up: this is not a reason to block the writability wo
 - #209 — whether routines can declare their own plugin via `enabled_plugins`/`extra_marketplaces`; same "undocumented routine config field" territory.
 - #213 — `/routine` has no pause action and STATUS reports a paused routine as healthy; carries #210's residual point that STATUS Step 3.5's field-level drift check is incomplete.
 
+## Blocked / Future Work
+
+Implemented in this build (`2026-08-23T135002-record-68-211`): AC1 (Step 6's `notifications` field on the direct-create path), AC4 (Step 7 preview line), and the doc sentence — see `plugin/skills/routine/create-and-update.md` and the pinning test `tests/routine-notifications.test.js`.
+
+**Not implemented — blocked:** Task 0's empirical premise-check (does `RemoteTrigger {action: "update", ...}` actually persist `notifications` the same way `create` was already confirmed live). This build session (a Claude Code CLI worktree agent dispatched by `/claude-tweaks:dispatch`) has no `RemoteTrigger` tool loaded — `ToolSearch select:RemoteTrigger` returns no match — so the throwaway-routine probe this task calls for cannot run here. Per AC3, this blocks only AC2 (the guided-path follow-up call) — the guided-path *code change* itself (Step 8's follow-up call) is implemented, on the strength of the design's own stated precedent that the same `update` action is already proven live elsewhere in this file, but its correctness for the `notifications` field specifically remains unconfirmed pending Task 0.
+
+Tracked as ledger item #1 in `docs/plans/2026-08-23-record-68-211-ledger.md` (phase `build`, status `open`). Unblocks the same way as #211's ledger item #2: needs a session with `RemoteTrigger` available.
+
