@@ -35,7 +35,7 @@ function validateRiskArg(value, { argName, cmdName, consequence }) {
     `${cmdName}: --${argName} "${value}" is not a recognized risk tier ` +
     `(must be one of ${Object.keys(RISK_RANK).join('|')}) — ${consequence}\n`,
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 function parseArgs(argv) {
@@ -71,7 +71,8 @@ function cmdStatus(args) {
       `(must be one of ${[...FAIL_ON_VALUES].join('|')}) — an unrecognized value silently disables ` +
       'the gate (always exits 0) regardless of how many regressed/risk-high findings actually exist.\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   const cache = readCache(root);
@@ -103,11 +104,13 @@ function cmdStatus(args) {
 
   if (failOn === 'regressed' && counts.regressed > 0) {
     process.stdout.write(`FAIL: ${counts.regressed} regressed finding(s)\n` + line);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (failOn === 'risk-high' && counts.riskHigh > 0) {
     process.stdout.write(`FAIL: ${counts.riskHigh} open risk-high finding(s)\n` + line);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   process.stdout.write(line);
 }
@@ -116,23 +119,27 @@ function cmdPullIssues(args) {
   const { pullReconIssues } = require('./lib/code-health/pull-issues');
   if (!args.issues) {
     process.stderr.write('usage: code-health.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   validateRiskArg(args['min-severity'], {
     argName: 'min-severity',
     cmdName: 'pull-issues',
     consequence: 'an unrecognized value silently disables the severity filter instead of restricting output.',
   });
+  if (process.exitCode) return;
   let issuesJson;
   try {
     issuesJson = JSON.parse(fs.readFileSync(args.issues, 'utf8'));
   } catch {
     process.stderr.write(`pull-issues: could not read or parse issues file: ${args.issues}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (!Array.isArray(issuesJson)) {
     process.stderr.write('pull-issues: issues file must contain a JSON array\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const briefs = pullReconIssues({
     label: args.label || 'code-health',
@@ -154,7 +161,8 @@ function cmdValidateFindings(args) {
       'usage: code-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] ' +
       '[--run-id <id>] [--slice <id>] [--min-risk <level>] [--dry-run]\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   if (!args.dryRun && !args.slice) {
@@ -163,7 +171,8 @@ function cmdValidateFindings(args) {
       'the round-robin cursor for this slice never persists and rotation state silently drifts. ' +
       'Pass --dry-run to preview without it.\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   validateRiskArg(args['min-risk'], {
@@ -171,17 +180,20 @@ function cmdValidateFindings(args) {
     cmdName: 'validate-findings',
     consequence: 'an unrecognized value silently remembers every finding instead of filing it, including high-risk ones.',
   });
+  if (process.exitCode) return;
 
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
   } catch (err) {
     process.stderr.write(`validate-findings: could not read or parse findings file: ${findingsPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (!Array.isArray(raw)) {
     process.stderr.write('validate-findings: findings file must contain a JSON array\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   // 1. Validate every finding; drop malformed ones with a logged reason.
@@ -374,7 +386,7 @@ function main(argv) {
     'commands: validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues, ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 if (require.main === module) main(process.argv.slice(2));

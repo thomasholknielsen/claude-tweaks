@@ -44,11 +44,10 @@ function parseArgs(argv) {
 function runner(cwd) {
   // `opts` lets a caller pass extra `execFileSync` options (e.g. `timeout`)
   // for a specific command without changing every other call through this
-  // shared seam — see `probes/branches.js`'s `git remote prune` call, the
-  // first command through here to contact a remote and therefore the first
-  // that needs a bound. The existing catch-all below already treats a
-  // timeout kill the same as any other failure (returns null), so no new
-  // error handling is needed at this seam.
+  // shared seam — a probe that needs to contact a remote (unlike the
+  // local-only checks every probe currently runs) needs a bound; the
+  // existing catch-all below already treats a timeout kill the same as any
+  // other failure (returns null), so no new error handling is needed here.
   return (argv, opts = {}) => {
     try {
       return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
@@ -77,7 +76,8 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (!opts.base) {
     process.stderr.write('usage: residue.js --base <commit-ish> [--scope repo|blast-radius] [--integration-branch <ref>] [--no-suite] [--json]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const cwd = process.cwd();
   const run = runner(cwd);

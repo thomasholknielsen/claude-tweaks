@@ -37,44 +37,30 @@ node -e "
 "
 ```
 
-`work-links: native` — `parseDependencies` matches nothing (native links write no body text at all per `_shared/work-record.md`), so this branch instead reuses `bin/lib/issues/record.js`'s `buildNativeDependencyQuery`/`hasOpenNativeBlocker`, the same pair `/claude-tweaks:dispatch` Step 2 and `flow/materialize.md` already use for this mode. One batched, aliased GraphQL query over every open record's number returns each record's `blockedBy` connection with each blocker's live `state` in the same response, so — unlike the body-text branch — no second all-states call is needed:
+`work-links: native` — `parseDependencies` matches nothing (native links write no body text at all per `_shared/work-record.md`), so this branch instead calls `bin/resolve-blockers.js` — the single-invocation CLI wrapping `bin/lib/issues/native-dependencies.js`'s `fetchNativeDependencies` (the same underlying function `/claude-tweaks:dispatch` Step 2 and `flow/materialize.md` use for this mode) rather than hand-rolling `gh api graphql` with bound variables, which a worktree-isolated session's compound-Bash refusal blocks (`_shared/scratch-worktree.md`'s Shell constraint section). Pass every open record's number as ONE comma-joined list — the CLI batches them into a single aliased GraphQL query, exactly like the hand-rolled version it replaces, so this is still one network round trip regardless of how many open records exist:
 
 ```bash
 node -e "
-  const { buildNativeDependencyQuery } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const { execFileSync } = require('child_process');
   const records = require('/tmp/wrapup-open-records.json');
-  const query = buildNativeDependencyQuery(records.map((r) => r.number));
-  if (query) require('fs').writeFileSync('/tmp/wrapup-native-query.graphql', query);
-"
-echo '{"data":{"repository":{}}}' > /tmp/wrapup-native-deps.json
-if [ -s /tmp/wrapup-native-query.graphql ]; then
-  OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
-  if gh api graphql -f query="$(cat /tmp/wrapup-native-query.graphql)" \
-    -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
-    > /tmp/wrapup-native-deps.tmp.json 2>/tmp/wrapup-native-deps.err; then
-    mv /tmp/wrapup-native-deps.tmp.json /tmp/wrapup-native-deps.json
-  else
-    echo "Warning: native dependency query failed — skipping newly-unblocked check this run: $(cat /tmp/wrapup-native-deps.err)" >&2
-  fi
-fi
-node -e "
-  const { hasOpenNativeBlocker } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const records = require('/tmp/wrapup-open-records.json');
-  const repoData = require('/tmp/wrapup-native-deps.json').data.repository;
   const closedNum = ${CLOSED_NUM};
+  let byNumber = {};
+  if (records.length) {
+    try {
+      const out = execFileSync('node', ['${CLAUDE_PLUGIN_ROOT}/bin/resolve-blockers.js', records.map((r) => r.number).join(',')], { encoding: 'utf8' });
+      byNumber = JSON.parse(out.trim());
+    } catch (e) {
+      console.error('Warning: native dependency query failed — skipping newly-unblocked check this run:', e.message);
+    }
+  }
   const unblocked = records
-    .filter((r) => {
-      const node = repoData['i' + r.number];
-      const nodes = node && node.blockedBy && node.blockedBy.nodes;
-      return Array.isArray(nodes) && nodes.some((n) => n && n.number === closedNum);
-    })
-    .filter((r) => !hasOpenNativeBlocker(repoData['i' + r.number]))
+    .filter((r) => byNumber[r.number] && byNumber[r.number].blockedBy.includes(closedNum) && !byNumber[r.number].openBlocker)
     .map((r) => ({ number: r.number, title: r.title }));
   require('fs').writeFileSync('/tmp/wrapup-unblocked.json', JSON.stringify(unblocked));
 "
 ```
 
-On any GraphQL error this fails safe — skip the check for this run (an empty `wrapup-unblocked.json`) rather than blocking wrap-up, matching this section's own "must never gate, block, or delay the wrap-up" rule above and dispatch's identical native-mode fallback.
+`byNumber[r.number].openBlocker` reflects LIVE blocker state at query time, run after this session already closed `${CLOSED_NUM}` — so a `false` here means every one of the record's blockers, `${CLOSED_NUM}` included, is now resolved, without needing to special-case `closedNum` out of the check. On any error this fails safe — skip the check for this run (an empty `wrapup-unblocked.json`) rather than blocking wrap-up, matching this section's own "must never gate, block, or delay the wrap-up" rule above and dispatch's identical native-mode fallback.
 
 **`work-backend: local-files`:**
 

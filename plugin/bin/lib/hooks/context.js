@@ -19,6 +19,21 @@ function readRunState(runDir) {
   try { return JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8')); } catch { return null; }
 }
 
+// How long an archive twin's 'archiving' claim (archive-merged.js's
+// archiveRunDir) blocks other archival attempts on the same run dir before
+// it's treated as abandoned. Minutes, not hours (unlike ORPHAN_MINT_TTL_MS,
+// archive-merged.js's own 24h constant for a different case) — a real
+// archival completes in seconds; anything still 'archiving' after this long
+// crashed or hung, and the run dir must become archivable again rather than
+// staying stuck behind a dead claim.
+const ARCHIVE_CLAIM_TTL_MS = 5 * 60 * 1000;
+
+function isStaleClaim(archiveState, now = Date.now()) {
+  const updatedAt = Date.parse(archiveState.updatedAt);
+  if (Number.isNaN(updatedAt)) return true;
+  return (now - updatedAt) > ARCHIVE_CLAIM_TTL_MS;
+}
+
 // An unadopted mint — a directory mkdir'd by dispatch Step 4 or flow Step 2.8
 // that no invocation ever initialized — carries neither run-state.json nor
 // decisions.md. Fallback attribution must never guess into one: a mint that
@@ -35,6 +50,19 @@ function isUnadoptedMint(dir, state) {
   if (state) return false;
   if (fs.existsSync(path.join(dir, 'run-state.json'))) return false;
   return !fs.existsSync(path.join(dir, 'decisions.md'));
+}
+
+// #1177: best-effort removal of a mint's own layout (staged/, decisions.md,
+// then the directory itself) — used by post-tool-use.js's stampAdHocRunDir
+// when writeRunState fails after the mint has already touched decisions.md
+// (which isUnadoptedMint above would otherwise read as "adopted", leaving a
+// mis-attributable candidate behind for a different session, #721). Each
+// step is independently best-effort — an already-partial mint (e.g. no
+// staged/ dir yet) must not abort the later steps.
+function rollbackMint(dirPath) {
+  try { fs.rmdirSync(path.join(dirPath, 'staged')); } catch { /* best-effort */ }
+  try { fs.unlinkSync(path.join(dirPath, 'decisions.md')); } catch { /* best-effort */ }
+  try { fs.rmdirSync(dirPath); } catch { /* best-effort */ }
 }
 
 // Run dirs are named as ISO-timestamp-prefixed slugs (e.g. 2026-07-01T090000-spec-1).
@@ -70,21 +98,6 @@ function findNonCanonicalRunDirs(cwd) {
     .filter((e) => e.isDirectory() && e.name !== 'archive' && !RUN_ID_RE.test(e.name) && NON_CANONICAL_RUN_ID_RE.test(e.name))
     .map((e) => e.name)
     .sort();
-}
-
-// #208: archived-is-terminal invariant, reader side. An archived run-id must never reach the
-// isUnadoptedMint/status inspection below regardless of what its resurrected active-side
-// run-state.json (if any) claims — that data is exactly the untrustworthy resurrected shell
-// described in the record's Current State. Fails OPEN on a read error other than "doesn't
-// exist" (a permission error, e.g.) — never silently suppress a genuinely unfinished run over
-// an unrelated read failure (this record's AC4); the caller reports it exactly as it would
-// have before this filter existed.
-function isArchivedRunId(root, runId) {
-  try {
-    return fs.statSync(path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId)).isDirectory();
-  } catch {
-    return false;
-  }
 }
 
 // Lazily yields each candidate run dir (newest-first) paired with its
@@ -123,7 +136,6 @@ function* iterRunDirsWithState(cwd) {
     .sort()
     .reverse();
   for (const name of names) {
-    if (isArchivedRunId(root, name)) continue;
     const dir = path.join(base, name);
     const state = readRunState(dir);
     if (state && state.status === 'clean') continue;
@@ -138,8 +150,35 @@ function* iterRunDirsWithState(cwd) {
     // every caller of this generator benefits: resolveRun's fallback scan,
     // the reconciler's archiveMerged pass, and session-start's unfinished-run
     // report all stop treating an already-archived run as still-open.
+    //
+    // #1103 fix-wave-1: this content-aware check is now the ONLY archive-twin
+    // check in this loop. An earlier existence-only check (`isArchivedRunId`,
+    // an fs.existsSync/statSync(...).isDirectory() probe with no read of the
+    // twin's own state) used to run first and skip on mere existence of
+    // archive/{name}/ — but archiveRunDir (archive-merged.js) creates that
+    // directory via fs.mkdirSync as its very FIRST action, before any
+    // content actually moves. Any failure after that point (git-mv-failed,
+    // commit-failed, tracked-entry, move-failed, …) left an empty or
+    // partially-populated archive/{name}/ with no cleanup path — which the
+    // existence-only check then treated as "already archived" forever,
+    // permanently stranding the live run dir and its real content (the
+    // literal double-nesting bug #1103 reports). Removed rather than
+    // reworked: this check already subsumes the sanctioned case (a
+    // genuinely completed archive) and, unlike the removed one, cannot be
+    // fooled by an incomplete archive attempt.
     const archiveState = readRunState(path.join(base, 'archive', name));
     if (archiveState && archiveState.status === 'clean') continue;
+    // #1103 follow-up: a fresh 'archiving' claim (archive-merged.js writes
+    // this the instant it mkdir's archiveDir, before moving anything) means
+    // another process is already mid-archival of this exact run dir right
+    // now — skip it here too, or a second unlocked `reconcile` invocation
+    // (dispatch/tidy's pre-step; `reconcile-background` holds its own lock
+    // and never races itself) racing the same run dir would double-move it.
+    // TTL-bounded, unlike the removed existence-only check, so a claim left
+    // behind by a crashed or failed attempt expires and stops blocking this
+    // run dir instead of stranding it forever — the exact failure mode the
+    // existence-only check's removal (above) fixed.
+    if (archiveState && archiveState.status === 'archiving' && !isStaleClaim(archiveState)) continue;
     yield { dir, state };
   }
 }
@@ -305,9 +344,24 @@ function findRunsByWorktreePath(cwd, targetPath, excludeDir) {
   if (typeof targetPath !== 'string' || !targetPath) return [];
   let target = targetPath;
   try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
+  // #1175: excludeDir must be realpath-canonicalized before comparing — a
+  // plain path.resolve() never matches when the caller's --run was spelled
+  // through a symlink (e.g. macOS /tmp, whose real path is /private/tmp), so
+  // the primary run's own events were never excluded and got re-emitted
+  // tagged `_source: 'adhoc'`. `dir` (from iterRunDirsWithState) is only
+  // realpath'd when mainCheckoutRoot resolves a real git repo — the raw-cwd
+  // fallback leaves it unresolved — so `dir` needs the same treatment at
+  // comparison time too, not just excludeDir, or the two sides stay on
+  // unequal footing whenever that fallback is the active path.
+  let excl = excludeDir ? path.resolve(excludeDir) : null;
+  if (excl) { try { excl = fs.realpathSync(excl); } catch { /* keep as-resolved */ } }
   const out = [];
   for (const { dir, state } of iterRunDirsWithState(cwd)) {
-    if (excludeDir && path.resolve(dir) === path.resolve(excludeDir)) continue;
+    if (excl) {
+      let dirReal = path.resolve(dir);
+      try { dirReal = fs.realpathSync(dirReal); } catch { /* keep as-resolved */ }
+      if (dirReal === excl) continue;
+    }
     if (worktreeMatches(state, target, targetPath)) out.push({ runDir: dir, state });
   }
   return out;
@@ -447,4 +501,5 @@ function appendEvent(runDir, type, data, attribution) {
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, classifyOwnership, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
   readRunState, writeRunState, appendEvent, scanWrapupEvents, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
+  rollbackMint,
 };

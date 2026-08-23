@@ -39,6 +39,26 @@ test('accept: main-anchored --run-dir from linked-worktree cwd (production shape
   assert.ok(JSON.parse(res.stdout).model, 'still resolves a model');
 });
 
+// #1138: an empty or whitespace-only --run-dir (the shape an unset
+// $PIPELINE_RUN_DIR expands to in shell) used to reach the anchoring check
+// as a blank string, producing a malformed double-space message
+// ("--run-dir  resolves outside..."). It must now be rejected at parse
+// time, before the anchoring check ever runs.
+test('reject: empty --run-dir value — "--run-dir requires a value", exit 1, never reaches the anchoring check', () => {
+  const main = gitRepo();
+  const res = runCli(['standard', '--run-dir', ''], main);
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /--run-dir requires a value/);
+  assert.doesNotMatch(res.stderr, /resolves outside/, 'must never reach the anchoring check with a blank value');
+});
+
+test('reject: whitespace-only --run-dir value degrades the same as empty', () => {
+  const main = gitRepo();
+  const res = runCli(['standard', '--run-dir', '   '], main);
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /--run-dir requires a value/);
+});
+
 test('accept: --run-dir outside any checkout (journey shape) — tally readable/appendable there', () => {
   const main = gitRepo();
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'rp-journey-'));

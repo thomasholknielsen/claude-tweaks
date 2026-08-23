@@ -11,17 +11,32 @@ const { classifyMirror } = require('../plugin/bin/lib/reconcile/classify');
 const { mirrorFastForward } = require('../plugin/bin/lib/reconcile/mirror-ff');
 const { decideReap } = require('../plugin/bin/lib/reconcile/reap-merged');
 const { decideRelease } = require('../plugin/bin/lib/reconcile/release-merged');
-const { decideArchive, readConsoleState } = require('../plugin/bin/lib/reconcile/archive-merged');
+const { decideArchive, readConsoleState, localHasMerge } = require('../plugin/bin/lib/reconcile/archive-merged');
 const { formatSummary } = require('../plugin/bin/lib/reconcile/format-summary');
 const { isWorktreeLocked } = require('../plugin/bin/lib/hooks/worktree-reap');
 const { reconcile } = require('../plugin/bin/lib/reconcile');
+const { gitRepo } = require('./helpers/git-fixtures');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
-function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
+// #1130: never let an omitted cwd fall through to the spawned subprocess's
+// own process.cwd() — that is the test runner's real working directory, and
+// when npm test runs from a real checkout, hooks that walk
+// .claude-tweaks/pipelines/ from there write fixture events into REAL run
+// dirs (the #657 pollution incident). Calls that don't care about cwd get an
+// isolated, non-git sandbox instead.
+const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-sandbox-'));
+
+function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
-      input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
+      // #1130: `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var
+      // so a call that doesn't explicitly pass one can't resolve against
+      // whatever real run happens to be ambient in this test runner's own
+      // process.env (e.g. when npm test itself runs inside a /flow-dispatched
+      // shell). A caller that needs a run dir still passes it explicitly via
+      // `env`, which wins because it spreads last.
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
@@ -237,8 +252,16 @@ test('decideRelease: live claim + open PR -> skip, never released', () => {
   assert.deepStrictEqual(decideRelease('live', { number: 7, state: 'OPEN' }), { action: 'skip', reason: 'pr-open' });
 });
 
-test('decideArchive: merged + no console rendered -> archive', () => {
-  assert.deepStrictEqual(decideArchive({ number: 3, state: 'MERGED' }, 'none'), { action: 'archive' });
+// #1130: archiveMerged only ever iterates NON-terminal runs, so a missing
+// console.json here always means wrap-up never rendered a console for this
+// run — not the empty-console fast path, which ends with close-run (status
+// clean) + the archive-run verb and never reaches this sweep. Archiving on
+// 'none' swept live runs with pending staged decisions (the #657 incident).
+test('decideArchive: merged + console never rendered -> skip, not archive', () => {
+  assert.deepStrictEqual(
+    decideArchive({ number: 3, state: 'MERGED' }, 'none'),
+    { action: 'skip', reason: 'console-never-rendered' },
+  );
 });
 test('decideArchive: merged + console resolved -> archive', () => {
   assert.deepStrictEqual(decideArchive({ number: 3, state: 'MERGED' }, 'resolved'), { action: 'archive' });
@@ -263,6 +286,40 @@ test('readConsoleState: unparseable content fails closed to unresolved, never si
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
   fs.writeFileSync(path.join(dir, 'console.json'), '{not json');
   assert.strictEqual(readConsoleState(dir), 'unresolved');
+});
+// #1130: no production path writes `resolved` (`_shared/console-execution.md`'s
+// Write order only ever stamped `executedAt`) — `readConsoleState` gating
+// solely on `resolved === true` made the archive branch unreachable for
+// every real console-carrying run. A non-empty `executedAt` is
+// console-execution's own completion stamp and must read as 'resolved' too.
+test('readConsoleState: {executedAt} with no resolved field reads as resolved', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
+  fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({ executedAt: '2026-08-20T10:00:00Z' }));
+  assert.strictEqual(readConsoleState(dir), 'resolved');
+});
+test('readConsoleState: {} (neither resolved nor executedAt) reads as unresolved', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
+  fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({}));
+  assert.strictEqual(readConsoleState(dir), 'unresolved');
+});
+// #1130 review: a whitespace-only executedAt is not a completion stamp — the
+// acceptance check trims before testing length, so it fails closed.
+test('readConsoleState: whitespace-only executedAt reads as unresolved', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-console-'));
+  fs.writeFileSync(path.join(dir, 'console.json'), JSON.stringify({ executedAt: '   ' }));
+  assert.strictEqual(readConsoleState(dir), 'unresolved');
+});
+
+// #1130: gh can report MERGED before the local main checkout has
+// fast-forwarded to include the merge commit. Archiving then moves only the
+// gitignored half (work/ arrives via the merge) — the #657 symptom.
+test('localHasMerge: merge commit not in local history -> false; present -> true; unknown oid shape -> null', () => {
+  const root = gitRepo();
+  const head = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  assert.strictEqual(localHasMerge(root, { oid: head }), true);
+  assert.strictEqual(localHasMerge(root, { oid: 'f'.repeat(40) }), false);
+  assert.strictEqual(localHasMerge(root, null), null);
+  assert.strictEqual(localHasMerge(root, {}), null);
 });
 
 // --- archiveRunDir: real git fixture — the actual move/commit I/O, not just the pure decision table ---
