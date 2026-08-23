@@ -46,7 +46,7 @@ const wtDetect = require('./lib/hooks/worktree-detect');
 
 function fail(msg) {
   process.stderr.write(`resolve-profile: ${msg}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 // A value-taking flag must be followed by a value. Without this, `--stance`
@@ -98,9 +98,9 @@ function main(argv) {
   let runDir;
   while (args.length) {
     const a = args.shift();
-    if (a === '--stance') stance = requireValue(args, '--stance');
+    if (a === '--stance') { stance = requireValue(args, '--stance'); if (process.exitCode) return; }
     else if (a === '--unattended') unattended = true;
-    else if (a === '--run-dir') runDir = requireValue(args, '--run-dir');
+    else if (a === '--run-dir') { runDir = requireValue(args, '--run-dir'); if (process.exitCode) return; }
     else { fail(`unknown argument "${a}"`); return; }
   }
 

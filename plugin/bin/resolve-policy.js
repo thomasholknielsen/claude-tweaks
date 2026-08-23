@@ -33,7 +33,7 @@ const wtDetect = require('./lib/hooks/worktree-detect');
 
 function fail(msg) {
   process.stderr.write(`resolve-policy: ${msg}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 function gitRoot(args) {

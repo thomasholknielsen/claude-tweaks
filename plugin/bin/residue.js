@@ -76,7 +76,8 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (!opts.base) {
     process.stderr.write('usage: residue.js --base <commit-ish> [--scope repo|blast-radius] [--integration-branch <ref>] [--no-suite] [--json]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const cwd = process.cwd();
   const run = runner(cwd);
