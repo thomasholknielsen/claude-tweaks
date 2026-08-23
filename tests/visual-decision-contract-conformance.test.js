@@ -8,7 +8,7 @@ const CONTRACT = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'visu
 const TEMPLATE = path.join(__dirname, '..', 'plugin', 'skills', 'design-wrapper', 'compare-shell', 'template.html');
 const EXPLORE = path.join(__dirname, '..', 'plugin', 'skills', 'design-wrapper', 'modes', 'explore.md');
 
-const EVENT_SHAPES = ['pick', 'reroll', 'steer', 'exit'];
+const EVENT_SHAPES = ['pick', 'reroll', 'steer', 'tweak', 'exit'];
 
 // The one exclusion mechanism this repo's conformance greps honor — a line
 // carrying this literal marker is never counted as a restatement.
@@ -25,7 +25,7 @@ function readNonTombstone(file) {
   return stripTombstoneLines(fs.readFileSync(file, 'utf8'));
 }
 
-test('AC1: the contract file states each of the four event shapes exactly once', () => {
+test('AC1: the contract file states each of the five event shapes exactly once', () => {
   const text = readNonTombstone(CONTRACT);
   for (const shape of EVENT_SHAPES) {
     const literal = `"type":"${shape}"`;
@@ -34,7 +34,7 @@ test('AC1: the contract file states each of the four event shapes exactly once',
   }
 });
 
-test('AC1: the template serializer constructs exactly the same four shapes, one branch each', () => {
+test('AC1: the template serializer constructs exactly the same five shapes, one branch each', () => {
   const text = readNonTombstone(TEMPLATE);
   const fnMatch = text.match(/function serializeEvent\(kind, extra\) \{[\s\S]*?\n  \}/);
   assert.ok(fnMatch, 'expected a serializeEvent function in template.html');

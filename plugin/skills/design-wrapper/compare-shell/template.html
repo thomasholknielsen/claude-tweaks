@@ -258,6 +258,7 @@
       case 'pick': return { type: 'pick', variant: extra.variant, ts: ts };
       case 'reroll': return { type: 'reroll', ts: ts };
       case 'steer': return { type: 'steer', text: extra.text, ts: ts };
+      case 'tweak': return { type: 'tweak', token: extra.token, value: extra.value, ts: ts };
       case 'exit': return { type: 'exit', ts: ts };
       default: throw new Error('unknown event kind: ' + kind);
     }

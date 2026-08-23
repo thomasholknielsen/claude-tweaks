@@ -8,18 +8,21 @@ comparison shell + seeder). Consumers cite this file rather than restating its c
 
 ## Event vocabulary
 
-Exactly four event shapes, each a single JSON object, one per line in `{state}/events` (JSONL —
+Exactly five event shapes, each a single JSON object, one per line in `{state}/events` (JSONL —
 matches compare-shell's `serializeEvent` serializer, `plugin/skills/design-wrapper/compare-shell/template.html`):
 
 ```
 {"type":"pick","variant":"<id>","ts":<epoch-ms>}
 {"type":"reroll","ts":<epoch-ms>}
 {"type":"steer","text":"<free text>","ts":<epoch-ms>}
+{"type":"tweak","token":"<name>","value":"<value>","ts":<epoch-ms>}
 {"type":"exit","ts":<epoch-ms>}
 ```
 
 No other `type` value is valid. A consumer that needs to recognize an event checks `type` against
-exactly this set.
+exactly this set. `tweak` nudges a single design token in the live focus view — a hue, a spacing
+scale, a corner radius — without triggering a full reroll; it never changes which variant is
+selected, only how the currently-focused one renders.
 
 ## Turn loop
 
