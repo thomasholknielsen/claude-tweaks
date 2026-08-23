@@ -229,3 +229,21 @@ test('#1183 fix-wave: reject — a worktree-local archive/{id} shadow is refused
   const out = runRecordWorktree(['--run', trapped, wt], wt);
   assertShadowRejected(out);
 });
+
+test('#1183: reject — a worktree-local INITIALIZED dir outside .claude-tweaks/pipelines/ entirely is not adopted via the #280 fallback (pins the inPipelines condition)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const trapped = mkRunDir(wt, ['some-other-dir']);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assertShadowRejected(out);
+});
+
+test('#1183: reject — a worktree-local INITIALIZED dir under pipelines/ with a non-run-id-shaped name is not adopted via the #280 fallback (pins the runIdShaped condition)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', 'not-a-run-id']);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assertShadowRejected(out);
+});

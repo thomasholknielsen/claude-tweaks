@@ -143,9 +143,10 @@ legitimate run directory outside the repository:
 ### Worktree-local `--run` fallback (#280)
 
 `resolveRunArg` (`bin/hooks.js`, shared by `record-worktree`, `record-pr`, `spec-status`,
-`close-run`, `teardown-run`, and `archive-run` — every CLI verb an explicit `--run <dir>` reaches)
-adds one narrow exception to the unanchored-rejection rule above. It exists for the harness-
-isolation incident this record documents (flow run `2026-08-09T140101-spec-262`): a session whose
+`close-run`, `teardown-run`, `check-resume-freshness`, and `archive-run` — every CLI verb an
+explicit `--run <dir>` reaches) adds one narrow exception to the unanchored-rejection rule above.
+It exists for the harness-isolation incident this record documents (flow run
+`2026-08-09T140101-spec-262`): a session whose
 harness refuses every write to the main checkout for the whole session has no anchored run
 directory to name at all — its run dir was legitimately initialized worktree-local as the only
 available option, and without this exception `--run "$RUN_DIR"` for that run can never resolve
