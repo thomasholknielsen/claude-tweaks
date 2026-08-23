@@ -33,7 +33,8 @@ function sectionText(body, name) {
 // every failing section by its plain name ("Current State", not "## Current
 // State") plus, when present, the string 'unresolved-placeholder' — the same
 // gate materialize.md's "Materialization hard gate" describes: every
-// section present and non-empty, no TBD/TODO/<!-- ambiguity: marker anywhere outside the verbatim-preserved `## Original request` section (that heading to end of body).
+// section present and non-empty, no TBD/TODO/<!-- ambiguity: marker anywhere
+// outside the verbatim-preserved `## Original request` section.
 function shapeGate(body) {
   const text = typeof body === 'string' ? body : '';
   const missing = [];
