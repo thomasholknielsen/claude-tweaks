@@ -46,7 +46,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 | **Origin** | one `by:*` label — members listed once, in the Label taxonomy table's Origin row below — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
 | **Scoring** | `risk:low\|medium\|high` × `size:low\|medium\|high` | Labels — at most one of each family |
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
-| **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
+| **Authorization** | `auto:build`, `auto:merge`, `auto:merge-pending` | Labels — `auto:build`/`auto:merge` human-granted only; `auto:merge-pending` is machine-only, a waypoint on the one machine-origination path (see Grant semantics below) — absence of all three is the default not-authorized state |
 | **Bot state** | `bot:in-progress`, `bot:blocked` | Labels — machinery-owned visibility layer |
 | **Acceptance** | `demo:pending` \| `demo:approved` \| `demo:changes-requested` — or no label | Labels — `demo:pending` is written by every skill the permission matrix below grants it to (more than one, and the matrix is the list; do not restate a single writer here), resolved to `demo:approved`/`demo:changes-requested` by `/claude-tweaks:demo` alone; independent of Stage and of the issue's own open/closed state |
 
