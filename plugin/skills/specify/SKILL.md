@@ -96,6 +96,26 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 
 This explicit disambiguation prevents the silent wrong-path failure flagged by past polymorphic-input edge cases.
 
+### Auto-continue from an approved brainstorming design doc (opt-in)
+
+The Resolve-the-input cases above cover `/specify` being invoked directly. The reverse
+direction — a session that starts in `/superpowers:brainstorming` itself, not via one of
+those cases — is a separate handoff, gated by the `specify-auto-continue` policy key
+(`_shared/policy-schema.md`, default `false`). Resolve it with
+`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" specify-auto-continue` — no `--run`
+flag: brainstorming completes before any pipeline run directory exists, so this is always
+a standalone read of `.claude-tweaks/policy.yml`, never a `config.yml` overlay. When it
+resolves `true`, immediately after `/superpowers:brainstorming` returns with its design
+doc committed, invoke `Skill(skill: "claude-tweaks:specify", args: "{design-doc-path}")`
+without waiting for a separate user command — this is Resolve-the-input case 2 (design
+doc path) reached automatically instead of by hand, so every downstream gate (Step 2.5
+design pre-steps, the granularity contract, red-team, record creation) runs exactly as it
+would on a manual invocation; nothing is bypassed. When it resolves `false` (the default),
+today's behavior is unchanged: `/superpowers:brainstorming` stops after the design doc,
+and a human types `/claude-tweaks:specify {doc}` to continue. `/superpowers:brainstorming`
+itself is unmodified — CLAUDE.md's "Superpowers overrides" section states this check as a
+claude-tweaks-side handoff instruction, not an edit to the upstream skill.
+
 ## Shaping mode (one or more records)
 
 Entered from Resolve-the-input case 1 (a work record reference, or a comma-joined batch of them) or case 5 (backlog reference with no matching design doc). Each record already exists and IS the target — there is nothing to decompose; a batch runs the same procedure once per record.
