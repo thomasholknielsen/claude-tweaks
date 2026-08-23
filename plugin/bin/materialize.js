@@ -204,6 +204,7 @@ function run(argv, deps = realDeps) {
     blockedBy: parseDependencies(record.body),
     surface: meta.surface,
     designIntent: meta.designIntent,
+    uiStack: meta.uiStack,
     designSeed: meta.designSeed,
     parkedAtShaping: labelNames.includes('parked'),
   });
@@ -217,7 +218,7 @@ function run(argv, deps = realDeps) {
   deps.writeFile(outFile, fileContent);
 
   deps.stdout(JSON.stringify({
-    record: opts.n, file: outFile, ceremonySource: facets.ceremony ? 'label' : 'override', surface: meta.surface || null, drift,
+    record: opts.n, file: outFile, ceremonySource: facets.ceremony ? 'label' : 'override', surface: meta.surface || null, uiStack: meta.uiStack || null, drift,
   }, null, 2) + '\n');
   return 0;
 }

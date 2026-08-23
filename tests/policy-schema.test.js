@@ -86,11 +86,14 @@ test('POLICY_KEYS entries are unique', () => {
   // doc-convention-how-to, doc-convention-reference, doc-convention-explanation,
   // doc-convention-journey — one enum key per newly-wired Diátaxis/Journey genre,
   // same shape as doc-convention-adr.
-  // 59 -> 60, #1137 (brainstorming auto-continue): specify-auto-continue —
+  // 59 -> 60, #357 (ui-stack decision point): ui-stack — free-form string
+  // naming the UI component library/styling approach a frontend build should
+  // use, mirrors integration-branch's no-static-default shape.
+  // 60 -> 61, #1137 (brainstorming auto-continue): specify-auto-continue —
   // lets a session invoke /claude-tweaks:specify on an approved brainstorming
   // design doc immediately, see skills/specify/SKILL.md's Auto-continue section.
-  assert.strictEqual(POLICY_KEYS.length, 60);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 60);
+  assert.strictEqual(POLICY_KEYS.length, 61);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 61);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -119,6 +122,13 @@ test('integration-branch is a recognized string key with no default', () => {
   assert.ok(branch, 'integration-branch missing from POLICY_KEYS');
   assert.strictEqual(branch.type, 'string');
   assert.strictEqual(branch.default, undefined, 'unset must mean "resolve the default branch per firing"');
+});
+
+test('ui-stack is registered with no static default (mirrors integration-branch)', () => {
+  const uiStack = POLICY_KEYS.find((k) => k.key === 'ui-stack');
+  assert.ok(uiStack, 'ui-stack missing from POLICY_KEYS');
+  assert.equal(uiStack.type, 'string');
+  assert.equal('default' in uiStack, false, 'ui-stack must carry no static default — KEPT-PROMPT depends on unset resolving to null');
 });
 
 test('routine.branch is gone — renamed before it ever shipped, with no alias', () => {

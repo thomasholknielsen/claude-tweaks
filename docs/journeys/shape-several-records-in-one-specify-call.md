@@ -2,6 +2,7 @@
 files:
   - plugin/skills/specify/SKILL.md
   - plugin/skills/specify/shaping-mode.md
+  - plugin/skills/specify/design-pre-steps.md
 ---
 
 # Shape Several Records in One /specify Call
@@ -20,12 +21,12 @@ files:
 - **Should understand:** Every element resolves independently (parallel fetches, as `flow/materialize.md`'s Resolution does); if any element cannot be resolved, all unresolvable elements are reported in one message before anything is shaped. A comma list is shaping-mode-only — decomposition (a design doc) and topic resolution stay single-input. The range form is capped at 25 elements (a hard input error names the element count above that) and requires `A ≤ B`; a range collapsing to one element (`A == B`) resolves as an ordinary single record reference, not through the batch path. The literal `next` alternative in that grammar is a different, headless form entirely — it takes no modifiers, shapes exactly one record chosen by the skill rather than any record the user names, and is mutually exclusive with the comma-list and range forms documented here.
 - **Red flags:** The skill shapes only the first record and stops; the skill asks "did you mean a path or a topic?" for a comma list of `#N` references; a resolution failure on `#703` reported only after `#701` was already rewritten; a typo like `#123-456` (missing sigil on the second bound) silently expanding into a huge range instead of failing as a malformed reference.
 
-### 2. Answer the one batched design-intent question (frontend records only)
+### 2. Answer the one batched design-intent and UI-stack question (frontend records only)
 - **URL:** the same session, before any record is written
-- **Action:** When one or more records sniff as a frontend surface, answer a single batch table (record, sniffed surface, recommended intent pre-filled) followed by one `AskUserQuestion` for apply-all/override.
-- **Should feel:** One decision for the whole batch, not one prompt per record — backend/infra records appear in the table with `Design-intent: —` and are not asked.
-- **Should understand:** Every record's surface is sniffed before the per-record loop starts, so the question resolves once, up front; each record's `Surface:`/`Design-intent:` lines are then written into its own composed body during its own iteration.
-- **Red flags:** A second `AskUserQuestion` for the second frontend record; a backend record being asked for a design intent.
+- **Action:** When one or more records sniff as a frontend surface, answer a single batch table (record, sniffed surface, recommended intent and UI stack pre-filled) followed by one `AskUserQuestion` for apply-all/override.
+- **Should feel:** One decision for the whole batch, not one prompt per record — backend/infra records appear in the table with `Design-intent: —` / `Ui-stack: —` and are asked neither question.
+- **Should understand:** Every record's surface is sniffed before the per-record loop starts, so both questions resolve once, up front, and one answer each applies to every frontend record in the batch; each record's `Surface:`/`Design-intent:`/`Ui-stack:` lines are then written into its own composed body during its own iteration.
+- **Red flags:** A second `AskUserQuestion` for the second frontend record; a backend record being asked for a design intent or a UI stack.
 
 ### 3. Read one Actions Performed table, one row per record
 - **URL:** the same session, after the last write lands
@@ -65,4 +66,5 @@ files:
 ## Origin
 - Step 7 added for #1071 (parent-record guard: batch fail-all, tier-2 refuse-without-prompt, reported residue strip)
 - Steps 1 and 3 updated for #705 (range-form input, mandatory read-back verification after each write)
-- Related specs: #1071, #705, #695/#702 (comma-list batch form and this journey's original steps)
+- Steps 1-3 updated for #357 (UI-stack decision point — batch table gains a `Ui-stack: —` column alongside `Design-intent:`, resolved by the same single batch decision)
+- Related specs: #1071, #705, #695/#702 (comma-list batch form and this journey's original steps), #357

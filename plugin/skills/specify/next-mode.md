@@ -13,11 +13,22 @@ does — no shaping logic is duplicated here.
 `phase-N`, `--surface`, `--granularity`, and `--chained` are each rejected
 with a one-line notice when combined with `next` on the command line: "next
 takes no modifiers — {flag} ignored." This form always resolves
-`Design-intent: none` internally (mirroring `--chained`'s own headless
-default) without prompting, since a headless firing has nobody to answer
-Step 2.5c's design-intent question. Report the rejection notice, then
-proceed with `next`'s own procedure below — a rejected flag is a warning,
-never a hard stop.
+`Design-intent: none` internally, and resolves `Ui-stack:` from the
+`ui-stack` project policy — the same `bin/resolve-policy.js --values ...
+ui-stack` invocation Step 2.5c2's own `--chained` branch runs
+(`design-pre-steps.md`), against the run dir the **Decision-log fallback**
+paragraph below names — writing the policy value verbatim when it is non-empty and
+falling back to `Ui-stack: none — no preference, defer to reference
+codebase` only when it is empty. Both mirror `--chained`'s own headless
+posture, including that policy-first resolution: `design-intent` needs no
+resolve here because `none` is its schema default, while `ui-stack` carries
+no schema default, so an unconditional sentinel would discard a real,
+explicitly-set project policy value. Neither prompts, since a headless
+firing has nobody to answer Step 2.5c's design-intent question or Step
+2.5c2's UI-stack question — an empty `ui-stack` falls to the sentinel here,
+never to that step's KEPT-PROMPT fallback. Report the rejection notice,
+then proceed with `next`'s own procedure below — a rejected flag is a
+warning, never a hard stop.
 
 ## Preflight
 
@@ -379,8 +390,11 @@ Read `shaping-mode.md` in this skill's directory and follow its procedure
 directly against the record fetched above, under the same headless posture
 `--chained` uses: `next`-mode is a named entry path in `shaping-mode.md`'s
 own header, Step 2.5c's design-intent question resolves to
-`Design-intent: none` without prompting (already established in Flag
-rejection above), and no `## Next Actions` renders at the end (headless —
+`Design-intent: none` and Step 2.5c2's UI-stack question resolves to the
+`ui-stack` policy value, or to `Ui-stack: none — no preference, defer to
+reference codebase` when that policy value is empty — both without
+prompting (already established in Flag rejection above), and no
+`## Next Actions` renders at the end (headless —
 nobody is present to answer it; `shaping-mode.md`'s own return clause
 names the `next` form's headless posture as a second reason to skip that
 render, alongside `--chained`). Shaping mode's own `ready` stamp is what
@@ -421,15 +435,16 @@ record stays unshaped and still eligible (a recoverable state), and the
 failure is the shaping-stage failure the paragraph above describes.
 
 **Decision-log fallback.** Every auto-resolved decision this firing
-produces (the framing verdict, the design-intent resolution already
-established by Flag rejection above, and this file's headless posture
-driving the `shaped:headless` inclusion in shaping mode's write) logs to
-`$RUN_DIR/decisions.md` per `_shared/auto-decision-log.md`'s schema — the
-same convention `## Claim` and `## Release` sections use for the same
-firing. When a Routine fires with no explicit pipeline run dir configured,
-`$RUN_DIR` resolves via `_shared/pipeline-run-dir.md`'s standalone-auto
-fallback, ensuring every auto-resolved decision is recorded in that
-fallback run dir's audit log, not only in the firing's returned output.
+produces (the framing verdict, the design-intent and UI-stack resolutions
+already established by Flag rejection above, and this file's headless
+posture driving the `shaped:headless` inclusion in shaping mode's write)
+logs to `$RUN_DIR/decisions.md` per `_shared/auto-decision-log.md`'s
+schema — the same convention `## Claim` and `## Release` sections use for
+the same firing. When a Routine fires with no explicit pipeline run dir
+configured, `$RUN_DIR` resolves via `_shared/pipeline-run-dir.md`'s
+standalone-auto fallback, ensuring every auto-resolved decision is
+recorded in that fallback run dir's audit log, not only in the firing's
+returned output.
 
 ## Release
 

@@ -84,6 +84,28 @@ test('liftMetadata: reads Surface/Design-intent/Design-seed from the leading met
   assert.deepEqual(liftMetadata(body), { surface: 'web', designIntent: 'quiet', designSeed: 'abc123' });
 });
 
+test('liftMetadata: reads Ui-stack alongside Surface/Design-intent/Design-seed', () => {
+  const body = 'Surface: web\nDesign-intent: quiet\nUi-stack: shadcn/ui + Tailwind\nDesign-seed: abc123\n\n## Current State\nx';
+  assert.deepEqual(liftMetadata(body), {
+    surface: 'web', designIntent: 'quiet', uiStack: 'shadcn/ui + Tailwind', designSeed: 'abc123',
+  });
+});
+
+test('liftMetadata: Ui-stack omitted when the line is absent', () => {
+  const lifted = liftMetadata('Surface: web\nDesign-intent: none\n\n## Current State\nx');
+  assert.equal('uiStack' in lifted, false);
+});
+
+test('liftMetadata: a bare Design-intent: line (no value) does not swallow the next metadata line (refs #357)', () => {
+  const body = 'Surface: web\nDesign-intent:\nUi-stack: shadcn/ui + Tailwind\n\n## Current State\nx';
+  assert.deepEqual(liftMetadata(body), { surface: 'web', uiStack: 'shadcn/ui + Tailwind' });
+});
+
+test('liftMetadata: a bare Ui-stack: line (no value) does not swallow the next metadata line (refs #357)', () => {
+  const body = 'Surface: web\nDesign-intent: quiet\nUi-stack:\nDesign-seed: abc123\n\n## Current State\nx';
+  assert.deepEqual(liftMetadata(body), { surface: 'web', designIntent: 'quiet', designSeed: 'abc123' });
+});
+
 test('liftMetadata: legacy Surface: frontend reads as web', () => {
   assert.deepEqual(liftMetadata('Surface: frontend\n\n## Current State\nx'), { surface: 'web' });
 });
@@ -106,25 +128,39 @@ test('composeHeader: ceremony and grants are always emitted, even an empty grant
   assert.match(header, /^grants: \[\]$/m);
 });
 
-test('composeHeader: risk/size/fingerprint/blocked-by/surface/design-intent/design-seed/parked-at-shaping omitted when absent', () => {
+test('composeHeader: risk/size/fingerprint/blocked-by/surface/design-intent/ui-stack/design-seed/parked-at-shaping omitted when absent', () => {
   const header = composeHeader({ record: 5, origin: 'human', ceremony: 'standard', grants: { build: true, merge: false } });
-  for (const key of ['risk:', 'size:', 'fingerprint:', 'blocked-by:', 'surface:', 'design-intent:', 'design-seed:', 'parked-at-shaping:']) {
+  for (const key of ['risk:', 'size:', 'fingerprint:', 'blocked-by:', 'surface:', 'design-intent:', 'ui-stack:', 'design-seed:', 'parked-at-shaping:']) {
     assert.doesNotMatch(header, new RegExp('^' + key, 'm'), `${key} should be omitted when its value is absent`);
   }
   assert.match(header, /^grants: \[build\]$/m);
+});
+
+test('composeHeader: a ui-stack value containing ":" or "#" is double-quoted, not emitted as unsafe bare YAML (refs #357)', () => {
+  const header = composeHeader({
+    record: 5, origin: 'human', ceremony: 'standard', grants: {}, uiStack: 'Tailwind: v4 # beta',
+  });
+  assert.match(header, /^ui-stack: "Tailwind: v4 # beta"$/m);
+});
+
+test('composeHeader: a ui-stack value with no special characters stays bare, unquoted', () => {
+  const header = composeHeader({
+    record: 5, origin: 'human', ceremony: 'standard', grants: {}, uiStack: 'shadcn/ui + Tailwind',
+  });
+  assert.match(header, /^ui-stack: shadcn\/ui \+ Tailwind$/m);
 });
 
 test('composeHeader: every optional field present renders in the documented order', () => {
   const header = composeHeader({
     record: 711, origin: 'capture', risk: 'low', size: 'high', ceremony: 'standard',
     grants: { build: true, merge: true }, fingerprint: 'fp123', blockedBy: [1, 2],
-    surface: 'backend', designIntent: 'none', designSeed: 'seedabc', parkedAtShaping: true,
+    surface: 'backend', designIntent: 'none', uiStack: 'none — defer to reference codebase', designSeed: 'seedabc', parkedAtShaping: true,
   });
   const lines = header.split('\n');
   assert.deepEqual(lines, [
     '---', 'record: 711', 'origin: capture', 'risk: low', 'size: high', 'ceremony: standard',
     'grants: [build, merge]', 'fingerprint: fp123', 'blocked-by: [1, 2]', 'surface: backend',
-    'design-intent: none', 'design-seed: seedabc', 'parked-at-shaping: true', '---',
+    'design-intent: none', 'ui-stack: none — defer to reference codebase', 'design-seed: seedabc', 'parked-at-shaping: true', '---',
   ]);
 });
 
@@ -205,6 +241,18 @@ test('materialize CLI: happy path writes {run-dir}/work/{n}-spec.md with the com
   const content = written[expectedFile];
   assert.match(content, /^---\nrecord: 1\norigin: capture\nrisk: low\nsize: high\nceremony: standard\ngrants: \[build\]/);
   assert.match(content, /^# 1: A record$/m);
+});
+
+test('materialize CLI: happy path lifts a Ui-stack: line into the header and JSON envelope', () => {
+  const runDir = mkRunDir('run-ui-stack');
+  const body = SHAPED_BODY.replace('Surface: backend', 'Surface: web\nUi-stack: shadcn/ui + Tailwind');
+  const { deps, out, written } = cliDeps({ ghView: () => ghJson({ body }) });
+  const code = withCwd(repoRoot, () => cliRun(['1', '--run-dir', runDir], deps));
+  assert.equal(code, 0);
+  const env = JSON.parse(out.join(''));
+  assert.equal(env.uiStack, 'shadcn/ui + Tailwind');
+  const content = written[path.join(runDir, 'work', '1-spec.md')];
+  assert.match(content, /^ui-stack: shadcn\/ui \+ Tailwind$/m);
 });
 
 test('materialize CLI: an unshaped record fails the gate (exit 1), pointing at /specify', () => {

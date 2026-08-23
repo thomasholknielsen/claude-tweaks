@@ -87,14 +87,15 @@ The shaped sections above are `/specify`'s editorial interpretation; `## Origina
 
 ### Metadata block
 
-Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` — under `--chained`, or under the `next` form's headless posture, that step never asks and resolves to `Design-intent: none` (its own `--chained` branch; `next` pre-resolves this itself in `next-mode.md`'s Flag rejection step, before this file ever loads, the same "already resolved, just write it" shape a batch's pre-resolved value gets below). On a comma-list batch, run the sniff per record but ask the design-intent question **once** for all frontend records together: render one batch table (record, sniffed surface, recommended intent pre-filled) followed by a single `AskUserQuestion` for apply-all/override, per the Interaction style directive — never one call per record; backend/infra records in the same batch appear in the table with `Design-intent: —` and are not asked. On a batch, both the sniff and that single question already ran once, upfront, per this file's opening paragraph — reaching this section for a given record in the per-record loop below only writes that record's already-resolved values into its own composed body; nothing here fires a second time. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
+Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:` and Step 2.5c2's UI-stack question to decide `Ui-stack:` — under `--chained`, or under the `next` form's headless posture, neither step asks: `Design-intent:` resolves to `none`, and `Ui-stack:` resolves to the `ui-stack` project policy value, falling back to `none — no preference, defer to reference codebase` only when that value is empty (Step 2.5c2's own `--chained` branch; `next` pre-resolves both itself in `next-mode.md`'s Flag rejection step, before this file ever loads, the same "already resolved, just write it" shape a batch's pre-resolved value gets below). On a comma-list batch, run the sniff per record but ask the design-intent question **once** for all frontend records together, and Step 2.5c2's UI-stack question **once** the same way — that step's own "For multi-record decompositions" rule (`design-pre-steps.md`, end of the Step 2.5c2 section) applies verbatim to a comma-list batch: one answer applied across every frontend record in it. Render one batch table (record, sniffed surface, recommended intent and UI stack pre-filled) followed by a single `AskUserQuestion` for apply-all/override, per the Interaction style directive — never one call per record. The UI-stack column pre-fills with one recommended value applied to every frontend row, exactly the mechanic the design-intent column uses; the two steps keep their own separate `AskUserQuestion` definitions in `design-pre-steps.md` (each with its own header and options), so a batch that needs to *override* either recommendation asks that step's own call once for the batch, while the apply-all case resolves both columns in the single table call above. Backend/infra records in the same batch appear in the table with `Design-intent: —` / `Ui-stack: —` and are asked neither question. On a batch, the sniff and both of those single questions already ran once, upfront, per this file's opening paragraph — reaching this section for a given record in the per-record loop below only writes that record's already-resolved values into its own composed body; nothing here fires a second time. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
 
 ```
 Surface: web
 Design-intent: {value}
+Ui-stack: {value}
 ```
 
-Backend/infra records omit the `Design-intent:` line entirely — it only applies when Step 2.5a detected a frontend surface:
+Backend/infra records omit the `Design-intent:` and `Ui-stack:` lines entirely — both only apply when Step 2.5a detected a frontend surface:
 
 ```
 Surface: backend
@@ -120,7 +121,9 @@ These are plain body-metadata lines, not YAML frontmatter — capitalized keys, 
 | `onboarding` | First-run flows, empty states |
 | `none` | No specific creative direction |
 
-`spec-template.md` stays canonical for the full metadata-block field set these two tables slice — including `Design-seed:`/`Visual-reference:`/`Parent:`, which shaping mode never writes. The `Design-intent:` one-liners above restate `design-pre-steps.md`'s Step 2.5c `AskUserQuestion` descriptions; keep both tables in sync by hand if either enum ever changes.
+`Ui-stack:` has no fixed enumeration — it's a free-form string (component library name, styling approach, or an explicit no-preference answer). See `design-pre-steps.md`'s Step 2.5c2 for the preset options offered interactively.
+
+`spec-template.md` stays canonical for the full metadata-block field set these two tables slice — including `Design-seed:`/`Visual-reference:`/`Parent:`, which shaping mode never writes. The `Design-intent:` one-liners above restate `design-pre-steps.md`'s Step 2.5c `AskUserQuestion` descriptions; keep both tables in sync by hand if either enum ever changes. `Ui-stack:` has no enum to restate — Step 2.5c2's preset options are documentation, not a closed value set.
 
 ### Stamp scoring and stage labels
 
@@ -150,11 +153,12 @@ Using the facets already read in Resolve-the-input case 1/5 (`parseRecordFacets`
 
 ### Compose-then-write-once
 
-Assemble the full new body locally before making any write call — never edit the body incrementally against a live record. Final assembly order (`Design-intent:` omitted for non-frontend records):
+Assemble the full new body locally before making any write call — never edit the body incrementally against a live record. Final assembly order (`Design-intent:`/`Ui-stack:` omitted for non-frontend records):
 
 ```
 Surface: {value}
 Design-intent: {value}
+Ui-stack: {value}
 
 ## Current State
 ...

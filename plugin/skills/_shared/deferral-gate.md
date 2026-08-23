@@ -24,6 +24,8 @@ For each open item or finding, attempt to fix it now. **The default is fix; defe
 
 If the item qualifies, fix it, commit it, and record it as fixed. Do this BEFORE presenting anything to the user.
 
+**A ledger entry recommending deferral runs this same check, even in prose.** "Recommend a follow-up record" in a ledger row's Resolution column is a deferral decision, not exempt from this gate just because no formal record proposal was staged yet — check it against the criteria above and name its `Defer-reason:` inline before leaving the item `open`, so the check is auditable rather than an implicit judgment call (#357 wrap-up: three items recommended this way all turned out to be fix-now eligible).
+
 ## Bad reasons to skip a fix
 
 Never use these to leave an item open, defer it, or file it:
