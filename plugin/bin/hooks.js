@@ -112,22 +112,51 @@ function resolveRunArg(args, cwd, env) {
       };
     }
     if (!wtDetect.isAnchoredUnderRoot(resolved, mainRoot)) {
-      // #280: the general case above (a bare or stray worktree-local
+      // #280/#1183: the general case above (a bare or stray worktree-local
       // directory) stays rejected — that's the [IL-96]/[IL-127] shadow this
       // anchoring check exists to prevent. The one narrow exception: a
       // session whose harness refused every write to the main checkout for
       // the whole session has no anchored copy to name at all, so its run
       // dir was legitimately initialized worktree-local as the only
-      // available option (the incident this record documents). Adopt it
-      // ONLY when (a) it is already an INITIALIZED run dir — not merely a
-      // directory that exists, the same bar `isInitializedRunDir` states —
-      // and (b) no same-named run dir already exists under the main
-      // checkout, which would make that copy the authoritative one instead.
-      // Both conditions must hold: an ordinary run with no worktree-local
-      // dir at all never has (a), so it can never spuriously match this
-      // fallback ([IL-127]'s own acceptance criterion).
-      const mainCandidate = path.join(mainRoot, '.claude-tweaks', 'pipelines', path.basename(resolved));
-      if (isInitializedRunDir(resolved) && !isDirectory(mainCandidate)) {
+      // available option (the incident #280 documents). Adopt it ONLY when
+      // ALL of:
+      //   (a) resolved sits inside a linked worktree of THIS SAME repo — not
+      //       an arbitrary directory, and not an unrelated repo's checkout
+      //       (#1183: the old check never verified this at all — any
+      //       directory carrying a stray marker file was adopted);
+      //   (b) that path, relative to the worktree's own
+      //       .claude-tweaks/pipelines/, has a run-id-shaped leading segment
+      //       (mirroring pre-tool-use.js's shadowPipelineRunDir and
+      //       context.js's RUN_ID_RE — the signal that distinguishes a real
+      //       pipeline run dir from an arbitrary directory that merely
+      //       happens to contain one of the three marker files);
+      //   (c) it is already an INITIALIZED run dir — not merely a directory
+      //       that exists, the same bar isInitializedRunDir states; and
+      //   (d) no same-named run dir already exists at the SAME
+      //       pipelines-relative path under the main checkout, which would
+      //       make that copy the authoritative one instead.
+      // #1183: (d) used to join only path.basename(resolved), so a nested
+      // multi-spec shadow (pipelines/{parent}/spec-N) or an archived shadow
+      // (pipelines/archive/{id}) computed the wrong main-checkout candidate
+      // (pipelines/spec-N, pipelines/{id} — neither ever exists) and was
+      // adopted even though the anchored copy existed at the correct
+      // nested/archived path. Comparing the full pipelines-relative path
+      // fixes both shapes without special-casing either — an archive/{id}
+      // shadow's run-id segment is relParts[1] (the archived run keeps its
+      // original run-id-shaped directory name one level deeper); every
+      // other shape's run-id segment is relParts[0].
+      const candidateRepo = wtDetect.repoInfo(resolved);
+      const sameRepo = !candidateRepo.indeterminate && candidateRepo.repoRoot && candidateRepo.isLinkedWorktree
+        && wtDetect.mainCheckoutRoot(candidateRepo.repoRoot) === mainRoot;
+      const relFromPipelines = sameRepo
+        ? path.relative(path.join(candidateRepo.repoRoot, '.claude-tweaks', 'pipelines'), resolved)
+        : null;
+      const inPipelines = !!relFromPipelines && !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
+      const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
+      const runIdSegment = relParts[0] === 'archive' ? relParts[1] : relParts[0];
+      const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
+      const mainCandidate = inPipelines ? path.join(mainRoot, '.claude-tweaks', 'pipelines', relFromPipelines) : null;
+      if (sameRepo && inPipelines && runIdShaped && isInitializedRunDir(resolved) && !isDirectory(mainCandidate)) {
         return {
           runDir: resolved, invalidRunArg: null, rest, explicit: true, worktreeLocalFallback: true,
         };

@@ -124,3 +124,66 @@ test('reject: --run resolves under a directory with no git repo ancestor at all 
   assert.doesNotMatch(out.stdout, /not anchored|resolves outside the main checkout/i);
   assert.doesNotMatch(out.stdout, /worktree recorded/);
 });
+
+test('#1183: reject — an arbitrary non-repo directory with a stray config.yml is not adopted via the #280 fallback', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const stray = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-stray-'));
+  fs.writeFileSync(path.join(stray, 'config.yml'), '');
+  const out = runRecordWorktree(['--run', stray, wt], wt);
+  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+});
+
+test('#1183: reject — an unrelated git repo (not a worktree of this repo) with a config.yml is not adopted via the #280 fallback', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const otherRepo = gitRepo();
+  fs.writeFileSync(path.join(otherRepo, 'config.yml'), '');
+  const out = runRecordWorktree(['--run', otherRepo, wt], wt);
+  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+});
+
+test('#1183: reject — a worktree shadow of a nested pipelines/{parent}/spec-N run dir is refused when the anchored copy exists at the correct nested path', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const parentRunId = '2026-01-01T000000-spec-multi';
+  const specSub = 'spec-967';
+  // The anchored twin only needs to exist as a directory — matches the
+  // existing twin-guard tests' isDirectory-only bar (no marker files needed).
+  mkRunDir(main, ['.claude-tweaks', 'pipelines', parentRunId, specSub]);
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', parentRunId, specSub]);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+});
+
+test('#1183: accept — a worktree shadow of a nested pipelines/{parent}/spec-N run dir adopts via the #280 fallback when no anchored copy exists at all', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const parentRunId = '2026-01-01T000000-spec-multi2';
+  const specSub = 'spec-968';
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', parentRunId, specSub]);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assert.match(out.stdout, /worktree-local fallback \(#280\)/i);
+  assert.match(out.stdout, /worktree recorded/);
+});
+
+test('#1183: reject — a worktree shadow of an archived pipelines/archive/{id} run dir is refused when the anchored copy exists', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const archivedRunId = '2026-01-01T000000-spec-archived';
+  mkRunDir(main, ['.claude-tweaks', 'pipelines', 'archive', archivedRunId]);
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', 'archive', archivedRunId]);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+});
