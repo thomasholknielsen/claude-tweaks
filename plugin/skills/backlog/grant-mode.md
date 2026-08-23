@@ -58,9 +58,10 @@ hasn't deliberately opted into both keys. Do not proceed to Step 1.
 A second, independent, additive floor over the per-record gate chain (#311) — checked once per
 firing, the same "whole-run fact, not a per-record one" shape Step 0's ceiling gate already is.
 Reads `merge-lane/watched.json` — the set of records whose merge trust originated on this
-mode's headless path (as of #309, seeded when `dispatch/settle-and-merge.md`'s Auto-merge gate
-matures a record's `auto:merge-pending` to `auto:merge` — the only write path that adds an
-entry; this mode's own Step 4 no longer writes it directly, since a still-pending grant has
+mode's headless path (as of #309, seeded when either `dispatch/settle-and-merge.md`'s Auto-merge
+gate or `wrap-up/auto-merge-short-circuit.md`'s singleton short-circuit matures a record's
+`auto:merge-pending` to `auto:merge` — these two are the only write paths that add an entry;
+this mode's own Step 4 no longer writes it directly, since a still-pending grant has
 nothing yet for the breaker to watch) — and classifies each against fresh evidence, tripping
 `merge-lane/breaker.json` repo-wide the moment any one of them looks bad. Independent from, not a replacement for, `trust.js`'s per-class
 revocation (#268) — a class can read `clean` while this breaker is tripped, and vice versa.

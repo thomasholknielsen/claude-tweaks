@@ -26,9 +26,11 @@ When `--dry-run` was passed (see `SKILL.md`'s Phase 1 Flags subsection), run eve
 
 When this run's spec has a materialized header (`record:` field present in
 `${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND EITHER the issue's **live**
-labels carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:`
-field is a snapshot for audit only) OR `manifesto-authorized-merge.md`'s applicability check
-passes (the `merge-authorization` lever, #715), read `auto-merge-short-circuit.md` in this
+labels carry `auto:merge` or `auto:merge-pending` (re-fetch via `gh issue view --json labels` —
+the header's `grants:` field is a snapshot for audit only; a pending label still routes here so
+`auto-merge-short-circuit.md`'s own maturation check can run — see #309) OR
+`manifesto-authorized-merge.md`'s applicability check passes (the `merge-authorization` lever,
+#715), read `auto-merge-short-circuit.md` in this
 skill's directory and follow it in full — the single-record version of
 `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
 `/claude-tweaks:dispatch` was involved. That file routes on `_shared/integration-model.md`'s
