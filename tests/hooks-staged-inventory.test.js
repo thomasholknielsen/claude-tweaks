@@ -57,9 +57,10 @@ test('checkStagedInventory: a STAGED line naming a staged/ file that was never w
   // No staged/ dir at all -- simulates the exact crash: log-decision.js's
   // write landed, stage-item.js's write never happened.
   writeDecisions(runDir, 'STAGED 08:22:19 — Step 3 lens dispatch: deferred finding. Stage path: staged/review-defer-1.md.');
-  const result = checkStagedInventory(runDir);
-  assert.strictEqual(result.checked, 1);
-  assert.deepStrictEqual(result.missing, ['staged/review-defer-1.md']);
+  assert.deepStrictEqual(checkStagedInventory(runDir), {
+    checked: 1,
+    missing: ['staged/review-defer-1.md'],
+  });
 });
 
 test('checkStagedInventory: mixed present and missing entries — only the missing one is reported', () => {
@@ -70,7 +71,8 @@ test('checkStagedInventory: mixed present and missing entries — only the missi
     'STAGED 14:41:15 — Step 3 Routing: finding one. Stage path: staged/review-1.patch.',
     'STAGED 14:41:22 — Step 3 Routing: finding two. Stage path: staged/review-2.patch.',
   ].join('\n'));
-  const result = checkStagedInventory(runDir);
-  assert.strictEqual(result.checked, 2);
-  assert.deepStrictEqual(result.missing, ['staged/review-2.patch']);
+  assert.deepStrictEqual(checkStagedInventory(runDir), {
+    checked: 2,
+    missing: ['staged/review-2.patch'],
+  });
 });

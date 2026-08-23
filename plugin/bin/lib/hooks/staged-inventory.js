@@ -27,16 +27,14 @@ const path = require('path');
 // whitespace or end-of-string -- tolerates trailing prose on the same line
 // ("... Stage path: staged/foo.patch. Reversibility: high.") and filenames
 // that themselves contain dots (extensions like ".patch"/".md").
+//
+// Declared once and reused via matchAll (not exec in a loop) -- matchAll
+// operates on an internal clone and never mutates this regex's lastIndex,
+// so reuse across calls is safe.
 const STAGE_PATH_RE = /Stage path:\s+(staged\/\S+?)\.(?=\s|$)/g;
 
 function parseStagePaths(text) {
-  const found = [];
-  const re = new RegExp(STAGE_PATH_RE);
-  let m;
-  while ((m = re.exec(text))) {
-    found.push(m[1]);
-  }
-  return found;
+  return [...text.matchAll(STAGE_PATH_RE)].map((match) => match[1]);
 }
 
 // runDir: the pipeline run directory (holding decisions.md and staged/).
