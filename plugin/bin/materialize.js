@@ -26,6 +26,7 @@ const {
 } = require('./lib/issues/record');
 const { shapeGate, liftMetadata, composeHeader, composeFile } = require('./lib/issues/materialize-format');
 const wtDetect = require('./lib/hooks/worktree-detect');
+const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--help]\n';
 
@@ -87,11 +88,6 @@ function parseArgs(argv) {
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
-}
-
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
 }
 
 const realDeps = {

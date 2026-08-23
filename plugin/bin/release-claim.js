@@ -24,6 +24,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const release = require('./lib/release-claim/release');
 const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/append');
+const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--repo owner/name] [--section "/<skill>"] [--step <text>] [--help]\n';
 const EXIT = { released: 0, 'already-released': 3, 'skipped-not-owner': 4, unreadable: 5, failed: 1 };
@@ -47,11 +48,6 @@ function parseArgs(argv) {
     else return { error: `unexpected argument: ${a}` };
   }
   return o;
-}
-
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
 }
 
 const realDeps = {
