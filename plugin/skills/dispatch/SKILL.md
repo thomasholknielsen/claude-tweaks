@@ -91,7 +91,7 @@ First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js
 
 Common to all four selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
-The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` — see Anti-Patterns.
+The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` (the Auto-merge gate's promotion of an already-existing `auto:merge-pending` to `auto:merge` is maturation of a grant already present, not origination — see `settle-and-merge.md`) — see Anti-Patterns.
 
 Read `queue-pull-script.md` in this skill's directory and run its script verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), which every selection form below reads. That file also carries the MCP-path substitution and the queue-pull-notes pointer.
 
@@ -276,7 +276,7 @@ Render only when a human is present to answer — the bare form is definitionall
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Adding `auto:build`, `auto:merge`, or `ready` from inside dispatch | Machinery may only remove or downgrade grants, never add them — the permission matrix's hard line (`_shared/work-record.md`) |
+| Originating a fresh `auto:build`, `auto:merge`, or `ready` grant from inside dispatch | Machinery may only remove or downgrade grants, never originate them — the permission matrix's hard line (`_shared/work-record.md`). The Auto-merge gate's promotion of an already-`auto:merge-pending` record to `auto:merge` is the one exception, and it is maturation of an existing grant, not origination — nothing is added that wasn't already there |
 | Claiming a single member of a file-overlap group without its partners | The branch and its overlap partners would race — `_shared/issue-claims.md`'s group-claim rule requires the whole group before starting any |
 | Letting a group auto-merge on a retry after a prior `correctness`-classified failure | A `correctness` or `ambiguous` classification unconditionally revokes `auto:merge` before the next retry; only `transient` preserves it |
 | Treating a clean review as sufficient for auto-merge on its own | `merge-check` weighs diff content, review findings, and blast radius as one judgment — a large or structurally sensitive diff can verdict `needs-human` with zero findings, never `auto-merge` |
