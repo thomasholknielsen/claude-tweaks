@@ -36,6 +36,29 @@ function realDir(p) {
   try { return fs.statSync(real).isDirectory() ? real : null; } catch { return null; }
 }
 
+// The `code` off a Node fs error when it has one, else the error itself —
+// shared by every `sweep:` diagnostic line below.
+function errCode(e) {
+  return (e && e.code) || e;
+}
+
+// Runs `statFn(target)` and returns its result, or null if `target` is
+// genuinely absent (ENOENT — the only clean no-op case). Any other failure
+// — e.g. a permission-denied parent directory one level up the shadow path,
+// ENOTDIR, ELOOP, EIO — pushes a `sweep: failed to check for {label}`
+// diagnostic rather than being silently treated as "nothing to sweep"
+// (#1305). Shared by the staged/ and decisions.md entry gates below.
+function statOrDiagnose(statFn, target, label, lines) {
+  try {
+    return statFn(target);
+  } catch (e) {
+    if (!e || e.code !== 'ENOENT') {
+      lines.push(`sweep: failed to check for ${label} — ${errCode(e)}`);
+    }
+    return null;
+  }
+}
+
 // Atomically claims a free destination for `src`: `preferred` first, falling
 // back to `preferred.shadow-dup`, `.shadow-dup-1`, ... — mirrors the bash
 // `dest="$dest.shadow-dup"; n=1; while [ -e "$dest" ]; do
@@ -110,24 +133,14 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
   // `.catch(() => process.exit(0))` — which would otherwise turn a failed
   // partial sweep into a silent, indistinguishable-from-clean exit 0.
   const shadowStaged = path.join(shadow, 'staged');
-  let stagedIsDir = false;
-  try {
-    stagedIsDir = fs.statSync(shadowStaged).isDirectory();
-  } catch (e) {
-    // ENOENT (target genuinely doesn't exist) is the only clean no-op case.
-    // Any other failure — e.g. a permission-denied parent directory one
-    // level up the shadow path, ENOTDIR, ELOOP, EIO — must surface, not be
-    // silently treated as "nothing to sweep" (#1305).
-    if (!e || e.code !== 'ENOENT') {
-      lines.push(`sweep: failed to check for shadow staged/ — ${(e && e.code) || e}`);
-    }
-  }
+  const stagedStat = statOrDiagnose(fs.statSync, shadowStaged, 'shadow staged/', lines);
+  const stagedIsDir = stagedStat ? stagedStat.isDirectory() : false;
   if (stagedIsDir) {
     let entries;
     try {
       entries = fs.readdirSync(shadowStaged).sort();
     } catch (e) {
-      lines.push(`sweep: failed to read shadow staged/ — ${(e && e.code) || e}`);
+      lines.push(`sweep: failed to read shadow staged/ — ${errCode(e)}`);
       entries = [];
     }
     for (const base of entries) {
@@ -161,15 +174,7 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
 
   // ---- stray shadow decisions.md ----
   const shadowDecisions = path.join(shadow, 'decisions.md');
-  let decisionsLstat = null;
-  try {
-    decisionsLstat = fs.lstatSync(shadowDecisions);
-  } catch (e) {
-    // Same ENOENT-only short-circuit as the staged/ gate above (#1305).
-    if (!e || e.code !== 'ENOENT') {
-      lines.push(`sweep: failed to check for shadow decisions.md — ${(e && e.code) || e}`);
-    }
-  }
+  const decisionsLstat = statOrDiagnose(fs.lstatSync, shadowDecisions, 'shadow decisions.md', lines);
   if (decisionsLstat && decisionsLstat.isFile()) {
     // lstat().isFile() is already false for a symlink (it never follows),
     // so this one check subsumes the bash pair `[ -f ... ] && [ ! -L ... ]`.
@@ -196,7 +201,7 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
         lines.push('sweep: shadow decisions.md had no entries — dropped');
       }
     } catch (e) {
-      lines.push(`sweep: failed to relocate shadow decisions.md — ${(e && e.code) || e}`);
+      lines.push(`sweep: failed to relocate shadow decisions.md — ${errCode(e)}`);
     }
   }
 
