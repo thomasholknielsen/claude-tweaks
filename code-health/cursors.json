@@ -70,5 +70,9 @@
   "evals/scripts": {
     "lastSweptMs": 1787281871090,
     "lastHash": "3c11980efd29a35b305609640c97dcde95cd284c"
+  },
+  "evals/tests": {
+    "lastSweptMs": 1787454611372,
+    "lastHash": "c07a5a77fa030598cb30796665e841b8f46914e4"
   }
 }
