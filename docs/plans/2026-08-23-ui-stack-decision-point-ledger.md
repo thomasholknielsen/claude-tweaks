@@ -1,0 +1,12 @@
+# Open Items — 357: specify/build/design-wrapper: no UI-stack decision point before frontend implementation
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | build | Pre-existing regex hazard in `liftMetadata` (`plugin/bin/lib/issues/materialize-format.js`), shared with `Design-intent:` and not a #357 regression: a bare `Ui-stack:`/`Design-intent:` line with no value swallows the next metadata line into the field (`/^Ui-stack:\s*(.+)$/m` crosses the newline). Final whole-branch review recommended a follow-up record fixing both fields' regex together, since fixing only `Ui-stack:` would introduce a new inconsistency with `Design-intent:`'s identical hazard. | open | — |
+| 2 | build | Free-form `Ui-stack:` values containing `:` or `#` render unquoted into the materialized header's YAML-shaped block (e.g. `ui-stack: Tailwind: v4 # beta` truncates on read by anything that later parses it as YAML). No active parser reads this block today (all readers are LLM skills), so nothing breaks currently — final whole-branch review flagged it as a latent risk worth a follow-up record rather than blocking this branch. | open | — |
+| 3 | build | `plugin/skills/specify/next-mode.md`'s new Step 2.5c2 headless-resolution text (added in the final-review fix wave, commit ea130713) cites `` `## Decision-log fallback` `` as though it were a markdown H2 heading; the actual text at that location is a bold paragraph label (`**Decision-log fallback.**`), not a heading. Cosmetic — no test depends on it, but misrepresents file structure to a future reader/grep. Caught by the fix wave's own scoped re-review. | open | — |
+
+## Notes
+
+- These three items were surfaced during `/claude-tweaks:build #357`'s final whole-branch review and its fix-wave re-review, and were deliberately left `open` rather than resolved here — this run's step list (`build,test`) does not include `wrap-up`, so the nothing-left-behind ledger gate does not fire in this invocation. They carry forward for whichever `/claude-tweaks:flow #357 review,...,wrap-up` (or equivalent) run resolves this ledger.
+- All 9 plan tasks (docs/superpowers/plans/2026-08-23-ui-stack-decision-point.md) are complete, task-reviewed, and final-whole-branch-reviewed with 0 open Critical/Important findings. `origin/main` (279 commits ahead of this branch's original base) was merged in during this build to keep `npm test` green — see commit 8a88d45d for the merge-conflict resolution record.
