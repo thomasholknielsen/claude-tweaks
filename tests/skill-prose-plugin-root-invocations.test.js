@@ -37,9 +37,11 @@ test('no skill prose invokes a bin via a repo-relative `node plugin/bin/` path (
     const text = fs.readFileSync(file, 'utf8').replace(/node\s*\n\s*plugin\/bin\//g, 'node plugin/bin/');
     const exemptRe = EXEMPT.get(rel);
     for (const line of text.split('\n')) {
-      if (!line.includes('node plugin/bin/')) continue;
-      if (exemptRe && exemptRe.test(line)) continue;
-      offenders.push(`${rel}: ${line.trim().slice(0, 120)}`);
+      const isInvokedRepoRelative = line.includes('node plugin/bin/');
+      const isExempted = exemptRe && exemptRe.test(line);
+      if (isInvokedRepoRelative && !isExempted) {
+        offenders.push(`${rel}: ${line.trim().slice(0, 120)}`);
+      }
     }
   }
   assert.deepStrictEqual(offenders, [], `repo-relative plugin/bin invocations in skill prose:\n${offenders.join('\n')}`);
