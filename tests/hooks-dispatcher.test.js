@@ -641,6 +641,43 @@ test('check-resume-freshness: no resolvable --run path reports the not-found lin
   assert.match(result.stdout, /--run path rejected/);
 });
 
+test('check-staged-inventory: reports OK when decisions.md has no STAGED entries', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-3');
+  fs.mkdirSync(run, { recursive: true });
+  const result = runHook(['check-staged-inventory', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /staged inventory OK for 2026-08-01T000000-record-3 \(0 STAGED entries\)/);
+});
+
+test('check-staged-inventory: reports OK when every STAGED entry has a backing file', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-4');
+  fs.mkdirSync(path.join(run, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(run, 'staged', 'review-1.patch'), 'diff');
+  fs.writeFileSync(path.join(run, 'decisions.md'), 'STAGED 14:41:15 — Step 3 Routing: finding. Stage path: staged/review-1.patch.');
+  const result = runHook(['check-staged-inventory', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /staged inventory OK for 2026-08-01T000000-record-4 \(1 STAGED entries\)/);
+});
+
+test('check-staged-inventory: reports MISMATCH naming the missing path when a STAGED entry has no backing file', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-5');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), 'STAGED 08:22:19 — Step 3 lens dispatch: deferred finding. Stage path: staged/review-defer-1.md.');
+  const result = runHook(['check-staged-inventory', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /staged inventory MISMATCH for 2026-08-01T000000-record-5 — 1 of 1 STAGED entries missing from staged\/: staged\/review-defer-1\.md/);
+});
+
+test('check-staged-inventory: no resolvable --run path reports the not-found line', () => {
+  const project = tmpProject();
+  const result = runHook(['check-staged-inventory', '--run', path.join(project, 'nope')], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /--run path rejected/);
+});
+
 // #1130: a runHook call that omits cwd BOTH in execFileSync's options and in
 // the JSON payload used to fall through to the spawned subprocess's own
 // process.cwd() — the test runner's real working directory. When that
