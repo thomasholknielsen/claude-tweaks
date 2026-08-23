@@ -331,9 +331,24 @@ function findRunsByWorktreePath(cwd, targetPath, excludeDir) {
   if (typeof targetPath !== 'string' || !targetPath) return [];
   let target = targetPath;
   try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
+  // #1175: excludeDir must be realpath-canonicalized before comparing — a
+  // plain path.resolve() never matches when the caller's --run was spelled
+  // through a symlink (e.g. macOS /tmp, whose real path is /private/tmp), so
+  // the primary run's own events were never excluded and got re-emitted
+  // tagged `_source: 'adhoc'`. `dir` (from iterRunDirsWithState) is only
+  // realpath'd when mainCheckoutRoot resolves a real git repo — the raw-cwd
+  // fallback leaves it unresolved — so `dir` needs the same treatment at
+  // comparison time too, not just excludeDir, or the two sides stay on
+  // unequal footing whenever that fallback is the active path.
+  let excl = excludeDir ? path.resolve(excludeDir) : null;
+  if (excl) { try { excl = fs.realpathSync(excl); } catch { /* keep as-resolved */ } }
   const out = [];
   for (const { dir, state } of iterRunDirsWithState(cwd)) {
-    if (excludeDir && path.resolve(dir) === path.resolve(excludeDir)) continue;
+    if (excl) {
+      let dirReal = path.resolve(dir);
+      try { dirReal = fs.realpathSync(dirReal); } catch { /* keep as-resolved */ }
+      if (dirReal === excl) continue;
+    }
     if (worktreeMatches(state, target, targetPath)) out.push({ runDir: dir, state });
   }
   return out;

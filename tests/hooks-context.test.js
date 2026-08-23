@@ -228,6 +228,23 @@ test('findRunsByWorktreePath excludes excludeDir (the caller\'s own primary run 
   assert.deepStrictEqual(result.map((r) => r.runDir), [adhoc]);
 });
 
+// #1175: excludeDir was compared with a plain path.resolve() while `dir`
+// (built from the already-realpath'd main-checkout root) is canonical — a
+// symlink-spelled --run (macOS /tmp -> /private/tmp, or any symlinked repo
+// parent) never matched, so the primary run's own events were never
+// excluded and got re-emitted tagged `_source: 'adhoc'`.
+test('#1175 findRunsByWorktreePath excludes excludeDir even when passed through a symlinked spelling', () => {
+  const project = fs.realpathSync(tmpProject());
+  const primary = mkRun(project, '2026-07-01T090000-spec-500', { status: 'active', worktree: '/tmp/wt-a' });
+  const adhoc = mkRun(project, '2026-07-02T060000-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-hooks-symlink-'));
+  const alias = path.join(parent, 'alias');
+  fs.symlinkSync(project, alias, 'dir');
+  const excludeDirViaSymlink = path.join(alias, '.claude-tweaks', 'pipelines', path.basename(primary));
+  const result = ctx.findRunsByWorktreePath(project, '/tmp/wt-a', excludeDirViaSymlink);
+  assert.deepStrictEqual(result.map((r) => r.runDir), [adhoc]);
+});
+
 test('findRunsByWorktreePath returns [] when nothing matches or the path is empty', () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-record-1-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
