@@ -49,6 +49,19 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 → Collect each as: `[plan] {filename} — {recommendation}`
 
+Also glob `docs/plans/*-ledger.md` — the per-feature pipeline ledgers `/claude-tweaks:ledger` creates (`docs/plans/YYYY-MM-DD-{feature}-ledger.md`, `_shared/ledger-format.md`) and `/claude-tweaks:wrap-up` Step 10 deletes on successful completion. A pipeline that never reaches wrap-up leaves its ledger behind permanently; nothing else sweeps for it.
+
+For each matched file, extract its `{feature}` slug (the filename with the leading `YYYY-MM-DD-` date and the trailing `-ledger.md` suffix stripped) and check `.claude-tweaks/pipelines/` (every entry except `archive/`) for a directory whose name contains that slug as a substring — a pipeline run directory's own `{spec-slug}` (`_shared/pipeline-run-dir.md`) commonly embeds the same feature identifier (e.g. ledger `2026-08-14-record-390-ledger.md` ↔ run directory `2026-08-14T…-record-390`), though the two naming schemes are independently derived and not guaranteed identical:
+
+| Status | Recommendation |
+|--------|---------------|
+| A directory under `.claude-tweaks/pipelines/` (not `archive/`) matches the slug | Keep |
+| No matching directory anywhere under `.claude-tweaks/pipelines/` (absent, or present only under `archive/`) | Delete (orphan) |
+
+Absence of the run directory is the safer orphan signal than file age alone — a pipeline that's merely paused, not abandoned, still has its run directory on disk (just inactive); only a genuinely finished-and-archived or abandoned-and-swept run leaves the ledger with nothing to match. Before recommending Delete, also sanity-check that no open work record's body references the ledger's filename or feature slug — a quick judgment read, not a scripted grep across every open record (Step 4 stays in the main thread precisely because its rule set is cheap).
+
+→ Collect each as: `[ledger] {filename} — {recommendation}`
+
 ## Step 4.5: Audit Git Worktrees, Build Branches, and Artifact Residue
 
 **Working-directory discipline:** every `git` command in this step (and in any dispatched parallel agent) MUST be anchored with `git -C "{REPO_ROOT}"` (or run after `cd "{REPO_ROOT}"`). `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before any agent fires. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`. CWD does not propagate reliably across parallel agents — without the anchor, branch deletions and worktree removals can land in the wrong checkout.

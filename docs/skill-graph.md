@@ -320,7 +320,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | Target | Relationship |
 |---|---|
 | `/deepen` | Does not write ledger items. Pipeline staging goes through the Auto-Mode Contract instead (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`, plus `staged/deepen-collapse-{n}.patch` for narrow collapse candidates per `_shared/staged-patch.md`), and `/flow` renders returned candidates directly as a Depth Opportunities block, never via the ledger. |
-| `/tidy` | `/ledger` creates the per-feature ledger files at `docs/plans/*-ledger.md`, consumed by `/build`, `/test`, `/review`, `/wrap-up`, and `/flow` during a pipeline run, and deleted at `/wrap-up`'s Phase 4 execution step on successful completion. `/tidy` does not currently scan ledger files — no step in `tidy/scan-procedures.md` reads `docs/plans/*-ledger.md`, so a stale or orphaned ledger left by a pipeline that never reached wrap-up is not surfaced by a `/tidy` sweep today. Known gap. |
+| `/tidy` | `/ledger` creates the per-feature ledger files at `docs/plans/*-ledger.md`, consumed by `/build`, `/test`, `/review`, `/wrap-up`, and `/flow` during a pipeline run, and deleted at `/wrap-up`'s Phase 4 execution step on successful completion. `/tidy` Step 4 also globs `docs/plans/*-ledger.md` (`tidy/scan-procedures.md`) and surfaces a `[ledger]` finding for any ledger whose matching pipeline run directory is absent from `.claude-tweaks/pipelines/` (or present only under `archive/`) — a pipeline that never reached wrap-up no longer leaves its ledger permanently invisible. |
 
 ## reflect
 
