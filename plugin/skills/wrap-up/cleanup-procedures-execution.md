@@ -332,8 +332,8 @@ checks 1 or 3 fail.
    command once, then log and continue — TTL is the backstop, never block wrap-up. Exit `2` =
    malformed call or `gh` absent (see step 4's fallback).
 6. **Remove grants** when the outcome was `merged:` or `pr-opened:`: pass `--remove-grants`, which
-   strips `auto:build` and `auto:merge`, whichever are present, best-effort per label — reversible,
-   each removal logged to `decisions.md` by the CLI. Omit it for issues released as `abandoned:`
+   strips `auto:build`, `auto:merge-pending`, and `auto:merge`, whichever are present, best-effort
+   per label — reversible, each removal logged to `decisions.md` by the CLI. Omit it for issues released as `abandoned:`
    (the grant is the standing retry request); an issue carrying no `auto:*` label is a harmless
    no-op. See "Grant revocation" and the "Release triggers" table in `_shared/issue-claims.md`.
 7. **Remove `bot:in-progress`; restore `parked` if applicable.** `--remove-in-progress` (always
