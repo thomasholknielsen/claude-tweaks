@@ -187,3 +187,40 @@ test('#1183: reject — a worktree shadow of an archived pipelines/archive/{id} 
   assert.doesNotMatch(out.stdout, /worktree recorded/);
   assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
 });
+
+test('#1183 fix-wave: accept — a worktree-local INITIALIZED run dir reached through a symlinked path component still adopts via the #280 fallback', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', '2026-01-01T000000-spec-1183sym']);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  // A symlink standing in for a path component (macOS /tmp -> /private/tmp is
+  // the common real-world case) — repoInfo(resolved).repoRoot is realpath'd
+  // internally (safeReal), but the un-realpath'd `resolved` used in the old
+  // relative-path comparison was not, so a path reached through a symlink
+  // like this one produced a spurious `..`-prefixed relative path and was
+  // wrongly rejected. Passing the SAME run dir through a symlinked alias
+  // here, with no main-checkout twin at all, must still be adopted.
+  const wtLink = path.join(path.dirname(wt), 'wt-symlink');
+  fs.symlinkSync(wt, wtLink, 'dir');
+  const viaSymlink = path.join(wtLink, '.claude-tweaks', 'pipelines', '2026-01-01T000000-spec-1183sym');
+  const out = runRecordWorktree(['--run', viaSymlink, wt], wt);
+  assert.match(out.stdout, /worktree-local fallback \(#280\)/i);
+  assert.match(out.stdout, /worktree recorded/);
+});
+
+test('#1183 fix-wave: reject — a worktree-local archive/{id} shadow is refused when a LIVE (non-archived) run dir exists under the same id at the main checkout', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const runId = '2026-01-01T000000-spec-archlive';
+  // The main-checkout copy is LIVE (not archived) under the same run-id —
+  // checking only the archive/{id} path at the main checkout would miss
+  // this and wrongly adopt the worktree-local archive shadow as if no
+  // authoritative copy existed anywhere.
+  mkRunDir(main, ['.claude-tweaks', 'pipelines', runId]);
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', 'archive', runId]);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assert.match(out.stdout, /not anchored|resolves outside the main checkout/i);
+  assert.doesNotMatch(out.stdout, /worktree recorded/);
+  assert.doesNotMatch(out.stdout, /worktree-local fallback/i);
+});

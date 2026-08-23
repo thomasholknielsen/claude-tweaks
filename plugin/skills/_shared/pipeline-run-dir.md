@@ -156,16 +156,21 @@ The gating signal that separates this from an ordinary stray worktree-local dire
 when (a) it resolves inside a linked worktree *of this same repo* — not an arbitrary directory,
 and not an unrelated repo's checkout (`#1183`: an earlier version of this check verified none of
 this, so any directory carrying a stray marker file was adopted); (b) that path, relative to the
-worktree's own `.claude-tweaks/pipelines/`, has a run-id-shaped leading segment (the same
-`RUN_ID_RE` shape `context.js`'s run-dir enumeration and `checkPipelineShadowGuard` above both
-use); (c) it is already an **initialized** run dir — carries at least one of `decisions.md`,
+worktree's own `.claude-tweaks/pipelines/`, has a run-id-shaped segment in the position that names
+the run — the leading segment ordinarily, or the segment immediately after `archive/` for an
+archived shadow (the same `RUN_ID_RE` shape `context.js`'s run-dir enumeration,
+`iterRunDirsWithState`, uses to distinguish a real pipeline run dir from an arbitrary directory);
+(c) it is already an **initialized** run dir — carries at least one of `decisions.md`,
 `run-state.json`, or `config.yml`, the same bar every other resolver in this file uses to tell a
 real run from a bare `mkdir`; and (d) no directory exists at the *same pipelines-relative path*
 under the main checkout, which would make that copy the authoritative one instead (`#1183`: this
 used to compare only the directory's basename, so a nested multi-spec shadow
 (`pipelines/{parent}/spec-N`) or an archived shadow (`pipelines/archive/{id}`) computed the wrong
 main-checkout candidate and was adopted even though the anchored copy existed at the correct
-nested/archived path). A bare `mkdir` of a worktree-local pipelines path (the [IL-96]/[IL-127]
+nested/archived path). An `archive/{id}` shadow is also checked against a *live*, non-archived
+copy of the same run-id under the main checkout — a run can be live under one id while a
+worktree-local session independently archived its own local copy under the same id, and checking
+only the archived path would miss that (`#1183` fix-wave). A bare `mkdir` of a worktree-local pipelines path (the [IL-96]/[IL-127]
 shadow shape `checkPipelineShadowGuard` exists to prevent, above) fails condition (c) and is
 rejected exactly as before — an ordinary run with no worktree-local run dir at all can never
 spuriously match this fallback, satisfying the "blocked vs. absent" distinction the record's

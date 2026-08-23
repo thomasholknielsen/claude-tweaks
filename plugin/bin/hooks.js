@@ -126,15 +126,18 @@ function resolveRunArg(args, cwd, env) {
       //       directory carrying a stray marker file was adopted);
       //   (b) that path, relative to the worktree's own
       //       .claude-tweaks/pipelines/, has a run-id-shaped leading segment
-      //       (mirroring pre-tool-use.js's shadowPipelineRunDir and
-      //       context.js's RUN_ID_RE — the signal that distinguishes a real
-      //       pipeline run dir from an arbitrary directory that merely
-      //       happens to contain one of the three marker files);
+      //       (the same `RUN_ID_RE` shape context.js's own run-dir
+      //       enumeration, iterRunDirsWithState, uses to distinguish a real
+      //       pipeline run dir from an arbitrary directory);
       //   (c) it is already an INITIALIZED run dir — not merely a directory
       //       that exists, the same bar isInitializedRunDir states; and
       //   (d) no same-named run dir already exists at the SAME
       //       pipelines-relative path under the main checkout, which would
-      //       make that copy the authoritative one instead.
+      //       make that copy the authoritative one instead — and, for an
+      //       archive/{id} shadow specifically, no LIVE (non-archived) run
+      //       dir exists under that same id either, since a run can be live
+      //       under one id while a worktree-local session independently
+      //       archived its own local copy under the same id (#1183 fix-wave).
       // #1183: (d) used to join only path.basename(resolved), so a nested
       // multi-spec shadow (pipelines/{parent}/spec-N) or an archived shadow
       // (pipelines/archive/{id}) computed the wrong main-checkout candidate
@@ -146,17 +149,35 @@ function resolveRunArg(args, cwd, env) {
       // original run-id-shaped directory name one level deeper); every
       // other shape's run-id segment is relParts[0].
       const candidateRepo = wtDetect.repoInfo(resolved);
+      // #1183 fix-wave: repoInfo's repoRoot is realpath'd internally (safeReal),
+      // but `resolved` above is not — a symlinked path component (macOS /tmp is
+      // the common case) then makes the relative-path comparison below compare
+      // a canonical root against a lexical path, producing a spurious `..`
+      // prefix and wrongly rejecting a legitimate candidate. Realpath resolved
+      // here too, mirroring pre-tool-use.js's shadowPipelineRunDir
+      // (`const real = realTarget(resolved) || resolved;`). Only used for this
+      // comparison — `runDir` below still returns the unresolved `resolved`,
+      // matching isAnchoredUnderRoot(resolved, mainRoot) above.
+      const realResolved = wtDetect.safeReal(resolved) || resolved;
       const sameRepo = !candidateRepo.indeterminate && candidateRepo.repoRoot && candidateRepo.isLinkedWorktree
         && wtDetect.mainCheckoutRoot(candidateRepo.repoRoot) === mainRoot;
       const relFromPipelines = sameRepo
-        ? path.relative(path.join(candidateRepo.repoRoot, '.claude-tweaks', 'pipelines'), resolved)
+        ? path.relative(path.join(candidateRepo.repoRoot, '.claude-tweaks', 'pipelines'), realResolved)
         : null;
       const inPipelines = !!relFromPipelines && !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
       const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
       const runIdSegment = relParts[0] === 'archive' ? relParts[1] : relParts[0];
       const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
       const mainCandidate = inPipelines ? path.join(mainRoot, '.claude-tweaks', 'pipelines', relFromPipelines) : null;
-      if (sameRepo && inPipelines && runIdShaped && isInitializedRunDir(resolved) && !isDirectory(mainCandidate)) {
+      // #1183 fix-wave: an archive/{id} shadow must also be checked against a LIVE
+      // (non-archived) copy of the same run-id under the main checkout — a run can be
+      // live under one id while a worktree-local session independently archived its own
+      // local copy under the same id; checking only the archive/{id} path would miss that.
+      const mainLiveCandidate = (inPipelines && relParts[0] === 'archive' && runIdSegment)
+        ? path.join(mainRoot, '.claude-tweaks', 'pipelines', runIdSegment)
+        : null;
+      const twinExists = isDirectory(mainCandidate) || (!!mainLiveCandidate && isDirectory(mainLiveCandidate));
+      if (sameRepo && inPipelines && runIdShaped && isInitializedRunDir(resolved) && !twinExists) {
         return {
           runDir: resolved, invalidRunArg: null, rest, explicit: true, worktreeLocalFallback: true,
         };
