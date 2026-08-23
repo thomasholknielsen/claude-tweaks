@@ -234,12 +234,19 @@ there is no second thread, no `OUTCOME: ready-to-merge` relay, and no
 `close-run`/branch-guard/push-from-worktree dance — those existed only for a *local* merge. Report the outcome that procedure returned
 (`merged` / `armed` / `pending-review`) (pending-review now also covers a red or timed-out check
 per that gate) per `task-prompt.md`'s updated second-call template. On
-`merged`, this call also owes the cleanup a merge unlocks — worktree removal, claim release,
-run-dir archival (wrap-up's Items 4, 7, 8) — run them directly, citing the same canonical
-procedures Settle already cites for claim release: `wrap-up/cleanup-procedures-execution.md` Section C
-(worktree), Section E (claim), Section B (run dir). On `armed` or `pending-review`, none of
-those three run yet — they wait for `merged` evidence, which the reconciler picks up
-convergently at its next trigger point, same as `_shared/pr-first-merge.md` states.
+`merged`, this call also owes the cleanup a merge unlocks for the two items it can actually run
+directly — claim release and run-dir archival (wrap-up's Items 7, 8) — citing the same canonical
+procedures Settle already cites: `wrap-up/cleanup-procedures-execution.md` Section E (claim),
+Section B (run dir). Worktree removal (Item 4) is NOT run directly here, `merged` included: this
+call inherited the worktree and never itself `EnterWorktree`'d it, so `ExitWorktree` is a
+documented no-op for it — the same structural constraint stated at the top of this file, which
+applies to every Task-call branch without exception. Worktree removal instead defers to the
+reconciler on merged-PR evidence — the identical mechanism `armed`/`pending-review` already rely
+on below, and already unconditional across every path that reaches `merged` (`reap-merged.js`'s
+PR-state check reaps regardless of which branch produced the merge). On `armed` or
+`pending-review`, none of the three run yet — they wait for `merged` evidence, which the
+reconciler picks up convergently at its next trigger point, same as `_shared/pr-first-merge.md`
+states.
 
 **Both layers pass — merge (`integration-model: local-merge`):** this Task call never touches
 the main checkout — a Task-tool subagent launched by dispatch is cwd-pinned to the worktree it

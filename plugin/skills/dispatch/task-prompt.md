@@ -93,6 +93,11 @@ numbers in an intermediate commit message, write "refs #N" -- never "closes #N" 
 #N". The real closing keyword is stamped once, at the end, by wrap-up's carrier commit or the
 merge commit (close-via-merge, `_shared/issue-claims.md`).
 
+On `failed`/`blocked`, Settle's own procedure releases the claim in this call (its step 2,
+unconditional); run-dir archival does not run here — the run stays parked for a human to resume
+or for the retry ceiling to escalate it, the same disposition `dispatch/SKILL.md`'s Reporting
+section already describes for ordinary `pending-review` parking.
+
 Working directory: the dispatching session is still in this group's worktree (unchanged since
 the first call) -- you inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
 /superpowers:using-git-worktrees. Echo `pwd` and `git rev-parse --show-toplevel` before any
@@ -107,12 +112,15 @@ Status line (required): First line of your reply must be one of: DONE / DONE_WIT
 / NEEDS_CONTEXT / BLOCKED.
 
 Before choosing which OUTCOME value to report, check the record's actual state rather than
-inferring it from what this call itself did earlier: read `claims/issue-{n}.json` (does the
-claim's `runId` still match this run, is it `live`?), the record's current labels
-(`bot:in-progress`, `auto:merge`), and `run-state.json`'s `pr` object (does it already carry a
-`number`/`url`, and if so, is that PR still open or already merged?). A completed hand-off (a
-`pr` object recorded, or a merge already landed) is not the same state as a genuinely still-open
-run awaiting a human -- report `pending-review` only for the latter.
+inferring it from what this call itself did earlier: read the claim blob (`claims/issue-{n}.json`
+on the `claims-registry` branch, not a working-tree file -- fetch it the same way
+`_shared/issue-claims.md` describes) to see whether the claim's `runId` still matches this run
+and is `live`; check the record's current labels (`bot:in-progress`, `auto:merge`); and read
+`run-state.json`'s `pr` object for a recorded `number`/`url` -- when one is recorded, resolve its
+live state with `gh pr view {number} --json state,isDraft,url` rather than assuming from the
+recorded object alone, since it carries no state field. A completed hand-off (a live PR already
+recorded, or `state: MERGED`) is not the same state as a genuinely still-open run awaiting a
+human -- report `pending-review` only for the latter.
 
 OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
 
@@ -129,8 +137,12 @@ ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
 `pending-review` are `_shared/pr-first-merge.md`'s own outcome vocabulary, reported verbatim: you
 run the merge procedure yourself, in this same call, whichever file's Auto-merge gate you reach
 (`dispatch/settle-and-merge.md` for a bundle, `wrap-up/review-console.md`'s dispatch-claim branch
-for a singleton). `merged` means you also completed worktree removal, claim release, and run-dir
-archival (that procedure's Step 4) — nothing is deferred to the dispatching session on this path.
+for a singleton). `merged` means you also completed claim release and run-dir archival directly
+(that procedure's Step 4) — but not worktree removal: this call inherited the worktree and never
+itself `EnterWorktree`'d it, so `ExitWorktree` is a no-op for it, the same structural constraint
+`settle-and-merge.md` states at the top of that file. Worktree removal defers to the reconciler
+on merged-PR evidence instead — the same mechanism the next sentence already describes for
+`armed`/`pending-review`.
 `armed`/`pending-review` complete none of those three; the reconciler finishes them later, on
 merged-PR evidence, whichever trigger point observes it first. There is no `ready-to-merge` value
 under this model — the merge already happened, or didn't, by the time you report.
