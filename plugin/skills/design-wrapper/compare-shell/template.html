@@ -374,6 +374,7 @@
       meta.dataset.seedKey = DATA.outcome.seedKey || '';
       meta.dataset.rerollCount = String(DATA.outcome.rerollCount || 0);
       meta.dataset.steerHistory = JSON.stringify(DATA.outcome.steerHistory || []);
+      meta.dataset.tweaks = JSON.stringify(DATA.outcome.tweaks || []);
       meta.dataset.date = DATA.outcome.date || '';
       document.body.appendChild(meta);
     }

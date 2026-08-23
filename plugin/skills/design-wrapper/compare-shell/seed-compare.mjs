@@ -20,6 +20,10 @@
 //     sharedMarkup?: path,              // identity scope only
 //     variants: [{ id, name, files: [path...], degraded?, reason? }],
 //     outcome?: { winner, date }        // required in durable mode
+//     tweaks?: [{ token, value }]       // durable mode only — baked into
+//                                       // outcome.tweaks; see
+//                                       // plugin/skills/_shared/visual-decision.md's
+//                                       // tweak event
 //   }
 // All paths are relative to the manifest's own directory.
 'use strict';
@@ -90,6 +94,10 @@ function validateManifest(manifest, mode, manifestDir) {
     for (const file of variant.files || []) {
       assertFileExists(manifestDir, file, `variant ${variant.id}`);
     }
+  }
+
+  if (manifest.tweaks !== undefined && !Array.isArray(manifest.tweaks)) {
+    throw new SeedError('manifest.tweaks must be an array of { token, value } entries');
   }
 
   if (mode === 'durable') {
@@ -197,6 +205,7 @@ function seed({ manifestPath, mode, outPath }) {
       seedKey: manifest.seedKey,
       rerollCount: manifest.rerollCount || 0,
       steerHistory: manifest.steerHistory || [],
+      tweaks: manifest.tweaks || [],
     };
   }
 

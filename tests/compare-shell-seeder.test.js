@@ -207,3 +207,47 @@ test('unit: escapeForInlineScript neutralizes </script regardless of case', asyn
   assert.equal(/<\/script/i.test(escaped), false);
   assert.match(escaped, /<\\\/script/i);
 });
+
+test('AC1207-D3: durable mode bakes manifest.tweaks into outcome.tweaks', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-tweaks-'));
+  const manifestPath = path.join(dir, 'manifest.json');
+  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    scope: 'layout',
+    seedKey: 'seed-tweaks-1',
+    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
+    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
+    tweaks: [{ token: 'hue', value: '210' }, { token: 'corner-radius', value: '4' }],
+  }));
+  const out = mkOut('durable-tweaks.html');
+  const res = seedCli(['--manifest', manifestPath, '--mode', 'durable', '--out', out]);
+  assert.equal(res.code, 0, res.err);
+  const html = fs.readFileSync(out, 'utf8');
+  const data = loadIsland(html);
+  assert.deepEqual(data.outcome.tweaks, [{ token: 'hue', value: '210' }, { token: 'corner-radius', value: '4' }]);
+  assert.match(html, /dataset\.tweaks = JSON\.stringify\(DATA\.outcome\.tweaks \|\| \[\]\)/);
+});
+
+test('AC1207-D3: durable mode with no manifest.tweaks defaults outcome.tweaks to []', () => {
+  const out = mkOut('durable-no-tweaks.html');
+  const res = seedCli(['--manifest', path.join(FIXTURES, 'layout', 'manifest.json'), '--mode', 'durable', '--out', out]);
+  assert.equal(res.code, 0, res.err);
+  const data = loadIsland(fs.readFileSync(out, 'utf8'));
+  assert.deepEqual(data.outcome.tweaks, []);
+});
+
+test('AC1207-D3: a non-array manifest.tweaks is a refusal', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-bad-tweaks-'));
+  const manifestPath = path.join(dir, 'manifest.json');
+  fs.writeFileSync(path.join(dir, 'a.html'), '<p>A</p>');
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    scope: 'layout',
+    seedKey: 'seed-bad-tweaks',
+    variants: [{ id: 'a', name: 'A', files: ['a.html'] }],
+    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
+    tweaks: { token: 'hue', value: '210' },
+  }));
+  const res = seedCli(['--manifest', manifestPath, '--mode', 'durable', '--out', mkOut('x.html')]);
+  assert.notEqual(res.code, 0);
+  assert.match(res.err, /manifest\.tweaks must be an array/);
+});
