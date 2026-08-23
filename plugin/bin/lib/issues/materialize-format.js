@@ -38,7 +38,7 @@ function shapeGate(body) {
   return missing.length ? { ok: false, missing } : { ok: true, missing: [] };
 }
 
-// body -> { surface?, designIntent?, designSeed? } — read from the leading
+// body -> { surface?, designIntent?, uiStack?, designSeed? } — read from the leading
 // metadata block (every line before the first blank line). Legacy `Surface:
 // frontend` reads as `web`; `Surface: mixed` is retired and passed through
 // unchanged (materialize.md: a record still declaring it needs re-shaping,
@@ -52,6 +52,8 @@ function liftMetadata(body) {
   if (surfaceMatch) out.surface = surfaceMatch[1] === 'frontend' ? 'web' : surfaceMatch[1];
   const intentMatch = /^Design-intent:\s*(\S+)/m.exec(block);
   if (intentMatch) out.designIntent = intentMatch[1];
+  const uiStackMatch = /^Ui-stack:\s*(.+)$/m.exec(block);
+  if (uiStackMatch) out.uiStack = uiStackMatch[1].trim();
   const seedMatch = /^Design-seed:\s*(\S+)/m.exec(block);
   if (seedMatch) out.designSeed = seedMatch[1];
   return out;
@@ -61,7 +63,7 @@ function liftMetadata(body) {
 // materialize.md's "The pinned header format". `ceremony` and `grants` are
 // always emitted (never omitted, even when grants is empty); every other
 // field is omitted when its value is null/undefined/empty.
-function composeHeader({ record, origin, risk, size, ceremony, grants, fingerprint, blockedBy, surface, designIntent, designSeed, parkedAtShaping }) {
+function composeHeader({ record, origin, risk, size, ceremony, grants, fingerprint, blockedBy, surface, designIntent, uiStack, designSeed, parkedAtShaping }) {
   const lines = ['---', `record: ${record}`, `origin: ${origin}`];
   if (risk) lines.push(`risk: ${risk}`);
   if (size) lines.push(`size: ${size}`);
@@ -74,6 +76,7 @@ function composeHeader({ record, origin, risk, size, ceremony, grants, fingerpri
   if (Array.isArray(blockedBy) && blockedBy.length) lines.push(`blocked-by: [${blockedBy.join(', ')}]`);
   if (surface) lines.push(`surface: ${surface}`);
   if (designIntent) lines.push(`design-intent: ${designIntent}`);
+  if (uiStack) lines.push(`ui-stack: ${uiStack}`);
   if (designSeed) lines.push(`design-seed: ${designSeed}`);
   if (parkedAtShaping) lines.push('parked-at-shaping: true');
   lines.push('---');

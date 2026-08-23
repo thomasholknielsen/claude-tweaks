@@ -72,6 +72,18 @@ test('liftMetadata: reads Surface/Design-intent/Design-seed from the leading met
   assert.deepEqual(liftMetadata(body), { surface: 'web', designIntent: 'quiet', designSeed: 'abc123' });
 });
 
+test('liftMetadata: reads Ui-stack alongside Surface/Design-intent/Design-seed', () => {
+  const body = 'Surface: web\nDesign-intent: quiet\nUi-stack: shadcn/ui + Tailwind\nDesign-seed: abc123\n\n## Current State\nx';
+  assert.deepEqual(liftMetadata(body), {
+    surface: 'web', designIntent: 'quiet', uiStack: 'shadcn/ui + Tailwind', designSeed: 'abc123',
+  });
+});
+
+test('liftMetadata: Ui-stack omitted when the line is absent', () => {
+  const lifted = liftMetadata('Surface: web\nDesign-intent: none\n\n## Current State\nx');
+  assert.equal('uiStack' in lifted, false);
+});
+
 test('liftMetadata: legacy Surface: frontend reads as web', () => {
   assert.deepEqual(liftMetadata('Surface: frontend\n\n## Current State\nx'), { surface: 'web' });
 });
@@ -94,9 +106,9 @@ test('composeHeader: ceremony and grants are always emitted, even an empty grant
   assert.match(header, /^grants: \[\]$/m);
 });
 
-test('composeHeader: risk/size/fingerprint/blocked-by/surface/design-intent/design-seed/parked-at-shaping omitted when absent', () => {
+test('composeHeader: risk/size/fingerprint/blocked-by/surface/design-intent/ui-stack/design-seed/parked-at-shaping omitted when absent', () => {
   const header = composeHeader({ record: 5, origin: 'human', ceremony: 'standard', grants: { build: true, merge: false } });
-  for (const key of ['risk:', 'size:', 'fingerprint:', 'blocked-by:', 'surface:', 'design-intent:', 'design-seed:', 'parked-at-shaping:']) {
+  for (const key of ['risk:', 'size:', 'fingerprint:', 'blocked-by:', 'surface:', 'design-intent:', 'ui-stack:', 'design-seed:', 'parked-at-shaping:']) {
     assert.doesNotMatch(header, new RegExp('^' + key, 'm'), `${key} should be omitted when its value is absent`);
   }
   assert.match(header, /^grants: \[build\]$/m);
@@ -106,13 +118,13 @@ test('composeHeader: every optional field present renders in the documented orde
   const header = composeHeader({
     record: 711, origin: 'capture', risk: 'low', size: 'high', ceremony: 'standard',
     grants: { build: true, merge: true }, fingerprint: 'fp123', blockedBy: [1, 2],
-    surface: 'backend', designIntent: 'none', designSeed: 'seedabc', parkedAtShaping: true,
+    surface: 'backend', designIntent: 'none', uiStack: 'none — defer to reference codebase', designSeed: 'seedabc', parkedAtShaping: true,
   });
   const lines = header.split('\n');
   assert.deepEqual(lines, [
     '---', 'record: 711', 'origin: capture', 'risk: low', 'size: high', 'ceremony: standard',
     'grants: [build, merge]', 'fingerprint: fp123', 'blocked-by: [1, 2]', 'surface: backend',
-    'design-intent: none', 'design-seed: seedabc', 'parked-at-shaping: true', '---',
+    'design-intent: none', 'ui-stack: none — defer to reference codebase', 'design-seed: seedabc', 'parked-at-shaping: true', '---',
   ]);
 });
 
