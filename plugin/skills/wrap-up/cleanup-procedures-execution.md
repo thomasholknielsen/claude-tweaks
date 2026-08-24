@@ -326,9 +326,14 @@ checks 1 or 3 fail.
    (set `REMOVE_GRANTS=1` per step 6's rule.) The CLI wraps `gh` only — in a `gh`-absent environment
    run the same read-classify-write over the MCP tools per `_shared/github-write-transport.md`;
    the MCP path stays the documented fallback rather than a second mode of the CLI.
-5. Exit `0` = released. Exit `3` = a 404/409/422 from the blob write — the claim was already released
-   or swept (or the sha went stale between the read and this write); the CLI still posts the
-   release comment so the trail records the outcome. Exit `1` = any other failure: retry the
+5. Exit `0` = released. Exit `3` = already released or swept — a 404 from the blob write, or a
+   409/422 whose fresh re-read confirms the claim is gone or now held by a successor; the CLI
+   still posts the release comment so the trail records the outcome. A 409/422 is no longer
+   read as "already released" on its own: under git-CAS the compare-and-swap lease is on the
+   whole `claims-registry` branch tip, so an unrelated concurrent commit rejects the write too.
+   Exit `1` = any other failure — including a 409/422 whose re-read shows the claim is **still
+   held by this run** (nothing was released), or one whose re-read itself failed so the outcome
+   could not be verified: retry the
    command once, then log and continue — TTL is the backstop, never block wrap-up. Exit `2` =
    malformed call or `gh` absent (see step 4's fallback).
 6. **Remove grants** when the outcome was `merged:` or `pr-opened:`: pass `--remove-grants`, which

@@ -10,8 +10,13 @@
 // <run-dir>/decisions.md when that directory exists AND resolves as anchored under the
 // main checkout (resolveTarget — a worktree-local shadow is refused, never silently
 // written, matching bin/log-decision.js's guard [IL-127]). runId = basename(<run-dir>).
-// Exit 0 released; 3 already released or swept (404/409/422 — comment still posted);
-// 4 skipped, claim held by another run (nothing written); 1 failed; 2 malformed
+// Exit 0 released; 3 already released or swept — a 404 from the blob write, or a
+// 409/422 whose fresh re-read confirms the claim is gone or now held by a successor
+// (comment still posted in both cases); 4 skipped, claim held by another run (nothing
+// written); 1 failed — any other error, and specifically a 409/422 whose re-read shows
+// the claim is STILL held by this run (an unrelated commit on `claims-registry` lost us
+// the compare-and-swap: nothing was released, retry) or a re-read that itself failed, so
+// the outcome could not be verified; 2 malformed
 // invocation or `gh` absent — the MCP path in _shared/github-write-transport.md is the
 // documented fallback there, deliberately not grown into this CLI. Logging is
 // bookkeeping, never a gate: the exit code always reflects the release outcome, never

@@ -27,7 +27,9 @@ function errorText(err) {
 }
 
 function isNotFoundError(err) { return /\b404\b|Not Found/i.test(errorText(err)); }
-// 404 (already swept), 409/422 (sha mismatch — someone else re-claimed or released first).
+// 404 (already swept), 409/422 (a compare-and-swap rejection — which may, but need not,
+// mean someone re-claimed or released first; under git-CAS any concurrent commit on the
+// branch rejects too, so releaseClaim re-reads before believing it — see its catch block).
 // Anchored on the status-line shape (`HTTP <code>`) so a 500 whose body happens to mention
 // "404" is never downgraded to already-released.
 function isAlreadyReleasedError(err) { return /HTTP (404|409|422)\b/.test(errorText(err)); }

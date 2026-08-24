@@ -153,6 +153,28 @@ test('realDeps wires the real git-CAS runner and the real gh runner', () => {
   assert.equal(realDeps.runner, release.defaultRunner, 'runner is release.js\'s defaultRunner export');
 });
 
+// The middle link of the same chain: `realDeps` holds the real git-CAS runner (test
+// above) and `releaseClaim` forwards a `gitRunner` on to claim-store (release.test.js) —
+// but neither notices if the CLI's own call site stops passing it. Deleting
+// `gitRunner: deps.gitRunner` from that call leaves every other test in the repo green
+// while production releases silently drop back to the contents-API transport.
+test('run() forwards deps.gitRunner into the release.releaseClaim call', (t) => {
+  const runDir = mkRun();
+  const out = [];
+  const { d } = deps({ content: live(RUN_DIR_NAME), out, mainRoot: rootOf(runDir) });
+  const sentinelGitRunner = () => { throw new Error('sentinel gitRunner must never be invoked in this test'); };
+  d.gitRunner = sentinelGitRunner;
+  const spy = t.mock.method(release, 'releaseClaim', () => ({
+    outcome: 'released', calls: ['read', 'put', 'comment'], commentPosted: true,
+    labelsRemoved: [], labelsFailed: [], note: null,
+  }));
+  assert.equal(run(['999', '--run', runDir, '--reason', 'merged: spec 999'], d), 0);
+  assert.equal(spy.mock.calls.length, 1, 'the CLI made exactly one releaseClaim call');
+  const arg = spy.mock.calls[0].arguments[0];
+  assert.equal(arg.gitRunner, sentinelGitRunner, 'the call carries deps.gitRunner by reference — not undefined, not some other function');
+  assert.equal(arg.runner, d.runner, 'and deps.runner alongside it');
+});
+
 test('malformed invocation / gh absent exit 2 with the MCP fallback named; --help exits 0', () => {
   const runDir = mkRun();
   const out = [];
