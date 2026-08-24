@@ -1204,3 +1204,25 @@ the new tests failed as expected.
 Cost on the #326 run: moderate — one extra fix round within the same review pass; the actual
 shipped `plugin/` payload (every other project's `/init` output) would otherwise have carried none
 of the 4 hardening fixes despite every AC reading as met against this repo's own copy.
+
+## IL-146 — A documented anti-pattern recurred a 4th time despite an existing review lens callout
+
+During spec #1269's build (reconcile `decisions.md` STAGED lines against `staged/`'s actual file
+inventory on resume, 2026-08-23), the freshly-written `checkStagedInventory` function
+(`plugin/bin/lib/hooks/staged-inventory.js:46-47`) used `fs.existsSync(...)`-then-
+`fs.readFileSync(...)` to read `decisions.md` — the exact TOCTOU pattern
+`skills/review/step3-lens-dispatch.md`'s Error Handling lens (3c) already calls out by name,
+citing 3 prior independent recurrences (#901). Review caught it cleanly this time — no shipped
+defect — but a lens that only fires at review time means every occurrence pays a full write-fix-
+reverify cycle, and evidently doesn't suppress the pattern from being written in the first place:
+this was the 4th time despite the callout already existing when this code was written.
+
+The lens text lived only in `skills/review/step3-lens-dispatch.md`, which no implementer subagent
+reads while writing code — it is loaded by `/claude-tweaks:review`'s own dispatch, after the fact.
+`CLAUDE.md`'s `docs/donts.md`, by contrast, is inherited by every dispatched subagent's system
+prompt (this file's own header), making it the one channel that actually reaches an implementer at
+write time rather than only a reviewer afterward.
+
+Cost on the #1269 run: low — caught cleanly at review, one fix cycle, no re-verify failures. The
+recurring cost is amortized across every prior occurrence this same pattern was independently
+rediscovered and re-fixed instead of prevented.
