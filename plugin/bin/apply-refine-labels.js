@@ -98,6 +98,13 @@ function logFailed(deps, runDir, text) {
   } catch { /* logging is best-effort — never fails the batch */ }
 }
 
+// Shared by both catch sites below — a `gh` execFileSync failure carries its
+// text across message/stderr/stdout inconsistently, so join whichever are
+// present rather than picking one field.
+function errMessage(err) {
+  return [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
+}
+
 const realDeps = {
   gh: (args) => execFileSync('gh', args, { encoding: 'utf8' }),
   ghAvailable,
@@ -191,7 +198,7 @@ function run(argv, deps = realDeps) {
         logAuto(deps, runDir, `#${action.issue}: applied ${labelSummary}`);
       } catch (err) {
         editFailed = true;
-        const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
+        const message = errMessage(err);
         failed.push({ issue: action.issue, step: 'edit', error: message });
         logFailed(deps, runDir, `#${action.issue}: ${labelSummary} failed: ${message}.`);
       }
@@ -208,7 +215,7 @@ function run(argv, deps = realDeps) {
         logAuto(deps, runDir, `#${action.issue}: comment posted`);
       } catch (err) {
         commentFailed = true;
-        const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
+        const message = errMessage(err);
         failed.push({ issue: action.issue, step: 'comment', error: message });
         logFailed(deps, runDir, `#${action.issue}: comment failed: ${message}.`);
       }
