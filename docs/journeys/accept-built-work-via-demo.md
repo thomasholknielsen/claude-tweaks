@@ -27,7 +27,7 @@ files:
 - **URL:** *(no command — demo drives)*
 - **Action:** Nothing. Demo runs Prepare commands (`none` → skipped), silently validates URL surfaces with agent-browser when available (session closed afterward), then Shows: opens the deep link in your browser (`open`/`xdg-open`), runs the `cli` command, walks `flow` Inspect pointers in order (regenerating missing artifacts, stating-and-continuing on failures), or renders the `diff`.
 - **Should feel:** Show-first — the work appears in front of you before any question is asked.
-- **Should understand:** A Prepare or Validate failure is *evidence for Request changes*, not a debugging detour — demo never fixes the application. A Parent-Gate parent brief (no plan section, walkthrough inline in `### Confirmed`) and a no-path-list session-recall entry legitimately skip straight to the verdict.
+- **Should understand:** A Prepare or Validate failure is *evidence for Request changes*, not a debugging detour — demo never fixes the application. A Parent-Gate parent brief (no plan section, walkthrough inline in `### Confirmed`) and a no-path-list session-recall entry legitimately skip straight to the verdict. When the plan carries a `Full verification:` block, it renders right after Show, before the verdict question — a pointer to the parent's eventual end-to-end check, not a substitute for it; the verdict you give still concerns only this slice.
 - **Red flags:** Demo asking which way you'd like to verify before showing anything; a browser validation session left open; a stale `flow` pointer blocking the walk instead of being stated and passed over.
 
 ### 3. Give the verdict — one question
@@ -45,5 +45,5 @@ files:
 - **Red flags:** One combined verdict question spanning several records; a batch table asking for apply-all; the second ref starting before the first ref's label swap landed; a Next Actions block after every item instead of once at the end.
 
 ## Origin
-- Steps 1-3 created during the show-first demo build; Step 4 and the batch clauses in Step 1 added during build of #695 (specify + demo `#N,#M` batch argument); Step 3's batch-provenance clause added during build of #431 (demo verdict provenance)
-- Related specs: #695, #685 (tidy's command-grouped Yours section, the batch line's producer), #431 (batch sign-off provenance in the trust table), #365 (the originating finding)
+- Steps 1-3 created during the show-first demo build; Step 4 and the batch clauses in Step 1 added during build of #695 (specify + demo `#N,#M` batch argument); Step 3's batch-provenance clause added during build of #431 (demo verdict provenance); the `Full verification:` clauses in Steps 1 and 2 added during build of #1194 (demo full-verification pointer on decomposed sub-issues)
+- Related specs: #695, #685 (tidy's command-grouped Yours section, the batch line's producer), #431 (batch sign-off provenance in the trust table), #365 (the originating finding), #1194 (full-verification pointer for parent-linked sub-issues)
