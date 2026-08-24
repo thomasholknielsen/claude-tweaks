@@ -139,62 +139,101 @@ function run(argv, deps = realDeps) {
   const ok = [];
   const failed = [];
   for (const action of actions) {
-    try {
-      const hasAdd = hasItems(action.addLabels);
-      const hasRemove = hasItems(action.removeLabels);
-      if (hasAdd || hasRemove) {
+    const hasAdd = hasItems(action.addLabels);
+    const hasRemove = hasItems(action.removeLabels);
+    let editFailed = false;
+    let commentFailed = false;
+
+    if (hasAdd || hasRemove) {
+      try {
         const editArgs = ['issue', 'edit', String(action.issue), '--repo', repoFlag];
         for (const l of action.addLabels || []) editArgs.push('--add-label', l);
         for (const l of action.removeLabels || []) editArgs.push('--remove-label', l);
         deps.gh(editArgs);
-      }
-      if (action.commentFile) {
-        deps.gh(['issue', 'comment', String(action.issue), '--repo', repoFlag, '--body-file', action.commentFile]);
-      }
-      ok.push(action.issue);
-      if (runDir) {
-        const summaryParts = [];
-        if (hasAdd) summaryParts.push(`+${action.addLabels.join(' +')}`);
-        if (hasRemove) summaryParts.push(`-${action.removeLabels.join(' -')}`);
-        if (action.commentFile) summaryParts.push('comment posted');
-        try {
-          deps.appendEntry({
-            runDir,
-            section: '/backlog',
-            entry: formatEntry({
-              status: 'AUTO',
-              now: deps.now(),
-              step: 'apply-refine-labels',
-              text: `#${action.issue}: applied ${summaryParts.join(', ')}`,
-              reversibility: 'high',
-            }),
-          });
-        } catch { /* logging is best-effort — never fails the batch */ }
-      }
-    } catch (err) {
-      const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
-      failed.push({ issue: action.issue, error: message });
-      if (runDir) {
-        const attemptParts = [];
-        if (hasItems(action.addLabels)) attemptParts.push(`+${action.addLabels.join(' +')}`);
-        if (hasItems(action.removeLabels)) attemptParts.push(`-${action.removeLabels.join(' -')}`);
-        if (action.commentFile) attemptParts.push('comment');
-        const summary = attemptParts.length ? attemptParts.join(', ') : 'batch action';
-        try {
-          // #1072: FAILED is not one of append.js's STATUSES (AUTO/STAGED/
-          // KEPT-PROMPT/SCANNED/REFUSED) — refine-mode.md Step 5's own
-          // `FAILED {time} — …` template predates that enum and was never
-          // gated by it, so this line is composed by hand (reusing append.js's
-          // own `hms` for a consistent timestamp) rather than through
-          // formatEntry, which would reject the status.
-          deps.appendEntry({
-            runDir,
-            section: '/backlog',
-            entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: #${action.issue}: ${summary} failed: ${message}.`,
-          });
-        } catch { /* logging is best-effort — never fails the batch */ }
+        if (runDir) {
+          const summaryParts = [];
+          if (hasAdd) summaryParts.push(`+${action.addLabels.join(' +')}`);
+          if (hasRemove) summaryParts.push(`-${action.removeLabels.join(' -')}`);
+          try {
+            deps.appendEntry({
+              runDir,
+              section: '/backlog',
+              entry: formatEntry({
+                status: 'AUTO',
+                now: deps.now(),
+                step: 'apply-refine-labels',
+                text: `#${action.issue}: applied ${summaryParts.join(', ')}`,
+                reversibility: 'high',
+              }),
+            });
+          } catch { /* logging is best-effort — never fails the batch */ }
+        }
+      } catch (err) {
+        editFailed = true;
+        const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
+        failed.push({ issue: action.issue, step: 'edit', error: message });
+        if (runDir) {
+          const attemptParts = [];
+          if (hasAdd) attemptParts.push(`+${action.addLabels.join(' +')}`);
+          if (hasRemove) attemptParts.push(`-${action.removeLabels.join(' -')}`);
+          const summary = attemptParts.length ? attemptParts.join(', ') : 'batch action';
+          try {
+            // #1072: FAILED is not one of append.js's STATUSES (AUTO/STAGED/
+            // KEPT-PROMPT/SCANNED/REFUSED) — refine-mode.md Step 5's own
+            // `FAILED {time} — …` template predates that enum and was never
+            // gated by it, so this line is composed by hand (reusing append.js's
+            // own `hms` for a consistent timestamp) rather than through
+            // formatEntry, which would reject the status.
+            deps.appendEntry({
+              runDir,
+              section: '/backlog',
+              entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: #${action.issue}: ${summary} failed: ${message}.`,
+            });
+          } catch { /* logging is best-effort — never fails the batch */ }
+        }
       }
     }
+
+    // #1073: the comment step is independent of the edit step — it is only
+    // attempted when the edit (if any) did not fail, so a failed edit still
+    // short-circuits exactly like the original single try block did. But a
+    // comment failure after a successful (or absent) edit no longer erases
+    // the edit's own AUTO line above — it gets its own, separate FAILED line.
+    if (action.commentFile && !editFailed) {
+      try {
+        deps.gh(['issue', 'comment', String(action.issue), '--repo', repoFlag, '--body-file', action.commentFile]);
+        if (runDir) {
+          try {
+            deps.appendEntry({
+              runDir,
+              section: '/backlog',
+              entry: formatEntry({
+                status: 'AUTO',
+                now: deps.now(),
+                step: 'apply-refine-labels',
+                text: `#${action.issue}: comment posted`,
+                reversibility: 'high',
+              }),
+            });
+          } catch { /* logging is best-effort — never fails the batch */ }
+        }
+      } catch (err) {
+        commentFailed = true;
+        const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
+        failed.push({ issue: action.issue, step: 'comment', error: message });
+        if (runDir) {
+          try {
+            deps.appendEntry({
+              runDir,
+              section: '/backlog',
+              entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: #${action.issue}: comment failed: ${message}.`,
+            });
+          } catch { /* logging is best-effort — never fails the batch */ }
+        }
+      }
+    }
+
+    if (!editFailed && !commentFailed) ok.push(action.issue);
   }
 
   deps.stdout(JSON.stringify({ ok, failed }, null, 2) + '\n');
