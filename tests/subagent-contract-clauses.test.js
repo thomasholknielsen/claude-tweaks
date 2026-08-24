@@ -162,3 +162,86 @@ test('the exempt dispatch names itself in both the contract and the call site (#
       'the dispatch and wonders why it carries no status line lands on the carve-out in one hop.',
   );
 });
+
+// #649: the fan-out prose said "parallel" but never stated the mechanism (emit every
+// Agent/Task call of a fan-out as tool_use blocks in one assistant message) — an
+// evaluated /specify run serialized 18 persona dispatches into 18 separate messages,
+// 7s apart, because nothing in the plugin's text said otherwise. These tests pin the
+// one canonical sentence (never duplicated) and every named fan-out site's citation of
+// it (never a restatement of the mechanism).
+
+test('the fan-out section states the single-assistant-message rule exactly once (#649 AC1)', () => {
+  const contract = FILES['skills/_shared/subagent-output-contract.md'];
+  const matches = contract.match(/single assistant message/g) || [];
+  assert.strictEqual(
+    matches.length,
+    1,
+    'skills/_shared/subagent-output-contract.md must contain the exact phrase ' +
+      '"single assistant message" exactly once — the canonical fan-out sentence (#649). A ' +
+      'second occurrence means the sentence was duplicated instead of cited; zero means it ' +
+      'was dropped or reworded away from the pinned phrase.',
+  );
+
+  const heading = contract.indexOf('## How to integrate at a dispatch site');
+  assert.notStrictEqual(
+    heading,
+    -1,
+    'the contract must keep its "How to integrate at a dispatch site" section — the fan-out ' +
+      'sentence lives there',
+  );
+  const section = contract.slice(heading, contract.indexOf('\n## ', heading + 1));
+  assert.match(
+    section,
+    /single assistant message/,
+    'the "single assistant message" sentence must live inside the fan-out section itself, not ' +
+      'somewhere unrelated that happens to mention it',
+  );
+});
+
+test("red-team.md cites the fan-out rule and states its own batching unit (#649)", () => {
+  const redTeam = fs.readFileSync(
+    path.join(ROOT, 'plugin', 'skills', 'specify', 'red-team.md'),
+    'utf8',
+  );
+  assert.match(
+    redTeam,
+    /single-assistant-message rule/,
+    'red-team.md must cite the fan-out rule by name, not just link the contract file generally',
+  );
+  assert.match(
+    redTeam,
+    /one message per sub-issue/,
+    "red-team.md must state its own dispatch batching unit: one message per sub-issue's " +
+      "persona set (#649's Deliverables)",
+  );
+  assert.match(
+    redTeam,
+    /fast-lane[^.]*joins the next/i,
+    "red-team.md must state that a fast-lane sub-issue's single Skeptical Reviewer call joins " +
+      'the next sub-issue\'s message rather than spending a whole message on one agent',
+  );
+});
+
+const FAN_OUT_SITES = {
+  '/browse': 'skills/browse/SKILL.md',
+  '/dispatch': 'skills/dispatch/task-prompt.md',
+  '/help': 'skills/help/status-scan.md',
+  '/init': 'skills/init/SKILL.md',
+  '/review': 'skills/review/step3-lens-dispatch.md',
+  '/test': 'skills/test/qa-prompts.md',
+  '/tidy': 'skills/tidy/scan-execution.md',
+  '/visual-review': 'skills/visual-review/page-mode.md',
+};
+
+for (const [skillName, relPath] of Object.entries(FAN_OUT_SITES)) {
+  test(`${skillName} cites the fan-out single-assistant-message rule (#649)`, () => {
+    const text = fs.readFileSync(path.join(ROOT, 'plugin', relPath), 'utf8');
+    assert.match(
+      text,
+      /single-assistant-message rule/,
+      `${relPath} must cite the fan-out rule by name ("single-assistant-message rule") rather ` +
+        "than leaving the fan-out mechanism unstated. Cite _shared/subagent-output-contract.md's " +
+        'fan-out section — do not restate the mechanism text itself (#649).',
+    );
+  });
+}
