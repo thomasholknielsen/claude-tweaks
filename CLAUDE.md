@@ -65,6 +65,12 @@ Adding a new `bin/lib/reconcile/` convergence check touches multiple registratio
 
 Established codebase distributed to real users via a versioned plugin marketplace. Contract changes (skill frontmatter shape, hook payloads, work-record schema, `_shared/*.md` conventions consumed by multiple skills) follow the same expand-contract discipline as a public API: add the new, migrate every consumer (including the installed build, which reads this repo's own committed config with older code), remove the old — never a silent breaking rename. A deprecated behavior gets a recorded removal condition (see the Don'ts rule on this), not an indefinite compatibility shim. Prefer stability over novelty in shipped skill contracts — adopt new conventions in new skills first, then migrate existing ones deliberately, with the incident log recording what each migration cost.
 
+## Objectives
+
+The plugin optimizes for the maintainer objectives `/feedback`'s session judge scores every session against — currently nine: automation efficiency, context overhead, avoidable interactions, friction, developer joy, trust calibration, instruction efficacy, report fidelity, recovery quality. Full definitions, evidence, and class (`judgment`/`countable`) live in `plugin/skills/_shared/feedback-objectives.md` — the canonical rubric; this list is a pointer, not a restatement.
+
+**Decision:** `/reflect`'s five lenses (Surprises, Approach, Near-misses, Fresh start, Friction) evaluate a single build's approach and code, not session-quality across a whole session — a different purpose and a mostly-different vocabulary (only "Friction" genuinely overlaps). They keep their own names rather than adopting these; revisit only if the two rubrics are deliberately merged later.
+
 ## Working Approach
 
 How to execute any task here. These apply project-wide unless a more specific rule or instruction overrides them; use judgment on trivial tasks.
