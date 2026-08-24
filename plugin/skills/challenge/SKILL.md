@@ -39,6 +39,7 @@ No fetch. Read what the caller already has in memory:
 
 - The composed record body — `## Current State`, `## Deliverables`, `## Acceptance Criteria`.
 - In shaping mode, the preserved `## Original request` block. This is the un-reframed source text and is the stronger framing signal, because shaping may already have laundered solution-baked phrasing into neutral spec prose. Judge both; weight the original request higher where they disagree.
+- The body's `## Gotchas` section, when present — specifically any evidence bullets matching `- evidence ({date}): {classification} — {citation}` (the shape the bare-`#N` mode's supply-evidence action writes; see that mode's Step 4). Missing section or no matching bullets: no signal, proceed exactly as before this bullet existed.
 
 ### Step 2: Judge
 
@@ -49,6 +50,8 @@ Render `solution-baked` when the record's content shows any of:
 - The Acceptance Criteria can be satisfied by exactly one implementation, and the record never says why the alternatives lost.
 
 Naming a solution is not itself the defect. A record that names a technology **and** justifies it from observed evidence is `open`. What makes a framing baked is a solution that was never traded off.
+
+**Weighing supplied `## Gotchas` evidence.** When Step 1 gathered an evidence bullet classified `supported` with a real `file:line` citation for a named assumption underpinning the framing's solution, treat that citation as the observed evidence the checks above ask for — it counts toward `open`, the same as if the Current State itself had cited it. This only ever moves a verdict toward `open`: a `contradicted` or `no evidence found` bullet, an accepted-risk bullet, or the complete absence of any evidence bullet adds no signal and leaves the checks above exactly as they read without this paragraph.
 
 **Ambiguity resolves to `open`.** This is deliberately the opposite direction from `/claude-tweaks:assess-agent-autonomy`'s four modes, which resolve toward more caution. Here, more caution would mean manufacturing doubt about a framing that holds — see this skill's Anti-Patterns table. A missed flag costs nothing; a false flag trains the reader to ignore the column. Do not "align" this with its sibling modes.
 
