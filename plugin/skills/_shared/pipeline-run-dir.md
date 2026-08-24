@@ -131,8 +131,9 @@ than satisfying any of them (see the matching Don't in `docs/donts.md`).
 
 A third guard sits at the **CLI-argument boundary** — the one path neither of the two above
 covers, a run directory handed to a binary explicitly on the command line rather than inherited
-or created. Two rules live at this boundary, split by whether the binary has a documented
-legitimate run directory outside the repository:
+or created. Three rules live at this boundary — the first two split by whether the binary has a
+documented legitimate run directory outside the repository, the third carried by the
+sanctioned-write family:
 
 - **Pipeline-owned binaries** — `bin/hooks.js` (`resolveRunArg`, `--run`), `bin/wrap-up-engine.js`
   (`main`, `--run-dir`), `bin/materialize.js` (`run`, `--run-dir`), and `bin/apply-refine-labels.js`
@@ -204,7 +205,17 @@ argument still holds there.
   CLIs' documented invocation-failure code — a deliberate, stated deviation from the family's
   exit 2.
 
-Both rules keep the two failure modes distinct in the message — "resolves outside the main
+- **Sanctioned-write CLIs** — `bin/log-decision.js`, `bin/stage-item.js`, and `bin/set-config.js`
+  (`--run`, refs #1376) — the run-dir writers a worktree-isolated session invokes when tool-level
+  pinning refuses the run dir (see the tool-level pinning note above). Each applies the same
+  strict anchored-under-the-main-checkout rule, but through `bin/lib/stage-item/write.js`'s
+  exported `resolveTarget` rather than `worktree-detect.js` directly, and refuses with exit **3**
+  — their documented run-dir-failure code, kept distinct from their exit 2 (malformed
+  invocation), with its own two messages ("run dir does not exist" versus "not anchored under
+  the main checkout (a worktree-local shadow)"). A fourth writer imports that `resolveTarget`
+  rather than re-deriving the predicate.
+
+The first two rules keep the two failure modes distinct in the message — "resolves outside the main
 checkout" (a worktree-relative shadow) versus "could not determine the git repository root" (no
 repo at all); collapsing them sends a reader hunting for the wrong problem — and both are
 existence-independent (the walk-up runs against whichever ancestor directory exists), so they
