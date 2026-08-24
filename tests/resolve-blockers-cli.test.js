@@ -4,7 +4,8 @@
 // tests/resolve-policy-cli.test.js's spawnSync-a-real-process style, since
 // this CLI's whole point is a `gh api graphql` call that must never be live
 // in a test — a fake runner in deps.runner stands in for it). Covers
-// argument parsing and the {blockedBy, openBlocker} output shape; the
+// argument parsing and the number-keyed {blockedBy, openBlocker} output
+// shape; the
 // GraphQL query-building logic itself (buildNativeDependencyQuery) already
 // has coverage in tests/bin-lib/issues/record.test.js and is not
 // re-verified here.
@@ -59,11 +60,52 @@ test('non-positive <n> is malformed — exit 1', () => {
   assert.match(deps.calls.stderr.join(''), /malformed <n>/);
 });
 
+test('a comma list with one malformed entry is malformed — exit 1, no network call', () => {
+  const deps = fakeDeps({ ghAvailable: () => { throw new Error('should not be called'); } });
+  const code = run(['720,abc,730'], deps);
+  assert.equal(code, 1);
+  assert.match(deps.calls.stderr.join(''), /malformed <n>/);
+});
+
+test('an empty comma segment (trailing comma) is malformed — exit 1', () => {
+  const deps = fakeDeps();
+  const code = run(['720,'], deps);
+  assert.equal(code, 1);
+  assert.match(deps.calls.stderr.join(''), /malformed <n>/);
+});
+
 test('unknown flag is a malformed invocation — exit 1', () => {
   const deps = fakeDeps();
   const code = run(['720', '--bogus'], deps);
   assert.equal(code, 1);
   assert.match(deps.calls.stderr.join(''), /unknown argument: --bogus/);
+});
+
+test('trailing --repo with no value is malformed — exit 1, no network call', () => {
+  const deps = fakeDeps({
+    ghAvailable: () => { throw new Error('should not be called'); },
+    remoteUrl: () => { throw new Error('should not be called'); },
+  });
+  const code = run(['720', '--repo'], deps);
+  assert.equal(code, 1);
+  assert.match(deps.calls.stderr.join(''), /missing value for --repo/);
+  assert.deepStrictEqual(deps.calls.runner, []);
+});
+
+test('--repo followed by another flag is rejected as missing a value, not treated as the value', () => {
+  const deps = fakeDeps({
+    ghAvailable: () => { throw new Error('should not be called'); },
+    remoteUrl: () => { throw new Error('should not be called'); },
+  });
+  const code = run(['720', '--repo', '--help'], deps);
+  assert.equal(code, 1);
+  assert.match(deps.calls.stderr.join(''), /missing value for --repo/);
+});
+
+test('--repo owner/name (well-formed) is unaffected', () => {
+  const deps = fakeDeps();
+  const code = run(['720', '--repo', 'acme/widgets'], deps);
+  assert.equal(code, 0);
 });
 
 test('--help prints usage and exits 0 without touching gh/git', () => {
@@ -105,14 +147,14 @@ test('--repo owner/name overrides the git remote', () => {
 
 // --- success / output shape ----------------------------------------------
 
-test('success: one runner call, {blockedBy, openBlocker} JSON line on stdout, exit 0', () => {
+test('success: one runner call, a number-keyed JSON line on stdout, exit 0', () => {
   const deps = fakeDeps();
   const code = run(['720'], deps);
   assert.equal(code, 0);
   assert.equal(deps.calls.runner.length, 1, 'exactly one gh api graphql call');
   assert.equal(deps.calls.stderr.length, 0, 'success path writes nothing to stderr');
   assert.equal(deps.calls.stdout.length, 1, 'exactly one stdout write');
-  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), { blockedBy: [700], openBlocker: true });
+  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), { 720: { blockedBy: [700], openBlocker: true } });
 });
 
 test('success: owner/repo parsed from the origin remote when --repo is absent', () => {
@@ -130,7 +172,29 @@ test('success: no open blockers reports openBlocker false, blockedBy []', () => 
   });
   const code = run(['720'], deps);
   assert.equal(code, 0);
-  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), { blockedBy: [], openBlocker: false });
+  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), { 720: { blockedBy: [], openBlocker: false } });
+});
+
+test('success: a comma list of numbers resolves in ONE runner call, one key per requested number', () => {
+  const deps = fakeDeps();
+  deps.runner = (args) => {
+    deps.calls.runner.push(args);
+    return JSON.stringify({
+      data: {
+        repository: {
+          i720: { number: 720, blockedBy: { nodes: [{ number: 700, state: 'OPEN' }] } },
+          i730: { number: 730, blockedBy: { nodes: [] } },
+        },
+      },
+    });
+  };
+  const code = run(['720,730'], deps);
+  assert.equal(code, 0);
+  assert.equal(deps.calls.runner.length, 1, 'one aliased call covers the whole list, never one call per number');
+  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), {
+    720: { blockedBy: [700], openBlocker: true },
+    730: { blockedBy: [], openBlocker: false },
+  });
 });
 
 // --- GraphQL failure propagation -----------------------------------------

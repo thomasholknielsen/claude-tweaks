@@ -9,7 +9,7 @@ that matters: *why a stage isn't draining*. The two annotations below say why, m
 
 Both are advisory display only — they grant nothing, write nothing, and stay inside the funnel
 header's `#`-comment format (no command text on an annotation line). They do not count against the
-three annotation lines below the header, which sit under it rather than inside it.
+two annotation lines below the header, which sit under it rather than inside it.
 
 ## `specified` stage — grant-gate outlook
 

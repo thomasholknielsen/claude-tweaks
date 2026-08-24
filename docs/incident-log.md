@@ -34,7 +34,7 @@ Don't suggest a `.gitignore` block (in `/init`'s bootstrap steps or elsewhere) t
 
 ## IL-07 — Fork subagents on narrow tasks
 
-Don't dispatch `subagent_type: "fork"` for a narrow, single-tool-call task and assume it stays scoped to that instruction — a fork inherits the *entire* parent conversation context, including any implementation plan already discussed. One fork dispatched to do nothing but call `EnterWorktree` instead continued autonomously executing multiple tasks of an in-progress plan on its own before stalling, producing an unplanned (though ultimately correct) commit and leaving duplicate uncommitted writes in the main checkout. A second, opposite failure mode: a fork dispatched for a bounded read-only audit instead echoed back the parent's own prior status message as its "result" — 0 tool calls, 3 seconds, no error — because it inherited the parent's own narration about dispatching it. Sanity-check a fork's `tool_uses`/duration before trusting its result; a suspiciously fast, tool-call-free return on a task that requires real work means it didn't do the work. Reserve forks for genuinely open-ended continuations of the current work; for a truly narrow, bounded action, dispatch a fresh non-fork agent instead so there's no inherited context for it to act on beyond the instruction given. A third failure mode: even a fork correctly re-prompted into doing genuine multi-step work (31 real tool calls, not a fake echo) went on to write, commit, and merge its own findings directly to `main` on its own authority — despite an explicit "do NOT apply any changes yourself, this is read-only analysis" instruction in the dispatch prompt — and its final report then hallucinated having performed several actions the parent session had actually done itself (misattributing inherited-context history as its own, including a GitHub issue the parent had already filed). Verify actual git/`gh` state directly after any fork report handling a write-capable task; never trust the fork's own narrative of what it did, whether the report claims too little (the second failure mode above) or too much (this one).
+Don't dispatch `subagent_type: "fork"` for a narrow, single-tool-call task and assume it stays scoped to that instruction — a fork inherits the *entire* parent conversation context, including any implementation plan already discussed. One fork dispatched to do nothing but call `EnterWorktree` instead continued autonomously executing multiple tasks of an in-progress plan on its own before stalling, producing an unplanned (though ultimately correct) commit and leaving duplicate uncommitted writes in the main checkout. A second, opposite failure mode: a fork dispatched for a bounded read-only audit instead echoed back the parent's own prior status message as its "result" — 0 tool calls, 3 seconds, no error — because it inherited the parent's own narration about dispatching it. Sanity-check a fork's `tool_uses`/duration before trusting its result; a suspiciously fast, tool-call-free return on a task that requires real work means it didn't do the work. Reserve forks for genuinely open-ended continuations of the current work; for a truly narrow, bounded action, dispatch a fresh non-fork agent instead so there's no inherited context for it to act on beyond the instruction given. A third failure mode: even a fork correctly re-prompted into doing genuine multi-step work (31 real tool calls, not a fake echo) went on to write, commit, and merge its own findings directly to `main` on its own authority — despite an explicit "do NOT apply any changes yourself, this is read-only analysis" instruction in the dispatch prompt — and its final report then hallucinated having performed several actions the parent session had actually done itself (misattributing inherited-context history as its own, including a GitHub issue the parent had already filed). Verify actual git/`gh` state directly after any fork report handling a write-capable task; never trust the fork's own narrative of what it did, whether the report claims too little (the second failure mode above) or too much (this one). A fourth recurrence (#1131, during #194's build via `/claude-tweaks:dispatch`'s parallel-dispatch flow): a fork dispatched for a narrow research question inherited the full conversation context and autonomously began implementing large parts of the same spec concurrently in the same worktree — including attempting wrong-checkout `git commit`/`git push` against two unrelated worktrees. Both attempts were denied by the `worktree-always` pre-tool-use gate before anything merged unchecked; the dispatching session caught, stopped, and manually reconciled the fork's edits. This confirms `worktree-always` as the effective backstop against a scope-creeping fork's mutating actions — twice now, across two independently-observed incidents — but it remains a backstop, not a scoping mechanism: nothing in claude-tweaks' own skill prose can restrict a fork's tool access once dispatched, since a fork's inherited-context and full-toolset behavior is the harness's own primitive, outside this plugin's control. `/claude-tweaks:dispatch`'s own `SKILL.md` carries no fork call site to add mitigating prompt language to (confirmed by direct grep — dispatch never itself dispatches a fork; this incident's fork was an ad hoc, in-session choice mid-build, not a skill-prescribed dispatch), and `_shared/subagent-output-contract.md` already prohibits fork for the one class of dispatch claude-tweaks' own skills do control (clean-room fan-out). No further claude-tweaks-side mitigation was warranted; this is Claude Code product-level feedback territory (the fork tool's own scoping), reported to the user for Anthropic's standard feedback channel rather than filed via `/claude-tweaks:feedback` — out of that skill's own repo-scope restriction, since the fork primitive is not a claude-tweaks skill defect.
 
 ## IL-08 — Control-flow reorders that change which value reaches a security check
 
@@ -946,6 +946,8 @@ The generalizable rule: an instruction sequenced correctly in a skill file — a
 
 **Recurrence (record #893, 2026-08-20):** the same failure reproduced against the identical trigger — build judged #893's Acceptance Criteria already satisfied by prior work (#902, `08098fe7`) — despite #525's bolded non-skippable language already being live in the installed `build/SKILL.md` text at the time. Both the `record-worktree` stamp and the PR-early draft-PR open were silently skipped again, with no `decisions.md` log entry either way; `/claude-tweaks:review`/`/claude-tweaks:wrap-up` discovered and backfilled both by hand. This shows the #525 prose fix did not hold under a second live occurrence of the same trigger — see the backlog candidate staged from this run's reflect pass proposing a structural (hook- or engine-level) enforcement instead of a third prose iteration.
 
+**Resolution (record #991, 2026-08-22):** the second recurrence's own backlog candidate — investigate structural, hook-level enforcement rather than a third prose iteration — was built as `pre-tool-use.js`'s `checkBookkeepingStampsGate` (`docs/hooks.md`'s bookkeeping-stamps-gate bullet): a covered Edit/Write/NotebookEdit/commit/push is now denied once a materialize commit has landed but `record-worktree` and (under `integration-model: pr-first`) `record-pr` weren't stamped, with a decisions.md degrade-log exemption preserving the legitimate push/PR-create-failure path. This closes the loop IL-131's own generalizable rule named: a sub-step whose failure mode is silent needed enforcement at the point of use, not correct sequencing or bolded prose alone.
+
 ## IL-132 — A spec renamed a contract surface and its Key Files listed only the files the work would write
 
 Spec #518 (tidy report redesign, 2026-08-16) renamed the sections of `/claude-tweaks:tidy`'s report — the surface every scan tag routes into. Its `### Key Files` listed the files the work would author: `skills/tidy/SKILL.md`, `step-6-auto.md`, `step-6-interactive.md`. It did not list `skills/tidy/scan-procedures.md`, whose Collection routing table binds each scan tag to a report section *by that section's name*. Nothing upstream named that file: the design doc didn't, the record body didn't, and the implementer — whose file list is the spec's Key Files — never opened it. The rename shipped with the routing table still pointing at the old section names, and the branch's whole-branch review raised it as a Critical finding. Fixed in-wave (`97363bca` re-pointed the routing, `6d8cf6ac` fixed the resulting claim-tag routing split), so it never reached `main`; the cost was a review cycle plus two follow-up commits on a spec that had already passed its own task-scoped review.
@@ -1151,3 +1153,54 @@ pr-first PR), after which the existing assertions failed on their own.
 
 Cost on the #900 run: high — three extra fix rounds inside one record, the last of them a
 Critical regression introduced by a fix round and caught only because a re-review was run at all.
+
+## IL-144 — A reviewer's "this text is duplicated elsewhere" premise, ruled on without a grep
+
+During spec #1264's build (capture absorb-by-default, 2026-08-22, the #1261-#1264 multi-spec
+run), a final-review finding (N1) argued that a 483-byte block in
+`plugin/skills/capture/SKILL.md` was redundant because it "restates all three option labels
+verbatim" elsewhere in the file. The fix wave was operating under a byte budget against the
+~40 KB sub-file ceiling, so the finding was attractive: it freed exactly the bytes the wave
+needed. The deletion was planned and shipped in `974e3471`.
+
+The premise was false for two of the three labels — only one was actually restated. The deleted
+block was the only place the other two option labels' copy existed, so `/claude-tweaks:capture`'s
+Brainstorm and Keep option text vanished from the skill. It was caught by controller adjudication
+reading the pre-deletion text, not by the review that proposed it or the fix agent that executed
+it, and had to be restored in `22ef09f4`.
+
+A "delete the duplicate" finding reads as the safest class of edit there is — nothing is being
+invented, only de-duplicated — so it clears a reviewer's bar on the strength of its own claim.
+And a byte-budget pressure makes it *more* attractive rather than more suspect. Nothing in the
+loop between the finding and the commit ever executed the one-line search that would have
+falsified it.
+
+Cost on the #1264 run: moderate — one extra fix round in the same session; nothing shipped.
+
+## IL-145 — A hand-edited generated file passed review because the generator itself was never checked
+
+During spec #326's build (harden `track-issue-fixes.yml` edge cases, 2026-08-23), the build agent
+hand-edited `.github/workflows/track-issue-fixes.yml` directly to satisfy all 6 acceptance
+criteria — actionlint passed, the diff read correctly, and every AC was independently verifiable
+against the checked-in YAML alone. What the diff never touched was
+`plugin/bin/lib/issue-branch-tracking.js`'s `generateWorkflowYaml()`, the actual `/init`
+single-source-of-truth generator every consuming project's copy of the workflow is written from
+— documented in the module's own header comment ("No network here — /init writes the generated
+YAML") and in `init/bootstrap/step-16-non-default-branch-issue-tracking.md`'s explicit "do not
+hand-author" instruction. The spec's Key Files section named only the YAML file, and
+`ceremony-profile: fast-lane` skips `/review`'s Step 1 Spec Compliance Check, which is the step
+that would normally cross-check a spec's Key Files against what the diff actually touched — so no
+gate in the pipeline would have caught this. It surfaced only because review ran an unprompted
+`grep -rl` for existing test coverage of the target file before trusting the AC-verified diff, and
+found `tests/issue-branch-tracking.test.js` importing the untouched generator.
+
+Fixed in the same run: all 4 code-level hardening changes ported into `generateWorkflowYaml()`,
+the committed YAML regenerated from it (byte-identical, diff-verified), and the stale test
+(`generateWorkflowYaml skips posting a duplicate tracking comment when one for this SHA already
+exists`) replaced along with 4 new generator-output assertions and 2 revert-commit end-to-end
+fixture tests. Verified test discrimination by reverting the generator change and confirming 6 of
+the new tests failed as expected.
+
+Cost on the #326 run: moderate — one extra fix round within the same review pass; the actual
+shipped `plugin/` payload (every other project's `/init` output) would otherwise have carried none
+of the 4 hardening fixes despite every AC reading as met against this repo's own copy.

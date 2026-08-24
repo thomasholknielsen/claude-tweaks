@@ -28,6 +28,7 @@ const fs = require('fs');
 const os = require('os');
 const { execFileSync } = require('child_process');
 const feedback = require('./lib/feedback/file-feedback');
+const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: file-feedback.js --drafts <path.json> [--repo owner/name] [--dry-run] [--help]\n';
 
@@ -48,14 +49,6 @@ function parseArgs(argv) {
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
-}
-
-// Duplicated one-line regex from bin/link-records.js (source of truth) — not
-// worth a new cross-file dependency for a 1-line helper, matching this repo's
-// existing tolerance for small intentional duplication over premature coupling.
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
 }
 
 // A malformed entry name, or null if the draft is well-formed.

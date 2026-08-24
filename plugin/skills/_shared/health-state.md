@@ -20,6 +20,7 @@ code-health/cursors.json
 code-health/remembered.json      # sub-threshold findings — only where includeRemembered is set
 code-health/retry-queue.json
 code-health/runs.json            # capped to the last 90 records
+code-health/declined.json        # label-derived entries only ({lastSeenMs, origin:'wontfix-label'}) — code-health has no `mark` command, so no human-declined entry ever lands here. Same deletion consequence as harness-health's below.
 
 harness-health/cursors.json
 harness-health/remembered.json
@@ -73,10 +74,13 @@ returns `{ readState(root), writeState(root, mutatorFn) }`:
   `remembered.json` in the tree above; any skill that leaves the flag at its default can
   never accidentally pick up a stray `remembered.json`.
 - `includeDeclined` (default `false`) gates `declined.json` the same way `includeRemembered`
-  gates `remembered.json` above — decided once, at `createDurableState` call time. `docs-health`,
-  `harness-health`, and `journey-health` pass `{ includeDeclined: true }`; `code-health` does not
-  (it has no `mark` command — see `bin/lib/health-core/mark.js`'s header comment — so there is
-  nothing to persist here). `declined.json` holds `{fingerprint: {status:'declined', lastSeenMs,
+  gates `remembered.json` above — decided once, at `createDurableState` call time. All four
+  skills pass `{ includeDeclined: true }`; `code-health` was the last to opt in (#171). It still
+  has no `mark` command — see `bin/lib/health-core/mark.js`'s header comment — so a human
+  `mark <fingerprint> declined` call can never be its source, but the GitHub-issue `wontfix` path
+  below applies to it exactly as to the other three: until it opted in, a `wontfix` suppression
+  code-health read off a live issue lived only in the local gitignored cache and was lost with
+  the container. `declined.json` holds `{fingerprint: {status:'declined', lastSeenMs,
   origin?}}` entries — a human `mark <fingerprint> declined` call (`mark.js`'s `makeCmdMark`) or a
   GitHub-issue `wontfix` label (`mark.js`'s `mergeWontfixIntoDeclined`) folded in durably so the
   suppression survives a scheduled Routine's fresh container, which the local gitignored cache
