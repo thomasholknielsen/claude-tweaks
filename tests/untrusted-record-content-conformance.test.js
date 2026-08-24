@@ -67,3 +67,17 @@ test('contract Consumers table carries the fixed #1274 forward row', () => {
 test('contract stays within its 6144-byte cap', () => {
   assert.ok(Buffer.byteLength(CONTRACT, 'utf8') <= 6144, `contract is ${Buffer.byteLength(CONTRACT, 'utf8')} bytes, over the 6144 cap`);
 });
+
+const NEXT_MODE_FLAT_C = readFlat('plugin/skills/specify/next-mode.md');
+
+test('next-mode.md no longer carries the retired boundary clause (whitespace-collapsed)', () => {
+  assert.ok(!NEXT_MODE_FLAT_C.includes('**Untrusted-content boundary.**'), 'retired paragraph opener still present');
+  assert.ok(!NEXT_MODE_FLAT_C.includes('wrapped per the boundary above'), 'retired post-invocation sentence still present');
+  assert.ok(FROZEN_NEXT_MODE_BOUNDARY.includes('**Untrusted-content boundary.**'), 'control: frozen excerpt must contain the opener (proves the absence pin can go red)');
+  assert.ok(FROZEN_NEXT_MODE_BOUNDARY.includes('wrapped per the boundary above'), 'control: frozen excerpt must contain the sentence (proves the absence pin can go red)');
+});
+
+test('next-mode.md cites the contract', () => {
+  assert.ok(NEXT_MODE_FLAT_C.includes('wrapped per `_shared/untrusted-record-content.md`'), 'citation missing from next-mode.md');
+  assert.ok(!FROZEN_NEXT_MODE_BOUNDARY.includes('untrusted-record-content.md'), 'control: frozen excerpt must lack the citation (proves go-red)');
+});
