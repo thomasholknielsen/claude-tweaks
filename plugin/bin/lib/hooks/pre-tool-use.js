@@ -277,6 +277,19 @@ function denyResult(reason) {
   };
 }
 
+// The write target named by a file-mutation tool (GATE_COVERAGE.tools), or
+// null when the tool is not one of them or carries no string path. Only the
+// input FIELD name varies per tool, so every gate below that inspects a file
+// target resolves it through here rather than restating the NotebookEdit
+// special case three times. Returns the string verbatim — including `''`,
+// which each caller already treats as "no usable target" on its own.
+function fileToolTargetPath(toolName, toolInput) {
+  if (!GATE_COVERAGE.tools.includes(toolName)) return null;
+  const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
+  const target = toolInput && toolInput[field];
+  return typeof target === 'string' ? target : null;
+}
+
 // Resolves the worktree path(s) a teardown call targets, or [] when none can
 // be determined confidently — teardownTargets never fabricates a target;
 // checkTeardownGate below treats an empty result as allow.
@@ -489,8 +502,8 @@ function checkPipelineShadowGuard(ctx) {
   const toolInput = ctx.input && ctx.input.tool_input;
   const candidates = [];
   if (GATE_COVERAGE.tools.includes(toolName)) {
-    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
-    if (toolInput && typeof toolInput[field] === 'string') candidates.push(toolInput[field]);
+    const target = fileToolTargetPath(toolName, toolInput);
+    if (target !== null) candidates.push(target);
   } else if (toolName === 'Bash' && toolInput && typeof toolInput.command === 'string') {
     const command = toolInput.command;
     for (const t of fileWriteTargets(command, ctx.cwd)) candidates.push(t.file);
@@ -552,10 +565,8 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   // NotebookEdit matchers in hooks/hooks.json — a new file-mutation tool must
   // be added to both or it silently bypasses this gate.
   if (GATE_COVERAGE.tools.includes(toolName)) {
-    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
-    if (toolInput && typeof toolInput[field] === 'string') {
-      targetPaths = [{ path: toolInput[field], exemptible: true, fileTool: true }];
-    }
+    const target = fileToolTargetPath(toolName, toolInput);
+    if (target !== null) targetPaths = [{ path: target, exemptible: true, fileTool: true }];
   } else if (toolName === 'Bash') {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
     if (command) {
@@ -828,11 +839,10 @@ function hasDistinctOwnedRun(ctx) {
 // (no target, indeterminate git, non-repo path) is simply not exempt and
 // falls through — the same fail-closed posture isPipelineBookkeeping keeps.
 function isStampsGateExemptTarget(ctx) {
-  const toolName = ctx.input && ctx.input.tool_name;
-  if (!GATE_COVERAGE.tools.includes(toolName)) return false;
-  const toolInput = ctx.input && ctx.input.tool_input;
-  const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
-  const targetPath = toolInput && typeof toolInput[field] === 'string' ? toolInput[field] : null;
+  const targetPath = fileToolTargetPath(
+    ctx.input && ctx.input.tool_name,
+    ctx.input && ctx.input.tool_input,
+  );
   if (!targetPath) return false;
   const { repoRoot, indeterminate } = wtDetect.repoInfo(targetPath);
   if (indeterminate || !repoRoot) return false;
