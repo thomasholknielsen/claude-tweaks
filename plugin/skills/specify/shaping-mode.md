@@ -30,6 +30,8 @@ references are the primary input) and it has no use for decomposition mode's muc
 
 **Parallel-safety.** Under `work-backend: github-issues`, shaping a record writes no local files — it edits the GitHub issue directly via `gh`, so no worktree is required and multiple records may be shaped concurrently with zero collision risk. `work-backend: local-files` does write a tracked file (`writeRecord`) and is not safe to parallelize without isolation.
 
+> **Parallel execution:** On a comma-list batch, the per-record resolution fetch (`gh issue view` / local-store read) and Step 2.5a's surface sniff are independent per-record reads — the same fetches `flow/materialize.md`'s Resolution already parallelizes — and should run concurrently across every record in the batch. The per-record write calls (compose-then-write-once, `ceremony-check #{n}`, `framing-check #{n}`) and the single batched design-intent question stay sequential — not because cross-record writes collide (Parallel-safety above: they don't, each record's write targets its own issue), but because each is a multi-step invocation depending on that record's own already-resolved content and verdicts rather than a single independent read, and the loop itself never fans out (`SKILL.md`'s "a loop never a fan-out — no Task dispatch, one record at a time").
+
 ---
 
 ### Edit the body into spec shape
