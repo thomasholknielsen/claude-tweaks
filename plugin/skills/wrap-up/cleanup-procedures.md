@@ -26,7 +26,7 @@ section all need only this table. Items 1, 2, and 5 are simple enough to execute
 **Fast path (#797).** When this run's filtered list (Condition-filtered, above) is a subset of
 {2, 6, 8} — guaranteed whenever this run has no record identity, used no worktree strategy, and
 is not part of a multi-spec run — read `standalone-fast-path.md` in this skill's directory
-instead of `cleanup-procedures-execution.md`: items 3, 4, 5, and 7 structurally can't apply
+instead of `cleanup-procedures-execution.md`: items 1, 3, 4, 5, and 7 structurally can't apply
 under that precondition, so the ~27 KB of Sections A/C/E covering them is never needed. Any other
 filtered list reads `cleanup-procedures-execution.md` as before.
 
