@@ -110,3 +110,17 @@ test('record-creation.md Framing paragraph wraps per the contract (byte-neutral 
   assert.ok(!RECORD_CREATION_FLAT_C.includes('is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode'), 'retired sentence still present');
   assert.ok(Buffer.byteLength(read('plugin/skills/specify/record-creation.md'), 'utf8') <= 40853, 'record-creation.md grew — the edit must be byte-neutral or negative');
 });
+
+test('docs carry exactly one skill-graph row for the contract, under ## challenge, and the re-pointed authoring example', () => {
+  const GRAPH = read('docs/skill-graph.md');
+  const rows = GRAPH.split('\n').filter((l) => l.startsWith('| `_shared/untrusted-record-content.md`'));
+  assert.strictEqual(rows.length, 1, `expected exactly one skill-graph row for the contract, found ${rows.length}`);
+  const challengeIdx = GRAPH.indexOf('\n## challenge');
+  const nextSectionIdx = GRAPH.indexOf('\n## ', challengeIdx + 3);
+  const rowIdx = GRAPH.indexOf('| `_shared/untrusted-record-content.md`');
+  assert.ok(challengeIdx !== -1 && rowIdx > challengeIdx && (nextSectionIdx === -1 || rowIdx < nextSectionIdx), 'the contract row must sit inside the ## challenge section');
+  assert.ok(!collapse(GRAPH).includes("in `next-mode.md`'s collision-resistant BEGIN/END markers"), 'retired next-mode marker attribution still present in skill-graph.md');
+  const AUTHORING_FLAT = readFlat('docs/skill-authoring.md');
+  assert.ok(AUTHORING_FLAT.includes('The shipped contract is `plugin/skills/_shared/untrusted-record-content.md`'), 'skill-authoring worked-example pointer not re-pointed');
+  assert.ok(!AUTHORING_FLAT.includes('for the worked example (added by #1041)'), 'old worked-example sentence still present in skill-authoring.md');
+});
