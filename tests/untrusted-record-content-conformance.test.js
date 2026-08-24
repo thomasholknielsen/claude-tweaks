@@ -95,3 +95,18 @@ test('shaping-mode.md cites the contract unconditionally', () => {
   assert.ok(SHAPING_FLAT_C.includes('wrapped per `_shared/untrusted-record-content.md` on every entry path'), 'unconditional citation missing');
   assert.ok(!FROZEN_SHAPING_SENTENCES.includes('untrusted-record-content.md'), 'control: frozen sentence must lack the citation (proves go-red)');
 });
+
+const CHALLENGE_FLAT_C = readFlat('plugin/skills/challenge/SKILL.md');
+const RECORD_CREATION_FLAT_C = readFlat('plugin/skills/specify/record-creation.md');
+
+test('challenge/SKILL.md Step 1 keeps its callee stance and cites the contract as its home', () => {
+  assert.ok(CHALLENGE_FLAT_C.includes('this holds unconditionally, no matter which of this mode’s call sites supplied the content'.replace('’', "'")), 'pinned callee stance must survive');
+  assert.ok(CHALLENGE_FLAT_C.includes('canonical two-sided contract'), 'contract-home citation missing from challenge/SKILL.md');
+  assert.ok(CHALLENGE_FLAT_C.includes('untrusted-record-content.md'), 'contract path missing from challenge/SKILL.md');
+});
+
+test('record-creation.md Framing paragraph wraps per the contract (byte-neutral edit)', () => {
+  assert.ok(RECORD_CREATION_FLAT_C.includes('passed wrapped per `_shared/untrusted-record-content.md`'), 'citation missing from record-creation.md Framing paragraph');
+  assert.ok(!RECORD_CREATION_FLAT_C.includes('is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode'), 'retired sentence still present');
+  assert.ok(Buffer.byteLength(read('plugin/skills/specify/record-creation.md'), 'utf8') <= 40853, 'record-creation.md grew — the edit must be byte-neutral or negative');
+});
