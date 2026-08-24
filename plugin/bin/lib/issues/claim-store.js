@@ -32,6 +32,12 @@ const { CLAIMS_BRANCH } = require('./claims');
 const { readClaimBlobGit, writeClaimBlobGit } = require('./claims-git-cas');
 
 const GH_TIMEOUT_MS = 5000;
+// How many times `writeClaimBlob` re-leases and re-pushes a git-CAS write
+// whose rejection a fresh read proves spurious (#787 final-review finding I1 —
+// see that function). Bounded: an unbounded retry against a busy
+// `claims-registry` branch would spin, and a rejection that stays spurious
+// across every attempt is itself a transient condition, not a contest.
+const MAX_CAS_ATTEMPTS = 3;
 
 function claimPath(issueNumber) {
   return `claims/issue-${issueNumber}.json`;
@@ -175,8 +181,39 @@ function readClaimBlobContentsApi(ghApi, repoSlug, issueNumber) {
   }
 }
 
-// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber, {content, sha, createOnly, message})
+// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber,
+//  {content, sha, createOnly, expectedContent, message})
 // -> { ok, conflict?, secondaryRateLimit?, failure }
+//
+// `expectedContent` is the blob content the decision to make THIS write was
+// based on — the `content` the caller's own preceding read returned (`null`/
+// omitted for a `createOnly` write, which has no prior content to compare
+// against). It is the fix for the two final-review findings on #787, which
+// share one root cause — trusting a lease that was re-derived AFTER the write
+// decision was made:
+//
+//   * **C1 (lost update).** The contents-API fallback below used to re-derive
+//     a fresh blob sha and write with it unconditionally. If another agent's
+//     claim landed while the git-CAS attempt was failing, that write silently
+//     clobbered it — a double-claim. The fallback now compares the fresh read
+//     against `expectedContent` and reports a genuine contest instead.
+//   * **I1 (spurious contest).** `writeClaimBlobGit`'s `--force-with-lease` is
+//     leased on the whole `claims-registry` branch tip, not on this claim's
+//     file, so ANY concurrent commit to the registry — including one claiming
+//     an unrelated issue — rejects the push. Every caller treats a rejection
+//     as a per-file contest (aborting a whole group claim, or stranding a live
+//     claim whose label the rollback already stripped). A rejection now
+//     triggers a fresh git read: content actually changed = a genuine contest,
+//     reported as before; content unchanged = unrelated branch activity, so
+//     the write retries on the fresh tip, up to `MAX_CAS_ATTEMPTS`. Still
+//     spurious on the last attempt = `transport-failure` (transient — the
+//     branch is too busy to land on), never a manufactured contest.
+//
+// Both verifications live strictly inside the `deps.gitRunner && sha` block.
+// A caller with no `gitRunner` (or no `sha` lease) — `release-merged.js`'s
+// contents-API-only path — reaches the PUT below exactly as it always did:
+// no fresh read, and `expectedContent` neither needed nor consulted.
+//
 // `sha` here is the compare-and-swap lease for the transport tried FIRST —
 // the git-CAS branch tip (a **commit** sha) when the preceding read went
 // through git, the contents-API blob sha otherwise. The two shapes are never
@@ -186,9 +223,10 @@ function readClaimBlobContentsApi(ghApi, repoSlug, issueNumber) {
 // exact secondary-rate-limit-read-as-contested regression #787's amendment
 // exists to prevent (record-697). On fallback this re-reads the blob through
 // the contents API (`readClaimBlobContentsApi`) to derive a correctly-shaped
-// lease; a failure there returns that failure (never a spurious contest),
-// and a now-absent target IS a genuine contest (the claim was released or
-// broken since the git read).
+// lease AND to verify the content is still what this write's decision was
+// based on (C1 above); a failure there returns that failure (never a spurious
+// contest), and a now-absent or now-different target IS a genuine contest (the
+// claim was released, broken, or re-taken since the git read).
 //
 // git-CAS is attempted whenever both a `gitRunner` dep AND a `sha` lease are
 // present — including a create-only write (`createOnly: true`), which is the
@@ -198,11 +236,14 @@ function readClaimBlobContentsApi(ghApi, repoSlug, issueNumber) {
 // tip sha is a valid lease for it. `createOnly` only changes the fallback
 // behavior: no fresh read (there is no existing blob to re-derive a sha
 // from) and never a `-f sha=` argument on the PUT, so a create-only write
-// keeps its create-vs-clobber semantics on either transport. A git-CAS
-// contest is reported as-is (never silently retried against contents-API —
-// that would race the same write twice under two different concurrency
-// mechanisms). A git-CAS secondary-rate-limit or transport-failure falls
-// back to contents-API once.
+// keeps its create-vs-clobber semantics on either transport; its own
+// post-rejection verification is `absent` vs not-absent rather than a content
+// comparison, since a create-only write's premise is exactly "nothing is
+// there". A git-CAS contest, once a fresh read confirms it is genuine, is
+// reported as-is (never silently retried against contents-API — that would
+// race the same write twice under two different concurrency mechanisms). A
+// git-CAS secondary-rate-limit or transport-failure falls back to
+// contents-API once.
 //
 // `sha` included in the contents-API fallback only when provided and this is
 // not a create-only write: omitted = create-only (PUT rejects if the path
@@ -222,21 +263,41 @@ function readClaimBlobContentsApi(ghApi, repoSlug, issueNumber) {
 // `status === 422` or `status === 409` here, so its `ok` computation is
 // unchanged by this branch — see that module's delegation comments.
 function writeClaimBlob(deps, repoSlug, issueNumber, {
-  content, sha, createOnly = false, message,
+  content, sha, createOnly = false, expectedContent, message,
 }) {
   if (deps.gitRunner && sha) {
-    const gitResult = writeClaimBlobGit({
-      issueNumber, content, message, expectedTipSha: sha, runner: deps.gitRunner,
-    });
-    if (gitResult.ok || gitResult.conflict) return gitResult;
-    // transport-failure or secondaryRateLimit -> fall back to contents-API
-    // below, but NEVER with the git tip sha as the lease (see the header):
-    // re-derive a contents-API blob sha first. A create-only write skips
-    // this — it sends no sha at all, so there is nothing to re-derive.
+    let leaseSha = sha;
+    for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt += 1) {
+      const gitResult = writeClaimBlobGit({
+        issueNumber, content, message, expectedTipSha: leaseSha, runner: deps.gitRunner,
+      });
+      if (gitResult.ok) return gitResult;
+      if (!gitResult.conflict) break; // transport-failure or secondaryRateLimit -> contents-API fallback below
+      // A rejected push could mean THIS claim genuinely changed, or that an
+      // unrelated commit moved the branch tip (#787 final-review finding I1
+      // — the lease is branch-wide, not per-file). Disambiguate with a
+      // fresh git read before deciding.
+      const freshGit = readClaimBlobGit({ issueNumber, runner: deps.gitRunner });
+      if (freshGit.failure) return { ok: false, failure: 'transport-failure' };
+      const unchanged = createOnly
+        ? freshGit.absent
+        : (!freshGit.absent && freshGit.content === expectedContent);
+      if (!unchanged) return { ok: false, conflict: true, failure: null }; // genuine contest
+      if (attempt === MAX_CAS_ATTEMPTS) return { ok: false, failure: 'transport-failure' }; // proven spurious every time, but couldn't land the CAS — transient, not a contest
+      leaseSha = freshGit.tipSha; // unrelated activity — retry with the fresh lease
+    }
+    // Fell through from a non-conflict git failure (transport-failure or
+    // secondaryRateLimit). NEVER reuse the git tip sha as a contents-API
+    // lease (wrong shape). NEVER write blind with a freshly re-derived lease
+    // either (#787 final-review finding C1 — that was a lost-update: the
+    // fresh lease is valid for SOME write, but not necessarily the one this
+    // caller decided to make). Verify content before proceeding. A create-only
+    // write skips this — it sends no sha at all, so there is nothing to
+    // re-derive.
     if (!createOnly) {
       const fresh = readClaimBlobContentsApi(deps.ghApi, repoSlug, issueNumber);
       if (fresh.failure) return { ok: false, failure: fresh.failure };
-      if (fresh.absent) return { ok: false, conflict: true, failure: null };
+      if (fresh.absent || fresh.content !== expectedContent) return { ok: false, conflict: true, failure: null };
       sha = fresh.sha;
     }
   }

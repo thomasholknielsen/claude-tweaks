@@ -61,13 +61,20 @@ function readClaimBlob({ owner, repo, issueNumber, runner = defaultRunner, gitRu
 // release-merged.js's own call site never passes one (see that module's own
 // header comment) and stays contents-API-only, unchanged by this task;
 // bin/release-claim.js does pass a real one.
-function writeTombstone({ owner, repo, issueNumber, sha, tombstoneContent, message, runner = defaultRunner, gitRunner }) {
+// `expectedContent` is the blob content the read that produced `sha` returned.
+// It only matters on the git-CAS path, where claim-store uses it to tell a
+// genuine contest from a push rejected by unrelated `claims-registry` activity,
+// and to refuse a fallback write that would clobber a claim landed meanwhile
+// (#787 final-review findings I1/C1). A contents-API-only caller
+// (release-merged.js — no `gitRunner`) never exercises either check, so it
+// stays byte-for-byte the same write it always made.
+function writeTombstone({ owner, repo, issueNumber, sha, tombstoneContent, expectedContent, message, runner = defaultRunner, gitRunner }) {
   const ghApi = (args) => {
     const stdout = runner(['api', ...args]);
     return { stdout, failure: null, status: null };
   };
   const result = claimStore.writeClaimBlob({ ghApi, gitRunner }, `${owner}/${repo}`, issueNumber, {
-    content: tombstoneContent, sha, message,
+    content: tombstoneContent, sha, expectedContent, message,
   });
   if (!result.ok) {
     const e = new Error(result.conflict ? 'HTTP 409/422 sha mismatch' : (result.failure || 'write failed'));
@@ -121,7 +128,7 @@ function releaseClaim({
   if (isHeld) {
     try {
       writeTombstone({
-        owner, repo, issueNumber, sha: blob.sha, tombstoneContent: payload.tombstoneContent, message: `Release claim on issue #${issueNumber}`, runner, gitRunner,
+        owner, repo, issueNumber, sha: blob.sha, tombstoneContent: payload.tombstoneContent, expectedContent: blob.content, message: `Release claim on issue #${issueNumber}`, runner, gitRunner,
       });
       result.calls.push('put');
       result.outcome = 'released';

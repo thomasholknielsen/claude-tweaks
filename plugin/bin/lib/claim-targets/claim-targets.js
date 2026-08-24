@@ -130,8 +130,12 @@ function releaseClaimedThisRun(deps, repoSlug, runId, issues) {
     const payload = releasePayload({
       issueNumber: issue, runId, reason: ABORT_REASON, now: deps.now(),
     });
+    // `expectedContent` = what this very read saw, so a git-CAS push rejected
+    // by unrelated `claims-registry` activity retries instead of aborting the
+    // rollback and stranding a claim whose label was already stripped (#787
+    // final-review finding I1 — see claim-store.js's writeClaimBlob).
     const w = claimStore.writeClaimBlob(deps, repoSlug, issue, {
-      content: payload.tombstoneContent, sha: fresh.sha, message: `Release issue #${issue} — ${ABORT_REASON}`,
+      content: payload.tombstoneContent, sha: fresh.sha, expectedContent: fresh.content, message: `Release issue #${issue} — ${ABORT_REASON}`,
     });
     if (w.ok) {
       released.push(issue);
@@ -239,11 +243,18 @@ function run(argv, deps) {
     // claim-store.js's writeClaimBlob. When no `gitRunner` dep is supplied
     // (release-merged.js's contents-API-only callers), an 'absent' read
     // returns `sha: null` anyway, so this is a no-op there.
+    // `expectedContent` is the blob this same read saw (`null` when absent —
+    // the create-only case, which compares on absence instead). It is what
+    // lets claim-store tell a genuine lost race from a push rejected by
+    // unrelated `claims-registry` activity, and what stops a fallback write
+    // from clobbering a claim that landed meanwhile (#787 final-review
+    // findings I1/C1 — see claim-store.js's writeClaimBlob).
     const writeOpts = {
       content: payload.fileContent,
       message: `Claim issue #${issue}`,
       sha: read.sha,
       createOnly: classified.state === 'absent',
+      expectedContent: content,
     };
     const write = claimStore.writeClaimBlob(deps, repoSlug, issue, writeOpts);
 

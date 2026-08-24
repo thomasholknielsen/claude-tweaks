@@ -276,6 +276,150 @@ function fakeGitRunnerAlwaysFails() {
   return () => { const e = new Error('fatal: unable to access: Could not resolve host'); throw e; };
 }
 
+// Drives writeClaimBlob's git-CAS retry loop (#787 final-review finding I1).
+// `pushes` is consumed one entry per push attempt ('ok' | 'reject'); `reads`
+// one entry per post-rejection verification read ({content, tipSha} — a null
+// content means the path is absent on that tip). Records every call so a test
+// can assert the number of pushes and which lease each one carried.
+function fakeGitCasRunner({ pushes, reads }) {
+  const state = { calls: [], pushCount: 0, readCount: 0 };
+  const runner = (args) => {
+    state.calls.push(args);
+    switch (args[0]) {
+      case 'hash-object': return 'blobsha\n';
+      case 'read-tree': case 'update-index': return '';
+      case 'write-tree': return 'treesha\n';
+      case 'commit-tree': return 'commitsha\n';
+      case 'push': {
+        const outcome = pushes[state.pushCount];
+        state.pushCount += 1;
+        if (outcome === 'ok') return '';
+        const e = new Error('! [rejected] claims-registry -> claims-registry (stale info)');
+        e.stderr = e.message;
+        throw e;
+      }
+      case 'fetch': return '';
+      case 'rev-parse': return `${reads[state.readCount].tipSha}\n`;
+      case 'show': {
+        const r = reads[state.readCount];
+        state.readCount += 1;
+        if (r.content === null) throw new Error(`fatal: path 'claims/issue-42.json' does not exist in '${r.tipSha}'`);
+        return r.content;
+      }
+      default: throw new Error(`unexpected git call: ${args.join(' ')}`);
+    }
+  };
+  return { runner, state };
+}
+const leasesOf = (state) => state.calls.filter((a) => a[0] === 'push').map((a) => String(a[3]).split(':').pop());
+
+const HELD_BY_STALE = '{"runId":"stale-run"}';
+const HELD_BY_RIVAL = '{"runId":"rival-run"}';
+
+// (a) A rejected push whose fresh read shows the SAME content this write's
+// decision was based on is NOT a contest — the git-CAS lease is on the whole
+// `claims-registry` branch tip, so an unrelated agent's commit rejects a push
+// that has nothing to do with this claim. Retry on the fresh tip (#787 I1).
+test('writeClaimBlob: a git-CAS rejection whose fresh read shows UNCHANGED content is spurious — retried on the fresh lease, then succeeds', () => {
+  const { runner, state } = fakeGitCasRunner({
+    pushes: ['reject', 'ok'],
+    reads: [{ content: HELD_BY_STALE, tipSha: 'b'.repeat(40) }],
+  });
+  const ghApi = () => { throw new Error('contents-API must not be called — this never left the git transport'); };
+  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+    content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(state.pushCount, 2, 'the spurious rejection must be retried, not reported as a contest');
+  assert.deepEqual(leasesOf(state), ['a'.repeat(40), 'b'.repeat(40)], 'the retry leases against the FRESH tip, never the stale one');
+});
+
+// (b) The same rejection, but the fresh read shows someone else's claim: a
+// genuine contest. Report it immediately — no second push, no fallback.
+test('writeClaimBlob: a git-CAS rejection whose fresh read shows DIFFERENT content is a genuine contest — conflict, no retry', () => {
+  const { runner, state } = fakeGitCasRunner({
+    pushes: ['reject'],
+    reads: [{ content: HELD_BY_RIVAL, tipSha: 'b'.repeat(40) }],
+  });
+  const ghApi = () => { throw new Error('contents-API must not be called on a genuine contest'); };
+  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+    content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.deepEqual(result, { ok: false, conflict: true, failure: null });
+  assert.equal(state.pushCount, 1, 'a genuine contest is reported after exactly one verification read — never retried');
+  assert.equal(state.readCount, 1);
+});
+
+// The retry is bounded. A rejection that verifies as spurious on every attempt
+// means the branch is too busy to land on — transient, never a manufactured
+// contest (which would abort a whole group claim on a lie).
+test('writeClaimBlob: a rejection that stays spurious for every attempt exhausts the bounded retry as transport-failure, not a contest', () => {
+  const { runner, state } = fakeGitCasRunner({
+    pushes: ['reject', 'reject', 'reject'],
+    reads: [
+      { content: HELD_BY_STALE, tipSha: 'b'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'c'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'd'.repeat(40) },
+    ],
+  });
+  const ghApi = () => { throw new Error('contents-API must not be called — the git transport itself never failed'); };
+  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+    content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.deepEqual(result, { ok: false, failure: 'transport-failure' });
+  assert.equal(state.pushCount, 3, 'exactly MAX_CAS_ATTEMPTS pushes — bounded, never a spin');
+});
+
+// A create-only write has no prior content to compare, so its verification is
+// absence: still absent = the unrelated-activity case (retry); now present =
+// someone else's create landed first (a genuine contest).
+test('writeClaimBlob: create-only — a rejection whose fresh read still shows the target ABSENT retries', () => {
+  const { runner, state } = fakeGitCasRunner({
+    pushes: ['reject', 'ok'],
+    reads: [{ content: null, tipSha: 'b'.repeat(40) }],
+  });
+  const ghApi = () => { throw new Error('contents-API must not be called — this never left the git transport'); };
+  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+    content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), createOnly: true,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(state.pushCount, 2);
+});
+
+test('writeClaimBlob: create-only — a rejection whose fresh read shows a blob now PRESENT is a genuine contest', () => {
+  const { runner, state } = fakeGitCasRunner({
+    pushes: ['reject'],
+    reads: [{ content: HELD_BY_RIVAL, tipSha: 'b'.repeat(40) }],
+  });
+  const ghApi = () => { throw new Error('contents-API must not be called on a genuine contest'); };
+  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+    content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), createOnly: true,
+  });
+  assert.deepEqual(result, { ok: false, conflict: true, failure: null });
+  assert.equal(state.pushCount, 1);
+});
+
+test('writeClaimBlob: a rejection whose verification read itself fails is transport-failure — never a guessed contest', () => {
+  let pushed = false;
+  const gitRunner = (args) => {
+    if (args[0] === 'push') {
+      pushed = true;
+      const e = new Error('! [rejected] (stale info)'); e.stderr = e.message; throw e;
+    }
+    if (args[0] === 'fetch') throw new Error('fatal: unable to access: Could not resolve host');
+    if (args[0] === 'hash-object') return 'blobsha\n';
+    if (args[0] === 'write-tree') return 'treesha\n';
+    if (args[0] === 'commit-tree') return 'commitsha\n';
+    return '';
+  };
+  const ghApi = () => { throw new Error('contents-API must not be called when the verification read failed'); };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, {
+    content: '{}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.equal(pushed, true);
+  assert.deepEqual(result, { ok: false, failure: 'transport-failure' });
+});
+
 test('readClaimBlob: git-CAS succeeds, contents-API never called', () => {
   const gitRunner = fakeGitRunnerAlwaysWorks('a'.repeat(40), null);
   const ghApi = () => { throw new Error('contents-API must not be called when git-CAS succeeds'); };
@@ -300,12 +444,46 @@ test('writeClaimBlob: git-CAS succeeds, contents-API never called', () => {
   assert.equal(result.ok, true);
 });
 
-test('writeClaimBlob: git-CAS contested is reported, not falling back to contents-API', () => {
-  const gitRunner = () => { const e = new Error('! [rejected] (stale info)'); e.stderr = e.message; throw e; };
+// A git-CAS contest, once the verification read below confirms the claim's
+// content really did change, is reported as-is — never retried against the
+// contents API, which would race the same write under two different
+// concurrency mechanisms. (The verification itself is #787's I1 fix; before
+// it, ANY rejection landed here, including one caused by a commit claiming an
+// unrelated issue.)
+test('writeClaimBlob: a verified git-CAS contest is reported, not falling back to contents-API', () => {
+  const { runner } = fakeGitCasRunner({
+    pushes: ['reject'],
+    reads: [{ content: HELD_BY_RIVAL, tipSha: 'b'.repeat(40) }],
+  });
   const ghApi = () => { throw new Error('contents-API must not be called on a genuine contest'); };
-  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, { content: '{}', message: 'Claim #42', sha: 'a'.repeat(40) });
+  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+    content: '{}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
   assert.equal(result.ok, false);
   assert.equal(result.conflict, true);
+});
+
+// (c) The exact C1 lost-update. A git-CAS transport failure falls back to the
+// contents API, which re-derives a fresh blob sha — but a fresh lease is valid
+// for SOME write, not necessarily the one this caller decided to make. When
+// the fresh read shows a DIFFERENT holder's claim landed while git-CAS was
+// failing, writing with that lease silently overwrote it: a double-claim.
+// It must resolve as a contest instead.
+test('writeClaimBlob: fallback fresh-read showing ANOTHER holder\'s content is a genuine contest, never a blind overwrite (#787 C1)', () => {
+  const gitRunner = fakeGitRunnerAlwaysFails();
+  const calls = [];
+  const ghApi = (args) => {
+    calls.push(args);
+    if (isRead(args, 'claims/issue-42.json')) {
+      return { stdout: JSON.stringify({ content: HELD_BY_RIVAL, sha: 'freshblobsha' }), failure: null, status: null };
+    }
+    throw new Error('the PUT must NOT be attempted — that is the lost update this test pins');
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, {
+    content: '{}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.deepEqual(result, { ok: false, conflict: true, failure: null });
+  assert.equal(calls.length, 1, 'the fresh read happens; the write does not');
 });
 
 test('writeClaimBlob: git-CAS secondary-rate-limit falls back to contents-API with a FRESH blob sha, never the git tip sha', () => {
@@ -313,18 +491,22 @@ test('writeClaimBlob: git-CAS secondary-rate-limit falls back to contents-API wi
   // *blob* sha. Reusing the tip sha across the fallback made every fallback
   // write 409/422 — reported as `conflict: true`, i.e. a secondary rate
   // limit misread as contested, the exact record-697 regression #787 exists
-  // to prevent. The fallback must re-read through the contents API first.
+  // to prevent. The fallback must re-read through the contents API first —
+  // and, since #787's C1 fix, may only proceed when that read shows the
+  // content this write's decision was based on (`expectedContent`).
   const gitRunner = () => { const e = new Error('remote: secondary rate limit'); e.stderr = e.message; throw e; };
   const calls = [];
   const ghApi = (args) => {
     calls.push(args);
     if (isRead(args, 'claims/issue-42.json')) {
-      return { stdout: JSON.stringify({ content: '{"runId":"other"}', sha: 'freshblobsha' }), failure: null, status: null };
+      return { stdout: JSON.stringify({ content: HELD_BY_STALE, sha: 'freshblobsha' }), failure: null, status: null };
     }
     if (isWrite(args, 'claims/issue-42.json')) return { stdout: '', failure: null, status: null };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, { content: '{}', message: 'Claim #42', sha: 'a'.repeat(40) });
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, {
+    content: '{}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
   assert.equal(result.ok, true);
   assert.equal(calls.length, 2, 'fallback must re-read once, then write once');
   assert.equal(isRead(calls[0], 'claims/issue-42.json'), true);
