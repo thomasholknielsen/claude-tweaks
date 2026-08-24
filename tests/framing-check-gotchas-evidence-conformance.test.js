@@ -23,7 +23,7 @@ test('framing-check Step 1 (Gather) names the body\'s ## Gotchas evidence bullet
     'Step 1 (Gather) must name the ## Gotchas section as something it reads'
   );
   assert.ok(
-    step1Text.includes('- evidence ({date}): {classification} — {citation}'),
+    step1Text.includes('- evidence ({YYYY-MM-DD}): {classification} — {citation}'),
     'Step 1 (Gather) must name the evidence-bullet shape the bare-#N mode writes'
   );
   assert.ok(

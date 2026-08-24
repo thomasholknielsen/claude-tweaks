@@ -39,7 +39,7 @@ No fetch. Read what the caller already has in memory:
 
 - The composed record body — `## Current State`, `## Deliverables`, `## Acceptance Criteria`.
 - In shaping mode, the preserved `## Original request` block. This is the un-reframed source text and is the stronger framing signal, because shaping may already have laundered solution-baked phrasing into neutral spec prose. Judge both; weight the original request higher where they disagree.
-- The body's `## Gotchas` section, when present — specifically any evidence bullets matching `- evidence ({date}): {classification} — {citation}` (the shape the bare-`#N` mode's supply-evidence action writes; see that mode's Step 4). Missing section or no matching bullets: no signal, proceed exactly as before this bullet existed.
+- The body's `## Gotchas` section, when present — specifically any evidence bullets matching `- evidence ({YYYY-MM-DD}): {classification} — {citation}` (the shape the bare-`#N` mode's supply-evidence action writes; see that mode's Step 4). Missing section or no matching bullets: no signal, proceed exactly as before this bullet existed.
 
 ### Step 2: Judge
 
