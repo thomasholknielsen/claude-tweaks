@@ -67,9 +67,17 @@ test('build/SKILL.md Next Actions: the old worktree-mode override clause is full
 });
 
 test('build/SKILL.md Next Actions: cites the shared frontend-detection signal (#808)', () => {
-  assert.match(
-    buildSkill,
+  assertClaimPinned(
     /frontend-detection\.md.*Layer 2\/3/,
+    PRE_CHANGE_PARAGRAPH,
     'must cite the same surface-detection machinery the record\'s Technical Approach calls for reusing',
+  );
+});
+
+test('build/SKILL.md Next Actions: frontend-detection citation uses the fully-qualified skill-directory form', () => {
+  assertClaimPinned(
+    /`\/claude-tweaks:design-wrapper` skill's directory/,
+    PRE_CHANGE_PARAGRAPH,
+    'must cite frontend-detection.md via the established fully-qualified citation form, not a bare relative path',
   );
 });
