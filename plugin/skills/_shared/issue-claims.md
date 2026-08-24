@@ -24,6 +24,17 @@ first — fetch the `claims-registry` tip, commit the blob on it, push with
 same handling as a live claim, not a retry) — falling back to the contents-API PUT below only when
 git-CAS fails for a transport reason (no git push credential — an MCP-only sandbox, for instance)
 or a secondary rate limit (classified as its own distinct outcome, never folded into "contested").
+**A rejected push is not contested on the rejection alone:** that lease is on the whole
+`claims-registry` branch tip, not on this issue's file, so a commit claiming an unrelated issue
+rejects it too. `claim-store.js` re-reads the claim before deciding — content changed since the
+read this write was based on = contested as above; content unchanged = unrelated branch activity,
+so the write retries on the fresh tip, bounded at 3 attempts, and a rejection still spurious on
+the last one reports as transient, never as a contest. The same re-read guards the contents-API
+fallback: it may only write when the fresh content still matches what the write decision was
+based on, so a claim that landed while git-CAS was failing is never silently overwritten.
+The release side re-reads on the same principle before concluding "already released" (the
+**Release** bullet below). The gh-CLI/MCP contents-API steps below are unaffected: their `sha` is
+the target file's own blob sha, so a rejection there really is per-file and stays contested.
 The MCP transport (`gh` absent) runs the contents-API algorithm as written below, over the MCP
 tools — git-CAS requires a git push credential the MCP-only case doesn't have.
 
