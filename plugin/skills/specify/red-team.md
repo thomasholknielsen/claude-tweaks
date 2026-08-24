@@ -15,7 +15,7 @@ unchanged from before.
 > narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents
 > complete.
 >
-> **Dispatch shape:** per `_shared/subagent-output-contract.md`'s fan-out section (the single-assistant-message rule) — emit every persona agent for one sub-issue as tool_use blocks in one assistant message; a call per message serializes the dispatch even though it's described as parallel above. Batching unit across sub-issues: one message per sub-issue's persona set; a `fast-lane` sub-issue's single Skeptical Reviewer call joins the next sub-issue's message rather than spending a whole message on one agent.
+> **Dispatch shape:** single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) applies. Batching unit here: one message per sub-issue's persona set — a `fast-lane` sub-issue's single Skeptical Reviewer call joins the next sub-issue's message rather than spending a whole message on one agent.
 >
 > **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. `[Use: Standard]` (resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`, contract § Model Selection). Read-only — personas never modify the record themselves.
 >
