@@ -79,14 +79,25 @@ function byteOffsetToLine(filePath, byteOffset, { readFile = fs.readFileSync } =
 // Exact wording (quote precisely downstream):
 //
 //   Evaluate from byte offset {bytesAtDispatch} (line {line}); these records already exist:
-//   {filedRecords joined by ", ", or "none"}; omit findings they cover. These fingerprints were
-//   previously declined: {dismissedFingerprints joined by ", ", or "none"}; omit findings
-//   matching them.
-function formatOffsetClause({ bytesAtDispatch, line, filedRecords, dismissedFingerprints }) {
+//   {filedRecords joined by ", ", or "none"}; omit findings they cover. A human previously
+//   declined findings about: {dismissedSubjects joined by "; ", or "none"}; omit any new finding
+//   whose symptom matches one of these in substance, even if the wording differs.
+//
+// `dismissedSubjects` (#1033, replaces the pre-#1033 `dismissedFingerprints` param) is
+// human-legible subject text — bin/lib/declined-learning/store.js's `subject` field — not opaque
+// fingerprint hashes: a judge dispatched fresh has no candidate finding of its own yet, so it has
+// nothing to hash and compare against a stored hash. Rendering the subject text instead gives the
+// judge something it can actually act on ("omit findings matching them" was structurally
+// unreachable when "them" was a list of 8-hex hashes). Joined with "; " rather than ", " since
+// subject text is free-form prose that may itself contain commas.
+function formatOffsetClause({
+  bytesAtDispatch, line, filedRecords, dismissedSubjects,
+}) {
   const records = Array.isArray(filedRecords) && filedRecords.length > 0 ? filedRecords.join(', ') : 'none';
-  const declined = Array.isArray(dismissedFingerprints) && dismissedFingerprints.length > 0 ? dismissedFingerprints.join(', ') : 'none';
+  const declined = Array.isArray(dismissedSubjects) && dismissedSubjects.length > 0 ? dismissedSubjects.join('; ') : 'none';
   return `Evaluate from byte offset ${bytesAtDispatch} (line ${line}); these records already exist: ${records}; `
-    + `omit findings they cover. These fingerprints were previously declined: ${declined}; omit findings matching them.`;
+    + `omit findings they cover. A human previously declined findings about: ${declined}; omit any new finding `
+    + 'whose symptom matches one of these in substance, even if the wording differs.';
 }
 
 // #701's skip-before-dispatch check: true when the transcript has not grown

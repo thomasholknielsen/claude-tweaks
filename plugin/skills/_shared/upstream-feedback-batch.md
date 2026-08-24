@@ -16,6 +16,15 @@ Render every candidate's full scrubbed draft as literal markdown text immediatel
 `AskUserQuestion` call — `multiSelect: true` does not support the tool's `preview` field
 (single-select only), so the option `description` alone is too short to carry a filing decision.
 
+**Prior-decline annotation (#1033).** When the caller's Step 4 dedup attached a `priorDecline: {
+declinedAt, reason }` to an item (`skills/feedback/SKILL.md` Step 4's Prior-decline annotation),
+append it to the rendered draft, never silently suppressed — same convention
+`reflect/full-mode.md`'s Prior-decline annotation uses for insights:
+
+```
+_(previously declined {declinedAt date}: {reason})_
+```
+
 ## Chunking
 
 Split the batch into groups of at most 4 items — `AskUserQuestion`'s own per-question option cap
@@ -24,7 +33,8 @@ file). Issue one `multiSelect: true` `AskUserQuestion` call per chunk, sequentia
 parallel, so each chunk's answer is known before the next renders. Each chunk's options: `label`
 = the item's title, `description` = a one-line summary plus any dedup flag (literal format
 `**possible duplicate:** #{N}` when a dedup search found a match — never rendered as a separate
-`AskUserQuestion` call).
+`AskUserQuestion` call) plus, when the item carries a `priorDecline` (#1033), `**previously
+declined:** {declinedAt date}: {reason}` on its own line within the same description.
 
 **No pre-selection exists.** The tool's `options` schema carries only `label`/`description`/
 `preview` — confirmed against the tool's own current schema, not assumed — so every option
@@ -53,11 +63,15 @@ An unchecked item is logged as declined, never silently dropped. **First, in eve
 below:** compute the item's fingerprint via `bin/lib/feedback/file-feedback.js`'s
 `computeFingerprint(draft)` (the same fingerprint `/feedback`'s own filing step would have
 embedded had this item been checked instead) and record the decline via
-`bin/lib/declined-learning/store.js`'s `recordDecline(fingerprint, { reason, source: 'feedback' })`
-— `reason` is the user's stated reason when the caller collected one (the wrap-up/multi-spec
-console path below), or the literal string `'declined, no reason given'` otherwise. A decline
-write failure degrades open exactly like a watermark write failure (`_shared/transcript-judge.md`'s
-"On a write failure" line) — log it as a one-line note and continue; never abort the batch over it.
+`bin/lib/declined-learning/store.js`'s `recordDecline(fingerprint, { reason, source: 'feedback',
+subject: draft.fingerprintBasis.summary })` — `reason` is the user's stated reason when the caller
+collected one (the wrap-up/multi-spec console path below), or the literal string `'declined, no
+reason given'` otherwise; `subject` (#1033) is the same human-legible summary text
+`fingerprintBasis` already carries on the draft, so a future judge dispatch (`session-evaluation.md`'s
+`dismissedSubjects`) can render this decline as text a re-evaluation can actually compare meaning
+against, not just an opaque hash. A decline write failure degrades open exactly like a watermark
+write failure (`_shared/transcript-judge.md`'s "On a write failure" line) — log it as a one-line
+note and continue; never abort the batch over it.
 
 Then, per branch:
 

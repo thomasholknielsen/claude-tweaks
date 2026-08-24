@@ -62,16 +62,23 @@ test('session-evaluation.md documents its four consumer parameters (rubric, temp
 
 // --- 2. session-evaluation.md: feedback's own watermark payload shape survives the migration ---
 
-test('session-evaluation.md still documents the filedRecords/dismissedFingerprints watermark payload', () => {
+test('session-evaluation.md still documents the filedRecords/dismissedSubjects watermark payload', () => {
   assert.match(SESSION_EVAL, /filedRecords,\s*\/\/ the record numbers this run actually filed/);
   assert.match(
     SESSION_EVAL,
-    /dismissedFingerprints,\s*\/\/ bin\/lib\/declined-learning\/store\.js's\s*\/\/ listDeclinedFingerprints\(\{ source: 'feedback' \}\)/,
+    /dismissedSubjects,\s*\/\/ bin\/lib\/declined-learning\/store\.js's listDeclined\(\{ source: 'feedback' \}\)/,
   );
   assert.match(
     SESSION_EVAL,
-    /Filtered to source: 'feedback' so a reflect-sourced\s*\/\/ decline never suppresses a feedback finding/,
+    /Filtered to source: 'feedback' so a reflect-sourced decline\s*\/\/ never suppresses a feedback finding/,
   );
+});
+
+// #1033: dismissedSubjects must be documented as a LIVE read at offset-clause composition time,
+// never sourced from the previously written watermark object (the fix for the one-run lag).
+test('session-evaluation.md documents dismissedSubjects is computed live, never read off a written watermark', () => {
+  assert.match(SESSION_EVAL, /\*\*`dismissedSubjects` is computed live, immediately before composing/);
+  assert.match(SESSION_EVAL, /never read off a previously\s*\nwritten watermark/);
 });
 
 // --- 2b. #701: skip-before-dispatch check + the sessionId/findingsFiled/issueUrls payload fields ---
