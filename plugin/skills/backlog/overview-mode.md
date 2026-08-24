@@ -22,7 +22,7 @@ node -e "
 ```
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_UNSYNCED=backlog-overview-unsynced.json ST_BACKLOG_OVERVIEW_UNSYNCED_DATED=backlog-overview-unsynced-dated.json ST_BACKLOG_OVERVIEW_FACETED=backlog-overview-faceted.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_UNSYNCED=backlog-overview-unsynced.json ST_BACKLOG_OVERVIEW_UNSYNCED_DATED=backlog-overview-unsynced-dated.json ST_BACKLOG_OVERVIEW_FACETED=backlog-overview-faceted.json ST_BACKLOG_OVERVIEW_FACETED_MERGED=backlog-overview-faceted-merged.json)"
 node -e "
   const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const records = require('$ST_BACKLOG_OVERVIEW_UNSYNCED');
@@ -33,10 +33,11 @@ node -e "
   const github = require('$ST_BACKLOG_OVERVIEW_FACETED');
   const unsynced = require('$ST_BACKLOG_OVERVIEW_UNSYNCED_DATED');
   console.log(JSON.stringify(mergeUnsyncedRecords(github, unsynced)));
-" > "$ST_BACKLOG_OVERVIEW_FACETED"
+" > "$ST_BACKLOG_OVERVIEW_FACETED_MERGED"
+mv "$ST_BACKLOG_OVERVIEW_FACETED_MERGED" "$ST_BACKLOG_OVERVIEW_FACETED"
 ```
 
-This last script reads `session-scoped backlog-overview-faceted.json`'s github-only content and overwrites the same path with the fully merged (github + unsynced) set — Step 2 below reads `session-scoped backlog-overview-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode's Apply step (writing `priority:*` via `writeRecord` when a record has no `$ISSUE`).
+This last script reads `session-scoped backlog-overview-faceted.json`'s github-only content, writes the fully merged (github + unsynced) set to a **distinct** path, then moves that path over the original once the `node -e` process has exited — never read-and-redirect-write the same path in one shell command, since `>` truncates its target before the reading process even opens it. Step 2 below reads `session-scoped backlog-overview-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode's Apply step (writing `priority:*` via `writeRecord` when a record has no `$ISSUE`).
 
 ## Step 1.5: Trust table (read-only)
 
