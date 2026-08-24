@@ -232,9 +232,17 @@ lowest-numbered record.
 **If creation fails, retry once** — wait 15 seconds first when the failure looks transient (a
 5xx/server error or timeout, same signature as Step 2's push retry above), immediately otherwise.
 **If the retry also fails: log and continue local-only — this log line is mandatory, not
-optional, for the same reason Step 2's is (#838)** — same message shape as the push-failure log
-above (`reason` naming the `gh pr create` failure). The branch is already on origin from Step 2
-either way.
+optional, for the same reason Step 2's is (#838)**, and it is mandatory for a second, mechanical
+reason: the bookkeeping-stamps gate (`docs/hooks.md`) releases a PR-less run only when
+`decisions.md` already carries a degrade line matching `PR-early run lifecycle: … FAILED`. Step 2
+has already pushed by this point, so #989's one-shot initial-publish exemption no longer applies —
+without this exact line, every later covered write or push in the run is denied outright. Write it
+verbatim, keeping the literal token `FAILED`:
+
+`AUTO {time} — PR-early run lifecycle: gh pr create for {branch} FAILED ({reason}); run proceeds local-only, no PR opened. Reversibility: n/a.`
+
+Do not reuse Step 2's push-failure wording here — the push succeeded; only creation failed. The
+branch is already on origin from Step 2 either way.
 
 ### Step 4: Record the PR
 
