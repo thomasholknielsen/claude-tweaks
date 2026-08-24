@@ -20,6 +20,7 @@
 const fs = require('fs');
 const { execFileSync } = require('child_process');
 const { normalizeText, fingerprintFromBasis } = require('../health-core/fingerprint');
+const { findByMarker } = require('../issues/dedup-lookup');
 
 function defaultRunner(args) {
   return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -130,16 +131,20 @@ function embedFingerprint(body, fingerprint) {
   return `${body}${sep}${line}\n`;
 }
 
-// { repo, marker, runner } -> first matching issue { number, title, ... } or
-// null. `gh issue list --search` matches substrings in the body, so the
-// fingerprint HTML comment text itself is a sufficient dedup marker. One call
-// per draft: dedup is cheap and per-item fail-safe matters more here than
-// batching — unlike link.js's databaseId resolution, there's no shared batch
-// call to make.
+// { repo, marker, runner } -> first matching issue { number, title, body,
+// createdAt } or null. Plain list-then-filter, per
+// `_shared/github-write-transport.md`'s prohibition on `gh issue list
+// --search`/`search_issues` for a find-by-marker/dedup lookup (both ride
+// GitHub's eventually-consistent search index — root cause of #1016/#1079/
+// #1089). Reuses the same findByMarker idiom `_shared/headless-self-report.md`
+// already documents. One call per draft: dedup is cheap and per-item
+// fail-safe matters more here than batching — unlike link.js's databaseId
+// resolution, there's no shared batch call to make.
 function findDuplicate({ repo, marker, runner = defaultRunner }) {
-  const out = runner(['issue', 'list', '--repo', repo, '--search', marker, '--state', 'all', '--json', 'number,title']);
-  const parsed = JSON.parse(out);
-  return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : null;
+  const out = runner(['issue', 'list', '--repo', repo, '--state', 'all', '--json', 'number,title,body,createdAt', '--limit', '500']);
+  const issues = JSON.parse(out);
+  const result = findByMarker(Array.isArray(issues) ? issues : [], marker);
+  return result ? result.canonical : null;
 }
 
 // Writes body to bodyFile (caller supplies the path — keeps this function

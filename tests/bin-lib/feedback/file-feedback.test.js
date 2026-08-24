@@ -158,8 +158,8 @@ test('fileOne: dedup hit skips filing entirely', () => {
   const createCalls = [];
   const runner = (args) => {
     if (isList(args)) {
-      assert.equal(flagValue(args, '--search'), marker);
-      return JSON.stringify([{ number: 501, title: 'existing dup' }]);
+      assert.equal(args.includes('--search'), false, 'must not send --search — eventually-consistent search index');
+      return JSON.stringify([{ number: 501, title: 'existing dup', body: `some body\n${marker}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
     }
     if (isCreate(args)) { createCalls.push(args); throw new Error('must not call issue create on a dedup hit'); }
     throw new Error('unexpected ' + args.join(' '));
@@ -167,6 +167,25 @@ test('fileOne: dedup hit skips filing entirely', () => {
   const result = feedback.fileOne({ repo: 'acme/w', draft, runner, bodyFile: '/fake/body.md', writeFile: () => {} });
   assert.deepEqual(result, { status: 'dedup-hit', number: 501 });
   assert.equal(createCalls.length, 0);
+});
+
+test('findDuplicate: sends a plain list call with no --search flag, per github-write-transport.md', () => {
+  const marker = '<!-- fingerprint: feedback-deadbeef -->';
+  const runner = (args) => {
+    assert.deepEqual(args, ['issue', 'list', '--repo', 'acme/w', '--state', 'all', '--json', 'number,title,body,createdAt', '--limit', '500']);
+    return JSON.stringify([]);
+  };
+  const result = feedback.findDuplicate({ repo: 'acme/w', marker, runner });
+  assert.equal(result, null);
+});
+
+test('findDuplicate: an unrelated marker present in the list does not count as a hit — filtering is real, not incidental', () => {
+  const marker = '<!-- fingerprint: feedback-deadbeef -->';
+  const runner = () => JSON.stringify([
+    { number: 1, title: 'unrelated', body: '<!-- fingerprint: feedback-00000000 -->', createdAt: '2026-01-01T00:00:00Z' },
+  ]);
+  const result = feedback.findDuplicate({ repo: 'acme/w', marker, runner });
+  assert.equal(result, null);
 });
 
 test('fileOne: read-back title mismatch surfaces filing-failure with a mismatch reason', () => {
@@ -240,10 +259,11 @@ test('CLI: 2-draft batch with a dedup-hit and a clean file exits 0, one line per
   const markerB = `<!-- fingerprint: ${fpB} -->`;
   const runner = (args) => {
     if (isList(args)) {
-      const search = flagValue(args, '--search');
-      if (search === markerA) return JSON.stringify([{ number: 601, title: 'existing' }]);
-      if (search === markerB) return JSON.stringify([]);
-      throw new Error('unexpected search ' + search);
+      assert.equal(args.includes('--search'), false);
+      // markerA already has a filed issue; markerB doesn't — one combined
+      // list covers both drafts' dedup checks, since there's no more
+      // per-draft --search call to key branching off.
+      return JSON.stringify([{ number: 601, title: 'existing', body: `body\n${markerA}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
     }
     if (isCreate(args)) {
       assert.equal(flagValue(args, '--title'), draftB.title);
@@ -299,10 +319,8 @@ test('CLI --dry-run: zero create calls across a multi-draft batch; reports would
   const createCalls = [];
   const runner = (args) => {
     if (isList(args)) {
-      const search = flagValue(args, '--search');
-      if (search === markerA) return JSON.stringify([{ number: 801, title: 'existing' }]);
-      if (search === markerB) return JSON.stringify([]);
-      throw new Error('unexpected search ' + search);
+      assert.equal(args.includes('--search'), false);
+      return JSON.stringify([{ number: 801, title: 'existing', body: `body\n${markerA}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
     }
     if (isCreate(args)) { createCalls.push(args); throw new Error('must not call issue create under --dry-run'); }
     throw new Error('unexpected ' + args.join(' '));
@@ -403,9 +421,10 @@ test('createWithDedupSafeRetry: transient failure then success — one dedup rec
 test('createWithDedupSafeRetry: transient failure, safety-net recheck finds the phantom success — returns it without retrying create', () => {
   let createCalls = 0;
   const create = () => { createCalls++; throw new Error('gh: ETIMEDOUT'); };
-  const runner = () => JSON.stringify([{ number: 909, title: 'the phantom-succeeded issue' }]);
+  const marker = '<!-- fingerprint: feedback-bbbb2222 -->';
+  const runner = () => JSON.stringify([{ number: 909, title: 'the phantom-succeeded issue', body: `body\n${marker}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
   const result = feedback.createWithDedupSafeRetry({
-    repo: 'acme/w', marker: '<!-- fingerprint: feedback-bbbb2222 -->', create, runner,
+    repo: 'acme/w', marker, create, runner,
     sleep: () => {},
   });
   assert.equal(result, 909);
@@ -456,7 +475,7 @@ test('fileOne: a transient create failure recovers via dedup safety-net instead 
       // First dedup search (pre-create): no hit. Safety-net recheck
       // (post-transient-failure): the phantom-succeeded issue now exists.
       if (listCalls === 1) return JSON.stringify([]);
-      return JSON.stringify([{ number: 950, title: draft.title }]);
+      return JSON.stringify([{ number: 950, title: draft.title, body: `filed body\n${marker}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
     }
     if (isCreate(args)) { createCalls++; throw new Error('HTTP 503: No server is currently available'); }
     if (isView(args)) return JSON.stringify({ title: draft.title, body: `filed body\n${marker}\n` });
