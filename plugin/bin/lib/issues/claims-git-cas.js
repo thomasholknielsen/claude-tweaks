@@ -103,7 +103,17 @@ function writeClaimBlobGit({
     if (kind === 'secondary-rate-limit') return { ok: false, secondaryRateLimit: true, failure: null };
     return { ok: false, failure: 'transport-failure' };
   } finally {
-    fs.rm(scratchIndex, { force: true }, () => {});
+    // Synchronous, to match the rest of this module: an async unlink's
+    // callback can be dropped when a short-lived CLI caller exits first,
+    // leaking one scratch index per claim attempt. `force: true` already
+    // swallows ENOENT; the catch is for the EPERM/EBUSY case, so a cleanup
+    // failure can never replace this function's real return value from a
+    // `finally` block.
+    try {
+      fs.rmSync(scratchIndex, { force: true });
+    } catch {
+      /* best-effort cleanup — never mask the write's own outcome */
+    }
   }
 }
 
