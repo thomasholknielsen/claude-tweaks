@@ -1,9 +1,5 @@
 # Product
 
-## Register
-
-product
-
 ## Users
 
 Developers using Claude Code who want a structured development lifecycle instead of ad hoc prompting. They work across capture, brainstorming, spec decomposition, build, review, and wrap-up, often coordinating parallel subagents and worktrees.
