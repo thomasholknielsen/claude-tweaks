@@ -179,6 +179,11 @@ verification wasn't available in this environment.
 - `diff` — render the diff named by Entry point: full under ~200 lines, else the stat summary plus
   the 2-3 hunks most central to the record's Acceptance Criteria.
 
+**Full verification** — when this record's Observation plan carries a `Full verification:`
+block (`_shared/observation-plan.md`), render it verbatim right after Show, before Failure
+posture and the Verdict question. The block is a pointer to the parent's eventual end-to-end
+check, not a substitute for it — the Verdict question below still asks only about this slice.
+
 **Failure posture:** a Prepare or Validate failure is evidence for Request changes, never a
 debugging detour to chase mid-conversation — capture what broke (screenshot, console error,
 command output) and fold it directly into this record's brief as grounds for the verdict.
@@ -335,6 +340,7 @@ always renders.
 | Merging or opening a PR from within this skill | Those belong to `/superpowers:finishing-a-development-branch` — `/demo` only resolves the Acceptance axis |
 | Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be restated before shifting topic — see Step 2's Task-anchor discipline |
 | Treating a record with no interactive surface as not needing sign-off | A `cli`/`flow`/`diff` plan still gets a real human look — it pairs the diff/rationale with concrete pointers, not just "review the diff" |
+| Handing a sub-issue's `cli`/`diff` plan to a human as if the slice were the feature | The plan must say which siblings gate the real check and what that check is — render the Full verification block when the record carries one |
 | Debugging or fixing an application bug a Prepare/Validate check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
 | Leaving a live browser session open after Validate or Show finishes | Leaked sessions consume resources — Validate's own session must close before Show runs; Show's `open`/`xdg-open` hands the browser off to the human, it never holds a session open itself |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |
