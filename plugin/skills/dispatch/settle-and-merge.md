@@ -252,10 +252,12 @@ states.
 the main checkout — a Task-tool subagent launched by dispatch is cwd-pinned to the worktree it
 inherited at launch and cannot reach a sibling directory (see the note at the top of this file).
 This call cannot run `git merge`, `ExitWorktree`, or `git worktree remove` — the structural,
-outcome-independent constraint stated at the top of this file. Separately, wrap-up's own Item 4
-(worktree removal), Item 7 (issue claim release), and Item 8 (run-dir archival) all stay deferred
-on this branch specifically because the merge that would make them safe has not happened yet and
-this outcome is not terminal — not because they inherit the worktree constraint. Items 1, 2, 3,
+outcome-independent constraint stated at the top of this file. Separately, wrap-up's own Item 7
+(issue claim release) and Item 8 (run-dir archival) stay deferred on this branch specifically
+because the merge that would make them safe has not happened yet and this outcome is not
+terminal — not because they inherit the worktree constraint. Item 4 (worktree removal) is
+blocked here by that constraint itself, exactly as on the pr-first branch above, and is
+merge-dependent besides; the dispatching session runs all three after it merges. Items 1, 2, 3,
 5, and 6 are unaffected (not merge-dependent) and may still run normally as part of this call's
 own wrap-up execution. Report `OUTCOME: ready-to-merge` (see `task-prompt.md`'s second-call
 template) and return — `Dispatching-session merge execution (local-merge fallback)`, below, is what actually

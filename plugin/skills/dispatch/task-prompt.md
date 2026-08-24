@@ -27,8 +27,13 @@ counting, failure comment) before finishing -- that procedure runs inside this a
 this group's own record(s), not in the dispatching session's thread, and this call's own
 failure is exactly the failure it settles. Do not leave a failed record's claim or label
 state unresolved. Do NOT tear the worktree down yourself, and do not run ExitWorktree or
-`git worktree remove` -- worktree teardown is the dispatching session's, routed through
-wrap-up's own cleanup.
+`git worktree remove` -- a Task call that inherited this worktree without entering it can
+never tear it down, on any outcome (the outcome-independent constraint at the top of
+settle-and-merge.md). Who does tear it down depends on the path, never on this call: on a
+build/test failure, the dispatching session's own `/claude-tweaks:flow {target} wrap-up
+cleanup-only` call (two-call-gate.md section 5); on a successful run, the second call's own
+integration path -- under pr-first the reconciler, on merged-PR evidence; under local-merge
+the dispatching session, after it merges.
 
 Working directory: the dispatching session has ALREADY entered this group's worktree; you
 inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
