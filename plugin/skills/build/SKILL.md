@@ -179,9 +179,9 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 
 For the full procedure (Check A failure handling, Check B scope-keyword sweep command, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
 
-### Common Step 1.7: Design Pre-Build (frontend specs)
+### Common Step 1.7: Design Pre-Build (frontend specs + terminal)
 
-For frontend specs — `surface` ∈ `web | mobile | desktop`, read from the materialized header's `surface:` field (lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
+For a surface routed to pre-build — `surface` ∈ `web | mobile | desktop | terminal`, read from the materialized header's `surface:` field (lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. `terminal` resolves a different, smaller always-load set (`_shared/terminal-ux.md` + `_shared/design-craft.md` only, no Impeccable references) than the three visual surfaces — see `design-prebuild.md`'s Terminal track note and `design-wrapper/terminal-routing.md`'s `pre-build` row. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
 
 ### Common Step 2: Execute the Plan
 
