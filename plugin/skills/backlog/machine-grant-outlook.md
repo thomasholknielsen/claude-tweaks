@@ -19,6 +19,12 @@ loaded separately from `overview-mode.md`'s own fence, so re-resolve the path ra
 assuming its shell variable survived (`_shared/session-tmp-root.md`; `sessionTmpPath` is
 idempotent per session+filename, so this resolves to the identical path Step 1.5 wrote):
 
+`machineGrantOutlook` pre-filters human-filed records (`facets.origin` null/undefined) before
+running the gate chain at all — mirroring `grant-mode.md`'s own Step 1 cheap pre-pass on the same
+condition — so its `eligible`/`refused` population always matches grant-mode's own candidate set;
+excluded records are counted separately via the returned `excludedOrigin` field rather than folded
+into `refused` (#1387).
+
 ```bash
 eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_TRUST_ROWS=backlog-overview-trust-rows.json)"
 ```
@@ -30,12 +36,15 @@ future firing", not "will be granted". Render one extra `#`-comment line directl
 `# specified {n}` line, before its `/claude-tweaks:backlog grant` command line:
 
 ```
-# machine-grant live (≤{cap}/day): {eligible.length} eligible pending grant-check; {refused-total} refused — {failedKey}: {count}, ... — refused records need a human grant via /claude-tweaks:backlog refine
+# machine-grant live (≤{cap}/day): {eligible.length} eligible pending grant-check; {refused-total} refused — {failedKey}: {count}, ...; {excludedOrigin} human-filed (excluded — never machine-granted) — refused records need a human grant via /claude-tweaks:backlog refine
 ```
 
 The `{failedKey}: {count}` list renders in descending count order; when `refused` is empty, omit
-it and the `— refused records need …` tail with it. `{cap}` is the resolved
-`fleet-daily-grant-cap`; when unset, drop the `(≤{cap}/day)` parenthetical.
+it and the `— refused records need …` tail with it. The `; {excludedOrigin} human-filed (excluded
+— never machine-granted)` segment renders only when `excludedOrigin` is non-zero — omit it
+entirely (including its leading `; `) when zero, the same convention the `{failedKey}: {count}`
+list already follows for an empty `refused`. `{cap}` is the resolved `fleet-daily-grant-cap`; when
+unset, drop the `(≤{cap}/day)` parenthetical.
 
 ## `captured` stage — born-ready chain suppression
 
