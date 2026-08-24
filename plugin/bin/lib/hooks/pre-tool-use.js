@@ -965,7 +965,11 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
 // `warnings` collects every allow-but-warn note raised anywhere in this pass
 // (checkTeardownGate's foreign-owned teardown, checkBookkeepingStampsGate's
 // foreign-owned run); run() attaches them all to whatever outcome is reached.
-function runInner(ctx, indeterminateTargets, warnings) {
+// `deps` is run()'s own pass-through of its test-only override bag — see
+// run()'s header comment below — forwarded verbatim to
+// checkBookkeepingStampsGate as its own `deps` parameter. No other gate in
+// this pass currently takes an override.
+function runInner(ctx, indeterminateTargets, warnings, deps) {
   const teardown = checkTeardownGate(ctx, warnings);
   if (teardown.json) return teardown;
 
@@ -982,7 +986,7 @@ function runInner(ctx, indeterminateTargets, warnings) {
   const gate = checkWorktreeRequired(ctx, commandGitTargets, indeterminateTargets);
   if (gate.json) return gate;
 
-  const stamps = checkBookkeepingStampsGate(ctx, commandGitTargets, {}, warnings);
+  const stamps = checkBookkeepingStampsGate(ctx, commandGitTargets, deps, warnings);
   if (stamps.json) return stamps;
 
   if (!ctx.runDir || !ctx.runState || !ctx.runState.worktree) return {};
@@ -1083,10 +1087,20 @@ function runInner(ctx, indeterminateTargets, warnings) {
 // notices because the omission is invisible). This wrapper states the
 // unconditional rule instead: every outcome, deny or allow, carries every
 // collected note.
-function run(ctx) {
+// `deps` (optional, default `{}`) is the ONE injection point run() offers a
+// caller: a bag of test-only overrides forwarded verbatim to whichever inner
+// gate declares its own `deps` parameter (today, only
+// checkBookkeepingStampsGate's `resolveIntegrationModel` override — see that
+// function's header comment). The production call site
+// (bin/hooks.js's `main()`) calls `mod.run({...})` with a single argument, so
+// `deps` is always `{}` there; only a test passes a second argument. Adding
+// this parameter is what lets a test exercise checkBookkeepingStampsGate's
+// pr-first branch through run()'s own dispatch instead of calling the gate
+// function directly, bypassing every gate ahead of it in runInner (record #1268).
+function run(ctx, deps = {}) {
   const indeterminateTargets = [];
   const warnings = [];
-  const out = runInner(ctx, indeterminateTargets, warnings) || {};
+  const out = runInner(ctx, indeterminateTargets, warnings, deps) || {};
 
   const notes = [...warnings];
   if (indeterminateTargets.length) {
