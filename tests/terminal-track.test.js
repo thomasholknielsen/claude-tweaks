@@ -63,7 +63,12 @@ test('build Common Step 1.7 routes surface: terminal to design-wrapper pre-build
   const prebuild = read('plugin/skills/build/design-prebuild.md');
   assert.match(
     prebuild,
-    /terminal/,
-    'design-prebuild.md must document the terminal track (its always-load set, or a cite to terminal-routing.md\'s pre-build row)',
+    /^## Terminal track$/m,
+    'design-prebuild.md must carry a Terminal track section',
+  );
+  assert.match(
+    prebuild,
+    /_shared\/terminal-ux\.md/,
+    'design-prebuild.md must name the terminal always-load set',
   );
 });
