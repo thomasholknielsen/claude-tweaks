@@ -254,6 +254,8 @@ Cap at one retry. If still malformed, accept what you got and move on (do not lo
 
 ## How to integrate at a dispatch site
 
+**Fan-out dispatch shape.** Emit all N `Agent`/`Task` calls of a fan-out as tool_use blocks in a single assistant message; a call per message is a serialized dispatch even when the prose says parallel — the harness only runs tool calls concurrently when they arrive as multiple `tool_use` blocks in one message. When a fan-out spans multiple independent units of work (e.g. several records, each needing its own persona set), batch by unit: one message per record's persona set, never one message per individual agent.
+
 In a Form B blockquote:
 
 ```

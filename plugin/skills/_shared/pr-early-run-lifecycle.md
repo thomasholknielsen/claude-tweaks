@@ -12,6 +12,36 @@ as of `pending-review`.
 `local-merge` runs (`_shared/integration-model.md`) skip this file entirely — today's no-PR
 lifecycle, unchanged.
 
+## Root cause: MCP PR-body sanitization strips HTML comments on read, not write (#929)
+
+Confirmed against `github/github-mcp-server`'s own source (`gh api repos/github/github-mcp-server/contents/...`), 2026-08-22:
+
+- **Write path is unsanitized.** `pkg/github/pullrequests.go`'s `CreatePullRequest` and
+  `UpdatePullRequest` set the PR body straight from the raw tool-call parameter
+  (`newPR.Body = github.Ptr(body)` / `update.Body = github.Ptr(body)`) — no sanitize call.
+  A PR created or edited via `mcp__github__create_pull_request`/`update_pull_request`
+  stores the body on GitHub byte-for-byte, HTML comments included.
+- **Read path is sanitized.** `pkg/github/minimal_types.go`'s `convertToMinimalPullRequest`
+  calls `Body: sanitize.Sanitize(pr.GetBody())` before returning a PR to the calling LLM
+  (`GetPullRequest`, the tool behind `pull_request_read get`). `pkg/sanitize/sanitize.go`'s
+  `getPolicy()` builds a `bluemonday.StrictPolicy()` with an explicit `AllowElements(...)`
+  list that never includes comments and never calls `AllowComments()` — `FilterHTMLTags`
+  therefore strips every `<!-- ... -->` span. This is a prompt-injection defense (hidden
+  HTML comments are a classic vector for smuggling instructions into content an LLM later
+  reads back), not a GitHub API/storage behavior.
+
+**Consequence:** a PR opened via MCP on a `gh`-absent sandbox genuinely carries the
+`<!-- claude-tweaks-run: -->` / `<!-- phases-start -->` / `<!-- phases-end -->` markers on
+GitHub's stored body — but any later read of that same PR *through the MCP transport*
+(`pull_request_read`, or the implicit re-fetch inside `update_pull_request`) returns a body
+with those markers invisibly gone, even though a `gh pr view`/REST read of the identical PR
+would show them intact. A gh-absent phase-checklist-update or reconciler pass that reads via
+MCP therefore has nothing to find-and-replace between, even though the markers are really
+there. The fix is not "make the MCP server stop sanitizing" (the sanitization is a
+deliberate, reasonable defense) — it's to also carry a plain-text companion form that never
+looks like an HTML tag to the sanitizer in the first place, so it survives the MCP read path
+unchanged. See "Dual-marker scheme" in Step 3 below.
+
 ## Callers
 
 | Caller | Invokes from |
@@ -110,6 +140,7 @@ Skipped when Step 1 found a reusable open PR. Otherwise, compose:
 
 ```markdown
 <!-- claude-tweaks-run: {run-id} -->
+claude-tweaks-run: {run-id}
 
 ### Spec summary
 
@@ -118,11 +149,13 @@ Skipped when Step 1 found a reusable open PR. Otherwise, compose:
 ### Phases
 
 <!-- phases-start -->
+[claude-tweaks-phases-start]
 - [ ] build
 - [ ] test
 - [ ] review
 - [ ] polish
 - [ ] wrap-up
+[claude-tweaks-phases-end]
 <!-- phases-end -->
 
 ### Resume
@@ -132,18 +165,40 @@ Skipped when Step 1 found a reusable open PR. Otherwise, compose:
 Fixes #{n}
 ```
 
-The `<!-- claude-tweaks-run: {run-id} -->` marker is the **first line**, unconditionally — it is
-the GitHub-side signal the sweep (`sweep-backstop` sub-issue) and the reconciler
-(`bin/lib/reconcile`) key on to recognize a plugin-created PR without a local run-dir join. Never
-omit it, even when composing by hand.
+The `<!-- claude-tweaks-run: {run-id} -->` marker is the **first line**, unconditionally,
+immediately followed by a plain-text companion line (`claude-tweaks-run: {run-id}`, no
+comment syntax) — it is the GitHub-side signal the sweep (`sweep-backstop` sub-issue) and the
+reconciler (`bin/lib/reconcile`) key on to recognize a plugin-created PR without a local
+run-dir join. Never omit either line, even when composing by hand.
+
+**Dual-marker scheme (#929).** Every marker below is written in two forms, always both,
+regardless of transport — the write path never sanitizes either form (Root cause above), so
+writing both costs nothing and there is no transport-detection to get wrong at write time:
+
+| Purpose | HTML-comment form (unchanged) | Plain-text companion (new) |
+|---|---|---|
+| Run-id marker | `<!-- claude-tweaks-run: {run-id} -->` | `claude-tweaks-run: {run-id}` |
+| Phase-checklist start | `<!-- phases-start -->` | `[claude-tweaks-phases-start]` |
+| Phase-checklist end | `<!-- phases-end -->` | `[claude-tweaks-phases-end]` |
+
+**Which form a *reader* uses depends on transport, per Root cause above:** a `gh`-present
+read (`gh pr view`, `gh api`, or any REST/GraphQL read) sees the real stored body and can key
+on either form — use the HTML-comment form for compatibility with every existing consumer
+(`_shared/github-pr-scan.md`'s `RUN_MARKER` regex, the reconciler, the sweep). A `gh`-absent
+read going through `pull_request_read` (or `update_pull_request`'s own re-fetch) has every
+`<!-- ... -->` span stripped from what it returns — key on the plain-text companion form
+instead. Neither form is ever removed once written, so a run that starts `gh`-absent and
+later gains `gh` (or vice versa) never loses recognition.
 
 **Phase checklist rows are delimited by `<!-- phases-start -->`/`<!-- phases-end -->` HTML
 comments** so the phase-checklist update procedure below can re-compose reliably (read body,
-replace only the content between the markers, write back) instead of parsing prose. Start every
-row unchecked — `- [ ] {phase}` — even for steps this run's step-list argument will skip (e.g.
-`no-polish`); a skipped phase's row is removed at that phase's own would-be exit rather than
-predicted at creation, since Step 1's own step-list resolution can still change before then in
-`interactive`/`hybrid` mode.
+replace only the content between the markers, write back) instead of parsing prose. Both
+delimiter pairs bracket the same checklist rows — the HTML-comment pair outermost, the
+plain-text pair immediately inside it (see the template above) — so either reader finds an
+unambiguous, non-overlapping span to replace. Start every row unchecked — `- [ ] {phase}` —
+even for steps this run's step-list argument will skip (e.g. `no-polish`); a skipped phase's
+row is removed at that phase's own would-be exit rather than predicted at creation, since Step
+1's own step-list resolution can still change before then in `interactive`/`hybrid` mode.
 
 Omit a `polish` row when the record's `surface:` is `backend` (polish never runs) — the same
 frontend/backend split `flow/steps-and-gates.md`'s own polish decision tree already makes; don't
@@ -218,13 +273,25 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
 
 - **Not set** (push at run start failed, or this is a `local-merge` run): skip entirely — no PR
   to update.
-- **Set**: read the current body, flip that phase's checklist row from `- [ ] {phase}` to
-  `- [x] {phase}` between the `<!-- phases-start -->`/`<!-- phases-end -->` markers only, leaving
-  everything else in the body untouched, then:
+- **Set**: read the current body — `gh pr view {number} --json body` when `gh` is present,
+  `mcp__github__pull_request_read` (`get` method) when it is absent
+  (`_shared/github-write-transport.md`'s Detection rule). Locate the checklist span using
+  whichever delimiter pair this read actually returned: the `<!-- phases-start -->`/
+  `<!-- phases-end -->` pair on a `gh`-present read (the real body, unsanitized); the
+  `[claude-tweaks-phases-start]`/`[claude-tweaks-phases-end]` pair on a `gh`-absent MCP read
+  (the HTML-comment pair is invisibly stripped from what this read returns, per Root cause
+  above, even though it still exists in the stored body). Flip that phase's checklist row from
+  `- [ ] {phase}` to `- [x] {phase}` inside whichever span was found, leaving everything else —
+  including the *other* delimiter pair, which this read may not even show — untouched, then
+  write back through the same transport that did the read:
 
   ```bash
   gh pr edit {number} --repo {owner}/{repo} --body-file /tmp/pr-checklist-{n}.md
   ```
+
+  `gh`-absent: `mcp__github__update_pull_request` with the same composed body — this write is
+  unsanitized (Root cause above), so it carries both delimiter pairs through untouched
+  regardless of which one was used to locate the span.
 
   Compose-then-write-once — read, patch the checklist section in memory, write the whole body
   back in one call. Never a partial/streaming edit.
@@ -255,7 +322,7 @@ phase this run actually completed.
    resolves a local ref, and a worktree can sit hours behind `origin/{integration-branch}`
    without this fetch; skipping it would let the probe silently predict against a stale base,
    compounding the race this step already discloses below. Then run `node
-   plugin/bin/merge-size-probe.js --integration-branch origin/{integration-branch}` against this
+   "${CLAUDE_PLUGIN_ROOT}/bin/merge-size-probe.js" --integration-branch origin/{integration-branch}` against this
    run's branch. It predicts, via `git merge-tree --write-tree`, the post-merge size
    of every branch-touched `skills/_shared/*.md`/`SKILL.md` file — a branch that is green alone
    (`tests/bin-lib/skill-audit/context-cost.test.js` only sees the working tree) can still tip a
@@ -291,7 +358,7 @@ warning and the merge proceeds; a stale title/checklist is cosmetic, never a mer
 | Push at run start fails | Local-only run, logged warning (Step 2 above), continue. Every later phase-exit push retries naturally. |
 | Push or `gh pr create` fails with a transient-looking (5xx/timeout) signature | One 15-second-backoff retry (Step 2/Step 3 above) before falling through to the corresponding row's degrade — a 503-class outage self-heals fast enough that most retries succeed without ever reaching a logged degrade. |
 | `gh pr create` fails twice | Local-only run (branch already pushed), logged warning, continue. |
-| `gh` absent | Same degrade as a push/create failure, distinguished reason: `_shared/github-write-transport.md`'s CRUD mapping carries no pull-request row, so there is no MCP fallback to attempt for PR creation (unlike issue operations, which do have one). Log `reason: gh-absent — no MCP fallback for pull requests`. |
+| `gh` absent | No longer a degrade (#929) — `mcp__github__create_pull_request`/`update_pull_request` is the documented fallback (`_shared/github-write-transport.md`'s Pull Request create/update exception), using the same dual-marker template as the `gh`-present path. Only a genuine MCP write failure degrades, logged the same as any other Step 2/Step 3 failure above (`reason: gh-absent — mcp__github__create_pull_request failed: {error}`). |
 | `gh` absent at merge time (`_shared/pr-first-merge.md` Step 2.5) | The `merge-verification` lever is unenforceable without `gh` — proceed as `off` and disclose it at **warn** tier in the run summary (a visible line, not a silent log entry): `merge-verification: {resolved} unenforceable — gh absent; proceeded as off`. Same no-MCP-fallback reason as the row above. |
 | Offline / no `origin` remote | Same degrade path as any push failure — `_shared/forge-detection.md` would already have resolved `local-merge` for a no-remote project, so this case is specifically "remote configured but unreachable right now." |
 
