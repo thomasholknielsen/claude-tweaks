@@ -184,6 +184,14 @@ gate runs:
 gh issue list --repo thomasholknielsen/claude-tweaks --search '<component>' --state all --limit 10 --json number,title,state,url
 ```
 
+**On a transient-looking failure** (the error text names a 5xx/server error, a timeout, or a
+connection reset — e.g. `HTTP 503: No server is currently available to service your request`, not
+an auth/ref problem): retry this call **once** after a 15-second wait, then treat a second failure
+like any other failure — the same signature and single-retry convention
+`_shared/pr-early-run-lifecycle.md`'s push/PR-create steps already use for a `gh`/git call. Not
+`_shared/github-rate-limit.md`'s classification: that file is scoped to rate-limit signatures
+(403/429), never a plain 5xx/timeout outage — a bare 403/429 here is not retried.
+
 When the affected component resolved to Step 1's `"unclear / general"` fallback, there is no
 public-safe keyword to search on: **skip the search entirely** and say so in the report — never
 fall back to the summary text this step just ruled out. Step 8's fingerprint-marker dedup still
@@ -359,6 +367,10 @@ exist:
 gh label list --repo thomasholknielsen/claude-tweaks --limit 200
 ```
 
+On a transient-looking failure (5xx/timeout/connection-reset signature — not a plain 403/429,
+which `_shared/github-rate-limit.md` owns), retry once after a 15-second wait per Step 4's own
+retry note above, then treat a second failure like any other failure.
+
 Pass `--label bug` for a defect or `--label enhancement` for a gap **only** when
 that label is present in the output.
 
@@ -398,7 +410,15 @@ goes via `--body-file`.
    is the host project `/feedback` is running from, not the upstream `claude-tweaks` repo the
    learning is filed against. (No `--dry-run` here — Step 7's own dry-run gate already stopped
    before Step 8 is ever reached; the CLI's `--dry-run` flag noted in Step 7 is a separate,
-   direct-invocation-only affordance.)
+   direct-invocation-only affordance.) Every `gh` call this CLI makes (Step 4's own dedup search
+   inside the CLI and the read-back `gh issue view`) automatically retries up to 4 times (5 total
+   attempts — this record's own observed worst case) after a 15-second wait on a transient-looking
+   failure — `bin/lib/feedback/file-feedback.js`'s `withTransientRetry`, applied internally by
+   `fileOne`. `gh issue create` retries the same way, but dedup-safe: since issue creation isn't
+   idempotent, a retry first re-runs the dedup search for this draft's fingerprint marker — a hit
+   means the "failed" attempt actually succeeded server-side (its response was lost to the same
+   transient condition), so that issue is reused instead of a second one being filed
+   (`createWithDedupSafeRetry`). No per-call shell loop needed either way.
 3. Report its per-draft result table verbatim — `filed #{n}` / `dedup-hit #{n}` /
    `filing-failure: {reason}` per line, in input order. This table **is** Step 9's per-item report
    source now, not a paraphrase.
@@ -409,7 +429,8 @@ goes via `--body-file`.
    `staged/wrap-up-upstream-*.md` aggregation glob `review-console.md` and
    `multispec-review-console.md` both scan, so a stop-and-resume never re-enumerates a failed
    draft as a fresh upstream proposal — and tell the user the filing did not happen and the draft
-   is preserved. There is no automatic retry for upstream filings.
+   is preserved. This row means the CLI's own single retry (above) already ran and still failed —
+   not that no retry was attempted.
 5. **On success when invoked via `--pre-confirmed`:** delete the staged file at
    `staged/wrap-up-upstream-{N}.md` for each draft the CLI table reports as `status: filed` or
    `status: dedup-hit` — condition on the table's status, not on `gh issue create`'s own exit code
