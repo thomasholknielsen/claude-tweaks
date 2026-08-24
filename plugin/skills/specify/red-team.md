@@ -15,6 +15,8 @@ unchanged from before.
 > narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents
 > complete.
 >
+> **Dispatch shape:** single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) applies. Batching unit here: one message per sub-issue's persona set — a `fast-lane` sub-issue's single Skeptical Reviewer call joins the next sub-issue's message rather than spending a whole message on one agent.
+>
 > **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. `[Use: Standard]` (resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`, contract § Model Selection). Read-only — personas never modify the record themselves.
 >
 > **Persona prompts (inline literally per agent — Mode 3 from `skills/_shared/multi-agent-coordination.md`):**
