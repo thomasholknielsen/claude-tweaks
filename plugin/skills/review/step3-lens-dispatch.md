@@ -47,7 +47,7 @@ At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatch
 >
 > Do **not** `Read` the changed files into this thread to "front-load" them. `Read` places their full content in main-thread context, and each dispatched agent still reads its own copy regardless — so the front-load saves no I/O and costs the entire diff plus every touched file, the exact cost Step 2 exists to avoid. An agent needing more than the bundle (imports, schemas, callers) reads those itself, in its own context window.
 
-> **Parallel execution (conditional):** At `medium` and above, when the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. At `low`, dispatch single agents per the Low-tier single-read rule above instead. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i).
+> **Parallel execution (conditional):** At `medium` and above, when the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. At `low`, dispatch single agents per the Low-tier single-read rule above instead. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i). Dispatch shape: single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) applies.
 >
 > **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model profile). Independent runs — no agent sees the other's output. After both return, write each agent's `findings` array to `{ctx-dir}/lens-{LENS}-agentA.json` / `{ctx-dir}/lens-{LENS}-agentB.json` and call:
 > ```bash
@@ -130,7 +130,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 - Edge cases handled (null, empty, malformed input)?
 - Errors logged with sufficient context for debugging?
 - User-facing errors safe (no internal details leaked)?
-- No `fs.existsSync(...)`-then-`fs.readFileSync(...)` TOCTOU races — read directly and catch, treating a read failure the same as "absent," rather than checking existence first? (#901's hindsight: this exact pattern recurred independently 3 times within one record's own fresh code, in a project where concurrent sibling sessions routinely archive/prune the exact directories these readers walk.)
+- No `fs.existsSync(...)`-then-`fs.readFileSync(...)` TOCTOU races — read directly and catch, treating a read failure the same as "absent," rather than checking existence first? (#901's hindsight: this exact pattern has recurred independently 4 times within fresh code, most recently #1269 (`[IL-146]`), in a project where concurrent sibling sessions routinely archive/prune the exact directories these readers walk. See `docs/donts.md`'s matching rule for the write-time version of this callout.)
 
 ### 3d: Performance
 

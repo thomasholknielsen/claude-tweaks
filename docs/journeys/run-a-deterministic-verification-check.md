@@ -54,4 +54,4 @@ files:
 
 ## Origin
 - Created during build of #892 (deterministic verification runner + `verification.md` migration) — replaces the retired prose-orchestrated `LOG=`/`tail`/`grep` capture discipline `verification.md` Step 2 used to document directly.
-- Related specs: #891 (parent — deterministic verification runner family), #881 (suite-count regression detection, a future consumer of `report.json`'s `counts` field), #882 (flake adjudication, a future consumer of the runner's per-check log files)
+- Related specs: #891 (parent — deterministic verification runner family), #881 (suite-count regression detection, a future consumer of `report.json`'s `counts` field), #882 (flake adjudication — landed as a standalone `node --test` isolated re-run recipe in `verification.md`'s own "Flake adjudication" section; does not consume `verify.js`'s per-check log files)

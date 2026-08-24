@@ -12,7 +12,7 @@ files:
 **Persona:** claude-tweaks user (or a maintainer of a project using the plugin) returning days after a build shipped, who owes the record a human verdict and does not want to re-derive "how do I test this" from the diff.
 **Goal:** Reach an Approve / Request changes / Skip decision on one record after being *shown* the work — the observation plan executed in front of them — rather than being asked to choose how to verify it first.
 **Entry point:** A terminal in a session with the plugin loaded, holding a record number from `/claude-tweaks:help`'s outstanding list (Stage 4.7) or a `demo:pending` notification.
-**Success state:** The record carries `demo:approved` (or `demo:changes-requested` plus a linked follow-up record), and the human never had to answer a how-do-you-want-to-check-this question. For a `#N,#M` list, every ref that resolved carries its own verdict, applied as that verdict was given; a ref that resolved to nothing was reported and skipped without stopping the rest.
+**Success state:** The record carries `demo:approved` (or `demo:changes-requested` plus a linked follow-up record), and the human never had to answer a how-do-you-want-to-check-this question. For a `#N,#M` list, every ref that resolved carries its own verdict, applied as that verdict was given — an Approve verdict from a list also carries `demo:approved-batch` alongside `demo:approved` (Step 3); a ref that resolved to nothing was reported and skipped without stopping the rest.
 
 ## Steps
 
@@ -34,7 +34,7 @@ files:
 - **URL:** *(AskUserQuestion rendered by demo)*
 - **Action:** Pick Approve, Request changes (a one-line reason files a linked follow-up record), or Skip for now.
 - **Should feel:** One decision, fully informed — the only question the walkthrough asks.
-- **Should understand:** Approve swaps `demo:pending` → `demo:approved` (and closes a decomposition parent); Request changes ends this record's walkthrough — a later re-demo is a fresh invocation with fresh preparation.
+- **Should understand:** Approve swaps `demo:pending` → `demo:approved` (and closes a decomposition parent); a batch-sourced Approve (Step 1's `#N,#M` shape) additionally applies `demo:approved-batch` alongside it, so `bin/lib/issues/trust.js`'s coverage/verdict computation can tell a batch sign-off apart from this step's own per-record walkthrough — no extra question, nothing to decide here. Request changes ends this record's walkthrough — a later re-demo is a fresh invocation with fresh preparation.
 - **Red flags:** More than one question per record on the happy path; a verdict written for a session-recall entry (nothing is persisted for those except a Request-changes follow-up).
 
 ### 4. Next ref, same shape — `#N,#M` batches only
@@ -45,5 +45,5 @@ files:
 - **Red flags:** One combined verdict question spanning several records; a batch table asking for apply-all; the second ref starting before the first ref's label swap landed; a Next Actions block after every item instead of once at the end.
 
 ## Origin
-- Steps 1-3 created during the show-first demo build; Step 4 and the batch clauses in Step 1 added during build of #695 (specify + demo `#N,#M` batch argument)
-- Related specs: #695, #685 (tidy's command-grouped Yours section, the batch line's producer)
+- Steps 1-3 created during the show-first demo build; Step 4 and the batch clauses in Step 1 added during build of #695 (specify + demo `#N,#M` batch argument); Step 3's batch-provenance clause added during build of #431 (demo verdict provenance)
+- Related specs: #695, #685 (tidy's command-grouped Yours section, the batch line's producer), #431 (batch sign-off provenance in the trust table), #365 (the originating finding)

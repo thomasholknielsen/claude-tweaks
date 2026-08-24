@@ -785,3 +785,59 @@ test('a demo:approved record carrying an earlier failed-attempt marker keeps its
   assert.equal(rows[0].approved, 1);
   assert.equal(rows[0].negativeEvidence, 0);
 });
+
+test('approvedBatch is tallied from the demo:approved-batch marker, and only from it', () => {
+  const rows = trustRows([
+    { number: 1, labels: ['by:capture', 'risk:low', 'demo:approved', 'demo:approved-batch'], body: '', state: 'CLOSED' },
+    { number: 2, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED' },
+  ]);
+  assert.equal(rows[0].approved, 2, 'both records are approved regardless of provenance');
+  assert.equal(rows[0].approvedBatch, 1, 'only the batch-marked record counts toward approvedBatch');
+});
+
+test('#431: a cell resting entirely on batch sign-offs demotes from clean to mixed', () => {
+  // Every closed record here is demo:approved AND demo:approved-batch — no
+  // walkthrough-backed approval, no operational corroboration. The shipped
+  // rule (pre-#431) would have graded this 'clean' on approved-count alone;
+  // the provenance-aware rule must not.
+  const records = Array.from({ length: MIN_SAMPLES }, (_, i) => ({
+    number: i + 1,
+    labels: ['by:capture', 'risk:low', 'demo:approved', 'demo:approved-batch'],
+    body: '', state: 'CLOSED',
+  }));
+  const row = trustRows(records)[0];
+  assert.equal(row.approved, MIN_SAMPLES);
+  assert.equal(row.approvedBatch, MIN_SAMPLES);
+  assert.equal(row.batchOnly, true);
+  assert.equal(row.verdict, 'mixed');
+});
+
+test('#431: one walkthrough-backed approval among otherwise-batch evidence keeps a cell eligible for clean', () => {
+  // Orthogonal-category check against the demotion test above: mixed provenance
+  // (not all-batch) must not itself trigger the batchOnly demotion — the record
+  // still needs to be free of changes-requested/follow-ups/negative-evidence to
+  // grade 'clean', same as before this record.
+  const records = Array.from({ length: MIN_SAMPLES }, (_, i) => ({
+    number: i + 1,
+    labels: ['by:capture', 'risk:low', 'demo:approved', 'demo:approved-batch'],
+    body: '', state: 'CLOSED',
+  }));
+  records[0].labels = ['by:capture', 'risk:low', 'demo:approved'];
+  const row = trustRows(records)[0];
+  assert.equal(row.approved, MIN_SAMPLES);
+  assert.equal(row.approvedBatch, MIN_SAMPLES - 1);
+  assert.equal(row.batchOnly, false);
+  assert.equal(row.verdict, 'clean');
+});
+
+test('#431: a pre-existing demo:approved with no marker is walkthrough-backed and never demotes a cell', () => {
+  // Backward compatibility: every demo:approved label applied before this
+  // signal existed carries no demo:approved-batch marker at all.
+  const records = Array.from({ length: MIN_SAMPLES }, (_, i) => ({
+    number: i + 1, labels: ['by:capture', 'risk:low', 'demo:approved'], body: '', state: 'CLOSED',
+  }));
+  const row = trustRows(records)[0];
+  assert.equal(row.approvedBatch, 0);
+  assert.equal(row.batchOnly, false);
+  assert.equal(row.verdict, 'clean');
+});

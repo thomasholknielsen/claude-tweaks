@@ -13,10 +13,24 @@ const { readManifest } = require('../plugin/bin/lib/flow/manifest');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
-function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
+// #1130: never let an omitted cwd fall through to the spawned subprocess's
+// own process.cwd() — that is the test runner's real working directory, and
+// when npm test runs from a real checkout, hooks that walk
+// .claude-tweaks/pipelines/ from there write fixture events into REAL run
+// dirs (the #657 pollution incident). Calls that don't care about cwd get an
+// isolated, non-git sandbox instead.
+const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-specstatus-sandbox-'));
+
+function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
-      input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
+      // #1130: `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var
+      // so a call that doesn't explicitly pass one can't resolve against
+      // whatever real run happens to be ambient in this test runner's own
+      // process.env (e.g. when npm test itself runs inside a /flow-dispatched
+      // shell). A caller that needs a run dir still passes it explicitly via
+      // `env`, which wins because it spreads last.
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
