@@ -41,6 +41,21 @@ function commitMaterializedSpec(wt, tailPath, runId = RUN_ID) {
   execFileSync('git', ['-C', wt, 'commit', '-m', 'Materialize spec', '-q']);
 }
 
+// A throwaway stand-in for the MAIN checkout that a run dir is anchored to —
+// deliberately not the fixture git repo, so a test that anchors the run dir
+// outside the worktree it enforces in says so by passing `main` instead.
+function projectDir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+}
+
+// appendEvent flattens `data` onto the event object (see context.js's
+// appendEvent and tests/hooks-dispatcher.test.js's events[0].tool/path
+// precedent) — there is no nested `.data` key, unlike the brief's literal
+// text for the assertions below.
+function readEvents(run) {
+  return fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+}
+
 function mkRunDir(project, worktree, sessionId, extra) {
   const run = path.join(project, '.claude-tweaks', 'pipelines', RUN_ID);
   fs.mkdirSync(run, { recursive: true });
@@ -55,7 +70,7 @@ const bashInput = (command, cwd) => ({ tool_name: 'Bash', tool_input: { command 
 test('bookkeeping-stamps gate: no materialize commit yet -> allow (Common Step 1 still in progress)', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
-  const { run } = mkRunDir(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-')), null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.deepStrictEqual(out, {});
 });
@@ -72,8 +87,7 @@ test('bookkeeping-stamps gate: multi-record materialize commit (spec-{slug}/work
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('spec-991-995', 'work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.ok(out.json, 'multi-record spec-{slug}/work/{n}-spec.md form must also be recognized as a landed materialize commit');
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
@@ -83,20 +97,14 @@ test('bookkeeping-stamps gate: materialize commit landed, run resolved, no workt
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.ok(out.json, 'expected a deny result');
   const spec = out.json.hookSpecificOutput;
   assert.strictEqual(spec.permissionDecision, 'deny');
   assert.match(spec.permissionDecisionReason, /record-worktree/);
   assert.match(spec.permissionDecisionReason, /IL-131/);
-  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  // appendEvent flattens `data` onto the event object (see context.js's
-  // appendEvent and tests/hooks-dispatcher.test.js's events[0].tool/path
-  // precedent) — there is no nested `.data` key, unlike the brief's literal
-  // text for this assertion.
-  assert.ok(events.some((e) => e.type === 'bookkeeping-stamp-deny' && e.stamp === 'record-worktree'));
+  assert.ok(readEvents(run).some((e) => e.type === 'bookkeeping-stamp-deny' && e.stamp === 'record-worktree'));
 });
 
 test('bookkeeping-stamps gate: same deny fires for a Bash git-commit call, not just Edit/Write', () => {
@@ -105,8 +113,7 @@ test('bookkeeping-stamps gate: same deny fires for a Bash git-commit call, not j
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
   fs.writeFileSync(path.join(wt, 'other.txt'), 'x'); // staged content for the commit below
   execFileSync('git', ['-C', wt, 'add', 'other.txt']);
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({ input: bashInput('git commit -m "unrelated fix"', wt), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.ok(out.json, 'expected a deny result for a Bash git-commit call too');
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
@@ -117,8 +124,7 @@ test('bookkeeping-stamps gate: materialize commit landed AND worktree stamp pres
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, undefined);
+  const { run } = mkRunDir(projectDir(), wt, undefined);
   // No origin remote on this fixture repo -> resolveIntegrationModel resolves
   // 'local-merge' (detectIntegrationModel's own fail-open first check), so the
   // PR-stamp branch (Task 3) never denies here even with runState.pr unset.
@@ -129,8 +135,7 @@ test('bookkeeping-stamps gate: materialize commit landed AND worktree stamp pres
 test('bookkeeping-stamps gate: main checkout (not a linked worktree) -> allow regardless of stamps', () => {
   const main = gitRepo();
   commitMaterializedSpec(main, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({ input: editInput(path.join(main, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: main });
   assert.deepStrictEqual(out, {});
 });
@@ -139,8 +144,7 @@ test('bookkeeping-stamps gate: worktree stamped, resolveIntegrationModel stubbed
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, undefined);
+  const { run } = mkRunDir(projectDir(), wt, undefined);
   const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
     { resolveIntegrationModel: () => 'pr-first' },
@@ -150,20 +154,14 @@ test('bookkeeping-stamps gate: worktree stamped, resolveIntegrationModel stubbed
   assert.strictEqual(spec.permissionDecision, 'deny');
   assert.match(spec.permissionDecisionReason, /record-pr|PR-early/);
   assert.match(spec.permissionDecisionReason, /IL-131/);
-  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  // appendEvent flattens `data` onto the event object (see context.js's
-  // appendEvent and this file's earlier record-worktree test's own comment
-  // above) — there is no nested `.data` key, unlike the brief's literal text
-  // for this assertion.
-  assert.ok(events.some((e) => e.type === 'bookkeeping-stamp-deny' && e.stamp === 'record-pr'));
+  assert.ok(readEvents(run).some((e) => e.type === 'bookkeeping-stamp-deny' && e.stamp === 'record-pr'));
 });
 
 test('bookkeeping-stamps gate: worktree stamped, pr-first stubbed, degrade already logged in decisions.md -> allow (graceful degrade)', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, undefined);
+  const { run } = mkRunDir(projectDir(), wt, undefined);
   fs.writeFileSync(
     path.join(run, 'decisions.md'),
     '## /build\n- AUTO 09:00:00 — PR-early run lifecycle: push of wt-branch to origin FAILED (network); run proceeds local-only, no PR opened. Reversibility: n/a.\n',
@@ -179,8 +177,7 @@ test('bookkeeping-stamps gate: worktree stamped, resolveIntegrationModel stubbed
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, undefined);
+  const { run } = mkRunDir(projectDir(), wt, undefined);
   const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
     { resolveIntegrationModel: () => 'local-merge' },
@@ -192,8 +189,7 @@ test('bookkeeping-stamps gate: through pre.run() with the real (unstubbed) resol
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, undefined);
+  const { run } = mkRunDir(projectDir(), wt, undefined);
   const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt });
   assert.deepStrictEqual(out, {});
 });
@@ -202,8 +198,7 @@ test('bookkeeping-stamps gate: worktree stamped AND pr recorded -> allow regardl
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, undefined, { pr: { number: 991, url: 'https://github.com/example/example/pull/991' } });
+  const { run } = mkRunDir(projectDir(), wt, undefined, { pr: { number: 991, url: 'https://github.com/example/example/pull/991' } });
   const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt, pr: { number: 991, url: 'x' } }, cwd: wt },
     { resolveIntegrationModel: () => 'pr-first' },
@@ -227,8 +222,7 @@ test('bookkeeping-stamps gate: decisions.md exists but has no matching PR-early 
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, undefined);
+  const { run } = mkRunDir(projectDir(), wt, undefined);
   fs.writeFileSync(path.join(run, 'decisions.md'), '## /build\n- AUTO 14:32:14 — unrelated entry.\n');
   const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
@@ -246,8 +240,7 @@ test('regression (IL-131 recurrence, records #118/#893): a build agent that mate
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '893-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined); // record-worktree never ran
+  const { run } = mkRunDir(projectDir(), null, undefined); // record-worktree never ran
 
   // The first tool call after materialize: an Edit to some already-satisfied
   // file, exactly the "nothing further to implement" shortcut IL-131 describes.
@@ -286,8 +279,7 @@ test('bookkeeping-stamps gate (C2 discrimination): a DIFFERENT run-id\'s materia
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '777-spec.md'), '2026-08-01T000000-record-777');
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined); // basename is RUN_ID, not the committed run
+  const { run } = mkRunDir(projectDir(), null, undefined); // basename is RUN_ID, not the committed run
   const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.deepStrictEqual(out, {}, 'another run\'s materialize commit must not arm this run\'s gate');
 });
@@ -303,8 +295,7 @@ test('bookkeeping-stamps gate (C1/C2 discrimination): a legacy top-level work/{n
   fs.writeFileSync(legacy, 'legacy\n');
   execFileSync('git', ['-C', wt, 'add', '-f', path.join('work', '499-spec.md')]);
   execFileSync('git', ['-C', wt, 'commit', '-m', 'legacy top-level spec', '-q']);
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.deepStrictEqual(out, {}, 'a pre-anchoring top-level work/ spec must not arm the gate');
 });
@@ -317,8 +308,7 @@ test('bookkeeping-stamps gate: a non-work file committed inside this run\'s own 
   fs.writeFileSync(decisions, '## /build\n');
   execFileSync('git', ['-C', wt, 'add', '-f', path.join('.claude-tweaks', 'pipelines', RUN_ID, 'decisions.md')]);
   execFileSync('git', ['-C', wt, 'commit', '-m', 'log', '-q']);
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.deepStrictEqual(out, {}, 'only work/{n}-spec.md (or spec-*/work/*) is the materialize sentinel');
 });
@@ -329,8 +319,7 @@ test('bookkeeping-stamps gate (I1): a provably foreign-owned run warns instead o
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, 'owner-session');
+  const { run } = mkRunDir(projectDir(), null, 'owner-session');
   const out = pre.run({
     input: { ...editInput(path.join(wt, 'src', 'x.js')), session_id: 'caller-session' },
     runDir: run,
@@ -339,16 +328,14 @@ test('bookkeeping-stamps gate (I1): a provably foreign-owned run warns instead o
   });
   assert.ok(!out.json || !out.json.hookSpecificOutput, 'a foreign-owned run must not be denied');
   assert.match(out.json.systemMessage, /different session/);
-  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-  assert.ok(events.some((e) => e.type === 'wd-foreign-session' && e.stamp === 'record-worktree'));
+  assert.ok(readEvents(run).some((e) => e.type === 'wd-foreign-session' && e.stamp === 'record-worktree'));
 });
 
 test('bookkeeping-stamps gate (I1): identity missing on either side still denies (unprovable is not foreign)', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, 'owner-session');
+  const { run } = mkRunDir(projectDir(), null, 'owner-session');
   const out = pre.run({
     input: editInput(path.join(wt, 'src', 'x.js')), // no session_id on the caller side
     runDir: run,
@@ -363,8 +350,7 @@ test('bookkeeping-stamps gate (I1): the pr-first branch warns instead of denying
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, 'owner-session');
+  const { run } = mkRunDir(projectDir(), wt, 'owner-session');
   const out = pre.run(
     {
       input: { ...editInput(path.join(wt, 'src', 'x.js')), session_id: 'caller-session' },
@@ -380,6 +366,81 @@ test('bookkeeping-stamps gate (I1): the pr-first branch warns instead of denying
   // is allowed, but the warning text is still attached.
   assert.ok(!out.json || !out.json.hookSpecificOutput, 'a foreign-owned run must not be denied for a missing PR stamp');
   assert.match(out.json.systemMessage, /different session/);
+});
+
+// --- #1259: ctx.ownedRun strengthens the record-worktree branch specifically ---
+//
+// On the record-worktree branch, ctx.runState.worktree is provably unset —
+// and sessionId is stamped together with worktree (record-worktree and
+// post-tool-use.js's ad-hoc stamping both write them as a pair) — so
+// ctx.runState.sessionId is almost always ALSO unset here, meaning
+// isForeignSessionCall's owner-vs-caller comparison can essentially never
+// fire on this branch (owner is empty). ctx.ownedRun (bin/hooks.js's own
+// session-scoped resolveRun call, independent of this gate's session-agnostic
+// ctx.runDir resolution) supplies the signal this branch has been missing: a
+// live sibling session, mid-build in its OWN worktree with its OWN
+// already-recorded run, calling into a DIFFERENT (unstamped) run this gate
+// resolved via the newest-non-terminal fallback.
+
+test('bookkeeping-stamps gate (#1259): a caller whose OWN resolved run differs from the run this gate would deny against warns instead of denying, even with no sessionId stamped on either side', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, null, undefined); // unstamped: no worktree, no sessionId
+  const ownRun = path.join(project, '.claude-tweaks', 'pipelines', 'sibling-own-run');
+  fs.mkdirSync(ownRun, { recursive: true });
+  const out = pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active' },
+    ownedRun: { dir: ownRun, attribution: 'session' },
+    cwd: wt,
+  });
+  assert.ok(!out.json || !out.json.hookSpecificOutput, 'a caller with its own distinct owned run must not be denied');
+  assert.match(out.json.systemMessage, /different session/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.ok(events.some((e) => e.type === 'wd-foreign-session' && e.stamp === 'record-worktree'));
+});
+
+test('bookkeeping-stamps gate (#1259): ownedRun matching ctx.runDir (the ordinary single-session case) still denies', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, null, undefined);
+  const out = pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active' },
+    ownedRun: { dir: run, attribution: 'session' }, // same run — this IS the caller's own work
+    cwd: wt,
+  });
+  assert.ok(out.json, 'expected a deny — the caller owns exactly this run, nothing foreign about it');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('bookkeeping-stamps gate (#1259): a distinct ownedRun does NOT loosen the PR-stamp branch — that guard is unchanged', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined); // worktree already stamped -> PR-stamp branch
+  const ownRun = path.join(project, '.claude-tweaks', 'pipelines', 'sibling-own-run');
+  fs.mkdirSync(ownRun, { recursive: true });
+  const out = pre.run(
+    {
+      input: editInput(path.join(wt, 'src', 'x.js')),
+      runDir: run,
+      runState: { status: 'active', worktree: wt },
+      ownedRun: { dir: ownRun, attribution: 'session' },
+      cwd: wt,
+    },
+    { resolveIntegrationModel: () => 'pr-first' },
+  );
+  assert.ok(out.json, 'expected a deny — the PR-stamp branch must not consult ownedRun');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-pr|PR-early/);
 });
 
 // --- I2: path and foreign-repo exemptions ---
@@ -405,8 +466,7 @@ test('bookkeeping-stamps gate (I2.1): the PR-stamp deny message names bin/log-de
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, wt, undefined);
+  const { run } = mkRunDir(projectDir(), wt, undefined);
   const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
     { resolveIntegrationModel: () => 'pr-first' },
@@ -422,8 +482,7 @@ test('bookkeeping-stamps gate (I2.2): a Bash git commit targeting an unrelated r
   const foreign = gitRepo();
   fs.writeFileSync(path.join(foreign, 'a.txt'), 'x');
   execFileSync('git', ['-C', foreign, 'add', 'a.txt']);
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({
     input: bashInput(`git -C ${foreign} commit -m "unrelated"`, wt),
     runDir: run,
@@ -438,8 +497,7 @@ test('bookkeeping-stamps gate (I2.2): one in-project git target is enough to kee
   const wt = linkedWorktreeOf(main);
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
   const foreign = gitRepo();
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, null, undefined);
+  const { run } = mkRunDir(projectDir(), null, undefined);
   const out = pre.run({
     input: bashInput(`git -C ${foreign} commit -m "unrelated" && git commit -m "ours"`, wt),
     runDir: run,

@@ -1226,3 +1226,30 @@ write time rather than only a reviewer afterward.
 Cost on the #1269 run: low — caught cleanly at review, one fix cycle, no re-verify failures. The
 recurring cost is amortized across every prior occurrence this same pattern was independently
 rediscovered and re-fixed instead of prevented.
+
+## IL-147 — A directory-archival TOCTOU fix closed one window and left an adjacent one narrated as covered
+
+During record #990's build (2026-08-24), `archiveRunDir()`'s top-level `readdirSync` enumeration
+— made dynamic per-directory by #902's fix (`08098fe7`) — was still a one-shot snapshot taken well
+before the function's final `rmdirSync`. A write landing in the run dir strictly after that
+snapshot but strictly before the `rmdirSync` (record #893's own wrap-up: a `wrap-up-engine.js
+record` write to `engine-state.json` outran the archival call in one multi-process ordering)
+stayed invisible to the entries already iterated, defeating the `rmdirSync` (`ENOTEMPTY`,
+swallowed by the function's best-effort catch) and orphaning the file in the live run dir
+permanently — reproduced live during #893's own wrap-up even with #902's fix already on `main`.
+#902 closed the *per-directory* enumeration gap (each spec dir re-reads fresh instead of off one
+giant early snapshot); it never closed the *top-level* snapshot-to-final-rmdir window, because
+that window was never named as a second instance of the same hazard when #902 was scoped.
+
+Fixed by re-snapshotting the run dir immediately before the final `rmdirSync` and sweeping any
+straggler found there via the same `renameSync` the top-level loop already uses
+(`plugin/bin/lib/reconcile/archive-merged.js`). A regression test mocks `fs.readdirSync` to inject
+the late write at the exact point the top-level snapshot returns; independently verified by
+reverting only the fix (`git checkout` of the one file, not `git stash`) and confirming that one
+test — and only that one, 17/18 still pass — fails, then restoring it (18/18 green again).
+
+Cost on the #990 run: low to fix (36 lines, one regression test). The recurring cost is that the
+defect had already cost a live incident during #893's wrap-up before this run existed to fix
+it — a fix that closes one instance of a TOCTOU hazard in a function is not the same as closing
+the hazard in that function, if the function still has another step racing the same kind of
+concurrent write.

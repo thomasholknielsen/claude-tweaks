@@ -394,6 +394,42 @@ function archiveRunDir(root, runDir) {
   const result = writeRunState(archiveDir, { status: 'clean', worktree: null });
   if (!result) return { ok: false, reason: 'close-failed' };
 
+  // Late-write guard (#990 — reproduced live during #893's own wrap-up even
+  // with #902's dynamic enumeration already in place): the top-level
+  // readdirSync above (and each spec dir's own readdirSync in the loop
+  // above) is a one-time snapshot. A write landing in the run dir after that
+  // snapshot but before the rmdirSync below — e.g. `wrap-up-engine.js
+  // record`'s write to engine-state.json outrunning this call in some
+  // multi-process ordering — is invisible to the entries this function has
+  // already iterated, so it would otherwise sit unmoved and defeat the
+  // rmdirSync (ENOTEMPTY, swallowed by the best-effort catch below),
+  // orphaning it in the live run dir forever. Re-snapshot immediately before
+  // the removal attempt and sweep any straggler that appeared in the gap —
+  // gitignored content only, the same renameSync the top-level loop above
+  // uses (the tracked-entry guard above already refused a git-tracked
+  // stray, so nothing reaching this point is git-tracked).
+  if (fs.existsSync(runDir)) {
+    let stragglers;
+    try {
+      stragglers = fs.readdirSync(runDir);
+    } catch {
+      stragglers = [];
+    }
+    for (const name of stragglers) {
+      const src = path.join(runDir, name);
+      if (!fs.existsSync(src)) continue;
+      const dest = path.join(archiveDir, name);
+      try {
+        fs.renameSync(src, dest);
+        movedEntries.push(name);
+      } catch {
+        /* best-effort — leave it on disk for the next archival pass to
+           retry rather than fail this whole call over a residual
+           straggler; the rmdirSync below naturally stays a no-op then. */
+      }
+    }
+  }
+
   // runDir is empty now (everything moved out) — remove it so a future
   // iterRunDirsWithState pass doesn't re-yield a directory with no
   // run-state.json to read (readRunState returns null there, which is NOT

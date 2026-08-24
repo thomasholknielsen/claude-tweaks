@@ -6,14 +6,16 @@ files:
   - plugin/bin/lib/log-decision/append.js
   - plugin/bin/stage-item.js
   - plugin/bin/lib/stage-item/write.js
+  - plugin/bin/compose-record.js
+  - plugin/bin/lib/compose-record/compose.js
 ---
 
-# Release a Claim, Log a Pipeline Decision, and Stage a Proposal
+# Release a Claim, Log a Pipeline Decision, Stage a Proposal, and Compose a Record Body
 
-**Persona:** claude-tweaks skill author (or a maintainer of a project using the plugin) who wants proof that the release-claim, log-decision, and stage-item CLIs actually perform the read → classify → ownership → write sequence `_shared/issue-claims.md` and `_shared/auto-decision-log.md` document, rather than trusting the contract's prose.
-**Goal:** Watch one claim release resolve against a fake `gh` (own claim, foreign claim, already-released claim), one decisions.md append land under the right heading, and one staged proposal file land under `staged/` with the right name — confirming all three CLIs' exit codes and output match what Section E, Shared teardown, Settle, and the Wrap-Up Review Console's staging call sites actually invoke.
-**Entry point:** A terminal at the plugin checkout root (the repo that ships `plugin/bin/release-claim.js`, `plugin/bin/log-decision.js`, and `plugin/bin/stage-item.js`).
-**Success state:** Three release outcomes (`released`, `skipped-not-owner`, `already-released`) each exit with their documented code, one `decisions.md` file carries a schema-valid entry under a named `## /{skill}` heading, and one `staged/` file lands with the id-derived filename `stage-item.js` promises.
+**Persona:** claude-tweaks skill author (or a maintainer of a project using the plugin) who wants proof that the release-claim, log-decision, stage-item, and compose-record CLIs actually perform the read → classify → ownership → write (or compose → validate → write) sequence `_shared/issue-claims.md`, `_shared/auto-decision-log.md`, and `_shared/work-record.md` document, rather than trusting the contract's prose.
+**Goal:** Watch one claim release resolve against a fake `gh` (own claim, foreign claim, already-released claim), one decisions.md append land under the right heading, one staged proposal file land under `staged/` with the right name, and one JSON payload file compose into a validated work-record body — confirming all four CLIs' exit codes and output match what Section E, Shared teardown, Settle, the Wrap-Up Review Console's staging call sites, and `/capture`/`/specify`'s record-creation steps actually invoke.
+**Entry point:** A terminal at the plugin checkout root (the repo that ships `plugin/bin/release-claim.js`, `plugin/bin/log-decision.js`, `plugin/bin/stage-item.js`, and `plugin/bin/compose-record.js`).
+**Success state:** Three release outcomes (`released`, `skipped-not-owner`, `already-released`) each exit with their documented code, one `decisions.md` file carries a schema-valid entry under a named `## /{skill}` heading, one `staged/` file lands with the id-derived filename `stage-item.js` promises, and one payload composes into a body file that is byte-identical to what `recordPayload` alone would have produced, plus a shape-validation failure that writes nothing when `--require-shaped` is set.
 
 ## Steps
 
@@ -52,9 +54,21 @@ files:
 - **Should understand:** stdout prints exactly `Run A: released read,put,comment` then `Run B: skipped-not-owner holder=runA read`. Run A: blob read → tombstone `PUT` carrying the read `sha` → release comment — the same three-call sequence Section E steps 3-6 describe; `plugin/bin/release-claim.js` maps this `outcome` to exit `0`. Run B: `releaseClaim`'s own ownership check reads the blob (`calls` stops at `read`), sees a `runId` that isn't its own, and returns `{outcome:'skipped-not-owner', holder:'runA'}` before any write — no PUT, no comment, no label edit; the CLI maps this to exit `4` and logs `skipped release of issue #999: claim held by run runA` to its own `decisions.md`. An issue already tombstoned (released or swept) instead throws a `404`/`409`/`422` from the `PUT`, which `releaseClaim` maps to `outcome: 'already-released'` (CLI exit `3`) — the comment still posts, so the trail records the outcome even though nothing was overwritten.
 - **Red flags:** Run B's call producing a `put` or `issue comment` entry in its `calls` array (a successor's claim is never deleted — `_shared/issue-claims.md`'s Ownership rule); `already-released` instead of `skipped-not-owner` for Run B (means the ownership check ran after, not before, the write attempt); a label-removal failure changing the release outcome (labels are best-effort — the release itself never blocks on them).
 
+### 6. Compose a record body from a JSON payload, then watch shape-validation refuse an unshaped one — terminal + a scratch payload file
+- **URL:** `mkdir -p /tmp/cr-journey && cat > /tmp/cr-journey/payload.json <<'JSON'
+{"title":"A title","body":"## Current State\n\ntext\n\n## Deliverables\n\n- [ ] thing\n\n## Acceptance Criteria\n\n1. done","type":"feature","fingerprint":"journey:demo"}
+JSON
+node plugin/bin/compose-record.js /tmp/cr-journey/payload.json --out /tmp/cr-journey/body.md --require-shaped && cat /tmp/cr-journey/body.md`
+- **Action:** Run from the checkout root. The payload file is written first (a real file, not a CLI flag — this is the escaping-safety property #800 exists to buy: quotes, backticks, `$()`, and newlines in `title`/`body` never touch a shell), then `compose-record.js` reads it, composes the body via `recordPayload`, validates it against `_shared/work-record.md`'s spec-shaped-body check (`--require-shaped`), and writes the result.
+- **Should feel:** One command, no template engine, no intermediate "read the JSON back out to grab `.body`" step — the CLI is the whole round trip.
+- **Should understand:** stdout prints `{"title":"A title","type":"feature","labels":[],"out":"/tmp/cr-journey/body.md"}`, exit `0`, and `body.md` ends with `<!-- work-fingerprint: journey:demo -->` appended to the composed sections — exactly `recordPayload`'s own fingerprint-marker behavior (`bin/lib/issues/record.js`), unchanged by this wrapper.
+- **Should understand (validation failure):** Re-run against an unshaped payload — `printf '{"title":"t","body":"## Current State\\n\\nTODO","type":"feature"}' > /tmp/cr-journey/bad.json && node plugin/bin/compose-record.js /tmp/cr-journey/bad.json --out /tmp/cr-journey/bad-body.md --require-shaped; echo "exit=$?"` — prints `exit=4`, stderr lists all three gaps at once (`missing section: ## Deliverables`, `missing section: ## Acceptance Criteria`, `unresolved placeholder marker: TODO`), and `bad-body.md` is never created (`test -f /tmp/cr-journey/bad-body.md` fails) — a shape-validation failure never leaves a partial file behind.
+- **Red flags:** `body.md` missing the fingerprint marker or an empty `labels` array when the payload actually included scoring fields (composition regressed to something other than `recordPayload`); the unshaped payload exiting `0`, or exiting non-zero but still creating `bad-body.md` (validation should gate the write, not run after it); gaps reported one at a time across repeated runs instead of all at once in a single stderr block.
+
 ## Origin
 - Created during build of record #686 (release-claim and log-decision CLI wrappers)
 - All 3 steps built in this session
 - Path-swept during build of #418 — the payload moved into `plugin/`, so step 1's captured root, step 2's CLI path, and step 3's `require` all gained the `plugin/` prefix. No step's behavior, exit code, or red flag changed.
 - Related specs: #687, #688, #689, #690, #691, #692, #693 (same `flow` run, `2026-08-16T210742-spec-686-687-688-689-690-691-692-693`)
 - Extended during build of record #637 (`bin/stage-item.js` — the `staged/` writer half of the gap `bin/log-decision.js` left open, per that file's own header comment) — added steps 3-4 (staging a proposal, the shared anchoring guard plus the `--id` path-traversal guard) and renumbered the former step 3 (release-claim) to step 5; all 5 steps re-verified live in this session
+- Extended during build of record #800 (`bin/compose-record.js` — a JSON-payload-file-in, validated-body-file-out CLI shaped per this same journey's own #686 precedent, consolidating the hand-rolled `recordPayload` + write-then-re-extract `node -e` pair repeated across `capture/SKILL.md` and `specify/record-creation.md`) — added step 6 (composing and shape-validating a record body); step tested live in this session

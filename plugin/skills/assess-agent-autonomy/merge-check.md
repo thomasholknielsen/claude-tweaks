@@ -122,7 +122,7 @@ at Medium or above. Match a row here and you have cleared one gate, not the step
 relocates a pointer and rewords surrounding prose is not a gap in these two rows — it fails the
 refutation test above on its reworded half alone (name a behavior an agent could take
 differently; a diff where any hunk fails that test is behavior-carrying as a whole, per the
-one-non-conforming-hunk rule three rows up), independent of which Calibration row its pointer-repair
+one-non-conforming-hunk rule in the table above), independent of which Calibration row its pointer-repair
 half would otherwise match. The two rows stay distinguished by their Why column because that is
 sufficient: Step 2's refutation test and the one-non-conforming-hunk rule already resolve any
 diff that would straddle both.
