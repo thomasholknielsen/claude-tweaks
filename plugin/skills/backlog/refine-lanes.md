@@ -166,6 +166,13 @@ edit and the comment as two independent steps (#1073), one successful flag-back 
 produces. When rendering `refine-mode.md`'s Step 5 closing summary, tally that pair as one
 flagged-back write, not two.
 
+The same split makes a *partial* flag-back visible for the first time: when the label edit lands
+but the comment call fails, the record now gets an AUTO line **and** a FAILED line (before #1073
+the comment failure erased the edit's AUTO line, so the record surfaced only as failed). Count
+that record once, under `failed` — `ready` is off but no explanation was posted, so the row is
+not flagged back until the comment retry lands. Counting it under both would make the tally's
+counts exceed the number of rows applied, which the per-row tally does not mean.
+
 ## Priority
 
 Population: `.prioritySlice.selected` (Step 2's synthesis, bounded to `--budget`) — every
