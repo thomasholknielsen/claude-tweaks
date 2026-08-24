@@ -16,7 +16,7 @@
 'use strict';
 
 const { execSync } = require('child_process');
-const { PRIORITIES, TIERS } = require('./record');
+const { PRIORITIES, TIERS, parseRecordFacets } = require('./record');
 const { blockersOf } = require('./ranking');
 const { evaluateGrantGate } = require('./grant-gate');
 
@@ -239,25 +239,47 @@ function funnelBuckets(records) {
 
 // (specifiedRecords, policy, trustRowsArray) -> the machine-grant outlook
 // overview's bare mode renders as the `specified` stage's config-aware
-// annotation. Runs evaluateGrantGate's FIRST PHASE only (gates 1-3 — ceiling,
-// opt-in, needs:definition, class trust, by:* origin — all pure): gate 4's
-// grant-check is an LLM judgment overview must never run, per its "entirely
-// mechanical" contract. So `eligible` means "will reach the grant unit's own
-// grant-check on a future firing", never "will be granted" — gates 4-5 can
-// still refuse. policy is evaluateGrantGate's own policy shape ({ ceiling,
+// annotation. A human-filed record (facets.origin null/undefined) is
+// pre-filtered OUT before the gate chain runs at all — mirroring
+// grant-mode.md's own Step 1 "cheap pre-pass on the same gate-3 condition"
+// (skills/backlog/grant-mode.md) — so this outlook's population always
+// matches grant-mode's own candidate set exactly. Without this pre-filter, a
+// human-filed record whose class trust ALSO happens to be non-clean gets
+// misattributed to refused.trust by evaluateGrantGate's gate order (gate 2
+// runs before gate 3, so gate 3/origin never individually fires for it) even
+// though grant-mode's own candidate fetch would never have considered it in
+// the first place — this was #1387's reported discrepancy between overview's
+// reported refusal counts and grant-mode's own candidate-set size for the
+// same backlog state. Excluded records are counted via `excludedOrigin`
+// rather than folded into `refused`, so a reader can reconcile the funnel
+// header's `specified N` total against `eligible.length + refused-total +
+// excludedOrigin`. Runs evaluateGrantGate's FIRST PHASE only (gates 1-3 —
+// ceiling, opt-in, needs:definition, class trust — gate 3/origin is now
+// structurally unreachable inside this call, since the pre-filter already
+// removed every record it would have refused): gate 4's grant-check is an
+// LLM judgment overview must never run, per its "entirely mechanical"
+// contract. So `eligible` means "will reach the grant unit's own grant-check
+// on a future firing", never "will be granted" — gates 4-5 can still refuse.
+// policy is evaluateGrantGate's own policy shape ({ ceiling,
 // grantOriginationEnabled } suffices for phase 1); trustRowsArray is
 // trustRows() output (bin/lib/issues/trust.js), keyed into the Map shape the
-// gate expects. Returns { eligible: [ids], refused: { [failedKey]: [ids] } },
-// ids in input order.
+// gate expects. Returns { eligible: [ids], refused: { [failedKey]: [ids] },
+// excludedOrigin: count }, ids in input order.
 function machineGrantOutlook(records, policy, trustRowsArray) {
   const rows = Array.isArray(trustRowsArray) ? trustRowsArray : [];
   const trustVerdicts = new Map(rows.map((row) => [row.key, row]));
   const eligible = [];
   const refused = {};
+  let excludedOrigin = 0;
   for (const r of records) {
     const id = r.number ?? r.id;
+    const facets = r.facets || parseRecordFacets(r.labels);
+    if (facets.origin === null || facets.origin === undefined) {
+      excludedOrigin += 1;
+      continue;
+    }
     const result = evaluateGrantGate({
-      record: { number: id, labels: r.labels, body: r.body, facets: r.facets },
+      record: { number: id, labels: r.labels, body: r.body, facets },
       policy,
       trustVerdicts,
     });
@@ -267,7 +289,7 @@ function machineGrantOutlook(records, policy, trustRowsArray) {
       (refused[result.failedKey] = refused[result.failedKey] || []).push(id);
     }
   }
-  return { eligible, refused };
+  return { eligible, refused, excludedOrigin };
 }
 
 // ({ allRows, readyRows, priorityBudget, grantBudget }) -> the refine sweep's
