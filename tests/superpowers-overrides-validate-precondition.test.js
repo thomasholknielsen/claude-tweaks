@@ -17,15 +17,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 
-function overridesLine(text) {
-  return text.split('\n').find((l) => l.includes('Superpowers overrides'));
+function overridesLine(...segments) {
+  const text = fs.readFileSync(path.join(ROOT, ...segments), 'utf8');
+  return text.split('\n').find((line) => line.includes('Superpowers overrides'));
 }
 
-for (const file of ['CLAUDE.md', path.join('plugin', 'skills', 'init', 'claude-md-template.md')]) {
+const TARGETS = [['CLAUDE.md'], ['plugin', 'skills', 'init', 'claude-md-template.md']];
+
+for (const segments of TARGETS) {
+  const file = segments.join('/');
+
   test(`${file}: Superpowers overrides line requires a Validate precondition before ANY merge decision`, () => {
-    const line = overridesLine(read(...file.split(path.sep)));
+    const line = overridesLine(...segments);
     assert.ok(line, `${file} must still carry a Superpowers overrides line`);
     assert.match(line, /Before any merge decision — `\/superpowers:finishing-a-development-branch`'s prompt, or `_shared\/pr-first-merge\.md`'s `gh pr merge` path/, 'must bind both the local-merge and pr-first merge paths, not just finishing-a-development-branch');
     assert.match(line, /run a real browser-based visual check first/);
@@ -37,13 +41,13 @@ for (const file of ['CLAUDE.md', path.join('plugin', 'skills', 'init', 'claude-m
   });
 
   test(`${file}: Validate-precondition clause reuses the existing surface-detection signal, not a new one`, () => {
-    const line = overridesLine(read(...file.split(path.sep)));
+    const line = overridesLine(...segments);
     assert.match(line, /`Surface:`\/`surface:` web\/mobile\/desktop/);
     assert.match(line, /frontend-detection\.md`'s Layer 2\/3, in the `\/claude-tweaks:design-wrapper` skill's directory, defines/, 'must cite the canonical detection machinery directly rather than pointing at another file\'s pointer');
   });
 }
 
 test('CLAUDE.md still carries its own specify-auto-continue clause alongside the new one (no accidental deletion)', () => {
-  const line = overridesLine(read('CLAUDE.md'));
+  const line = overridesLine('CLAUDE.md');
   assert.match(line, /specify-auto-continue/, 'the pre-existing clause this repo carries beyond the shipped template must survive the edit');
 });

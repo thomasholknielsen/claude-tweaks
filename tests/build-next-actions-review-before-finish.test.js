@@ -53,7 +53,7 @@ test('build/SKILL.md Next Actions: worktree-mode row no longer bolds finish-bran
   );
   assert.doesNotMatch(
     buildSkill,
-    /finish-branch line\.? *`\*\*\(Recommended in worktree mode\)\*\*`|Worktree mode \| `\/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch \*\*\(Recommended in worktree mode\)\*\*/,
+    /\*\*\(Recommended in worktree mode\)\*\*/,
     'the old bolded "(Recommended in worktree mode)" row must be gone',
   );
 });
