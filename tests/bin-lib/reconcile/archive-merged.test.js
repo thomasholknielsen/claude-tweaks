@@ -570,6 +570,56 @@ test('archiveRunDir: writes an interim "archiving" claim to the archive twin bef
   assert.ok(Date.parse(claim.updatedAt) >= before, 'claim must carry a fresh updatedAt for TTL staleness checks');
 });
 
+// #990: a write landing in the run dir strictly AFTER the top-level
+// readdirSync snapshot but strictly BEFORE the final rmdirSync — reproduced
+// live during #893's own wrap-up even with #902's dynamic-enumeration fix
+// (08098fe7) already on main. Simulated here by mocking fs.readdirSync so
+// that, on the exact call the top-level enumeration makes against runDir,
+// a new gitignored file lands on disk immediately after the real snapshot
+// is captured but before it is returned — the same one-shot gap a
+// concurrent `wrap-up-engine.js record` write could hit in practice.
+// Verified by reverting the archive-merged.js fix and confirming this test
+// fails (the late file survives on disk, unarchived, and runDir is not
+// removed) before landing the guard that makes it pass.
+test('archiveRunDir: a write landing after the readdir snapshot but before the final rmdir is swept, not orphaned (regression #990)', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-20T044204-record-990';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'config.yml'), 'auto-mode: true\n');
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const originalReaddirSync = fs.readdirSync.bind(fs);
+  let injected = false;
+  t.mock.method(fs, 'readdirSync', (p, opts) => {
+    const entries = originalReaddirSync(p, opts);
+    // `listSpecDirs` also calls `fs.readdirSync(runDir, { withFileTypes: true })`
+    // earlier in the same archiveRunDir pass — match only the top-level
+    // enumeration's own plain, no-options call (`fs.readdirSync(runDir)`) so
+    // the injected write lands after THAT snapshot, not before it.
+    if (!injected && p === runDir && opts === undefined) {
+      injected = true;
+      // Lands strictly after the snapshot the caller is about to receive —
+      // `entries` above was already captured and cannot see this write.
+      fs.writeFileSync(path.join(runDir, 'engine-state.json'), JSON.stringify({ version: 1 }));
+    }
+    return entries;
+  });
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(injected, true, 'the late-write injection must actually have fired for this test to be meaningful');
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(runDir), false, 'run dir must not survive with orphaned residue');
+  assert.equal(
+    fs.existsSync(path.join(archiveDir, 'engine-state.json')),
+    true,
+    'the late-written engine-state.json must reach the archive, not be left behind',
+  );
+});
+
 test('listSpecDirs: only spec-* subdirectories, ignores files and non-matching dirs; empty for unreadable dir', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'list-spec-dirs-'));
   fs.mkdirSync(path.join(dir, 'spec-1'));
