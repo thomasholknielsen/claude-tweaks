@@ -556,5 +556,15 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   '^[-+]\|'` returned exactly that one `+` line. Measured by RUNNING the
   //   parser on the merged working tree (actual 382), not by adding 1 to 381
   //   — the arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
-  assert.strictEqual(total, 382);
+  //
+  //   382 -> 383, #1194 (demo full-verification pointer). Own-branch side: one
+  //   row ADDED to demo/SKILL.md's Anti-Patterns table ("Handing a sub-issue's
+  //   `cli`/`diff` plan to a human as if the slice were the feature"), already
+  //   committed by the time this pin was bumped (`b795ca58`), so the row's own
+  //   commit rather than a bare working-tree `git diff` is the evidence:
+  //   `git show b795ca58 -- 'plugin/skills/*/SKILL.md' | grep -E '^[-+]\|'`
+  //   returns exactly this one `+` line and no `-` lines. Measured by RUNNING
+  //   the parser on the working tree (actual 383), not by adding 1 to 382 —
+  //   the arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
+  assert.strictEqual(total, 383);
 });
