@@ -44,23 +44,40 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+// Every git call below pipes stderr — the house convention for a bare-repo
+// fixture (tests/bin-lib/reconcile/prune-remote.test.js's `git` helper).
+// Without it execFileSync echoes the child's stderr to this process's
+// stderr *as well as* capturing it, so the failure paths these tests
+// exercise on purpose (`git show` on an absent claim, the rejected
+// stale-lease push, the empty-clone warning) print `fatal:` / `! [rejected]`
+// lines into the TAP stream as `#` diagnostics — output that reads like a
+// broken suite while every assertion passes. stdin stays 'pipe' because
+// realRunner feeds `hash-object --stdin` through `opts.input`.
+const PIPE_ALL = ['pipe', 'pipe', 'pipe'];
+
 function realRunner(args, opts = {}) {
-  return execFileSync('git', args, { encoding: 'utf8', cwd: opts.cwd, input: opts.input, env: opts.env });
+  return execFileSync('git', args, {
+    encoding: 'utf8', stdio: PIPE_ALL, cwd: opts.cwd, input: opts.input, env: opts.env,
+  });
+}
+
+function setupGit(args) {
+  return execFileSync('git', args, { encoding: 'utf8', stdio: PIPE_ALL });
 }
 
 function makeBareOriginAndClone() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'claims-git-cas-'));
   const originDir = path.join(root, 'origin.git');
   const cloneDir = path.join(root, 'clone');
-  execFileSync('git', ['init', '--bare', '-q', '-b', 'main', originDir]);
-  execFileSync('git', ['clone', '-q', originDir, cloneDir]);
-  execFileSync('git', ['-C', cloneDir, 'config', 'user.email', 'test@example.com']);
-  execFileSync('git', ['-C', cloneDir, 'config', 'user.name', 'Test']);
+  setupGit(['init', '--bare', '-q', '-b', 'main', originDir]);
+  setupGit(['clone', '-q', originDir, cloneDir]);
+  setupGit(['-C', cloneDir, 'config', 'user.email', 'test@example.com']);
+  setupGit(['-C', cloneDir, 'config', 'user.name', 'Test']);
   fs.writeFileSync(path.join(cloneDir, 'README.md'), 'seed\n');
-  execFileSync('git', ['-C', cloneDir, 'add', 'README.md']);
-  execFileSync('git', ['-C', cloneDir, 'commit', '-q', '-m', 'seed']);
-  execFileSync('git', ['-C', cloneDir, 'push', '-q', 'origin', 'main']);
-  execFileSync('git', ['-C', cloneDir, 'push', '-q', 'origin', `main:${CLAIMS_BRANCH}`]);
+  setupGit(['-C', cloneDir, 'add', 'README.md']);
+  setupGit(['-C', cloneDir, 'commit', '-q', '-m', 'seed']);
+  setupGit(['-C', cloneDir, 'push', '-q', 'origin', 'main']);
+  setupGit(['-C', cloneDir, 'push', '-q', 'origin', `main:${CLAIMS_BRANCH}`]);
   return { root, cloneDir };
 }
 
