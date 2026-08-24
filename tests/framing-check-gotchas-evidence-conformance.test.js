@@ -65,3 +65,21 @@ test('framing-check Step 2 (Judge) still states the ambiguity-resolves-to-open r
   assert.ok(ambiguityIdx >= 0, 'the pre-existing ambiguity-resolves-to-open rule must still be present, untouched');
   assert.ok(weighIdx < ambiguityIdx, 'the weighing paragraph must precede the untouched ambiguity rule, per the plan\'s insertion point');
 });
+
+test('bare-#N mode\'s Next Actions no longer claims re-shaping unconditionally re-applies the label', () => {
+  const nextActionsIdx = CHALLENGE.indexOf('## Next Actions');
+  assert.ok(nextActionsIdx >= 0, 'Next Actions heading must be present');
+  const nextActionsText = CHALLENGE.slice(nextActionsIdx);
+  assert.ok(
+    !nextActionsText.includes('so the label returns unless the framing itself changed (recommended after a bare-`#N` run that changed the framing)'),
+    'the stale unconditional claim (pre-#772 wording) must no longer be present'
+  );
+  assert.ok(
+    nextActionsText.includes('after **accept the risk** the label still returns unless the framing itself changed'),
+    'Next Actions must state accept-the-risk still re-derives the same verdict on re-shape'
+  );
+  assert.ok(
+    nextActionsText.includes('after **supply evidence**, a `supported`-classified assumption can now clear the label even with an unchanged framing'),
+    'Next Actions must state supply-evidence with supported classification can now clear the label on re-shape'
+  );
+});

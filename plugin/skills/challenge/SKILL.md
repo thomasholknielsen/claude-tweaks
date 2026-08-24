@@ -109,7 +109,7 @@ Multiple lenses (`--lens=3,5`) run in sequence and are returned as separate labe
 
 Rendered for `--lens` and bare-`#N` invocations (see Component-Skill Contract). Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention). All three lines render in this fixed order regardless of which mode ran; only the recommendation changes: after a bare-`#N` run, the specify line below is the recommended move (see its own parenthetical for the condition); after `--lens`, the brainstorming line is the recommended move instead, even though the specify line is listed first.
 
-**`/claude-tweaks:specify {ref}`** — re-shape the record; note `framing-check` re-derives its verdict from the body's problem statement, so the label returns unless the framing itself changed (recommended after a bare-`#N` run that changed the framing)
+**`/claude-tweaks:specify {ref}`** — re-shape the record; `framing-check` re-derives its verdict from the body's problem statement plus any `## Gotchas` evidence bullets (Step 1/Step 2 above) — after **accept the risk** the label still returns unless the framing itself changed, since an acceptance bullet carries no evidence signal; after **supply evidence**, a `supported`-classified assumption can now clear the label even with an unchanged framing (recommended after a bare-`#N` run that changed the framing, or that supplied `supported` evidence)
 **`/superpowers:brainstorming`** — explore solutions for the reframed problem, then `/claude-tweaks:specify` to decompose the resulting design doc (recommended)
 `/claude-tweaks:challenge --lens=<n[,n...]> {topic|#N}` — apply a different lens to the same problem
 
