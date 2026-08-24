@@ -24,7 +24,7 @@ test('readClaimBlob: status 404 -> absent:true, failure:null, never treated as a
     if (isRead(args, 'claims/issue-42.json')) return { stdout: null, failure: null, status: 404 };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = readClaimBlob(ghApi, 'acme/w', 42);
+  const r = readClaimBlob({ ghApi }, 'acme/w', 42);
   assert.deepEqual(r, { content: null, sha: null, failure: null, absent: true });
 });
 
@@ -36,7 +36,7 @@ test('readClaimBlob: live blob -> content and sha parsed from the -q output', ()
     }
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = readClaimBlob(ghApi, 'acme/w', 42);
+  const r = readClaimBlob({ ghApi }, 'acme/w', 42);
   assert.deepEqual(r, { content: '{"runId":"r1"}', sha: 'abc123', failure: null, absent: false });
 });
 
@@ -45,7 +45,7 @@ test('readClaimBlob: network failure propagates, absent stays false', () => {
     if (isRead(args, 'claims/issue-42.json')) return { stdout: null, failure: 'network-failure', status: null };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = readClaimBlob(ghApi, 'acme/w', 42);
+  const r = readClaimBlob({ ghApi }, 'acme/w', 42);
   assert.deepEqual(r, { content: null, sha: null, failure: 'network-failure', absent: false });
 });
 
@@ -54,7 +54,7 @@ test('readClaimBlob: gh-absent propagates, absent stays false (never confused wi
     if (isRead(args, 'claims/issue-42.json')) return { stdout: null, failure: 'gh-absent', status: null };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = readClaimBlob(ghApi, 'acme/w', 42);
+  const r = readClaimBlob({ ghApi }, 'acme/w', 42);
   assert.deepEqual(r, { content: null, sha: null, failure: 'gh-absent', absent: false });
 });
 
@@ -65,7 +65,7 @@ test('writeClaimBlob: create-only omits sha from argv', () => {
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: '{}', failure: null, status: null };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{"a":1}', message: 'Claim issue-7.json' });
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{"a":1}', message: 'Claim issue-7.json' });
   assert.equal(r.ok, true);
   assert.equal(r.failure, null);
   assert.equal(calls.length, 1);
@@ -81,7 +81,7 @@ test('writeClaimBlob: sha present -> conditional write sends it in argv', () => 
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: '{}', failure: null, status: null };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{"a":1}', sha: 'deadbeef', message: 'Release issue-7.json' });
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{"a":1}', sha: 'deadbeef', message: 'Release issue-7.json' });
   assert.equal(r.ok, true);
   assert.equal(fieldOf(calls[0], 'sha'), 'deadbeef');
 });
@@ -91,7 +91,7 @@ test('writeClaimBlob: failure propagates, ok:false', () => {
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: 'network-failure', status: null };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', message: 'x' });
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{}', message: 'x' });
   assert.deepEqual(r, { ok: false, failure: 'network-failure' });
 });
 
@@ -187,7 +187,7 @@ test('writeClaimBlob: write-conflict (status 422) -> ok:false, conflict:true, fa
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: null, status: 422 };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });
   assert.deepEqual(r, { ok: false, conflict: true, failure: null });
 });
 
@@ -196,7 +196,7 @@ test('writeClaimBlob: write-conflict (status 409, sha-mismatch) -> ok:false, con
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: null, status: 409 };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });
   assert.deepEqual(r, { ok: false, conflict: true, failure: null });
 });
 
@@ -209,7 +209,7 @@ test('writeClaimBlob: a ghApi that never sets status (release-merged.js\'s own) 
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: 'network-failure' }; // no `status` key
     throw new Error(`unexpected ${args.join(' ')}`);
   };
-  const r = writeClaimBlob(ghApi, 'acme/w', 7, { content: '{}', message: 'x' });
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{}', message: 'x' });
   assert.deepEqual(r, { ok: false, failure: 'network-failure' });
 });
 
@@ -247,4 +247,93 @@ test('classifyGhApiError: Retry-After signature also reads as secondary rate lim
 test('classifyGhApiError: a plain 403 with no rate-limit text still falls to network-failure', () => {
   const err = new Error('gh: Resource not accessible by integration (HTTP 403)');
   assert.deepEqual(classifyGhApiError(err), { failure: 'network-failure', status: null });
+});
+
+// Git-CAS-first, contents-API-fallback behavior (#787's amendment). These
+// exercise `readClaimBlob`/`writeClaimBlob`'s new `deps: {ghApi, gitRunner?}`
+// shape directly against a fake `gitRunner` — never real `git` (the real
+// plumbing sequence is proven in tests/bin-lib/issues/claims-git-cas.test.js).
+
+function fakeGitRunnerAlwaysWorks(tipSha, existingContent) {
+  return (args) => {
+    if (args[0] === 'fetch') return '';
+    if (args[0] === 'rev-parse' && args[1] === 'FETCH_HEAD') return `${tipSha}\n`;
+    if (args[0] === 'show') {
+      if (existingContent === null) { const e = new Error(`fatal: path does not exist in '${tipSha}'`); throw e; }
+      return existingContent;
+    }
+    if (args[0] === 'hash-object') return 'deadbeef\n';
+    if (args[0] === 'read-tree') return '';
+    if (args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'newtree\n';
+    if (args[0] === 'commit-tree') return 'newcommit\n';
+    if (args[0] === 'push') return '';
+    throw new Error(`unexpected git call: ${args.join(' ')}`);
+  };
+}
+
+function fakeGitRunnerAlwaysFails() {
+  return () => { const e = new Error('fatal: unable to access: Could not resolve host'); throw e; };
+}
+
+test('readClaimBlob: git-CAS succeeds, contents-API never called', () => {
+  const gitRunner = fakeGitRunnerAlwaysWorks('a'.repeat(40), null);
+  const ghApi = () => { throw new Error('contents-API must not be called when git-CAS succeeds'); };
+  const result = readClaimBlob({ ghApi, gitRunner }, 'acme/w', 42);
+  assert.equal(result.absent, true);
+});
+
+test('readClaimBlob: git-CAS transport failure falls back to contents-API', () => {
+  const gitRunner = fakeGitRunnerAlwaysFails();
+  const ghApi = (args) => {
+    assert.equal(isRead(args, 'claims/issue-42.json'), true);
+    return { stdout: JSON.stringify({ content: null, sha: null }), failure: null, status: 404 };
+  };
+  const result = readClaimBlob({ ghApi, gitRunner }, 'acme/w', 42);
+  assert.equal(result.absent, true);
+});
+
+test('writeClaimBlob: git-CAS succeeds, contents-API never called', () => {
+  const gitRunner = fakeGitRunnerAlwaysWorks('a'.repeat(40), null);
+  const ghApi = () => { throw new Error('contents-API must not be called when git-CAS succeeds'); };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, { content: '{}', message: 'Claim #42', sha: 'a'.repeat(40) });
+  assert.equal(result.ok, true);
+});
+
+test('writeClaimBlob: git-CAS contested is reported, not falling back to contents-API', () => {
+  const gitRunner = () => { const e = new Error('! [rejected] (stale info)'); e.stderr = e.message; throw e; };
+  const ghApi = () => { throw new Error('contents-API must not be called on a genuine contest'); };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, { content: '{}', message: 'Claim #42', sha: 'a'.repeat(40) });
+  assert.equal(result.ok, false);
+  assert.equal(result.conflict, true);
+});
+
+test('writeClaimBlob: git-CAS secondary-rate-limit falls back to contents-API', () => {
+  const gitRunner = () => { const e = new Error('remote: secondary rate limit'); e.stderr = e.message; throw e; };
+  const ghApi = (args) => {
+    assert.equal(isWrite(args, 'claims/issue-42.json'), true);
+    return { stdout: '', failure: null, status: null };
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, { content: '{}', message: 'Claim #42', sha: 'a'.repeat(40) });
+  assert.equal(result.ok, true);
+});
+
+test('writeClaimBlob: no gitRunner supplied goes straight to contents-API (fallback seam for gh-absent-but-git-also-unavailable environments)', () => {
+  const ghApi = (args) => {
+    assert.equal(isWrite(args, 'claims/issue-1.json'), true);
+    return { stdout: '', failure: null, status: null };
+  };
+  const result = writeClaimBlob({ ghApi }, 'acme/w', 1, { content: '{}', message: 'Claim #1' });
+  assert.equal(result.ok, true);
+});
+
+test('writeClaimBlob: create-only write (no sha) skips git-CAS even when gitRunner is supplied — no CAS lease to compare against', () => {
+  const gitRunner = () => { throw new Error('git-CAS must not be attempted for a create-only write with no sha lease'); };
+  const ghApi = (args) => {
+    assert.equal(isWrite(args, 'claims/issue-1.json'), true);
+    assert.equal(fieldOf(args, 'sha'), undefined);
+    return { stdout: '', failure: null, status: null };
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 1, { content: '{}', message: 'Claim #1' });
+  assert.equal(result.ok, true);
 });

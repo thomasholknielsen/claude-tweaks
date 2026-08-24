@@ -1,24 +1,35 @@
 // bin/lib/issues/claim-store.js
-// The one contents-API implementation for the claims-registry blob store
+// The one write-path implementation for the claims-registry blob store
 // (`claims/issue-{n}.json` on `CLAIMS_BRANCH` — see `_shared/issue-claims.md`
-// "The lock"). Both the claim-side preflight CLI and
+// "The lock"). `readClaimBlob`/`writeClaimBlob` try a **git compare-and-swap**
+// first (`./claims-git-cas.js` — fetch the branch tip, commit the blob on
+// it, push with `--force-with-lease`), falling back to the contents-API PUT
+// implementation below only when git-CAS fails for a transport reason (no
+// git push credential — an MCP-only sandbox, for instance) or a secondary
+// rate limit (#787's amendment: the contents-API claim writes were the
+// fleet's most-contended endpoint; git-protocol operations cost zero API
+// budget). Both the claim-side preflight CLI and
 // `bin/lib/reconcile/release-merged.js`'s release path delegate their I/O
-// here so there is exactly one code path shelling to `gh` for this
-// keyspace, instead of two implementations drifting apart.
+// here so there is exactly one code path performing this keyspace's writes,
+// instead of multiple implementations drifting apart.
 //
-// The `ghApi` seam is injectable (never real `gh` in tests): `ghApi(args)`
-// is invoked as if `gh api ${args.join(' ')}` and returns a non-throwing
-// `{stdout, failure, status}` — the same object shape release-merged.js's
-// own (pre-extraction) ghApi already used, extended with `status` so a 404
-// can be told apart from a genuine failure. `defaultGhApi` below is the
-// real implementation; release-merged.js keeps supplying its own ghApi
-// (which never sets `status`), so `readClaimBlob`'s `absent` branch simply
-// never fires there — see release-merged.js's delegation comments for why
-// that is exactly the pre-extraction behavior, unchanged.
+// The `deps.ghApi` seam is injectable (never real `gh` in tests):
+// `ghApi(args)` is invoked as if `gh api ${args.join(' ')}` and returns a
+// non-throwing `{stdout, failure, status}` — the same object shape
+// release-merged.js's own (pre-extraction) ghApi already used, extended
+// with `status` so a 404 can be told apart from a genuine failure.
+// `defaultGhApi` below is the real implementation; release-merged.js keeps
+// supplying its own ghApi (which never sets `status`) and no `gitRunner`,
+// so `readClaimBlob`'s `absent` branch simply never fires there and it stays
+// on the contents-API-only path deliberately — see release-merged.js's
+// delegation comments for why that is exactly the pre-extraction behavior,
+// unchanged. `deps.gitRunner` is optional — omitted, both functions skip
+// straight to the contents-API path (the gh-absent/MCP fallback seam).
 'use strict';
 
 const { execFileSync } = require('child_process');
 const { CLAIMS_BRANCH } = require('./claims');
+const { readClaimBlobGit, writeClaimBlobGit } = require('./claims-git-cas');
 
 const GH_TIMEOUT_MS = 5000;
 
@@ -117,14 +128,29 @@ function listClaimNames(ghApi, repoSlug) {
   return { names: entries.map((e) => e.name), failure };
 }
 
-// (ghApi, repoSlug, issueNumber) -> { content, sha, failure, absent }
-// `absent: true` (with `failure: null`) fires only when the ghApi dep sets
-// `status: 404` — a caller whose ghApi never sets `status` (release-merged's
-// own, pre-extraction) simply never sees `absent: true`; every failure
-// still lands as `gh-absent`/`network-failure`, exactly as before this
-// extraction.
-function readClaimBlob(ghApi, repoSlug, issueNumber) {
-  const r = ghApi([`repos/${repoSlug}/contents/${claimPath(issueNumber)}?ref=${CLAIMS_BRANCH}`, '-q', '{content: (.content | @base64d), sha: .sha}']);
+// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber) -> { content, sha, failure, absent }
+// Tries git-CAS first (no `gitRunner` dep = skip straight to contents-API,
+// the gh-absent/MCP-only-sandbox seam #787's amendment requires — see
+// `_shared/issue-claims.md`). A git-CAS transport failure (auth, no remote
+// access) falls back to contents-API silently — the documented degrade, not
+// an error. `sha` doubles as the git-CAS tip sha when this read came from
+// git (`writeClaimBlob` accepts either shape as its compare-and-swap lease).
+// `absent: true` (with `failure: null`) also fires on the contents-API path
+// only when the ghApi dep sets `status: 404` — a caller whose ghApi never
+// sets `status` (release-merged's own, pre-extraction) simply never sees
+// `absent: true` there; every failure still lands as
+// `gh-absent`/`network-failure`, exactly as before this extraction.
+function readClaimBlob(deps, repoSlug, issueNumber) {
+  if (deps.gitRunner) {
+    const gitResult = readClaimBlobGit({ issueNumber, runner: deps.gitRunner });
+    if (gitResult.failure === null) {
+      return {
+        content: gitResult.content, sha: gitResult.tipSha, failure: null, absent: gitResult.absent,
+      };
+    }
+    // fall through to contents-API on a git-side transport failure
+  }
+  const r = deps.ghApi([`repos/${repoSlug}/contents/${claimPath(issueNumber)}?ref=${CLAIMS_BRANCH}`, '-q', '{content: (.content | @base64d), sha: .sha}']);
   if (r.status === 404) return { content: null, sha: null, failure: null, absent: true };
   if (r.failure) return { content: null, sha: null, failure: r.failure, absent: false };
   try {
@@ -135,26 +161,45 @@ function readClaimBlob(ghApi, repoSlug, issueNumber) {
   }
 }
 
-// (ghApi, repoSlug, issueNumber, { content, sha, message }) -> { ok, failure }
-// or, on a lost race, { ok: false, conflict: true, failure: null }.
-// `sha` included only when provided: omitted = create-only (PUT rejects if
-// the path already exists), present = conditional-update (must match the
-// blob's current sha) — the create-vs-reclaim split
-// `_shared/issue-claims.md`'s "The lock" steps 3-4 document.
-// A `status: 422` or `status: 409` response (see `classifyGhApiError`) is a
-// genuine write-conflict — someone else's create-only write landed first
-// (422), or a conditional write's sha no longer matches because someone
-// else's reclaim landed first (409) — and must resolve `ok: false` on its
-// own, not fall through to the generic `status !== 404` formula below (422
-// / 409 !== 404 would otherwise read as success). Callers distinguish this
-// from a transient `ghApi` failure via `conflict: true` vs a non-null
-// `failure` — `_shared/issue-claims.md`'s "the lock" step 3: "a rejection
-// on either transport is contested — same handling as `'live'`, not a
-// retry." A consumer supplying its own `ghApi` that never sets `status`
-// (e.g. `release-merged.js`) never sees `status === 422` or `status === 409`
-// here, so its `ok` computation is unchanged by this branch — see that
-// module's delegation comments.
-function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message }) {
+// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber, {content, sha, message})
+// -> { ok, conflict?, secondaryRateLimit?, failure }
+// `sha` here is the compare-and-swap lease — the git-CAS tip sha when the
+// preceding read went through git, or the contents-API blob sha otherwise;
+// either shape is threaded straight through to whichever transport this
+// write actually uses. Only attempted when both a `gitRunner` dep AND a
+// `sha` lease are present — a create-only write (`sha` absent) has no
+// git-CAS lease to compare against, since `writeClaimBlobGit` requires
+// `expectedTipSha`; that write always goes straight to the contents-API
+// create-only path below. A git-CAS contest is reported as-is (never
+// silently retried against contents-API — that would race the same write
+// twice under two different concurrency mechanisms). A git-CAS
+// secondary-rate-limit or transport-failure falls back to contents-API once.
+//
+// `sha` included in the contents-API fallback only when provided: omitted =
+// create-only (PUT rejects if the path already exists), present =
+// conditional-update (must match the blob's current sha) — the
+// create-vs-reclaim split `_shared/issue-claims.md`'s "The lock" steps 3-4
+// document. A `status: 422` or `status: 409` response (see
+// `classifyGhApiError`) is a genuine write-conflict — someone else's
+// create-only write landed first (422), or a conditional write's sha no
+// longer matches because someone else's reclaim landed first (409) — and
+// must resolve `ok: false` on its own, not fall through to the generic
+// `status !== 404` formula below (422 / 409 !== 404 would otherwise read as
+// success). Callers distinguish this from a transient `ghApi` failure via
+// `conflict: true` vs a non-null `failure` — `_shared/issue-claims.md`'s
+// "the lock" step 3: "a rejection on either transport is contested — same
+// handling as `'live'`, not a retry." A consumer supplying its own `ghApi`
+// that never sets `status` (e.g. `release-merged.js`) never sees
+// `status === 422` or `status === 409` here, so its `ok` computation is
+// unchanged by this branch — see that module's delegation comments.
+function writeClaimBlob(deps, repoSlug, issueNumber, { content, sha, message }) {
+  if (deps.gitRunner && sha) {
+    const gitResult = writeClaimBlobGit({
+      issueNumber, content, message, expectedTipSha: sha, runner: deps.gitRunner,
+    });
+    if (gitResult.ok || gitResult.conflict) return gitResult;
+    // transport-failure or secondaryRateLimit -> fall back to contents-API below
+  }
   const encoded = Buffer.from(content, 'utf8').toString('base64');
   const args = [
     '--method', 'PUT', `repos/${repoSlug}/contents/${claimPath(issueNumber)}`,
@@ -163,7 +208,8 @@ function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message })
     '-f', `branch=${CLAIMS_BRANCH}`,
   ];
   if (sha) args.push('-f', `sha=${sha}`);
-  const r = ghApi(args);
+  const r = deps.ghApi(args);
+  if (r.failure === 'secondary-rate-limit') return { ok: false, secondaryRateLimit: true, failure: null };
   if (r.status === 422 || r.status === 409) return { ok: false, conflict: true, failure: null };
   return { ok: r.failure === null && r.status !== 404, failure: r.failure };
 }

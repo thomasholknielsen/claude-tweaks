@@ -13,6 +13,7 @@ const os = require('os');
 const { execFileSync } = require('child_process');
 const claimStore = require('./lib/issues/claim-store');
 const { run } = require('./lib/claim-targets/claim-targets');
+const { defaultRunner: gitDefaultRunner } = require('./lib/issues/claims-git-cas');
 
 const GH_TIMEOUT_MS = 5000;
 
@@ -25,6 +26,7 @@ function defaultGh(args) {
 const realDeps = {
   ghApi: claimStore.defaultGhApi,
   gh: defaultGh,
+  gitRunner: gitDefaultRunner,
   now: Date.now,
   stdout: (s) => process.stdout.write(`${s}\n`),
   stderr: (s) => process.stderr.write(s),

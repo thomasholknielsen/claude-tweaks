@@ -104,7 +104,7 @@ function removeLabelBestEffort(gh, issue) {
 // affects claim/contest state — a failed or absent re-read simply leaves
 // `holder` at `null`, same as an unreadable blob's holder.
 function holderFromFreshRead(deps, repoSlug, issue) {
-  const fresh = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
+  const fresh = claimStore.readClaimBlob(deps, repoSlug, issue);
   if (fresh.failure || fresh.absent) return null;
   const classified = classifyClaimBlob(fresh.content, deps.now());
   if (classified.state !== 'live') return null;
@@ -122,7 +122,7 @@ function releaseClaimedThisRun(deps, repoSlug, runId, issues) {
   const released = [];
   const releaseFailed = [];
   for (const issue of issues) {
-    const fresh = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
+    const fresh = claimStore.readClaimBlob(deps, repoSlug, issue);
     if (fresh.failure || fresh.absent) {
       releaseFailed.push({ issue, error: fresh.failure || 'absent' });
       continue; // nothing we can safely overwrite
@@ -130,13 +130,13 @@ function releaseClaimedThisRun(deps, repoSlug, runId, issues) {
     const payload = releasePayload({
       issueNumber: issue, runId, reason: ABORT_REASON, now: deps.now(),
     });
-    const w = claimStore.writeClaimBlob(deps.ghApi, repoSlug, issue, {
+    const w = claimStore.writeClaimBlob(deps, repoSlug, issue, {
       content: payload.tombstoneContent, sha: fresh.sha, message: `Release issue #${issue} — ${ABORT_REASON}`,
     });
     if (w.ok) {
       released.push(issue);
     } else {
-      releaseFailed.push({ issue, error: w.failure || (w.conflict ? 'conflict' : 'unknown') });
+      releaseFailed.push({ issue, error: w.failure || (w.conflict ? 'conflict' : (w.secondaryRateLimit ? 'secondary-rate-limit' : 'unknown')) });
     }
     removeLabelBestEffort(deps.gh, issue);
   }
@@ -183,7 +183,7 @@ function run(argv, deps) {
   }
 
   for (const issue of targets) {
-    const read = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
+    const read = claimStore.readClaimBlob(deps, repoSlug, issue);
     if (read.failure) {
       if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: read.failure }); continue; }
       return abort({ transient: [{ issue, error: read.failure }] }, 4);
@@ -230,11 +230,16 @@ function run(argv, deps) {
     });
     const writeOpts = { content: payload.fileContent, message: `Claim issue #${issue}` };
     if (classified.state !== 'absent') writeOpts.sha = read.sha;
-    const write = claimStore.writeClaimBlob(deps.ghApi, repoSlug, issue, writeOpts);
+    const write = claimStore.writeClaimBlob(deps, repoSlug, issue, writeOpts);
 
-    if (write.failure) {
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: write.failure }); continue; }
-      return abort({ transient: [{ issue, error: write.failure }] }, 4);
+    if (write.failure || write.secondaryRateLimit) {
+      // A secondary/abuse rate limit is transient, never contested — a
+      // throttle must not masquerade as another agent holding the claim
+      // (record-697's incident read exactly that way before diagnosis,
+      // #787's amendment).
+      const reason = write.secondaryRateLimit ? 'secondary-rate-limit' : write.failure;
+      if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: reason }); continue; }
+      return abort({ transient: [{ issue, error: reason }] }, 4);
     }
     if (!write.ok) {
       // Rejected (race lost between this read and this write) — contested,
