@@ -183,3 +183,36 @@ test('docs/plugin-structure.md: a bin/lib/transcript-judge/ family line names wa
 test('docs/plugin-structure.md: no stale bin/lib/feedback/ watermark.js reference remains', () => {
   assert.doesNotMatch(PLUGIN_STRUCTURE, /bin\/lib\/feedback\/watermark\.js/);
 });
+
+// --- 6. #1033: SKILL.md Step 4 Prior-decline annotation (the reachable half of the fix —
+// lookupDecline wired into feedback's own dedup step, not just the judge-dispatch offset clause) ---
+
+const UPSTREAM_FEEDBACK_BATCH = read('plugin', 'skills', '_shared', 'upstream-feedback-batch.md');
+
+test('SKILL.md Step 4 documents the Prior-decline annotation computing a fingerprint and calling lookupDecline', () => {
+  assert.match(SKILL, /\*\*Prior-decline annotation \(#1033\)\.\*\*/);
+  assert.match(SKILL, /look it up via `bin\/lib\/declined-learning\/store\.js`'s `lookupDecline\(fingerprint\)`/);
+});
+
+test('SKILL.md Step 4 carries priorDecline: { declinedAt, reason } on the drafted item for rendering', () => {
+  assert.match(SKILL, /carry `priorDecline:\s*\{ declinedAt, reason \}` on the drafted item/);
+});
+
+test('upstream-feedback-batch.md renders the priorDecline annotation on the drafted item', () => {
+  assert.match(UPSTREAM_FEEDBACK_BATCH, /\*\*Prior-decline annotation \(#1033\)\.\*\*/);
+  assert.match(UPSTREAM_FEEDBACK_BATCH, /_\(previously declined \{declinedAt date\}: \{reason\}\)_/);
+});
+
+test('upstream-feedback-batch.md chunking step also surfaces priorDecline in the AskUserQuestion option description', () => {
+  assert.match(
+    UPSTREAM_FEEDBACK_BATCH,
+    /\*\*previously\s*\ndeclined:\*\* \{declinedAt date\}: \{reason\}` on its own line within the same description/,
+  );
+});
+
+test('upstream-feedback-batch.md passes subject through on decline (fingerprintBasis.summary)', () => {
+  assert.match(
+    UPSTREAM_FEEDBACK_BATCH,
+    /recordDecline\(fingerprint, \{ reason, source: 'feedback',\s*\nsubject: draft\.fingerprintBasis\.summary \}\)/,
+  );
+});
