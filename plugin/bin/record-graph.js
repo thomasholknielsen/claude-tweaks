@@ -30,22 +30,26 @@ function cmdRender(args) {
   const jsonPath = args._[0];
   if (!jsonPath) {
     process.stderr.write('render: missing <faceted-json-path>\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   if (args.format !== 'd2' && args.format !== 'svg') {
     process.stderr.write('render: --format must be "d2" or "svg"\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   if (args.workLinks !== 'native' && args.workLinks !== 'body-text') {
     process.stderr.write('render: --work-links must be "native" or "body-text"\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   let fetchLimit;
   if (args.fetchLimitRaw !== undefined) {
     fetchLimit = Number(args.fetchLimitRaw);
     if (!Number.isFinite(fetchLimit)) {
       process.stderr.write(`render: --fetch-limit must be a number (got "${args.fetchLimitRaw}")\n`);
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     }
   }
   let records;
@@ -53,11 +57,13 @@ function cmdRender(args) {
     records = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
   } catch (e) {
     process.stderr.write(`render: could not read faceted-record JSON at ${jsonPath} — ${e.message}\n`);
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   if (!Array.isArray(records)) {
     process.stderr.write(`render: expected an array of faceted records at ${jsonPath}\n`);
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const truncated = Number.isFinite(fetchLimit) && records.length === fetchLimit;
   const graph = buildGraph(records, { workLinks: args.workLinks, truncated });
@@ -83,7 +89,7 @@ function main() {
     return;
   }
   process.stderr.write(`record-graph: unknown command "${cmd}" (expected: render)\n`);
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 main();

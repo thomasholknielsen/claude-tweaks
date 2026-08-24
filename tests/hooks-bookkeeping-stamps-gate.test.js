@@ -141,9 +141,8 @@ test('bookkeeping-stamps gate: worktree stamped, resolveIntegrationModel stubbed
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
   const { run } = mkRunDir(project, wt, undefined);
-  const out = pre.checkBookkeepingStampsGate(
+  const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
-    null,
     { resolveIntegrationModel: () => 'pr-first' },
   );
   assert.ok(out.json, 'expected a deny result once integration-model resolves pr-first with no PR recorded');
@@ -169,9 +168,8 @@ test('bookkeeping-stamps gate: worktree stamped, pr-first stubbed, degrade alrea
     path.join(run, 'decisions.md'),
     '## /build\n- AUTO 09:00:00 — PR-early run lifecycle: push of wt-branch to origin FAILED (network); run proceeds local-only, no PR opened. Reversibility: n/a.\n',
   );
-  const out = pre.checkBookkeepingStampsGate(
+  const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
-    null,
     { resolveIntegrationModel: () => 'pr-first' },
   );
   assert.deepStrictEqual(out, {});
@@ -183,9 +181,8 @@ test('bookkeeping-stamps gate: worktree stamped, resolveIntegrationModel stubbed
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
   const { run } = mkRunDir(project, wt, undefined);
-  const out = pre.checkBookkeepingStampsGate(
+  const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
-    null,
     { resolveIntegrationModel: () => 'local-merge' },
   );
   assert.deepStrictEqual(out, {});
@@ -207,35 +204,39 @@ test('bookkeeping-stamps gate: worktree stamped AND pr recorded -> allow regardl
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
   const { run } = mkRunDir(project, wt, undefined, { pr: { number: 991, url: 'https://github.com/example/example/pull/991' } });
-  const out = pre.checkBookkeepingStampsGate(
+  const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt, pr: { number: 991, url: 'x' } }, cwd: wt },
-    null,
     { resolveIntegrationModel: () => 'pr-first' },
   );
   assert.deepStrictEqual(out, {});
 });
 
-test('hasLoggedPrDegrade: recognizes the mandated PR-early run lifecycle FAILED log line', () => {
+// hasLoggedPrDegrade has no ctx of its own (just a runDir), so it is exercised
+// here exclusively through its one observable effect on checkBookkeepingStampsGate's
+// pr-first branch, reached via pre.run() rather than by calling the helper
+// directly (record #1268). Three cases:
+//   - matching FAILED line -> allow: 'bookkeeping-stamps gate: worktree stamped,
+//     pr-first stubbed, degrade already logged in decisions.md -> allow (graceful
+//     degrade)' above already covers this exactly (hasLoggedPrDegrade's true case).
+//   - decisions.md exists but has no matching line -> deny: this test.
+//   - decisions.md does not exist at all -> deny: 'bookkeeping-stamps gate:
+//     worktree stamped, resolveIntegrationModel stubbed to pr-first, no PR
+//     recorded -> deny' above already covers this (no decisions.md is ever
+//     written in that fixture) — hasLoggedPrDegrade's other false case.
+test('bookkeeping-stamps gate: decisions.md exists but has no matching PR-early degrade line -> still deny (hasLoggedPrDegrade false case)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, '/nonexistent', undefined);
-  fs.writeFileSync(
-    path.join(run, 'decisions.md'),
-    '## /build\n- AUTO 14:32:14 — PR-early run lifecycle: push of feature-branch to origin FAILED (network); run proceeds local-only, no PR opened. Reversibility: n/a.\n',
-  );
-  assert.strictEqual(pre.hasLoggedPrDegrade(run), true);
-});
-
-test('hasLoggedPrDegrade: false when decisions.md has no matching line', () => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, '/nonexistent', undefined);
+  const { run } = mkRunDir(project, wt, undefined);
   fs.writeFileSync(path.join(run, 'decisions.md'), '## /build\n- AUTO 14:32:14 — unrelated entry.\n');
-  assert.strictEqual(pre.hasLoggedPrDegrade(run), false);
-});
-
-test('hasLoggedPrDegrade: false when decisions.md does not exist', () => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
-  const { run } = mkRunDir(project, '/nonexistent', undefined);
-  assert.strictEqual(pre.hasLoggedPrDegrade(run), false);
+  const out = pre.run(
+    { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
+    { resolveIntegrationModel: () => 'pr-first' },
+  );
+  assert.ok(out.json, 'expected a deny result — decisions.md exists but has no PR-early degrade line');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-pr|PR-early/);
 });
 
 test('regression (IL-131 recurrence, records #118/#893): a build agent that materializes then edits code directly — no record-worktree, no record-pr — is denied on its very first code edit, not silently allowed through', () => {
@@ -364,21 +365,21 @@ test('bookkeeping-stamps gate (I1): the pr-first branch warns instead of denying
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
   const { run } = mkRunDir(project, wt, 'owner-session');
-  const warnings = [];
-  const out = pre.checkBookkeepingStampsGate(
+  const out = pre.run(
     {
       input: { ...editInput(path.join(wt, 'src', 'x.js')), session_id: 'caller-session' },
       runDir: run,
       runState: { status: 'active', worktree: wt, sessionId: 'owner-session' },
       cwd: wt,
     },
-    null,
     { resolveIntegrationModel: () => 'pr-first' },
-    warnings,
   );
-  assert.deepStrictEqual(out, {}, 'a foreign-owned run must not be denied for a missing PR stamp');
-  assert.strictEqual(warnings.length, 1);
-  assert.match(warnings[0], /different session/);
+  // Through pre.run(), a collected allow-but-warn note surfaces as
+  // json.systemMessage (run()'s own header comment) rather than a separately
+  // returned warnings array — there is no permissionDecision, since the call
+  // is allowed, but the warning text is still attached.
+  assert.ok(!out.json || !out.json.hookSpecificOutput, 'a foreign-owned run must not be denied for a missing PR stamp');
+  assert.match(out.json.systemMessage, /different session/);
 });
 
 // --- I2: path and foreign-repo exemptions ---
@@ -406,9 +407,8 @@ test('bookkeeping-stamps gate (I2.1): the PR-stamp deny message names bin/log-de
   commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
   const { run } = mkRunDir(project, wt, undefined);
-  const out = pre.checkBookkeepingStampsGate(
+  const out = pre.run(
     { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
-    null,
     { resolveIntegrationModel: () => 'pr-first' },
   );
   assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /bin\/log-decision\.js/);
@@ -493,27 +493,173 @@ test('bookkeeping-stamps gate (I3): with no run pin, policy.yml still wins over 
 
 // --- I5: both stamps present short-circuits before any git/gh spawn ---
 
-test('bookkeeping-stamps gate (I5): both stamps present returns before any repo inspection', () => {
+// Routed through pre.run() (record #1268), which means every call here pays
+// for the OTHER gates runInner runs ahead of checkBookkeepingStampsGate
+// (checkPipelineShadowGuard in particular resolves repoInfo unconditionally,
+// spawning git once regardless of what this gate would do) — so "zero total
+// spawns" is no longer the right assertion once bypassing the dispatcher is
+// off the table. What's still provable, and still the actual guarantee this
+// gate makes, is that checkBookkeepingStampsGate's own short-circuit
+// (runState.worktree && runState.pr) adds NO spawns beyond pre.run()'s own
+// baseline dispatch overhead — measured with no run resolved at all, so
+// checkBookkeepingStampsGate's `if (!ctx.runDir || !ctx.runState) return {};`
+// fires first and every spawn counted is provably from the OTHER gates. The
+// control case (worktree stamped, PR stamp missing) forces this gate to
+// actually spawn (hasMaterializeCommit + resolveRunPinnedIntegrationModel),
+// proving the comparison is live rather than trivially zero everywhere.
+test('bookkeeping-stamps gate (I5): both stamps present adds no repo-inspection spawns beyond pre.run()\'s own baseline dispatch', () => {
   const cp = require('child_process');
   const original = cp.execFileSync;
-  let gitCalls = 0;
+  function withSpawnCount(fn) {
+    let calls = 0;
+    cp.execFileSync = function (...args) {
+      if (args[0] === 'git' || args[0] === 'gh') calls += 1;
+      return original.apply(this, args);
+    };
+    let out;
+    try { out = fn(); } finally { cp.execFileSync = original; }
+    return { out, calls };
+  }
+
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+
+  const baseline = withSpawnCount(() => pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: null, runState: null, cwd: wt }));
+  assert.deepStrictEqual(baseline.out, {});
+
+  const { run } = mkRunDir(project, wt, undefined, { pr: { number: 1 } });
+  const shortCircuit = withSpawnCount(() => pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active', worktree: wt, pr: { number: 1 } },
+    cwd: wt,
+  }));
+  assert.deepStrictEqual(shortCircuit.out, {});
+  assert.strictEqual(
+    shortCircuit.calls, baseline.calls,
+    'both stamps present must add zero repo-inspection spawns beyond pre.run()\'s own baseline dispatch',
+  );
+
+  // Control: worktree stamped but PR missing forces real inspection
+  // (hasMaterializeCommit + resolveRunPinnedIntegrationModel) — strictly more
+  // spawns than baseline, proving baseline isn't already saturated.
+  const { run: controlRun } = mkRunDir(project, wt, undefined);
+  const control = withSpawnCount(() => pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: controlRun,
+    runState: { status: 'active', worktree: wt },
+    cwd: wt,
+  }));
+  assert.ok(
+    control.calls > baseline.calls,
+    `expected the missing-PR-stamp control to spawn more than the baseline (${baseline.calls}), got ${control.calls}`,
+  );
+});
+
+// --- #1258: I5's fast path extended to the local-merge / degrade-logged
+// steady state, via a persisted `runState.prExempt` verdict ---
+
+// Shared spawn-counting helper (mirrors the I5 test's own local closure
+// above — kept duplicated rather than hoisted, matching this file's existing
+// per-test convention).
+function withSpawnCount(fn) {
+  const cp = require('child_process');
+  const original = cp.execFileSync;
+  let calls = 0;
   cp.execFileSync = function (...args) {
-    if (args[0] === 'git' || args[0] === 'gh') gitCalls += 1;
+    if (args[0] === 'git' || args[0] === 'gh') calls += 1;
     return original.apply(this, args);
   };
-  try {
-    const out = pre.checkBookkeepingStampsGate(
-      {
-        input: editInput('/nonexistent/src/x.js'),
-        runDir: '/nonexistent/.claude-tweaks/pipelines/' + RUN_ID,
-        runState: { status: 'active', worktree: '/nonexistent/wt', pr: { number: 1 } },
-        cwd: '/nonexistent/wt',
-      },
-      null,
-    );
-    assert.deepStrictEqual(out, {});
-    assert.strictEqual(gitCalls, 0, 'both stamps present must not spawn git or gh');
-  } finally {
-    cp.execFileSync = original;
-  }
+  let out;
+  try { out = fn(); } finally { cp.execFileSync = original; }
+  return { out, calls };
+}
+
+test('bookkeeping-stamps gate (#1258): local-merge steady state — first resolution persists prExempt, a later call short-circuits like a fully-stamped pr-first run', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+
+  const baseline = withSpawnCount(() => pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: null, runState: null, cwd: wt }));
+  assert.deepStrictEqual(baseline.out, {});
+
+  // First covered call after the worktree stamp: no origin remote on this
+  // fixture -> real (unstubbed) resolveIntegrationModel resolves
+  // 'local-merge' -> allow, and this is the call that must persist
+  // `prExempt: true` onto run-state.json. Expected to spawn more than
+  // baseline, same as the I5 test's own "missing-PR-stamp control" above —
+  // proving this call is not already trivially at the fast path.
+  const { run } = mkRunDir(project, wt, undefined);
+  const first = withSpawnCount(() => pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active', worktree: wt },
+    cwd: wt,
+  }));
+  assert.deepStrictEqual(first.out, {});
+  assert.ok(
+    first.calls > baseline.calls,
+    `expected the first local-merge resolution to spawn more than baseline (${baseline.calls}), got ${first.calls}`,
+  );
+  const persisted = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(persisted.prExempt, true, 'first resolution must persist prExempt onto run-state.json');
+
+  // Steady state: a later call reads the persisted prExempt (as production
+  // code would, via ctx.runState freshly loaded from run-state.json on each
+  // fresh hook process) and must add zero spawns beyond pre.run()'s own
+  // baseline dispatch — the exact guarantee the AC requires: no worse than a
+  // fully-stamped pr-first run's steady state.
+  const steadyState = withSpawnCount(() => pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active', worktree: wt, prExempt: true },
+    cwd: wt,
+  }));
+  assert.deepStrictEqual(steadyState.out, {});
+  assert.strictEqual(
+    steadyState.calls, baseline.calls,
+    'a local-merge run\'s steady state (worktree stamped, prExempt persisted) must add zero repo-inspection ' +
+    'spawns beyond pre.run()\'s own baseline dispatch',
+  );
+});
+
+test('bookkeeping-stamps gate (#1258): pr-first with degrade already logged also persists prExempt', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined);
+  fs.writeFileSync(
+    path.join(run, 'decisions.md'),
+    '## /build\n- AUTO 09:00:00 — PR-early run lifecycle: push of wt-branch to origin FAILED (network); run proceeds local-only, no PR opened. Reversibility: n/a.\n',
+  );
+  const out = pre.run(
+    { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
+    { resolveIntegrationModel: () => 'pr-first' },
+  );
+  assert.deepStrictEqual(out, {});
+  const persisted = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(persisted.prExempt, true, 'a graceful-degrade allow must also persist prExempt — the degrade line is permanent (append-only)');
+});
+
+test('bookkeeping-stamps gate (#1258): a caught model-resolution exception never persists prExempt — a transient failure is not a provable verdict', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined);
+  const out = pre.run(
+    { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
+    { resolveIntegrationModel: () => { throw new Error('transient gh failure'); } },
+  );
+  // Fail-open: an unresolvable model is not provably pr-first, so this call allows.
+  assert.deepStrictEqual(out, {});
+  const persisted = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(
+    persisted.prExempt, undefined,
+    'a caught resolution exception must never persist prExempt — a later call might resolve pr-first and need to enforce',
+  );
 });

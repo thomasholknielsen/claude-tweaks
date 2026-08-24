@@ -75,6 +75,20 @@
     padding: 6px 12px; font-size: 12px; color: var(--muted);
     border-top: 1px solid var(--border);
   }
+  #tweaks {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 6px 12px; font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  #tweaks label { display: flex; align-items: center; gap: 4px; }
+  #tweaks input[type="range"] { width: 96px; }
+  .tweak-readout { min-width: 2.5em; text-align: right; }
+  #tweak-swatch {
+    width: 28px; height: 28px;
+    border-radius: calc(var(--tweak-corner-radius, 8) * 1px);
+    background: hsl(calc(var(--tweak-hue, 0) * 1deg), 70%, 55%);
+    transform: scaleX(var(--tweak-spacing-scale, 1));
+  }
   #verdict-error {
     padding: 6px 12px; font-size: 12px; color: var(--danger);
     border-top: 1px solid var(--border); background: var(--panel);
@@ -111,6 +125,13 @@
   <div id="focus">
     <div id="focus-stage"></div>
     <div id="focus-indicator"></div>
+    <div id="tweaks">
+      <span id="tweak-hint">Preview only — the candidate itself is not restyled.</span>
+      <label>Hue <input id="tweak-hue" type="range" min="0" max="360" step="1" value="0" data-token="hue"><span class="tweak-readout" data-token="hue">0</span></label>
+      <label>Spacing <input id="tweak-spacing" type="range" min="0.75" max="1.5" step="0.05" value="1" data-token="spacing-scale"><span class="tweak-readout" data-token="spacing-scale">1</span></label>
+      <label>Radius <input id="tweak-radius" type="range" min="0" max="24" step="1" value="8" data-token="corner-radius"><span class="tweak-readout" data-token="corner-radius">8</span></label>
+      <div id="tweak-swatch"></div>
+    </div>
   </div>
   <div id="verdict-error" role="alert" hidden></div>
   <div id="verdict">
@@ -139,6 +160,7 @@
   var btnSteer = document.getElementById('btn-steer');
   var btnExit = document.getElementById('btn-exit');
   var steerInput = document.getElementById('steer-input');
+  var tweakInputs = Array.prototype.slice.call(document.querySelectorAll('#tweaks input[data-token]'));
 
   var gridSelectedId = null;
   var focusIndex = -1; // index into variants while in focus view
@@ -258,6 +280,7 @@
       case 'pick': return { type: 'pick', variant: extra.variant, ts: ts };
       case 'reroll': return { type: 'reroll', ts: ts };
       case 'steer': return { type: 'steer', text: extra.text, ts: ts };
+      case 'tweak': return { type: 'tweak', token: extra.token, value: extra.value, ts: ts };
       case 'exit': return { type: 'exit', ts: ts };
       default: throw new Error('unknown event kind: ' + kind);
     }
@@ -303,6 +326,33 @@
     });
   }
 
+  function applyTweak(token, value) {
+    document.documentElement.style.setProperty('--tweak-' + token, value);
+  }
+
+  function attachTweakHandlers() {
+    // Only reachable when MODE === 'live' — mirrors attachVerdictHandlers'
+    // own live-only gating above.
+    tweakInputs.forEach(function (input) {
+      var readout = document.querySelector('.tweak-readout[data-token="' + input.dataset.token + '"]');
+      // 'input' fires on every tick of a drag — instant visual feedback only,
+      // never a network write, or a single slider drag would post ~100
+      // events. 'change' fires once, on release (or per discrete step for
+      // keyboard/click), and is the only listener that posts.
+      input.addEventListener('input', function () {
+        var token = input.dataset.token;
+        var value = input.value;
+        applyTweak(token, value);
+        if (readout) readout.textContent = value;
+      });
+      input.addEventListener('change', function () {
+        var token = input.dataset.token;
+        var value = input.value;
+        postEvent(serializeEvent('tweak', { token: token, value: value }));
+      });
+    });
+  }
+
   function connectStream() {
     if (typeof EventSource === 'undefined') return;
     var es = new EventSource('/stream');
@@ -317,12 +367,14 @@
   if (MODE === 'live') {
     attachVerdictHandlers();
     connectStream();
+    attachTweakHandlers();
   } else {
     btnPick.disabled = true;
     btnReroll.disabled = true;
     btnSteer.disabled = true;
     btnExit.disabled = true;
     steerInput.disabled = true;
+    tweakInputs.forEach(function (input) { input.disabled = true; });
     if (DATA.outcome) {
       var meta = document.createElement('div');
       meta.id = 'outcome-meta';
@@ -331,8 +383,21 @@
       meta.dataset.seedKey = DATA.outcome.seedKey || '';
       meta.dataset.rerollCount = String(DATA.outcome.rerollCount || 0);
       meta.dataset.steerHistory = JSON.stringify(DATA.outcome.steerHistory || []);
+      meta.dataset.tweaks = JSON.stringify(DATA.outcome.tweaks || []);
       meta.dataset.date = DATA.outcome.date || '';
       document.body.appendChild(meta);
+
+      // Replay the baked tweak set so a durable decision.html visually shows
+      // what was chosen, rather than the sliders' markup defaults (0 / 1 / 8)
+      // and the swatch's CSS fallback values. Inputs stay disabled (above) —
+      // this only changes what's shown, never interactivity.
+      (DATA.outcome.tweaks || []).forEach(function (t) {
+        applyTweak(t.token, t.value);
+        var input = document.querySelector('#tweaks input[data-token="' + t.token + '"]');
+        if (input) input.value = t.value;
+        var readout = document.querySelector('.tweak-readout[data-token="' + t.token + '"]');
+        if (readout) readout.textContent = t.value;
+      });
     }
   }
 })();

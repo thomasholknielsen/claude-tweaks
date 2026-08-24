@@ -322,7 +322,7 @@ phase this run actually completed.
    resolves a local ref, and a worktree can sit hours behind `origin/{integration-branch}`
    without this fetch; skipping it would let the probe silently predict against a stale base,
    compounding the race this step already discloses below. Then run `node
-   plugin/bin/merge-size-probe.js --integration-branch origin/{integration-branch}` against this
+   "${CLAUDE_PLUGIN_ROOT}/bin/merge-size-probe.js" --integration-branch origin/{integration-branch}` against this
    run's branch. It predicts, via `git merge-tree --write-tree`, the post-merge size
    of every branch-touched `skills/_shared/*.md`/`SKILL.md` file — a branch that is green alone
    (`tests/bin-lib/skill-audit/context-cost.test.js` only sees the working tree) can still tip a
