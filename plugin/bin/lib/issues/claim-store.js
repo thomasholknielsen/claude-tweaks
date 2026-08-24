@@ -61,9 +61,17 @@ function claimPath(issueNumber) {
 //
 // ENOENT (no `gh` binary) is reported separately as `gh-absent` so a
 // preflight CLI can name the real fallback instead of a generic failure.
+//
+// A secondary/abuse rate limit (403 + "secondary rate limit" text, an abuse
+// detection mechanism message, or a `Retry-After` header) is checked first,
+// before every other branch — it must never be misread as a contest or a
+// generic network failure (record-697's incident read exactly that way
+// before diagnosis; #787's amendment requires this to classify as its own
+// distinct, transient outcome).
 function classifyGhApiError(e) {
   if (e && e.code === 'ENOENT') return { failure: 'gh-absent', status: null };
   const text = [e && e.message, e && e.stderr, e && e.stdout].filter(Boolean).map(String).join(' ');
+  if (/secondary rate limit|abuse detection mechanism|Retry-After/i.test(text)) return { failure: 'secondary-rate-limit', status: 403 };
   if (/HTTP 404|Not Found/.test(text)) return { failure: null, status: 404 };
   if (/HTTP 422|Unprocessable|Validation failed/.test(text)) return { failure: null, status: 422 };
   if (/HTTP 409|Conflict|does not match/i.test(text)) return { failure: null, status: 409 };

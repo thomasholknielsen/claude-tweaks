@@ -231,3 +231,20 @@ test('listClaimNames: still works, now a thin wrapper over listClaimEntries', ()
   const ghApi = () => ({ stdout: JSON.stringify([{ name: 'issue-7.json', sha: 'sha7' }]), failure: null, status: null });
   assert.deepEqual(listClaimNames(ghApi, 'acme/w'), { names: ['issue-7.json'], failure: null });
 });
+
+test('classifyGhApiError: secondary rate limit is distinct from network-failure', () => {
+  const err = new Error('gh: You have exceeded a secondary rate limit (HTTP 403)');
+  err.stderr = 'gh: You have exceeded a secondary rate limit. Please wait a few minutes before you try again. (HTTP 403)';
+  assert.deepEqual(classifyGhApiError(err), { failure: 'secondary-rate-limit', status: 403 });
+});
+
+test('classifyGhApiError: Retry-After signature also reads as secondary rate limit', () => {
+  const err = new Error('gh: API rate limit exceeded (HTTP 403)');
+  err.stderr = 'gh: API rate limit exceeded (HTTP 403)\nRetry-After: 60';
+  assert.deepEqual(classifyGhApiError(err), { failure: 'secondary-rate-limit', status: 403 });
+});
+
+test('classifyGhApiError: a plain 403 with no rate-limit text still falls to network-failure', () => {
+  const err = new Error('gh: Resource not accessible by integration (HTTP 403)');
+  assert.deepEqual(classifyGhApiError(err), { failure: 'network-failure', status: null });
+});
