@@ -78,5 +78,9 @@
   "skill:reflect": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1787583594638
+  },
+  "skill:_shared/pr-early-run-lifecycle": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1787583604113
   }
 }
