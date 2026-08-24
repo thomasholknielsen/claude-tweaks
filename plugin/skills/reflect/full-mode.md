@@ -36,9 +36,10 @@ during this run, not the code that got built.
 **Input:** run `node "${CLAUDE_PLUGIN_ROOT}/bin/friction-events.js" --run "$PIPELINE_RUN_DIR"`
 rather than reading `events.jsonl` directly — it returns this run's own events UNIONED with any
 other non-terminal run dir recorded against the same worktree (a JSON array on stdout; `[]` when
-none exist), filtered to: `wd-deny` and `gate-denial` (logged by `bin/lib/hooks/pre-tool-use.js`),
-`contract-violation` (logged by `bin/lib/hooks/subagent-stop.js`), and `ask-user-question` (logged
-by `bin/lib/hooks/post-tool-use.js`). `contract-violation` specifically can under-report — the
+none exist), filtered to: `wd-deny`, `gate-denial` and `bookkeeping-stamp-deny` (logged by
+`bin/lib/hooks/pre-tool-use.js`), `contract-violation` (logged by
+`bin/lib/hooks/subagent-stop.js`), and `ask-user-question` (logged by
+`bin/lib/hooks/post-tool-use.js`). `contract-violation` specifically can under-report — the
 SubagentStop hook it depends on fires unreliably for Task dispatches
 (`_shared/subagent-output-contract.md`, claude-code#27755) — so the lens should not treat its
 *absence* as proof of a clean run.
@@ -65,6 +66,7 @@ manufactured. A formal `/claude-tweaks:build`/`/claude-tweaks:flow` run is unaff
 <!-- friction-lens-vocab:begin -->
 - `wd-deny`: `bin/lib/hooks/pre-tool-use.js`
 - `gate-denial`: `bin/lib/hooks/pre-tool-use.js`
+- `bookkeeping-stamp-deny`: `bin/lib/hooks/pre-tool-use.js`
 - `contract-violation`: `bin/lib/hooks/subagent-stop.js`
 - `ask-user-question`: `bin/lib/hooks/post-tool-use.js`
 <!-- friction-lens-vocab:end -->
@@ -72,7 +74,10 @@ manufactured. A formal `/claude-tweaks:build`/`/claude-tweaks:flow` run is unaff
 **Membership rule:** an event qualifies only when it describes friction experienced by the run's
 own operator — a denied action, a forced stop. `wd-foreign-session` is excluded on this basis: it
 is logged when a *different* session than this run's owner attempts a wrong-checkout action, so
-it describes that other session's friction, not this run's. `wd-foreign-teardown` is excluded for
+it describes that other session's friction, not this run's. `bookkeeping-stamp-deny` is the same
+gate's own-operator counterpart — `stampCheckOutcome`'s non-foreign branch, a real denied write or
+push against the run that owns it — and is therefore *included*, not excluded, for the mirror
+image of that same reason. `wd-foreign-teardown` is excluded for
 the same bystander reason — it's written when a *different* session attempts a teardown, not this
 run's own operator's friction. `wd-ambiguous` and `wd-push-mismatch` are excluded on a different
 basis: both resolve to allow, not a denial, and emit no `systemMessage` — they're silent
