@@ -1,6 +1,6 @@
 # Design Pre-Build — lazy-loading Impeccable references and project design context
 
-Common Step 1.7 of `/claude-tweaks:build`. Loaded only when the build is in record mode with a frontend surface and the plan is non-trivial.
+Common Step 1.7 of `/claude-tweaks:build`. Loaded only when the build is in record mode with a surface routed to pre-build (`web`, `mobile`, `desktop`, or `terminal`) and the plan is non-trivial.
 
 ## Purpose
 
@@ -16,6 +16,10 @@ Before dispatching implementation, invoke the design wrapper to lazy-load Impecc
 ## Invocation
 
 Invoke `/claude-tweaks:design-wrapper pre-build <spec>`. Pass the record reference — the wrapper resolves it to the materialized header the same way Common Step 1.7's own surface check does — or the design doc path as a fallback.
+
+## Terminal track
+
+For `surface: terminal`, `/claude-tweaks:design-wrapper pre-build`'s own track resolution (`design-wrapper/SKILL.md`'s Layer 2 surface check) resolves `track: "terminal"` and loads a different, smaller always-load set than the three visual surfaces: `_shared/terminal-ux.md` plus `_shared/design-craft.md` only — no Impeccable references, no Emil skills, no `PRODUCT.md`/`DESIGN.md`/sidecar read (`design-wrapper/terminal-routing.md`'s `pre-build` row; the terminal branch itself lives in `design-wrapper/modes/pre-build.md` Step 3). The Result handling table applies unchanged. The "Where the loaded references go" section applies with a terminal-specific forwarding rule: the subagent-strategy bullet has a terminal-track clause that forwards the loaded set to every implementer task rather than filtering by UI-file path patterns (since terminal records have no UI file concept).
 
 ## Visual-reference scaffold (when present)
 
@@ -41,5 +45,5 @@ The `loaded` set is enriched beyond Impeccable references: per `_shared/design-c
 
 ## Where the loaded references go
 
-- **Subagent execution strategy** — the loaded reference text is appended to the implementer subagent's system prompt for each task that touches a UI file (paths matched against the spec's Key Files entries with frontend extensions/path patterns).
+- **Subagent execution strategy** — the loaded reference text is appended to the implementer subagent's system prompt for each task that touches a UI file (paths matched against the spec's Key Files entries with frontend extensions/path patterns). **Terminal track:** "UI file" has no terminal analogue — forward the terminal-track loaded set (`_shared/terminal-ux.md` + `_shared/design-craft.md`) to every implementer task instead of filtering by path pattern.
 - **Batched execution strategy** — the loaded references are summarized and surfaced in the batch handoff message so the human reviewer sees what design context is in play.
