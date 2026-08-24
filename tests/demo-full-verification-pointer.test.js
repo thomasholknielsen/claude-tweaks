@@ -41,6 +41,25 @@ test('observation-plan.md declares Full verification with Parent/Pending/Then, i
     countAtPreChange(OBSERVATION_PLAN_PATH, 'Full verification:'), 0,
     'Full verification: must not have existed pre-change (proves this assertion can go red)',
   );
+
+  const parentIdx = schemaFence[1].indexOf('- Parent: #P');
+  const pendingIdx = schemaFence[1].indexOf('- Pending: #X');
+  const thenIdx = schemaFence[1].indexOf('- Then:');
+  assert.ok(
+    parentIdx > -1 && pendingIdx > parentIdx && thenIdx > pendingIdx,
+    `sub-bullets must appear in order Parent:, Pending:, Then: (got indices ${parentIdx}, ${pendingIdx}, ${thenIdx})`,
+  );
+});
+
+test('observation-plan.md has a Producer section stating demo composes the block, wrap-up never does', () => {
+  assert.match(
+    observationPlan,
+    /Composed only by `\/claude-tweaks:demo`'s `#N`-branch composers/,
+  );
+  assert.strictEqual(
+    countAtPreChange(OBSERVATION_PLAN_PATH, 'Composed only by'), 0,
+    'Producer section must not have existed pre-change',
+  );
 });
 
 test('observation-plan.md Grammar rules name Parent:/Pending:/Then: and the closed-siblings literal', () => {

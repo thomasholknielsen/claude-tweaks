@@ -34,8 +34,10 @@ are stated once, here.
   a grandparent, even when that parent is itself a sub-issue.
 - `Pending:` lists every still-open sibling as `#N {title} (open)`, comma-separated, in
   ascending number order, excluding the record in hand. When no sibling is open, `Pending:`
-  instead reads `none — every sibling closed; parent gate {due|gated|resolved}`, using
-  `parentGateState`'s vocabulary (`bin/lib/issues/acceptance.js`).
+  instead reads `none — every sibling closed; parent gate {incomplete|due|gated|resolved}`, using
+  `parentGateState`'s vocabulary (`bin/lib/issues/acceptance.js`) — `incomplete` occurs when the
+  record in hand is itself still open even though every other sibling has closed, since
+  `parentGateState` is called with the record in hand included in its sub-issue list.
 - `Then:` is exactly one line naming the trigger and the observable outcome of the whole
   feature — never a test command. When the parent body carries no design summary to draw a
   trigger from, `Then:` reads `verify "{parent title}" end-to-end once the parent gate opens —
