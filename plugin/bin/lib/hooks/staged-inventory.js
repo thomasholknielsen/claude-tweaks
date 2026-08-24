@@ -43,8 +43,19 @@ function parseStagePaths(text) {
 // carries no STAGED lines at all (nothing to reconcile).
 function checkStagedInventory(runDir) {
   const decisionsPath = path.join(runDir, 'decisions.md');
-  if (!fs.existsSync(decisionsPath)) return { checked: 0, missing: [] };
-  const text = fs.readFileSync(decisionsPath, 'utf8');
+  let text;
+  try {
+    text = fs.readFileSync(decisionsPath, 'utf8');
+  } catch (err) {
+    // ENOENT (never written, or removed/archived between a caller's own
+    // existence probe and this read) reads the same as "nothing to
+    // reconcile" -- treating a read failure as absent, not a separate
+    // existsSync check first, avoids the TOCTOU window a concurrent
+    // archive-run/prune of this exact run dir can otherwise hit (#1269
+    // review finding). Any other error (permissions, etc.) still throws.
+    if (err && err.code === 'ENOENT') return { checked: 0, missing: [] };
+    throw err;
+  }
   const staged = parseStagePaths(text);
   const missing = staged.filter((rel) => !fs.existsSync(path.join(runDir, rel)));
   return { checked: staged.length, missing };
