@@ -45,11 +45,13 @@ const POLICY_KEYS = [
   // merge-authorization (#715): lets a human present at Manifesto time
   // pre-authorize "merge once every HARD-GATE is green" for this run only.
   // Deliberately excluded from the policy.yml source below (see the
-  // resolvePolicyKeys special case) — a project-wide standing default here
+  // `policySourceExcluded` special case in resolvePolicyKeys and the
+  // matching auditPolicy() category, both generic on this flag rather than
+  // hardcoded to this key — #839) — a project-wide standing default here
   // would remove the "a human decided, live, for this run" property the
   // interactive-human-only auto:* invariant depends on; see
   // _shared/auto-mode-contract.md's Bookend Architecture section.
-  { key: 'merge-authorization', type: 'enum', values: ['ask', 'pre-authorized'], default: 'ask', summary: "Lets a human pre-authorize, at Manifesto time, that this run merges itself once every HARD-GATE is green — never a standing default.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'merge-authorization', type: 'enum', values: ['ask', 'pre-authorized'], default: 'ask', policySourceExcluded: true, summary: "Lets a human pre-authorize, at Manifesto time, that this run merges itself once every HARD-GATE is green — never a standing default.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3, summary: "Sets how many consecutive autonomous build failures a record tolerates before it is flagged blocked and pulled from auto-pilot.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-batch-size', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence before leaving the rest for next time.", category: 'merge-safety', tier: 'advanced' },
   // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a
@@ -468,13 +470,18 @@ function resolvePolicyKeys(requestedKeys, { policyRaw, runConfigRaw } = {}) {
     if (canonical === 'housekeeping-auto-merge' && resolved.source === 'default') {
       resolved = { ...resolved, value: deriveHousekeepingAutoMerge(sources) };
     }
-    // merge-authorization (#715): policy.yml is never a valid source for this
-    // key — a standing project default would silently pre-authorize every
-    // future run's merge with no live human decision for that run. Only an
-    // explicit run-config value (a live Manifesto confirm/hybrid override
-    // answer) may set it; a policy.yml value is discarded, falling back to
-    // the schema default exactly as if nothing had set it at all.
-    if (canonical === 'merge-authorization' && resolved.source === 'policy') {
+    // policySourceExcluded (generalized from #715's merge-authorization-only
+    // special case — #839): a key so flagged is never validly sourced from
+    // policy.yml — a standing project default would silently make a
+    // this-run-only decision into a permanent one, defeating whatever
+    // per-run property the key exists to protect (for merge-authorization,
+    // "a human decided, live, for this run"). Only a source other than
+    // policy.yml (today, only run-config — a live Manifesto confirm/hybrid
+    // override answer) may set it; a policy.yml value is discarded, falling
+    // back to the schema default exactly as if nothing had set it at all.
+    // Registering a second such lever needs only this flag on its POLICY_KEYS
+    // entry — no change here or in auditPolicy()'s matching category below.
+    if (schemaEntry.policySourceExcluded && resolved.source === 'policy') {
       resolved = { value: defaultValue, source: 'default' };
     }
     result[requested] = resolved;
@@ -610,10 +617,24 @@ function auditPolicy(repoRoot) {
 
   // policy.yml is the only config home, so it is the only thing worth validating.
   const invalidValues = [];
+  // sourceExcludedKeys (#839): a key that is recognized AND valid, but whose
+  // schema entry carries `policySourceExcluded: true` (resolvePolicyKeys'
+  // generalized special case above) — policy.yml is a structurally
+  // ineffective place to set it, so a value sitting here silently never
+  // takes effect. Distinct from invalidValues (a bad value for a key that
+  // *would* apply) and from unrecognizedKeys (a key nothing reads at all):
+  // this key is real and the value is well-formed, it simply never reaches
+  // the resolved value from this source. Generalizes to any future
+  // resolver-special-case-excluded lever with zero changes here — only
+  // registering `policySourceExcluded: true` on that lever's POLICY_KEYS row.
+  const sourceExcludedKeys = [];
   for (const [key, value] of Object.entries(policyEntries)) {
     const schemaEntry = SCHEMA_BY_KEY.get(key);
-    if (schemaEntry && !isValidValue(schemaEntry, value)) {
+    if (!schemaEntry) continue;
+    if (!isValidValue(schemaEntry, value)) {
       invalidValues.push({ key, value, expected: schemaEntry });
+    } else if (schemaEntry.policySourceExcluded) {
+      sourceExcludedKeys.push({ key, value });
     }
   }
 
@@ -634,7 +655,7 @@ function auditPolicy(repoRoot) {
     });
   }
 
-  return { unrecognizedKeys, invalidValues, migratableKeys, renamedKeys };
+  return { unrecognizedKeys, invalidValues, migratableKeys, renamedKeys, sourceExcludedKeys };
 }
 
 module.exports = {
