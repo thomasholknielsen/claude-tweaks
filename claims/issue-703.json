@@ -1,7 +1,6 @@
 {
-  "runId": "record-703",
-  "sessionId": "8141efc1-0b0a-5897-bf3f-bd70565c6868",
-  "claimedAt": "2026-08-21T20:25:56.553Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "released": true,
+  "runId": "human-override",
+  "reason": "claim (record-703, claimed 2026-08-21T20:25:56Z by host vm) had no associated pipeline run dir anywhere in .claude-tweaks/pipelines/ (live or archived) as of 2026-08-24 — the claiming session evidently died immediately after claiming, before starting any real work; force-released ahead of its 72h TTL by explicit human decision rather than waiting it out",
+  "releasedAt": "2026-08-24T15:30:00.000Z"
 }
