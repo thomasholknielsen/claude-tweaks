@@ -69,11 +69,11 @@ SPECIFY_PARENT_BODY=$(node -e "
   console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-parent-body.md') || require('path').join(require('os').tmpdir(), 'specify-parent-body.md'))
 ")
 
-node -e "const {recordPayload}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const p=recordPayload({title:process.argv[1], body:process.argv[2], type:'feature', fingerprint:process.argv[3]});
-  require('fs').writeFileSync('$SPECIFY_PARENT_PAYLOAD', JSON.stringify(p))" "$PARENT_TITLE" "$PARENT_BODY" "${DESIGN_DOC_SLUG}:parent"
+node -e "require('fs').writeFileSync('$SPECIFY_PARENT_PAYLOAD', JSON.stringify({title:process.argv[1], body:process.argv[2], type:'feature', fingerprint:process.argv[3]}))" \
+  "$PARENT_TITLE" "$PARENT_BODY" "${DESIGN_DOC_SLUG}:parent"
 
-node -e "console.log(JSON.parse(require('fs').readFileSync('$SPECIFY_PARENT_PAYLOAD','utf8')).body)" > "$SPECIFY_PARENT_BODY"
+# Parent bodies are a design summary, not spec-shaped — no --require-shaped (bin/compose-record.js's Global Constraints).
+node "${CLAUDE_PLUGIN_ROOT}/bin/compose-record.js" "$SPECIFY_PARENT_PAYLOAD" --out "$SPECIFY_PARENT_BODY"
 ```
 
 (`_shared/session-tmp-root.md` — cited, not restated. `$SPECIFY_PARENT_PAYLOAD`/`$SPECIFY_PARENT_BODY` stay in scope for the rest of this section below.)
@@ -193,16 +193,15 @@ SPECIFY_SUB_ISSUE_BODY=$(node -e "
   console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-sub-issue-body.md') || require('path').join(require('os').tmpdir(), 'specify-sub-issue-body.md'))
 ")
 
-node -e "const {recordPayload}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const p=recordPayload({
+node -e "require('fs').writeFileSync('$SPECIFY_SUB_ISSUE_PAYLOAD', JSON.stringify({
     title: process.argv[1], body: process.argv[2], type: process.argv[3],
     risk: process.argv[4], size: process.argv[5], ceremony: process.argv[6], ready: true,
     fingerprint: process.argv[7]
-  });
-  require('fs').writeFileSync('$SPECIFY_SUB_ISSUE_PAYLOAD', JSON.stringify(p))" \
+  }))" \
   "$SUB_ISSUE_TITLE" "$SUB_ISSUE_BODY" "$SUB_ISSUE_TYPE" "$SUB_ISSUE_RISK" "$SUB_ISSUE_SIZE" "$SUB_ISSUE_CEREMONY" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
 
-node -e "console.log(JSON.parse(require('fs').readFileSync('$SPECIFY_SUB_ISSUE_PAYLOAD','utf8')).body)" > "$SPECIFY_SUB_ISSUE_BODY"
+# Sub-issue bodies are spec-shaped by construction (spec-template.md) — validate before writing.
+node "${CLAUDE_PLUGIN_ROOT}/bin/compose-record.js" "$SPECIFY_SUB_ISSUE_PAYLOAD" --out "$SPECIFY_SUB_ISSUE_BODY" --require-shaped
 ```
 
 (This bash fence runs once per work unit, in a loop — `sessionTmpPath` is idempotent per session+filename, so both paths resolve identically on every iteration and each iteration's compose-then-write-once overwrites cleanly before the next.)

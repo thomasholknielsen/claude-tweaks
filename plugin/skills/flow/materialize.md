@@ -137,7 +137,7 @@ Each record in a multi-record run (`#A,#B,...`) materializes to its own file, on
 Single-record and multi-spec runs use the two run-dir shapes already established by `_shared/pipeline-run-dir.md` and `multi-spec.md`:
 
 ```
-{run-dir}/work/{n}-spec.md                       ← single-record run
+work/{n}-spec.md                                  ← single-record run (repo-root, git-tracked in the worktree — pipeline-run-dir.md's exception; reaches the main checkout by merge)
 {parent-run-dir}/spec-{a}/work/{a}-spec.md        ← multi-record run, record a
 {parent-run-dir}/spec-{b}/work/{b}-spec.md        ← multi-record run, record b
 ```
