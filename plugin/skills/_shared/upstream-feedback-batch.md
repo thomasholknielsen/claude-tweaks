@@ -86,6 +86,24 @@ Then, per branch:
   filed — the learning stays local, reported as declined at `/feedback`'s Step 9. No comment is
   posted anywhere — there is no local `upstream-candidate` issue to comment on in this path.
 
+## Re-affirming a previously-declined item (#1033)
+
+The mirror of Declining above. When an item carrying a `priorDecline` (`skills/feedback/SKILL.md`
+Step 4's Prior-decline annotation) is **checked** — or is resolved to filed by the `unattended`
+`consoleAutoResolve` path (`skills/wrap-up/review-console.md`'s Auto-resolution short-circuit) —
+the human has re-affirmed a finding they previously declined. Clear the stale entry via
+`bin/lib/declined-learning/store.js`'s `clearDecline(fingerprint)`, using the same fingerprint
+Step 4's `lookupDecline` matched on, immediately after that item's filing call returns. Same
+convention `reflect/full-mode.md`'s Prior-decline annotation already applies to a re-affirmed
+insight, and the same failure posture as the decline write above: a clear failure degrades open —
+log a one-line note and continue, never abort the batch over it.
+
+Without this, the entry outlives the re-affirmation twice over: it keeps annotating the same
+finding on every future run, and — since the entry's `subject` feeds
+`session-evaluation.md`'s `dismissedSubjects` into the judge's offset clause, which since #1033
+instructs the judge to "omit any new finding whose symptom matches one of these in substance" —
+it keeps suppressing a whole class of findings the human has since said they want filed.
+
 ## Editing an item
 
 Editing content instead of a flat include/exclude is a free-text message in the next reply,

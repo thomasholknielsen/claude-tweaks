@@ -101,8 +101,9 @@ consumer key `feedback`), the payload is:
                            // Gather-2-sourced findings, in filing order — what the Skip check
                            // above points a later invocation at instead of re-evaluating
   dismissedSubjects,       // bin/lib/declined-learning/store.js's listDeclined({ source: 'feedback' })
-                           // mapped to each entry's subject text (falling back to the bare
-                           // fingerprint for a pre-#1033 entry recorded before `subject` existed) —
+                           // mapped to each entry's subject text, skipping any entry with no
+                           // `subject` (a pre-#1033 decline recorded before the field existed;
+                           // a bare fingerprint is unmatchable in substance, per watermark.js) —
                            // every declined subject across every /feedback run to date, not just
                            // this one. Filtered to source: 'feedback' so a reflect-sourced decline
                            // never suppresses a feedback finding by accident.
