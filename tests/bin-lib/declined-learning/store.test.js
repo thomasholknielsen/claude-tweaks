@@ -143,16 +143,20 @@ test('recordDecline: omitting subject writes the same three-key shape as before 
 
 test('listDeclined: no filter returns every entry with its fingerprint and subject', () => {
   const deps = makeStore();
-  store.recordDecline('feedback-aaa', { source: 'feedback', reason: 'r1', subject: 'subject one' }, deps);
-  store.recordDecline('reflect-bbb', { source: 'wrap-up', reason: 'r2', subject: 'subject two' }, deps);
+  store.recordDecline('feedback-aaa', {
+    source: 'feedback', reason: 'r1', subject: 'subject one', declinedAt: '2026-08-20T00:00:00Z',
+  }, deps);
+  store.recordDecline('reflect-bbb', {
+    source: 'wrap-up', reason: 'r2', subject: 'subject two', declinedAt: '2026-08-21T00:00:00Z',
+  }, deps);
 
   const all = store.listDeclined({}, deps).sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
   assert.deepEqual(all, [
     {
-      fingerprint: 'feedback-aaa', declinedAt: all[0].declinedAt, reason: 'r1', source: 'feedback', subject: 'subject one',
+      fingerprint: 'feedback-aaa', declinedAt: '2026-08-20T00:00:00Z', reason: 'r1', source: 'feedback', subject: 'subject one',
     },
     {
-      fingerprint: 'reflect-bbb', declinedAt: all[1].declinedAt, reason: 'r2', source: 'wrap-up', subject: 'subject two',
+      fingerprint: 'reflect-bbb', declinedAt: '2026-08-21T00:00:00Z', reason: 'r2', source: 'wrap-up', subject: 'subject two',
     },
   ]);
 });

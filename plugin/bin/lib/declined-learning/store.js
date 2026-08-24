@@ -63,14 +63,12 @@ function writeStore(data, { mkdirSync = fs.mkdirSync, writeFile = fs.writeFileSy
 // propagate (write) behavior, plus protection from a concurrent recordDecline/clearDecline
 // clobbering it mid-write. Returns the entry that was written.
 //
-// `subject` (#1033) is the human-legible text a consumer already has on hand when it declines
-// something — the draft's `fingerprintBasis.summary` for feedback, the insight's own description
-// text for reflect — carried alongside the opaque fingerprint so a later reader (a human, or an
-// LLM judge dispatch that has no way to compute a candidate's own fingerprint to compare against
-// a hash) can judge a re-surfacing finding/insight for equivalence directly, not by exact-hash
-// comparison alone. Optional and omitted from the written entry when not passed, so an entry
-// recorded before this field existed round-trips unchanged (no forced `subject: null`) and every
-// existing caller that doesn't pass one keeps writing the same three-key shape as before.
+// `subject` (#1033, rationale in this file's header) is the human-legible text a consumer already
+// has on hand when it declines something — the draft's `fingerprintBasis.summary` for feedback,
+// the insight's own description text for reflect. Optional and omitted from the written entry when
+// not passed, so an entry recorded before this field existed round-trips unchanged (no forced
+// `subject: null`) and every existing caller that doesn't pass one keeps writing the same
+// three-key shape as before.
 function recordDecline(fingerprint, {
   reason = null, source, subject, declinedAt = new Date().toISOString(),
 } = {}, deps = {}) {
@@ -96,9 +94,8 @@ function lookupDecline(fingerprint, deps = {}) {
 
 // All declined fingerprints (opaque hashes only, no subject text), optionally filtered to one
 // `source`. Superseded as feedback's own watermark-payload source by listDeclined below (#1033:
-// session-evaluation.md now reads dismissedSubjects, not a bare fingerprint list, since an opaque
-// hash gives a judge dispatch nothing to compare a candidate finding's own text against) — kept
-// as a lighter-weight primitive for a caller that genuinely only needs the hash keys.
+// session-evaluation.md now reads dismissedSubjects, not a bare fingerprint list) — kept as a
+// lighter-weight primitive for a caller that genuinely only needs the hash keys.
 function listDeclinedFingerprints({ source } = {}, deps = {}) {
   const current = readStore(deps);
   const keys = Object.keys(current);
@@ -109,10 +106,9 @@ function listDeclinedFingerprints({ source } = {}, deps = {}) {
 // `source` — the subject-scan counterpart to listDeclinedFingerprints above. Where that function
 // hands a consumer only opaque hashes, this one hands back the human-legible `subject` text
 // alongside each fingerprint, so a consumer can render or compare declined subjects directly
-// (an LLM judge prompt, or an agent judging a new candidate for equivalence against everything a
-// human already declined) instead of being limited to exact-hash matching. An entry recorded
-// before `subject` existed simply has no `subject` key on its returned object — callers that
-// render subjects handle that omission themselves (e.g. falling back to the fingerprint).
+// instead of being limited to exact-hash matching (header). An entry recorded before `subject`
+// existed simply has no `subject` key on its returned object — callers that render subjects
+// handle that omission themselves (e.g. falling back to the fingerprint).
 function listDeclined({ source } = {}, deps = {}) {
   const current = readStore(deps);
   return Object.keys(current)

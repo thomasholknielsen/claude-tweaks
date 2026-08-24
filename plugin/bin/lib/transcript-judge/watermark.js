@@ -74,6 +74,13 @@ function byteOffsetToLine(filePath, byteOffset, { readFile = fs.readFileSync } =
   return newlines + 1;
 }
 
+// Renders one of formatOffsetClause's two list segments: the joined items, or the literal
+// "none" when the caller passed nothing (or a non-array). The separator differs per segment —
+// see formatOffsetClause below for why the declined-subjects one is "; " and not ", ".
+function joinOrNone(items, separator) {
+  return Array.isArray(items) && items.length > 0 ? items.join(separator) : 'none';
+}
+
 // The literal contract-text embedded verbatim as a judge-dispatch prompt item in
 // plugin/skills/_shared/transcript-judge.md when a watermark exists for the resolved transcript.
 // Exact wording (quote precisely downstream):
@@ -93,8 +100,8 @@ function byteOffsetToLine(filePath, byteOffset, { readFile = fs.readFileSync } =
 function formatOffsetClause({
   bytesAtDispatch, line, filedRecords, dismissedSubjects,
 }) {
-  const records = Array.isArray(filedRecords) && filedRecords.length > 0 ? filedRecords.join(', ') : 'none';
-  const declined = Array.isArray(dismissedSubjects) && dismissedSubjects.length > 0 ? dismissedSubjects.join('; ') : 'none';
+  const records = joinOrNone(filedRecords, ', ');
+  const declined = joinOrNone(dismissedSubjects, '; ');
   return `Evaluate from byte offset ${bytesAtDispatch} (line ${line}); these records already exist: ${records}; `
     + `omit findings they cover. A human previously declined findings about: ${declined}; omit any new finding `
     + 'whose symptom matches one of these in substance, even if the wording differs.';
