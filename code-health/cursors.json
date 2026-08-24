@@ -78,5 +78,9 @@
   "perf": {
     "lastSweptMs": 1787454708153,
     "lastHash": "c49f25c101a9d51bd23cb8d69415c44412faac05"
+  },
+  "plugin/bin": {
+    "lastSweptMs": 1787541131352,
+    "lastHash": "bf73e6f9aa1a87362adb5523dfe25ddd6e1a7be2"
   }
 }
