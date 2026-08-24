@@ -31,3 +31,27 @@ Discovered during record #638's wrap-up residue-sweep (`node bin/residue.js --ba
 - Existing residue tests still pass; new tests cover the cross-run attribution the fix adds.
 
 _Filed by `capture` via specShapedBody (discovered during record #638 wrap-up)._
+
+## Build note (2026-08-24, refs #994)
+
+No code changes were made. Both Deliverables already appear satisfied on this branch's base
+(`a5701bc1`, `origin/main` as of this run):
+
+1. `probeBranches` (`plugin/bin/lib/residue/probes/branches.js`) already tags a fallthrough merged
+   branch `scope: 'observed'`, not `'blast-radius'` — fixed and tested under **#499**
+   (`3f2eaf19`/`99aa3881`). `tests/bin-lib/residue/probes-git.test.js` lines 179-209 cover exactly
+   the cross-run-attribution scenario this record's Acceptance Criteria describe.
+2. `probePipelineRuns` (`plugin/bin/lib/residue/probes/pipeline-runs.js`) was separately audited
+   under **#1011** and found *not* to share the gap — a `run-state.json` with `status: 'clean'` is
+   a terminal, self-reported state that's inert regardless of which session produced it (unlike a
+   merged branch, which could still be in use elsewhere), so unconditional `scope: 'blast-radius'`
+   there is safe. The audit trail is recorded in-code (lines 56-66 of that file); no fix applied,
+   deliberately.
+3. `wrap-up/residue-sweep.md` already documents #499's fix (line 78) — Deliverable 2 for
+   `branches.js` was already done at the same time as the code fix.
+
+Verified: `node --test tests/bin-lib/residue/probes-git.test.js tests/bin-lib/residue/probes-pipeline-runs.test.js tests/bin-lib/residue/scope-filter.test.js`
+— 38/38 pass, including both of this record's Acceptance Criteria scenarios directly.
+
+Recommend closing #994 as a duplicate/already-resolved-by (#499, #1011) at review/wrap-up rather
+than merging further work.
