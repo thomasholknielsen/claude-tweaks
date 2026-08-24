@@ -111,21 +111,28 @@ and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
 
-Before choosing which OUTCOME value to report, check the record's actual state rather than
-inferring it from what this call itself did earlier: read the claim blob (`claims/issue-{n}.json`
-on the `claims-registry` branch, not a working-tree file -- fetch it the same way
-`_shared/issue-claims.md` describes) to see whether the claim's `runId` still matches this run
-and is `live`; check the record's current labels (`bot:in-progress`, `auto:merge`); and read
-`run-state.json`'s `pr` object for a recorded `number`/`url` -- when one is recorded, resolve its
-live state with `gh pr view {number} --repo {owner}/{repo} --json state,isDraft,url` rather than assuming from the
+This state-check applies when choosing among `merged`/`armed`/`pending-review`/`ready-to-merge` --
+`failed`/`blocked` are already decided by the HARD-GATE outcome above, and Settle's own step 2 has
+already released the claim for those two by the time you reach this paragraph, so finding it
+non-`live` there is expected, not a signal to re-derive the outcome. For the other four values,
+check the record's actual state rather than inferring it from what this call itself did earlier:
+read the claim blob (`claims/issue-{n}.json` on the `claims-registry` branch, not a working-tree
+file -- fetch it the same way `_shared/issue-claims.md` describes) to see whether the claim's
+`runId` still matches this run and is `live`; check the record's current labels
+(`bot:in-progress`, `auto:merge`); and read `run-state.json`'s `pr` object for a recorded
+`number`/`url` -- when one is recorded, resolve its live state with
+`gh pr view {number} --repo {owner}/{repo} --json state,isDraft,url` rather than assuming from the
 recorded object alone, since it carries no state field. A completed hand-off (a live PR already
 recorded, or `state: MERGED`) is not the same state as a genuinely still-open run awaiting a
-human -- report `pending-review` only for the latter.
+human -- report `pending-review` only for the latter. If the claim's `runId` no longer matches
+this run, or is not `live`, or `bot:in-progress` is already gone -- another session has taken over
+this record since your run started; report `pending-review` and note the discrepancy rather than
+reporting `merged`/`armed`/`ready-to-merge` against a claim you no longer hold.
 
 OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
 
 GROUP: {comma-joined issue numbers}
-OUTCOME: {merged | armed | pending-review | failed | blocked}
+OUTCOME: {merged | armed | pending-review | ready-to-merge | failed | blocked}
 MANIFEST: {path to this group's run-dir manifest.yml/decisions.md -- a human-readable trace
   only; the dispatching session already holds this run's identity as {minted-run-dir} and
   derives nothing from this line}
