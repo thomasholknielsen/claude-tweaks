@@ -65,7 +65,11 @@ function validateDraft(d, index) {
 }
 
 const realDeps = {
-  runner: feedback.defaultRunner,
+  // One transient-looking failure (5xx/timeout/reset — feedback.isTransientFailure)
+  // across any gh call this CLI makes (dedup search, issue create, read-back)
+  // is retried once after a wait instead of failing outright — see
+  // feedback.withTransientRetry's doc comment.
+  runner: feedback.withTransientRetry(feedback.defaultRunner),
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
   readDraftsFile: (p) => JSON.parse(fs.readFileSync(p, 'utf8')),
@@ -143,6 +147,6 @@ function run(argv, deps = realDeps) {
   return anyFailure ? 1 : 0;
 }
 
-module.exports = { run, parseArgs, parseRepo, validateDraft };
+module.exports = { run, parseArgs, parseRepo, validateDraft, realDeps };
 
 if (require.main === module) process.exitCode = run(process.argv.slice(2), realDeps);

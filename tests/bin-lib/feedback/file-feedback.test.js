@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const feedback = require('../../../plugin/bin/lib/feedback/file-feedback');
-const { run, parseArgs, parseRepo, validateDraft } = require('../../../plugin/bin/file-feedback');
+const { run, parseArgs, parseRepo, validateDraft, realDeps } = require('../../../plugin/bin/file-feedback');
 
 // Fake runners are lazy functions inspecting `args` only when called (CLAUDE.md's
 // eager-IIFE ban) and throw on any unhandled args shape rather than silently
@@ -97,6 +97,56 @@ test('fileDraft: a title with backtick, $(...), and single quote round-trips as 
   assert.equal(writes.length, 1);
   assert.equal(writes[0].path, '/fake/tmp/body.md');
   assert.equal(writes[0].content, 'body text');
+});
+
+// ---- isTransientFailure / withTransientRetry -------------------------------
+
+test('isTransientFailure: matches a 5xx status, a timeout, and a connection reset', () => {
+  assert.equal(feedback.isTransientFailure(new Error('HTTP 503: No server is currently available')), true);
+  assert.equal(feedback.isTransientFailure({ stderr: 'gh: ETIMEDOUT' }), true);
+  assert.equal(feedback.isTransientFailure({ stderr: 'read ECONNRESET' }), true);
+});
+
+test('isTransientFailure: a plain 403/429 (rate-limit shape) is not transient here', () => {
+  // _shared/github-rate-limit.md owns rate-limit classification (403/429);
+  // this file's retry is deliberately narrower — a plain 403 must not retry.
+  assert.equal(feedback.isTransientFailure(new Error('HTTP 403: rate limited')), false);
+  assert.equal(feedback.isTransientFailure(new Error('HTTP 429: too many requests')), false);
+});
+
+test('withTransientRetry: a transient failure followed by success retries once after sleeping', () => {
+  let calls = 0;
+  const runner = (args) => {
+    calls++;
+    if (calls === 1) { const e = new Error('HTTP 503: No server is currently available'); throw e; }
+    return 'ok';
+  };
+  const sleeps = [];
+  const wrapped = feedback.withTransientRetry(runner, { waitMs: 15000, sleep: (ms) => sleeps.push(ms) });
+  const result = wrapped(['issue', 'list']);
+  assert.equal(result, 'ok');
+  assert.equal(calls, 2);
+  assert.deepEqual(sleeps, [15000]);
+});
+
+test('withTransientRetry: two consecutive transient failures rethrows the second (retry once, not indefinitely)', () => {
+  let calls = 0;
+  const runner = () => { calls++; throw new Error('HTTP 503: No server is currently available'); };
+  const sleeps = [];
+  const wrapped = feedback.withTransientRetry(runner, { sleep: (ms) => sleeps.push(ms) });
+  assert.throws(() => wrapped(['issue', 'list']), /503/);
+  assert.equal(calls, 2);
+  assert.equal(sleeps.length, 1);
+});
+
+test('withTransientRetry: a non-transient failure is rethrown immediately, no sleep', () => {
+  let calls = 0;
+  const runner = () => { calls++; throw new Error('HTTP 403: rate limited'); };
+  const sleeps = [];
+  const wrapped = feedback.withTransientRetry(runner, { sleep: (ms) => sleeps.push(ms) });
+  assert.throws(() => wrapped(['issue', 'list']), /403/);
+  assert.equal(calls, 1);
+  assert.equal(sleeps.length, 0);
 });
 
 // ---- fileOne ---------------------------------------------------------------
@@ -309,6 +359,16 @@ test('CLI: gh unavailable exits 2, stderr names the fallback, zero runner calls'
   assert.equal(code, 2);
   const stderr = err.join('');
   assert.match(stderr, /Step 8|github-write-transport/);
+});
+
+// ---- realDeps wiring --------------------------------------------------------
+
+test('realDeps.runner is wrapped through withTransientRetry, not the bare defaultRunner', () => {
+  // Regression guard: proves the CLI's real (non-test) runner retries a
+  // transient gh failure once instead of failing outright — without this
+  // wrap, realDeps.runner === feedback.defaultRunner exactly.
+  assert.notEqual(realDeps.runner, feedback.defaultRunner);
+  assert.equal(typeof realDeps.runner, 'function');
 });
 
 // ---- parseArgs / validateDraft / parseRepo ---------------------------------

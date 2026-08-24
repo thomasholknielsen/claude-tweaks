@@ -33,6 +33,42 @@ function errorText(err) {
   return parts.length ? parts.join(' ') : String(err);
 }
 
+// A transient-looking gh failure: a 5xx status, a timeout, or a connection
+// reset — the same signature `_shared/pr-early-run-lifecycle.md`'s Step 2/
+// Step 3 push/PR-create retries already key on. Deliberately narrower than
+// `_shared/github-rate-limit.md`'s taxonomy: that file is scoped to
+// rate-limit signatures (403/429) and explicitly is not the right
+// classifier for a plain server-side 5xx/timeout outage (see that
+// lifecycle file's Step 2 note) — a bare 403/429 here is never retried.
+const TRANSIENT_RE = /\b5\d\d\b|timeout|ETIMEDOUT|ECONNRESET|econnreset|socket hang up|could not connect|network error/i;
+
+function isTransientFailure(err) {
+  return TRANSIENT_RE.test(errorText(err));
+}
+
+// Same synchronous-sleep trick as bin/lib/file-lock.js's sleepSync.
+function sleepSync(ms) {
+  try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* best-effort */ }
+}
+
+// Wrap a runner so one transient-looking failure (see isTransientFailure) is
+// retried once, after a wait, before giving up — matching
+// `_shared/pr-early-run-lifecycle.md`'s "retry once after a 15-second wait,
+// then treat a second failure exactly like any other failure" convention.
+// `sleep` is injectable so tests never actually wait; a non-transient
+// failure (or a second consecutive failure) is rethrown unchanged.
+function withTransientRetry(runner, { waitMs = 15000, sleep = sleepSync } = {}) {
+  return function retryingRunner(args) {
+    try {
+      return runner(args);
+    } catch (err) {
+      if (!isTransientFailure(err)) throw err;
+      sleep(waitMs);
+      return runner(args);
+    }
+  };
+}
+
 // draft.fingerprintBasis: { component, summary } -> 'feedback-{8 hex}'. Throws
 // if either field is missing — a caller bug (the CLI must validate every
 // draft's shape before calling this), not a runtime condition to paper over.
@@ -131,6 +167,8 @@ function fileOne({ repo, draft, runner = defaultRunner, bodyFile, writeFile = fs
 module.exports = {
   defaultRunner,
   errorText,
+  isTransientFailure,
+  withTransientRetry,
   computeFingerprint,
   embedFingerprint,
   findDuplicate,
