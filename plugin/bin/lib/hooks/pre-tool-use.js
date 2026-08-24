@@ -791,6 +791,24 @@ function isForeignSessionCall(ctx) {
   return Boolean(owner && caller && owner !== caller);
 }
 
+// record-worktree-branch-only signal (#1259): on that branch ctx.runState.worktree
+// is provably unset (checkBookkeepingStampsGate's own precondition for reaching
+// it), and sessionId is stamped together with worktree by both record-worktree
+// and post-tool-use.js's ad-hoc stamping — so ctx.runState.sessionId is almost
+// always ALSO unset here, meaning isForeignSessionCall above can essentially
+// never fire on this specific branch (owner is empty). ctx.ownedRun (bin/hooks.js's
+// own session-scoped resolveRun call, resolved independently of this gate's
+// session-agnostic ctx.runDir) supplies the signal that branch structurally
+// cannot see: when the calling session already owns a DIFFERENT, already-recorded
+// run than the one this gate is about to deny against, this run more plausibly
+// belongs to a live sibling that hasn't stamped ownership yet than to the caller
+// itself. Deliberately NOT folded into isForeignSessionCall — the PR-stamp branch
+// keeps its existing, already-effective guard unchanged (see checkBookkeepingStampsGate).
+function hasDistinctOwnedRun(ctx) {
+  const owned = ctx.ownedRun && typeof ctx.ownedRun.dir === 'string' ? ctx.ownedRun.dir : '';
+  return Boolean(owned && ctx.runDir && owned !== ctx.runDir);
+}
+
 // Path exemptions for the bookkeeping-stamps gate, reusing the very helpers
 // checkWorktreeRequired's own carve-outs use (whole-branch review I2). Two
 // reasons this is load-bearing rather than cosmetic:
@@ -826,8 +844,8 @@ function isStampsGateExemptTarget(ctx) {
 // returns the value the caller returns directly. A provably foreign-owned
 // run (isForeignSessionCall above) downgrades the deny to an allow + warning;
 // otherwise it denies. Only the stamp name and the two message bodies vary.
-function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText) {
-  if (isForeignSessionCall(ctx)) {
+function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText, isForeign) {
+  if (isForeign) {
     ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { stamp, worktree: wtRoot });
     warnings.push(warnText);
     return {};
@@ -928,6 +946,7 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
       `claude-tweaks: a materialize commit already landed in ${wtRoot} but this run's worktree assignment was never ` +
       `recorded — build/worktree-setup.md Step 4.5 (record-worktree) is non-skippable, even when Spec Step 2 judges no ` +
       `further implementation is needed [IL-131]. Run: node "${pluginRoot()}/bin/hooks.js" record-worktree --run "${ctx.runDir}" "${wtRoot}"`,
+      isForeignSessionCall(ctx) || hasDistinctOwnedRun(ctx),
     );
   }
 
@@ -955,6 +974,7 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
         `node "${pluginRoot()}/bin/log-decision.js" --run "${ctx.runDir}" --section "/build" --status AUTO ` +
         `--reversibility "n/a" --text "PR-early run lifecycle: <push|gh pr create> of <branch> FAILED (<reason>); ` +
         `run proceeds local-only, no PR opened"`,
+        isForeignSessionCall(ctx),
       );
     }
   }
