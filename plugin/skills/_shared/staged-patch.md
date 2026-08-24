@@ -166,6 +166,7 @@ actually done — the drift a manual audit of six pipeline runs' ledgers found i
 | Pattern | Why it fails |
 |---|---|
 | Staging a diff without `git apply --check` | A malformed diff is first discovered at the console, hours later, by a different reader — the composition error belongs to the phase that composed it |
+| Hand-retyping a diff's hunk body into the preamble instead of reusing `git diff`'s own output verbatim | A single dropped context line (a blank line rendered as a lone space, easy to lose in transcription) silently changes the actual line count against the `@@ -a,b +c,d @@` header, producing `corrupt patch` at `git apply --check` — compose by concatenating the preamble with the unmodified `git diff` output, never by retyping hunk lines |
 | Staging only the diff, no `Invariant:` | Later phases legitimately move the target; with no description the console can only error out or hand-derive the fix from the finding text |
 | Treating a stale diff as a failure | Staleness is the expected end state of a diff written mid-pipeline; the description is the durable intent, the diff bytes are a cache |
 | Silently dropping an item that can't be re-derived | The finding was real when staged; a vanished target is a human decision, not a no-op |
