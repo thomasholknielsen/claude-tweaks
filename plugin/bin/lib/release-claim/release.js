@@ -11,7 +11,8 @@
 'use strict';
 
 const { execFileSync } = require('child_process');
-const { classifyClaimBlob, releasePayload, CLAIMS_BRANCH, claimFilePath } = require('../issues/claims');
+const { classifyClaimBlob, releasePayload } = require('../issues/claims');
+const claimStore = require('../issues/claim-store');
 
 const GRANT_LABELS = ['auto:build', 'auto:merge'];
 const IN_PROGRESS_LABEL = 'bot:in-progress';
@@ -32,27 +33,45 @@ function isNotFoundError(err) { return /\b404\b|Not Found/i.test(errorText(err))
 function isAlreadyReleasedError(err) { return /HTTP (404|409|422)\b/.test(errorText(err)); }
 
 // -> { content, sha } | { content:null, sha:null, absent:true }; other failures throw.
-function readClaimBlob({ owner, repo, issueNumber, runner = defaultRunner }) {
-  let out;
-  try {
-    out = runner(['api', `repos/${owner}/${repo}/contents/${claimFilePath(issueNumber)}?ref=${CLAIMS_BRANCH}`, '-q', '{content: (.content | @base64d), sha: .sha}']);
-  } catch (err) {
-    if (isNotFoundError(err)) return { content: null, sha: null, absent: true };
-    throw err;
-  }
-  const parsed = JSON.parse(out);
-  return { content: parsed.content, sha: parsed.sha };
+// Delegates to claim-store.js's readClaimBlob (the surviving single
+// write-path module, now with git-CAS tried first when `gitRunner` is
+// supplied) instead of this module's own separate gh api call (#787
+// consolidation). `gitRunner` is a new optional parameter — omitted
+// (`undefined`), this behaves exactly as before (contents-API only).
+function readClaimBlob({ owner, repo, issueNumber, runner = defaultRunner, gitRunner }) {
+  const ghApi = (args) => {
+    try {
+      const stdout = runner(['api', ...args]);
+      return { stdout, failure: null, status: null };
+    } catch (err) {
+      if (isNotFoundError(err)) return { stdout: null, failure: null, status: 404 };
+      return { stdout: null, failure: 'network-failure', status: null };
+    }
+  };
+  const result = claimStore.readClaimBlob({ ghApi, gitRunner }, `${owner}/${repo}`, issueNumber);
+  if (result.failure) { const e = new Error(`claim-store read failure: ${result.failure}`); throw e; }
+  return result.absent ? { content: null, sha: null, absent: true } : { content: result.content, sha: result.sha };
 }
 
-// Conditional overwrite (sha = the blob's current sha from the read) — the same
-// PUT release-merged.js and Section E issue; contents-API fields are resolved
-// strings, so -f throughout (never -F).
-function writeTombstone({ owner, repo, issueNumber, sha, tombstoneContent, message, runner = defaultRunner }) {
-  const encoded = Buffer.from(tombstoneContent, 'utf8').toString('base64');
-  return runner([
-    'api', '--method', 'PUT', `repos/${owner}/${repo}/contents/${claimFilePath(issueNumber)}`,
-    '-f', `message=${message}`, '-f', `content=${encoded}`, '-f', `branch=${CLAIMS_BRANCH}`, '-f', `sha=${sha}`,
-  ]);
+// Conditional overwrite (sha = the blob's current sha from the read) — now
+// delegating to claim-store.js's writeClaimBlob (#787 consolidation), which
+// tries git-CAS first per the amendment when `gitRunner` is supplied.
+// release-merged.js's own call site never passes one (see that module's own
+// header comment) and stays contents-API-only, unchanged by this task;
+// bin/release-claim.js does pass a real one.
+function writeTombstone({ owner, repo, issueNumber, sha, tombstoneContent, message, runner = defaultRunner, gitRunner }) {
+  const ghApi = (args) => {
+    const stdout = runner(['api', ...args]);
+    return { stdout, failure: null, status: null };
+  };
+  const result = claimStore.writeClaimBlob({ ghApi, gitRunner }, `${owner}/${repo}`, issueNumber, {
+    content: tombstoneContent, sha, message,
+  });
+  if (!result.ok) {
+    const e = new Error(result.conflict ? 'HTTP 409/422 sha mismatch' : (result.failure || 'write failed'));
+    throw e;
+  }
+  return '';
 }
 
 function postReleaseComment({ owner, repo, issueNumber, body, runner = defaultRunner }) {
@@ -75,10 +94,12 @@ function removeLabel({ owner, repo, issueNumber, label, runner = defaultRunner }
 // 404/409/422 PUT error text on the already-released path, and any
 // comment-post failure — go into `note` instead (joined with '; ' if both
 // occur).
-function releaseClaim({ owner, repo, issueNumber, runId, reason, link, removeGrants = false, removeInProgress = false, runner = defaultRunner, now = Date.now() }) {
+function releaseClaim({
+  owner, repo, issueNumber, runId, reason, link, removeGrants = false, removeInProgress = false, runner = defaultRunner, gitRunner, now = Date.now(),
+}) {
   const result = { outcome: 'failed', calls: [], commentPosted: false, labelsRemoved: [], labelsFailed: [], note: null };
   let blob;
-  try { blob = readClaimBlob({ owner, repo, issueNumber, runner }); } catch (err) { result.error = errorText(err); return result; }
+  try { blob = readClaimBlob({ owner, repo, issueNumber, runner, gitRunner }); } catch (err) { result.error = errorText(err); return result; }
   result.calls.push('read');
   const classified = classifyClaimBlob(blob.content, now);
   if (classified.state === 'unreadable') { result.outcome = 'skipped-not-owner'; result.holder = 'unreadable'; return result; }
@@ -90,7 +111,9 @@ function releaseClaim({ owner, repo, issueNumber, runId, reason, link, removeGra
   const payload = releasePayload({ issueNumber, runId, reason, link: link || undefined, now });
   if (isHeld) {
     try {
-      writeTombstone({ owner, repo, issueNumber, sha: blob.sha, tombstoneContent: payload.tombstoneContent, message: `Release claim on issue #${issueNumber}`, runner });
+      writeTombstone({
+        owner, repo, issueNumber, sha: blob.sha, tombstoneContent: payload.tombstoneContent, message: `Release claim on issue #${issueNumber}`, runner, gitRunner,
+      });
       result.calls.push('put');
       result.outcome = 'released';
     } catch (err) {

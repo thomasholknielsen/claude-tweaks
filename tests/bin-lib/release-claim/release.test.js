@@ -149,3 +149,39 @@ test('writeTombstone composes the contents-API PUT with -f fields only', () => {
   assert.equal(Buffer.from(fieldOf(a, 'content'), 'base64').toString('utf8'), '{"released":true}');
   assert.equal(fieldOf(a, 'sha'), 's1');
 });
+
+// #787 consolidation: readClaimBlob/writeTombstone now delegate to
+// claim-store.js's readClaimBlob/writeClaimBlob (the surviving single
+// write-path module) instead of composing their own gh api calls directly.
+const claimStore = require('../../../plugin/bin/lib/issues/claim-store');
+
+test('releaseClaim delegates its read/write through claim-store.js, not its own gh api calls', (t) => {
+  const readSpy = t.mock.method(claimStore, 'readClaimBlob', () => ({ content: null, sha: null, failure: null, absent: true }));
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob');
+  releaseClaim({
+    owner: 'acme', repo: 'w', issueNumber: 7, runId: 'r1', reason: 'test',
+    runner: () => { throw new Error('a raw gh runner call means the delegation did not happen'); },
+  });
+  assert.equal(readSpy.mock.calls.length, 1);
+  // absent -> already-released, no write expected; readSpy call proves delegation either way.
+  assert.equal(writeSpy.mock.calls.length, 0);
+});
+
+test('releaseClaim: a held claim by this run writes the tombstone through claim-store.writeClaimBlob', (t) => {
+  t.mock.method(claimStore, 'readClaimBlob', () => ({
+    content: JSON.stringify({ runId: 'r1', claimedAt: new Date(0).toISOString(), ttlHours: 72 }),
+    sha: 'sha1',
+    failure: null,
+    absent: false,
+  }));
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: true, failure: null }));
+  const runner = (args) => {
+    if (args[0] === 'issue' && args[1] === 'comment') return '';
+    throw new Error(`unexpected runner call in delegated path: ${args.join(' ')}`);
+  };
+  const result = releaseClaim({
+    owner: 'acme', repo: 'w', issueNumber: 7, runId: 'r1', reason: 'test', runner, now: Date.now(),
+  });
+  assert.equal(result.outcome, 'released');
+  assert.equal(writeSpy.mock.calls.length, 1);
+});

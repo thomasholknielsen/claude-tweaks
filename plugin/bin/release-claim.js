@@ -22,6 +22,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const release = require('./lib/release-claim/release');
 const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/append');
+const { defaultRunner: gitDefaultRunner } = require('./lib/issues/claims-git-cas');
 
 const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--repo owner/name] [--section "/<skill>"] [--step <text>] [--help]\n';
 const EXIT = { released: 0, 'already-released': 3, 'skipped-not-owner': 4, failed: 1 };
@@ -54,6 +55,7 @@ function parseRepo(url) {
 
 const realDeps = {
   runner: release.defaultRunner,
+  gitRunner: gitDefaultRunner,
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
   now: () => Date.now(),
@@ -95,7 +97,7 @@ function run(argv, deps = realDeps) {
   const reason = o.reason.trim();
   const r = release.releaseClaim({
     owner: repoSpec.owner, repo: repoSpec.repo, issueNumber: issue, runId, reason, link: o.link || undefined,
-    removeGrants: o.removeGrants, removeInProgress: o.removeInProgress, runner: deps.runner, now: deps.now(),
+    removeGrants: o.removeGrants, removeInProgress: o.removeInProgress, runner: deps.runner, gitRunner: deps.gitRunner, now: deps.now(),
   });
   for (const label of r.labelsFailed) {
     deps.stderr(`release-claim.js: warning — could not remove label ${label} on #${issue} (best-effort, continuing)\n`);
