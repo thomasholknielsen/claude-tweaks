@@ -65,11 +65,17 @@ function validateDraft(d, index) {
 }
 
 const realDeps = {
-  // One transient-looking failure (5xx/timeout/reset — feedback.isTransientFailure)
-  // across any gh call this CLI makes (dedup search, issue create, read-back)
-  // is retried once after a wait instead of failing outright — see
-  // feedback.withTransientRetry's doc comment.
-  runner: feedback.withTransientRetry(feedback.defaultRunner),
+  // Plain, non-retrying runner — deliberately. `fileOne` (used by the
+  // non-dry-run path below) applies retry internally, per call: the dedup
+  // search and read-back retry freely (idempotent reads), but the create
+  // call goes through feedback.createWithDedupSafeRetry instead of a plain
+  // retry, because gh issue create is not idempotent — see that function's
+  // doc comment. Wrapping this runner here (as before) would let a
+  // transient create failure retry — and possibly duplicate-file — before
+  // fileOne's own dedup-safe handling ever saw the failure. The dry-run
+  // branch below (a read-only dedup search, no create call) wraps this
+  // runner locally instead, since it never calls fileOne.
+  runner: feedback.defaultRunner,
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
   readDraftsFile: (p) => JSON.parse(fs.readFileSync(p, 'utf8')),
@@ -122,7 +128,9 @@ function run(argv, deps = realDeps) {
       }
       const marker = `<!-- fingerprint: ${fingerprint} -->`;
       try {
-        const hit = feedback.findDuplicate({ repo, marker, runner: deps.runner });
+        // Read-only search — safe to retry freely, unlike the create path.
+        const readRunner = feedback.withTransientRetry(deps.runner, { maxRetries: 4 });
+        const hit = feedback.findDuplicate({ repo, marker, runner: readRunner });
         if (hit) lines.push(`dedup-hit #${hit.number}`);
         else lines.push(`would-file (fingerprint ${fingerprint})`);
       } catch (err) {

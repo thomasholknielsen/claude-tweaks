@@ -411,9 +411,14 @@ goes via `--body-file`.
    learning is filed against. (No `--dry-run` here — Step 7's own dry-run gate already stopped
    before Step 8 is ever reached; the CLI's `--dry-run` flag noted in Step 7 is a separate,
    direct-invocation-only affordance.) Every `gh` call this CLI makes (Step 4's own dedup search
-   inside the CLI, `gh issue create`, and the read-back `gh issue view`) automatically retries once
-   after a 15-second wait on a transient-looking failure — `bin/lib/feedback/file-feedback.js`'s
-   `withTransientRetry`, wired onto the CLI's real runner — no per-call shell loop needed.
+   inside the CLI and the read-back `gh issue view`) automatically retries up to 4 times (5 total
+   attempts — this record's own observed worst case) after a 15-second wait on a transient-looking
+   failure — `bin/lib/feedback/file-feedback.js`'s `withTransientRetry`, applied internally by
+   `fileOne`. `gh issue create` retries the same way, but dedup-safe: since issue creation isn't
+   idempotent, a retry first re-runs the dedup search for this draft's fingerprint marker — a hit
+   means the "failed" attempt actually succeeded server-side (its response was lost to the same
+   transient condition), so that issue is reused instead of a second one being filed
+   (`createWithDedupSafeRetry`). No per-call shell loop needed either way.
 3. Report its per-draft result table verbatim — `filed #{n}` / `dedup-hit #{n}` /
    `filing-failure: {reason}` per line, in input order. This table **is** Step 9's per-item report
    source now, not a paraphrase.
