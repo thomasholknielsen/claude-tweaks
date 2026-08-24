@@ -18,7 +18,7 @@ const {
 test('UNION_FIELDS carries the field set every consumer needs', () => {
   assert.strictEqual(
     UNION_FIELDS,
-    'number,title,labels,body,state,stateReason,closedAt,comments,updatedAt,milestone',
+    'number,title,labels,body,state,stateReason,createdAt,closedAt,comments,updatedAt,milestone',
   );
 });
 
