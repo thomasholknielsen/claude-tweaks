@@ -14,8 +14,9 @@ and Step 5 already scopes to `git diff --name-only` only, with no "look beyond t
 to cap. Standalone review (no pipeline run directory) always runs every step, matching
 `/claude-tweaks:reflect`/`/claude-tweaks:wrap-up`'s own standalone-defaults-to-full rule. A Review
 finding at any severity still triggers the existing ceremony escape hatch
-(`/claude-tweaks:wrap-up`'s Phase 1 ceremony escape hatch downgrades `ceremony-profile` to `standard` for the rest of
-the run, via `node "${CLAUDE_PLUGIN_ROOT}/bin/set-config.js" --run "$PIPELINE_RUN_DIR" --key ceremony-profile --value standard` — the sanctioned run-config writer a worktree session can actually execute, refs #1376) — unchanged. Full rationale was in
+(`/claude-tweaks:wrap-up`'s Phase 1 ceremony escape hatch downgrades `ceremony-profile` to
+`standard` for the rest of the run via `bin/set-config.js` — the sanctioned run-config writer;
+the runnable invocation lives in that hatch, refs #1376) — unchanged. Full rationale was in
 `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`.
 
 ## Step 1: Spec Compliance Check (spec-based only)

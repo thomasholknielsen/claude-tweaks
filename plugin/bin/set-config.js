@@ -2,7 +2,8 @@
 // bin/set-config.js — write one config.yml policy lever into a run's
 // directory, the sanctioned path for a worktree-isolated session (#1376).
 //   node bin/set-config.js --run <run-dir> --key <lever> --value <value> [--help]
-// Exit 0 on success (echoes the config.yml path to stdout); 2 on a malformed
+// Exit 0 on success (echoes the config.yml path and the previous -> new
+// value to stdout, so escape-hatch logs are evidence-based); 2 on a malformed
 // invocation (missing args, a key outside the canonical Manifesto lever set,
 // or a value outside that lever's enum); 3 when the run dir is missing or
 // not anchored under the main checkout (a worktree-local shadow —
@@ -71,7 +72,7 @@ function run(argv, deps = realDeps) {
     deps.stderr(`set-config.js: could not write config.yml (${err && err.message})\n`);
     return 3;
   }
-  deps.stdout(result.file + '\n');
+  deps.stdout(`${result.file} (${o.key}: ${result.previous == null ? 'unset' : result.previous} -> ${o.value})\n`);
   return 0;
 }
 

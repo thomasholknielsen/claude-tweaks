@@ -100,8 +100,10 @@ checkout, independent of and not covered by the `worktree-always` hook exemption
 isolated to this worktree can still see an Edit/Write attempt against `decisions.md`,
 `staged/*.md`, `manifest.yml`, or any other file under a resolved run directory refused outright.
 When that happens, use `bin/log-decision.js` (`_shared/auto-decision-log.md`'s canonical
-appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged file — neither is
-subject to this tool-level pinning, and both work identically from a worktree session or the
+appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged file; `bin/set-config.js`
+writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <value>` — the
+ceremony escape hatch's downgrade path, refs #1376) the same way — none of the three are
+subject to this tool-level pinning, and all work identically from a worktree session or the
 main checkout.
 
 A second, unconditional PreToolUse guard (`bin/lib/hooks/pre-tool-use.js`'s

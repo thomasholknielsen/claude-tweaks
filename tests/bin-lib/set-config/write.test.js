@@ -66,9 +66,9 @@ test('MANIFESTO_LEVERS matches manifesto.md\'s config.yml example block (the can
   const manifesto = fs.readFileSync(
     path.join(REPO_ROOT, 'plugin', 'skills', 'flow', 'manifesto.md'), 'utf8');
   const approvalIdx = manifesto.indexOf('On approval (option 1)');
-  assert.ok(approvalIdx !== -1);
+  assert.ok(approvalIdx !== -1, 'manifesto.md: "On approval (option 1)" section not found — anchor may have moved');
   const fenceStart = manifesto.indexOf('```yaml', approvalIdx);
-  assert.ok(fenceStart !== -1);
+  assert.ok(fenceStart !== -1, 'manifesto.md: no ```yaml fence after "On approval (option 1)"');
   const fenceEnd = manifesto.indexOf('```', fenceStart + 7);
   const block = manifesto.slice(fenceStart + 7, fenceEnd);
   const keys = [];
@@ -134,4 +134,37 @@ test('setConfigLever: the written line is readable by policy-schema\'s parseFlat
   setConfigLever({ runDir, key: 'ceremony-profile', value: 'standard' });
   const parsed = parseFlatLines(fs.readFileSync(path.join(runDir, 'config.yml'), 'utf8'));
   assert.equal(parsed['ceremony-profile'], 'standard');
+});
+
+test('setConfigLever: a duplicated lever line collapses to one, previous is the LAST occurrence\'s value (matching parseFlatLines)', () => {
+  const { parseFlatLines } = require('../../../plugin/bin/lib/policy-schema');
+  const runDir = fixtureRunDir();
+  const file = path.join(runDir, 'config.yml');
+  fs.writeFileSync(file, [
+    'ceremony-profile: fast-lane',
+    'mode: auto',
+    'ceremony-profile: fast-lane',
+    '',
+  ].join('\n'));
+  const res = setConfigLever({ runDir, key: 'ceremony-profile', value: 'standard' });
+  assert.equal(res.previous, 'fast-lane');
+  const body = fs.readFileSync(file, 'utf8');
+  const matches = body.match(/^ceremony-profile:.*$/gm);
+  assert.deepEqual(matches, ['ceremony-profile: standard']);
+  assert.ok(body.includes('mode: auto'), 'other lines must be preserved');
+  const parsed = parseFlatLines(body);
+  assert.equal(parsed['ceremony-profile'], 'standard');
+});
+
+test('setConfigLever: prefix-anchored — setting `mode` does not touch `model-stance` (and vice versa)', () => {
+  const runDir = fixtureRunDir();
+  const file = path.join(runDir, 'config.yml');
+  fs.writeFileSync(file, [
+    'mode: auto',
+    'model-stance: default',
+    '',
+  ].join('\n'));
+  setConfigLever({ runDir, key: 'mode', value: 'interactive' });
+  const body = fs.readFileSync(file, 'utf8');
+  assert.equal(body, ['mode: interactive', 'model-stance: default', ''].join('\n'));
 });

@@ -42,6 +42,7 @@ test('cli: success path writes the lever and prints the config.yml path', () => 
   assert.ok(body.includes('mode: auto'));
   assert.ok(body.includes('spec: 12'));
   assert.ok(out.join('').includes(path.join(runDir, 'config.yml')));
+  assert.ok(out.join('').includes('ceremony-profile: fast-lane -> standard'));
 });
 
 test('cli: missing --run/--key/--value is exit 2', () => {
