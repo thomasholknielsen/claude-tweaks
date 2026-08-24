@@ -15,6 +15,7 @@ const ctxLib = require('./lib/hooks/context');
 const siblingSessions = require('./lib/hooks/sibling-sessions');
 const specStatusLib = require('./lib/flow/manifest');
 const resumeFreshness = require('./lib/hooks/resume-freshness');
+const stagedInventory = require('./lib/hooks/staged-inventory');
 const wtDetect = require('./lib/hooks/worktree-detect');
 const { closeRunState } = require('./lib/hooks/close-run-state');
 const { teardownRun } = require('./lib/hooks/teardown-run');
@@ -515,6 +516,29 @@ async function main(argv) {
       process.stdout.write(`claude-tweaks: resume freshness OK for ${runId} (${result.verdict})\n`);
     } else {
       process.stdout.write(`claude-tweaks: resume freshness BLOCKED for ${runId} — run appears actively owned (${result.reason})\n`);
+    }
+    return 0;
+  }
+  if (cmd === 'check-staged-inventory') {
+    // Read-only, non-blocking companion to check-resume-freshness: reports
+    // whether decisions.md's STAGED entries all have a backing staged/
+    // file, but never gates a resume (#1269).
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — staged inventory not checked\n`);
+      return 0;
+    }
+    if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — staged inventory not checked\n');
+      return 0;
+    }
+    const result = stagedInventory.checkStagedInventory(runDir);
+    const runId = path.basename(runDir);
+    if (result.missing.length === 0) {
+      process.stdout.write(`claude-tweaks: staged inventory OK for ${runId} (${result.checked} STAGED entries)\n`);
+    } else {
+      process.stdout.write(`claude-tweaks: staged inventory MISMATCH for ${runId} — ${result.missing.length} of ${result.checked} STAGED entries missing from staged/: ${result.missing.join(', ')}\n`);
     }
     return 0;
   }
