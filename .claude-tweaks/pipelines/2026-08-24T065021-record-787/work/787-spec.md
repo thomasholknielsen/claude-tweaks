@@ -151,3 +151,14 @@ protocol would be double work, so the consolidation target changes:
   which now also covers `bin/release-claim.js`'s release path (#686, shipped after this
   record was filed).
 
+
+## Blocked / Future Work
+
+- `bin/lib/reconcile/release-merged.js`'s automated release sweep still calls
+  `release-claim/release.js`'s `writeTombstone` without a `gitRunner` — it stays
+  contents-API-only, deliberately, since this record's git-CAS wiring targets the two
+  human/pipeline-invoked CLIs (`bin/claim-targets.js`, `bin/release-claim.js` — the surfaces
+  the amendment's incident evidence, spec-702's release and record-697's read, actually named)
+  rather than the background reconcile sweep. `writeTombstone`'s `gitRunner` parameter is
+  already there for this to pick up — wiring it in is a small, low-risk follow-on worth its
+  own record rather than silently expanding this one's scope late.
