@@ -75,7 +75,7 @@ function main(argv) {
     } else if (arg === '--all') {
       allMode = true;
     } else {
-      keys.push(arg);
+      keys.push(...arg.split(',').filter(Boolean));
     }
   }
   if (allMode && valuesMode) {
