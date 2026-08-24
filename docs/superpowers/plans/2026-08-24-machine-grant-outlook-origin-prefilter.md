@@ -242,6 +242,19 @@ git add plugin/bin/lib/issues/backlog.js tests/bin-lib/issues/backlog.test.js
 git commit -m "Fix machineGrantOutlook to pre-filter human-filed records like grant-mode's Step 1 (refs #1387)"
 ```
 
+**Post-implementation note (Beneficial architecture deviation, commit `468c9d58`):** this task's
+Step 3 code, as literally written above, applies the origin pre-filter unconditionally — but
+`grant-mode.md`'s own Step 1 pre-filter is only ever *reached* after that mode's Step 0 has already
+confirmed `ceiling === 'unattended' && grantOriginationEnabled === true` (Step 0 stops the whole
+mode before Step 1 otherwise). Outside that policy shape, this task's unconditional pre-filter
+would silently exclude human-filed records from `refused` in a state where grant-mode itself never
+runs at all, which is not the behavior the spec's Acceptance Criteria calls for. A follow-up commit
+(`468c9d58`, after this plan's commits) gates the pre-filter on that identical
+`ceiling`/`grantOriginationEnabled` condition, falling back to pre-fix (no-filter) behavior
+otherwise (`excludedOrigin` stays 0) — matching `machine-grant-outlook.md`'s own precondition that
+this whole file is loaded only under that exact policy state. Classified **Beneficial**: keeps the
+implementation as committed, this note is the corresponding plan update.
+
 ---
 
 ### Task 2: Disclose `excludedOrigin` in the rendered annotation
