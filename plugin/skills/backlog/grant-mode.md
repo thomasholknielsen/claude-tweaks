@@ -65,6 +65,8 @@ eval "$(node -e "
   const os = require('os'); const path = require('path');
   const files = {
     ST_BACKLOG_GRANT_WATCHED: 'backlog-grant-watched.json',
+    ST_BACKLOG_GRANT_FRESH_STATE: 'backlog-grant-fresh-state.json',
+    ST_BACKLOG_GRANT_GITLOG: 'backlog-grant-gitlog.txt',
   };
   for (const [varName, filename] of Object.entries(files)) {
     const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
@@ -77,25 +79,58 @@ node -e "
 " > "$ST_BACKLOG_GRANT_WATCHED"
 ```
 
+`$ST_BACKLOG_GRANT_FRESH_STATE` and `$ST_BACKLOG_GRANT_GITLOG` are two more `sessionTmpPath`-resolved
+paths from that same `eval` block, reserved here for bullets 1 and 2 below to write into — named
+now so the Classify snippet's `require()`/`readFileSync()` calls in bullet 3 are real, not
+aspirational.
+
 An empty `{}` means nothing to sweep — skip straight to Step 1. Otherwise, for every
 `{number}` key in the watched map:
 
-1. Fetch its current state fresh: `gh issue view {number} --json state,closedAt,labels`.
+1. Fetch its current state fresh and store it for bullet 3 to read:
+   ```bash
+   gh issue view {number} --json state,closedAt,labels > "$ST_BACKLOG_GRANT_FRESH_STATE"
+   ```
 2. Fetch the integration-branch git log via `_shared/trust-table.md`'s Fetch section (its own
    session-scoped cache applies here as it does for every other consumer of that section) and
    the resolved `trust-revert-window-days` policy value (`resolve-policy.js --values
-   trust-revert-window-days`, same resolver pattern Step 0 already uses elsewhere in this mode).
+   trust-revert-window-days`, same resolver pattern Step 0 already uses elsewhere in this mode):
+   ```bash
+   git log "{integration-branch}" --format='%H%x1f%B%x1e' > "$ST_BACKLOG_GRANT_GITLOG"
+   WINDOW_DAYS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values trust-revert-window-days)
+   ```
    This fetch is independent of `bin/backlog-grant-gate.js`'s own internal git-log fetch below
    (Step 1 + Step 2 Phase A) — that CLI always fetches fresh, on its own "one invocation" premise,
    rather than reading the session-scoped cache this step writes.
 3. Classify:
 
    ```bash
+   # classifyWatchedRecord(entry, gitLog, now, windowDays) — bin/lib/issues/merge-lane-breaker.js
+   #   entry: { number, grantedAt, lastKnownState: 'OPEN'|'CLOSED'|undefined,
+   #            state: 'OPEN'|'CLOSED' (this firing's fresh fetch), closedAt: ISO8601|null,
+   #            labels: string[], closingCommitShas?: string[] }
+   #   gitLog: [{ sha, message }] — trust.js's parseGitLog shape (parsed from bullet 2's raw fetch)
+   #   now: epoch ms.  windowDays: bullet 2's resolved trust-revert-window-days value.
+   #   Returns exactly one of:
+   #     { action: 'trip', reason: 'demo:changes-requested' | 'revert' | 'reopened' }
+   #     { action: 'prune' }
+   #     { action: 'update', newState: 'OPEN' | 'CLOSED' }
    node -e "
+     const fs = require('fs');
      const { classifyWatchedRecord } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
-     // entry = { number, grantedAt, lastKnownState: watched[number].lastKnownState, state, closedAt, labels }
-     // gitLog: [{ sha, message }] from the already-fetched integration-branch log
-     const result = classifyWatchedRecord(entry, gitLog, Date.now(), windowDays);
+     const { parseGitLog } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/trust.js');
+     const watched = require('$ST_BACKLOG_GRANT_WATCHED');
+     const fresh = require('$ST_BACKLOG_GRANT_FRESH_STATE');   // bullet 1's gh issue view result for this {number}
+     const entry = {
+       number: {number},
+       grantedAt: watched['{number}'].grantedAt,
+       lastKnownState: watched['{number}'].lastKnownState,
+       state: fresh.state,
+       closedAt: fresh.closedAt,
+       labels: fresh.labels.map((l) => (typeof l === 'string' ? l : l.name)),
+     };
+     const gitLog = parseGitLog(fs.readFileSync('$ST_BACKLOG_GRANT_GITLOG', 'utf8'));
+     const result = classifyWatchedRecord(entry, gitLog, Date.now(), $WINDOW_DAYS);
      console.log(JSON.stringify(result));
    "
    ```
@@ -213,25 +248,49 @@ criteria).
 
 **Phase C — re-run the full chain with `grantCheck` populated:**
 
+`$ST_BACKLOG_GRANT_CANDIDATES` and `$ST_BACKLOG_GRANT_TRUST_ROWS` are the exact tmp files Step 1 +
+Step 2 Phase A already wrote (the `fs.writeFileSync` calls in that section above). `{n}` is this
+iteration's candidate number (Phase B's own `#{n}`); `ceiling`/`grantOriginationEnabled` are Step
+0's already-resolved policy values; `grantsIssuedToday` is the running in-memory counter from Cap
+tracking below; `clear`/`rationale` are Phase B's just-returned `grantCheck` fields.
+
 ```bash
 FLOOR_VALUES=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values merge-sensitive-paths fleet-daily-grant-cap)
 MERGE_SENSITIVE_PATHS=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '1p')   # line 1: merge-sensitive-paths (raw comma string; empty = none)
 FLEET_DAILY_GRANT_CAP=$(printf '%s\n' "$FLOOR_VALUES" | sed -n '2p')   # line 2: fleet-daily-grant-cap (empty = unset/uncapped)
+DAILY_CAP_JS=$([ -n "$FLEET_DAILY_GRANT_CAP" ] && echo "$FLEET_DAILY_GRANT_CAP" || echo "undefined")
+# evaluateGrantGate({record, policy, trustVerdicts, grantCheck}) — bin/lib/issues/grant-gate.js
+#   record: { number, labels: string[]|{name}[], body, facets? (parseRecordFacets
+#     output — computed from labels when omitted), keyFiles?: string[] (the
+#     record's own '### Key Files' list; [] when absent) }
+#   policy: { ceiling, grantOriginationEnabled, dailyGrantCap?: number (absent =
+#     uncapped), grantsIssuedToday?: number, sensitivePaths?: string[] globs,
+#     riskFloor?, sizeFloor? (undefined defaults to 'high') }
+#   trustVerdicts: Map<classKey, row> — classKey 'kind:source|band', row is one
+#     of trustRows()'s rows (bin/lib/issues/trust.js); absent class reads
+#     'insufficient-evidence' the same as everywhere else in this codebase.
+#   grantCheck: { clear: boolean, rationale?: string }
+#   Returns { grant, autoMerge, failedKey, reason, snapshot }.
 node -e "
   const { evaluateGrantGate } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-gate.js');
   const { readBreakerState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/merge-lane-breaker.js');
-  // ... same record/policy/trustVerdicts as Phase A, plus:
-  const keyFiles = /* parsed from the record body's '### Key Files' list, one path per bullet */;
-  const sensitivePaths = /* MERGE_SENSITIVE_PATHS from the resolver call above, split on ',' */;
+  const { extractKeyFiles } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const candidates = require('$ST_BACKLOG_GRANT_CANDIDATES');
+  const candidate = candidates.find((c) => c.number === {n});
+  const trustRowPairs = require('$ST_BACKLOG_GRANT_TRUST_ROWS');   // [[key, row], ...] written by Phase A
+  const trustVerdicts = new Map(trustRowPairs);
+  const keyFiles = extractKeyFiles(candidate);
+  const sensitivePaths = '$MERGE_SENSITIVE_PATHS' ? '$MERGE_SENSITIVE_PATHS'.split(',') : [];
   // Read fresh, per candidate — Step 0.5 may have tripped it mid-run; a cached
   // pre-Step-0.5 value must never be reused (see Step 0.5's own note on this).
   const mergeLaneBreakerTripped = readBreakerState(process.cwd()).tripped === true;
   const result = evaluateGrantGate({
-    record: { number, labels, body, facets, keyFiles },
-    policy: { ceiling, grantOriginationEnabled, sensitivePaths, dailyGrantCap, grantsIssuedToday, riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR', mergeLaneBreakerTripped },
+    record: { number: candidate.number, labels: candidate.labels, body: candidate.body, facets: candidate.facets, keyFiles },
+    policy: { ceiling, grantOriginationEnabled, sensitivePaths, dailyGrantCap: $DAILY_CAP_JS, grantsIssuedToday, riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR', mergeLaneBreakerTripped },
     trustVerdicts,
     grantCheck: { clear, rationale },
   });
+  console.log(JSON.stringify(result));
 "
 ```
 
