@@ -132,7 +132,11 @@ Skip entirely when `config.yml`'s `ceremony-profile` is not `fast-lane` (includi
 - Did `/claude-tweaks:review`'s summary (passed into this run) contain a finding at any severity?
 - Did the reflect pass above produce a Safety regression finding (`reflect/SKILL.md` Step 3's routing table)?
 
-If either is true, downgrade `config.yml`'s `ceremony-profile` to `standard` in place and log:
+If either is true, downgrade `config.yml`'s `ceremony-profile` via the sanctioned writer (worktree sessions cannot Edit/Write the run dir — same family as `log-decision.js`/`stage-item.js`, refs #1376):
+
+`node "${CLAUDE_PLUGIN_ROOT}/bin/set-config.js" --run "$PIPELINE_RUN_DIR" --key ceremony-profile --value standard`
+
+Then log:
 
 ```
 AUTO {time} — Ceremony profile downgraded fast-lane → standard: {trigger}. Remaining wrap-up steps run at standard depth.
