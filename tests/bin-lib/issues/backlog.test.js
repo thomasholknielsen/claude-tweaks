@@ -616,3 +616,14 @@ test('machineGrantOutlook: a non-unattended ceiling refuses everything under cei
   );
   assert.deepEqual(out.refused, { ceiling: [9] });
 });
+
+test('machineGrantOutlook: origin pre-filter does not engage under a non-unattended ceiling — human-filed record refuses under ceiling like everyone else (#1387 follow-up)', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(11, ['ready', 'risk:low', 'size:low'])],
+    { ceiling: 'trusted', grantOriginationEnabled: true },
+    [],
+  );
+  assert.deepEqual(out.eligible, []);
+  assert.deepEqual(out.refused, { ceiling: [11] });
+  assert.strictEqual(out.excludedOrigin, 0);
+});

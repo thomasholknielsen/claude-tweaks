@@ -253,17 +253,31 @@ function funnelBuckets(records) {
 // same backlog state. Excluded records are counted via `excludedOrigin`
 // rather than folded into `refused`, so a reader can reconcile the funnel
 // header's `specified N` total against `eligible.length + refused-total +
-// excludedOrigin`. Runs evaluateGrantGate's FIRST PHASE only (gates 1-3 —
-// ceiling, opt-in, needs:definition, class trust — gate 3/origin is now
-// structurally unreachable inside this call, since the pre-filter already
-// removed every record it would have refused): gate 4's grant-check is an
-// LLM judgment overview must never run, per its "entirely mechanical"
-// contract. So `eligible` means "will reach the grant unit's own grant-check
-// on a future firing", never "will be granted" — gates 4-5 can still refuse.
-// policy is evaluateGrantGate's own policy shape ({ ceiling,
-// grantOriginationEnabled } suffices for phase 1); trustRowsArray is
-// trustRows() output (bin/lib/issues/trust.js), keyed into the Map shape the
-// gate expects. Returns { eligible: [ids], refused: { [failedKey]: [ids] },
+// excludedOrigin`. The pre-filter only activates when
+// `policy.ceiling === 'unattended' && policy.grantOriginationEnabled ===
+// true` — i.e. only once the policy already matches the two gates
+// (ceiling, opt-in) that run ahead of it in evaluateGrantGate's own order,
+// mirroring why grant-mode.md's own real Step 1 pre-filter is likewise only
+// ever reached after that mode's Step 0 "Do not proceed to Step 1" ceiling/
+// opt-in gate has already passed (see the caller precondition documented at
+// the top of machine-grant-outlook.md). Outside that policy shape, every
+// record — human- and agent-filed alike — is refused under `ceiling` or
+// `grant-origination-opt-in` before gate 2/3 ever run, so the trust/origin
+// misattribution bug #1387 targets structurally cannot occur there; this
+// call falls back to running evaluateGrantGate for every record with no
+// pre-filter at all, exactly preserving pre-fix behavior for that policy
+// shape (`excludedOrigin` stays 0). When the pre-filter is active, this runs
+// evaluateGrantGate's FIRST PHASE only (gates 1-3 — ceiling, opt-in,
+// needs:definition, class trust — gate 3/origin is now structurally
+// unreachable inside this call, since the pre-filter already removed every
+// record it would have refused): gate 4's grant-check is an LLM judgment
+// overview must never run, per its "entirely mechanical" contract. So
+// `eligible` means "will reach the grant unit's own grant-check on a future
+// firing", never "will be granted" — gates 4-5 can still refuse. policy is
+// evaluateGrantGate's own policy shape ({ ceiling, grantOriginationEnabled }
+// suffices for phase 1); trustRowsArray is trustRows() output
+// (bin/lib/issues/trust.js), keyed into the Map shape the gate expects.
+// Returns { eligible: [ids], refused: { [failedKey]: [ids] },
 // excludedOrigin: count }, ids in input order.
 function machineGrantOutlook(records, policy, trustRowsArray) {
   const rows = Array.isArray(trustRowsArray) ? trustRowsArray : [];
@@ -271,10 +285,12 @@ function machineGrantOutlook(records, policy, trustRowsArray) {
   const eligible = [];
   const refused = {};
   let excludedOrigin = 0;
+  const applyOriginPrefilter =
+    policy && policy.ceiling === 'unattended' && policy.grantOriginationEnabled === true;
   for (const r of records) {
     const id = r.number ?? r.id;
     const facets = r.facets || parseRecordFacets(r.labels);
-    if (facets.origin === null || facets.origin === undefined) {
+    if (applyOriginPrefilter && (facets.origin === null || facets.origin === undefined)) {
       excludedOrigin += 1;
       continue;
     }
