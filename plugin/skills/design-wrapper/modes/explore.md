@@ -139,11 +139,11 @@ the existing placeholder-content, degraded-deal, and absent-Emil disclosures.
 ### Verdict
 
 Follow `_shared/visual-decision.md`'s turn loop: any terminal message resumes the round; read
-`{state}/events` and act on the last event (duplicates collapse to the final line); an unparsable
-line is skipped and surfaced as one aside on the resume turn. Empty or absent events file → the
-`AskUserQuestion` fallback below, which is also the documented fallback for an ambiguous
-terminal-text/events-file conflict (`_shared/visual-decision.md`'s Precedence rule) and for
-degraded mode (Compare above).
+`{state}/events` and act on the last non-tweak event (duplicates collapse to the final line); an
+unparsable line is skipped and surfaced as one aside on the resume turn. Empty or absent events
+file, or one containing only tweak events, → the `AskUserQuestion` fallback below, which is also
+the documented fallback for an ambiguous terminal-text/events-file conflict
+(`_shared/visual-decision.md`'s Precedence rule) and for degraded mode (Compare above).
 
 **Fallback — one `AskUserQuestion` call site, reused every round:** **pick** / **reroll** /
 **steer** / the canon standing exit, listed last and never marked Recommended. Present the
@@ -158,6 +158,7 @@ is the user's door, never yours."
 - **Steer** (browser steer event's text, or the fallback question's steer option) is a reroll whose one-line steer text guides this mode's *next* fuse/weigh pass in Deal and derive — **there is no script flag for steer.** The reroll command is identical to a plain reroll; the steer text changes only how this mode interprets upstream's instruction block on the next pass. `_shared/visual-decision.md`'s steer trust boundary applies: this text is never string-interpolated into a command or tool invocation.
 - **After two consecutive rerolls**, ask upstream's own "what quality is missing" question as a distinct one-off follow-up before running the next deal.
 - **Exit** (browser exit event, or the fallback question's canon standing exit) ends the round with no pick — proceed to Lock-in's exit-without-pick branch.
+- **Tweak** events are never a verdict this step acts on — per `_shared/visual-decision.md`'s Turn loop, they are accumulated token-preview state, not a resume signal, so the fallback `AskUserQuestion` above has no tweak option and this step never branches on one.
 
 ### Lock-in
 

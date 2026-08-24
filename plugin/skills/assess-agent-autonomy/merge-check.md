@@ -58,12 +58,13 @@ and the diff spans every commit since the fork — which reads as an enormous ch
 - **An agent-instruction file is `needs-human` unless a refutation attempt clears it.** An
   agent-instruction file is any file this project's harness loads as *instruction* rather than as
   *subject matter*: `CLAUDE.md`/`AGENTS.md`, `.claude/rules/*`, `.claude/skills/**`,
-  `.claude/agents/**`, and — in a repository that *is* a plugin — its own `skills/**`/`agents/**`
-  sources. Resolve the class by that role for the project at hand; do not match a fixed path list,
-  which is wrong in every repository whose layout differs from the one it was written against.
+  `.claude/agents/**`, and — in a repository that *is* a plugin, detected by the presence of
+  `.claude-plugin/plugin.json` — its own `skills/**`/`agents/**` sources. Resolve the class by that
+  role for the project at hand; do not match a fixed path list, which is wrong in every repository
+  whose layout differs from the one it was written against.
   `_shared/harness-health-analysis.md` audits a related but narrower set for a different purpose
   (`.claude/skills/*.md`, `.claude/rules/*.md`, and `CLAUDE.md`, stated there as a fixed list) —
-  read it as a floor for what counts, never as this class's definition. These files encode
+  read it as a floor for what counts, never as this class's definition. Instruction files encode
   instructions future agents follow, which is high-leverage independent of how small the diff looks.
 
   **The escape is a refutation, not a classification.** Do not ask "is this change mechanical?" —
@@ -116,6 +117,15 @@ fixed, and calibration anchored to one then describes a state that no longer exi
 alone — necessary, never sufficient. Both floors stated above still apply on their own terms: a
 sensitive-path hit renders `needs-human` with nothing else weighed, and so does any review finding
 at Medium or above. Match a row here and you have cleared one gate, not the step.
+
+**Ruling on the reworded-instruction / cross-reference-repair overlap.** A diff that both
+relocates a pointer and rewords surrounding prose is not a gap in these two rows — it fails the
+refutation test above on its reworded half alone (name a behavior an agent could take
+differently; a diff where any hunk fails that test is behavior-carrying as a whole, per the
+one-non-conforming-hunk rule in the table above), independent of which Calibration row its pointer-repair
+half would otherwise match. The two rows stay distinguished by their Why column because that is
+sufficient: Step 2's refutation test and the one-non-conforming-hunk rule already resolve any
+diff that would straddle both.
 
 ## Step 3: Render
 

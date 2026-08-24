@@ -16,7 +16,7 @@ Returns the full config JSON — one entry per key: `{value, source, summary, ca
 node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.argv[1])))" "$(git rev-parse --show-toplevel)"
 ```
 
-Returns `{unrecognizedKeys, invalidValues, migratableKeys, renamedKeys}`.
+Returns `{unrecognizedKeys, invalidValues, migratableKeys, renamedKeys, sourceExcludedKeys}`.
 
 **The `--all` snapshot is held for the whole mode run.** Every render below reads from this one snapshot, never a re-run. The apply path's revert (`## Next Actions` below) reads a key's prior value from THIS snapshot too — never by re-reading `.claude-tweaks/policy.yml` after a write, since a write may have already landed other keys' lines by the time a revert is needed.
 
@@ -64,8 +64,9 @@ From the held `auditPolicy()` result:
 - **`unrecognizedKeys`** — each key name.
 - **`migratableKeys`** — each entry, with its remedy from `alsoInPolicy`: `false` → "move it to policy.yml", `true` → "delete the dead CLAUDE.md copy".
 - **`renamedKeys`** — each entry, with its `replacedBy` and `suggestedValue`.
+- **`sourceExcludedKeys`** (#839) — each entry, noting it never takes effect from `policy.yml` (a resolver special case discards it, falling back to the schema default) and naming the actual way to set it when one exists — for `merge-authorization`, a live `/claude-tweaks:flow confirm`/`hybrid` Manifesto override, never a standing project default.
 
-When ALL four lists are empty, render exactly one line: `Policy config issues: none` — never silently skipped. Otherwise render each non-empty list (omit only the empty ones).
+When ALL five lists are empty, render exactly one line: `Policy config issues: none` — never silently skipped. Otherwise render each non-empty list (omit only the empty ones).
 
 ### 3. Notable defaults
 

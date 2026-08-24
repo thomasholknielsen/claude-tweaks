@@ -167,9 +167,10 @@ If the user did not specify `worktree`, skip this step.
 
 ### Common Step 1.5: Plan Audit
 
-Audit the plan against the actual repo before dispatching execution. Two checks:
+Audit the plan against the actual repo before dispatching execution. Three checks:
 - **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create).
 - **Check B (conditional):** when the plan declares `Scope keywords:`, grep the repo for each keyword and list any matched files not in the plan.
+- **Check C (always):** pre-run each task's own declared Step 2 `Run:`/`Expected: FAIL` verification command once, read-only, against current repo state before dispatch; stop unconditionally if a command already exhibits a passing signature despite declaring `Expected: FAIL`.
 
 **Auto mode** (including a standalone `auto` invocation with no pipeline run dir): apply the `scope-creep` policy, resolved per the standard precedence (default `add-to-plan`). **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop".
 
@@ -177,11 +178,11 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 
 > **Project setting:** When `.claude-tweaks/policy.yml` declares `scope-keywords-required: true`, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
 
-For the full procedure (Check A failure handling, Check B scope-keyword sweep command, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
+For the full procedure (Check A failure handling, Check B scope-keyword sweep command, Check C verification-command pre-check, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
 
-### Common Step 1.7: Design Pre-Build (frontend specs)
+### Common Step 1.7: Design Pre-Build (frontend specs + terminal)
 
-For frontend specs — `surface` ∈ `web | mobile | desktop`, read from the materialized header's `surface:` field (lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
+For a surface routed to pre-build — `surface` ∈ `web | mobile | desktop | terminal`, read from the materialized header's `surface:` field (lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, the terminal-track always-load set, and where loaded references go, see `design-prebuild.md` in this skill's directory.
 
 ### Common Step 2: Execute the Plan
 
@@ -317,14 +318,14 @@ Generate 2-4 lines based on context. The signal-to-option lookup table below sta
 | UI changed + browser available | `/claude-tweaks:review {N} full` — code + visual review **(Recommended)** |
 | No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
 | QA stories exist (`stories/*.yaml` or `stories/*.yml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
-| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch **(Recommended in worktree mode)** |
+| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (never the recommended slot — see below) |
 
-Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), one line per applicable signal, bolding whichever line is recommended and suffixing it `(recommended)` — normally the review line, chosen per the browser-availability signal above (do not collapse the two branches into always-`full`: UI changed AND a browser is available → the full-review line; otherwise → the plain-review line); in worktree mode, the finish-branch line takes the recommended slot instead:
+Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), one line per applicable signal, bolding whichever line is recommended and suffixing it `(recommended)`. **The recommended slot is always the review line** — chosen per the browser-availability signal above (do not collapse the two branches into always-`full`: UI changed AND a browser is available → the full-review line; otherwise → the plain-review line). **The finish-branch line is never the recommended slot, in worktree mode or otherwise** (#808): `/build`'s own lifecycle diagram runs review before finishing the branch (`/build → /stories → /test → /review → /wrap-up`), and recommending the finish-branch line over review let a UI-dependent build reach `finishing-a-development-branch`'s merge decision — "Implementation complete. What would you like to do?" — before any browser-based visual check had run. The UI-changed signal driving the top row is the same `Surface:`/frontend-detection signal `frontend-detection.md`'s Layer 2/3 (in the `/claude-tweaks:design-wrapper` skill's directory) defines and `/claude-tweaks:specify`'s Step 2.5a already uses, so a backend-only build (no UI changed) is unaffected — it still gets the plain-review line recommended, exactly as before:
 
 `/claude-tweaks:review {N} full` — code + visual review (when UI changed and a browser is available)
 `/claude-tweaks:review {N}` — code review (when no UI change or no browser)
 `/claude-tweaks:test qa` — validate {X} QA stories before review (when QA stories exist)
-`/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (when in worktree mode)
+`/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (when in worktree mode; never bolded/recommended here)
 
 ## Component-Skill Contract
 

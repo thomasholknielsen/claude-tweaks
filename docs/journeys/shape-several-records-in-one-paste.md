@@ -2,6 +2,7 @@
 files:
   - plugin/skills/specify/SKILL.md
   - plugin/skills/specify/shaping-mode.md
+  - plugin/skills/specify/design-pre-steps.md
 ---
 
 # Shape Several Backlog Records in One Paste via /specify
@@ -22,10 +23,10 @@ files:
 
 ### 2. Watch each record shape, one at a time
 - **URL:** *(no command — specify loops)*
-- **Action:** Nothing per record once the single upfront design-intent question is answered — the frontend sniff runs per record, but the design-intent question is asked **once** for all frontend records together, before the per-record loop starts. Each element then gets the full single-record procedure — compose, `ceremony-check`, `framing-check`, one compose-then-write-once call — with no cross-record merging and no batched label call.
-- **Should feel:** Per-record judgment at paste-once cost — the same shaping you would get invoking each ref alone, in the order you listed them, with the one shared creative decision asked only once instead of once per record.
-- **Should understand:** The Interaction-style directive's "multi-item → batch table" *does* govern the design-intent decision: one table (record, sniffed surface, recommended intent pre-filled) followed by a single `AskUserQuestion` for apply-all/override; backend/infra records appear in that table with `Design-intent: —` and are not asked. Each record's already-resolved `Surface:`/`Design-intent:` values are then written into its own composed body during its own iteration. A record already fully shaped is verified and left alone (`already shaped, no-op`), not rewritten.
-- **Red flags:** A second `AskUserQuestion` for the second frontend record; a backend record being asked for a design intent; a record's body composed from another record's content; `--surface` applied to the first element only (it applies to every element).
+- **Action:** Nothing per record once the single upfront design-intent and UI-stack question is answered — the frontend sniff runs per record, but both the design-intent question and the UI-stack question are asked **once** for all frontend records together, before the per-record loop starts. Each element then gets the full single-record procedure — compose, `ceremony-check`, `framing-check`, one compose-then-write-once call — with no cross-record merging and no batched label call.
+- **Should feel:** Per-record judgment at paste-once cost — the same shaping you would get invoking each ref alone, in the order you listed them, with the shared creative and UI-stack decisions asked only once instead of once per record.
+- **Should understand:** The Interaction-style directive's "multi-item → batch table" *does* govern the design-intent and UI-stack decisions: one table (record, sniffed surface, recommended intent and UI stack pre-filled) followed by a single `AskUserQuestion` for apply-all/override; backend/infra records appear in that table with `Design-intent: —` / `Ui-stack: —` and are asked neither question. Each record's already-resolved `Surface:`/`Design-intent:`/`Ui-stack:` values are then written into its own composed body during its own iteration. A record already fully shaped is verified and left alone (`already shaped, no-op`), not rewritten.
+- **Red flags:** A second `AskUserQuestion` for the second frontend record; a backend record being asked for a design intent or a UI stack; a record's body composed from another record's content; `--surface` applied to the first element only (it applies to every element).
 
 ### 3. Read the per-element summary — skips do not stop the batch
 - **URL:** *(Actions Performed table rendered by specify)*
@@ -44,4 +45,5 @@ files:
 ## Origin
 - Created during build of #695 (specify + demo `#N,#M` batch argument)
 - Steps 1-4 built in this session
-- Related specs: #695, #685 (tidy's command-grouped Yours section, whose group heads produce the paste line this journey starts from)
+- Step 2 updated for #357 (UI-stack decision point — batch table gains a `Ui-stack: —` column alongside `Design-intent:`, backend/infra records asked neither question)
+- Related specs: #695, #685 (tidy's command-grouped Yours section, whose group heads produce the paste line this journey starts from), #357

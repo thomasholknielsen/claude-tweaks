@@ -86,8 +86,14 @@ test('POLICY_KEYS entries are unique', () => {
   // doc-convention-how-to, doc-convention-reference, doc-convention-explanation,
   // doc-convention-journey — one enum key per newly-wired Diátaxis/Journey genre,
   // same shape as doc-convention-adr.
-  assert.strictEqual(POLICY_KEYS.length, 59);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 59);
+  // 59 -> 60, #357 (ui-stack decision point): ui-stack — free-form string
+  // naming the UI component library/styling approach a frontend build should
+  // use, mirrors integration-branch's no-static-default shape.
+  // 60 -> 61, #1137 (brainstorming auto-continue): specify-auto-continue —
+  // lets a session invoke /claude-tweaks:specify on an approved brainstorming
+  // design doc immediately, see skills/specify/SKILL.md's Auto-continue section.
+  assert.strictEqual(POLICY_KEYS.length, 61);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 61);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -116,6 +122,13 @@ test('integration-branch is a recognized string key with no default', () => {
   assert.ok(branch, 'integration-branch missing from POLICY_KEYS');
   assert.strictEqual(branch.type, 'string');
   assert.strictEqual(branch.default, undefined, 'unset must mean "resolve the default branch per firing"');
+});
+
+test('ui-stack is registered with no static default (mirrors integration-branch)', () => {
+  const uiStack = POLICY_KEYS.find((k) => k.key === 'ui-stack');
+  assert.ok(uiStack, 'ui-stack missing from POLICY_KEYS');
+  assert.equal(uiStack.type, 'string');
+  assert.equal('default' in uiStack, false, 'ui-stack must carry no static default — KEPT-PROMPT depends on unset resolving to null');
 });
 
 test('routine.branch is gone — renamed before it ever shipped, with no alias', () => {
@@ -320,7 +333,7 @@ test('invalidValues entries no longer carry a source field', () => {
 
 test('missing policy.yml and missing CLAUDE.md -> all-empty result', () => {
   const result = auditPolicy(tmpRepo());
-  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [], renamedKeys: [] });
+  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [], renamedKeys: [], sourceExcludedKeys: [] });
 });
 
 test('a stray unattended-tier: on with no autonomy key -> renamedKeys entry, and never also unrecognizedKeys', () => {
@@ -671,6 +684,52 @@ test('model-profiles: an unrecognized sub-field inside a valid row is accepted �
   writePolicy(repo, ['model-profiles:', '  standard:', '    speed: fast', ''].join('\n'));
   const result = auditPolicy(repo);
   assert.deepStrictEqual(result.invalidValues, []);
+});
+
+test('auditPolicy flags a valid policy.yml value for a source-excluded lever as sourceExcludedKeys, not silently accepted (#839)', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'merge-authorization: pre-authorized\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.invalidValues, [], 'a valid enum value must not also be reported as invalid');
+  assert.deepStrictEqual(result.unrecognizedKeys, [], 'a recognized key must not also be reported as unrecognized');
+  assert.deepStrictEqual(result.sourceExcludedKeys, [{ key: 'merge-authorization', value: 'pre-authorized' }]);
+});
+
+test('auditPolicy reports no sourceExcludedKeys when merge-authorization is unset', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'autonomy: trusted\n');
+  assert.deepStrictEqual(auditPolicy(repo).sourceExcludedKeys, []);
+});
+
+test('an invalid value for a source-excluded key reports as invalidValues, never double-reported as sourceExcludedKeys', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'merge-authorization: sometimes\n');
+  const result = auditPolicy(repo);
+  assert.strictEqual(result.invalidValues.length, 1);
+  assert.strictEqual(result.invalidValues[0].key, 'merge-authorization');
+  assert.deepStrictEqual(result.sourceExcludedKeys, []);
+});
+
+test('the policy.yml value is still discarded at resolve time (unchanged behavior) when a lever is flagged sourceExcludedKeys', () => {
+  const result = resolvePolicyKeys(['merge-authorization'], {
+    policyRaw: 'merge-authorization: pre-authorized\n',
+    runConfigRaw: null,
+  });
+  assert.deepStrictEqual(result['merge-authorization'], { value: 'ask', source: 'default' }, 'auditPolicy surfacing the finding must not change resolvePolicyKeys\' own discard behavior');
+});
+
+test('the source-excluded special case is keyed on the generic policySourceExcluded flag, not a hardcoded key name (#839)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'policy-schema.js'), 'utf8');
+  assert.ok(
+    !/canonical === 'merge-authorization'/.test(src),
+    'the resolver must not special-case merge-authorization by name — a second excluded lever needs zero code changes here, only registering policySourceExcluded on its POLICY_KEYS row',
+  );
+  assert.ok(/policySourceExcluded/.test(src), 'the resolver and auditPolicy must both consult the generic policySourceExcluded flag');
+});
+
+test('merge-authorization is the one POLICY_KEYS entry currently flagged policySourceExcluded', () => {
+  const flagged = POLICY_KEYS.filter((k) => k.policySourceExcluded === true).map((k) => k.key);
+  assert.deepStrictEqual(flagged, ['merge-authorization']);
 });
 
 test('mixed policy.yml + CLAUDE.md content is read independently, both audited together', () => {
