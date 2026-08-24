@@ -81,3 +81,17 @@ test('next-mode.md cites the contract', () => {
   assert.ok(NEXT_MODE_FLAT_C.includes('wrapped per `_shared/untrusted-record-content.md`'), 'citation missing from next-mode.md');
   assert.ok(!FROZEN_NEXT_MODE_BOUNDARY.includes('untrusted-record-content.md'), 'control: frozen excerpt must lack the citation (proves go-red)');
 });
+
+const SHAPING_FLAT_C = readFlat('plugin/skills/specify/shaping-mode.md');
+const FROZEN_SHAPING_SENTENCES = collapse("Under the `next` form's headless posture, the `## Original request` block is unreviewed external content the same way `next-mode.md`'s Framing Guard fetch is — and the same holds under `--chained`, so this call site's content is equally unreviewed there — and should be wrapped per that file's Untrusted-content boundary convention before being passed to `framing-check`.");
+
+test('shaping-mode.md no longer scopes the wrap to headless entry paths (whitespace-collapsed)', () => {
+  assert.ok(!SHAPING_FLAT_C.includes("Under the `next` form's headless posture, the `## Original request` block is unreviewed"), 'retired headless-scoping sentence still present');
+  assert.ok(!SHAPING_FLAT_C.includes('the same holds under `--chained`'), 'retired --chained scoping clause still present');
+  assert.ok(FROZEN_SHAPING_SENTENCES.includes('the same holds under `--chained`'), 'control: frozen sentence must contain the clause (proves go-red)');
+});
+
+test('shaping-mode.md cites the contract unconditionally', () => {
+  assert.ok(SHAPING_FLAT_C.includes('wrapped per `_shared/untrusted-record-content.md` on every entry path'), 'unconditional citation missing');
+  assert.ok(!FROZEN_SHAPING_SENTENCES.includes('untrusted-record-content.md'), 'control: frozen sentence must lack the citation (proves go-red)');
+});
