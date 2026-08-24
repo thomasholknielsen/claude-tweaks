@@ -74,5 +74,9 @@
   "skill:reconcile-check-contract": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1787259416121
+  },
+  "skill:reflect": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1787583594638
   }
 }
