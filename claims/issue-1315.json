@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-24T193713-record-1315",
-  "sessionId": "fe0ded87-d2d9-4ee6-a1cd-4c6893470dce",
-  "claimedAt": "2026-08-24T19:39:15.576Z",
-  "ttlHours": 72,
-  "host": "5ae0527bb2ab"
+  "reason": "failed: blocked-by-unmerged-prerequisite (#309/PR #1310 not merged; target code bin/lib/issues/grant-maturation.js and both call sites do not exist on this branch)",
+  "releasedAt": "2026-08-24T19:44:04.325Z"
 }
