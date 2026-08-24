@@ -239,46 +239,42 @@ function funnelBuckets(records) {
 
 // (specifiedRecords, policy, trustRowsArray) -> the machine-grant outlook
 // overview's bare mode renders as the `specified` stage's config-aware
-// annotation. A human-filed record (facets.origin null/undefined) is
-// pre-filtered OUT before the gate chain runs at all — mirroring
-// grant-mode.md's own Step 1 "cheap pre-pass on the same gate-3 condition"
-// (skills/backlog/grant-mode.md) — so this outlook's population always
-// matches grant-mode's own candidate set exactly. Without this pre-filter, a
-// human-filed record whose class trust ALSO happens to be non-clean gets
-// misattributed to refused.trust by evaluateGrantGate's gate order (gate 2
-// runs before gate 3, so gate 3/origin never individually fires for it) even
-// though grant-mode's own candidate fetch would never have considered it in
-// the first place — this was #1387's reported discrepancy between overview's
-// reported refusal counts and grant-mode's own candidate-set size for the
-// same backlog state. Excluded records are counted via `excludedOrigin`
-// rather than folded into `refused`, so a reader can reconcile the funnel
-// header's `specified N` total against `eligible.length + refused-total +
-// excludedOrigin`. The pre-filter only activates when
-// `policy.ceiling === 'unattended' && policy.grantOriginationEnabled ===
-// true` — i.e. only once the policy already matches the two gates
-// (ceiling, opt-in) that run ahead of it in evaluateGrantGate's own order,
-// mirroring why grant-mode.md's own real Step 1 pre-filter is likewise only
-// ever reached after that mode's Step 0 "Do not proceed to Step 1" ceiling/
-// opt-in gate has already passed (see the caller precondition documented at
-// the top of machine-grant-outlook.md). Outside that policy shape, every
-// record — human- and agent-filed alike — is refused under `ceiling` or
-// `grant-origination-opt-in` before gate 2/3 ever run, so the trust/origin
-// misattribution bug #1387 targets structurally cannot occur there; this
-// call falls back to running evaluateGrantGate for every record with no
-// pre-filter at all, exactly preserving pre-fix behavior for that policy
-// shape (`excludedOrigin` stays 0). When the pre-filter is active, this runs
-// evaluateGrantGate's FIRST PHASE only (gates 1-3 — ceiling, opt-in,
-// needs:definition, class trust — gate 3/origin is now structurally
-// unreachable inside this call, since the pre-filter already removed every
-// record it would have refused): gate 4's grant-check is an LLM judgment
-// overview must never run, per its "entirely mechanical" contract. So
-// `eligible` means "will reach the grant unit's own grant-check on a future
-// firing", never "will be granted" — gates 4-5 can still refuse. policy is
-// evaluateGrantGate's own policy shape ({ ceiling, grantOriginationEnabled }
-// suffices for phase 1); trustRowsArray is trustRows() output
-// (bin/lib/issues/trust.js), keyed into the Map shape the gate expects.
-// Returns { eligible: [ids], refused: { [failedKey]: [ids] },
-// excludedOrigin: count }, ids in input order.
+// annotation. When `policy.ceiling === 'unattended' && policy.
+// grantOriginationEnabled === true`, a human-filed record (facets.origin
+// null/undefined) is pre-filtered OUT before the gate chain runs at all —
+// mirroring grant-mode.md's own Step 1 "cheap pre-pass on the same gate-3
+// condition" (skills/backlog/grant-mode.md), itself only reached once that
+// mode's own Step 0 ceiling/opt-in gate has passed (see the caller
+// precondition documented at the top of machine-grant-outlook.md) — so this
+// outlook's population always matches grant-mode's own candidate set
+// exactly. Without the pre-filter, a human-filed record whose class trust
+// ALSO happens to be non-clean gets misattributed to refused.trust by
+// evaluateGrantGate's gate order (gate 2 runs before gate 3, so gate
+// 3/origin never individually fires for it) even though grant-mode's own
+// candidate fetch would never have considered it in the first place — this
+// was #1387's reported discrepancy between overview's reported refusal
+// counts and grant-mode's own candidate-set size for the same backlog
+// state. Excluded records are counted via `excludedOrigin` rather than
+// folded into `refused`, so a reader can reconcile the funnel header's
+// `specified N` total against `eligible.length + refused-total +
+// excludedOrigin`. Outside that policy shape, every record — human- and
+// agent-filed alike — is refused under `ceiling` or
+// `grant-origination-opt-in` before gates 2/3 ever run, so the
+// misattribution bug structurally cannot occur there; this call falls back
+// to running evaluateGrantGate for every record with no pre-filter at all,
+// exactly preserving pre-fix behavior for that policy shape (`excludedOrigin`
+// stays 0). When the pre-filter is active, this runs evaluateGrantGate's
+// FIRST PHASE only (gates 1-3 — ceiling, opt-in, needs:definition, class
+// trust — gate 3/origin is now structurally unreachable inside this call,
+// since the pre-filter already removed every record it would have refused):
+// gate 4's grant-check is an LLM judgment overview must never run, per its
+// "entirely mechanical" contract. So `eligible` means "will reach the grant
+// unit's own grant-check on a future firing", never "will be granted" —
+// gates 4-5 can still refuse. policy is evaluateGrantGate's own policy shape
+// ({ ceiling, grantOriginationEnabled } suffices for phase 1);
+// trustRowsArray is trustRows() output (bin/lib/issues/trust.js), keyed into
+// the Map shape the gate expects. Returns { eligible: [ids], refused:
+// { [failedKey]: [ids] }, excludedOrigin: count }, ids in input order.
 function machineGrantOutlook(records, policy, trustRowsArray) {
   const rows = Array.isArray(trustRowsArray) ? trustRowsArray : [];
   const trustVerdicts = new Map(rows.map((row) => [row.key, row]));
