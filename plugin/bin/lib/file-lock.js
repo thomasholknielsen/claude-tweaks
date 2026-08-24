@@ -9,6 +9,7 @@
 // module is for new callers, not a refactor of that one.
 'use strict';
 const fs = require('fs');
+const path = require('path');
 
 // Overridable via CLAUDE_TWEAKS_LOCK_WAIT_MS — same test-only knob
 // context.js's resolveLockWaitMs documents (production never sets it, so it
@@ -33,12 +34,25 @@ const LOCK_STALE_MS = 5000; // a lock dir older than this is treated as abandone
 // missed lock just reopens the pre-existing race window instead of hanging).
 function acquireLock(lockPath) {
   const deadline = Date.now() + resolveLockWaitMs();
+  const parentDir = path.dirname(lockPath);
   for (;;) {
     try {
       fs.mkdirSync(lockPath);
       return lockPath;
     } catch (e) {
-      if (!e || e.code !== 'EEXIST') return null; // e.g. parent dir doesn't exist — nothing to lock
+      if (e && e.code === 'ENOENT') {
+        // The lock's own parent directory doesn't exist yet -- the common
+        // bootstrap race on a fresh project's first-ever concurrent write
+        // (nothing has run the store's own mkdirSync yet). Create it and
+        // retry the lock attempt, rather than treating this as "nothing to
+        // lock" and letting every concurrent caller skip locking entirely
+        // (#1269 follow-up: this was silently unlocking every worker racing
+        // a brand-new store).
+        try { fs.mkdirSync(parentDir, { recursive: true }); } catch { /* races with a sibling creator are fine */ }
+        if (Date.now() >= deadline) return null;
+        continue;
+      }
+      if (!e || e.code !== 'EEXIST') return null; // some other mkdir failure — nothing to lock
       try {
         const age = Date.now() - fs.statSync(lockPath).mtimeMs;
         if (age > LOCK_STALE_MS) { fs.rmdirSync(lockPath); continue; } // reclaim an abandoned lock, retry immediately

@@ -24,6 +24,8 @@ For each open item or finding, attempt to fix it now. **The default is fix; defe
 
 If the item qualifies, fix it, commit it, and record it as fixed. Do this BEFORE presenting anything to the user.
 
+**A ledger entry recommending deferral runs this same check, even in prose.** "Recommend a follow-up record" in a ledger row's Resolution column is a deferral decision, not exempt from this gate just because no formal record proposal was staged yet — check it against the criteria above and name its `Defer-reason:` inline before leaving the item `open`, so the check is auditable rather than an implicit judgment call (#357 wrap-up: three items recommended this way all turned out to be fix-now eligible).
+
 ## Bad reasons to skip a fix
 
 Never use these to leave an item open, defer it, or file it:
@@ -31,7 +33,7 @@ Never use these to leave an item open, defer it, or file it:
 - *"Out of scope of this plan / spec"* — if the file is in this build's diff, it is in scope
 - *"Following plan verbatim"* — when plan code conflicts with `.claude/rules/` or CLAUDE.md don'ts, fix the violation; the plan was written before review-time context
 - *"A future plan (P2/P3/...) might want X"* — speculative; only defer for *known* downstream needs
-- *"Bundle of small items"* — items get classified individually, never as a group
+- *"Bundle of small items"* — items get classified individually, never as a group; below-floor **deferred** items are the one exception — they batch into the digest by design, per `_shared/materiality-floor.md`, which is a routing decision made after the gate, never a reason to skip a fix
 - *"Premature without consumer signal"* — clear bugs and convention violations get fixed now
 - *"Plan-prescribed routing"* — if the plan said "X moves to P6," that's plan documentation, not a ledger event; remove the item entirely instead of deferring
 - *"Minor / outside that scope / not load-bearing"* — severity is never a defer reason; review's severity floors decide what blocks, not what gets fixed

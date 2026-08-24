@@ -112,6 +112,18 @@ test('blob owned by another run: exit 4, nothing written, skip line logged', () 
   assert.match(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), /skipped release of issue #999: claim held by run 2026-08-16T110000-spec-999/);
 });
 
+test('corrupt/unreadable claim blob: exit 5 (distinct from exit 4), nothing written, skip line logged', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: 'not json', out, mainRoot: rootOf(runDir) });
+  const code = run(['999', '--run', runDir, '--reason', 'merged: spec 999'], d);
+  assert.equal(code, 5);
+  assert.notEqual(code, 4, 'must not be conflated with a live competing claim');
+  assert.equal(calls.length, 1, 'only the read');
+  assert.equal(envelope(out).outcome, 'unreadable');
+  assert.match(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), /skipped release of issue #999: claim blob is corrupt\/unreadable/);
+});
+
 test('failed PUT (500): exit 1, no comment, FAILED line still logged; missing run dir still releases (logged:false, warning)', () => {
   const runDir = mkRun();
   const out = [];
