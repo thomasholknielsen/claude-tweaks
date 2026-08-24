@@ -132,12 +132,31 @@ appended to its `Insight` cell, never silently suppressed:
 {insight text} _(previously declined {declinedAt date}: {reason})_
 ```
 
+**Subject scan for a near-miss (#1033).** The exact-hash lookup above only catches an insight
+whose text is byte-identical (modulo `normalizeText`'s whitespace/case collapse) to a prior
+decline — free-form insight prose rarely reproduces that exactly across runs even when it means
+the same thing, so this catches few real repeats. When the hash lookup above found nothing, also
+call `bin/lib/declined-learning/store.js`'s `listDeclined({ source: 'wrap-up' })` and read each
+returned entry's `subject` text (an entry recorded before #1033 may have no `subject` — skip
+those; there is nothing to compare). Judge — as the agent already forming this table, not via any
+mechanical string match — whether the current insight is materially the same point as any listed
+subject, even where the wording differs (a rephrasing, a different concrete example of the same
+underlying observation). On a judged match, apply the identical annotation above, sourcing
+`{declinedAt date}: {reason}` from that entry rather than the hash-matched one. This is a judgment
+call, not a second deterministic lookup — when genuinely uncertain whether two insights are "the
+same point," do not annotate; a missed annotation costs the human one redundant decline, a false
+one hides a genuinely new insight behind stale framing.
+
 The insight still gets a full row and a real recommendation — the annotation is a hint for the
 human's decision, not a filter. If the human resolves an annotated insight to anything other
 than "Don't capture" (i.e. approves it — Implement now, Defer, or Capture), clear the stale
 decline via `bin/lib/declined-learning/store.js`'s `clearDecline(fingerprint)` immediately after
 applying that resolution, so the same insight text doesn't stay annotated once a human has
-re-affirmed it.
+re-affirmed it. For a subject-scan match (no exact-hash match), clear the matched entry's own
+fingerprint — the one the `listDeclined` entry carries — not a fingerprint freshly computed from
+the current insight's differently-worded text; that fresh fingerprint doesn't exist as a key in
+the store yet, so clearing it would silently no-op and leave the stale entry annotating future
+runs forever.
 
 Collect all insights from the five lenses and the tradeoff review into a single table:
 
@@ -191,7 +210,7 @@ that genuinely serves two audiences is two insights, stated separately.
 - **Implement now** — the strong default. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule), make the change. A D4 memory outcome is staged via wrap-up's Memory curation row instead of applied inline — **but only when this run will actually reach wrap-up.** Standalone `/claude-tweaks:reflect`'s Next Actions (`reflect/SKILL.md:183`) only *offer* `/claude-tweaks:wrap-up`, they never require it, so a run that ends here leaves a `staged/` file no Review Console will ever open — a lesson with no consumer. When this is a standalone run and the user does not continue to `/claude-tweaks:wrap-up`, present the D4 proposal inline instead, for the same per-item approval, then write it directly per the contract's "Memory write procedure (D4)" on approval — the same resolution `_shared/ledger-format.md`'s Resolve Gate section applies to a standalone ledger item ("no Review Console will ever read a staged file, so create the record directly instead"). Never leave a D4 proposal staged with no consumer.
 - **Defer** (new work record, `parked`) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Gated by `_shared/deferral-gate.md`: run its fix-now criteria first, and name the `Defer-reason:` in the batch table's Recommended column (e.g. `Defer — genuinely-larger`), chosen per that file's vocabulary — same mapping review Step 3 uses (`review/step3-routing.md`). Compose the body via `specShapedBody` (the insight → Current State, the known improvement → Deliverables, the observable outcome → Acceptance Criteria; `header: 'Trigger: {condition}'`; `filedBy: 'reflect'`; `provenance: { origin: 'reflect {mode} from #{n}', deferReason }`; footer `_Filed by \`reflect\` via specShapedBody._`), then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`) — with `recordPayload({ …, risk, size, parked: true })` (scored per the Scoring axis; `parked`, never `ready` alongside a Trigger). An insight naming an open choice takes the `openQuestion` variant (`needs:definition` — a label with no `recordPayload` parameter, appended at the create call — no scoring). An insight with no valid reason cannot be recommended Defer. Before this recommendation is rendered, apply `_shared/materiality-floor.md`'s floor test to the insight: when it fails to clear the materiality floor (and its `Defer-reason:` is not `tangential`), the batch table's Recommended column shows "Digest — below floor" instead of "Defer — {reason}", and the digest entry is written only when the human approves that row (or an auto path applies it) — never before this recommendation reaches a human, per the contract's recommend-only-path rule.
 - **Capture** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on. Routes to `/claude-tweaks:capture`, which files it as a fresh backlog work record — the recommendation names its reason the same way (`Capture — tangential`), invoked with the shaped body and `--defer-reason={value} --source reflect` (capture's Shaped-body branch — `capture/SKILL.md`). An insight with no valid reason cannot be recommended Capture. A Capture recommendation's `Defer-reason:` is usually `tangential`, which `_shared/materiality-floor.md`'s override always clears — a Capture-routed insight with reason `tangential` renders "Capture — tangential" as above, never a "Digest" recommendation. A Capture-routed insight carrying a different `Defer-reason:` (the rarer case) is still subject to the same materiality-floor test as the Defer bullet above, and may render "Digest — below floor" instead.
-- **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why. Record the decline via `bin/lib/declined-learning/store.js`'s `recordDecline(fingerprint, { reason, source: 'wrap-up' })` — `fingerprint` from the Prior-decline annotation step above, `reason` the stated why. A decline write failure degrades open — log a one-line note and continue; never block the batch resolution over it.
+- **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why. Record the decline via `bin/lib/declined-learning/store.js`'s `recordDecline(fingerprint, { reason, source: 'wrap-up', subject: description })` — `fingerprint` from the Prior-decline annotation step above, `reason` the stated why, `subject` (#1033) the insight's own one-line `description` text (the same text the fingerprint was computed from), so a later run's subject-scan step above has something to compare against for an insight that re-surfaces reworded rather than byte-identical. A decline write failure degrades open — log a one-line note and continue; never block the batch resolution over it.
 
 If any insight is "Implement now", handle it after the user approves the batch table, before returning control to the parent or presenting Next Actions — **except a D4 outcome**, whose write is gated separately as described above; do not write a memory file at this point.
 

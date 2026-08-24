@@ -25,7 +25,7 @@ Every consumer supplies exactly these four inputs when following this file:
    responsibility.
 
 A consumer may also supply a **watermark payload** shape beyond `bytesAtDispatch`/`evaluatedAt`
-(e.g. feedback's `filedRecords`/`dismissedFingerprints`) — that shape is entirely consumer-owned
+(e.g. feedback's `filedRecords`/`dismissedSubjects`) — that shape is entirely consumer-owned
 and named in the consumer's own file, never here.
 
 ## Transcript resolution
@@ -91,11 +91,21 @@ a second failure degrades to the self-assessment path below rather than dispatch
    transcript path, append `formatOffsetClause(...)`'s literal output as this 5th item, verbatim:
 
    ```
-   Evaluate from byte offset {bytesAtDispatch} (line {line}); these records already exist: {filedRecords joined by ", " or "none" if empty}; omit findings they cover. These fingerprints were previously declined: {dismissedFingerprints joined by ", " or "none" if empty}; omit findings matching them.
+   Evaluate from byte offset {bytesAtDispatch} (line {line}); these records already exist: {filedRecords joined by ", " or "none" if empty}; omit findings they cover. A human previously declined findings about: {dismissedSubjects joined by "; " or "none" if empty}; omit any new finding whose symptom matches one of these in substance, even if the wording differs.
    ```
 
    When no watermark exists (first invocation) or a full-reset flag was passed, item 5 is omitted
    entirely — no offset clause, no empty placeholder.
+
+   **`dismissedSubjects` sourcing is consumer-defined, not read blindly off the watermark object
+   above** (#1033). `bytesAtDispatch`/`line`/`filedRecords` legitimately come from the watermark
+   `readWatermark` just returned — they describe state as of the prior dispatch. A consumer that
+   also renders `dismissedSubjects` needs a value current as of *this* dispatch, not the prior
+   one: a `dismissedFingerprints`/`dismissedSubjects` field written into a watermark payload at
+   write time (before that same run's own human declines happen — see the "Watermark write"
+   section below) is already one run stale by the time it's read back here. `feedback`'s own file
+   (`session-evaluation.md`) states its resolution: compute this field live, immediately before
+   this item is composed, never by reading it off the object `readWatermark` returned.
 
 **Finding norms (bind the consumer's own output template above):** every finding carries a
 symptom, an evidence pointer, a proposed fix, and a `Cost this session:` line (one line; `unclear`
