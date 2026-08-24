@@ -35,7 +35,7 @@ files:
 - **URL:** same session, immediately after the drafts render
 - **Action:** Answer the chunked `multiSelect` confirmation (groups of up to 4, per the shared batch contract). Checked items file upstream with `**Objective:**`, `**Cost this session:**`, and — for countable lenses — `**Measurement:**` fields in the issue body; unchecked items are declined, never silently dropped.
 - **Should feel:** One deliberate stop that covers the whole harvest — session findings and queue candidates together.
-- **Should understand:** The scrub reran on exactly the content being filed, whichever model judged it; `--dry-run` would have stopped before this point with everything rendered and nothing filed.
+- **Should understand:** The scrub reran on exactly the content being filed, whichever model judged it; `--dry-run` would have stopped before this point with everything rendered and nothing filed. Any drafted item — session finding or queue candidate — whose own fingerprint exactly matches a prior decline (feedback/SKILL.md Step 4's Prior-decline annotation, #1033) renders with a `_(previously declined {date}: {reason})_` line in its draft and its chunk option, distinct from Step 1's substance-level offset-clause suppression: this is the mechanical, exact-hash counterpart, catching a finding that reached drafting at all rather than one the judge omitted before drafting. Checking a previously-declined item files it and clears the stale entry.
 - **Red flags:** An item filing without being checked; separate confirmation stops for session findings vs queue candidates.
 
 ### 4. Degraded environment — terminal (cloud sandboxes)
@@ -53,4 +53,5 @@ files:
 - Updated during build of #701 (`session-evaluation.md`'s Skip check + the watermark's `issueUrls`/`findingsFiled`/`sessionId` payload fields) — Step 1 now documents that an unchanged transcript skips the judge dispatch outright and reports the prior stamp's filings, and the Success state names that outcome.
 - Related journeys: `file-upstream-feedback-in-batch` (the batch confirmation contract this flow shares)
 - Updated during build of #849 — the watermark's offset clause now also carries fingerprints declined at a prior run's Step 7, read from `bin/lib/declined-learning/store.js`.
+- Updated during build of #1033 — the offset clause now carries human-legible `subject` text via a live `listDeclined` call, replacing #849's opaque-fingerprint `dismissedFingerprints`, and Step 3 now documents the separate exact-hash Prior-decline annotation (feedback/SKILL.md Step 4) that renders on a drafted item's own confirmation.
 - Related specs: #679
