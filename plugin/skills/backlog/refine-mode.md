@@ -359,6 +359,8 @@ FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repai
 
 The closing summary below counts these lines by type — `FAILED` feeds the tally's `failed` count and per-failure lines; `AUTO … skipped …` (including a reverify-fetch failure) feeds `skipped` and its per-skip lines; a write with no matching line was never attempted and counts toward neither.
 
+Flag-back is the one lane whose action sets both `removeLabels` and `commentFile` in the same `apply-refine-labels.js` call (`refine-lanes.md`'s `removeLabels: ["ready"], commentFile: "…"`), so a single successful flag-back write appends two separate AUTO lines under that command's `apply-refine-labels` step heading — one `#{issue}: applied -ready` for the label removal, one `#{issue}: comment posted` for the comment (#1073) — where every other lane's action only ever produces one. Tally that pair as a single flagged-back write, not two, when counting toward the closing summary's `flagged back` figure.
+
 **Closing summary (required, rendered as assistant text — never delegated to tool output; a
 shell print of the tally does not satisfy this):** after the apply pass above completes, render
 a closing block from the same per-write outcomes already logged to `decisions.md` above — no

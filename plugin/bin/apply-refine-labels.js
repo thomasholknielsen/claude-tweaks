@@ -8,9 +8,12 @@
 // actions.json: a JSON array of
 //   { issue: number, addLabels?: string[], removeLabels?: string[], commentFile?: string }
 // — each action needs at least one of addLabels/removeLabels/commentFile.
-// `--run <run-dir>` is optional: when given, one AUTO decisions.md line is
-// appended per successfully-applied action and one hand-composed FAILED line
-// per failed action (#1072 — refine-mode.md Step 5's own `FAILED {time} — …`
+// `--run <run-dir>` is optional: when given, up to two AUTO decisions.md
+// lines are appended per successfully-applied action — one for the label
+// edit if attempted, one for the comment if attempted (#1073) — and still
+// exactly one hand-composed FAILED line per failed action, since only the
+// step that actually failed logs one (#1072 — refine-mode.md Step 5's own
+// `FAILED {time} — …`
 // template, which append.js's STATUSES enum has no member for), both under
 // the /backlog heading — the run dir must resolve under the main checkout
 // (#790/[IL-127]), refused loudly otherwise, before any `gh` call.
@@ -143,6 +146,14 @@ function run(argv, deps = realDeps) {
     const hasRemove = hasItems(action.removeLabels);
     let editFailed = false;
     let commentFailed = false;
+    // Only computed/used when hasAdd || hasRemove is true (both the success
+    // and failure branches below are inside that guard), so it always
+    // describes an actually-attempted edit — never the 'batch action'
+    // placeholder the pre-#1073 single try/catch needed for a comment-only
+    // action (dead here since the split; see #1073 review finding 3).
+    const labelSummary = hasAdd || hasRemove
+      ? [hasAdd ? `+${action.addLabels.join(' +')}` : null, hasRemove ? `-${action.removeLabels.join(' -')}` : null].filter(Boolean).join(', ')
+      : '';
 
     if (hasAdd || hasRemove) {
       try {
@@ -151,9 +162,6 @@ function run(argv, deps = realDeps) {
         for (const l of action.removeLabels || []) editArgs.push('--remove-label', l);
         deps.gh(editArgs);
         if (runDir) {
-          const summaryParts = [];
-          if (hasAdd) summaryParts.push(`+${action.addLabels.join(' +')}`);
-          if (hasRemove) summaryParts.push(`-${action.removeLabels.join(' -')}`);
           try {
             deps.appendEntry({
               runDir,
@@ -162,7 +170,7 @@ function run(argv, deps = realDeps) {
                 status: 'AUTO',
                 now: deps.now(),
                 step: 'apply-refine-labels',
-                text: `#${action.issue}: applied ${summaryParts.join(', ')}`,
+                text: `#${action.issue}: applied ${labelSummary}`,
                 reversibility: 'high',
               }),
             });
@@ -173,10 +181,6 @@ function run(argv, deps = realDeps) {
         const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
         failed.push({ issue: action.issue, step: 'edit', error: message });
         if (runDir) {
-          const attemptParts = [];
-          if (hasAdd) attemptParts.push(`+${action.addLabels.join(' +')}`);
-          if (hasRemove) attemptParts.push(`-${action.removeLabels.join(' -')}`);
-          const summary = attemptParts.length ? attemptParts.join(', ') : 'batch action';
           try {
             // #1072: FAILED is not one of append.js's STATUSES (AUTO/STAGED/
             // KEPT-PROMPT/SCANNED/REFUSED) — refine-mode.md Step 5's own
@@ -187,7 +191,7 @@ function run(argv, deps = realDeps) {
             deps.appendEntry({
               runDir,
               section: '/backlog',
-              entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: #${action.issue}: ${summary} failed: ${message}.`,
+              entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: #${action.issue}: ${labelSummary} failed: ${message}.`,
             });
           } catch { /* logging is best-effort — never fails the batch */ }
         }
