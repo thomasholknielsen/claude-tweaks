@@ -10,6 +10,16 @@ const assert = require('node:assert/strict');
 const {
   run, BOT_IN_PROGRESS, ABORT_REASON,
 } = require('../../../plugin/bin/lib/claim-targets/claim-targets');
+// #787 residual finding (progress.md's parked "expectedContent has zero test
+// coverage" item): claim-targets.js requires this same module-level object,
+// so spying on it here observes the real call — pins that `run()`'s claim
+// write and `releaseClaimedThisRun`'s rollback write both thread
+// `expectedContent` from the read that produced the write decision, not a
+// value re-derived later. Deleting either `expectedContent: ...` at the call
+// site would leave every other test in this file green (none of them supply
+// a `gitRunner`, so claim-store.js never consults the field) while silently
+// reintroducing the I1/C1 false-contest / lost-update bug in production.
+const claimStore = require('../../../plugin/bin/lib/issues/claim-store');
 
 const REPO = 'acme/w';
 const NOW = Date.parse('2026-08-17T00:00:00.000Z');
@@ -672,6 +682,56 @@ test('abort-release write failure: target lands in releaseFailed, not released, 
   assert.match(fieldOf(releaseWrite, 'message'), new RegExp(ABORT_REASON.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   // best-effort label removal is still attempted even though the release write failed
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
+});
+
+// #787 residual finding: pin that `run()`'s claim write threads
+// `expectedContent` = the content this same write decision read — `null`
+// for a create-only (absent) target, the prior blob's content for a reclaim.
+test('claim write threads expectedContent = the content this write decision read, not undefined (#787 residual finding)', (t) => {
+  const staleContent = liveMarker('otherRun', new Date(NOW - 100 * 3600 * 1000).toISOString());
+  const { ghApi } = makeGhApi({
+    reads: { 760: [readAbsent], 761: [readOk(staleContent, 'sha761')] },
+    writes: { 760: [writeOk], 761: [writeOk] },
+  });
+  const { gh } = makeGh({});
+  const { deps } = baseDeps({ ghApi, gh });
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob');
+
+  const code = run(['--run-id', 'r1', '--targets', '760,761'], deps);
+
+  assert.equal(code, 0);
+  assert.equal(writeSpy.mock.calls.length, 2);
+  const opts760 = writeSpy.mock.calls[0].arguments[3];
+  const opts761 = writeSpy.mock.calls[1].arguments[3];
+  assert.equal(opts760.expectedContent, null, 'create-only (absent) target -> expectedContent null, the absence-based verification case');
+  assert.equal(opts761.expectedContent, staleContent, 'reclaim target -> expectedContent is the exact content this write decision read, not re-derived later');
+});
+
+// #787 residual finding: pin that the abort-release rollback write
+// (`releaseClaimedThisRun`) threads `expectedContent` = the fresh content
+// its own re-read saw — the path I1 identified as able to strand a live
+// claim with its label already stripped if a spurious git-CAS rejection
+// were ever (mis)treated as a genuine contest.
+test('abort-release rollback write threads expectedContent = the fresh content releaseClaimedThisRun re-read (#787 residual finding)', (t) => {
+  const { ghApi } = makeGhApi({
+    reads: {
+      720: [readAbsent, readOk('irrelevant', 'sha720-release')], // 2nd = rollback's fresh read
+      721: [readOk(liveMarker('otherRun'), 'sha721')],
+    },
+    writes: {
+      720: [writeOk, writeOk],
+    },
+  });
+  const { gh } = makeGh({});
+  const { deps } = baseDeps({ ghApi, gh });
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob');
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721'], deps);
+
+  assert.equal(code, 3);
+  assert.equal(writeSpy.mock.calls.length, 2, 'the initial claim write plus the rollback release write');
+  const rollbackOpts = writeSpy.mock.calls[1].arguments[3];
+  assert.equal(rollbackOpts.expectedContent, 'irrelevant', "rollback write's expectedContent is the fresh read's content, not the original claim read's");
 });
 
 test('--help short-circuits before any gh call, exit 0', () => {

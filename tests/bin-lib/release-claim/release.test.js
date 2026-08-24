@@ -270,8 +270,9 @@ test('a 404-shaped PUT error still short-circuits to already-released without a 
 });
 
 test('releaseClaim: a held claim by this run writes the tombstone through claim-store.writeClaimBlob', (t) => {
+  const blobContent = JSON.stringify({ runId: 'r1', claimedAt: new Date(0).toISOString(), ttlHours: 72 });
   t.mock.method(claimStore, 'readClaimBlob', () => ({
-    content: JSON.stringify({ runId: 'r1', claimedAt: new Date(0).toISOString(), ttlHours: 72 }),
+    content: blobContent,
     sha: 'sha1',
     failure: null,
     absent: false,
@@ -286,4 +287,13 @@ test('releaseClaim: a held claim by this run writes the tombstone through claim-
   });
   assert.equal(result.outcome, 'released');
   assert.equal(writeSpy.mock.calls.length, 1);
+  // #787 residual finding (progress.md's parked "expectedContent has zero
+  // test coverage" item): releaseClaim's write must thread expectedContent
+  // = the blob content its own read saw, so claim-store.js can tell a
+  // genuine contest from a push rejected by unrelated claims-registry
+  // activity (I1/C1). Deleting `expectedContent: blob.content` at the call
+  // site would leave every other test in this file green (none of the
+  // conflict-path tests inspect the write options object) while silently
+  // reintroducing the false-contest/lost-update bug in production.
+  assert.equal(writeSpy.mock.calls[0].arguments[3].expectedContent, blobContent, "writeTombstone's expectedContent must be the exact content releaseClaim's own read returned");
 });
