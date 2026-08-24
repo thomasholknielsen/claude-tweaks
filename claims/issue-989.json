@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-24T143805-record-989",
-  "sessionId": "3520d61e-3827-4323-b5c1-8e9610a04741",
-  "claimedAt": "2026-08-24T14:42:23.946Z",
-  "ttlHours": 72,
-  "host": "5ae0527bb2ab"
+  "reason": "branch-push-collision: a live concurrent dispatch firing (worktree-dispatch-record-989, PR #1382) is actively completing this record on the same branch name; standing down rather than risk clobbering in-flight work",
+  "releasedAt": "2026-08-24T14:53:37.345Z"
 }
