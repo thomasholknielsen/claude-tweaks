@@ -67,9 +67,7 @@ Established codebase distributed to real users via a versioned plugin marketplac
 
 ## Objectives
 
-The plugin optimizes for the maintainer objectives `/feedback`'s session judge scores every session against — currently nine: automation efficiency, context overhead, avoidable interactions, friction, developer joy, trust calibration, instruction efficacy, report fidelity, recovery quality. Full definitions, evidence, and class (`judgment`/`countable`) live in `plugin/skills/_shared/feedback-objectives.md` — the canonical rubric; this list is a pointer, not a restatement.
-
-**Decision:** `/reflect`'s five lenses (Surprises, Approach, Near-misses, Fresh start, Friction) evaluate a single build's approach and code, not session-quality across a whole session — a different purpose and a mostly-different vocabulary (only "Friction" genuinely overlaps). They keep their own names rather than adopting these; revisit only if the two rubrics are deliberately merged later.
+The plugin optimizes for the maintainer objectives `/feedback`'s session judge scores a session against — automation efficiency, context overhead, avoidable interactions, friction, developer joy, trust calibration, instruction efficacy, report fidelity, recovery quality; definitions, evidence, and class (`judgment`/`countable`) live in `plugin/skills/_shared/feedback-objectives.md`, the canonical rubric. **Decision:** `/reflect`'s lenses (Surprises, Approach, Near-misses, Fresh start, Friction) judge one build's approach and code, not session quality — a different purpose and a mostly-different vocabulary (only "Friction" overlaps). They keep their own names; revisit only if the two rubrics are deliberately merged.
 
 ## Working Approach
 
