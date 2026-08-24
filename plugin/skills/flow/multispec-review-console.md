@@ -35,7 +35,7 @@ After every spec's pipeline reaches `/wrap-up`'s Phase 4 execution step (or stop
    **If the call exits non-zero for any other reason** (a present-but-malformed `engine-state.json` for one spec aborts the whole invocation before producing any stdout, per `wrap-up-engine.js`'s own fail-loud contract — passing every spec's state in one call means one bad file blocks every spec's engine-rendered sections, not just the bad one's): do not silently omit the five engine-fed sections for the run. Drop only the offending spec's `--spec-state` flag and re-run the call with the remaining specs' flags — the same "engine failure is never permission to skip a row" principle `curation-engine.md` states for the single-spec engine path, applied per-spec here. Note the dropped spec in the console's Not run/Failed footer with the CLI's own error text as the reason.
 4. Render the consolidated console (template below): the prose-aggregated sections from step 2's reads, then the engine's verbatim output from step 3 in its own position (see the template), then the remaining prose-aggregated sections in the order "Numbering rules" below states.
 5. Apply the user's approval/override
-6. Archive the parent run dir — Shared teardown's own last step.
+6. Archive the parent run dir — the inline archive action in "On approval" step 9 / "On override" step 7 below (Shared teardown carries no archive row of its own; it reaches archival only inside step 7's `teardown-run`, which calls the same `archiveRunDir` — a second pass is a harmless no-op, per `wrap-up/cleanup-procedures-execution.md` Section C step 5).
 
 In `interactive` mode (auto opted out), the per-spec consoles ran inline as usual — no consolidation step. Skip this entirely. (Default `auto`, `confirm`, and `hybrid` all consolidate.)
 
@@ -127,7 +127,7 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 4. Queue writes (`Q#`) and Memory updates (`M#`) resolve via a per-item prompt under override — the one path where they resolve individually instead of by their Approve-all default; Upstream feedback (`U#`) resolves via the shared batch contract under override, the same way — see "Present the consolidated console" above; the user can Skip or Edit any of them, but none of the three can be bulk-resolved across specs either
 5. For items the user wants reverted: `git revert {commit}` (one revert commit per item)
 6. Execute the Cleanup actions rows the user did not skip, respecting the dependency order established in step 3 above. "Shared teardown" below documents these steps' mechanics.
-7. Archive the parent run dir (Shared teardown, step 6).
+7. Archive the parent run dir — same inline archive action as "On approval" step 9 above (routes through `bin/lib/reconcile/archive-merged.js`'s `archiveRunDir`, per-`spec-{N}/` `git mv`-then-`mv` sequencing, `#593` guard, and all).
 
 ### Shared teardown (dev server, branch finish, claim release, grants, worktree removal)
 

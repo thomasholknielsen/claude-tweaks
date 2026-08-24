@@ -8,7 +8,7 @@
 
 **Tech Stack:** Markdown skill files (`plugin/skills/**/*.md`), `node --test` conformance suites under `tests/`.
 
-**Spec:** `.claude-tweaks/pipelines/2026-08-24T104342-record-808/work/808-spec.md` (materialized from GitHub issue #808 — "demo: visual verification isn't required before the finish-gate merge decision").
+**Spec:** `.claude-tweaks/pipelines/archive/2026-08-24T104342-record-808/work/808-spec.md` (materialized from GitHub issue #808 — "demo: visual verification isn't required before the finish-gate merge decision").
 
 **Scope keywords:** finishing-a-development-branch, Next Actions, Superpowers overrides, recommended slot, Validate
 
