@@ -69,6 +69,12 @@ function writeTombstone({ owner, repo, issueNumber, sha, tombstoneContent, messa
   });
   if (!result.ok) {
     const e = new Error(result.conflict ? 'HTTP 409/422 sha mismatch' : (result.failure || 'write failed'));
+    // Carry the store's own conflict flag on the error. `isAlreadyReleasedError`
+    // can only read the message TEXT, and a compare-and-swap rejection and a
+    // genuine "someone released this first" produce the same text — the caller
+    // needs to know a real write conflict happened before it can decide which
+    // one it was (see releaseClaim's catch block).
+    e.conflict = result.conflict === true;
     throw e;
   }
   return '';
@@ -89,9 +95,10 @@ function removeLabel({ owner, repo, issueNumber, label, runner = defaultRunner }
 }
 
 // -> { outcome, holder?, calls, commentPosted, labelsRemoved, labelsFailed, error?, note? }
-// `error` is set only when outcome === 'failed' (a read failure, or a PUT
-// failure that isn't already-released). Non-fatal diagnostics — the
-// 404/409/422 PUT error text on the already-released path, and any
+// `error` is set only when outcome === 'failed' (a read failure, a PUT
+// failure that isn't already-released, or a write conflict the post-conflict
+// re-read shows was spurious — see the catch block). Non-fatal diagnostics —
+// the 404/409/422 PUT error text on the already-released path, and any
 // comment-post failure — go into `note` instead (joined with '; ' if both
 // occur).
 function releaseClaim({
@@ -118,6 +125,39 @@ function releaseClaim({
       result.outcome = 'released';
     } catch (err) {
       if (!isAlreadyReleasedError(err)) { result.error = errorText(err); return result; }
+      // A write CONFLICT is not by itself evidence that this claim was already
+      // released. With git-CAS live (claim-store.js -> claims-git-cas.js), the
+      // compare-and-swap lease is on the whole `claims-registry` branch tip, so
+      // ANY concurrent commit — including one claiming a completely unrelated
+      // issue — rejects the push and surfaces here as a conflict. Reporting that
+      // as 'already-released' is a false success with teeth: the caller goes on
+      // to post a release comment and strip auto:build/auto:merge/bot:in-progress
+      // from an issue whose claim blob is still live and still held by this run.
+      // So: re-read the claim and only fall through when the fresh state agrees
+      // the release happened (absent, tombstoned, or held by a successor).
+      if (err.conflict) {
+        let fresh;
+        try {
+          fresh = readClaimBlob({ owner, repo, issueNumber, runner, gitRunner });
+        } catch (readErr) {
+          // Can't tell spurious contention from a genuine release — fail closed
+          // rather than report a success we did not verify.
+          result.error = `write conflict releasing #${issueNumber} (${errorText(err)}); could not re-read the claim to tell a lost branch-tip race from a real release: ${errorText(readErr)}`;
+          return result;
+        }
+        result.calls.push('read');
+        const after = classifyClaimBlob(fresh.content, now);
+        if (after.state === 'live' || after.state === 'stale') {
+          let holderAfter = null;
+          try { holderAfter = JSON.parse(fresh.content).runId; } catch { holderAfter = null; }
+          if (holderAfter === runId) {
+            // Nothing about THIS claim changed — the conflict came from unrelated
+            // branch activity. The tombstone was never written; the claim is still held.
+            result.error = `write conflict releasing #${issueNumber}, but the claim is still held by this run (${runId}) — the release did NOT happen (unrelated claims-registry activity lost us the compare-and-swap; retry): ${errorText(err)}`;
+            return result;
+          }
+        }
+      }
       result.outcome = 'already-released';
       result.note = errorText(err);
     }

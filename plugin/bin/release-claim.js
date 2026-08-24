@@ -118,6 +118,10 @@ function run(argv, deps = realDeps) {
   return EXIT[r.outcome] ?? 1;
 }
 
-module.exports = { run, parseArgs, parseRepo };
+// `realDeps` is exported so the CLI's own wiring is testable — specifically
+// that `gitRunner` is the real claims-git-cas runner and not silently dropped
+// (a drop degrades every claim write back to the contents API without failing
+// anything). Tests inject their own deps into `run` and never use this object.
+module.exports = { run, parseArgs, parseRepo, realDeps };
 
 if (require.main === module) process.exitCode = run(process.argv.slice(2), realDeps);

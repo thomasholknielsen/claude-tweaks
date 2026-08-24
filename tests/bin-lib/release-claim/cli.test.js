@@ -4,7 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { run } = require('../../../plugin/bin/release-claim');
+const { run, realDeps } = require('../../../plugin/bin/release-claim');
+const claimsGitCas = require('../../../plugin/bin/lib/issues/claims-git-cas');
+const release = require('../../../plugin/bin/lib/release-claim/release');
 
 const NOW = Date.parse('2026-08-16T12:00:00Z');
 const RUN_DIR_NAME = '2026-08-16T100000-spec-999';
@@ -141,6 +143,14 @@ test('failed PUT (500): exit 1, no comment, FAILED line still logged; missing ru
   assert.equal(envelope(out3).logged, false);
   assert.match(stderrOf(out3), /not anchored/);
   assert.equal(fs.existsSync(path.join(shadowRunDir, 'decisions.md')), false);
+});
+
+// Wiring, not behavior: every test above injects its own deps, so a dropped
+// `gitRunner` in realDeps would leave this whole suite green while the real
+// CLI silently fell back to the contents-API transport #787 moved off.
+test('realDeps wires the real git-CAS runner and the real gh runner', () => {
+  assert.equal(realDeps.gitRunner, claimsGitCas.defaultRunner, 'gitRunner is claims-git-cas.js\'s defaultRunner export');
+  assert.equal(realDeps.runner, release.defaultRunner, 'runner is release.js\'s defaultRunner export');
 });
 
 test('malformed invocation / gh absent exit 2 with the MCP fallback named; --help exits 0', () => {

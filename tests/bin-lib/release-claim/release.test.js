@@ -167,6 +167,108 @@ test('releaseClaim delegates its read/write through claim-store.js, not its own 
   assert.equal(writeSpy.mock.calls.length, 0);
 });
 
+// #787 amendment (git-CAS): `gitRunner` must reach claim-store on BOTH legs.
+// Silently dropping the forward anywhere in the chain degrades every claim
+// write back to the contents API — the exact endpoint this change moved off —
+// and no other test in this suite would notice.
+test('releaseClaim forwards gitRunner through to claim-store.readClaimBlob AND writeClaimBlob', (t) => {
+  const gitRunner = () => { throw new Error('the injected gitRunner is only forwarded here, never invoked'); };
+  const readSpy = t.mock.method(claimStore, 'readClaimBlob', () => ({ content: live(OWN), sha: 'tip1', failure: null, absent: false }));
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: true, failure: null }));
+  const runner = (args) => {
+    if (args[0] === 'issue' && args[1] === 'comment') return '';
+    throw new Error(`unexpected raw gh call: ${args.join(' ')}`);
+  };
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner, gitRunner, now: NOW });
+  assert.equal(r.outcome, 'released');
+  assert.equal(readSpy.mock.calls.length, 1);
+  assert.equal(readSpy.mock.calls[0].arguments[0].gitRunner, gitRunner, 'read leg carries the injected gitRunner, not undefined');
+  assert.equal(writeSpy.mock.calls.length, 1);
+  assert.equal(writeSpy.mock.calls[0].arguments[0].gitRunner, gitRunner, 'write leg carries the injected gitRunner, not undefined');
+});
+
+// git-CAS leases the whole claims-registry branch tip, so a conflict can come
+// from a commit that has nothing to do with THIS issue. Classifying that as
+// already-released would post a release comment and strip the grant labels off
+// a claim that is still live and still ours.
+test('a write conflict whose re-read shows the claim still live under this run is failed, not already-released', (t) => {
+  t.mock.method(claimStore, 'readClaimBlob', () => ({ content: live(OWN), sha: 'tip1', failure: null, absent: false }));
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const calls = [];
+  const runner = (args) => { calls.push(args); return ''; };
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, removeInProgress: true, runner, gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'failed');
+  assert.match(r.error, /still held by this run/);
+  assert.match(r.error, /HTTP 409\/422/, 'the original conflict text is preserved');
+  assert.equal(r.commentPosted, false);
+  assert.deepEqual(calls, [], 'no release comment, no label stripping — the release did not happen');
+  assert.deepEqual(r.labelsRemoved, []);
+});
+
+test('a write conflict whose re-read shows a successor now holds the claim stays already-released', (t) => {
+  const SUCCESSOR = '2026-08-16T110000-spec-999';
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return { content: live(reads === 1 ? OWN : SUCCESSOR), sha: `tip${reads}`, failure: null, absent: false };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const calls = [];
+  const runner = (args) => { calls.push(args); return ''; };
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner, gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'already-released');
+  assert.equal(reads, 2, 'the conflict triggered a fresh read');
+  assert.equal(r.commentPosted, true);
+  assert.equal(calls.filter(isComment).length, 1);
+  assert.equal(r.error, undefined);
+});
+
+test('a write conflict whose re-read shows the claim gone stays already-released', (t) => {
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return reads === 1
+      ? { content: live(OWN), sha: 'tip1', failure: null, absent: false }
+      : { content: null, sha: null, failure: null, absent: true };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner: () => '', gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'already-released');
+  assert.equal(r.commentPosted, true);
+});
+
+test('a write conflict whose re-read itself fails is failed (never an unverified already-released)', (t) => {
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return reads === 1
+      ? { content: live(OWN), sha: 'tip1', failure: null, absent: false }
+      : { content: null, sha: null, failure: 'network-failure', absent: false };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const calls = [];
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, runner: (a) => { calls.push(a); return ''; }, gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'failed');
+  assert.match(r.error, /HTTP 409\/422/, 'names the original conflict');
+  assert.match(r.error, /network-failure/, 'names the re-read failure too');
+  assert.deepEqual(calls, [], 'nothing is commented or stripped on an unverifiable release');
+});
+
+// A non-conflict already-released-shaped error (a 404 from the contents-API
+// path — the blob was swept) must NOT trigger the re-read: it is a genuine
+// already-released, and the pre-git-CAS behavior is unchanged for it.
+test('a 404-shaped PUT error still short-circuits to already-released without a second read', (t) => {
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return { content: live(OWN), sha: 'tip1', failure: null, absent: false };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: false, failure: 'gh: Not Found (HTTP 404)' }));
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner: () => '', gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'already-released');
+  assert.equal(reads, 1);
+});
+
 test('releaseClaim: a held claim by this run writes the tombstone through claim-store.writeClaimBlob', (t) => {
   t.mock.method(claimStore, 'readClaimBlob', () => ({
     content: JSON.stringify({ runId: 'r1', claimedAt: new Date(0).toISOString(), ttlHours: 72 }),
