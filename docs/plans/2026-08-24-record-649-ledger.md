@@ -1,5 +1,0 @@
-# Open Items — subagent fan-out single-message contract (#649)
-
-| # | Phase | Item | Status | Resolution |
-|---|-------|------|--------|------------|
-| 1 | build | AC2 ("A `/specify` red-team over 2+ `ceremony:standard` sub-issues launches its personas in ≤ (number of sub-issues) assistant messages, verified in the transcript by `Agent` tool_use blocks sharing a message id") is a live-behavior criterion — it can only be verified by observing an actual future `/specify` decomposition run's transcript, not by a static `node --test` assertion. AC1 (the contract sentence + every site's citation) is fully test-pinned (`tests/subagent-contract-clauses.test.js`, 17/17 passing) and covers everything this build can verify statically. | open | Needs a human or reviewer to confirm at the next `/specify` decomposition run with 2+ `ceremony:standard` sub-issues that personas actually batch into ≤N messages — flag for `/demo` or a follow-up observation note, not something `/test`'s automated suite can close |
