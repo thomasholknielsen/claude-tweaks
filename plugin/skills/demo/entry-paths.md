@@ -186,9 +186,9 @@ Cited by both the closing-commit reconstruction's Observation plan step above an
    the reconstruction's opening reconstruction sentence above, or the session-recall entry's
    "what wasn't checked" clause below.
 
-**Fail open, visibly.** Any `gh` failure in steps 1-2 above omits the block and states so in one
-plain line above the verdict, naming which lookup failed — never a silent omission. `/demo` has
-no run directory and no `decisions.md`, so this one line is the only trace.
+**Fail open, visibly.** Any `gh` failure in steps 1-2 above omits the block and states so in
+one plain line above the verdict, naming which lookup failed — never a silent omission. `/demo`
+has no run directory and no `decisions.md`, so this one line is the only trace.
 
 **Not found** — fall back to session-recall for this specific `#N`: does this conversation have
 memory of building and/or verifying it? If yes, compose a Verification Brief exactly as the
