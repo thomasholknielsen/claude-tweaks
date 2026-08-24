@@ -75,7 +75,12 @@ function main(argv) {
     } else if (arg === '--all') {
       allMode = true;
     } else {
-      keys.push(arg);
+      // A key argument may be a single lever or a comma-joined list
+      // (`--values a,b,c`) — both shapes collect into the same flat key list,
+      // so the two output modes share one parse (#1248). Empty segments (a
+      // trailing or doubled comma) are dropped rather than becoming an
+      // unknown-key entry.
+      keys.push(...arg.split(',').filter(Boolean));
     }
   }
   if (allMode && valuesMode) {
