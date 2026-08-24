@@ -82,7 +82,7 @@ function validateLever(key, value) {
 function setConfigLever({ runDir, key, value }) {
   const file = path.join(runDir, 'config.yml');
   let text = '';
-  try { text = fs.readFileSync(file, 'utf8'); } catch { text = ''; }
+  try { text = fs.readFileSync(file, 'utf8'); } catch { /* config.yml not yet created */ }
   const lines = text ? text.split('\n') : [];
   if (lines.length && lines[lines.length - 1] === '') lines.pop();
   const re = new RegExp(`^${key}:\\s*([^#]*)`);
