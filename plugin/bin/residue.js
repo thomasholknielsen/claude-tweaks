@@ -127,7 +127,13 @@ function main() {
     probeForge({ scope, run }),
     suiteResult,
     probeRelease({ scope, manifest, run }),
-    probePipelineRuns({ cwd }),
+    probePipelineRuns({
+      cwd,
+      // The invoking run's identity, when one is threaded (wrap-up runs
+      // inside a pipeline run; standalone invocations have none) — #1118.
+      runId: process.env.PIPELINE_RUN_DIR ? path.basename(process.env.PIPELINE_RUN_DIR) : null,
+      worktreeRoot: git(['rev-parse', '--show-toplevel']),
+    }),
     probeArtifacts({ cwd, run: git }),
   ], opts.scope);
 

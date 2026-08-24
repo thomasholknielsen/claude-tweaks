@@ -7,7 +7,9 @@
 // becomes invisible to bin/lib/reconcile/archive-merged.js's own sweep
 // forever after. This probe deliberately reads .claude-tweaks/pipelines/
 // directly instead of going through iterRunDirsWithState, so it catches
-// exactly the dirs that blind spot already produced.
+// exactly the dirs that blind spot already produced. Findings are attributed
+// to the invoking run (#1118): only a run dir the invoking run can claim
+// (runId or worktree match) is tagged blast-radius; the rest are observed.
 'use strict';
 
 const fs = require('node:fs');
@@ -16,9 +18,31 @@ const { makeFinding } = require('../finding');
 const { mainCheckoutRoot } = require('../../hooks/worktree-detect');
 const { RUN_ID_RE } = require('../../hooks/context');
 
-function probePipelineRuns({ cwd } = {}) {
+// Realpath both sides of every path comparison: fixture/tmp paths and real
+// worktrees routinely sit behind symlinks (macOS /var -> /private/var), and
+// a string-compare on unresolved paths silently never matches. Fall back to
+// path.resolve for a path that no longer exists (an already-removed
+// worktree can't equal the live invoking root anyway).
+function safeReal(p) {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+function isOwnRun(entryName, state, runId, worktreeRootReal) {
+  if (runId && entryName === runId) return true;
+  if (worktreeRootReal && state && typeof state.worktree === 'string' && state.worktree) {
+    return safeReal(state.worktree) === worktreeRootReal;
+  }
+  return false;
+}
+
+function probePipelineRuns({ cwd, runId, worktreeRoot } = {}) {
   const start = cwd || process.cwd();
   const root = mainCheckoutRoot(start) || start;
+  const worktreeRootReal = worktreeRoot ? safeReal(worktreeRoot) : null;
   const base = path.join(root, '.claude-tweaks', 'pipelines');
   let entries;
   try {
@@ -49,22 +73,17 @@ function probePipelineRuns({ cwd } = {}) {
     if (!state || state.status !== 'clean') continue;
     findings.push(makeFinding({
       kind: 'pipeline-run',
-      // Hardcoded, like probeRelease/probeSuite — this is cheap, mechanical
-      // housekeeping any wrap-up cycle should surface and fix regardless of
-      // which run originally produced the orphan, not something to hide
-      // behind --scope repo the way another session's live worktree is.
-      //
-      // #1011 audited this against the same class of gap #499 fixed in
-      // probeBranches (a merged-but-undeleted branch could still belong to a
-      // LIVE concurrent session, so unconditional blast-radius tagging there
-      // was unsafe) and found the two are not the same class: this finding
-      // only fires when `state.status === 'clean'` above — a terminal,
-      // self-reported "nothing more to do but archive" state, not "merged
-      // and therefore maybe still in use elsewhere." A clean run dir is
-      // inert regardless of which session's wrap-up produced it, and
-      // archival (unlike branch deletion) is a non-destructive move, not a
-      // delete. No fix applied; this comment records the audit trail.
-      scope: 'blast-radius',
+      // Attribution (#1118, superseding the #1011 audit that used to keep
+      // this unconditionally blast-radius): a clean run dir is only THIS
+      // run's own blast radius when the invoking run can claim it — its
+      // name equals the invoking run's own id, or its run-state.json
+      // `worktree` field resolves to the invoking checkout's toplevel.
+      // Everything else is another session's orphan: real, cheap to archive,
+      // but not this run's residue — observed live during record #706's
+      // wrap-up, where a blast-radius sweep returned 6 other records' dirs.
+      // Sibling orphans stay visible under --scope repo (/tidy's sweep),
+      // and reconcile's archive sweep still handles them mechanically.
+      scope: isOwnRun(entry.name, state, runId, worktreeRootReal) ? 'blast-radius' : 'observed',
       subject: path.relative(root, dir),
       remedy: 'auto',
       evidence: 'run-state.json status: clean, not under .claude-tweaks/pipelines/archive/ — see wrap-up/cleanup-procedures.md Section B for the archival move',
