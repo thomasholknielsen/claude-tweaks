@@ -82,7 +82,7 @@ An un-archived clean run dir belonging to another session never reaches here eit
 `probePipelineRuns` tags a run dir `blast-radius` only when it is attributable to the invoking
 run (its name matches this run's own id, or its `run-state.json` `worktree` field resolves to
 this checkout's toplevel) — a sibling session's orphan is `observed`, visible under
-`--scope repo` and still archived mechanically by reconcile's own sweep. When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
+`--scope repo` and compacted by `/tidy`'s own 30-day archival-compaction rule (`tidy/step-6-auto.md`) — reconcile's own sweep never sees a clean dir at all. When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
 applies it and the write is not legal from wherever this session currently sits, provision a
 worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own commit. This
 applies to the pipeline-run-dir finding too: the directory lives in the main checkout, so the move

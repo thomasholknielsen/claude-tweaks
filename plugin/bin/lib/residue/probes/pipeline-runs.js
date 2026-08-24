@@ -31,6 +31,9 @@ function safeReal(p) {
   }
 }
 
+// Deliberately duplicates, rather than imports, bin/lib/hooks/context.js's
+// unexported worktreeMatches shape (name-or-worktree-realpath match) — that
+// helper isn't part of context.js's public surface.
 function isOwnRun(entryName, state, runId, worktreeRootReal) {
   if (runId && entryName === runId) return true;
   if (worktreeRootReal && state && typeof state.worktree === 'string' && state.worktree) {
@@ -82,7 +85,9 @@ function probePipelineRuns({ cwd, runId, worktreeRoot } = {}) {
       // but not this run's residue — observed live during record #706's
       // wrap-up, where a blast-radius sweep returned 6 other records' dirs.
       // Sibling orphans stay visible under --scope repo (/tidy's sweep),
-      // and reconcile's archive sweep still handles them mechanically.
+      // and get compacted by /tidy's own 30-day archival-compaction rule
+      // (plugin/skills/tidy/step-6-auto.md) — never by reconcile, which
+      // structurally never sees a clean dir (see the header comment above).
       scope: isOwnRun(entry.name, state, runId, worktreeRootReal) ? 'blast-radius' : 'observed',
       subject: path.relative(root, dir),
       remedy: 'auto',
