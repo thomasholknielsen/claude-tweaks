@@ -49,8 +49,9 @@ function tombstoneMarker(runId) {
   });
 }
 // #315 — a `pr-opened:` tombstone carries a `link` to the PR that build
-// produced; `run()` must consult it (via `tombstoneInFlightPr`, shared with
-// claim-engine.js) before treating this like any other reclaimable tombstone.
+// produced; `run()` must consult it (via `tombstoneInFlightPr`, now
+// exported from claim-store.js — moved there from claim-engine.js, retired
+// #787) before treating this like any other reclaimable tombstone.
 function prOpenedTombstoneMarker(runId, link) {
   return JSON.stringify({
     released: true, runId, reason: 'pr-opened: spec 272', releasedAt: new Date(NOW).toISOString(), link,
@@ -180,9 +181,9 @@ test('(b) tombstone target: conditional write carries the blob sha', () => {
 // ---- #315: pr-opened tombstone in-flight check -----------------------------
 // A `pr-opened:` tombstone whose linked PR is still OPEN means a build for
 // this issue already completed and is awaiting merge — `run()` must not
-// reclaim/re-write over it. Ported from claim-engine.js's `claimOne`, which
-// `bin/claim-targets.js` (the actual `/flow`/dispatch claim path) does not
-// call — this loop has its own inline classify-then-write sequence.
+// reclaim/re-write over it. Uses claim-store.js's `tombstoneInFlightPr`
+// (moved there from claim-engine.js's `claimOne`, retired #787) — this
+// loop has its own inline classify-then-write sequence.
 
 test('(k) pr-opened tombstone, linked PR OPEN, default mode: no reclaim write, exit 3, inFlight envelope', () => {
   const { ghApi, calls } = makeGhApi({

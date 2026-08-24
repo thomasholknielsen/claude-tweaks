@@ -22,7 +22,7 @@
 const claimStore = require('../issues/claim-store');
 const { classifyClaimBlob, claimPayload, releasePayload } = require('../issues/claims');
 const { ensureLabelPayload } = require('../issues/labels');
-const { tombstoneInFlightPr } = require('../issues/claim-engine');
+const { tombstoneInFlightPr } = claimStore;
 
 const BOT_IN_PROGRESS = 'bot:in-progress';
 const BOT_IN_PROGRESS_DESC = 'Bot state: an agent currently holds the claim on this record';

@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, classifyGhApiError,
+  listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, classifyGhApiError, tombstoneInFlightPr,
 } = require('../../../plugin/bin/lib/issues/claim-store');
 
 // Fake ghApi functions mirror release-merged.js's own ghApi shape: a
@@ -336,4 +336,64 @@ test('writeClaimBlob: create-only write (no sha) skips git-CAS even when gitRunn
   };
   const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 1, { content: '{}', message: 'Claim #1' });
   assert.equal(result.ok, true);
+});
+
+// ---- tombstoneInFlightPr: same-repo link validation (#315 review follow-up) ----
+// Migrated verbatim from tests/bin-lib/issues/claim-engine.test.js (#787 —
+// claim-engine.js retired, tombstoneInFlightPr moved to claim-store.js).
+// `link` is read straight from a claims-registry blob, writable by any
+// session with registry-branch access. An unvalidated `link` could point at
+// a permanently-open PR in an unrelated repo (or a malformed/non-string
+// value) and wedge every future reclaim of the real issue — a stored-DoS on
+// the claim path. Every invalid shape must return null WITHOUT ever calling
+// `runner` (no `gh pr view`), falling through to ordinary reclaim exactly
+// like a missing link.
+
+const TIF_T0 = 1720000000000;
+
+function tifProOpenedTombstone(link) {
+  return JSON.stringify({
+    released: true, runId: 'run-1', reason: 'pr-opened: spec 272', releasedAt: new Date(TIF_T0).toISOString(), link,
+  });
+}
+
+function tifRefusesWithoutRunnerCall(link) {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = tifProOpenedTombstone(link);
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.equal(result, null);
+  assert.equal(calls.length, 0, 'an invalid link must never reach the runner (no gh pr view call)');
+}
+
+test('tombstoneInFlightPr: link pointing at a DIFFERENT repo -> null, no runner call', () => {
+  tifRefusesWithoutRunnerCall('https://github.com/other-owner/other-repo/pull/304');
+});
+
+test('tombstoneInFlightPr: malformed/non-URL link -> null, no runner call', () => {
+  tifRefusesWithoutRunnerCall('not-a-url');
+});
+
+test('tombstoneInFlightPr: non-string link (a number) -> null, no runner call', () => {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = JSON.stringify({
+    released: true, runId: 'run-1', reason: 'pr-opened: spec 272', releasedAt: new Date(TIF_T0).toISOString(), link: 304,
+  });
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.equal(result, null);
+  assert.equal(calls.length, 0, 'a non-string link must never reach the runner');
+});
+
+test('tombstoneInFlightPr: a flag-shaped link ("--repo") -> null, no runner call', () => {
+  tifRefusesWithoutRunnerCall('--repo');
+});
+
+test('tombstoneInFlightPr: same-repo, well-formed, OPEN link -> { link }, one runner call', () => {
+  const calls = [];
+  const runner = (args) => { calls.push(args); return 'OPEN\n'; };
+  const content = tifProOpenedTombstone('https://github.com/acme/w/pull/304');
+  const result = tombstoneInFlightPr(content, runner, 'acme', 'w');
+  assert.deepEqual(result, { link: 'https://github.com/acme/w/pull/304' });
+  assert.equal(calls.length, 1);
 });

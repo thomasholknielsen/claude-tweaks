@@ -214,6 +214,53 @@ function writeClaimBlob(deps, repoSlug, issueNumber, { content, sha, message }) 
   return { ok: r.failure === null && r.status !== 404, failure: r.failure };
 }
 
+// Escapes a literal string for embedding inside a `new RegExp(...)` pattern —
+// `owner`/`repo` come from this claim's own caller (trusted), but are still
+// escaped defensively since GitHub does allow `.` in either.
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isSameRepoPrUrl(link, owner, repo) {
+  if (typeof link !== 'string') return false;
+  if (typeof owner !== 'string' || !owner || typeof repo !== 'string' || !repo) return false;
+  const re = new RegExp(`^https://github\\.com/${escapeRegExp(owner)}/${escapeRegExp(repo)}/pull/\\d+$`);
+  return re.test(link);
+}
+
+// content: the raw tombstone blob text just read. gh: the generic throwing
+// gh runner (NOT ghApi — this needs `gh pr view`, not a contents-API call).
+// owner/repo: the SAME owner/repo as the issue being claimed. Moved here
+// verbatim from the now-retired claim-engine.js (#787 consolidation) — see
+// `_shared/issue-claims.md`'s "in-flight detection" section for the full
+// #315 rationale: a `pr-opened:` tombstone whose linked PR is still open
+// means a build already completed and is awaiting merge, so reclaiming here
+// would race that open PR. `link` is untrusted (any session with
+// registry-branch write access can set it), so this validates it — a
+// well-formed `https://github.com/{owner}/{repo}/pull/{number}` URL for the
+// SAME owner/repo as the issue being claimed — before ever calling `gh`.
+function tombstoneInFlightPr(content, gh, owner, repo) {
+  try {
+    const parsed = JSON.parse(content);
+    const reason = parsed && parsed.reason;
+    const link = parsed && parsed.link;
+    if (typeof reason !== 'string' || !reason.startsWith('pr-opened:')) return null;
+    if (!isSameRepoPrUrl(link, owner, repo)) return null;
+    const state = gh(['pr', 'view', link, '--json', 'state', '--jq', '.state']).trim();
+    return state === 'OPEN' ? { link } : null;
+  } catch {
+    return null; // fail open — a broken check must never block a legitimate reclaim
+  }
+}
+
 module.exports = {
-  listClaimEntries, listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, claimPath, classifyGhApiError,
+  listClaimEntries,
+  listClaimNames,
+  readClaimBlob,
+  writeClaimBlob,
+  defaultGhApi,
+  claimPath,
+  classifyGhApiError,
+  tombstoneInFlightPr,
+  isSameRepoPrUrl,
 };
