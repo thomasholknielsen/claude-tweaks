@@ -13,11 +13,19 @@ record contract defines what the labels mean.
 
 ## The lock
 
-**`bin/claims.js claim|release <n,n,...> --run-id <id>`** (`bin/lib/issues/claim-engine.js`) is
-the gh-CLI-transport implementation of every read-classify-write step below, plus the group-claim-
-all-or-abort semantics `flow/claim-targets.md`'s Step 2.8 needs — the command every `gh`-present
-consumer of this section runs instead of hand-scripting the loop per pipeline run. The MCP
-transport (`gh` absent) still runs the algorithm as written below, over the MCP tools.
+**`bin/claim-targets.js --run-id <id> --targets <n,n,...>`** (claim side, `bin/lib/claim-targets/claim-targets.js`
++ `bin/lib/issues/claim-store.js`) and **`bin/release-claim.js <issue> --run <run-dir> --reason <reason>`**
+(release side, `bin/lib/release-claim/release.js`) are the two CLI surfaces every real consumer of
+this section runs instead of hand-scripting the loop per pipeline run — `flow/claim-targets.md`'s
+Step 2.8 for claiming, `wrap-up/cleanup-procedures.md` Section E for releasing. Both are thin
+wrappers over the one write-path module, `claim-store.js`: it tries a **git compare-and-swap**
+first — fetch the `claims-registry` tip, commit the blob on it, push with
+`--force-with-lease=refs/heads/claims-registry:<expected-tip>` (a rejected push is contested —
+same handling as a live claim, not a retry) — falling back to the contents-API PUT below only when
+git-CAS fails for a transport reason (no git push credential — an MCP-only sandbox, for instance)
+or a secondary rate limit (classified as its own distinct outcome, never folded into "contested").
+The MCP transport (`gh` absent) runs the contents-API algorithm as written below, over the MCP
+tools — git-CAS requires a git push credential the MCP-only case doesn't have.
 
 **One keyspace, one classifier, both transports.** `claims/issue-<number>.json`, a blob on the
 `claims-registry` branch, is the *only* lock — checked and written identically whether this run
@@ -260,19 +268,18 @@ exists — it lands in the release marker and human line.
 **In-flight detection at claim time (#315).** A `pr-opened:` tombstone's `link` field points at
 the PR that build produced — before reclaiming such a tombstone, a claim-time reader may check
 `gh pr view <link> --json state --jq .state`; a still-`OPEN` result means a build for this issue
-already exists and reclaiming would race it. `bin/lib/issues/claim-engine.js`'s `claimOne` runs
-this check (`tombstoneInFlightPr`), returning `outcome: 'in-flight'` instead of proceeding to a
-fresh claim; any other reason, a missing `link`, or a failed/closed/merged check falls through to
-the reclaim behavior below unchanged (fail open). `link` is untrusted (any session with
-registry-branch write access can set it), so `tombstoneInFlightPr` validates it — a well-formed
+already exists and reclaiming would race it. `bin/lib/issues/claim-store.js`'s `tombstoneInFlightPr`
+runs this check (moved there from the retired `claim-engine.js`, #787), returning `{ link }` instead
+of proceeding to a fresh claim; any other reason, a missing `link`, or a failed/closed/merged check
+falls through to the reclaim behavior below unchanged (fail open). `link` is untrusted (any session
+with registry-branch write access can set it), so `tombstoneInFlightPr` validates it — a well-formed
 `https://github.com/{owner}/{repo}/pull/{number}` URL for the SAME owner/repo as the issue being
 claimed — before ever calling `gh pr view`; anything else (wrong repo, malformed, non-string) is
 treated the same as a missing `link` and never reaches `gh` at all.
 `bin/lib/claim-targets/claim-targets.js` — the group-claim loop `/claude-tweaks:flow` Step 2.8 and
-`/claude-tweaks:dispatch` actually call, a separate implementation from `claim-engine.js` — runs
-the same `tombstoneInFlightPr` check inline and reports the stopped target via
-`inFlight`/`reason: 'in-flight'` instead of `outcome` (`flow/claim-targets.md`'s "Branch on exit
-code").
+`/claude-tweaks:dispatch` actually call — imports this same `tombstoneInFlightPr` from
+`claim-store.js` and reports the stopped target via `inFlight`/`reason: 'in-flight'` instead of
+`outcome` (`flow/claim-targets.md`'s "Branch on exit code").
 
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a
