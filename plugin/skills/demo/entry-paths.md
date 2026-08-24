@@ -164,10 +164,10 @@ Cited by both the closing-commit reconstruction's Observation plan step above an
    this record's own `Parent: #N` body line; `github-issues` + `work-links: native` → one
    `buildNativeParentQuery([n])` call (`bin/lib/issues/record.js`), run via
    `gh api graphql -f owner="{owner}" -f repo="{repo}" -f query="$(node -e "…buildNativeParentQuery([n])…")"`
-   — `-f` for `owner`/`repo` here, not `-F`: both are `String!` GraphQL variables, and `-F`
-   only substitutes a literal `{owner}`/`{repo}` placeholder in a REST **path**, which does not
-   apply to a GraphQL variable (`gh-api-module-pattern` skill). **No parent resolvable** — omit
-   the block entirely; nothing renders.
+   — `-f` for `owner`/`repo` here, not `-F`: both are `String!` GraphQL variables. `-F` is for
+   substituting gh's literal `{owner}`/`{repo}` placeholder syntax inside a field *value* — a
+   different mechanism a GraphQL variable never uses (`gh-api-module-pattern` skill). **No parent
+   resolvable** — omit the block entirely; nothing renders.
 2. **Enumerate siblings and their state**, from the parent side — reusing
    `wrap-up/verification-brief-parent-gate.md`'s "Enumerate the parent's sub-issues"
    enumeration: `native` — `gh api "repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues"`, whose
