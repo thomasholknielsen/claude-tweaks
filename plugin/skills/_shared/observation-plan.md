@@ -30,6 +30,8 @@ are stated once, here.
 - `Full verification:` is optional. It is present only when the record has a resolvable
   parent, and never on a parentless record. A Parent-Gate parent brief omits the Observation
   plan section entirely, so it never carries this block either.
+- `Parent:` names the record's immediate parent only (`#P {parent title}`) — never walks up to
+  a grandparent, even when that parent is itself a sub-issue.
 - `Pending:` lists every still-open sibling as `#N {title} (open)`, comma-separated, in
   ascending number order, excluding the record in hand. When no sibling is open, `Pending:`
   instead reads `none — every sibling closed; parent gate {due|gated|resolved}`, using
