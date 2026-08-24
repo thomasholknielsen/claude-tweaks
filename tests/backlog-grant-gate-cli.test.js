@@ -3,6 +3,15 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { run } = require('../plugin/bin/backlog-grant-gate');
 
+// The only three gh fetches this CLI makes, keyed by args[3]: the
+// ready-labeled candidate pool, the parent-issue pull, and the historical
+// `--state all` record set. Anything else is an unexpected call and fails
+// the test loudly rather than returning a plausible empty page.
+function stubGh(args) {
+  if (['ready', 'parent-issue', 'all'].includes(args[3])) return JSON.stringify([]);
+  throw new Error(`unexpected gh call: ${JSON.stringify(args)}`);
+}
+
 function deps(overrides = {}) {
   const calls = [];
   const d = {
@@ -10,11 +19,7 @@ function deps(overrides = {}) {
     readPolicyRaw: () => 'autonomy: unattended\ngrant-origination-enabled: true\nwork-links: body-text\nintegration-branch: main\n',
     runner: (args) => {
       calls.push(args);
-      if (args[3] === 'ready') return JSON.stringify([]);
-      if (args[3] === 'parent-issue') return JSON.stringify([]);
-      if (args[3] === 'open') return JSON.stringify([]);
-      if (args[3] === 'all') return JSON.stringify([]);
-      throw new Error(`unexpected gh call: ${JSON.stringify(args)}`);
+      return stubGh(args);
     },
     gitRunner: () => '',
     out: [], err: [],
@@ -72,13 +77,8 @@ test('happy path (no candidates, no records) prints the zero-candidate envelope,
 test('--limit overrides the resolved backlog-fetch-limit', () => {
   const d = deps({
     runner: (args) => {
-      d.calls.push(args);
       assert.ok(args.includes('7'), `expected --limit 7 in ${JSON.stringify(args)}`);
-      if (args[3] === 'ready') return JSON.stringify([]);
-      if (args[3] === 'parent-issue') return JSON.stringify([]);
-      if (args[3] === 'open') return JSON.stringify([]);
-      if (args[3] === 'all') return JSON.stringify([]);
-      throw new Error(`unexpected gh call: ${JSON.stringify(args)}`);
+      return stubGh(args);
     },
   });
   assert.strictEqual(run(['--limit', '7'], d), 0);

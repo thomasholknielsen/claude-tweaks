@@ -87,15 +87,15 @@ function resolveSubIssueNumbers({ workLinks, limit, runner, owner, repo, probeFn
     const schema = probeFn(runner);
     const all = new Set();
     const retryParents = [];
-    if (!schema.subIssues) {
-      retryParents.push(...numbers);
-    } else {
+    if (schema.subIssues) {
       for (let i = 0; i < numbers.length; i += 50) {
         const chunk = numbers.slice(i, i + 50);
         const res = fetchNativeSubIssues({ numbers: chunk, owner, repo, runner });
         for (const subs of res.byParent.values()) subs.forEach((n) => all.add(n));
         retryParents.push(...res.retry);
       }
+    } else {
+      retryParents.push(...numbers);
     }
     for (const parentNumber of retryParents) {
       const out = runner(['api', '--paginate', `repos/${owner}/${repo}/issues/${parentNumber}/sub_issues`, '--jq', '.[].number']);
@@ -178,9 +178,7 @@ function computeOutlook(policy, fetch) {
   // record set trustRows grades — the same single-fetch shape grant-mode.md
   // originally derived openNumbers from, never a second bare `--state open`
   // call of its own.
-  const allRecords = fetchAllRecords({
-    limit, runner, sessionId, ttlSeconds,
-  });
+  const allRecords = fetchAllRecords({ limit, runner, sessionId, ttlSeconds });
   const openNumbers = new Set(allRecords.filter((r) => r.state === 'OPEN').map((r) => r.number));
 
   const readyIssues = fetchReadyCandidates({ limit, runner });

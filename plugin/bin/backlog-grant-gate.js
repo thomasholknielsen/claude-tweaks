@@ -144,8 +144,10 @@ function run(argv, deps = realDeps) {
       deps.stderr(`backlog-grant-gate.js: could not resolve the integration branch (no policy value, and git rev-parse origin/HEAD failed: ${errorText(err)})\n`);
       return 1;
     }
+    // git succeeded but printed nothing usable — the policy path above can
+    // never land here, since a set policy value skips this whole block.
+    if (!integrationBranch) { deps.stderr('backlog-grant-gate.js: could not resolve the integration branch\n'); return 1; }
   }
-  if (!integrationBranch) { deps.stderr('backlog-grant-gate.js: could not resolve the integration branch\n'); return 1; }
 
   let envelope;
   try {

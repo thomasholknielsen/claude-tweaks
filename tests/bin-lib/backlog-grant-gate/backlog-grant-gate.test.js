@@ -98,11 +98,13 @@ test('resolveSubIssueNumbers (native): batches fetchNativeSubIssues and REST-ret
 
 // --- computeOutlook: the full Step 0 -> Step 2 Phase A pipeline ---
 
-function ghRunner({ candidates = [], openNumbers = [], records = [], parents = [] }) {
+// computeOutlook's three gh fetches, keyed by args[3]. There is deliberately
+// no `--state open` case: the open-issue set the Blocked-by filter reads is
+// derived from the `--state all` rows' own `state` field, never a second fetch.
+function ghRunner({ candidates = [], records = [], parents = [] }) {
   return (args) => {
     if (args[3] === 'ready') return JSON.stringify(candidates);
     if (args[3] === 'parent-issue') return JSON.stringify(parents);
-    if (args[3] === 'open') return JSON.stringify(openNumbers.map((n) => ({ number: n })));
     if (args[3] === 'all') return JSON.stringify(records);
     throw new Error(`unexpected gh call: ${JSON.stringify(args)}`);
   };
@@ -118,7 +120,7 @@ test('computeOutlook: ceiling gate not satisfied short-circuits before any fetch
 test('computeOutlook: ceiling clears but zero candidates are eligible -> zero-eligible shortcut with the refusal breakdown', () => {
   const candidates = [issue(1, { labels: ['by:code-health', 'ready', 'risk:low'] })];
   // No closed records at all -> every class reads no-cell -> refused under 'trust'.
-  const runner = ghRunner({ candidates, openNumbers: [], records: [], parents: [] });
+  const runner = ghRunner({ candidates });
   const gitRunner = () => '';
   const out = computeOutlook(
     { ceiling: 'unattended', grantOriginationEnabled: true, windowDays: 14 },
@@ -136,7 +138,7 @@ test('computeOutlook: a clean-trust class produces an eligible candidate (matche
   const records = Array.from({ length: 8 }, (_, i) => issue(100 + i, {
     labels: ['by:code-health', 'risk:low', 'demo:approved'], state: 'CLOSED', closedAt: '2026-01-01T00:00:00Z',
   }));
-  const runner = ghRunner({ candidates, openNumbers: [], records, parents: [] });
+  const runner = ghRunner({ candidates, records });
   const gitRunner = () => '';
   const out = computeOutlook(
     { ceiling: 'unattended', grantOriginationEnabled: true, windowDays: 14 },
@@ -159,7 +161,7 @@ test('computeOutlook: a sub-issue is excluded from trustRows\' cell totals (neve
   const subIssue = issue(200, { labels: ['by:code-health', 'risk:low'], state: 'CLOSED', closedAt: '2026-01-01T00:00:00Z' });
   const records = [...graded, subIssue];
   const parents = [{ number: 300, body: '- [ ] #200' }];
-  const runner = ghRunner({ candidates, openNumbers: [], records, parents });
+  const runner = ghRunner({ candidates, records, parents });
   const gitRunner = () => '';
   const out = computeOutlook(
     { ceiling: 'unattended', grantOriginationEnabled: true, windowDays: 14 },

@@ -153,14 +153,14 @@ eval "$(node -e "
   }
 ")"
 node "${CLAUDE_PLUGIN_ROOT}/bin/backlog-grant-gate.js" > "$ST_BACKLOG_GRANT_OUTLOOK"
-SHORTCUT=$(node -e "console.log(require('$ST_BACKLOG_GRANT_OUTLOOK').shortcut || '')")
-node -e "
-  const out = require('$ST_BACKLOG_GRANT_OUTLOOK');
+SHORTCUT=$(node -e "
   const fs = require('fs');
+  const out = require('$ST_BACKLOG_GRANT_OUTLOOK');
   fs.writeFileSync('$ST_BACKLOG_GRANT_CANDIDATES', JSON.stringify(out.candidates));
   fs.writeFileSync('$ST_BACKLOG_GRANT_TRUST_ROWS', JSON.stringify(out.trustRows.map((r) => [r.key, r])));
   fs.writeFileSync('$ST_BACKLOG_GRANT_PHASE_A', JSON.stringify(out.phaseA));
-"
+  console.log(out.shortcut || '');
+")
 ```
 
 **Early exit (#1384's Deliverable 2).** Before running the per-candidate Phase B/C loop below,

@@ -2,29 +2,24 @@
 
 // Conformance pin (#654): grant-mode's not-already-claimed exclusion must
 // keep using the exact filter expression refineWorklist's `inProgress`
-// semantics use (bin/lib/issues/backlog.js). This filter's source of truth
-// moved from hand-composed grant-mode.md prose into real, tested code when
-// #1384 consolidated Step 1's candidate fetch into `bin/backlog-grant-gate.js`
-// — see `filterCandidates` in
-// `plugin/bin/lib/backlog-grant-gate/backlog-grant-gate.js`. Pinning the
-// literal there (rather than in the prose, which now just names the CLI) is
-// a strictly tighter guarantee: `node --test` exercises the expression
-// directly instead of only pinning its text. If that function's filter ever
-// rewrites this expression — even to something behaviorally equivalent —
-// this pin fails loudly instead of letting it silently drift from
-// `refineWorklist`'s semantics.
+// semantics use (bin/lib/issues/backlog.js). #1384 moved that filter's source
+// of truth out of hand-composed grant-mode.md prose (which now just names the
+// CLI) into `filterCandidates` in the module below — so the pin lives here,
+// where `node --test` exercises the expression instead of only its text. A
+// rewrite of it, even a behaviorally equivalent one, fails loudly rather than
+// silently drifting from `refineWorklist`'s semantics.
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const MODULE_REL = 'plugin/bin/lib/backlog-grant-gate/backlog-grant-gate.js';
+const FILTER_EXPR = '.filter((i) => !i.facets.bot.inProgress)';
+
 test('backlog-grant-gate.js still contains the literal not-already-claimed filter expression', () => {
-  const source = fs.readFileSync(
-    path.join(__dirname, '..', 'plugin/bin/lib/backlog-grant-gate/backlog-grant-gate.js'),
-    'utf8',
-  );
+  const source = fs.readFileSync(path.join(__dirname, '..', MODULE_REL), 'utf8');
   assert.ok(
-    source.includes('.filter((i) => !i.facets.bot.inProgress)'),
-    'expected the literal filter expression `.filter((i) => !i.facets.bot.inProgress)` in plugin/bin/lib/backlog-grant-gate/backlog-grant-gate.js'
+    source.includes(FILTER_EXPR),
+    `expected the literal filter expression \`${FILTER_EXPR}\` in ${MODULE_REL}`,
   );
 });
