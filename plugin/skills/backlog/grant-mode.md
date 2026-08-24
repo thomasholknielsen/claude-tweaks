@@ -30,7 +30,7 @@ RISK_FLOOR=$(printf '%s\n' "$POLICY_VALUES" | sed -n '3p')   # line 3: risk-floo
 SIZE_FLOOR=$(printf '%s\n' "$POLICY_VALUES" | sed -n '4p')   # line 4: size-floor
 ```
 
-`RISK_FLOOR`/`SIZE_FLOOR` are whole-run values, resolved once here — like `CEILING`/`OPT_IN`, they feed both Phase A's and Phase C's `policy` object below (gate 5's oversight floor is not per-record configuration). A `shaped:headless` record (#968 — no human reviewed the spec body) is additionally checked against a fixed `medium` floor on both axes, denying with `failedKey: 'shaped-headless-floor'` when it exceeds that floor — this second check is not configurable and is not part of `RISK_FLOOR`/`SIZE_FLOOR` above; it runs only after the configured floor already cleared, so the existing `'oversight-floor'` key keeps winning when both would deny.
+`RISK_FLOOR`/`SIZE_FLOOR` are whole-run values, resolved once here — like `CEILING`/`OPT_IN`, they feed Phase C's `policy` object below (gate 5's oversight floor is not per-record configuration, and is out of scope for Step 2 Phase A's pure gates 1-3 — `bin/backlog-grant-gate.js` re-resolves its own copy of every value in this block for that phase, independent of these shell variables). A `shaped:headless` record (#968 — no human reviewed the spec body) is additionally checked against a fixed `medium` floor on both axes, denying with `failedKey: 'shaped-headless-floor'` when it exceeds that floor — this second check is not configurable and is not part of `RISK_FLOOR`/`SIZE_FLOOR` above; it runs only after the configured floor already cleared, so the existing `'oversight-floor'` key keeps winning when both would deny.
 
 Substitute the literal values — do not `export` in an earlier Bash call and read `process.env`
 later (shell state doesn't survive between calls or reach a subagent; same hazard
@@ -81,11 +81,13 @@ An empty `{}` means nothing to sweep — skip straight to Step 1. Otherwise, for
 `{number}` key in the watched map:
 
 1. Fetch its current state fresh: `gh issue view {number} --json state,closedAt,labels`.
-2. Reuse this run's already-fetched integration-branch git log (`_shared/trust-table.md`'s Fetch
-   section — the same log Step 2's trust-row build pulls; do not fetch it a second time here) and
+2. Fetch the integration-branch git log via `_shared/trust-table.md`'s Fetch section (its own
+   session-scoped cache applies here as it does for every other consumer of that section) and
    the resolved `trust-revert-window-days` policy value (`resolve-policy.js --values
-   trust-revert-window-days`, same resolver pattern Step 0/Step 2 already use elsewhere in this
-   mode).
+   trust-revert-window-days`, same resolver pattern Step 0 already uses elsewhere in this mode).
+   This fetch is independent of `bin/backlog-grant-gate.js`'s own internal git-log fetch below
+   (Step 1 + Step 2 Phase A) — that CLI always fetches fresh, on its own "one invocation" premise,
+   rather than reading the session-scoped cache this step writes.
 3. Classify:
 
    ```bash
@@ -121,101 +123,26 @@ mid-sweep must block that same firing's own remaining grants, not only the next 
 AUTO {time} — Backlog grant: merge-lane circuit breaker TRIPPED by #{n} (reason: {revert|reopened|demo:changes-requested}) — auto:merge origination halted repo-wide until an explicit reset via /claude-tweaks:backlog refine.
 ```
 
-## Step 1: Fetch candidates (`work-backend: github-issues` only)
+## Step 1 + Step 2 Phase A: fetch candidates and evaluate gates 1-3 (one invocation)
 
-Reuses `refine-mode.md`'s own grant-fetch shape and `dispatch/SKILL.md`'s pagination posture
-(same `--limit`/at-cap-warning pattern, same `parseRecordFacets` fold), narrowed to this mode's
-own eligibility:
-
-```bash
-eval "$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  const os = require('os'); const path = require('path');
-  const files = {
-    ST_BACKLOG_GRANT_READY: 'backlog-grant-ready.json',
-  };
-  for (const [varName, filename] of Object.entries(files)) {
-    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-    console.log(varName + '=' + JSON.stringify(p));
-  }
-")"
-LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
-gh issue list --label ready --state open --json number,title,body,labels,createdAt --limit "$LIMIT" > "$ST_BACKLOG_GRANT_READY"
-if [ "$(node -e "console.log(require('$ST_BACKLOG_GRANT_READY').length)")" = "$LIMIT" ]; then
-  echo "WARNING: fetched exactly $LIMIT ready-labeled issues (backlog-fetch-limit) — there may be more. See .claude-tweaks/policy.yml." >&2
-fi
-```
-
-The `ready`-labeled fetch above stays a dedicated server-side-filtered call — GitHub does that
-narrowing cheaper than pulling the whole queue and filtering client-side. The open-issue-number
-set below, though, is data every session-scoped record snapshot already carries (`number` +
-`state` on every row) — read it from there instead of a second bare fetch:
+**`bin/backlog-grant-gate.js`** runs Step 0's ceiling gate through Step 2 Phase A (gates 1-3,
+pure) as one command — the ready-labeled candidate fetch, the Blocked-by pre-filter, the whole
+trust-table build (`_shared/trust-table.md`'s Fetch section: historical record set, sub-issue
+exclusion, git-log dump, `trustRows()`), and per-candidate `evaluateGrantGate` (gates 1-3, no
+`grantCheck`) — reusing `evaluateGrantGate`/`trustRows`/`machineGrantOutlook` directly instead of
+the ~40-step hand-composed Bash pipeline this section used to document (#1384's Current State).
+It re-resolves the ceiling/opt-in policy itself (cheap, local file read) rather than trusting
+Step 0's shell variables, so it is safe to invoke on its own even outside this mode. Its
+historical `--state all` fetch reads through `_shared/record-queue-fetch.md`'s session-scoped
+record snapshot the same way every other citer of that section does, rather than a bare fetch of
+its own:
 
 ```bash
 eval "$(node -e "
   const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
   const os = require('os'); const path = require('path');
   const files = {
-    ST_BACKLOG_GRANT_ALL_RECORDS: 'backlog-grant-all-records.json',
-    ST_BACKLOG_GRANT_OPEN_NUMBERS: 'backlog-grant-open-numbers.json',
-    ST_BACKLOG_GRANT_READY: 'backlog-grant-ready.json',
-    ST_BACKLOG_GRANT_CANDIDATES: 'backlog-grant-candidates.json',
-  };
-  for (const [varName, filename] of Object.entries(files)) {
-    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-    console.log(varName + '=' + JSON.stringify(p));
-  }
-")"
-{Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md),
- with {tmp-records-file} = $ST_BACKLOG_GRANT_ALL_RECORDS}
-node -e "
-  const records = require('$ST_BACKLOG_GRANT_ALL_RECORDS').filter((i) => i.state === 'OPEN');
-  require('fs').writeFileSync('$ST_BACKLOG_GRANT_OPEN_NUMBERS', JSON.stringify(records.map((i) => ({ number: i.number }))));
-"
-node -e "
-  const { parseRecordFacets, parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const issues = require('$ST_BACKLOG_GRANT_READY');
-  const openNumbers = new Set(require('$ST_BACKLOG_GRANT_OPEN_NUMBERS').map((i) => i.number));
-  const candidates = issues
-    .map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))
-    .filter((i) => i.facets.origin !== null)               // by:* sweep origin only (gate 3, pre-filtered here for cheapness)
-    .filter((i) => !i.facets.grants.build && !i.facets.grants.merge)  // no existing grant
-    .filter((i) => !i.facets.bot.inProgress)                 // not already claimed
-    .filter((i) => {
-      const deps = parseDependencies(i.body);
-      return deps.every((d) => !openNumbers.has(d));         // no open 'Blocked by #N'
-    });
-  console.log(JSON.stringify(candidates));
-" > "$ST_BACKLOG_GRANT_CANDIDATES"
-```
-
-The `facets.origin !== null` filter is a cheap pre-pass on the same gate-3 condition
-`evaluateGrantGate` re-checks anyway — filtering here just avoids running the full chain on
-every human-filed record in the `ready` queue. `bot:blocked` records are **included** here
-(their retry-ceiling state doesn't disqualify them from re-authorization — see Step 4's
-re-authorize handling) unless they also carry `bot:in-progress`.
-
-**`--limit 500` on the open-numbers pull** can silently truncate on a repo with more than 500
-open issues — same caveat `dispatch/SKILL.md`'s own use of this pattern documents (a dependency
-number absent from `openNumbers` reads as "not in the fetched page," not "closed"). Given the
-volume this mode is designed for (a `ready`-labeled subset, not the whole backlog), this is
-accepted without a targeted live-check fallback; `evaluateGrantGate`'s own gates still apply
-per-record regardless.
-
-## Step 2: Evaluate the gate chain (bounded, per candidate)
-
-Bound the LLM-bound grant-check pass to `--budget` (default 40, independent of `refine`'s own
-budget — same `--budget` flag, same default, per `SKILL.md`'s Input). Two-phase per record,
-matching `bin/lib/issues/grant-gate.js`'s own two-phase contract (gate 4 needs a Skill call this
-pure module cannot make itself):
-
-**Phase A — gates 1-3, pure, no LLM call:**
-
-```bash
-eval "$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  const os = require('os'); const path = require('path');
-  const files = {
+    ST_BACKLOG_GRANT_OUTLOOK: 'backlog-grant-outlook.json',
     ST_BACKLOG_GRANT_CANDIDATES: 'backlog-grant-candidates.json',
     ST_BACKLOG_GRANT_TRUST_ROWS: 'backlog-grant-trust-rows.json',
     ST_BACKLOG_GRANT_PHASE_A: 'backlog-grant-phase-a.json',
@@ -225,30 +152,50 @@ eval "$(node -e "
     console.log(varName + '=' + JSON.stringify(p));
   }
 ")"
-node -e "
-  const { evaluateGrantGate } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-gate.js');
-  const candidates = require('$ST_BACKLOG_GRANT_CANDIDATES');
-  const policy = { ceiling: '$CEILING', grantOriginationEnabled: $([ \"$OPT_IN\" = 'true' ] && echo true || echo false), riskFloor: '$RISK_FLOOR', sizeFloor: '$SIZE_FLOOR' };
-  // trustVerdicts: built the same way refine-mode.md's Trust Signal section builds its 'rows'
-  // Map — trustRows() + resolveProvenance()/riskBand() over the fetched + git-log evidence, per
-  // _shared/trust-table.md's Fetch section. Omitted here for brevity; reuse that section's script
-  // verbatim, substituting this mode's candidate set.
-  const trustVerdicts = require('$ST_BACKLOG_GRANT_TRUST_ROWS'); // Map-shaped: [[classKey, row], ...]
-  const results = candidates.map((c) => ({
-    number: c.number,
-    result: evaluateGrantGate({ record: { number: c.number, labels: c.labels, body: c.body, facets: c.facets }, policy, trustVerdicts: new Map(trustVerdicts) }),
-  }));
-  console.log(JSON.stringify(results));
-" > "$ST_BACKLOG_GRANT_PHASE_A"
+node "${CLAUDE_PLUGIN_ROOT}/bin/backlog-grant-gate.js" > "$ST_BACKLOG_GRANT_OUTLOOK"
+SHORTCUT=$(node -e "
+  const fs = require('fs');
+  const out = require('$ST_BACKLOG_GRANT_OUTLOOK');
+  fs.writeFileSync('$ST_BACKLOG_GRANT_CANDIDATES', JSON.stringify(out.candidates));
+  fs.writeFileSync('$ST_BACKLOG_GRANT_TRUST_ROWS', JSON.stringify(out.trustRows.map((r) => [r.key, r])));
+  fs.writeFileSync('$ST_BACKLOG_GRANT_PHASE_A', JSON.stringify(out.phaseA));
+  console.log(out.shortcut || '');
+")
 ```
 
-Every result with `failedKey` set is a **skip** — do not invoke `grant-check` for it (the whole
-point of gate ordering: don't spend an LLM call on a record already refused for a cheaper
-reason). Log each skip now (Step 4's Logging format).
+**Early exit (#1384's Deliverable 2).** Before running the per-candidate Phase B/C loop below,
+check `$SHORTCUT`:
 
-Every result with `needsGrantCheck: true` proceeds to Phase B, bounded by `--budget`
-(`bl.selectBudgetSlice`, same helper `refine-mode.md` Step 3 uses); state `remaining > 0` plainly
-in the report exactly as that step does.
+- **`ceiling-gate`** — Step 0 already reported this and stopped the whole mode; this branch is
+  unreachable here (the CLI's own ceiling check agrees with Step 0's, since both read the same
+  policy).
+- **`zero-eligible`** — not one candidate in this firing reached `needsGrantCheck: true`; every
+  one was refused by gates 1-3 alone. Skip Phase B/C entirely — there is nothing for the LLM-bound
+  loop to do this firing — and report the refusal breakdown using `out.refused`, the exact same
+  shape `overview-mode.md`'s `machineGrantOutlook` annotation already renders (its own consumer of
+  this same function, `machine-grant-outlook.md` in this skill's directory), so the two surfaces
+  can never disagree about the same backlog state:
+
+  ```
+  Nothing to grant this firing — {candidateCount} candidate(s) evaluated, 0 eligible for
+  grant-check: {failedKey}: {count}, {failedKey}: {count}, ...
+  ```
+
+  `{candidateCount}` is `out.candidates.length`; the `{failedKey}: {count}` list renders in
+  descending count order, reading `Object.entries(out.refused)` (each value's `.length`). Log to
+  `decisions.md`:
+
+  ```
+  AUTO {time} — Backlog grant: zero-eligible short-circuit — {candidateCount} candidate(s), 0 needing grant-check: {failedKey}: {count}, ...
+  ```
+
+  Do not proceed to Step 3/Step 4 — go straight to Step 5's report using this line as the summary.
+- **empty string** (no shortcut) — at least one candidate is eligible. Continue to Phase B below,
+  bounded by `--budget`, over `out.eligible` (`bl.selectBudgetSlice`, same helper `refine-mode.md`
+  Step 3 uses; state `remaining > 0` plainly in the report exactly as that step does). Every result
+  in `$ST_BACKLOG_GRANT_PHASE_A` with `failedKey` set is a **skip** — do not invoke `grant-check`
+  for it (the whole point of gate ordering: don't spend an LLM call on a record already refused
+  for a cheaper reason). Log each skip now (Step 4's Logging format).
 
 **Phase B — gate 4, per selected candidate:**
 
