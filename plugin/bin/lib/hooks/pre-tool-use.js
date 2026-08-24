@@ -848,9 +848,12 @@ function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText) {
 //
 // Four checks now compose here, in this order:
 //   1. Coverage + cheap outs — the tool isn't covered, no run resolved, the
-//      run is already clean, BOTH stamps are already present (the common
-//      case, and the one that must never pay for a git/gh spawn), or the
-//      call site is outside a linked worktree.
+//      run is already clean, BOTH stamps are already present OR the worktree
+//      stamp is present and the PR stamp is durably not required
+//      (`runState.prExempt` — the common case once a run's first covered call
+//      after the worktree stamp has resolved its PR posture, and the one
+//      that must never pay for a git/gh spawn again for the rest of the
+//      run), or the call site is outside a linked worktree.
 //   2. Scoping — a Bash git target in an unrelated repository is not this
 //      run's business (mirrors E1's own mainRoot/actualMainRoot foreign-repo
 //      check below), and a write to the pipeline-bookkeeping tree or
@@ -860,6 +863,20 @@ function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText) {
 //   4. The two stamp checks themselves — record-worktree unconditionally,
 //      record-pr only under a run pinned `integration-model: pr-first`
 //      (resolveRunPinnedIntegrationModel above) and with no logged degrade.
+//      The first time this branch proves no further PR-stamp denial is
+//      possible (model resolved cleanly to non-pr-first, or pr-first with
+//      the degrade already logged), it persists `prExempt: true` to
+//      run-state.json so every later covered call short-circuits at check 1
+//      instead of re-paying repoInfo + hasMaterializeCommit + this
+//      resolution — each hook invocation is a fresh process, so an in-memory
+//      cache would not survive between calls; run-state.json is the durable
+//      store already threaded through `ctx.runState` on every call. Both
+//      cached conditions are permanent for the life of the run (the model is
+//      pinned once at run start per `_shared/integration-model.md` and never
+//      re-derived mid-run; decisions.md is append-only, so a logged degrade
+//      line never disappears), so the cache can never produce a false allow
+//      later. See the PR-stamp branch below for the one case that must NOT
+//      be cached (a caught resolution exception).
 // Ambiguity resolves to allow throughout, same posture as E1.
 //
 // A provably foreign-owned run (isForeignSessionCall above) downgrades either
@@ -885,12 +902,17 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   if (!isFileTool && !isGitWrite) return {};
   if (!ctx.runDir || !ctx.runState) return {};
   if (ctx.runState.status === 'clean') return {};
-  // Both stamps already recorded: neither deny branch below can fire, so
-  // reach the same `{}` here instead of paying for repoInfo's git spawn,
-  // hasMaterializeCommit's git spawn, and (on the PR branch) a possible
-  // network-touching `gh` call — on EVERY covered tool call of the run.
-  // Purely an optimization; it changes no deny/allow outcome.
-  if (ctx.runState.worktree && ctx.runState.pr) return {};
+  // Both stamps already recorded, OR the worktree stamp is recorded and the
+  // PR stamp is durably exempt (`prExempt`, memoized by the PR-stamp branch
+  // below the first time it proves no further denial is possible): neither
+  // deny branch below can fire, so reach the same `{}` here instead of
+  // paying for repoInfo's git spawn, hasMaterializeCommit's git spawn, and
+  // (on the PR branch) a possible network-touching `gh` call — on EVERY
+  // covered tool call of the run, including a `local-merge` run's steady
+  // state, which never sets `runState.pr` and previously never reached this
+  // short-circuit at all. Purely an optimization; it changes no deny/allow
+  // outcome.
+  if (ctx.runState.worktree && (ctx.runState.pr || ctx.runState.prExempt)) return {};
 
   const { repoRoot: wtRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(ctx.cwd || process.cwd());
   if (indeterminate || !wtRoot || !isLinkedWorktree) return {};
@@ -935,10 +957,17 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
     const override = deps && deps.resolveIntegrationModel;
     const mainRoot = wtDetect.mainCheckoutRoot(wtRoot) || wtRoot;
     let model;
+    // Tracks whether `model` came from a genuine resolution vs. the catch's
+    // fail-open fallback — only a genuine resolution is a provable verdict
+    // safe to cache below; a caught exception is a transient failure (e.g. a
+    // flaky `gh` call) that a later, unmemoized call might resolve
+    // differently, including to `pr-first`.
+    let modelResolved = true;
     try {
       model = override ? override(mainRoot) : resolveRunPinnedIntegrationModel(mainRoot, ctx.runDir);
     } catch {
       model = 'local-merge'; // fail open: an unresolvable model is not provably pr-first
+      modelResolved = false;
     }
     if (model === 'pr-first' && !hasLoggedPrDegrade(ctx.runDir)) {
       return stampCheckOutcome(
@@ -956,6 +985,18 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
         `--reversibility "n/a" --text "PR-early run lifecycle: <push|gh pr create> of <branch> FAILED (<reason>); ` +
         `run proceeds local-only, no PR opened"`,
       );
+    }
+    // No further PR-stamp denial is possible for the rest of this run: model
+    // resolved cleanly to something other than pr-first (the run's pin is
+    // fixed at run start and never re-derived — `_shared/integration-model.md`
+    // — so it cannot later flip to pr-first), or it resolved pr-first but the
+    // degrade line already landed in decisions.md (append-only — once present
+    // it is permanent). Persist the verdict so every later covered call for
+    // this run hits the check-1 short-circuit above instead of re-paying
+    // repoInfo + hasMaterializeCommit + this same resolution. Skipped when
+    // `modelResolved` is false (the catch above fired) — see its comment.
+    if (modelResolved) {
+      ctxLib.writeRunState(ctx.runDir, { prExempt: true });
     }
   }
 
