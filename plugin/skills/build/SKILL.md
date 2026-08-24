@@ -318,14 +318,14 @@ Generate 2-4 lines based on context. The signal-to-option lookup table below sta
 | UI changed + browser available | `/claude-tweaks:review {N} full` — code + visual review **(Recommended)** |
 | No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
 | QA stories exist (`stories/*.yaml` or `stories/*.yml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
-| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch **(Recommended in worktree mode)** |
+| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (never the recommended slot — see below) |
 
-Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), one line per applicable signal, bolding whichever line is recommended and suffixing it `(recommended)` — normally the review line, chosen per the browser-availability signal above (do not collapse the two branches into always-`full`: UI changed AND a browser is available → the full-review line; otherwise → the plain-review line); in worktree mode, the finish-branch line takes the recommended slot instead:
+Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention), one line per applicable signal, bolding whichever line is recommended and suffixing it `(recommended)`. **The recommended slot is always the review line** — chosen per the browser-availability signal above (do not collapse the two branches into always-`full`: UI changed AND a browser is available → the full-review line; otherwise → the plain-review line). **The finish-branch line is never the recommended slot, in worktree mode or otherwise** (#808): `/build`'s own lifecycle diagram runs review before finishing the branch (`/build → /stories → /test → /review → /wrap-up`), and recommending the finish-branch line over review let a UI-dependent build reach `finishing-a-development-branch`'s merge decision — "Implementation complete. What would you like to do?" — before any browser-based visual check had run. The UI-changed signal driving the top row is the same `Surface:`/frontend-detection signal `/specify`'s Step 2.5a and `design-wrapper/frontend-detection.md`'s Layer 2/3 already use, so a backend-only build (no UI changed) is unaffected — it still gets the plain-review line recommended, exactly as before:
 
 `/claude-tweaks:review {N} full` — code + visual review (when UI changed and a browser is available)
 `/claude-tweaks:review {N}` — code review (when no UI change or no browser)
 `/claude-tweaks:test qa` — validate {X} QA stories before review (when QA stories exist)
-`/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (when in worktree mode)
+`/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch (when in worktree mode; never bolded/recommended here)
 
 ## Component-Skill Contract
 
