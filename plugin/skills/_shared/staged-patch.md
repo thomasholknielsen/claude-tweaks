@@ -89,7 +89,7 @@ git -C "$WORKTREE" apply --check "$STAGE_PATH"
   names a target that does not exist, or already doesn't apply to the tree it was just composed
   against. **Do not keep the `.patch`.** Recompose the diff once from the current tree
   and re-check. If it fails again, delete the `.patch`, write the description alone to
-  `staged/{slug}-{n}.md` (the same `Target:`/`Invariant:`/`Finding:`/`Staged-at:` block, no diff),
+  `staged/{slug}-{n}.md` (the same `Target:`/`Invariant:`/`Finding:`/`Staged-at:`/`Ledger:` block, no diff),
   and log the composition error where it happened rather than at the console:
 
   `STAGED {time} — {step}: {finding} — patch failed \`git apply --check\` at staging ({first stderr line}); staged description-only at staged/{slug}-{n}.md. Reversibility: high.`
@@ -166,7 +166,8 @@ actually done — the drift a manual audit of six pipeline runs' ledgers found i
 | Pattern | Why it fails |
 |---|---|
 | Staging a diff without `git apply --check` | A malformed diff is first discovered at the console, hours later, by a different reader — the composition error belongs to the phase that composed it |
+| Hand-retyping a diff's hunk body when composing the staged `.patch` instead of concatenating the preamble with `git diff`'s own output verbatim | A single dropped context line (a blank line rendered as a lone space, easy to lose in transcription) silently changes the actual line count against the `@@ -a,b +c,d @@` header, producing `corrupt patch` at `git apply --check` — compose by concatenating the preamble with the unmodified `git diff` output, never by retyping hunk lines |
 | Staging only the diff, no `Invariant:` | Later phases legitimately move the target; with no description the console can only error out or hand-derive the fix from the finding text |
 | Treating a stale diff as a failure | Staleness is the expected end state of a diff written mid-pipeline; the description is the durable intent, the diff bytes are a cache |
 | Silently dropping an item that can't be re-derived | The finding was real when staged; a vanished target is a human decision, not a no-op |
-| Restating this procedure at a staging site or console | The two consoles and three staging sites drifted apart once already — cite this file. A citing site may restate the four preamble field names, the gate command, and its own `staged/…-{n}.patch` filename as anchors (what the conformance test pins) — never the branch logic (what happens on a failed check, the fallback steps) |
+| Restating this procedure at a staging site or console | The two consoles and three staging sites drifted apart once already — cite this file. A citing site may restate the preamble field names, the gate command, and its own `staged/…-{n}.patch` filename as anchors (what the conformance test pins) — never the branch logic (what happens on a failed check, the fallback steps) |

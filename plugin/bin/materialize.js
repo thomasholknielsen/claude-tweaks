@@ -26,6 +26,7 @@ const {
 } = require('./lib/issues/record');
 const { shapeGate, liftMetadata, composeHeader, composeFile } = require('./lib/issues/materialize-format');
 const wtDetect = require('./lib/hooks/worktree-detect');
+const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--help]\n';
 
@@ -73,18 +74,20 @@ function parseArgs(argv) {
     const a = argv[i];
     const next = () => argv[++i];
     if (a === '--help' || a === '-h') opts.help = true;
-    else if (a === '--run-dir') opts.runDir = next();
+    else if (a === '--run-dir') {
+      // A blank or whitespace-only value (the shape an unset
+      // $PIPELINE_RUN_DIR expands to in shell) is treated as no value at
+      // all — the existing `if (!opts.runDir)` check below already rejects
+      // it before any guard or I/O runs (#1138).
+      const v = next();
+      opts.runDir = v && v.trim() !== '' ? v : null;
+    }
     else if (a === '--repo') opts.repo = next();
     else if (a === '--ceremony') opts.ceremony = next();
     else if (a === '--multi-record-slug') opts.multiRecordSlug = next();
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
-}
-
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
 }
 
 const realDeps = {
@@ -201,6 +204,7 @@ function run(argv, deps = realDeps) {
     blockedBy: parseDependencies(record.body),
     surface: meta.surface,
     designIntent: meta.designIntent,
+    uiStack: meta.uiStack,
     designSeed: meta.designSeed,
     parkedAtShaping: labelNames.includes('parked'),
   });
@@ -214,7 +218,7 @@ function run(argv, deps = realDeps) {
   deps.writeFile(outFile, fileContent);
 
   deps.stdout(JSON.stringify({
-    record: opts.n, file: outFile, ceremonySource: facets.ceremony ? 'label' : 'override', surface: meta.surface || null, drift,
+    record: opts.n, file: outFile, ceremonySource: facets.ceremony ? 'label' : 'override', surface: meta.surface || null, uiStack: meta.uiStack || null, drift,
   }, null, 2) + '\n');
   return 0;
 }

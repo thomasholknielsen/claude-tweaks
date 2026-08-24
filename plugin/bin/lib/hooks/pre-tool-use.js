@@ -29,6 +29,7 @@ const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
 const { runGit } = require('./git-exec');
+const { detectIntegrationModel, resolvePolicyConfig } = require('../policy-schema');
 
 function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
@@ -679,8 +680,338 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   return {};
 }
 
-function runInner(ctx, indeterminateTargets, teardownWarnings) {
-  const teardown = checkTeardownGate(ctx, teardownWarnings);
+// Materialize-commit sentinel for the bookkeeping-stamps gate below: a
+// committed `{run-dir}/work/{n}-spec.md` (or its multi-record
+// `{run-dir}/spec-{slug}/work/{n}-spec.md` form) on the current branch is the
+// signal that build/SKILL.md Spec Step 1's materialize commit already landed —
+// the exact precondition build/worktree-setup.md Step 4.5 (record-worktree)
+// and Step 6 (PR-early lifecycle) are documented to precede.
+//
+// Scoped to THIS RUN's own identity, not to "any work/ directory ever
+// committed anywhere" (whole-branch review C1+C2). The canonical write
+// location is `{run-dir}/work/{n}-spec.md` where `{run-dir}` is
+// `.claude-tweaks/pipelines/{run-id}` — in worktree mode, the worktree-local
+// mirror of that same relative path (flow/materialize.md's "worktree-local
+// path" note), which is why the pathspec is built relative to `worktreeRoot`.
+// A repo-root-relative `work` pathspec could therefore never match at all in
+// a correctly-anchored project (the gate would be permanently inert), while a
+// naively-widened `*/work/*` would match ANY legacy top-level `work/*-spec.md`
+// still reachable in history — this repo alone carries ~100 of them from
+// before run-dir anchoring existed — arming the gate universally on every
+// branch. Threading `runDir` through is what makes the sentinel answer the
+// only question worth asking: did THIS run's materialize commit land.
+//
+// Read-only, best-effort: any git failure (no commits yet, git unavailable)
+// and an unusable runDir both resolve to false — ambiguity never triggers the
+// gate, same posture as every other check in this file.
+function hasMaterializeCommit(worktreeRoot, runDir) {
+  if (typeof runDir !== 'string' || !runDir) return false;
+  const runId = path.basename(runDir);
+  if (!runId || runId === '.' || runId === '..') return false;
+  // PIPELINE_STATE_DIR (not a second hardcoded literal) + toPosix, since git
+  // pathspecs are always forward-slash regardless of platform.
+  const runRel = toPosix(path.join(PIPELINE_STATE_DIR, runId));
+  // 'spec-*/work' (no trailing wildcard) does NOT match, empirically —
+  // re-verified against a scratch repo with commits at both canonical shapes
+  // after the run-id segment became a literal: git's default (non-glob-magic)
+  // pathspec wildcard support only applies to the FINAL path component of a
+  // pattern, so a wildcard directory component followed by a literal tail
+  // never matches. 'spec-*/work/*' keeps the wildcard trailing so the
+  // multi-record form ({run-dir}/spec-{slug}/work/{n}-spec.md) is reached.
+  const { stdout, failure } = runGit(
+    ['log', '--oneline', '-1', '--', `${runRel}/work`, `${runRel}/spec-*/work/*`],
+    worktreeRoot,
+  );
+  if (failure) return false;
+  return Boolean(stdout && stdout.trim());
+}
+
+// Graceful-degrade exemption for the PR-stamp check below: pr-early-run-lifecycle.md
+// mandates a "PR-early run lifecycle: ... FAILED" decisions.md log line whenever the
+// push or `gh pr create` genuinely fails (Steps 2 and 3). A run that logged this
+// legitimately has no PR to record and must not be denied for it — read-only,
+// best-effort: a missing or unreadable decisions.md resolves to false (no exemption
+// found), never throws.
+function hasLoggedPrDegrade(runDir) {
+  try {
+    const body = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+    return /PR-early run lifecycle:.*FAILED/i.test(body);
+  } catch {
+    return false;
+  }
+}
+
+// The PRODUCTION integration-model read for the PR-stamp branch below.
+// `_shared/integration-model.md`'s contract (and its "Re-detecting mid-run
+// instead of reading the run's pin" anti-pattern) is that a run resolves the
+// value ONCE at run start and every later read inside that run passes `--run`
+// and gets the pin. The bare `resolveIntegrationModel(repoRoot)` this gate
+// used to call reads policy.yml only (`runConfigRaw: null` internally), so a
+// transient `gh` failure mid-run could flip the gate's own answer, and a run
+// pinned `local-merge` in a repo whose bare forge detection says `pr-first`
+// was denied for a PR it will legitimately never have (whole-branch review I3).
+//
+// Same overlay pathway bin/resolve-policy.js's own CLI uses — policy-schema's
+// resolvePolicyConfig (policy.yml + {runDir}/config.yml) — with fresh forge
+// detection kept ONLY as the fallback for a run that genuinely has not pinned
+// anything yet, exactly mirroring that CLI's own integration-model branch.
+// `readFile` is the small adapter that function's contract expects (returns
+// null on any read failure). `git` is a no-spawn stub rather than a real
+// adapter: resolvePolicyConfig calls it exactly once, with
+// ['rev-parse', '--show-toplevel'], purely to learn the repo root it already
+// received as `mainRoot` here (wtDetect.mainCheckoutRoot's fs-only result) —
+// shelling out to re-derive a value the caller already has would undercut
+// the spawn budget I5 exists to protect.
+function resolveRunPinnedIntegrationModel(mainRoot, runDir) {
+  const git = () => mainRoot;
+  const readFile = (p) => {
+    try { return fs.readFileSync(p, 'utf8'); } catch { return null; }
+  };
+  const { root, result } = resolvePolicyConfig({ git, readFile, runDir, keys: ['integration-model'] });
+  const entry = result['integration-model'];
+  // 'run-config' or 'policy' — either is an explicit pin and wins outright.
+  // 'default' (absent, or set-but-invalid) falls through to detection, the
+  // same posture resolveIntegrationModel itself documents.
+  if (entry && entry.source !== 'default') return entry.value;
+  return detectIntegrationModel(root);
+}
+
+// True only on a PROVABLE ownership mismatch: this run's run-state.json was
+// recorded by a session other than the one making this call. Mirrors E1's own
+// owner-vs-caller comparison in runInner below — `ctx.runDir` reaches this
+// gate WITHOUT session-id filtering (bin/hooks.js dispatches
+// `ctxLib.resolveRunDir(cwd, process.env)` with no session id, deliberately,
+// so E1 can enforce against the newest non-terminal run), which means the run
+// this gate is about to name in a deny message may belong to a different,
+// live sibling session. Identity missing on either side is not provable and
+// is NOT foreign — it falls through to the deny, preserving prior behavior.
+function isForeignSessionCall(ctx) {
+  const owner = ctx.runState && typeof ctx.runState.sessionId === 'string' ? ctx.runState.sessionId : '';
+  const caller = ctx.input && typeof ctx.input.session_id === 'string' ? ctx.input.session_id : '';
+  return Boolean(owner && caller && owner !== caller);
+}
+
+// Path exemptions for the bookkeeping-stamps gate, reusing the very helpers
+// checkWorktreeRequired's own carve-outs use (whole-branch review I2). Two
+// reasons this is load-bearing rather than cosmetic:
+//   1. The PR-stamp deny message's own escape hatch is "log the mandatory
+//      PR-early run lifecycle FAILED line to decisions.md" — and decisions.md
+//      lives inside the run dir, so without this exemption an Edit/Write to it
+//      is denied by the very gate it is meant to unblock. (It happens to work
+//      today only because this codebase logs via bin/log-decision.js, a Bash
+//      CLI call this gate's Bash branch does not cover — an accident, not a
+//      contract.)
+//   2. .claude-tweaks/policy.yml is the file a session edits to CONFIGURE
+//      gating; keeping it writable here matches spec #537's own carve-out.
+// The target's OWN repo root is resolved per-target rather than assumed to be
+// the worktree: run dirs are anchored to the MAIN checkout
+// (_shared/pipeline-run-dir.md's Anchoring section), so decisions.md normally
+// sits outside the worktree this gate is enforcing in. Anything unprovable
+// (no target, indeterminate git, non-repo path) is simply not exempt and
+// falls through — the same fail-closed posture isPipelineBookkeeping keeps.
+function isStampsGateExemptTarget(ctx) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  if (!GATE_COVERAGE.tools.includes(toolName)) return false;
+  const toolInput = ctx.input && ctx.input.tool_input;
+  const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
+  const targetPath = toolInput && typeof toolInput[field] === 'string' ? toolInput[field] : null;
+  if (!targetPath) return false;
+  const { repoRoot, indeterminate } = wtDetect.repoInfo(targetPath);
+  if (indeterminate || !repoRoot) return false;
+  return isPipelineBookkeeping(repoRoot, targetPath) || isPolicyFile(repoRoot, targetPath);
+}
+
+// Shared outcome for both stamp checks in checkBookkeepingStampsGate below —
+// each is an always-return branch (see the header comment there), so this
+// returns the value the caller returns directly. A provably foreign-owned
+// run (isForeignSessionCall above) downgrades the deny to an allow + warning;
+// otherwise it denies. Only the stamp name and the two message bodies vary.
+function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText) {
+  if (isForeignSessionCall(ctx)) {
+    ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { stamp, worktree: wtRoot });
+    warnings.push(warnText);
+    return {};
+  }
+  ctxLib.appendEvent(ctx.runDir, 'bookkeeping-stamp-deny', { stamp, worktree: wtRoot });
+  return denyResult(denyText);
+}
+
+// Bookkeeping-stamps gate: build/SKILL.md Spec Step 1 marks record-worktree
+// (Common Step 1 Step 4.5) and, under integration-model: pr-first, the
+// PR-early lifecycle's draft-PR open (Step 6) as non-skippable — a build
+// agent's own "already satisfied by prior work" judgment has twice (IL-131,
+// its recurrence on record #893) swept past both anyway despite the bolded
+// prose. This is the mechanical backstop: once THIS run's materialize commit
+// has landed (hasMaterializeCommit above — the exact precondition both
+// sub-steps are documented to precede), a covered call is denied while either
+// stamp is still missing.
+//
+// Four checks now compose here, in this order:
+//   1. Coverage + cheap outs — the tool isn't covered, no run resolved, the
+//      run is already clean, BOTH stamps are already present OR the worktree
+//      stamp is present and the PR stamp is durably not required
+//      (`runState.prExempt` — the common case once a run's first covered call
+//      after the worktree stamp has resolved its PR posture, and the one
+//      that must never pay for a git/gh spawn again for the rest of the
+//      run), or the call site is outside a linked worktree.
+//   2. Scoping — a Bash git target in an unrelated repository is not this
+//      run's business (mirrors E1's own mainRoot/actualMainRoot foreign-repo
+//      check below), and a write to the pipeline-bookkeeping tree or
+//      policy.yml is exempt (isStampsGateExemptTarget above).
+//   3. This run's materialize commit hasn't landed yet (hasMaterializeCommit
+//      above) — Common Step 1 is still legitimately in progress.
+//   4. The two stamp checks themselves — record-worktree unconditionally,
+//      record-pr only under a run pinned `integration-model: pr-first`
+//      (resolveRunPinnedIntegrationModel above) and with no logged degrade.
+//      The first time this branch proves no further PR-stamp denial is
+//      possible (model resolved cleanly to non-pr-first, or pr-first with
+//      the degrade already logged), it persists `prExempt: true` to
+//      run-state.json so every later covered call short-circuits at check 1
+//      instead of re-paying repoInfo + hasMaterializeCommit + this
+//      resolution — each hook invocation is a fresh process, so an in-memory
+//      cache would not survive between calls; run-state.json is the durable
+//      store already threaded through `ctx.runState` on every call. Both
+//      cached conditions are permanent for the life of the run (the model is
+//      pinned once at run start per `_shared/integration-model.md` and never
+//      re-derived mid-run; decisions.md is append-only, so a logged degrade
+//      line never disappears), so the cache can never produce a false allow
+//      later. See the PR-stamp branch below for the one case that must NOT
+//      be cached (a caught resolution exception).
+// Ambiguity resolves to allow throughout, same posture as E1.
+//
+// A provably foreign-owned run (isForeignSessionCall above) downgrades either
+// deny to an allow + warning collected into `warnings`, exactly as E1 does —
+// the deny's own remediation command (`record-worktree --run "{ctx.runDir}"`)
+// would otherwise instruct the agent to overwrite a live sibling session's
+// run-state.json, which docs/hooks.md names as a corruption hazard. Collected
+// rather than returned early so a warn never short-circuits runInner past E1
+// (the IMPORTANT-3 lesson checkTeardownGate already records); run() attaches
+// every collected note to whatever outcome runInner reaches.
+//
+// `deps.resolveIntegrationModel` is a full test-only override of the PR-stamp
+// branch's model resolution, bypassing resolveRunPinnedIntegrationModel
+// entirely when provided — a sandboxed test fixture repo has no real
+// GitHub-backed remote, so real resolution can only ever return 'local-merge'
+// in a test; injecting it is what lets the pr-first deny path be exercised at
+// all (gh-api-module-pattern's injectable-runner convention). Unused by the
+// worktree-stamp check.
+function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings = []) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  const isFileTool = GATE_COVERAGE.tools.includes(toolName);
+  const isGitWrite = toolName === 'Bash' && Array.isArray(commandGitTargets) && commandGitTargets.length > 0;
+  if (!isFileTool && !isGitWrite) return {};
+  if (!ctx.runDir || !ctx.runState) return {};
+  if (ctx.runState.status === 'clean') return {};
+  // Both stamps already recorded, OR the worktree stamp is recorded and the
+  // PR stamp is durably exempt (`prExempt`, memoized by the PR-stamp branch
+  // below the first time it proves no further denial is possible): neither
+  // deny branch below can fire, so reach the same `{}` here instead of
+  // paying for repoInfo's git spawn, hasMaterializeCommit's git spawn, and
+  // (on the PR branch) a possible network-touching `gh` call — on EVERY
+  // covered tool call of the run, including a `local-merge` run's steady
+  // state, which never sets `runState.pr` and previously never reached this
+  // short-circuit at all. Purely an optimization; it changes no deny/allow
+  // outcome.
+  if (ctx.runState.worktree && (ctx.runState.pr || ctx.runState.prExempt)) return {};
+
+  const { repoRoot: wtRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(ctx.cwd || process.cwd());
+  if (indeterminate || !wtRoot || !isLinkedWorktree) return {};
+
+  // Foreign-repo scoping for the Bash branch (whole-branch review I2.2):
+  // `git -C /some/other/repo commit` issued from inside this worktree targets
+  // an entirely unrelated repository, and this run's bookkeeping has nothing
+  // to say about it. Compares each target's own main-checkout root against
+  // this worktree's — the identical mainRoot/actualMainRoot shape E1 uses in
+  // runInner below, including its posture on the unprovable cases: an
+  // unresolvable mainRoot here skips the check entirely (prior behavior
+  // preserved), and a target whose own main root can't be resolved is not a
+  // match. Only if NOT ONE target belongs to this project does the call go
+  // un-gated — one in-project target is enough to keep the gate armed.
+  if (isGitWrite) {
+    const mainRoot = safeReal(wtDetect.mainCheckoutRoot(wtRoot));
+    if (mainRoot) {
+      const ownsATarget = commandGitTargets.some(
+        (t) => safeReal(wtDetect.mainCheckoutRoot(t.dir)) === mainRoot,
+      );
+      if (!ownsATarget) return {};
+    }
+  }
+  if (isStampsGateExemptTarget(ctx)) return {};
+
+  if (!hasMaterializeCommit(wtRoot, ctx.runDir)) return {};
+
+  if (!ctx.runState.worktree) {
+    return stampCheckOutcome(
+      ctx, 'record-worktree', wtRoot, warnings,
+      `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} has a landed materialize commit but no recorded ` +
+      `worktree assignment; allowing this call because it comes from a different session than the one that ` +
+      `recorded the run. If this IS that pipeline's work, record it from the owning session — never with a bare ` +
+      `record-worktree, which would target this run's state from outside it (docs/hooks.md).`,
+      `claude-tweaks: a materialize commit already landed in ${wtRoot} but this run's worktree assignment was never ` +
+      `recorded — build/worktree-setup.md Step 4.5 (record-worktree) is non-skippable, even when Spec Step 2 judges no ` +
+      `further implementation is needed [IL-131]. Run: node "${pluginRoot()}/bin/hooks.js" record-worktree --run "${ctx.runDir}" "${wtRoot}"`,
+    );
+  }
+
+  if (!ctx.runState.pr) {
+    const override = deps && deps.resolveIntegrationModel;
+    const mainRoot = wtDetect.mainCheckoutRoot(wtRoot) || wtRoot;
+    let model;
+    // Tracks whether `model` came from a genuine resolution vs. the catch's
+    // fail-open fallback — only a genuine resolution is a provable verdict
+    // safe to cache below; a caught exception is a transient failure (e.g. a
+    // flaky `gh` call) that a later, unmemoized call might resolve
+    // differently, including to `pr-first`.
+    let modelResolved = true;
+    try {
+      model = override ? override(mainRoot) : resolveRunPinnedIntegrationModel(mainRoot, ctx.runDir);
+    } catch {
+      model = 'local-merge'; // fail open: an unresolvable model is not provably pr-first
+      modelResolved = false;
+    }
+    if (model === 'pr-first' && !hasLoggedPrDegrade(ctx.runDir)) {
+      return stampCheckOutcome(
+        ctx, 'record-pr', wtRoot, warnings,
+        `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} resolves integration-model: pr-first and has a ` +
+        `landed materialize commit but no recorded PR; allowing this call because it comes from a different session ` +
+        `than the one that recorded the run. If this IS that pipeline's work, open and record the PR from the ` +
+        `owning session rather than stamping another session's run state (docs/hooks.md).`,
+        `claude-tweaks: this project resolves integration-model: pr-first and a materialize commit already landed in ` +
+        `${wtRoot}, but no PR is recorded for this run — build/worktree-setup.md Step 6 (the PR-early lifecycle draft-PR ` +
+        `open, _shared/pr-early-run-lifecycle.md) is non-skippable, even when Spec Step 2 judges no further ` +
+        `implementation is needed [IL-131]. Open it now, or — if the push/PR-create genuinely failed — log the ` +
+        `mandatory "PR-early run lifecycle: ... FAILED" line to decisions.md per pr-early-run-lifecycle.md with: ` +
+        `node "${pluginRoot()}/bin/log-decision.js" --run "${ctx.runDir}" --section "/build" --status AUTO ` +
+        `--reversibility "n/a" --text "PR-early run lifecycle: <push|gh pr create> of <branch> FAILED (<reason>); ` +
+        `run proceeds local-only, no PR opened"`,
+      );
+    }
+    // No further PR-stamp denial is possible for the rest of this run: model
+    // resolved cleanly to something other than pr-first (the run's pin is
+    // fixed at run start and never re-derived — `_shared/integration-model.md`
+    // — so it cannot later flip to pr-first), or it resolved pr-first but the
+    // degrade line already landed in decisions.md (append-only — once present
+    // it is permanent). Persist the verdict so every later covered call for
+    // this run hits the check-1 short-circuit above instead of re-paying
+    // repoInfo + hasMaterializeCommit + this same resolution. Skipped when
+    // `modelResolved` is false (the catch above fired) — see its comment.
+    if (modelResolved) {
+      ctxLib.writeRunState(ctx.runDir, { prExempt: true });
+    }
+  }
+
+  return {};
+}
+
+// `warnings` collects every allow-but-warn note raised anywhere in this pass
+// (checkTeardownGate's foreign-owned teardown, checkBookkeepingStampsGate's
+// foreign-owned run); run() attaches them all to whatever outcome is reached.
+// `deps` is run()'s own pass-through of its test-only override bag — see
+// run()'s header comment below — forwarded verbatim to
+// checkBookkeepingStampsGate as its own `deps` parameter. No other gate in
+// this pass currently takes an override.
+function runInner(ctx, indeterminateTargets, warnings, deps) {
+  const teardown = checkTeardownGate(ctx, warnings);
   if (teardown.json) return teardown;
 
   const shadow = checkPipelineShadowGuard(ctx);
@@ -695,6 +1026,9 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
 
   const gate = checkWorktreeRequired(ctx, commandGitTargets, indeterminateTargets);
   if (gate.json) return gate;
+
+  const stamps = checkBookkeepingStampsGate(ctx, commandGitTargets, deps, warnings);
+  if (stamps.json) return stamps;
 
   if (!ctx.runDir || !ctx.runState || !ctx.runState.worktree) return {};
   if (ctx.runState.status === 'clean') return {};
@@ -785,20 +1119,31 @@ function runInner(ctx, indeterminateTargets, teardownWarnings) {
   return {};
 }
 
-// Attaching the worktree-gate's indeterminate warning (and, since the
-// IMPORTANT-3 fix below, any collected teardown foreign-owner warnings) is
-// done HERE, once, on whatever runInner returned — not at runInner's own
-// return sites. runInner has a dozen of them and grows more over time;
-// enumerating them to add a message is the exact shape `[IL-14]` records (an
-// enumeration silently misses a path, and no test notices because the
-// omission is invisible). This wrapper states the unconditional rule instead:
-// every outcome, deny or allow, carries every collected note.
-function run(ctx) {
+// Attaching the worktree-gate's indeterminate warning (and any collected
+// allow-but-warn note — a foreign-owned teardown, a foreign-owned run's
+// missing bookkeeping stamp) is done HERE, once, on whatever runInner
+// returned — not at runInner's own return sites. runInner has a dozen of them
+// and grows more over time; enumerating them to add a message is the exact
+// shape `[IL-14]` records (an enumeration silently misses a path, and no test
+// notices because the omission is invisible). This wrapper states the
+// unconditional rule instead: every outcome, deny or allow, carries every
+// collected note.
+// `deps` (optional, default `{}`) is the ONE injection point run() offers a
+// caller: a bag of test-only overrides forwarded verbatim to whichever inner
+// gate declares its own `deps` parameter (today, only
+// checkBookkeepingStampsGate's `resolveIntegrationModel` override — see that
+// function's header comment). The production call site
+// (bin/hooks.js's `main()`) calls `mod.run({...})` with a single argument, so
+// `deps` is always `{}` there; only a test passes a second argument. Adding
+// this parameter is what lets a test exercise checkBookkeepingStampsGate's
+// pr-first branch through run()'s own dispatch instead of calling the gate
+// function directly, bypassing every gate ahead of it in runInner (record #1268).
+function run(ctx, deps = {}) {
   const indeterminateTargets = [];
-  const teardownWarnings = [];
-  const out = runInner(ctx, indeterminateTargets, teardownWarnings) || {};
+  const warnings = [];
+  const out = runInner(ctx, indeterminateTargets, warnings, deps) || {};
 
-  const notes = [...teardownWarnings];
+  const notes = [...warnings];
   if (indeterminateTargets.length) {
     // Deliberately says the check could not RUN, not that a policy was
     // skipped. Reaching here means findPolicyFile found a policy.yml
@@ -836,4 +1181,6 @@ module.exports = {
   DELETE_ONLY_PUSH_ALLOWLIST,
   shadowPipelineRunDir,
   checkPipelineShadowGuard,
+  checkBookkeepingStampsGate,
+  hasLoggedPrDegrade,
 };

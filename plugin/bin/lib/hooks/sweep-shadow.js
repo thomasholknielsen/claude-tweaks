@@ -36,6 +36,29 @@ function realDir(p) {
   try { return fs.statSync(real).isDirectory() ? real : null; } catch { return null; }
 }
 
+// The `code` off a Node fs error when it has one, else the error itself —
+// shared by every `sweep:` diagnostic line below.
+function errCode(e) {
+  return (e && e.code) || e;
+}
+
+// Runs `statFn(target)` and returns its result, or null if `target` is
+// genuinely absent (ENOENT — the only clean no-op case). Any other failure
+// — e.g. a permission-denied parent directory one level up the shadow path,
+// ENOTDIR, ELOOP, EIO — pushes a `sweep: failed to check for {label}`
+// diagnostic rather than being silently treated as "nothing to sweep"
+// (#1305). Shared by the staged/ and decisions.md entry gates below.
+function statOrDiagnose(statFn, target, label, lines) {
+  try {
+    return statFn(target);
+  } catch (e) {
+    if (!e || e.code !== 'ENOENT') {
+      lines.push(`sweep: failed to check for ${label} — ${errCode(e)}`);
+    }
+    return null;
+  }
+}
+
 // Atomically claims a free destination for `src`: `preferred` first, falling
 // back to `preferred.shadow-dup`, `.shadow-dup-1`, ... — mirrors the bash
 // `dest="$dest.shadow-dup"; n=1; while [ -e "$dest" ]; do
@@ -104,11 +127,21 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
   if (samePath) return { lines, diagnostic: false }; // running from the main checkout — clean no-op, matches the `-ef` guard
 
   // ---- staged/ relocation ----
+  // The readdir and every step below it are wrapped so a mid-sweep throw
+  // (e.g. a permission-denied staged/ dir) becomes a `sweep:`-prefixed
+  // diagnostic line instead of propagating to hooks.js's blanket
+  // `.catch(() => process.exit(0))` — which would otherwise turn a failed
+  // partial sweep into a silent, indistinguishable-from-clean exit 0.
   const shadowStaged = path.join(shadow, 'staged');
-  let stagedIsDir = false;
-  try { stagedIsDir = fs.statSync(shadowStaged).isDirectory(); } catch { /* no shadow staged/ — nothing to sweep */ }
-  if (stagedIsDir) {
-    const entries = fs.readdirSync(shadowStaged).sort();
+  const stagedStat = statOrDiagnose(fs.statSync, shadowStaged, 'shadow staged/', lines);
+  if (stagedStat && stagedStat.isDirectory()) {
+    let entries;
+    try {
+      entries = fs.readdirSync(shadowStaged).sort();
+    } catch (e) {
+      lines.push(`sweep: failed to read shadow staged/ — ${errCode(e)}`);
+      entries = [];
+    }
     for (const base of entries) {
       const f = path.join(shadowStaged, base);
       let lst;
@@ -140,20 +173,35 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
 
   // ---- stray shadow decisions.md ----
   const shadowDecisions = path.join(shadow, 'decisions.md');
-  let decisionsLstat = null;
-  try { decisionsLstat = fs.lstatSync(shadowDecisions); } catch { /* none — nothing to relocate */ }
+  const decisionsLstat = statOrDiagnose(fs.lstatSync, shadowDecisions, 'shadow decisions.md', lines);
   if (decisionsLstat && decisionsLstat.isFile()) {
     // lstat().isFile() is already false for a symlink (it never follows),
     // so this one check subsumes the bash pair `[ -f ... ] && [ ! -L ... ]`.
-    const content = fs.readFileSync(shadowDecisions, 'utf8');
-    const entryLines = content.split('\n').filter((l) => l.startsWith('- '));
-    if (entryLines.length) {
-      fs.appendFileSync(path.join(runDir, 'decisions.md'), entryLines.join('\n') + '\n');
-      lines.push('relocated: decisions.md (entries appended)');
-    } else {
-      lines.push('sweep: shadow decisions.md had no entries — dropped');
+    try {
+      const content = fs.readFileSync(shadowDecisions, 'utf8');
+      const entryLines = content.split('\n').filter((l) => l.startsWith('- '));
+      // Unlink before append (reversed from the read/append/unlink order this
+      // block used to run): a mid-operation failure now either leaves the
+      // shadow file untouched (unlink not yet attempted — readFileSync threw)
+      // or fully consumed (unlink succeeded, so a retry has nothing left to
+      // re-read and re-append). The old append-then-unlink order could append
+      // successfully, then fail to unlink, and duplicate the same entries
+      // into the anchored decisions.md on the next sweep. The tradeoff: if
+      // appendFileSync itself now fails after the unlink already succeeded,
+      // the entries exist only in memory for the remainder of this call and
+      // are lost — surfaced via the diagnostic below rather than silently
+      // dropped, which is strictly better than the old silent-duplication
+      // failure mode.
+      fs.unlinkSync(shadowDecisions);
+      if (entryLines.length) {
+        fs.appendFileSync(path.join(runDir, 'decisions.md'), entryLines.join('\n') + '\n');
+        lines.push('relocated: decisions.md (entries appended)');
+      } else {
+        lines.push('sweep: shadow decisions.md had no entries — dropped');
+      }
+    } catch (e) {
+      lines.push(`sweep: failed to relocate shadow decisions.md — ${errCode(e)}`);
     }
-    fs.unlinkSync(shadowDecisions);
   }
 
   return { lines, diagnostic: lines.some((l) => l.startsWith('sweep:')) };
