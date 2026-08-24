@@ -71,6 +71,33 @@ function validateAction(a, i) {
   return null;
 }
 
+// Both helpers share the try/appendEntry/catch-best-effort shape that would
+// otherwise repeat once per edit and once per comment (success + failure) —
+// factored out so the four call sites below read as one line each.
+function logAuto(deps, runDir, text) {
+  if (!runDir) return;
+  try {
+    deps.appendEntry({
+      runDir,
+      section: '/backlog',
+      entry: formatEntry({ status: 'AUTO', now: deps.now(), step: 'apply-refine-labels', text, reversibility: 'high' }),
+    });
+  } catch { /* logging is best-effort — never fails the batch */ }
+}
+
+// #1072: FAILED is not one of append.js's STATUSES (AUTO/STAGED/
+// KEPT-PROMPT/SCANNED/REFUSED) — refine-mode.md Step 5's own
+// `FAILED {time} — …` template predates that enum and was never gated by
+// it, so this line is composed by hand (reusing append.js's own `hms` for a
+// consistent timestamp) rather than through formatEntry, which would reject
+// the status.
+function logFailed(deps, runDir, text) {
+  if (!runDir) return;
+  try {
+    deps.appendEntry({ runDir, section: '/backlog', entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: ${text}` });
+  } catch { /* logging is best-effort — never fails the batch */ }
+}
+
 const realDeps = {
   gh: (args) => execFileSync('gh', args, { encoding: 'utf8' }),
   ghAvailable,
@@ -161,40 +188,12 @@ function run(argv, deps = realDeps) {
         for (const l of action.addLabels || []) editArgs.push('--add-label', l);
         for (const l of action.removeLabels || []) editArgs.push('--remove-label', l);
         deps.gh(editArgs);
-        if (runDir) {
-          try {
-            deps.appendEntry({
-              runDir,
-              section: '/backlog',
-              entry: formatEntry({
-                status: 'AUTO',
-                now: deps.now(),
-                step: 'apply-refine-labels',
-                text: `#${action.issue}: applied ${labelSummary}`,
-                reversibility: 'high',
-              }),
-            });
-          } catch { /* logging is best-effort — never fails the batch */ }
-        }
+        logAuto(deps, runDir, `#${action.issue}: applied ${labelSummary}`);
       } catch (err) {
         editFailed = true;
         const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
         failed.push({ issue: action.issue, step: 'edit', error: message });
-        if (runDir) {
-          try {
-            // #1072: FAILED is not one of append.js's STATUSES (AUTO/STAGED/
-            // KEPT-PROMPT/SCANNED/REFUSED) — refine-mode.md Step 5's own
-            // `FAILED {time} — …` template predates that enum and was never
-            // gated by it, so this line is composed by hand (reusing append.js's
-            // own `hms` for a consistent timestamp) rather than through
-            // formatEntry, which would reject the status.
-            deps.appendEntry({
-              runDir,
-              section: '/backlog',
-              entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: #${action.issue}: ${labelSummary} failed: ${message}.`,
-            });
-          } catch { /* logging is best-effort — never fails the batch */ }
-        }
+        logFailed(deps, runDir, `#${action.issue}: ${labelSummary} failed: ${message}.`);
       }
     }
 
@@ -206,34 +205,12 @@ function run(argv, deps = realDeps) {
     if (action.commentFile && !editFailed) {
       try {
         deps.gh(['issue', 'comment', String(action.issue), '--repo', repoFlag, '--body-file', action.commentFile]);
-        if (runDir) {
-          try {
-            deps.appendEntry({
-              runDir,
-              section: '/backlog',
-              entry: formatEntry({
-                status: 'AUTO',
-                now: deps.now(),
-                step: 'apply-refine-labels',
-                text: `#${action.issue}: comment posted`,
-                reversibility: 'high',
-              }),
-            });
-          } catch { /* logging is best-effort — never fails the batch */ }
-        }
+        logAuto(deps, runDir, `#${action.issue}: comment posted`);
       } catch (err) {
         commentFailed = true;
         const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
         failed.push({ issue: action.issue, step: 'comment', error: message });
-        if (runDir) {
-          try {
-            deps.appendEntry({
-              runDir,
-              section: '/backlog',
-              entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: #${action.issue}: comment failed: ${message}.`,
-            });
-          } catch { /* logging is best-effort — never fails the batch */ }
-        }
+        logFailed(deps, runDir, `#${action.issue}: comment failed: ${message}.`);
       }
     }
 
