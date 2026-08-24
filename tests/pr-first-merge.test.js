@@ -111,15 +111,24 @@ test('worktree-merge.md routes pr-first reconciliation through the shared proced
   );
 });
 
-test('task-prompt.md reports the new four-value outcome vocabulary under pr-first, ready-to-merge only under local-merge', () => {
-  assert.match(TASK_PROMPT, /OUTCOME: \{merged \| armed \| pending-review \| failed \| blocked\}/);
+test('task-prompt.md reports the shared OUTPUT FORMAT vocabulary, with ready-to-merge disclaimed under pr-first and reported under local-merge', () => {
+  // #434: the fixed OUTPUT FORMAT enum is shared by both integration models'
+  // second-call templates, so it must list every value either model can
+  // actually report — including `ready-to-merge`, which only local-merge
+  // reports (pr-first's own prose immediately below disclaims it).
+  assert.match(TASK_PROMPT, /OUTCOME: \{merged \| armed \| pending-review \| ready-to-merge \| failed \| blocked\}/);
   assert.match(TASK_PROMPT, /There is no `ready-to-merge` value\s*\n?\s*under this model/);
   assert.match(TASK_PROMPT, /report `ready-to-merge` when the group's Auto-merge gate/);
 });
 
 test('two-call-gate.md and dispatch/SKILL.md scope the ready-to-merge terminal path to local-merge only', () => {
   assert.match(TWO_CALL_GATE, /`integration-model: local-merge` only: the second call succeeds and reports `OUTCOME: ready-to-merge`/);
-  assert.match(DISPATCH_SKILL, /A third terminal point exists under `integration-model: local-merge` only/);
+  // #434: SKILL.md Step 5 restated this as an explicit local-merge-scoped
+  // clause (worktree-entry precondition) rather than a standalone "third
+  // terminal point" sentence — the local-merge-only scoping of
+  // `OUTCOME: ready-to-merge` survives, just inline in the `local-merge`
+  // branch instead of its own sentence.
+  assert.match(DISPATCH_SKILL, /Under `local-merge`, that also requires the worktree to have been torn down[\s\S]*?on `OUTCOME: ready-to-merge`\) Step 6's own merge-and-cleanup/);
 });
 
 // AC4 (grep-based per the issue's own acceptance criteria): every remaining

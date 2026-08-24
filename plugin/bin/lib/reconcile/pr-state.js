@@ -34,7 +34,7 @@ function classifyExecError(e) {
 }
 
 const FETCH_TIMEOUT_MS = 5000;
-const PR_LIST_ARGS = ['pr', 'list', '--state', 'all', '--json', 'number,state,mergedAt,updatedAt'];
+const PR_LIST_ARGS = ['pr', 'list', '--state', 'all', '--json', 'number,state,mergedAt,updatedAt,mergeCommit'];
 
 // Pure: the parsed `gh pr list` JSON array -> the one governing PR. Shared by
 // both the sync and async resolvers below so the tie-break logic (and any

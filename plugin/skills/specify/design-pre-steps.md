@@ -1,12 +1,12 @@
 # Specify — Design Pre-Steps (Step 2.5)
 
-Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a and Step 2.5c run in both modes (Shaping mode calls them directly against the record's own body — see `shaping-mode.md` in this skill's directory); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
+Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a, Step 2.5c, and Step 2.5c2 run in both modes (Shaping mode calls them directly against the record's own body — see `shaping-mode.md` in this skill's directory); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
 
-These pre-steps capture design context (`shape`), an optional accepted visual direction (`Visual-reference:`), and creative direction (`Design-intent:`) so the resulting records carry all three forward to `/build` and `/flow`'s polish phase as body-metadata lines.
+These pre-steps capture design context (`shape`), an optional accepted visual direction (`Visual-reference:`), creative direction (`Design-intent:`), and a UI-stack preference (`Ui-stack:`) so the resulting records carry all four forward to `/build` and `/flow`'s polish phase as body-metadata lines.
 
 ## Step 2.5a: Frontend detection
 
-**`--surface` override.** When `--surface <value>` was passed on the command line (SKILL.md's Input section), skip the sniff below entirely — use the given value directly as `Surface:` for every record this run produces. Still continue to Step 2.5b/2.5c when the given value is a frontend surface (`web`/`mobile`/`desktop`); skip them, as the no-signal case below does, when it's `backend`/`infra`/`terminal` (terminal still writes `Surface: terminal` — the skip is of the web-only pre-steps, not of the declaration).
+**`--surface` override.** When `--surface <value>` was passed on the command line (SKILL.md's Input section), skip the sniff below entirely — use the given value directly as `Surface:` for every record this run produces. Still continue to Step 2.5b/2.5c/2.5c2 when the given value is a frontend surface (`web`/`mobile`/`desktop`); skip them, as the no-signal case below does, when it's `backend`/`infra`/`terminal` (terminal still writes `Surface: terminal` — the skip is of the web-only pre-steps, not of the declaration).
 
 Sniff the input for frontend signals using the same rules as `/claude-tweaks:design-wrapper`'s Layer 3 — the design doc's contents in decomposition mode, the record's own title/body in shaping mode:
 
@@ -16,7 +16,7 @@ Sniff the input for frontend signals using the same rules as `/claude-tweaks:des
 
 For the canonical sniff rules, read `frontend-detection.md` in the `/claude-tweaks:design-wrapper` skill's directory.
 
-If no frontend signals are detected, stop reading this file — return to SKILL.md and skip Steps 2.5b and 2.5c entirely. Write `Surface: backend` (or `infra` when the input clearly targets infra) as a body-metadata line on the affected record(s); omit `Design-intent:` entirely for non-frontend records — there is no "none" sentinel for the non-frontend case, absence is the signal.
+If no frontend signals are detected, stop reading this file — return to SKILL.md and skip Steps 2.5b, 2.5c, and 2.5c2 entirely. Write `Surface: backend` (or `infra` when the input clearly targets infra) as a body-metadata line on the affected record(s); omit `Design-intent:` and `Ui-stack:` entirely for non-frontend records — there is no "none" sentinel for the non-frontend case, absence is the signal.
 
 ## Step 2.5b: Shape pre-step (frontend only)
 
@@ -152,3 +152,48 @@ Record the chosen value(s) — the calling mode's compose-then-write-once step (
 **For multi-record decompositions:** ask the question once per design doc and apply the same intent across all generated sub-issue records. If the user wants different intents per sub-issue, they can edit individual records after Step 3 (`gh issue edit` / `writeRecord`).
 
 For the canonical enumeration of `Design-intent:` values, read the body-metadata block description near the top of `spec-template.md` in this skill's directory.
+
+## Step 2.5c2: UI-stack question (frontend only)
+
+Sets the `Ui-stack:` body-metadata line that `/claude-tweaks:build`'s Design Pre-Build step (Common Step 1.7) forwards into the implementer subagent's prompt as an explicit component-library/styling-approach mandate — see `design-prebuild.md` in the `/claude-tweaks:build` skill's directory.
+
+**`--chained` (shaping mode's headless component invocation):** never ask — but still resolve the policy value first. This deliberately does **not** mirror Step 2.5c's own `--chained` branch, which writes `Design-intent: none` unconditionally: `none` *is* the `design-intent` schema default, so that unconditional write already matches policy in the common case. `ui-stack` carries no schema default, so an unconditional sentinel would silently discard a real, explicitly-set project policy value with no equivalent fallback. Resolve it with the same invocation the Auto mode branch below uses — `UI_STACK=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" ui-stack)` — then apply per the resolved value:
+
+- Value is non-empty → write the `Ui-stack:` body-metadata line using the policy value verbatim. Log per `_shared/auto-decision-log.md` when a run directory resolves:
+  ```
+  AUTO {time} — Step 2.5c2: applied ui-stack="{value}" from project policy (--chained headless). Reversibility: high.
+  ```
+- Value is empty (no pipeline run dir, or `ui-stack` unset in `policy.yml`) → write `Ui-stack: none — no preference, defer to reference codebase`. Log:
+  ```
+  AUTO {time} — Step 2.5c2: ui-stack=none (--chained headless default, no policy value). Reversibility: high.
+  ```
+
+When no run directory resolves, note the outcome in the returned output only, as Step 2.5c's `--chained` branch does. Either way, **never** call `AskUserQuestion` on this path: the Auto mode branch's KEPT-PROMPT fallback for an empty value does not apply under `--chained` — the flag outranks it, and the sentinel is the headless answer. Only the *value* resolution differs from Step 2.5c's branch; the never-ask invariant is identical.
+
+**The `next` form never reaches this step**, for the same reason Step 2.5c's own note states: `next-mode.md`'s Flag rejection step pre-resolves both lines before `shaping-mode.md` is ever entered, and this step never runs on that path either. It pre-resolves `Ui-stack:` on the same policy-first, sentinel-fallback rule this `--chained` branch applies — not an unconditional sentinel — for the same no-schema-default reason.
+
+**Auto mode:** resolve `ui-stack` — `UI_STACK=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" ui-stack)`. Apply per the resolved value:
+
+- Value is non-empty → write the `Ui-stack:` body-metadata line directly, using the policy value verbatim. Log:
+  ```
+  AUTO {time} — Step 2.5c2: applied ui-stack="{value}" from pipeline config. Reversibility: high.
+  ```
+- Value is empty (no pipeline run dir, or `ui-stack` unset in `policy.yml` — the key carries no schema default) → fall back to KEPT-PROMPT (ask the user inline). This is in `_shared/auto-mode-contract.md`'s "not silenced" list: unset is the only open state for `ui-stack`, since the key has no schema default to distinguish "explicitly left open" from "never set" the way `design-intent`'s `none` does. Log:
+  ```
+  KEPT-PROMPT {time} — Step 2.5c2: ui-stack not set in policy; surfaced inline.
+  ```
+
+**Interactive mode (or KEPT-PROMPT fallback):** ask the user:
+
+**Call `AskUserQuestion`:**
+
+- `question`: `"UI stack for this build? (sets the Ui-stack body-metadata line — pick a preset, or use Other to name something specific)"`, `header`: `"UI stack"`, `multiSelect`: `false`
+- Option 1 — `label`: `"shadcn/ui + Tailwind (Recommended)"`, `description`: `"Composable primitives, Tailwind utility classes."`
+- Option 2 — `label`: `"Plain CSS / no library"`, `description`: `"Hand-written styles, no component library."`
+- Option 3 — `label`: `"No preference — defer to reference codebase"`, `description`: `"Let the build match whatever the reference codebase already uses."`
+
+The tool's built-in `Other` field covers any UI stack not listed above (e.g. `Material UI`, `Chakra UI`, a project-specific design system) — the same escape hatch `step-09-establish-github-remote.md` documents for its own org-selection question. Map the answer to the `Ui-stack:` value verbatim: a preset option writes that option's label text (`shadcn/ui + Tailwind`, `Plain CSS / no library`); Option 3 writes `none — no preference, defer to reference codebase`; an `Other` answer writes the user's typed text verbatim.
+
+Record the chosen value — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode.md`) writes it into the record's body-metadata block, immediately after `Design-intent:`.
+
+**For multi-record decompositions:** ask the question once per design doc and apply the same UI stack across all generated sub-issue records covering a frontend surface — the same batching rule Step 2.5c already applies to `Design-intent:`.

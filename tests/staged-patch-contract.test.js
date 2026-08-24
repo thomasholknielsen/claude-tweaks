@@ -58,6 +58,17 @@ for (const [dir, file, anchor] of STAGING_SITES) {
   });
 }
 
+test('wrap-up/curation-engine.md dispatch prompts inline the staged-patch artifact format', () => {
+  const text = read('wrap-up', 'curation-engine.md');
+  assert.match(text, /Staged-patch artifact format \(both branches\)/, 'names the paragraph');
+  assert.match(text, /_shared\/staged-patch\.md.{0,40}Artifact format/, 'cites the contract file by its Artifact format section');
+  for (const field of ['Target:', 'Invariant:', 'Finding:', 'Staged-at:']) {
+    assert.ok(text.includes(field), `curation-engine.md names the ${field} preamble field`);
+  }
+  assert.match(text, /diff --git/, 'requires a literal diff --git block');
+  assert.match(text, /staged-patch artifact format below/, 'the fan-out branch\'s inline-elements list references it');
+});
+
 const CONSOLE_SITES = [
   ['wrap-up', 'review-console.md'],
   ['flow', 'multispec-review-console.md'],

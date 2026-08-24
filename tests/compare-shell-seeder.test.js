@@ -173,6 +173,28 @@ test('AC10: npm test picks up this suite (self-check — file lives under tests/
   assert.match(__filename, /tests[\\/]compare-shell-seeder\.test\.js$/);
 });
 
+test('#1229: variant data containing $$, $&, $`, $\' round-trips intact through the seeded template (function replacer, not string replacer)', () => {
+  const dollarDir = fs.mkdtempSync(path.join(os.tmpdir(), 'compare-shell-dollar-'));
+  fs.writeFileSync(path.join(dollarDir, 'variant-a.html'), '<!doctype html><body>A</body>');
+  const hostileName = 'Special pricing $$29 special $& deal $` and $\' too';
+  fs.writeFileSync(path.join(dollarDir, 'manifest.json'), JSON.stringify({
+    scope: 'layout',
+    seedKey: 'seed-dollar-1',
+    variants: [{ id: 'a', name: hostileName, files: ['variant-a.html'] }],
+    outcome: { winner: 'a', date: '2026-08-21T00:00:00.000Z' },
+  }));
+  const out = mkOut('durable-dollar.html');
+  const res = seedCli(['--manifest', path.join(dollarDir, 'manifest.json'), '--mode', 'durable', '--out', out]);
+  assert.equal(res.code, 0, res.err);
+  const data = loadIsland(fs.readFileSync(out, 'utf8'));
+  const variant = data.variants.find((v) => v.id === 'a');
+  assert.equal(
+    variant.name,
+    hostileName,
+    'a string replacer would corrupt $-pattern sequences ($$ -> $, $& -> matched substring); the function replacer must leave them intact',
+  );
+});
+
 test('unit: assembleIdentityDoc inlines skin CSS before </head>', async () => {
   const mod = await import(require('node:url').pathToFileURL(SEEDER).href);
   const doc = mod.assembleIdentityDoc('<html><head><title>t</title></head><body>x</body></html>', 'body{color:red}');

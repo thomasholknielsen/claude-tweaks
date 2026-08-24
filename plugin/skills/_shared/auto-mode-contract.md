@@ -174,7 +174,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Stories v1 detection (`/stories` Step 1) | Regenerate all / diff / cancel | Auto-skip migration; stage as "legacy stories detected" |
 | Story journey link suggestions (`/stories` Step 6) | Apply all / override | Auto-apply (mechanical mapping) |
 | Init Phase 3 classification | Confirm / override | Auto-confirm when detection confidence ≥ 0.8 and signals are consistent |
-| Capture next-action routing | Numbered options | Apply `--route` arg if set; else default to `keep` (record stays in backlog state — most conservative) |
+| Capture next-action routing | Numbered options | Apply `--route` arg if set; else, on an **agent-driven filing** (`$PIPELINE_RUN_DIR` set, `--source`, or `--defer-reason=`), `capture/SKILL.md`'s headless absorb bar decides at filing time — absorb into the matched record when its structural bar (shared literal file path + identical `type:{t}`) is met, otherwise file fresh with `**Related:** #N`. Every other `auto` invocation defaults to `keep` (record stays in backlog state — most conservative) |
 | Reflect insight routing | Per-item decision | Auto-route: defer (default), keep (tangential — stages a record proposal for the Review Console, stays in backlog state); a safety regression is KEPT-PROMPT — always surfaces inline, `auto` never silently auto-applies it |
 | Wrap-up Phase 3 leftover routing | Per-item decision | Apply `leftover-default` policy from manifesto (default `defer`) |
 | Wrap-up's Skills curation row | Apply all / override | Auto-apply purely additive changes (new examples, anti-patterns) — including those the independent domain scan surfaces, not only ledger-seeded ones; stage restructures and new-skill candidates |
@@ -208,6 +208,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Code modifications outside the skill's documented scope | If a skill is asked to do X and would modify Y to make X work, that's a scope expansion the user must authorize. Exempt only for a **pointer repair** — a reference broken *by this run's own change* — and only when `autonomy` is `trusted` or `unattended`; see `_shared/initiative-budget.md` for the narrow, capped, logged carve-out. The exemption is causal, not size-based: a small edit the run merely *noticed* it could make is still a scope expansion, at every ceiling |
 | Resolution of merge conflicts in worktree finishing | Conflict resolution requires intent the model cannot infer |
 | Design intent (when manifesto value is `none` AND skill detects creative work) | Creative direction is user-only when explicitly left open |
+| Ui-stack (when the `ui-stack` policy value is unset AND skill detects frontend work) | Component-library/styling preference is user-only when unset. `policy.yml` only — `ui-stack` has no Manifesto lever, and the key carries no schema default, so unset is its only open state |
 
 ## Forbidden under auto
 

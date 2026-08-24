@@ -37,6 +37,23 @@ test('accept: main-anchored --run from linked-worktree cwd; config overlay still
   assert.deepStrictEqual(JSON.parse(res.stdout).autonomy, { value: 'trusted', source: 'run-config' });
 });
 
+// #1138: an empty or whitespace-only --run value must be rejected at parse
+// time — before it ever reaches the anchoring check — the same rule
+// resolve-policy already applied to a genuinely missing value.
+test('reject: empty --run value — "--run requires a value", exit 1', () => {
+  const main = gitRepo();
+  const res = runCli(['--run', '', 'autonomy'], main);
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /--run requires a value/);
+});
+
+test('reject: whitespace-only --run value degrades the same as empty', () => {
+  const main = gitRepo();
+  const res = runCli(['--run', '   ', 'autonomy'], main);
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /--run requires a value/);
+});
+
 test('accept: --run outside any checkout; nonexistent dir still exits 1 with the pre-existing message (AC 5)', () => {
   const main = gitRepo();
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'rpol-out-'));
