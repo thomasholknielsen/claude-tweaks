@@ -9,9 +9,11 @@
 //   { issue: number, addLabels?: string[], removeLabels?: string[], commentFile?: string }
 // — each action needs at least one of addLabels/removeLabels/commentFile.
 // `--run <run-dir>` is optional: when given, one AUTO decisions.md line is
-// appended per successfully-applied action, under the /backlog heading — the
-// run dir must resolve under the main checkout (#790/[IL-127]), refused
-// loudly otherwise, before any `gh` call.
+// appended per successfully-applied action and one hand-composed FAILED line
+// per failed action (#1072 — refine-mode.md Step 5's own `FAILED {time} — …`
+// template, which append.js's STATUSES enum has no member for), both under
+// the /backlog heading — the run dir must resolve under the main checkout
+// (#790/[IL-127]), refused loudly otherwise, before any `gh` call.
 // Exit 0 with a {ok, failed} JSON summary on stdout — one failed action never
 // aborts the batch; 1 when the actions file can't be read or is malformed;
 // 2 on a bad invocation, an unanchored --run, or a missing `gh`.
@@ -21,7 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const wtDetect = require('./lib/hooks/worktree-detect');
-const { appendEntry, formatEntry } = require('./lib/log-decision/append');
+const { appendEntry, formatEntry, hms } = require('./lib/log-decision/append');
 const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: apply-refine-labels.js <actions.json> [--run <run-dir>] [--repo owner/name] [--help]\n';
@@ -172,6 +174,26 @@ function run(argv, deps = realDeps) {
     } catch (err) {
       const message = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).join(' ') || String(err);
       failed.push({ issue: action.issue, error: message });
+      if (runDir) {
+        const attemptParts = [];
+        if (hasItems(action.addLabels)) attemptParts.push(`+${action.addLabels.join(' +')}`);
+        if (hasItems(action.removeLabels)) attemptParts.push(`-${action.removeLabels.join(' -')}`);
+        if (action.commentFile) attemptParts.push('comment');
+        const summary = attemptParts.length ? attemptParts.join(', ') : 'batch action';
+        try {
+          // #1072: FAILED is not one of append.js's STATUSES (AUTO/STAGED/
+          // KEPT-PROMPT/SCANNED/REFUSED) — refine-mode.md Step 5's own
+          // `FAILED {time} — …` template predates that enum and was never
+          // gated by it, so this line is composed by hand (reusing append.js's
+          // own `hms` for a consistent timestamp) rather than through
+          // formatEntry, which would reject the status.
+          deps.appendEntry({
+            runDir,
+            section: '/backlog',
+            entry: `- FAILED ${hms(deps.now())} — apply-refine-labels: #${action.issue}: ${summary} failed: ${message}.`,
+          });
+        } catch { /* logging is best-effort — never fails the batch */ }
+      }
     }
   }
 

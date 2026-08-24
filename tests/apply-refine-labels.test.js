@@ -207,12 +207,29 @@ test('run: --run given logs one AUTO decisions.md line per successfully-applied 
   assert.match(deps.calls.appendEntry[0].entry, /#118: applied \+auto:build, -bot:blocked/);
 });
 
-test('run: --run given does not log for a failed action', () => {
+// #1072: a failed action now logs a hand-composed FAILED line — append.js's
+// STATUSES enum has no FAILED member, so this bypasses formatEntry rather
+// than going through it. refine-mode.md Step 5's closing summary counts
+// `FAILED` lines toward its failed tally.
+test('run: --run given logs one FAILED decisions.md line per failed action, under /backlog', () => {
+  const deps = fakeDeps({
+    readFile: () => JSON.stringify([{ issue: 1, addLabels: ['a'], removeLabels: ['b'] }]),
+    gh: () => { throw new Error('boom'); },
+  });
+  const code = run(['actions.json', '--run', '/repo/.claude-tweaks/pipelines/run-1'], deps);
+  assert.strictEqual(code, 0);
+  assert.strictEqual(deps.calls.appendEntry.length, 1);
+  assert.strictEqual(deps.calls.appendEntry[0].runDir, '/repo/.claude-tweaks/pipelines/run-1');
+  assert.strictEqual(deps.calls.appendEntry[0].section, '/backlog');
+  assert.match(deps.calls.appendEntry[0].entry, /^- FAILED \d{2}:\d{2}:\d{2} — apply-refine-labels: #1: \+a, -b failed: boom\.$/);
+});
+
+test('run: --run omitted never calls appendEntry even on a failed action', () => {
   const deps = fakeDeps({
     readFile: () => JSON.stringify([{ issue: 1, addLabels: ['a'] }]),
     gh: () => { throw new Error('boom'); },
   });
-  const code = run(['actions.json', '--run', '/repo/.claude-tweaks/pipelines/run-1'], deps);
+  const code = run(['actions.json'], deps);
   assert.strictEqual(code, 0);
   assert.strictEqual(deps.calls.appendEntry.length, 0);
 });
