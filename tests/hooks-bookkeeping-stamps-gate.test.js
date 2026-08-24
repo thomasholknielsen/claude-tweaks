@@ -557,3 +557,109 @@ test('bookkeeping-stamps gate (I5): both stamps present adds no repo-inspection 
     `expected the missing-PR-stamp control to spawn more than the baseline (${baseline.calls}), got ${control.calls}`,
   );
 });
+
+// --- #1258: I5's fast path extended to the local-merge / degrade-logged
+// steady state, via a persisted `runState.prExempt` verdict ---
+
+// Shared spawn-counting helper (mirrors the I5 test's own local closure
+// above — kept duplicated rather than hoisted, matching this file's existing
+// per-test convention).
+function withSpawnCount(fn) {
+  const cp = require('child_process');
+  const original = cp.execFileSync;
+  let calls = 0;
+  cp.execFileSync = function (...args) {
+    if (args[0] === 'git' || args[0] === 'gh') calls += 1;
+    return original.apply(this, args);
+  };
+  let out;
+  try { out = fn(); } finally { cp.execFileSync = original; }
+  return { out, calls };
+}
+
+test('bookkeeping-stamps gate (#1258): local-merge steady state — first resolution persists prExempt, a later call short-circuits like a fully-stamped pr-first run', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+
+  const baseline = withSpawnCount(() => pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: null, runState: null, cwd: wt }));
+  assert.deepStrictEqual(baseline.out, {});
+
+  // First covered call after the worktree stamp: no origin remote on this
+  // fixture -> real (unstubbed) resolveIntegrationModel resolves
+  // 'local-merge' -> allow, and this is the call that must persist
+  // `prExempt: true` onto run-state.json. Expected to spawn more than
+  // baseline, same as the I5 test's own "missing-PR-stamp control" above —
+  // proving this call is not already trivially at the fast path.
+  const { run } = mkRunDir(project, wt, undefined);
+  const first = withSpawnCount(() => pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active', worktree: wt },
+    cwd: wt,
+  }));
+  assert.deepStrictEqual(first.out, {});
+  assert.ok(
+    first.calls > baseline.calls,
+    `expected the first local-merge resolution to spawn more than baseline (${baseline.calls}), got ${first.calls}`,
+  );
+  const persisted = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(persisted.prExempt, true, 'first resolution must persist prExempt onto run-state.json');
+
+  // Steady state: a later call reads the persisted prExempt (as production
+  // code would, via ctx.runState freshly loaded from run-state.json on each
+  // fresh hook process) and must add zero spawns beyond pre.run()'s own
+  // baseline dispatch — the exact guarantee the AC requires: no worse than a
+  // fully-stamped pr-first run's steady state.
+  const steadyState = withSpawnCount(() => pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active', worktree: wt, prExempt: true },
+    cwd: wt,
+  }));
+  assert.deepStrictEqual(steadyState.out, {});
+  assert.strictEqual(
+    steadyState.calls, baseline.calls,
+    'a local-merge run\'s steady state (worktree stamped, prExempt persisted) must add zero repo-inspection ' +
+    'spawns beyond pre.run()\'s own baseline dispatch',
+  );
+});
+
+test('bookkeeping-stamps gate (#1258): pr-first with degrade already logged also persists prExempt', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined);
+  fs.writeFileSync(
+    path.join(run, 'decisions.md'),
+    '## /build\n- AUTO 09:00:00 — PR-early run lifecycle: push of wt-branch to origin FAILED (network); run proceeds local-only, no PR opened. Reversibility: n/a.\n',
+  );
+  const out = pre.run(
+    { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
+    { resolveIntegrationModel: () => 'pr-first' },
+  );
+  assert.deepStrictEqual(out, {});
+  const persisted = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(persisted.prExempt, true, 'a graceful-degrade allow must also persist prExempt — the degrade line is permanent (append-only)');
+});
+
+test('bookkeeping-stamps gate (#1258): a caught model-resolution exception never persists prExempt — a transient failure is not a provable verdict', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined);
+  const out = pre.run(
+    { input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
+    { resolveIntegrationModel: () => { throw new Error('transient gh failure'); } },
+  );
+  // Fail-open: an unresolvable model is not provably pr-first, so this call allows.
+  assert.deepStrictEqual(out, {});
+  const persisted = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(
+    persisted.prExempt, undefined,
+    'a caught resolution exception must never persist prExempt — a later call might resolve pr-first and need to enforce',
+  );
+});
