@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "record-1073",
-  "reason": "correcting claim run-id to basename(PIPELINE_RUN_DIR)",
-  "releasedAt": "2026-08-24T17:12:08.587Z"
+  "runId": "2026-08-24T170846-record-1073",
+  "sessionId": "68d0dd7d-b29f-4dc9-9274-98c1fe184f5f",
+  "claimedAt": "2026-08-24T17:12:17.292Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
