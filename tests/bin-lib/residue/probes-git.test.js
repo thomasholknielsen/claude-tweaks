@@ -208,73 +208,40 @@ test('multiple merged branches from unrelated runs produce zero blast-radius fin
   );
 });
 
-// #663: `probeBranches` used to read `--merged` against whatever stale
-// `refs/remotes/origin/*` entries the local checkout already had, with no
-// fetch/prune first. A branch merged and already deleted upstream (auto-
-// deleted on merge, or cleaned up by a sibling tidy pass) still showed up as
-// "merged, not deleted" — a fix-now attempt against it then 422s.
-test('a prune runs before the merged-branch read, and a since-pruned branch produces no finding', () => {
+// #1172: `probeBranches` used to run `git remote prune <remote>` unconditionally
+// before every merged-branch read — a ref-mutating, up-to-15s network call on
+// every invocation, including a report-only `residue.js --json` run and a
+// `--scope blast-radius` run whose branch findings (all scope:'observed') are
+// guaranteed to be filtered out afterward. The actual deletion of a
+// proven-merged remote branch runs through reconcile's own `remote-prune`
+// check (`bin/lib/reconcile/prune-remote.js`), which fetches and prunes
+// origin itself immediately before it deletes — this probe's findings are
+// read-only report output and never trigger a delete on their own, so the
+// prune bought nothing here.
+test('probeBranches never issues a `git remote prune` call — deletion (and its own prune) lives in reconcile/prune-remote.js', () => {
   const run = recordingRunner({
-    'remote prune origin': 'Pruning origin\n * [pruned] origin/worktree-old',
-    // Reflects what git itself returns AFTER a real prune removed the stale
-    // tracking ref — the branch this run is regression-testing is simply
-    // absent from the merged list once pruned.
-    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
   });
   const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
-  assert.deepStrictEqual(findings, [], 'the stale ref was pruned before the merged read, so it never appears');
-  assert.deepStrictEqual(run.calls, [
-    'remote prune origin',
-    'branch -r --format=%(refname:short) --merged origin/main',
-  ], 'prune must run before the merged-branch read, on the same injected run seam');
+  assert.deepStrictEqual(run.calls, ['branch -r --format=%(refname:short) --merged origin/main'], 'no remote-mutating call, ever');
+  assert.ok(findings.some((f) => f.subject === 'origin/worktree-old'), 'the merged-branch read itself is unaffected');
 });
 
-// #663 follow-up (review finding): the prune call is the first command on
-// this probe's run seam to contact a remote at all, so it needs an explicit
-// timeout — an unbounded `execFileSync` could hang the whole probe on a
-// slow/black-holed remote. The local-only merged-branch read has no such
-// risk and must stay unbounded.
-test('the prune call carries an explicit timeout; the local merged-branch read does not', () => {
-  const run = recordingRunner({
-    'remote prune origin': '',
-    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
-  });
-  probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
-  assert.deepStrictEqual(run.calls, [
-    'remote prune origin',
-    'branch -r --format=%(refname:short) --merged origin/main',
-  ]);
-  assert.strictEqual(run.optsByCall[0] && run.optsByCall[0].timeout, 15000, 'prune call must pass an explicit timeout');
-  assert.strictEqual(run.optsByCall[1], undefined, 'the local-only merged-branch read must not carry a timeout option');
-});
-
-test('a prune failure degrades to the unpruned read rather than aborting the probe', () => {
-  // No 'remote prune origin' entry in the map -> stubRunner returns null,
-  // simulating a network failure / offline prune.
+test('a merged branch\'s evidence carries no degrade/unpruned-read tag — the read is unconditionally local-only now', () => {
   const run = stubRunner({
     'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
   });
-  const { ran, findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
-  assert.strictEqual(ran, true, 'a prune failure degrades, it does not abort the probe');
+  const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
   const stale = findings.find((f) => f.subject === 'origin/worktree-old');
-  assert.ok(stale, 'still returns the finding it would have returned unpruned');
-  assert.match(stale.evidence, /unpruned-read/, 'tagged so a consumer (fix-now) knows deletion may 422');
+  assert.doesNotMatch(stale.evidence, /unpruned-read|prune/, 'no prune-related tag survives in evidence');
 });
 
-test('the degrade tag lives in evidence only — it never mints a duplicate finding id', () => {
-  const prunedRun = stubRunner({
-    'remote prune origin': '',
-    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
+test('the local merged-branch read carries no timeout option — it never contacts a remote', () => {
+  const run = recordingRunner({
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
   });
-  const degradedRun = stubRunner({
-    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
-  });
-  const pruned = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run: prunedRun });
-  const degraded = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run: degradedRun });
-  const prunedFinding = pruned.findings.find((f) => f.subject === 'origin/worktree-old');
-  const degradedFinding = degraded.findings.find((f) => f.subject === 'origin/worktree-old');
-  assert.strictEqual(prunedFinding.id, degradedFinding.id, 'same finding whether pruned or degraded — id excludes evidence');
-  assert.notStrictEqual(prunedFinding.evidence, degradedFinding.evidence, 'evidence text differs to carry the degrade tag');
+  probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.strictEqual(run.optsByCall[0], undefined, 'the only call this probe makes is local-only and needs no explicit timeout');
 });
 
 // #225: a locked worktree's evidence must distinguish a live session from an

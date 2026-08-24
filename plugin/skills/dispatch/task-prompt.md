@@ -27,8 +27,13 @@ counting, failure comment) before finishing -- that procedure runs inside this a
 this group's own record(s), not in the dispatching session's thread, and this call's own
 failure is exactly the failure it settles. Do not leave a failed record's claim or label
 state unresolved. Do NOT tear the worktree down yourself, and do not run ExitWorktree or
-`git worktree remove` -- worktree teardown is the dispatching session's, routed through
-wrap-up's own cleanup.
+`git worktree remove` -- a Task call that inherited this worktree without entering it can
+never tear it down, on any outcome (the outcome-independent constraint at the top of
+settle-and-merge.md). Who does tear it down depends on the path, never on this call: on a
+build/test failure, the dispatching session's own `/claude-tweaks:flow {target} wrap-up
+cleanup-only` call (two-call-gate.md section 5); on a successful run, the second call's own
+integration path -- under pr-first the reconciler, on merged-PR evidence; under local-merge
+the dispatching session, after it merges.
 
 Working directory: the dispatching session has ALREADY entered this group's worktree; you
 inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
@@ -93,6 +98,11 @@ numbers in an intermediate commit message, write "refs #N" -- never "closes #N" 
 #N". The real closing keyword is stamped once, at the end, by wrap-up's carrier commit or the
 merge commit (close-via-merge, `_shared/issue-claims.md`).
 
+On `failed`/`blocked`, Settle's own procedure releases the claim in this call (its step 2,
+unconditional); run-dir archival does not run here — the run stays parked for a human to resume
+or for the retry ceiling to escalate it, the same disposition `dispatch/SKILL.md`'s Reporting
+section already describes for ordinary `pending-review` parking.
+
 Working directory: the dispatching session is still in this group's worktree (unchanged since
 the first call) -- you inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
 /superpowers:using-git-worktrees. Echo `pwd` and `git rev-parse --show-toplevel` before any
@@ -106,10 +116,28 @@ and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
 
+This state-check applies when choosing among `merged`/`armed`/`pending-review`/`ready-to-merge` --
+`failed`/`blocked` are already decided by the HARD-GATE outcome above, and Settle's own step 2 has
+already released the claim for those two by the time you reach this paragraph, so finding it
+non-`live` there is expected, not a signal to re-derive the outcome. For the other four values,
+check the record's actual state rather than inferring it from what this call itself did earlier:
+read the claim blob (`claims/issue-{n}.json` on the `claims-registry` branch, not a working-tree
+file -- fetch it the same way `_shared/issue-claims.md` describes) to see whether the claim's
+`runId` still matches this run and is `live`; check the record's current labels
+(`bot:in-progress`, `auto:merge`); and read `run-state.json`'s `pr` object for a recorded
+`number`/`url` -- when one is recorded, resolve its live state with
+`gh pr view {number} --repo {owner}/{repo} --json state,isDraft,url` rather than assuming from the
+recorded object alone, since it carries no state field. A completed hand-off (a live PR already
+recorded, or `state: MERGED`) is not the same state as a genuinely still-open run awaiting a
+human -- report `pending-review` only for the latter. If the claim's `runId` no longer matches
+this run, or is not `live`, or `bot:in-progress` is already gone -- another session has taken over
+this record since your run started; report `pending-review` and note the discrepancy rather than
+reporting `merged`/`armed`/`ready-to-merge` against a claim you no longer hold.
+
 OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
 
 GROUP: {comma-joined issue numbers}
-OUTCOME: {merged | armed | pending-review | failed | blocked}
+OUTCOME: {merged | armed | pending-review | ready-to-merge | failed | blocked}
 MANIFEST: {path to this group's run-dir manifest.yml/decisions.md -- a human-readable trace
   only; the dispatching session already holds this run's identity as {minted-run-dir} and
   derives nothing from this line}
@@ -121,8 +149,12 @@ ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
 `pending-review` are `_shared/pr-first-merge.md`'s own outcome vocabulary, reported verbatim: you
 run the merge procedure yourself, in this same call, whichever file's Auto-merge gate you reach
 (`dispatch/settle-and-merge.md` for a bundle, `wrap-up/review-console.md`'s dispatch-claim branch
-for a singleton). `merged` means you also completed worktree removal, claim release, and run-dir
-archival (that procedure's Step 4) — nothing is deferred to the dispatching session on this path.
+for a singleton). `merged` means you also completed claim release and run-dir archival directly
+(that procedure's Step 4) — but not worktree removal: this call inherited the worktree and never
+itself `EnterWorktree`'d it, so `ExitWorktree` is a no-op for it, the same structural constraint
+`settle-and-merge.md` states at the top of that file. Worktree removal defers to the reconciler
+on merged-PR evidence instead — the same mechanism the next sentence already describes for
+`armed`/`pending-review`.
 `armed`/`pending-review` complete none of those three; the reconciler finishes them later, on
 merged-PR evidence, whichever trigger point observes it first. There is no `ready-to-merge` value
 under this model — the merge already happened, or didn't, by the time you report.
@@ -130,9 +162,12 @@ under this model — the merge already happened, or didn't, by the time you repo
 **`integration-model: local-merge`** — report `ready-to-merge` when the group's Auto-merge gate
 passed both layers and you already applied acceptance labeling for every member -- never
 `merged`. You do not merge yourself on this path: a Task-tool subagent cannot reach the main
-checkout. Stop right after labeling -- do not run worktree removal, claim release, or run-dir
-archival; the dispatching session completes all three after it merges, per
-`settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
+checkout, and for the same structural reason (`settle-and-merge.md`'s outcome-independent
+constraint) you cannot run worktree removal either. Stop right after labeling. Claim release and
+run-dir archival stay deferred too, but for a distinct reason: the merge that would make them
+safe hasn't happened yet -- not because they inherit the worktree constraint. The dispatching
+session completes all three (worktree removal, claim release, run-dir archival) after it merges,
+per `settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
 
 `pending-review` also covers what `pr-opened` used to name separately: under pr-first the PR
 already exists from run start (`_shared/pr-early-run-lifecycle.md`), so there is no longer a

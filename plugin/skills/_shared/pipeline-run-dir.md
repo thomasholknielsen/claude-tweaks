@@ -24,7 +24,7 @@ The resolved directory contains `config.yml` (Manifesto answers / policy — abs
 
 ## Resolving it: `resolve-run-dir` (preferred over composing `$RUN_ROOT` by hand)
 
-`node plugin/bin/hooks.js resolve-run-dir [--spec-slug <s>] [--mode auto] [--standalone <name>] [--create] [--root-only]`
+`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir [--spec-slug <s>] [--mode auto] [--standalone <name>] [--create] [--root-only]`
 (`bin/lib/hooks/run-dir-resolve.js`) implements steps 1, 2, and 4 above on top of
 `bin/lib/hooks/worktree-detect.js`'s `mainCheckoutRoot()` — the same anchoring the Bash snippet
 below computes, but as a single command every citing skill step calls instead of restating that
@@ -143,27 +143,42 @@ legitimate run directory outside the repository:
 ### Worktree-local `--run` fallback (#280)
 
 `resolveRunArg` (`bin/hooks.js`, shared by `record-worktree`, `record-pr`, `spec-status`,
-`close-run`, `teardown-run`, and `archive-run` — every CLI verb an explicit `--run <dir>` reaches)
-adds one narrow exception to the unanchored-rejection rule above. It exists for the harness-
-isolation incident this record documents (flow run `2026-08-09T140101-spec-262`): a session whose
+`close-run`, `teardown-run`, `check-resume-freshness`, and `archive-run` — every CLI verb an
+explicit `--run <dir>` reaches) adds one narrow exception to the unanchored-rejection rule above.
+It exists for the harness-isolation incident this record documents (flow run
+`2026-08-09T140101-spec-262`): a session whose
 harness refuses every write to the main checkout for the whole session has no anchored run
 directory to name at all — its run dir was legitimately initialized worktree-local as the only
 available option, and without this exception `--run "$RUN_DIR"` for that run can never resolve
 (`record-worktree` prints `worktree not recorded` and E1 enforcement never binds).
 
 The gating signal that separates this from an ordinary stray worktree-local directory is
-**initialization, not existence**: a `--run` candidate that resolves inside a linked worktree is
-adopted only when (a) it is already an **initialized** run dir — carries at least one of
-`decisions.md`, `run-state.json`, or `config.yml`, the same bar every other resolver in this file
-uses to tell a real run from a bare `mkdir` — and (b) no directory of the same name already exists
-under the main checkout, which would make that copy the authoritative one instead. A bare `mkdir`
-of a worktree-local pipelines path (the [IL-96]/[IL-127] shadow shape `checkPipelineShadowGuard`
-exists to prevent, above) fails condition (a) and is rejected exactly as before — an ordinary run
-with no worktree-local run dir at all can never spuriously match this fallback, satisfying the
-"blocked vs. absent" distinction the record's Deliverables call for. `record-worktree`'s stdout
-names the fallback explicitly (`resolved via the worktree-local fallback (#280)`) rather than
-reporting it identically to the ordinary anchored path, so the degraded state (this run's audit
-trail lives only in the worktree until merge) is diagnosable, not silent.
+**containment and initialization, not mere existence**: a `--run` candidate is adopted only
+when (a) it resolves inside a linked worktree *of this same repo* — not an arbitrary directory,
+and not an unrelated repo's checkout (`#1183`: an earlier version of this check verified none of
+this, so any directory carrying a stray marker file was adopted); (b) that path, relative to the
+worktree's own `.claude-tweaks/pipelines/`, has a run-id-shaped segment in the position that names
+the run — the leading segment ordinarily, or the segment immediately after `archive/` for an
+archived shadow (the same `RUN_ID_RE` shape `context.js`'s run-dir enumeration,
+`iterRunDirsWithState`, uses to distinguish a real pipeline run dir from an arbitrary directory);
+(c) it is already an **initialized** run dir — carries at least one of `decisions.md`,
+`run-state.json`, or `config.yml`, the same bar every other resolver in this file uses to tell a
+real run from a bare `mkdir`; and (d) no directory exists at the *same pipelines-relative path*
+under the main checkout, which would make that copy the authoritative one instead (`#1183`: this
+used to compare only the directory's basename, so a nested multi-spec shadow
+(`pipelines/{parent}/spec-N`) or an archived shadow (`pipelines/archive/{id}`) computed the wrong
+main-checkout candidate and was adopted even though the anchored copy existed at the correct
+nested/archived path). An `archive/{id}` shadow is also checked against a *live*, non-archived
+copy of the same run-id under the main checkout — a run can be live under one id while a
+worktree-local session independently archived its own local copy under the same id, and checking
+only the archived path would miss that (`#1183` fix-wave). A bare `mkdir` of a worktree-local pipelines path (the [IL-96]/[IL-127]
+shadow shape `checkPipelineShadowGuard` exists to prevent, above) fails condition (c) and is
+rejected exactly as before — an ordinary run with no worktree-local run dir at all can never
+spuriously match this fallback, satisfying the "blocked vs. absent" distinction the record's
+Deliverables call for. `record-worktree`'s stdout names the fallback explicitly (`resolved via
+the worktree-local fallback (#280)`) rather than reporting it identically to the ordinary
+anchored path, so the degraded state (this run's audit trail lives only in the worktree until
+merge) is diagnosable, not silent.
 
 **Scoped to `resolveRunArg` only — not mirrored into `bin/lib/hooks/context.js`'s
 `resolveRunDir`/`resolveRun`.** That function answers a different question (this file's header
