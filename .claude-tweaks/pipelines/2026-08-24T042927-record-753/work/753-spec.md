@@ -110,3 +110,24 @@ File a backlog record for option 2 (`bin/lib/issues/blast-radius.js` — support
 `globToRegExp`, with the registry's `skills/**` as the motivating case), or accept option 1 as
 an interim registry edit.
 
+## Build Assessment (2026-08-24)
+
+This record's Deliverables/Acceptance Criteria are already satisfied by #727 ("blast-radius glob
+segment fix", shipped in v6.93.0, `git log --oneline --grep=727` → `ccab3c55`) — this record is a
+stale/superseded duplicate filed against the same underlying gap that #727 already closed. Verified
+directly against the merged worktree (`origin/main` @ `1b63fad5`):
+
+- `globToRegExp('skills/**')` matches `skills/demo/SKILL.md`, `skills/specify/shaping-mode.md`,
+  and `skills/_shared/foo/bar.md` — confirmed via `isSensitivePath`.
+- `globToRegExp('bin/**')` matches `bin/lib/issues/blast-radius.js` — confirmed.
+- `docs/REGISTRY.md`'s `docs/plugin-structure.md` row already carries the narrower
+  `plugin/skills/**/*.md`, `plugin/skills/**/*.yml`, `plugin/skills/**/*.html`,
+  `plugin/skills/**/*.mjs`, `plugin/bin/**/*.js` patterns (a superset of the fix's intent, more
+  specific than the bare `skills/**`/`bin/**` this record's body described).
+- `tests/bin-lib/issues/blast-radius.test.js:165-197` already pins `**`-crosses-segments behavior
+  with dedicated test cases (`#727` comment block).
+- Full `npm test`: 6160/6160 passing on the merged base — no regression, no further code change
+  needed.
+
+No implementation work performed. This record closes via verification only.
+
