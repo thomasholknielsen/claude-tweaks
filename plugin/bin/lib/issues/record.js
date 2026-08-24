@@ -433,6 +433,21 @@ function buildNativeSubIssuesQuery(numbers) {
   return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
 }
 
+// candidate sub-issue numbers -> one batched, aliased GraphQL query requesting each
+// issue's native parent (work-links: native), read from the sub-issue's own side.
+// Probed live on this repo 2026-08-24: issue(number:$n){ parent{ number title state } }
+// returns { number, parent: { number, title, state } } for a sub-issue, and
+// parent: null for a parentless record. Same alias/null conventions as
+// buildNativeSubIssuesQuery above. Callers: review/cross-spec-promise-check.md,
+// demo/entry-paths.md's Full verification pointer sub-procedure.
+function buildNativeParentQuery(numbers) {
+  if (!Array.isArray(numbers) || numbers.length === 0) return null;
+  const fields = numbers
+    .map((n) => `i${n}: issue(number:${n}){ number parent{ number title state } }`)
+    .join('\n      ');
+  return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
+}
+
 // one candidate's parsed aliased response value (the { number, blockedBy: { nodes } }
 // shape buildNativeDependencyQuery's query produces per alias) -> true when at least
 // one blockedBy node is still OPEN. Mirrors parseDependencies' role for the
@@ -581,5 +596,5 @@ module.exports = {
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, extractVerifiedAsOf, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
-  buildNativeSubIssuesQuery, partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
+  buildNativeSubIssuesQuery, buildNativeParentQuery, partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
 };

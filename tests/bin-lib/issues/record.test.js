@@ -5,6 +5,7 @@ const {
   recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS, DEFER_REASONS,
   extractFingerprint, extractVerifiedAsOf, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues, buildNativeSubIssuesQuery,
+  buildNativeParentQuery,
   partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
 } = require('../../../plugin/bin/lib/issues/record');
 
@@ -525,6 +526,18 @@ test('buildNativeSubIssuesQuery returns null for empty or non-array input', () =
   assert.strictEqual(buildNativeSubIssuesQuery([]), null);
   assert.strictEqual(buildNativeSubIssuesQuery(undefined), null);
   assert.strictEqual(buildNativeSubIssuesQuery('42'), null);
+});
+
+test('buildNativeParentQuery aliases each number and requests parent number/title/state', () => {
+  const q = buildNativeParentQuery([42, 731]);
+  assert.match(q, /i42: issue\(number:42\)\{ number parent\{ number title state \} \}/);
+  assert.match(q, /i731: issue\(number:731\)/);
+  assert.match(q, /query\(\$owner:String!,\$repo:String!\)/);
+});
+
+test('buildNativeParentQuery returns null for empty or non-array input', () => {
+  assert.strictEqual(buildNativeParentQuery([]), null);
+  assert.strictEqual(buildNativeParentQuery(null), null);
 });
 
 // AC — dependency assumptions (cross-spec-promise-tracking)
