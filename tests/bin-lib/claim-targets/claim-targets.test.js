@@ -601,6 +601,49 @@ test('write network failure: transient exit 4, no holder (distinct from a write-
   assert.deepEqual(body.released, []);
 });
 
+// AC4's observable behavior, end to end through `run()`: a secondary/abuse
+// rate limit on the claim write is TRANSIENT (exit 4), never contested (exit
+// 3). claim-store.js's own suite pins that `writeClaimBlob` reports
+// `{ok:false, secondaryRateLimit:true, failure:null}` for it, but nothing
+// pinned that `run()` routes that shape to the transient branch — and the
+// branch reads `write.failure || write.secondaryRateLimit`, so dropping the
+// second half would silently send a throttle down the contested path and
+// abort a whole group claim on a lie (record-697's incident, exactly).
+test('write secondary-rate-limit: transient exit 4 with a `secondary-rate-limit` transient entry, never contested exit 3', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: { 740: [readAbsent] },
+    writes: { 740: [{ stdout: null, failure: 'secondary-rate-limit', status: 403 }] },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '740'], deps);
+
+  assert.equal(code, 4, 'a throttle is transient — exit 4, not the contested exit 3');
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transient, [{ issue: 740, error: 'secondary-rate-limit' }]);
+  assert.equal(body.contested, undefined, 'no contested envelope — a throttle is not another agent holding the claim');
+  assert.equal(calls.filter((a) => isRead(a, '740')).length, 1, 'no best-effort holder re-read — that belongs to the contested path only');
+});
+
+test('write secondary-rate-limit under --keep-going: skipped as transient, exit 0, never a contested skip', () => {
+  const { ghApi } = makeGhApi({
+    reads: { 741: [readAbsent] },
+    writes: { 741: [{ stdout: null, failure: 'secondary-rate-limit', status: 403 }] },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '741', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.claimed, []);
+  assert.equal(body.skipped.length, 1);
+  assert.equal(body.skipped[0].reason, 'transient');
+  assert.equal(body.skipped[0].error, 'secondary-rate-limit');
+});
+
 // abort-release write failure: a target the release step can't safely tombstone
 // must be named in releaseFailed (not silently dropped from the envelope), and
 // the exit code stays the classification's own (3 here) — not a second abort.
