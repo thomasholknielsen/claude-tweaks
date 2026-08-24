@@ -198,7 +198,7 @@ function run(argv, deps) {
     // ahead of the reclaimable branch below since a tombstone is otherwise
     // always reclaimable; every other tombstone reason, and any failure in
     // the check itself, falls straight through unchanged (fail open) —
-    // see `tombstoneInFlightPr`'s own doc comment in claim-engine.js.
+    // see `tombstoneInFlightPr`'s own doc comment in claim-store.js.
     if (classified.state === 'tombstone') {
       const inFlight = tombstoneInFlightPr(content, deps.gh, repoOwner, repoName);
       if (inFlight) {
