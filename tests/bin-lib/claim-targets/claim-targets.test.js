@@ -161,6 +161,42 @@ test('(a) two absent targets: both claimed, create-only writes, label + comment 
   assert.ok(ghCalls.some((a) => a[0] === 'label' && a[1] === 'create'), 'label did not exist -> bootstrap create call made');
 });
 
+// (a2) the same absent target, but with a `gitRunner` dep (the real CLI's
+// shape — bin/claim-targets.js always supplies one): the create-only claim,
+// the fleet's most-contended write, must take the git-CAS path and never
+// touch the rate-limited contents-API PUT (#787's amendment — a
+// `classified.state !== 'absent'` sha gate previously kept every create-only
+// claim off git-CAS entirely).
+test('(a2) absent target with a gitRunner: create-only claim goes through git-CAS, contents-API PUT never called', () => {
+  const TIP = 'a'.repeat(40);
+  const gitCalls = [];
+  const gitRunner = (args) => {
+    gitCalls.push(args);
+    if (args[0] === 'fetch') return '';
+    if (args[0] === 'rev-parse' && args[1] === 'FETCH_HEAD') return `${TIP}\n`;
+    if (args[0] === 'show') throw new Error(`fatal: path 'claims/issue-720.json' does not exist in '${TIP}'`);
+    if (args[0] === 'hash-object') return 'deadbeef\n';
+    if (args[0] === 'read-tree') return '';
+    if (args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'newtree\n';
+    if (args[0] === 'commit-tree') return 'newcommit\n';
+    if (args[0] === 'push') return '';
+    throw new Error(`unexpected git ${args.join(' ')}`);
+  };
+  const ghApi = (args) => { throw new Error(`contents-API must not be called when git-CAS works: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = gitRunner;
+
+  const code = run(['--run-id', 'r1', '--targets', '720'], deps);
+
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(io.out[0]).claimed, [720]);
+  const push = gitCalls.find((a) => a[0] === 'push');
+  assert.ok(push, 'a create-only claim must reach the git-CAS push');
+  assert.ok(push.some((a) => String(a).startsWith(`--force-with-lease=refs/heads/claims-registry:${TIP}`)), 'the push must lease against the tip this run read');
+});
+
 // (b) tombstone target -> conditional PUT with sha
 test('(b) tombstone target: conditional write carries the blob sha', () => {
   const { ghApi, calls } = makeGhApi({

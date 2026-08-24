@@ -228,8 +228,23 @@ function run(argv, deps) {
     const payload = claimPayload({
       issueNumber: issue, runId: opts.runId, sessionId: deps.sessionId, host: deps.hostname, now: deps.now(),
     });
-    const writeOpts = { content: payload.fileContent, message: `Claim issue #${issue}` };
-    if (classified.state !== 'absent') writeOpts.sha = read.sha;
+    // `sha` is always the lease from this same read — the git-CAS branch tip
+    // when the read came through git, the blob sha when it came through the
+    // contents API — including for a create-only write: adding a new
+    // `claims/issue-{n}.json` is still a commit on the current tip, protected
+    // by the same `--force-with-lease`, and the create-only claim is exactly
+    // the contended write #787's amendment moves off the contents API.
+    // `createOnly` (not the presence of a sha) is what keeps that write
+    // create-vs-clobber on the contents-API fallback — see
+    // claim-store.js's writeClaimBlob. When no `gitRunner` dep is supplied
+    // (release-merged.js's contents-API-only callers), an 'absent' read
+    // returns `sha: null` anyway, so this is a no-op there.
+    const writeOpts = {
+      content: payload.fileContent,
+      message: `Claim issue #${issue}`,
+      sha: read.sha,
+      createOnly: classified.state === 'absent',
+    };
     const write = claimStore.writeClaimBlob(deps, repoSlug, issue, writeOpts);
 
     if (write.failure || write.secondaryRateLimit) {

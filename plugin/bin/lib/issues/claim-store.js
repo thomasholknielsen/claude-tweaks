@@ -133,8 +133,12 @@ function listClaimNames(ghApi, repoSlug) {
 // the gh-absent/MCP-only-sandbox seam #787's amendment requires — see
 // `_shared/issue-claims.md`). A git-CAS transport failure (auth, no remote
 // access) falls back to contents-API silently — the documented degrade, not
-// an error. `sha` doubles as the git-CAS tip sha when this read came from
-// git (`writeClaimBlob` accepts either shape as its compare-and-swap lease).
+// an error. `sha` doubles as the git-CAS tip sha (a **commit** sha) when this
+// read came from git, and is the blob sha when it came from the contents API —
+// two different shapes, only distinguishable by which transport produced them.
+// `writeClaimBlob` takes it as a compare-and-swap lease for whichever
+// transport it tries FIRST, and never carries it across a transport fallback
+// (see that function — a git-tip sha is not a valid contents-API `sha`).
 // `absent: true` (with `failure: null`) also fires on the contents-API path
 // only when the ghApi dep sets `status: 404` — a caller whose ghApi never
 // sets `status` (release-merged's own, pre-extraction) simply never sees
@@ -150,7 +154,17 @@ function readClaimBlob(deps, repoSlug, issueNumber) {
     }
     // fall through to contents-API on a git-side transport failure
   }
-  const r = deps.ghApi([`repos/${repoSlug}/contents/${claimPath(issueNumber)}?ref=${CLAIMS_BRANCH}`, '-q', '{content: (.content | @base64d), sha: .sha}']);
+  return readClaimBlobContentsApi(deps.ghApi, repoSlug, issueNumber);
+}
+
+// (ghApi, repoSlug, issueNumber) -> { content, sha, failure, absent }
+// The contents-API half of `readClaimBlob`, split out so `writeClaimBlob`'s
+// transport-fallback path can re-derive a contents-API-shaped blob sha
+// without re-entering the git-CAS branch. Same return shape (and same single
+// `gh api` call) `readClaimBlob` has always produced on this path — a pure
+// extraction, no behavior change.
+function readClaimBlobContentsApi(ghApi, repoSlug, issueNumber) {
+  const r = ghApi([`repos/${repoSlug}/contents/${claimPath(issueNumber)}?ref=${CLAIMS_BRANCH}`, '-q', '{content: (.content | @base64d), sha: .sha}']);
   if (r.status === 404) return { content: null, sha: null, failure: null, absent: true };
   if (r.failure) return { content: null, sha: null, failure: r.failure, absent: false };
   try {
@@ -161,25 +175,40 @@ function readClaimBlob(deps, repoSlug, issueNumber) {
   }
 }
 
-// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber, {content, sha, message})
+// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber, {content, sha, createOnly, message})
 // -> { ok, conflict?, secondaryRateLimit?, failure }
-// `sha` here is the compare-and-swap lease — the git-CAS tip sha when the
-// preceding read went through git, or the contents-API blob sha otherwise;
-// either shape is threaded straight through to whichever transport this
-// write actually uses. Only attempted when both a `gitRunner` dep AND a
-// `sha` lease are present — a create-only write (`sha` absent) has no
-// git-CAS lease to compare against, since `writeClaimBlobGit` requires
-// `expectedTipSha`; that write always goes straight to the contents-API
-// create-only path below. A git-CAS contest is reported as-is (never
-// silently retried against contents-API — that would race the same write
-// twice under two different concurrency mechanisms). A git-CAS
-// secondary-rate-limit or transport-failure falls back to contents-API once.
+// `sha` here is the compare-and-swap lease for the transport tried FIRST —
+// the git-CAS branch tip (a **commit** sha) when the preceding read went
+// through git, the contents-API blob sha otherwise. The two shapes are never
+// interchangeable, so a lease is NEVER carried across a transport fallback:
+// handing a git tip sha to the contents API's `-f sha=` would be rejected as
+// a 409/422 and misreport a transient git-side failure as a contest — the
+// exact secondary-rate-limit-read-as-contested regression #787's amendment
+// exists to prevent (record-697). On fallback this re-reads the blob through
+// the contents API (`readClaimBlobContentsApi`) to derive a correctly-shaped
+// lease; a failure there returns that failure (never a spurious contest),
+// and a now-absent target IS a genuine contest (the claim was released or
+// broken since the git read).
 //
-// `sha` included in the contents-API fallback only when provided: omitted =
-// create-only (PUT rejects if the path already exists), present =
-// conditional-update (must match the blob's current sha) — the
-// create-vs-reclaim split `_shared/issue-claims.md`'s "The lock" steps 3-4
-// document. A `status: 422` or `status: 409` response (see
+// git-CAS is attempted whenever both a `gitRunner` dep AND a `sha` lease are
+// present — including a create-only write (`createOnly: true`), which is the
+// fleet's most-contended write and the whole reason for moving off the
+// contents API: adding a new `claims/issue-{n}.json` is still a commit built
+// on the current tip and protected by the same `--force-with-lease`, so the
+// tip sha is a valid lease for it. `createOnly` only changes the fallback
+// behavior: no fresh read (there is no existing blob to re-derive a sha
+// from) and never a `-f sha=` argument on the PUT, so a create-only write
+// keeps its create-vs-clobber semantics on either transport. A git-CAS
+// contest is reported as-is (never silently retried against contents-API —
+// that would race the same write twice under two different concurrency
+// mechanisms). A git-CAS secondary-rate-limit or transport-failure falls
+// back to contents-API once.
+//
+// `sha` included in the contents-API fallback only when provided and this is
+// not a create-only write: omitted = create-only (PUT rejects if the path
+// already exists), present = conditional-update (must match the blob's
+// current sha) — the create-vs-reclaim split `_shared/issue-claims.md`'s
+// "The lock" steps 3-4 document. A `status: 422` or `status: 409` response (see
 // `classifyGhApiError`) is a genuine write-conflict — someone else's
 // create-only write landed first (422), or a conditional write's sha no
 // longer matches because someone else's reclaim landed first (409) — and
@@ -192,13 +221,24 @@ function readClaimBlob(deps, repoSlug, issueNumber) {
 // that never sets `status` (e.g. `release-merged.js`) never sees
 // `status === 422` or `status === 409` here, so its `ok` computation is
 // unchanged by this branch — see that module's delegation comments.
-function writeClaimBlob(deps, repoSlug, issueNumber, { content, sha, message }) {
+function writeClaimBlob(deps, repoSlug, issueNumber, {
+  content, sha, createOnly = false, message,
+}) {
   if (deps.gitRunner && sha) {
     const gitResult = writeClaimBlobGit({
       issueNumber, content, message, expectedTipSha: sha, runner: deps.gitRunner,
     });
     if (gitResult.ok || gitResult.conflict) return gitResult;
-    // transport-failure or secondaryRateLimit -> fall back to contents-API below
+    // transport-failure or secondaryRateLimit -> fall back to contents-API
+    // below, but NEVER with the git tip sha as the lease (see the header):
+    // re-derive a contents-API blob sha first. A create-only write skips
+    // this — it sends no sha at all, so there is nothing to re-derive.
+    if (!createOnly) {
+      const fresh = readClaimBlobContentsApi(deps.ghApi, repoSlug, issueNumber);
+      if (fresh.failure) return { ok: false, failure: fresh.failure };
+      if (fresh.absent) return { ok: false, conflict: true, failure: null };
+      sha = fresh.sha;
+    }
   }
   const encoded = Buffer.from(content, 'utf8').toString('base64');
   const args = [
@@ -207,7 +247,7 @@ function writeClaimBlob(deps, repoSlug, issueNumber, { content, sha, message }) 
     '-f', `content=${encoded}`,
     '-f', `branch=${CLAIMS_BRANCH}`,
   ];
-  if (sha) args.push('-f', `sha=${sha}`);
+  if (!createOnly && sha) args.push('-f', `sha=${sha}`);
   const r = deps.ghApi(args);
   if (r.failure === 'secondary-rate-limit') return { ok: false, secondaryRateLimit: true, failure: null };
   if (r.status === 422 || r.status === 409) return { ok: false, conflict: true, failure: null };

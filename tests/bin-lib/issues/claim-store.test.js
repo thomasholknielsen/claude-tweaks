@@ -308,14 +308,80 @@ test('writeClaimBlob: git-CAS contested is reported, not falling back to content
   assert.equal(result.conflict, true);
 });
 
-test('writeClaimBlob: git-CAS secondary-rate-limit falls back to contents-API', () => {
+test('writeClaimBlob: git-CAS secondary-rate-limit falls back to contents-API with a FRESH blob sha, never the git tip sha', () => {
+  // The git-CAS lease is a *commit* sha; the contents API's `-f sha=` wants a
+  // *blob* sha. Reusing the tip sha across the fallback made every fallback
+  // write 409/422 — reported as `conflict: true`, i.e. a secondary rate
+  // limit misread as contested, the exact record-697 regression #787 exists
+  // to prevent. The fallback must re-read through the contents API first.
   const gitRunner = () => { const e = new Error('remote: secondary rate limit'); e.stderr = e.message; throw e; };
+  const calls = [];
   const ghApi = (args) => {
-    assert.equal(isWrite(args, 'claims/issue-42.json'), true);
-    return { stdout: '', failure: null, status: null };
+    calls.push(args);
+    if (isRead(args, 'claims/issue-42.json')) {
+      return { stdout: JSON.stringify({ content: '{"runId":"other"}', sha: 'freshblobsha' }), failure: null, status: null };
+    }
+    if (isWrite(args, 'claims/issue-42.json')) return { stdout: '', failure: null, status: null };
+    throw new Error(`unexpected ${args.join(' ')}`);
   };
   const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, { content: '{}', message: 'Claim #42', sha: 'a'.repeat(40) });
   assert.equal(result.ok, true);
+  assert.equal(calls.length, 2, 'fallback must re-read once, then write once');
+  assert.equal(isRead(calls[0], 'claims/issue-42.json'), true);
+  assert.equal(isWrite(calls[1], 'claims/issue-42.json'), true);
+  assert.equal(fieldOf(calls[1], 'sha'), 'freshblobsha', 'the PUT must carry the fresh contents-API blob sha, not the stale git tip sha');
+  assert.notEqual(fieldOf(calls[1], 'sha'), 'a'.repeat(40));
+});
+
+test('writeClaimBlob: fallback fresh-read failure returns that failure — never a spurious conflict', () => {
+  const gitRunner = () => { const e = new Error('fatal: unable to access: Could not resolve host'); throw e; };
+  const ghApi = (args) => {
+    if (isRead(args, 'claims/issue-42.json')) return { stdout: null, failure: 'network-failure', status: null };
+    throw new Error('the PUT must not be attempted when the fresh sha read failed');
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, { content: '{}', message: 'Claim #42', sha: 'a'.repeat(40) });
+  assert.deepEqual(result, { ok: false, failure: 'network-failure' });
+});
+
+test('writeClaimBlob: fallback fresh-read showing the target now absent is a genuine contest', () => {
+  // Released or broken between the git read and this fallback — a real
+  // contest, so `conflict: true` here is correct (unlike the tip-sha bug,
+  // which manufactured one out of a transport failure).
+  const gitRunner = () => { const e = new Error('fatal: unable to access: Could not resolve host'); throw e; };
+  const ghApi = (args) => {
+    if (isRead(args, 'claims/issue-42.json')) return { stdout: null, failure: null, status: 404 };
+    throw new Error('the PUT must not be attempted when the target vanished');
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, { content: '{}', message: 'Claim #42', sha: 'a'.repeat(40) });
+  assert.deepEqual(result, { ok: false, conflict: true, failure: null });
+});
+
+test('writeClaimBlob: create-only write WITH a tip-sha lease takes the git-CAS path (the fleet\'s most-contended write moves off the contents API)', () => {
+  const gitCalls = [];
+  const inner = fakeGitRunnerAlwaysWorks('a'.repeat(40), null);
+  const gitRunner = (args, opts) => { gitCalls.push(args); return inner(args, opts); };
+  const ghApi = () => { throw new Error('contents-API must not be called when git-CAS succeeds'); };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, {
+    content: '{}', message: 'Claim #42', sha: 'a'.repeat(40), createOnly: true,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(gitCalls.some((a) => a[0] === 'push'), true, 'a create-only claim must actually reach the git-CAS push');
+});
+
+test('writeClaimBlob: create-only git-CAS transport failure falls back to contents-API with NO sha and no fresh read', () => {
+  const gitRunner = fakeGitRunnerAlwaysFails();
+  const calls = [];
+  const ghApi = (args) => {
+    calls.push(args);
+    if (isWrite(args, 'claims/issue-42.json')) return { stdout: '', failure: null, status: null };
+    throw new Error(`unexpected ${args.join(' ')} — a create-only fallback must not re-read`);
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 42, {
+    content: '{}', message: 'Claim #42', sha: 'a'.repeat(40), createOnly: true,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 1, 'create-only fallback is a single PUT — nothing to re-derive');
+  assert.equal(fieldOf(calls[0], 'sha'), undefined, 'a create-only PUT must never carry a sha, git-tip-shaped or otherwise');
 });
 
 test('writeClaimBlob: no gitRunner supplied goes straight to contents-API (fallback seam for gh-absent-but-git-also-unavailable environments)', () => {
