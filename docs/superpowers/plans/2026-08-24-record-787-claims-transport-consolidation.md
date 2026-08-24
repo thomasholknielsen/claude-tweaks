@@ -31,6 +31,8 @@
 - Consumes: `claimFilePath(issueNumber)` and `CLAIMS_BRANCH` from `plugin/bin/lib/issues/claims.js` (already exist, unchanged).
 - Produces (consumed by Task 3): `readClaimBlobGit({ issueNumber, remote, branch, runner }) -> { content: string|null, tipSha: string, absent: boolean, failure: null|'transport-failure' }`, `writeClaimBlobGit({ issueNumber, content, message, expectedTipSha, remote, branch, runner }) -> { ok: boolean, conflict?: true, secondaryRateLimit?: true, failure: null|'transport-failure' }`, `classifyGitError(err) -> { kind: 'missing-path'|'contested'|'secondary-rate-limit'|'transport-failure' }`.
 
+**Pre-verified (plan-authoring-checks.md's verbatim-command run-once check):** the exact plumbing sequence below (`fetch` → `rev-parse FETCH_HEAD` → `show`; `hash-object` → `read-tree` → `update-index --add --cacheinfo` → `write-tree` → `commit-tree` → `push --force-with-lease`) was run by hand against a real local bare repo before writing this task, not just transcribed from memory. Confirmed live: a missing path's `git show` failure is exactly `fatal: path 'claims/issue-42.json' does not exist in '<sha>'`; a lost force-with-lease race's `git push` failure is exactly `! [rejected]        <sha> -> claims-registry (stale info)` + `error: failed to push some refs to '...'`; a successful write round-trips the exact content back on the next `git show`, and an unrelated file elsewhere in the tree (`README.md`) survives the write untouched. `classifyGitError`'s regexes below are written to match these confirmed literal shapes, not a guess.
+
 - [ ] **Step 1: Write the failing tests for the pure classifier**
 
 ```javascript
@@ -559,7 +561,7 @@ Note: a create-only write (`sha` absent, i.e. the target is `absent`) has no git
 
 - [ ] **Step 4: Update the two existing call sites for the new `deps` shape**
 
-In `plugin/bin/lib/claim-targets/claim-targets.js`, every `claimStore.readClaimBlob(deps.ghApi, repoSlug, issue)` becomes `claimStore.readClaimBlob(deps, repoSlug, issue)` (4 call sites: `holderFromFreshRead`, `releaseClaimedThisRun`, and the two in `run`'s main loop), and every `claimStore.writeClaimBlob(deps.ghApi, repoSlug, issue, {...})` becomes `claimStore.writeClaimBlob(deps, repoSlug, issue, {...})` (2 call sites). `deps` in this module already carries `ghApi`; it now also carries an optional `gitRunner`, passed straight through to `claim-store.js` unchanged (this module has no git-specific logic of its own — it just forwards the dep).
+In `plugin/bin/lib/claim-targets/claim-targets.js`, every `claimStore.readClaimBlob(deps.ghApi, repoSlug, issue)` becomes `claimStore.readClaimBlob(deps, repoSlug, issue)` (3 call sites: `holderFromFreshRead` (line 107), `releaseClaimedThisRun` (line 125), and `run`'s main loop (line 186)), and every `claimStore.writeClaimBlob(deps.ghApi, repoSlug, issue, {...})` becomes `claimStore.writeClaimBlob(deps, repoSlug, issue, {...})` (2 call sites: `releaseClaimedThisRun` line 133, `run`'s main loop line 233). `deps` in this module already carries `ghApi`; it now also carries an optional `gitRunner`, passed straight through to `claim-store.js` unchanged (this module has no git-specific logic of its own — it just forwards the dep).
 
 Wire a **real** `gitRunner` into `bin/claim-targets.js`'s `realDeps` (`plugin/bin/claim-targets.js`) so the claim path actually uses git-CAS in production, not only in tests — the whole point of the amendment. Add the import and the field:
 
@@ -594,7 +596,7 @@ if (write.failure || write.secondaryRateLimit) {
 
 (replacing the existing `if (write.failure) { ... }` block one level up — same shape, one added condition and one added ternary for the reported `error` string).
 
-In `plugin/bin/lib/reconcile/release-merged.js`, every `claimStore.readClaimBlob(ghApi, repoSlug, issue)`-shaped call becomes `claimStore.readClaimBlob({ ghApi }, repoSlug, issue)` (no `gitRunner` — this module's own header comment already documents that its `ghApi` never sets `status`, so it stays on the contents-API-only path deliberately; do not add git-CAS here in this task, since `release-merged.js`'s writes go through `release-claim/release.js`, not `claim-store.js` — Task 5 handles that module).
+In `plugin/bin/lib/reconcile/release-merged.js`, there is exactly one call site — `readClaim(repoSlug, name, api = ghApi)`'s body (around line 124-127): `const r = claimStore.readClaimBlob(api, repoSlug, issueNumberOf(name));` becomes `const r = claimStore.readClaimBlob({ ghApi: api }, repoSlug, issueNumberOf(name));` (the local parameter is named `api`, not `ghApi` — wrap it under the `ghApi` key `claim-store.js`'s `deps` object expects). No `gitRunner` key — this module's own header comment already documents that its `ghApi` never sets `status`, so it stays on the contents-API-only path deliberately. `release-merged.js` has no `writeClaimBlob` call to update — its writes go through `release-claim/release.js`'s `writeTombstone` instead (Task 5 handles that module); `claimStore.listClaimEntries(api, repoSlug)` (line ~116, a different function) is untouched by this task since Task 3 only changes `readClaimBlob`/`writeClaimBlob`'s signature.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -994,14 +996,26 @@ git commit -m "Add conformance test: exactly one contents-API-PUT module under b
 
 **Files:**
 - Modify: `plugin/skills/_shared/issue-claims.md`
-- Verify (no change expected): `plugin/skills/flow/claim-targets.md`
+- Modify: `plugin/skills/flow/claim-targets.md` (one narrow parenthetical, verified below to be outside the pinned exit-code branching text)
+- Modify: `docs/journeys/act-on-a-contested-claim.md` (frontmatter `files:` list)
 
 **Interfaces:** none (documentation only).
 
-- [ ] **Step 1: Verify `skills/flow/claim-targets.md` needs no change**
+- [ ] **Step 1: Verify `skills/flow/claim-targets.md`'s exit-code branching needs no change, then fix its one stale parenthetical**
 
 Run: `grep -n "claim-targets.js\|exit code\|exit 0\|exit 2\|exit 3\|exit 4" plugin/skills/flow/claim-targets.md`
-Expected: the existing Step 2.8 exit-code branching text (lines ~116-190, confirmed during planning) already cites `bin/claim-targets.js` by name and never mentions `claim-engine.js`/`bin/claims.js` — AC2 requires this file's branching to hold verbatim, so this step is a read-only confirmation, not an edit. If the grep turns up an unexpected citation of a retired module, stop and escalate rather than editing this conformance-pinned file casually — `tests/flow-claim-preflight.test.js` pins it.
+Expected: the existing Step 2.8 exit-code branching text (lines ~116-190, confirmed during planning) already cites `bin/claim-targets.js` by name and never mentions `claim-engine.js`/`bin/claims.js` — AC2 requires this file's branching to hold verbatim, so no edit to that text.
+
+Separately, this file has exactly one other reference to the module being deleted — around line 168, inside the "in-flight variant, #315" bullet: `` (`_shared/issue-claims.md`'s in-flight detection, ported from `claim-engine.js`'s `tombstoneInFlightPr` into this CLI's own claim loop) ``. This is prose *about provenance*, not part of the exit-code mapping — confirm it is not pinned before editing: `grep -n "ported from\|claim-engine" tests/flow-claim-preflight.test.js` (expected: no hits — the pin test never touches this sentence). Update the parenthetical to reflect Task 4's move (`claim-engine.js` → `claim-store.js`, and "ported... into" → "moved into", since after Task 4 the function lives in `claim-store.js` permanently rather than being ported from a still-existing sibling module):
+
+```
+(`_shared/issue-claims.md`'s in-flight detection, moved from `claim-engine.js` into
+`claim-store.js`'s `tombstoneInFlightPr` — see #787) — a build for this
+```
+
+- [ ] **Step 1.5: Fix `docs/journeys/act-on-a-contested-claim.md`'s stale frontmatter reference**
+
+This journey's `files:` frontmatter lists `plugin/bin/lib/issues/claim-engine.js` (line 8), which Task 4 deletes. `plugin/bin/lib/issues/claim-store.js` is already listed in the same frontmatter block (line 6) — the function this journey cares about (`tombstoneInFlightPr`, the in-flight-detection path) now lives there per Task 4's move, so the fix is a deletion, not a substitution (no duplicate entry). Remove the `- plugin/bin/lib/issues/claim-engine.js` line from the `files:` list.
 
 - [ ] **Step 2: Rewrite `_shared/issue-claims.md`'s "The lock" opening to name the surviving CLIs and the git-CAS-first behavior**
 
