@@ -382,6 +382,81 @@ test('bookkeeping-stamps gate (I1): the pr-first branch warns instead of denying
   assert.match(out.json.systemMessage, /different session/);
 });
 
+// --- #1259: ctx.ownedRun strengthens the record-worktree branch specifically ---
+//
+// On the record-worktree branch, ctx.runState.worktree is provably unset —
+// and sessionId is stamped together with worktree (record-worktree and
+// post-tool-use.js's ad-hoc stamping both write them as a pair) — so
+// ctx.runState.sessionId is almost always ALSO unset here, meaning
+// isForeignSessionCall's owner-vs-caller comparison can essentially never
+// fire on this branch (owner is empty). ctx.ownedRun (bin/hooks.js's own
+// session-scoped resolveRun call, independent of this gate's session-agnostic
+// ctx.runDir resolution) supplies the signal this branch has been missing: a
+// live sibling session, mid-build in its OWN worktree with its OWN
+// already-recorded run, calling into a DIFFERENT (unstamped) run this gate
+// resolved via the newest-non-terminal fallback.
+
+test('bookkeeping-stamps gate (#1259): a caller whose OWN resolved run differs from the run this gate would deny against warns instead of denying, even with no sessionId stamped on either side', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, null, undefined); // unstamped: no worktree, no sessionId
+  const ownRun = path.join(project, '.claude-tweaks', 'pipelines', 'sibling-own-run');
+  fs.mkdirSync(ownRun, { recursive: true });
+  const out = pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active' },
+    ownedRun: { dir: ownRun, attribution: 'session' },
+    cwd: wt,
+  });
+  assert.ok(!out.json || !out.json.hookSpecificOutput, 'a caller with its own distinct owned run must not be denied');
+  assert.match(out.json.systemMessage, /different session/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.ok(events.some((e) => e.type === 'wd-foreign-session' && e.stamp === 'record-worktree'));
+});
+
+test('bookkeeping-stamps gate (#1259): ownedRun matching ctx.runDir (the ordinary single-session case) still denies', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, null, undefined);
+  const out = pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active' },
+    ownedRun: { dir: run, attribution: 'session' }, // same run — this IS the caller's own work
+    cwd: wt,
+  });
+  assert.ok(out.json, 'expected a deny — the caller owns exactly this run, nothing foreign about it');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('bookkeeping-stamps gate (#1259): a distinct ownedRun does NOT loosen the PR-stamp branch — that guard is unchanged', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined); // worktree already stamped -> PR-stamp branch
+  const ownRun = path.join(project, '.claude-tweaks', 'pipelines', 'sibling-own-run');
+  fs.mkdirSync(ownRun, { recursive: true });
+  const out = pre.run(
+    {
+      input: editInput(path.join(wt, 'src', 'x.js')),
+      runDir: run,
+      runState: { status: 'active', worktree: wt },
+      ownedRun: { dir: ownRun, attribution: 'session' },
+      cwd: wt,
+    },
+    { resolveIntegrationModel: () => 'pr-first' },
+  );
+  assert.ok(out.json, 'expected a deny — the PR-stamp branch must not consult ownedRun');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-pr|PR-early/);
+});
+
 // --- I2: path and foreign-repo exemptions ---
 
 test('bookkeeping-stamps gate (I2.1): an Edit to the run dir\'s own decisions.md is exempt — the deny\'s escape hatch must not be deniable', () => {
