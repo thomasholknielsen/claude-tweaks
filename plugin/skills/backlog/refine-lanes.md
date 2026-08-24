@@ -158,6 +158,14 @@ instead of pasted as its own `gh issue comment` line), then apply the whole lane
 node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" "$ST_BACKLOG_REFINE_ACTIONS_FLAGBACK" --run "$PIPELINE_RUN_DIR"
 ```
 
+Flag-back is the one lane whose action sets both `removeLabels` and `commentFile` in the same
+call — every other lane's action sets labels only. Since `apply-refine-labels.js` logs the label
+edit and the comment as two independent steps (#1073), one successful flag-back write appends
+**two** separate AUTO `decisions.md` lines (`#{issue}: applied -ready`, then
+`#{issue}: comment posted`) instead of the single combined line every other lane's write
+produces. When rendering `refine-mode.md`'s Step 5 closing summary, tally that pair as one
+flagged-back write, not two.
+
 ## Priority
 
 Population: `.prioritySlice.selected` (Step 2's synthesis, bounded to `--budget`) — every
