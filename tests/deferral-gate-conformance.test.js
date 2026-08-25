@@ -69,6 +69,10 @@ for (const anchor of BAD_REASON_ANCHORS) {
   });
 }
 
+test('deferral-gate.md\'s bundling exception cites materiality-floor.md by literal path', () => {
+  assert.ok(GATE.includes('_shared/materiality-floor.md'));
+});
+
 test('deferral-gate.md names its consumers, the hard gate, re-verification, and where the reason lives', () => {
   for (const consumer of [
     'skills/review/step3-routing.md', 'skills/reflect/full-mode.md', 'skills/reflect/hindsight-mode.md',

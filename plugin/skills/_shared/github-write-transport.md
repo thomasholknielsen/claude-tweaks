@@ -37,11 +37,35 @@ items in a scope route through this file's `list_issues` row, PR-backed items in
 degrade per-item with a narrower message instead. This resolves the gap deliberately (a
 documented per-item degrade) rather than leaving it implicit.
 
+**Exception: PR create/update (#929).** Create and update *are* covered, just not by a table
+row — `gh pr create --body-file`/`gh pr edit --body-file` locally,
+`mcp__github__create_pull_request`/`mcp__github__update_pull_request` when `gh` is absent.
+Unlike every read-side gap named above, this is a write, and the MCP server's PR-body
+sanitization (`_shared/pr-early-run-lifecycle.md`'s "Root cause" section) only ever touches
+what a *read* returns to the LLM — `create_pull_request`/`update_pull_request` write the
+`body` parameter straight through, unsanitized. A caller composing a PR body with
+`_shared/pr-early-run-lifecycle.md`'s dual-marker scheme (HTML comment + plain-text
+companion) can use either transport interchangeably for creation/update; only a *later read*
+of that body needs to pick its marker form per-transport (same file, Phase-checklist update
+section).
+
 **Never use `search_issues` (or `gh issue list --search`) for a find-by-marker/dedup lookup.**
 Both ride an eventually-consistent search index — this caused three real duplicate-digest
 production incidents when `tidy`'s Rolling digest briefly used `gh issue list --search`
 (#1016, #1079, #1089). Always use the plain list-then-filter approach (`list_issues`/
 `gh issue list`, no `--search`, then `findByMarker` in-process), on both transports.
+
+**Sizing the list-then-filter window.** With `--search` gone, `--limit` (or `list_issues`' page
+size) is the only thing narrowing the read — so an under-sized window silently reintroduces by
+truncation the same dedup-miss the rule above prevents by dropping the index. Size it from the
+scope of *this* list, never by copying another call site's number: a label-scoped lookup
+(`_shared/headless-self-report.md`'s `--label by:{caller} --state open --limit 500`) is bounded by
+that label's cardinality; an unscoped `--state all` lookup is bounded by the repo's whole issue
+history. Measure before choosing —
+`gh issue list --state all --limit 100000 --json number | jq length` — and read a result equal to
+the cap as truncated, not complete. #1094 is the case: `findDuplicate`
+(`bin/lib/feedback/file-feedback.js`) copied that 500 without the label, and truncated roughly
+half of this repo's then-998 issues.
 
 **Snapshot invalidation.** Every write in the Create / Edit labels / Close rows above changes
 what a `gh issue list --state all` pull would return, so it stales the session-scoped record

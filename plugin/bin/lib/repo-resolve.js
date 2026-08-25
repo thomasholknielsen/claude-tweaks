@@ -3,12 +3,11 @@
 // apply-refine-labels.js, fetch-sub-issues.js, and resolve-blockers.js,
 // which each hand-rolled an identical parseRepo/ghAvailable/remoteUrl trio
 // (review finding: these three newest CLIs brought the total to 9
-// independent copies of the same owner/repo regex across the codebase). Not
-// a migration of the six pre-existing copies (link-records.js,
-// release-claim.js, preflight-records.js, file-feedback.js, materialize.js,
-// claims.js, plus hooks/teardown-run.js's inline copy) — out of scope for
-// this fix; see gh-api-module-pattern's note that a fourth/fifth hand-rolled
-// copy is not license for a fifth/sixth.
+// independent copies of the same owner/repo regex across the codebase). The
+// six pre-existing copies (link-records.js, release-claim.js,
+// preflight-records.js, file-feedback.js, materialize.js, claims.js) have
+// since migrated to this module too (#1177) — this is now the one parseRepo
+// definition in the codebase.
 'use strict';
 const { execFileSync } = require('child_process');
 

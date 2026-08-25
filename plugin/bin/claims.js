@@ -15,6 +15,7 @@
 
 const { execFileSync } = require('child_process');
 const engine = require('./lib/issues/claim-engine');
+const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: claims.js claim <n,n,...> --run-id <id> [--repo owner/name] [--keep-going] [--help]\n' +
   '       claims.js release <n,n,...> --run-id <id> --reason <text> [--link <url>] [--repo owner/name] [--help]\n';
@@ -40,11 +41,6 @@ function parseArgs(argv) {
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
-}
-
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
 }
 
 const realDeps = {

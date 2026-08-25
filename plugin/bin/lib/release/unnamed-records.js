@@ -56,8 +56,14 @@ function unnamedRecordsGate(deps, { summary = '', allow = [] } = {}) {
   const { missing: afterSummary } = recordsNamedIn(summary || '', candidates);
   let unnamed = afterSummary;
   if (unnamed.length > 0) {
-    const newest = parseChangelogVersions(deps.readFile(CHANGELOG))[0];
-    const haystack = newest ? `${newest.title}\n${newest.body}` : '';
+    // Scan every past CHANGELOG entry, not just the newest — a record can
+    // re-enter materializedRecordsSince's added set many releases after it
+    // actually shipped (e.g. a reconcile archive-move commit that re-adds
+    // its spec file at a new path), and is invisible to a single-entry
+    // check unless it happens to be re-mentioned in the immediately
+    // preceding release.
+    const entries = parseChangelogVersions(deps.readFile(CHANGELOG));
+    const haystack = entries.map((e) => `${e.title}\n${e.body}`).join('\n');
     unnamed = recordsNamedIn(haystack, unnamed).missing;
   }
   return { records, unnamed, allowed, lastBump };

@@ -31,7 +31,7 @@ it is a review of work that no record is tracking.
 body immediately before writing rather than reusing one fetched earlier in this run — a record's
 body is shared mutable state that `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, or a concurrent
 session can have changed since. Then insert or update the line inside the body's **leading metadata
-block** (before the first blank line), beside `Surface:`/`Design-intent:`, per
+block** (before the first blank line), beside `Surface:`/`Design-intent:`/`Ui-stack:`, per
 `skills/specify/spec-template.md`:
 
 - **`work-backend: github-issues`** — read-modify-write the body through

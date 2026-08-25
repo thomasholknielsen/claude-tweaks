@@ -85,6 +85,21 @@ Source the table from report.json: Status from each check's exitCode (or skipped
 
 The failure detail here comes from the runner's bounded extraction. Do not re-run the check outside the runner to produce it, and do not paste the raw log — the runner's bounding governs what enters context; this section only governs how it is presented.
 
+### Flake adjudication (tests check only)
+
+Run-to-run failure-count variance on byte-identical code often tracks machine load (sibling agents/sessions running concurrently) rather than a regression. Before reporting a `tests` check failure, re-run each failed file in isolation once:
+
+```bash
+node --test path/to/file.test.js
+```
+
+Report the isolated re-run's outcome separately — never collapsed into the original run's bare pass/fail statement:
+
+- **Isolated re-run passes** — report as **flake** (machine load), not a regression.
+- **Isolated re-run still fails** — report as a **regression**.
+
+Only the `tests` check needs this — `types`/`lint` failures are deterministic, not load-sensitive, so there is nothing to re-run in isolation. Check the ledger first: "Pre-existing failures" above covers the distinct case of a failure already tracked before this spec's own changes, and only failures it does not cover get diagnosed and flake-adjudicated here.
+
 ### Gate behavior
 
 The calling skill determines what happens on failure:

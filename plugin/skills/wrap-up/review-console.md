@@ -26,10 +26,12 @@ When `--dry-run` was passed (see `SKILL.md`'s Phase 1 Flags subsection), run eve
 
 When this run's spec has a materialized header (`record:` field present in
 `${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND EITHER the issue's **live**
-labels carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:`
-field is a snapshot for audit only) OR `manifesto-authorized-merge.md`'s applicability check
-passes (the `merge-authorization` lever, #715), read `auto-merge-short-circuit.md` in this
-skill's directory and follow it in full — the single-record version of
+labels carry `auto:merge` or `auto:merge-pending` (re-fetch via `gh issue view --json labels` —
+the header's `grants:` field is a snapshot for audit only; a pending label still routes here so
+`auto-merge-short-circuit.md`'s own maturation check can run — see #309) OR
+`manifesto-authorized-merge.md`'s applicability check passes (the `merge-authorization` lever,
+#715), read `auto-merge-short-circuit.md` in this skill's directory and follow it in
+full — the single-record version of
 `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
 `/claude-tweaks:dispatch` was involved. That file routes on `_shared/integration-model.md`'s
 `pr-first`/`local-merge` split. Otherwise skip it entirely; do not read the file.
@@ -60,6 +62,7 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Res
 2. `staged/` directory — patches and proposals awaiting decisions
 3. `config.yml` — the Manifesto answers (for context)
 4. `events.jsonl` — hook-recorded typed events; surface `wd-deny`, `wd-push-mismatch`, `contract-violation`, and `gate-denial` events
+5. **Staged inventory reconciliation** — run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" check-staged-inventory --run "{run-dir}"` (`_shared/run-resume-freshness.md`'s companion check, #1269). When it reports `MISMATCH`, surface it as a visible warning line in the rendered console output (never a silent log entry) — a `STAGED` entry in `decisions.md` whose named `staged/` file does not exist means that proposal needs to be manually re-derived from `decisions.md`'s prose before it can be applied at this console.
 
 ## Ledger narrowing auto-file (runs before rendering)
 

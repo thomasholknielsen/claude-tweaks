@@ -24,7 +24,7 @@ The resolved directory contains `config.yml` (Manifesto answers / policy — abs
 
 ## Resolving it: `resolve-run-dir` (preferred over composing `$RUN_ROOT` by hand)
 
-`node plugin/bin/hooks.js resolve-run-dir [--spec-slug <s>] [--mode auto] [--standalone <name>] [--create] [--root-only]`
+`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir [--spec-slug <s>] [--mode auto] [--standalone <name>] [--create] [--root-only]`
 (`bin/lib/hooks/run-dir-resolve.js`) implements steps 1, 2, and 4 above on top of
 `bin/lib/hooks/worktree-detect.js`'s `mainCheckoutRoot()` — the same anchoring the Bash snippet
 below computes, but as a single command every citing skill step calls instead of restating that
@@ -100,8 +100,10 @@ checkout, independent of and not covered by the `worktree-always` hook exemption
 isolated to this worktree can still see an Edit/Write attempt against `decisions.md`,
 `staged/*.md`, `manifest.yml`, or any other file under a resolved run directory refused outright.
 When that happens, use `bin/log-decision.js` (`_shared/auto-decision-log.md`'s canonical
-appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged file — neither is
-subject to this tool-level pinning, and both work identically from a worktree session or the
+appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged file; `bin/set-config.js`
+writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <value>` — the
+ceremony escape hatch's downgrade path, refs #1376) the same way — none of the three are
+subject to this tool-level pinning, and all work identically from a worktree session or the
 main checkout.
 
 A second, unconditional PreToolUse guard (`bin/lib/hooks/pre-tool-use.js`'s
@@ -129,8 +131,9 @@ than satisfying any of them (see the matching Don't in `docs/donts.md`).
 
 A third guard sits at the **CLI-argument boundary** — the one path neither of the two above
 covers, a run directory handed to a binary explicitly on the command line rather than inherited
-or created. Two rules live at this boundary, split by whether the binary has a documented
-legitimate run directory outside the repository:
+or created. Three rules live at this boundary — the first two split by whether the binary has a
+documented legitimate run directory outside the repository, the third carried by the
+sanctioned-write family:
 
 - **Pipeline-owned binaries** — `bin/hooks.js` (`resolveRunArg`, `--run`), `bin/wrap-up-engine.js`
   (`main`, `--run-dir`), `bin/materialize.js` (`run`, `--run-dir`), and `bin/apply-refine-labels.js`
@@ -143,27 +146,43 @@ legitimate run directory outside the repository:
 ### Worktree-local `--run` fallback (#280)
 
 `resolveRunArg` (`bin/hooks.js`, shared by `record-worktree`, `record-pr`, `spec-status`,
-`close-run`, `teardown-run`, and `archive-run` — every CLI verb an explicit `--run <dir>` reaches)
-adds one narrow exception to the unanchored-rejection rule above. It exists for the harness-
-isolation incident this record documents (flow run `2026-08-09T140101-spec-262`): a session whose
+`close-run`, `teardown-run`, `check-resume-freshness`, `check-staged-inventory`, and `archive-run`
+— every CLI verb an explicit `--run <dir>` reaches) adds one narrow exception to the
+unanchored-rejection rule above.
+It exists for the harness-isolation incident this record documents (flow run
+`2026-08-09T140101-spec-262`): a session whose
 harness refuses every write to the main checkout for the whole session has no anchored run
 directory to name at all — its run dir was legitimately initialized worktree-local as the only
 available option, and without this exception `--run "$RUN_DIR"` for that run can never resolve
 (`record-worktree` prints `worktree not recorded` and E1 enforcement never binds).
 
 The gating signal that separates this from an ordinary stray worktree-local directory is
-**initialization, not existence**: a `--run` candidate that resolves inside a linked worktree is
-adopted only when (a) it is already an **initialized** run dir — carries at least one of
-`decisions.md`, `run-state.json`, or `config.yml`, the same bar every other resolver in this file
-uses to tell a real run from a bare `mkdir` — and (b) no directory of the same name already exists
-under the main checkout, which would make that copy the authoritative one instead. A bare `mkdir`
-of a worktree-local pipelines path (the [IL-96]/[IL-127] shadow shape `checkPipelineShadowGuard`
-exists to prevent, above) fails condition (a) and is rejected exactly as before — an ordinary run
-with no worktree-local run dir at all can never spuriously match this fallback, satisfying the
-"blocked vs. absent" distinction the record's Deliverables call for. `record-worktree`'s stdout
-names the fallback explicitly (`resolved via the worktree-local fallback (#280)`) rather than
-reporting it identically to the ordinary anchored path, so the degraded state (this run's audit
-trail lives only in the worktree until merge) is diagnosable, not silent.
+**containment and initialization, not mere existence**: a `--run` candidate is adopted only
+when (a) it resolves inside a linked worktree *of this same repo* — not an arbitrary directory,
+and not an unrelated repo's checkout (`#1183`: an earlier version of this check verified none of
+this, so any directory carrying a stray marker file was adopted); (b) that path, relative to the
+worktree's own `.claude-tweaks/pipelines/`, has a run-id-shaped segment in the position that names
+the run — the leading segment ordinarily, or the segment immediately after `archive/` for an
+archived shadow (the same `RUN_ID_RE` shape `context.js`'s run-dir enumeration,
+`iterRunDirsWithState`, uses to distinguish a real pipeline run dir from an arbitrary directory);
+(c) it is already an **initialized** run dir — carries at least one of `decisions.md`,
+`run-state.json`, or `config.yml`, the same bar every other resolver in this file uses to tell a
+real run from a bare `mkdir`; and (d) no directory exists at the *same pipelines-relative path*
+under the main checkout, which would make that copy the authoritative one instead (`#1183`: this
+used to compare only the directory's basename, so a nested multi-spec shadow
+(`pipelines/{parent}/spec-N`) or an archived shadow (`pipelines/archive/{id}`) computed the wrong
+main-checkout candidate and was adopted even though the anchored copy existed at the correct
+nested/archived path). An `archive/{id}` shadow is also checked against a *live*, non-archived
+copy of the same run-id under the main checkout — a run can be live under one id while a
+worktree-local session independently archived its own local copy under the same id, and checking
+only the archived path would miss that (`#1183` fix-wave). A bare `mkdir` of a worktree-local pipelines path (the [IL-96]/[IL-127]
+shadow shape `checkPipelineShadowGuard` exists to prevent, above) fails condition (c) and is
+rejected exactly as before — an ordinary run with no worktree-local run dir at all can never
+spuriously match this fallback, satisfying the "blocked vs. absent" distinction the record's
+Deliverables call for. `record-worktree`'s stdout names the fallback explicitly (`resolved via
+the worktree-local fallback (#280)`) rather than reporting it identically to the ordinary
+anchored path, so the degraded state (this run's audit trail lives only in the worktree until
+merge) is diagnosable, not silent.
 
 **Scoped to `resolveRunArg` only — not mirrored into `bin/lib/hooks/context.js`'s
 `resolveRunDir`/`resolveRun`.** That function answers a different question (this file's header
@@ -186,7 +205,17 @@ argument still holds there.
   CLIs' documented invocation-failure code — a deliberate, stated deviation from the family's
   exit 2.
 
-Both rules keep the two failure modes distinct in the message — "resolves outside the main
+- **Sanctioned-write CLIs** — `bin/log-decision.js`, `bin/stage-item.js`, and `bin/set-config.js`
+  (`--run`, refs #1376) — the run-dir writers a worktree-isolated session invokes when tool-level
+  pinning refuses the run dir (see the tool-level pinning note above). Each applies the same
+  strict anchored-under-the-main-checkout rule, but through `bin/lib/stage-item/write.js`'s
+  exported `resolveTarget` rather than `worktree-detect.js` directly, and refuses with exit **3**
+  — their documented run-dir-failure code, kept distinct from their exit 2 (malformed
+  invocation), with its own two messages ("run dir does not exist" versus "not anchored under
+  the main checkout (a worktree-local shadow)"). A fourth writer imports that `resolveTarget`
+  rather than re-deriving the predicate.
+
+The first two rules keep the two failure modes distinct in the message — "resolves outside the main
 checkout" (a worktree-relative shadow) versus "could not determine the git repository root" (no
 repo at all); collapsing them sends a reader hunting for the wrong problem — and both are
 existence-independent (the walk-up runs against whichever ancestor directory exists), so they

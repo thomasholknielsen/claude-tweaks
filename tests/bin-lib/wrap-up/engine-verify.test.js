@@ -1026,3 +1026,38 @@ test('wrap-up-engine.js verify prints a check table for a real, anchored run dir
   }
   assert.match(out, /\| Check \| Result \| Detail \|/);
 });
+
+// #1230: defaultGit spawned execFileSync with no `timeout` option, unlike
+// the adjacent defaultGh -- a hung/slow `git` invocation could block the
+// wrap-up verify step indefinitely. Reload the module with a spied
+// child_process.execFileSync (a fresh require.cache entry so the spy is
+// captured by the module's own top-level destructure) to inspect the real
+// options object each function passes, rather than asserting on source text.
+test('#1230: defaultGit\'s execFileSync call carries a timeout matching defaultGh\'s', () => {
+  const cp = require('node:child_process');
+  const originalExecFileSync = cp.execFileSync;
+  const calls = [];
+  cp.execFileSync = (...args) => {
+    calls.push(args);
+    return '';
+  };
+  const modPath = require.resolve('../../../plugin/bin/lib/wrap-up/engine-verify');
+  delete require.cache[modPath];
+  let fresh;
+  try {
+    // eslint-disable-next-line global-require
+    fresh = require('../../../plugin/bin/lib/wrap-up/engine-verify');
+    fresh.defaultGit(['status'], '/tmp/does-not-matter');
+    fresh.defaultGh(['--version'], '/tmp/does-not-matter');
+  } finally {
+    cp.execFileSync = originalExecFileSync;
+    delete require.cache[modPath];
+  }
+  assert.strictEqual(calls.length, 2);
+  const [gitCall, ghCall] = calls;
+  assert.strictEqual(gitCall[0], 'git');
+  assert.strictEqual(ghCall[0], 'gh');
+  assert.notStrictEqual(gitCall[2].timeout, undefined, 'defaultGit must set a timeout option');
+  assert.strictEqual(gitCall[2].timeout, ghCall[2].timeout, "defaultGit's timeout must match defaultGh's");
+  assert.strictEqual(gitCall[2].timeout, 5000);
+});
