@@ -49,6 +49,22 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 → Collect each as: `[plan] {filename} — {recommendation}`
 
+Also glob `docs/plans/*-ledger.md` — the per-feature pipeline ledgers `/claude-tweaks:ledger` creates (`docs/plans/YYYY-MM-DD-{feature}-ledger.md`, `_shared/ledger-format.md`) and `/claude-tweaks:wrap-up`'s Phase 4 execution step deletes on successful completion. A pipeline that never reaches wrap-up leaves its ledger behind permanently; nothing else sweeps for it.
+
+For each matched file, read its content — cheap, these files are a few KB — and classify:
+
+| Status | Recommendation |
+|--------|---------------|
+| Any row's `Status` column reads `open` (`_shared/ledger-format.md`'s non-terminal status — "these items block pipeline completion") | Keep |
+| No `open` row (every row is a terminal status per `_shared/ledger-format.md`, or the ledger has zero rows), AND a directory under `.claude-tweaks/pipelines/` (not `archive/`) still exists whose name contains the ledger's own record/spec number(s) — extract every `#{N}` token appearing anywhere in the ledger's first line (real headings vary: a colon-prefixed list, a trailing `(#N)`, or embedded mid-sentence — scan the whole line, don't anchor to one position), or the filename's `{feature}` slug when the first line carries no `#{N}` token at all | Keep |
+| No `open` row AND no matching directory anywhere under `.claude-tweaks/pipelines/` (absent, or present only under `archive/`) | Delete (orphan) |
+
+The `Status` column is authoritative — directory placement (live/archived/absent) only breaks ties when no `open` row exists. Never classify by directory alone: archival is a time-based sweep, decoupled from whether a ledger's items were ever resolved — `2026-08-16-spec-276-528-529-530-ledger.md` and `2026-08-20-record-827-ledger.md` both carry a genuine `open` row despite already-archived run directories, exactly the case this rule exists to catch.
+
+Before recommending Delete, also sanity-check that no open work record's body references the ledger's filename or feature slug — a quick judgment read, not a scripted grep across every open record (Step 4 stays in the main thread precisely because its rule set is cheap).
+
+→ Collect each as: `[ledger] {filename} — {recommendation}`
+
 ## Step 4.5: Audit Git Worktrees, Build Branches, and Artifact Residue
 
 **Working-directory discipline:** every `git` command in this step (and in any dispatched parallel agent) MUST be anchored with `git -C "{REPO_ROOT}"` (or run after `cd "{REPO_ROOT}"`). `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before any agent fires. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`. CWD does not propagate reliably across parallel agents — without the anchor, branch deletions and worktree removals can land in the wrong checkout.
@@ -63,11 +79,15 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {merge-base} --scope repo --n
 
 `{merge-base}` resolves to `HEAD` for this step — /tidy has no single feature branch to diff, unlike `/wrap-up`'s own close-time invocation of this same CLI (`residue-sweep.md`), which passes its run's actual base; `--base` gates the whole invocation on a resolvable commit-ish but isn't otherwise read by the worktree/branch probes. `--no-suite` skips the CLI's own test-suite probe, which this step has no use for.
 
-Each `kind: worktree` finding is one candidate — every worktree beyond the main working tree, `subject` the path, `evidence` reporting locked/unlocked state, branch, and reaper-domain membership. This replaces `git worktree list` as this step's worktree enumeration one-for-one. If the results block reports `ran: false` for this probe, treat worktrees as **`unknown`** for this run, not clean — an empty `findings` array under `ran: false` must never be read as "no worktrees."
+Each `kind: worktree` finding is one candidate — every worktree beyond the main working tree, `subject` the path, `evidence` reporting locked/unlocked state, branch, `dirty: true|false|unknown`, and reaper-domain membership; replaces `git worktree list` one-for-one. Under `ran: false` treat worktrees as **`unknown`**, not clean — an empty `findings` array there is never "no worktrees."
 
 Each `kind: branch` finding is a **remote-tracking** branch (of the integration branch's own remote — `origin` by default) already merged into the integration branch and not yet deleted. This does **not** replace the local `build/*` scan below — it is a narrower, differently-shaped catch: it never surfaces an unmerged branch (the probe filters to `--merged` only, so an unmerged `build/*` branch is invisible to it — exactly the case the "Unmerged changes" row needs), and it never surfaces a branch that was only ever merged locally, e.g. via `_shared/scratch-worktree.md` §5's `git push . <sha>:{integration-branch}` pattern, which is this repo's own dominant merge shape for worktree-derived branches and leaves no remote-tracking ref at all. Fold its findings in as an **additional** repo-wide check for stray already-merged remote branches (of any name, not just `build/*`), never as a substitute for the scan below.
 
 Each `kind: artifact` finding is aged QA-artifact residue (an aged dir under `.claude-tweaks/artifacts/`, or a legacy pre-relocation `screenshots/`/`traces/` root) — collect as `[git] {subject} — {evidence} — Delete` when `remedy: auto`, or `— Delete (judgment)` when `remedy: record`.
+
+Each `kind: pipeline-run` finding is an un-archived clean run directory (`run-state.json` status `clean`, not yet moved under `.claude-tweaks/pipelines/archive/`) — collect as `[git] {subject} — {evidence} — Archive` (`remedy` is always `auto` for this kind — the archival move documented in `wrap-up/cleanup-procedures.md` Section B).
+
+This step's per-kind coverage above is not a fixed list — treat `bin/residue.js`'s probe directory (`bin/lib/residue/probes/`) as the authoritative kind set under `--scope repo`, and give any probe added there a paragraph here (or an explicit exclusion note) before relying on the assertion in `step-6-auto.md` that every Step 4.5 pass reads it. `kind: pr` is the one deliberate exception: Step 4.8 below fetches PRs directly instead of reading it from this CLI — see that step's own "Not re-pointed at `bin/residue.js`" paragraph for why.
 
 **Build branches (local, any merge state):** Run `git -C "{REPO_ROOT}" branch --list "build/*"`. The CLI above has no equivalent for this — it can only ever report merged, remote-tracking branches, so a local-only or still-unmerged `build/*` branch (including one being actively worked on) is outside its domain entirely.
 
@@ -121,6 +141,12 @@ otherwise indistinguishable from "needs -D" and would get the wrong remedy.
 | `-d` succeeds | Deleted — no further action |
 | `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
 | `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** — this is the only case that actually means unmerged work |
+
+**Dirty-worktree override** (#1424, before `Remove/delete`): `dirty: true` routes to
+`dirty — manual review required` with the changed files (`git -C {path} status --porcelain`) —
+never `Remove/delete` or `--force`. `dirty: unknown` (the status check itself failed) does
+**not** trigger the override — a read failure is never proof of uncommitted work
+(`probes/worktrees.js`) — but still appears in the evidence line.
 
 Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
 

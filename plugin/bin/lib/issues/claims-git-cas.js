@@ -1,0 +1,122 @@
+// bin/lib/issues/claims-git-cas.js
+// Git compare-and-swap core for the claims-registry blob lock (#787). Tries
+// to perform claim/release reads and writes via local `git` plumbing against
+// the `claims-registry` branch, using `git push --force-with-lease` as the
+// atomic test-and-set — the fleet's most-contended endpoint moves off the
+// contents API (rate-limited) onto a transport that costs zero API budget.
+// `claim-store.js` tries this first and falls back to its own contents-API
+// implementation when this module reports a transport failure or a
+// secondary rate limit (see that module's `readClaimBlob`/`writeClaimBlob`).
+'use strict';
+
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { claimFilePath, CLAIMS_BRANCH } = require('./claims');
+
+function errText(err) {
+  const parts = [err && err.message, err && err.stderr, err && err.stdout].filter(Boolean).map(String);
+  return parts.length ? parts.join(' ') : String(err);
+}
+
+// One classification for every git-CAS failure this module can hit — the
+// git-side counterpart to claim-store.js's classifyGhApiError. `missing-path`
+// is a normal 'absent' outcome (git show against a tree that doesn't have
+// this file yet), never an error; `contested` is a lost force-with-lease
+// race — someone else's commit landed on `claims-registry` between our
+// fetch and this push; `secondary-rate-limit` must never be folded into
+// `contested` (record-697's incident read exactly that way before
+// diagnosis) — checked before the generic rejection match since GitHub's
+// abuse-detection rejection is also a non-fast-forward-shaped push failure.
+function classifyGitError(err) {
+  const text = errText(err);
+  if (/secondary rate limit|abuse detection mechanism|Retry-After/i.test(text)) {
+    return { kind: 'secondary-rate-limit' };
+  }
+  if (/does not exist in|exists on disk, but not in/.test(text)) {
+    return { kind: 'missing-path' };
+  }
+  if (/\[rejected\]|stale info|fetch first|non-fast-forward/i.test(text)) {
+    return { kind: 'contested' };
+  }
+  return { kind: 'transport-failure' };
+}
+
+const GIT_TIMEOUT_MS = 10000;
+
+function defaultRunner(args, opts = {}) {
+  return execFileSync('git', args, {
+    encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: GIT_TIMEOUT_MS, ...opts,
+  });
+}
+
+// {issueNumber, remote, branch, runner} -> {content, tipSha, absent, failure}
+// Fetches the branch fresh every call (cheap — one ref) so `tipSha` is
+// always the live remote tip, never a locally-cached one that could be
+// stale by the time writeClaimBlobGit uses it as the compare-and-swap lease.
+function readClaimBlobGit({ issueNumber, remote = 'origin', branch = CLAIMS_BRANCH, runner = defaultRunner }) {
+  let tipSha;
+  try {
+    runner(['fetch', '-q', remote, branch]);
+    tipSha = runner(['rev-parse', 'FETCH_HEAD']).trim();
+  } catch {
+    return { content: null, tipSha: null, absent: false, failure: 'transport-failure' };
+  }
+  const targetPath = claimFilePath(issueNumber);
+  try {
+    const content = runner(['show', `${tipSha}:${targetPath}`]);
+    return { content, tipSha, absent: false, failure: null };
+  } catch (err) {
+    const { kind } = classifyGitError(err);
+    if (kind === 'missing-path') return { content: null, tipSha, absent: true, failure: null };
+    return { content: null, tipSha, absent: false, failure: 'transport-failure' };
+  }
+}
+
+// {issueNumber, content, message, expectedTipSha, remote, branch, runner} ->
+// {ok, conflict?, secondaryRateLimit?, failure}
+// Builds the new commit via the index (read-tree + update-index + write-tree
+// + commit-tree) rather than manual tree-walking — git's own machinery
+// handles the nested `claims/` path and leaves every other entry in the
+// tree untouched. A scratch GIT_INDEX_FILE keeps this off the real working
+// tree's index. The push itself is the compare-and-swap: `--force-with-lease`
+// against `expectedTipSha` fails closed the instant the remote tip has
+// moved since this write's own read.
+function writeClaimBlobGit({
+  issueNumber, content, message, expectedTipSha, remote = 'origin', branch = CLAIMS_BRANCH, runner = defaultRunner,
+}) {
+  const targetPath = claimFilePath(issueNumber);
+  const scratchIndex = path.join(os.tmpdir(), `claims-git-cas-index-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const env = { ...process.env, GIT_INDEX_FILE: scratchIndex };
+  try {
+    const blobSha = runner(['hash-object', '-w', '--stdin'], { input: content, env }).trim();
+    runner(['read-tree', expectedTipSha], { env });
+    runner(['update-index', '--add', '--cacheinfo', `100644,${blobSha},${targetPath}`], { env });
+    const treeSha = runner(['write-tree'], { env }).trim();
+    const commitSha = runner(['commit-tree', treeSha, '-p', expectedTipSha, '-m', message], { env }).trim();
+    runner(['push', remote, `${commitSha}:refs/heads/${branch}`, `--force-with-lease=refs/heads/${branch}:${expectedTipSha}`]);
+    return { ok: true, failure: null };
+  } catch (err) {
+    const { kind } = classifyGitError(err);
+    if (kind === 'contested') return { ok: false, conflict: true, failure: null };
+    if (kind === 'secondary-rate-limit') return { ok: false, secondaryRateLimit: true, failure: null };
+    return { ok: false, failure: 'transport-failure' };
+  } finally {
+    // Synchronous, to match the rest of this module: an async unlink's
+    // callback can be dropped when a short-lived CLI caller exits first,
+    // leaking one scratch index per claim attempt. `force: true` already
+    // swallows ENOENT; the catch is for the EPERM/EBUSY case, so a cleanup
+    // failure can never replace this function's real return value from a
+    // `finally` block.
+    try {
+      fs.rmSync(scratchIndex, { force: true });
+    } catch {
+      /* best-effort cleanup — never mask the write's own outcome */
+    }
+  }
+}
+
+module.exports = {
+  classifyGitError, CLAIMS_BRANCH, errText, readClaimBlobGit, writeClaimBlobGit, defaultRunner,
+};

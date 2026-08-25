@@ -117,6 +117,73 @@ test('recordDecline: two different fingerprints coexist in the store', () => {
   assert.notEqual(store.lookupDecline('reflect-bbb', deps), null);
 });
 
+// ---- subject field (#1033) -------------------------------------------------
+
+test('recordDecline: subject is included on the entry when passed', () => {
+  const deps = makeStore();
+  const entry = store.recordDecline('feedback-deadbeef', {
+    reason: 'stale rubric', source: 'feedback', subject: 'watermark: stale rubric text', declinedAt: '2026-08-20T00:00:00Z',
+  }, deps);
+
+  assert.deepEqual(entry, {
+    declinedAt: '2026-08-20T00:00:00Z', reason: 'stale rubric', source: 'feedback', subject: 'watermark: stale rubric text',
+  });
+  assert.deepEqual(store.lookupDecline('feedback-deadbeef', deps), entry);
+});
+
+test('recordDecline: omitting subject writes the same three-key shape as before (no forced subject: null)', () => {
+  const deps = makeStore();
+  const entry = store.recordDecline('feedback-deadbeef', { reason: 'stale rubric', source: 'feedback', declinedAt: '2026-08-20T00:00:00Z' }, deps);
+
+  assert.deepEqual(entry, { declinedAt: '2026-08-20T00:00:00Z', reason: 'stale rubric', source: 'feedback' });
+  assert.equal(Object.prototype.hasOwnProperty.call(entry, 'subject'), false);
+});
+
+// ---- listDeclined (subject scan, #1033) ------------------------------------
+
+test('listDeclined: no filter returns every entry with its fingerprint and subject', () => {
+  const deps = makeStore();
+  store.recordDecline('feedback-aaa', {
+    source: 'feedback', reason: 'r1', subject: 'subject one', declinedAt: '2026-08-20T00:00:00Z',
+  }, deps);
+  store.recordDecline('reflect-bbb', {
+    source: 'wrap-up', reason: 'r2', subject: 'subject two', declinedAt: '2026-08-21T00:00:00Z',
+  }, deps);
+
+  const all = store.listDeclined({}, deps).sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
+  assert.deepEqual(all, [
+    {
+      fingerprint: 'feedback-aaa', declinedAt: '2026-08-20T00:00:00Z', reason: 'r1', source: 'feedback', subject: 'subject one',
+    },
+    {
+      fingerprint: 'reflect-bbb', declinedAt: '2026-08-21T00:00:00Z', reason: 'r2', source: 'wrap-up', subject: 'subject two',
+    },
+  ]);
+});
+
+test('listDeclined: filtered by source returns only matching entries', () => {
+  const deps = makeStore();
+  store.recordDecline('feedback-aaa', { source: 'feedback', subject: 'a' }, deps);
+  store.recordDecline('feedback-ccc', { source: 'feedback', subject: 'c' }, deps);
+  store.recordDecline('reflect-bbb', { source: 'wrap-up', subject: 'b' }, deps);
+
+  const feedbackOnly = store.listDeclined({ source: 'feedback' }, deps).map((e) => e.fingerprint).sort();
+  assert.deepEqual(feedbackOnly, ['feedback-aaa', 'feedback-ccc']);
+});
+
+test('listDeclined: empty store -> []', () => {
+  const deps = makeStore();
+  assert.deepEqual(store.listDeclined({}, deps), []);
+});
+
+test('listDeclined: an entry recorded with no subject omits the key rather than rendering undefined', () => {
+  const deps = makeStore();
+  store.recordDecline('feedback-aaa', { source: 'feedback', reason: 'no subject given' }, deps);
+
+  const [entry] = store.listDeclined({}, deps);
+  assert.equal(Object.prototype.hasOwnProperty.call(entry, 'subject'), false);
+});
+
 // ---- listDeclinedFingerprints ---------------------------------------------
 
 test('listDeclinedFingerprints: no filter returns every fingerprint', () => {

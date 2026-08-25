@@ -42,3 +42,33 @@ Resolution order — stop at the first that applies:
    - If `git diff --stat` produces no output to classify, default to `high` directly (skip the table) — see the ambiguity rule below.
 
 4. **Project-level floor (non-explicit resolutions only).** After step 2 or 3 above resolves a tier, resolve `review-effort-floor` — `EFFORT_FLOOR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values review-effort-floor)` — mirroring `review-auto-apply-ceiling`'s existing lookup precedent (`step3-routing.md`). If set, raise the resolved tier to at least the floor — never lower it (e.g. `review-effort-floor: high` turns a diff-heuristic `low` into `high`, but leaves an already-`xhigh` record-label resolution untouched). This step never applies when step 1 (explicit argument) already set the tier — an explicit token always wins, per step 1's rule above. Unset by default — no floor, current behavior unchanged.
+
+## Decision: no independent UI-surface risk signal (#361)
+
+A UI-only spec (table rendering/sorting, no schema/API/infra surface) once resolved `risk:low ×
+size:medium` → `review-effort: low`, whose Step 3 lens set at that tier is 3b/3c only (Security +
+Error Handling — `step3-lens-dispatch.md`'s scope table). The concrete run's own live visual
+review (Step 6) and Impeccable critique/audit (Step 6.5) — both **effort-independent**, running
+at every tier regardless of the resolved `review-effort` — surfaced a P0 UX bug, a WCAG 4.1.2
+ARIA-validity violation, and a WCAG 1.4.10 reflow failure that the `low`-tier lens set was never
+scoped to catch (3h UX Analysis, the lens that would, is gated to `high`+ regardless of any
+UI-specific bump).
+
+**Declined:** weighting "adds new interactive DOM elements" as an independent signal that bumps
+`review-effort` for UI-surface specs. Rationale:
+
+- The cited incident is not a miss — it is defense-in-depth working as designed. The layer
+  scoped to catch UI/accessibility issues (Steps 6/6.5) caught them; the layer that didn't
+  (Step 3's low-tier lens set) was never the one responsible for that class of finding.
+- Bumping `review-effort` to pull 3h (or the full high-tier lens set) into scope for UI-surface
+  specs would run a second, redundant pass over exactly what Steps 6/6.5 already cover
+  end-to-end, at real cost (broader lens dispatch, reproduction pairs at `medium`+) on every
+  UI-touching spec regardless of actual risk.
+- The evidence base is a single case. A calibration change to a shared risk table should not
+  ride on n=1 without a repeat signal — re-open this decision if a second, independent
+  instance surfaces where Steps 6/6.5 also miss (not just where the code-review lens set alone
+  would have).
+
+If a future case shows Steps 6/6.5 themselves failing to catch a UI-surface defect that a
+broader Step 3 lens set would have, that is the trigger to re-litigate this decision — the prior
+reasoning above is the starting point, not a reason to avoid revisiting it.

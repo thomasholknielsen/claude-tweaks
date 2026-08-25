@@ -6,8 +6,10 @@ label branch is unchanged and does not need this file.
 
 ## Applicability (second, independent trigger)
 
-In addition to the existing condition (issue's live labels carry `auto:merge`), this short-circuit
-also applies when this run's `config.yml` resolves `merge-authorization` to `pre-authorized`:
+In addition to the existing condition (issue's live labels carry `auto:merge`, or a matured
+`auto:merge-pending` — see `auto-merge-short-circuit.md`'s own Authorization step, #309), this
+short-circuit also applies when this run's `config.yml` resolves `merge-authorization` to
+`pre-authorized`:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" --values merge-authorization

@@ -31,6 +31,9 @@ node_modules/
 .claude-tweaks/harness-health/
 .claude-tweaks/journey-health/
 .claude-tweaks/docs-health/
+# feedback/ and declined-learning/ below are local state too (a watermark file and
+# plugin/bin/lib/declined-learning/store.js's store.json, not health-skill cache.json), listed
+# individually for the same reason as the four health skills above.
 .claude-tweaks/feedback/
 .claude-tweaks/declined-learning/
 .claude-tweaks/routine-environment-cache.yml

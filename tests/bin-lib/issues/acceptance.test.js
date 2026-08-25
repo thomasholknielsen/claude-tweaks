@@ -7,6 +7,8 @@ const {
   verificationSurface,
   needsBackstop,
   parentGateState,
+  approvalProvenance,
+  APPROVAL_PROVENANCE_LABEL,
 } = require('../../../plugin/bin/lib/issues/acceptance.js');
 
 test('dispositionState reads each acceptance label', () => {
@@ -142,4 +144,33 @@ test('parentGateState never reports due for a parent with no discoverable sub-is
   assert.equal(parentGateState({ subIssues: [], parentLabels: [] }), 'incomplete');
   assert.equal(parentGateState({}), 'incomplete');
   assert.equal(parentGateState(), 'incomplete');
+});
+
+test('approvalProvenance is null for a record with no approved disposition', () => {
+  assert.equal(approvalProvenance(['demo:pending']), null);
+  assert.equal(approvalProvenance(['demo:changes-requested']), null);
+  assert.equal(approvalProvenance([]), null);
+  assert.equal(approvalProvenance(undefined), null);
+});
+
+test('approvalProvenance reads walkthrough by default on an approved record', () => {
+  // Orthogonal-category check: a demo:approved record carrying an unrelated
+  // label (ready) still reads walkthrough-backed absent the batch marker —
+  // this is the backward-compatible default for every demo:approved label
+  // applied before the provenance signal existed.
+  assert.equal(approvalProvenance(['demo:approved']), 'walkthrough');
+  assert.equal(approvalProvenance(['demo:approved', 'ready']), 'walkthrough');
+});
+
+test('approvalProvenance reads batch when the marker label is present', () => {
+  assert.equal(APPROVAL_PROVENANCE_LABEL, 'demo:approved-batch');
+  assert.equal(approvalProvenance(['demo:approved', 'demo:approved-batch']), 'batch');
+});
+
+test('approvalProvenance ignores the batch marker on a non-approved record', () => {
+  // The marker only ever means something stacked alongside demo:approved — a
+  // stray demo:approved-batch label with no demo:approved is not itself an
+  // approval, so this must not be misread as one.
+  assert.equal(approvalProvenance(['demo:approved-batch']), null);
+  assert.equal(approvalProvenance(['demo:pending', 'demo:approved-batch']), null);
 });

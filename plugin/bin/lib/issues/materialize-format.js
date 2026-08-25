@@ -1,6 +1,6 @@
 // bin/lib/issues/materialize-format.js
-// Pure: the shape gate, the Surface/Design-intent/Design-seed lift, and the
-// pinned-header composition documented in skills/flow/materialize.md. No
+// Pure: the shape gate, the Surface/Design-intent/Ui-stack/Design-seed lift,
+// and the pinned-header composition documented in skills/flow/materialize.md. No
 // network — bin/materialize.js does the gh/local-store fetch and the file
 // write; this module is what both that CLI and its tests import so the
 // header format has exactly one implementation instead of a copy per caller.
@@ -8,6 +8,14 @@
 
 const REQUIRED_SECTIONS = ['## Current State', '## Deliverables', '## Acceptance Criteria'];
 const PLACEHOLDER_RE = /\bTBD\b|\bTODO\b|<!--\s*ambiguity:/;
+
+// Everything from the `## Original request` heading to end of body is a
+// verbatim copy of the record's original title/body (shaping-mode.md's
+// preservation rule — always the terminal section, and it may contain the
+// original body's own nested `## ` headings). Markers inside it are the
+// original capture's own text, never unresolved authored placeholders, so
+// the placeholder gate tests only the text before it (refs #1240).
+const ORIGINAL_REQUEST_RE = /^## Original request[ \t]*$/m;
 
 // body -> the text of section `## {name}` up to the next `## ` heading (or
 // end of body). null when the heading itself is absent.
@@ -25,7 +33,8 @@ function sectionText(body, name) {
 // every failing section by its plain name ("Current State", not "## Current
 // State") plus, when present, the string 'unresolved-placeholder' — the same
 // gate materialize.md's "Materialization hard gate" describes: every
-// section present and non-empty, no TBD/TODO/<!-- ambiguity: marker anywhere.
+// section present and non-empty, no TBD/TODO/<!-- ambiguity: marker anywhere
+// outside the verbatim-preserved `## Original request` section.
 function shapeGate(body) {
   const text = typeof body === 'string' ? body : '';
   const missing = [];
@@ -34,11 +43,13 @@ function shapeGate(body) {
     const section = sectionText(text, name);
     if (section === null || section.length === 0) missing.push(name);
   }
-  if (PLACEHOLDER_RE.test(text)) missing.push('unresolved-placeholder');
+  const originalRequestAt = text.search(ORIGINAL_REQUEST_RE);
+  const authored = originalRequestAt === -1 ? text : text.slice(0, originalRequestAt);
+  if (PLACEHOLDER_RE.test(authored)) missing.push('unresolved-placeholder');
   return missing.length ? { ok: false, missing } : { ok: true, missing: [] };
 }
 
-// body -> { surface?, designIntent?, designSeed? } — read from the leading
+// body -> { surface?, designIntent?, uiStack?, designSeed? } — read from the leading
 // metadata block (every line before the first blank line). Legacy `Surface:
 // frontend` reads as `web`; `Surface: mixed` is retired and passed through
 // unchanged (materialize.md: a record still declaring it needs re-shaping,
@@ -48,20 +59,40 @@ function liftMetadata(body) {
   const blankAt = text.indexOf('\n\n');
   const block = blankAt === -1 ? text : text.slice(0, blankAt);
   const out = {};
-  const surfaceMatch = /^Surface:\s*(\S+)/m.exec(block);
+  // [ \t]* (not \s*) before every capture group deliberately: \s matches
+  // \n, so a greedy \s* on a bare "Field:" line (no value) would consume
+  // the newline and let (\S+)/(.+)$ capture the FOLLOWING line's content
+  // instead of correctly failing to match. Same-line-only whitespace keeps
+  // a bare line a no-match, never a misread of the next field (refs #357).
+  const surfaceMatch = /^Surface:[ \t]*(\S+)/m.exec(block);
   if (surfaceMatch) out.surface = surfaceMatch[1] === 'frontend' ? 'web' : surfaceMatch[1];
-  const intentMatch = /^Design-intent:\s*(\S+)/m.exec(block);
+  const intentMatch = /^Design-intent:[ \t]*(\S+)/m.exec(block);
   if (intentMatch) out.designIntent = intentMatch[1];
-  const seedMatch = /^Design-seed:\s*(\S+)/m.exec(block);
+  const uiStackMatch = /^Ui-stack:[ \t]*(.+)$/m.exec(block);
+  if (uiStackMatch) out.uiStack = uiStackMatch[1].trim();
+  const seedMatch = /^Design-seed:[ \t]*(\S+)/m.exec(block);
   if (seedMatch) out.designSeed = seedMatch[1];
   return out;
+}
+
+// Double-quote a scalar for the YAML-shaped header when it contains a
+// character that would change its meaning to a real YAML parser (`:`
+// starts a mapping, `#` starts a comment) or leading/trailing whitespace
+// that YAML would strip. `ui-stack` is this header's one free-form field —
+// every other optional field is a closed enum or opaque token with no such
+// risk, so this is not called for them (refs #357).
+function yamlSafeScalar(value) {
+  if (/[:#]/.test(value) || /^\s|\s$/.test(value)) {
+    return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  }
+  return value;
 }
 
 // fields -> the YAML frontmatter block (including the --- delimiters), per
 // materialize.md's "The pinned header format". `ceremony` and `grants` are
 // always emitted (never omitted, even when grants is empty); every other
 // field is omitted when its value is null/undefined/empty.
-function composeHeader({ record, origin, risk, size, ceremony, grants, fingerprint, blockedBy, surface, designIntent, designSeed, parkedAtShaping }) {
+function composeHeader({ record, origin, risk, size, ceremony, grants, fingerprint, blockedBy, surface, designIntent, uiStack, designSeed, parkedAtShaping }) {
   const lines = ['---', `record: ${record}`, `origin: ${origin}`];
   if (risk) lines.push(`risk: ${risk}`);
   if (size) lines.push(`size: ${size}`);
@@ -74,6 +105,7 @@ function composeHeader({ record, origin, risk, size, ceremony, grants, fingerpri
   if (Array.isArray(blockedBy) && blockedBy.length) lines.push(`blocked-by: [${blockedBy.join(', ')}]`);
   if (surface) lines.push(`surface: ${surface}`);
   if (designIntent) lines.push(`design-intent: ${designIntent}`);
+  if (uiStack) lines.push(`ui-stack: ${yamlSafeScalar(uiStack)}`);
   if (designSeed) lines.push(`design-seed: ${designSeed}`);
   if (parkedAtShaping) lines.push('parked-at-shaping: true');
   lines.push('---');

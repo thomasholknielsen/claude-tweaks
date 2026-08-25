@@ -38,7 +38,7 @@ snapshot instead of shelling out on every call.
   as before this section existed. Nothing breaks; only the caching benefit is unavailable to a
   session-id-less caller.
 - **Field set** — the union every consumer needs, so one fetch covers all of them:
-  `number,title,labels,body,state,stateReason,closedAt,comments,updatedAt,milestone`
+  `number,title,labels,body,state,stateReason,createdAt,closedAt,comments,updatedAt,milestone`
   (`record-snapshot.js`'s `UNION_FIELDS` — the code twin of this line; cite the constant, never
   retype the field list).
 - **Freshness** — the snapshot file's mtime younger than `record-snapshot-ttl-seconds` seconds
