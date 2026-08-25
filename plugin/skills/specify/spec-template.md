@@ -162,6 +162,14 @@ When a spec's technical approach rests on an assumption about how an external sy
 
 Enumerating only the second list and skipping the first is the failure mode to design against: it reads as thorough (every input shape is covered) while silently leaving out an entire initiation path that never produces an event to shape-check in the first place — a gap no fixture built from the captured shapes can catch, because the missing case never got captured. Name each initiator path explicitly in the Task 0 deliverable's own text; do not let "covers all invocation shapes" stand in for it.
 
+A Task 0 deliverable's captured behavior — or any other flagged-but-unvalidated assumption in this
+spec's `## Gotchas` section, an inline `<!-- ambiguity: -->` marker, or an `## Open Questions` row —
+is not fully resolved just because implementation happened. `skills/review/code-mode-steps.md`
+Step 1's **Risk-Marker Verification** sub-check independently re-checks every such marker against
+the artifact's real external validator/schema/tool at whole-branch review time, and routes an
+unresolved one to `BLOCKED` — the review-side half of the same rule this section states from the
+spec-authoring side.
+
 ## Gate-Authoring Deliverables
 
 When a spec's plan adds a new gate — a PreToolUse/PostToolUse hook check, a permission rule, or a teardown/cleanup guard — write a plan-time deliverable that traces the gate's proposed condition against two enumerations before implementation begins, not after:
