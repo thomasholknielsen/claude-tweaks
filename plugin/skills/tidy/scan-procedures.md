@@ -79,7 +79,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {merge-base} --scope repo --n
 
 `{merge-base}` resolves to `HEAD` for this step — /tidy has no single feature branch to diff, unlike `/wrap-up`'s own close-time invocation of this same CLI (`residue-sweep.md`), which passes its run's actual base; `--base` gates the whole invocation on a resolvable commit-ish but isn't otherwise read by the worktree/branch probes. `--no-suite` skips the CLI's own test-suite probe, which this step has no use for.
 
-Each `kind: worktree` finding is one candidate — every worktree beyond the main working tree, `subject` the path, `evidence` reporting locked/unlocked state, branch, and reaper-domain membership. This replaces `git worktree list` as this step's worktree enumeration one-for-one. If the results block reports `ran: false` for this probe, treat worktrees as **`unknown`** for this run, not clean — an empty `findings` array under `ran: false` must never be read as "no worktrees."
+Each `kind: worktree` finding is one candidate — every worktree beyond the main working tree, `subject` the path, `evidence` reporting locked/unlocked state, branch, `dirty: true|false|unknown`, and reaper-domain membership; replaces `git worktree list` one-for-one. Under `ran: false` treat worktrees as **`unknown`**, not clean — an empty `findings` array there is never "no worktrees."
 
 Each `kind: branch` finding is a **remote-tracking** branch (of the integration branch's own remote — `origin` by default) already merged into the integration branch and not yet deleted. This does **not** replace the local `build/*` scan below — it is a narrower, differently-shaped catch: it never surfaces an unmerged branch (the probe filters to `--merged` only, so an unmerged `build/*` branch is invisible to it — exactly the case the "Unmerged changes" row needs), and it never surfaces a branch that was only ever merged locally, e.g. via `_shared/scratch-worktree.md` §5's `git push . <sha>:{integration-branch}` pattern, which is this repo's own dominant merge shape for worktree-derived branches and leaves no remote-tracking ref at all. Fold its findings in as an **additional** repo-wide check for stray already-merged remote branches (of any name, not just `build/*`), never as a substitute for the scan below.
 
@@ -141,6 +141,12 @@ otherwise indistinguishable from "needs -D" and would get the wrong remedy.
 | `-d` succeeds | Deleted — no further action |
 | `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
 | `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** — this is the only case that actually means unmerged work |
+
+**Dirty-worktree override** (#1424, before `Remove/delete`): `dirty: true` routes to
+`dirty — manual review required` with the changed files (`git -C {path} status --porcelain`) —
+never `Remove/delete` or `--force`. `dirty: unknown` (the status check itself failed) does
+**not** trigger the override — a read failure is never proof of uncommitted work
+(`probes/worktrees.js`) — but still appears in the evidence line.
 
 Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
 

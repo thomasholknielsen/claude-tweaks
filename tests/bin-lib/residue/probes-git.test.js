@@ -1,8 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { probeWorktrees, extractPid } = require('../../../plugin/bin/lib/residue/probes/worktrees');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { probeWorktrees, extractPid, defaultIsDirty } = require('../../../plugin/bin/lib/residue/probes/worktrees');
 const { probeBranches } = require('../../../plugin/bin/lib/residue/probes/branches');
 const { filterResultsByScope } = require('../../../plugin/bin/lib/residue/scope-filter');
+const { validateFinding } = require('../../../plugin/bin/lib/residue/finding');
 
 function stubRunner(responses) {
   return (args) => (Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null);
@@ -297,4 +302,74 @@ test('a liveness check that throws fails toward "could not be confirmed" rather 
   const live = findings.find((f) => f.subject === '/repo/.claude/worktrees/live');
   assert.match(live.evidence, /could not be confirmed/);
   assert.strictEqual(live.remedy, 'record');
+});
+
+// #1424: a dirty (uncommitted or untracked changes present) unlocked
+// worktree must never classify as `remedy: 'auto'` — committed-history merge
+// state says nothing about working-tree state, and a plain `git worktree
+// remove` without `--force` is the only thing standing between that
+// classification and real data loss (see #1424's Current State for the live
+// incident this fixes).
+test('a dirty unlocked worktree routes to record, not auto', () => {
+  const isDirty = (p) => p === '/repo/.claude/worktrees/done';
+  const { findings } = probeWorktrees({ scope: SCOPE, isDirty });
+  const dirty = findings.find((f) => f.subject === '/repo/.claude/worktrees/done');
+  assert.strictEqual(dirty.remedy, 'record', 'uncommitted work must never be routed to the auto-delete batch');
+  assert.match(dirty.evidence, /dirty: true/);
+  assert.deepStrictEqual(validateFinding(dirty), []);
+});
+
+test('a confirmed-clean unlocked worktree still auto-remediates, with dirty: false in evidence', () => {
+  const isDirty = () => false;
+  const { findings } = probeWorktrees({ scope: SCOPE, isDirty });
+  const clean = findings.find((f) => f.subject === '/repo/.claude/worktrees/done');
+  assert.strictEqual(clean.remedy, 'auto');
+  assert.match(clean.evidence, /dirty: false/);
+});
+
+test('an unreadable dirty check (git status failed) does not force record — unconfirmed is not confirmed-dirty', () => {
+  const isDirty = () => null;
+  const { findings } = probeWorktrees({ scope: SCOPE, isDirty });
+  const unknown = findings.find((f) => f.subject === '/repo/.claude/worktrees/done');
+  assert.strictEqual(unknown.remedy, 'auto', 'today\'s behavior (locked-only gate) must survive an unrelated read failure');
+  assert.match(unknown.evidence, /dirty: unknown/);
+});
+
+test('the default (no isDirty override) never crashes and preserves today\'s locked-only remedy against a nonexistent path', () => {
+  // Every existing test in this file calls probeWorktrees({ scope: SCOPE })
+  // with no isDirty override — the real defaultIsDirty then shells out
+  // against fixture paths like '/repo/.claude/worktrees/done', which do not
+  // exist on the test machine. That must read as "could not confirm" (null),
+  // not crash, and must not flip remedy away from 'auto' — pinning this is
+  // what keeps every pre-existing remedy assertion in this file valid.
+  const { findings } = probeWorktrees({ scope: SCOPE });
+  const done = findings.find((f) => f.subject === '/repo/.claude/worktrees/done');
+  assert.strictEqual(done.remedy, 'auto');
+  assert.match(done.evidence, /dirty: unknown/);
+});
+
+// Fixture-based: exercises the real `defaultIsDirty` (actual `git status
+// --porcelain`) against real worktrees on disk, per #1424's Deliverables.
+function tmpGitRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'residue-worktree-dirty-'));
+  execFileSync('git', ['init', '-q', dir]);
+  execFileSync('git', ['-C', dir, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', dir, 'config', 'user.name', 'Test']);
+  execFileSync('git', ['-C', dir, 'commit', '-q', '--allow-empty', '-m', 'init']);
+  return dir;
+}
+
+test('defaultIsDirty: a fixture worktree with an uncommitted file reads dirty: true', () => {
+  const dir = tmpGitRepo();
+  fs.writeFileSync(path.join(dir, 'untracked.txt'), 'x');
+  assert.strictEqual(defaultIsDirty(dir), true);
+});
+
+test('defaultIsDirty: a clean fixture worktree reads dirty: false', () => {
+  const dir = tmpGitRepo();
+  assert.strictEqual(defaultIsDirty(dir), false);
+});
+
+test('defaultIsDirty: a nonexistent path reads null (could not confirm), not false', () => {
+  assert.strictEqual(defaultIsDirty('/does/not/exist/anywhere'), null);
 });
