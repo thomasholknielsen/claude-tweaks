@@ -161,7 +161,7 @@ itself failed (network/API error, or a missing-repository response) — the run 
 no verdict at all, naming the failed parents from the command's stderr. **Exit 1 or 2** — a
 malformed invocation or a missing `gh`/unresolvable repo: an environment or transcription bug, not
 a data outcome — stop and surface the CLI's stderr rather than reading the (empty) batch file.
-**Exit 0** — continue to the retry ladder below.
+**Exit 0** — continue to the canonicalization step below.
 
 `--resolve-retries` already resolved every parent the probe could not fit in one page — a
 missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` was true

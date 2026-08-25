@@ -178,7 +178,7 @@ GraphQL call itself failed (network/API error, or a missing-repository response)
 loud: report no `[acceptance-gap]` rows at all, naming the failed parents from the command's
 stderr. **Exit 1 or 2** — a malformed invocation or a missing `gh`/unresolvable repo: an
 environment or transcription bug, not a data outcome — stop and surface the CLI's stderr rather
-than reading the (empty) batch file. **Exit 0** — continue to the retry ladder below.
+than reading the (empty) batch file. **Exit 0** — continue to the canonicalization step below.
 
 `--resolve-retries` already resolved every parent the probe could not fit in one page via its own
 per-parent paginated REST call, merged back into `byParent` — a retry parent whose REST call
