@@ -138,8 +138,10 @@ test('an item whose only files are all hub paths never merges, but still appears
 // ── groupByFileOverlap: bare directory-entry exclusion (#1420) ─────────────
 // A bare directory-level Key Files entry (trailing "/", no filename) must
 // never bridge two records via union-find, regardless of citation count —
-// including below the #1365 hub-path threshold, which this test exercises
-// directly (2 shared references never clears HUB_PATH_MIN_COUNT of 3).
+// including below the #1365 hub-path threshold. Each test below keeps the hub
+// rule out of play, so a failure can only mean the directory rule broke:
+// either 2 shared references (never clears HUB_PATH_MIN_COUNT of 3) or an
+// explicit hubPathMinCount: Infinity, which makes the hub set unreachable.
 
 test('two records sharing only a bare directory entry stay as separate singletons, even below the hub threshold', () => {
   const items = [
@@ -158,7 +160,10 @@ test('a handful of records sharing only a broad directory entry do not fuse into
     { id: 3, keyFiles: ['plugin/skills/'] },
     { id: 4, keyFiles: ['plugin/skills/'] },
   ];
-  const groups = groupByFileOverlap(items);
+  // 4 citations would clear the hub threshold on their own, which would make
+  // this pass with the directory rule removed. Disable the hub rule so the
+  // directory rule is the only thing keeping these four apart.
+  const groups = groupByFileOverlap(items, { hubPathMinCount: Infinity });
   assert.strictEqual(groups.length, 4, 'a shared directory-level entry must not act as a universal connector');
   for (const g of groups) assert.strictEqual(g.length, 1);
 });
@@ -169,7 +174,9 @@ test('a directory entry is excluded from bridging, but a real shared specific fi
     { id: 2, keyFiles: ['tests/', 'src/real.js'] },
     { id: 3, keyFiles: ['tests/'] },
   ];
-  const groups = groupByFileOverlap(items);
+  // Hub rule disabled — 3 citations of tests/ would otherwise clear the hub
+  // threshold and produce this same result without the directory rule.
+  const groups = groupByFileOverlap(items, { hubPathMinCount: Infinity });
   // Items 1 and 2 still union via src/real.js (a specific file, not a
   // directory); item 3, whose only file is the directory entry, stays a
   // singleton.
