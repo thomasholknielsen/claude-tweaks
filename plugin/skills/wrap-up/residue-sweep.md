@@ -71,13 +71,18 @@ does for every other ledger producer (build, test, review, reflect):
 ## `remedy: auto` findings and the scratch worktree
 
 A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a claim blob for a closed
-issue, a missing release-triple entry, an un-archived pipeline run dir whose `run-state.json`
+issue, a missing release-triple entry, an un-archived pipeline run dir of this run's own whose `run-state.json`
 reached `status: clean`) is naturally a Phase 1 fix-now candidate — its `Item` description should
 say so. A merged-but-undeleted branch carries `remedy: auto` too, but never reaches here under
 this preamble's `--scope blast-radius` (above): `probeBranches` only ever tags a branch
 `scope: 'observed'` once it survives the `scope.headBranch` exclusion (#499), so it's filtered
 out before Phase 1 sees it — same as any other `observed` finding, and still visible under
-`--scope repo` (`/tidy`'s job, not this preamble's). When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
+`--scope repo` (`/tidy`'s job, not this preamble's).
+An un-archived clean run dir belonging to another session never reaches here either (#1118):
+`probePipelineRuns` tags a run dir `blast-radius` only when it is attributable to the invoking
+run (its name matches this run's own id, or its `run-state.json` `worktree` field resolves to
+this checkout's toplevel) — a sibling session's orphan is `observed`, visible under
+`--scope repo` and compacted by `/tidy`'s own 30-day archival-compaction rule (`tidy/step-6-auto.md`) — reconcile's own sweep never sees a clean dir at all. When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
 applies it and the write is not legal from wherever this session currently sits, provision a
 worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own commit. This
 applies to the pipeline-run-dir finding too: the directory lives in the main checkout, so the move
