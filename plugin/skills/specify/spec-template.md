@@ -170,6 +170,13 @@ the artifact's real external validator/schema/tool at whole-branch review time, 
 unresolved one to `BLOCKED` — the review-side half of the same rule this section states from the
 spec-authoring side.
 
+**Plan-authoring corollary.** When a deliverable itself adds new *binding* skill prose to a
+review/build gate — a Gate-table row, a forced-disposition instruction, not merely descriptive
+prose — include a deliverable that pins it with a conformance test (`skill-prose-conformance-tests`'
+"documented convention this project wants enforced against every future addition" case), the same
+way a code path earns regression coverage. A plan that adds a Gate-table row with no test task is
+the same brief-compliance gap this section already exists to close, one layer further in.
+
 ## Gate-Authoring Deliverables
 
 When a spec's plan adds a new gate — a PreToolUse/PostToolUse hook check, a permission rule, or a teardown/cleanup guard — write a plan-time deliverable that traces the gate's proposed condition against two enumerations before implementation begins, not after:
