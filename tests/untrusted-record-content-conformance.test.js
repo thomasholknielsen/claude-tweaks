@@ -132,3 +132,28 @@ test('docs carry exactly one skill-graph row for the contract, under ## challeng
   assert.ok(!AUTHORING_FLAT.includes('for the worked example (added by #1041)'), 'old worked-example sentence still present in skill-authoring.md');
   assert.ok(FROZEN_AUTHORING_SENTENCE.includes('for the worked example (added by #1041)'), 'control: frozen sentence must contain the old wording (proves the absence pin can go red)');
 });
+
+// --- Phase 2 (#1274): ceremony-check consumers ---
+
+const CEREMONY_INVOCATION_FLAT = readFlat('plugin/skills/_shared/ceremony-check-invocation.md');
+// ceremony-check-invocation.md's pre-#1274 Canonical call tail, frozen: proves the
+// citation/verdict pins can go red [IL-105].
+const FROZEN_CANONICAL_CALL = collapse(`CEREMONY: fast-lane | standard
+RATIONALE: {one paragraph, naming the specific content signal the verdict is based on}
+
+Full Gather/Judge/Render contract, including the conservative-on-ambiguity default
+(\`standard\` when nothing in the content clearly supports \`fast-lane\`):
+\`skills/assess-agent-autonomy/ceremony-check.md\`.`);
+
+test('ceremony-check-invocation.md wraps per the contract and pins the CEREMONY verdict source', () => {
+  assert.ok(CEREMONY_INVOCATION_FLAT.includes('wrapped per `_shared/untrusted-record-content.md`'), 'wrap citation missing from ceremony-check-invocation.md');
+  assert.ok(CEREMONY_INVOCATION_FLAT.includes('^CEREMONY: (fast-lane|standard)$'), 'anchored CEREMONY verdict regex missing');
+  assert.ok(CEREMONY_INVOCATION_FLAT.includes("read only from the mode's own rendered Step 3 output"), 'verdict-source constraint missing');
+  assert.ok(!FROZEN_CANONICAL_CALL.includes('untrusted-record-content.md'), 'control: frozen pre-change tail must lack the citation (proves go-red)');
+});
+
+test('ceremony-check-invocation.md never defaults a missing verdict to standard', () => {
+  assert.ok(CEREMONY_INVOCATION_FLAT.includes('never treated as `standard`'), 'never-standard rule missing');
+  assert.ok(CEREMONY_INVOCATION_FLAT.includes('applies to a rendered verdict, not to a missing one'), 'rendered-vs-missing distinction missing');
+  assert.ok(!FROZEN_CANONICAL_CALL.includes('never treated as `standard`'), 'control: frozen pre-change tail must lack the rule (proves go-red)');
+});
