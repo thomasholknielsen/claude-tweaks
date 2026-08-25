@@ -82,5 +82,9 @@
   "plugin/bin": {
     "lastSweptMs": 1787541157795,
     "lastHash": "bf73e6f9aa1a87362adb5523dfe25ddd6e1a7be2"
+  },
+  "plugin/bin/lib": {
+    "lastSweptMs": 1787627684011,
+    "lastHash": "950d054888a189f95abe5e13b80ebf19481cb3ea"
   }
 }
