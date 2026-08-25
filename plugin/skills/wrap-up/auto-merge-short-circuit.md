@@ -16,7 +16,7 @@ whether or not `/claude-tweaks:dispatch` was involved:
 
 1. **Authorization** — one of three ways to clear:
    - `auto:merge` is already present on the live-fetched labels — clears immediately (`already-mature` by construction).
-   - `auto:merge-pending` is present (and `auto:merge` is not) — fetch fresh (`gh issue view {n} --json labels,comments`) and evaluate maturation the same way `dispatch/settle-and-merge.md`'s Auto-merge gate Phase 1 does — this is a single record, so that gate's group-wide phase-1/phase-2 split has nothing to preserve here:
+   - `auto:merge-pending` is present (and `auto:merge` is not) — fetch fresh (`gh issue view {n} --json labels,comments`) and evaluate maturation the same way `dispatch/grant-maturation-gate.md`'s Phase 1 does (cited from `dispatch/settle-and-merge.md`'s Auto-merge gate) — this is a single record, so that gate's group-wide phase-1/phase-2 split has nothing to preserve here:
 
      ```bash
      GRANT_VETO_WINDOW_HOURS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values grant-veto-window-hours)
@@ -49,7 +49,7 @@ whether or not `/claude-tweaks:dispatch` was involved:
      "
      ```
 
-     This seeds the merge-lane circuit breaker's `watched.json` — the same write `settle-and-merge.md`'s Phase 2 performs for the group path — since this singleton path has no other write path that ever seeds it; without this step a singleton machine-grant's merge trust is both unreachable and unwatched. Log:
+     This seeds the merge-lane circuit breaker's `watched.json` — the same write `dispatch/grant-maturation-gate.md`'s Phase 2 performs for the group path — since this singleton path has no other write path that ever seeds it; without this step a singleton machine-grant's merge trust is both unreachable and unwatched. Log:
      `AUTO {time} — Auto-merge short-circuit: matured #{n}'s auto:merge-pending to auto:merge ({result.ageHours}h old, past the {result.windowHours}h veto window). Reversibility: high (label re-removable; no merge has happened yet). [lever: grant-veto-window-hours={result.windowHours} (source)]`.
    - `auto:merge` and `auto:merge-pending` are both absent — `manifesto-authorized-merge.md`'s applicability check passed instead (true by construction once this branch is reached under this condition).
 2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically. The verdict must be `auto-merge` to proceed.
