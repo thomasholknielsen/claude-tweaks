@@ -164,8 +164,8 @@ target, exactly as before this CLI existed.
   liveness evidence (below) and render the contest card using the reported `holder`.
 - **3 (in-flight variant, #315)** — stdout instead carries `{inFlight: [{issue, link}], released,
   releaseFailed}` when the stopped target's blob was a `pr-opened:` tombstone whose linked PR
-  `gh pr view` still reports `OPEN` (`_shared/issue-claims.md`'s in-flight detection, ported from
-  `claim-engine.js`'s `tombstoneInFlightPr` into this CLI's own claim loop) — a build for this
+  `gh pr view` still reports `OPEN` (`_shared/issue-claims.md`'s in-flight detection, moved from
+  `claim-engine.js` into `claim-store.js`'s `tombstoneInFlightPr` — see #787) — a build for this
   issue already exists, not a competing claim. There is no `holder` to report; skip the
   liveness-evidence steps below and render instead:
 
