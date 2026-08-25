@@ -559,14 +559,15 @@ test('machineGrantOutlook: absent trust rows read as no-cell and refuse under tr
   assert.deepEqual(out.refused, { trust: [3] });
 });
 
-test('machineGrantOutlook: human-filed record refuses under origin even with clean trust', () => {
+test('machineGrantOutlook: human-filed record is pre-filtered via excludedOrigin, never reaches the gate chain', () => {
   const out = machineGrantOutlook(
     [outlookRecord(4, ['ready', 'risk:low', 'size:low'])],
     unattendedPolicy,
     [{ key: 'human:human|low', verdict: 'clean' }],
   );
   assert.deepEqual(out.eligible, []);
-  assert.deepEqual(out.refused, { origin: [4] });
+  assert.deepEqual(out.refused, {});
+  assert.strictEqual(out.excludedOrigin, 1);
 });
 
 test('machineGrantOutlook: needs:definition refuses ahead of trust (gate order preserved)', () => {
@@ -592,7 +593,19 @@ test('machineGrantOutlook: refused ids aggregate per failedKey in input order al
     ],
   );
   assert.deepEqual(out.eligible, [6]);
-  assert.deepEqual(out.refused, { origin: [7, 8] });
+  assert.deepEqual(out.refused, {});
+  assert.strictEqual(out.excludedOrigin, 2);
+});
+
+test('machineGrantOutlook: human-filed record with failing trust is excluded via excludedOrigin, not misattributed to refused.trust (#1387)', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(10, ['ready', 'risk:low', 'size:low'])],
+    unattendedPolicy,
+    [{ key: 'human:human|low', verdict: 'mixed' }],
+  );
+  assert.deepEqual(out.eligible, []);
+  assert.deepEqual(out.refused, {});
+  assert.strictEqual(out.excludedOrigin, 1);
 });
 
 test('machineGrantOutlook: a non-unattended ceiling refuses everything under ceiling (caller guard backstop)', () => {
@@ -602,4 +615,15 @@ test('machineGrantOutlook: a non-unattended ceiling refuses everything under cei
     cleanCodeHealthRow,
   );
   assert.deepEqual(out.refused, { ceiling: [9] });
+});
+
+test('machineGrantOutlook: origin pre-filter does not engage under a non-unattended ceiling — human-filed record refuses under ceiling like everyone else (#1387 follow-up)', () => {
+  const out = machineGrantOutlook(
+    [outlookRecord(11, ['ready', 'risk:low', 'size:low'])],
+    { ceiling: 'trusted', grantOriginationEnabled: true },
+    [],
+  );
+  assert.deepEqual(out.eligible, []);
+  assert.deepEqual(out.refused, { ceiling: [11] });
+  assert.strictEqual(out.excludedOrigin, 0);
 });

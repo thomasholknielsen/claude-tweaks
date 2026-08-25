@@ -157,6 +157,50 @@ test('bookkeeping-stamps gate: worktree stamped, resolveIntegrationModel stubbed
   assert.ok(readEvents(run).some((e) => e.type === 'bookkeeping-stamp-deny' && e.stamp === 'record-pr'));
 });
 
+test('bookkeeping-stamps gate (#989): worktree stamped, pr-first stubbed, a push establishing a not-yet-tracked branch -> allow (pr-early-run-lifecycle.md Step 2 itself, not yet deniable)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined);
+  const branch = execFileSync('git', ['-C', wt, 'symbolic-ref', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+  // No `origin` remote configured at all on this fixture, and this branch has
+  // never been pushed -> `@{u}` fails -> hasNoUpstreamYet is true. Without
+  // the #989 fix this exact call — the run's own first publish push, made
+  // before any PR can exist to record — is denied by the same gate that is
+  // supposed to make Step 6 non-skippable, a chicken-and-egg regression that
+  // makes Step 6 structurally impossible to ever complete.
+  const out = pre.run(
+    { input: bashInput(`git push origin ${branch}`, wt), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
+    { resolveIntegrationModel: () => 'pr-first' },
+  );
+  assert.deepStrictEqual(out, {}, 'the initial publish push must not be denied — it is the prerequisite record-pr cannot exist without');
+});
+
+test('bookkeeping-stamps gate (#989): worktree stamped, pr-first stubbed, a push of an ALREADY-tracked branch with no PR recorded -> still deny', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  execFileSync('git', ['remote', 'add', 'origin', main], { cwd: wt });
+  const branch = execFileSync('git', ['-C', wt, 'symbolic-ref', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+  // Establish the upstream for real (a genuine first push succeeding, exactly
+  // what the test above allows) — this is Step 2 having already run once for
+  // this branch. `gh pr create` (Step 3) never followed it: no PR recorded,
+  // no degrade logged. A second push here must not be silently exempted too —
+  // that would reopen exactly the "keep pushing forever, never open the PR"
+  // gap IL-131 exists to close, only shifted from Edit/commit onto push.
+  execFileSync('git', ['-C', wt, 'push', '-u', 'origin', branch], { stdio: 'ignore' });
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wt, undefined);
+  const out = pre.run(
+    { input: bashInput(`git push origin ${branch}`, wt), runDir: run, runState: { status: 'active', worktree: wt }, cwd: wt },
+    { resolveIntegrationModel: () => 'pr-first' },
+  );
+  assert.ok(out.json, 'a push of an already-tracked branch with no PR recorded and no degrade logged must still deny');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-pr|PR-early/);
+});
+
 test('bookkeeping-stamps gate: worktree stamped, pr-first stubbed, degrade already logged in decisions.md -> allow (graceful degrade)', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);

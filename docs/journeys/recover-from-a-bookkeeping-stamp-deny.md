@@ -11,7 +11,7 @@ files:
 
 **Persona:** a build agent (human or automated) working inside a claude-tweaks pipeline worktree, mid-way through `/claude-tweaks:build`'s Spec Step 1 — having just materialized a spec and judged (correctly or not) that no further implementation is needed.
 **Goal:** when a covered Edit/Write/commit/push is denied because the run's `record-worktree` or (under `integration-model: pr-first`) PR-early stamp never landed, recover in one step — without following a remediation command that could corrupt a live sibling session's state.
-**Entry point:** any covered tool call (`Edit`, `Write`, `NotebookEdit`, `git commit`, `git push`) issued inside a linked worktree after this run's materialize commit has landed, while `run-state.json`'s `worktree` or `pr` field is still unset.
+**Entry point:** any covered tool call (`Edit`, `Write`, `NotebookEdit`, `git commit`, `git push`) issued inside a linked worktree after this run's materialize commit has landed, while `run-state.json`'s `worktree` or `pr` field is still unset — with one carve-out on the `pr` branch (#989): a Bash `git push` whose every target is establishing that branch's upstream tracking ref for the first time **is** `_shared/pr-early-run-lifecycle.md` Step 2 itself, so it is exempt from the PR-stamp deny and simply succeeds. The exemption is one-shot and never memoized as `prExempt`, so a later push of an already-tracked branch with still no recorded PR is denied normally; and it never covers the worktree stamp — a missing `record-worktree` still denies that same push.
 **Success state:** the missing stamp is recorded (or, for the PR branch, the degrade is logged to `decisions.md`) from the owning session, and the identical tool call now succeeds — or, for a genuinely foreign-owned run, the agent heeds the warning and never runs a stamp-writing command against state it doesn't own.
 
 ## Steps
@@ -21,7 +21,7 @@ files:
 - **Action:** proceed with implementation (or a "nothing further to implement" judgment) exactly as before — the gate is invisible until it actually has something to catch.
 - **Should feel:** unchanged from before this record — the fast path (`plugin/bin/lib/hooks/pre-tool-use.js`'s I5 early return) means a run with both stamps already recorded pays no extra cost and sees no new behavior.
 - **Should understand:** the gate only engages once THIS run's own materialize commit has landed — Common Step 1 running normally is never mistaken for a skip.
-- **Red flags:** a deny on a run whose materialize commit has not landed yet (Common Step 1 legitimately still in progress) — that would be the gate itself misfiring, not a real gap.
+- **Red flags:** a deny on a run whose materialize commit has not landed yet (Common Step 1 legitimately still in progress) — that would be the gate itself misfiring, not a real gap. Since #989, a **PR-stamp** deny on the run's initial publish push (the branch has no upstream tracking ref yet) is the same misfire class — that push is exempt by design (`hasNoUpstreamYet`); a PR-stamp deny on a *later* push of an already-tracked branch, or a **worktree-stamp** deny on any push, is correct behavior and belongs in Step 2.
 
 ### 2. Read the deny — same terminal
 - **URL:** the tool call's own denial message (`hookSpecificOutput.permissionDecisionReason`)
