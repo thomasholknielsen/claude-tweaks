@@ -178,3 +178,12 @@ test('--resolve-retries does not change exit-4 (probe unavailable) behavior', ()
   const d = deps({ runner: () => probeNo });
   assert.strictEqual(run(['5', '--repo', 'o/r', '--resolve-retries'], d), 4);
 });
+
+test('--help output documents --resolve-retries', () => {
+  const d = deps({
+    ghAvailable: () => { throw new Error('should not be called'); },
+    remoteUrl: () => { throw new Error('should not be called'); },
+  });
+  assert.strictEqual(run(['--help'], d), 0);
+  assert.match(d.out.join(''), /--resolve-retries/);
+});

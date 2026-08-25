@@ -37,7 +37,7 @@ const { fetchNativeSubIssues } = require('./lib/issues/native-dependencies');
 const { probeSchemaStrict } = require('./lib/issues/capabilities-probe');
 const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
-const USAGE = 'usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--help]\n';
+const USAGE = 'usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--resolve-retries] [--help]\n';
 
 const isPos = (n) => Number.isInteger(n) && n > 0;
 
