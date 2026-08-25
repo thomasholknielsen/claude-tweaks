@@ -74,6 +74,8 @@ Parent: {#N — decomposition-mode sub-issues under work-links: body-text only, 
 - `{path}` — {what changes or new file purpose}
 - `{path}` — {what changes}
 
+Each bullet names a concrete file path, never a bare directory (`tests/`, `plugin/skills/`): `groupByFileOverlap` (`bin/lib/issues/grouping.js`) excludes every entry ending in `/` from file-overlap bridging outright, so a directory entry contributes nothing to the cross-spec conflict detection `/claude-tweaks:flow`, `/claude-tweaks:dispatch`, and `/claude-tweaks:help` run over this section — and, unlike an absent section, it raises no warning.
+
 When this work **renames** a contract surface — a report section heading, a check name, an exported symbol, or any other name other files reference by literal text — grep the repo for the surface's exact old literal text. List every consumer file the grep finds here — each one that binds to the name and must be updated, including files this work does not otherwise touch. Skip historical mentions: archived run specs, other records' bodies, the incident log. A file that only *reads* the old name never appears in the diff you're imagining, so it's easy to omit without this step. Example: spec #518 renamed `/claude-tweaks:tidy`'s report sections and listed only the files it would write (`skills/tidy/SKILL.md`, `skills/tidy/step-6-auto.md`, `skills/tidy/step-6-interactive.md`). It omitted `skills/tidy/scan-procedures.md`, whose Collection routing table bound each scan tag to a report section by that section's literal old name — the rename shipped with the routing table still pointing at the retired names, caught only in whole-branch review (`docs/incident-log.md` `[IL-132]`).
 
 ### Package Dependencies
