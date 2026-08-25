@@ -77,6 +77,7 @@ test('PIPELINE_RUN_DIR env attributes only that run dir under --scope blast-radi
   const parsed = JSON.parse(out);
   const pipelineRunFindings = parsed.results.flatMap((r) => r.findings).filter((f) => f.kind === 'pipeline-run');
   assert.strictEqual(pipelineRunFindings.length, 1, `expected exactly one attributable pipeline-run finding, got ${JSON.stringify(pipelineRunFindings)}`);
-  assert.match(pipelineRunFindings[0].subject, /record-1118/);
-  assert.ok(!pipelineRunFindings.some((f) => /record-999/.test(f.subject)), 'the sibling run dir must not be attributed to this run');
+  // The length check above already excludes the sibling dir: it can only be
+  // the one finding or an extra one, and this pins which of the two it is.
+  assert.match(pipelineRunFindings[0].subject, /record-1118/, 'the sibling run dir must not be attributed to this run');
 });

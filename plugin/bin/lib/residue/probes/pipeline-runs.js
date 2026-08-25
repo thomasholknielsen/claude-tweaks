@@ -15,28 +15,24 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { makeFinding } = require('../finding');
-const { mainCheckoutRoot } = require('../../hooks/worktree-detect');
+const { mainCheckoutRoot, safeReal } = require('../../hooks/worktree-detect');
 const { RUN_ID_RE } = require('../../hooks/context');
 
 // Realpath both sides of every path comparison: fixture/tmp paths and real
 // worktrees routinely sit behind symlinks (macOS /var -> /private/var), and
-// a string-compare on unresolved paths silently never matches. Fall back to
-// path.resolve for a path that no longer exists (an already-removed
-// worktree can't equal the live invoking root anyway).
-function safeReal(p) {
-  try {
-    return fs.realpathSync(p);
-  } catch {
-    return path.resolve(p);
-  }
-}
-
+// a string-compare on unresolved paths silently never matches. worktree-detect's
+// exported safeReal returns null for a path that no longer exists, which both
+// guards below read as "no match" — an already-removed worktree can't equal the
+// live invoking root anyway.
+//
 // Deliberately duplicates, rather than imports, bin/lib/hooks/context.js's
 // unexported worktreeMatches shape (name-or-worktree-realpath match) — that
-// helper isn't part of context.js's public surface.
+// helper isn't part of context.js's public surface. `state` is always a
+// non-null object here: the caller only reaches this after `state.status`
+// tested equal to 'clean'.
 function isOwnRun(entryName, state, runId, worktreeRootReal) {
   if (runId && entryName === runId) return true;
-  if (worktreeRootReal && state && typeof state.worktree === 'string' && state.worktree) {
+  if (worktreeRootReal && typeof state.worktree === 'string' && state.worktree) {
     return safeReal(state.worktree) === worktreeRootReal;
   }
   return false;
