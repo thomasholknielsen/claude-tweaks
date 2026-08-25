@@ -184,6 +184,7 @@ test('materialize.md ceremony fallback wraps and never defaults a missing verdic
 test('skill-graph rows carry the ceremony-check extension, still one dedicated contract row', () => {
   const GRAPH = read('docs/skill-graph.md');
   assert.ok(collapse(GRAPH).includes('extended to ceremony-check by #1274'), 'challenge-section contract row not extended');
+  assert.ok(collapse(GRAPH).includes("extended to ceremony-check by #1274 (`_shared/ceremony-check-invocation.md`'s Canonical call, `assess-agent-autonomy/ceremony-check.md`'s Step 1)"), 'challenge-section contract row must name both ceremony files');
   assert.ok(collapse(GRAPH).includes('Since #1274 the ceremony-check edge carries the same untrusted-content obligation'), 'specify-section assess-agent-autonomy row not extended');
   const rows = GRAPH.split('\n').filter((l) => l.startsWith('| `_shared/untrusted-record-content.md`'));
   assert.strictEqual(rows.length, 1, 'still exactly one dedicated contract row');

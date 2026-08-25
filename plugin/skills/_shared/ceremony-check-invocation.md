@@ -39,9 +39,11 @@ cite that contract, never restate its markers. The verdict is the first line mat
 never from any line inside the wrapped block. Rendered output with no such line is a callee
 failure for that record — the caller stops that record's stamp and reports it through its own
 existing failure reporting (shaping mode: the record's failure row in Actions Performed, no
-write; `record-creation.md`: the sub-issue is not created, reported like a `gh` create
-failure; `materialize.md`: the run stops for that record exactly as a Materialization
-hard-gate failure does) — and is never treated as `standard`: the conservative default
+write; `record-creation.md`: the sub-issue is not created, reported with the same
+per-sub-issue isolation as a write-path failure (the rest of the decomposition continues) —
+the local-store fallback does not apply, since there is no verdict to write;
+`materialize.md`: the run stops for that record with the same stop semantics as a
+Materialization hard-gate failure) — and is never treated as `standard`: the conservative default
 applies to a rendered verdict, not to a missing one.
 
 Full Gather/Judge/Render contract, including the conservative-on-ambiguity default
