@@ -74,6 +74,8 @@ Parent: {#N — decomposition-mode sub-issues under work-links: body-text only, 
 - `{path}` — {what changes or new file purpose}
 - `{path}` — {what changes}
 
+Each bullet names a concrete file path, never a bare directory (`tests/`, `plugin/skills/`): `groupByFileOverlap` (`bin/lib/issues/grouping.js`) excludes every entry ending in `/` from file-overlap bridging outright, so a directory entry contributes nothing to the cross-spec conflict detection `/claude-tweaks:flow`, `/claude-tweaks:dispatch`, and `/claude-tweaks:help` run over this section — and, unlike an absent section, it raises no warning.
+
 When this work **renames** a contract surface — a report section heading, a check name, an exported symbol, or any other name other files reference by literal text — grep the repo for the surface's exact old literal text. List every consumer file the grep finds here — each one that binds to the name and must be updated, including files this work does not otherwise touch. Skip historical mentions: archived run specs, other records' bodies, the incident log. A file that only *reads* the old name never appears in the diff you're imagining, so it's easy to omit without this step. Example: spec #518 renamed `/claude-tweaks:tidy`'s report sections and listed only the files it would write (`skills/tidy/SKILL.md`, `skills/tidy/step-6-auto.md`, `skills/tidy/step-6-interactive.md`). It omitted `skills/tidy/scan-procedures.md`, whose Collection routing table bound each scan tag to a report section by that section's literal old name — the rename shipped with the routing table still pointing at the retired names, caught only in whole-branch review (`docs/incident-log.md` `[IL-132]`).
 
 ### Package Dependencies
@@ -161,6 +163,21 @@ When a spec's technical approach rests on an assumption about how an external sy
 - **Every shape the payload can take once it does fire** — qualified vs. bare identifiers, success vs. failure, nested vs. top-level invocation.
 
 Enumerating only the second list and skipping the first is the failure mode to design against: it reads as thorough (every input shape is covered) while silently leaving out an entire initiation path that never produces an event to shape-check in the first place — a gap no fixture built from the captured shapes can catch, because the missing case never got captured. Name each initiator path explicitly in the Task 0 deliverable's own text; do not let "covers all invocation shapes" stand in for it.
+
+A Task 0 deliverable's captured behavior — or any other flagged-but-unvalidated assumption in this
+spec's `## Gotchas` section, an inline `<!-- ambiguity: -->` marker, or an `## Open Questions` row —
+is not fully resolved just because implementation happened. `skills/review/code-mode-steps.md`
+Step 1's **Risk-Marker Verification** sub-check independently re-checks every such marker against
+the artifact's real external validator/schema/tool at whole-branch review time, and routes an
+unresolved one to `BLOCKED` — the review-side half of the same rule this section states from the
+spec-authoring side.
+
+**Plan-authoring corollary.** When a deliverable itself adds new *binding* skill prose to a
+review/build gate — a Gate-table row, a forced-disposition instruction, not merely descriptive
+prose — include a deliverable that pins it with a conformance test (`skill-prose-conformance-tests`'
+"documented convention this project wants enforced against every future addition" case), the same
+way a code path earns regression coverage. A plan that adds a Gate-table row with no test task is
+the same brief-compliance gap this section already exists to close, one layer further in.
 
 ## Gate-Authoring Deliverables
 

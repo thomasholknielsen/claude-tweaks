@@ -14,24 +14,26 @@ const REPO_ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 
 const DECOMPOSITION_MODE = 'plugin/skills/specify/decomposition-mode.md';
+const DECOMPOSITION_CLOSEOUT = 'plugin/skills/specify/decomposition-mode-closeout.md';
+const COLLAPSE_DECISION = 'plugin/skills/specify/collapse-decision.md';
 const RECORD_CREATION = 'plugin/skills/specify/record-creation.md';
 const SKILL = 'plugin/skills/specify/SKILL.md';
 
 // --- decomposition-mode.md: the collapse step itself ---
 
-test('decomposition-mode.md states the 1-unit-always-collapses rule', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('collapse-decision.md states the 1-unit-always-collapses rule', () => {
+  const text = read(COLLAPSE_DECISION);
   assert.match(text, /1 work unit.*always collapses/i);
 });
 
-test('decomposition-mode.md states the 2-unit dependency-ordered branch (Blocked by / internal-conflict)', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('collapse-decision.md states the 2-unit dependency-ordered branch (Blocked by / internal-conflict)', () => {
+  const text = read(COLLAPSE_DECISION);
   assert.match(text, /Blocked by #N.*flag between the two units/i);
   assert.match(text, /internal-conflict row/i);
 });
 
-test('decomposition-mode.md states the 2-unit independent-collapse branch', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('collapse-decision.md states the 2-unit independent-collapse branch', () => {
+  const text = read(COLLAPSE_DECISION);
   assert.match(text, /independent.*collapses/i);
   // The two facts this branch exists to state — asserting the heading alone would
   // survive a rewrite that dropped either one.
@@ -39,43 +41,43 @@ test('decomposition-mode.md states the 2-unit independent-collapse branch', () =
   assert.match(text, /cross-linked via a `\*\*Related:\*\* #N` body line/);
 });
 
-test('decomposition-mode.md states ambiguity keeps the parent', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('collapse-decision.md states ambiguity keeps the parent', () => {
+  const text = read(COLLAPSE_DECISION);
   assert.match(text, /[Aa]mbiguous.*keep the parent/);
 });
 
-test('decomposition-mode.md names the strangler-fig early-production shape as parent-keeping', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('collapse-decision.md names the strangler-fig early-production shape as parent-keeping', () => {
+  const text = read(COLLAPSE_DECISION);
   assert.match(text, /early-production.*always parent-keeping/i);
 });
 
-test('decomposition-mode.md states 3+ units never collapse', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('collapse-decision.md states 3+ units never collapse', () => {
+  const text = read(COLLAPSE_DECISION);
   assert.match(text, /3\+ work units.*never collapses/i);
 });
 
 test('the collapse-decision step cites Implicit Dependency Detection, not the ceiling-headroom flag, as its data source', () => {
-  const text = read(DECOMPOSITION_MODE);
+  const text = read(COLLAPSE_DECISION);
   assert.match(text, /never read the adjacent Ceiling-headroom flag/);
 });
 
 // --- decomposition-mode.md: Step 9 origin-closure + summary ---
 
-test('decomposition-mode.md Step 9 covers all three origin-closure branches', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('decomposition-mode-closeout.md Step 9 covers all three origin-closure branches', () => {
+  const text = read(DECOMPOSITION_CLOSEOUT);
   assert.match(text, /Parent kept, or 2-unit collapse/);
   assert.match(text, /1-unit collapse.*[Ss]hape the origin record in place/s);
 });
 
 test('Step 9 summary template names the collapse outcome', () => {
-  const text = read(DECOMPOSITION_MODE);
+  const text = read(DECOMPOSITION_CLOSEOUT);
   assert.match(text, /Collapse outcome:/);
 });
 
 // --- the retired "exactly one parent every run" premise ---
 
 test('the "exactly one parent" premise sentence is gone from every specify file', () => {
-  for (const rel of [DECOMPOSITION_MODE, RECORD_CREATION, SKILL]) {
+  for (const rel of [DECOMPOSITION_MODE, DECOMPOSITION_CLOSEOUT, COLLAPSE_DECISION, RECORD_CREATION, SKILL]) {
     assert.doesNotMatch(read(rel), /exactly one parent/i, `${rel} still contains "exactly one parent"`);
   }
 });
@@ -145,8 +147,8 @@ test('the parent-record guard in SKILL.md is untouched by this change', () => {
 
 // --- AC4 gap: origin-closure wording ---
 
-test('decomposition-mode.md Step 9 contains the literal "Superseded by decomposition:" closure wording', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('decomposition-mode-closeout.md Step 9 contains the literal "Superseded by decomposition:" closure wording', () => {
+  const text = read(DECOMPOSITION_CLOSEOUT);
   assert.match(text, /Superseded by decomposition:/);
 });
 
@@ -187,8 +189,8 @@ test('record-creation.md carries the origin-set carve-out: a 1-unit collapse sha
   assert.match(text, /With `\$ORIGIN_RECORD_NUM` unset \(every other entry path\), a 1-unit collapse creates one fresh standalone ready record/);
 });
 
-test('decomposition-mode.md Step 9\'s 1-unit branch only skips the closure — the write already happened at Step 3', () => {
-  const text = read(DECOMPOSITION_MODE);
+test('decomposition-mode-closeout.md Step 9\'s 1-unit branch only skips the closure — the write already happened at Step 3', () => {
+  const text = read(DECOMPOSITION_CLOSEOUT);
   assert.match(text, /\*\*this step closes nothing\*\*/);
   assert.match(text, /Step 3 already ran its origin-set carve-out to shape the origin record in place/);
 });
@@ -212,7 +214,7 @@ test('record-creation.md notes Cross-Spec Promises is unreachable under collapse
 // --- resume-stability of the collapse verdict (Global Constraint 6) ---
 
 test('Step 2.6 defines its unit set as this run\'s Step 2 list, resume-stable and phase-scoped', () => {
-  const text = read(DECOMPOSITION_MODE);
+  const text = read(COLLAPSE_DECISION);
   assert.match(text, /unit set counted here is Step 2's own design-doc-derived work-unit list for this run/);
   assert.match(text, /per `phase-N` scope when the run is phase-scoped/);
   assert.match(text, /never double-counted as both a work unit and an open record/);
@@ -221,7 +223,7 @@ test('Step 2.6 defines its unit set as this run\'s Step 2 list, resume-stable an
 // --- review-driven fixes from the per-task rounds, previously unpinned ---
 
 test('the Actions Performed template has a row for every collapse outcome, including both 1-unit paths', () => {
-  const text = read(DECOMPOSITION_MODE);
+  const text = read(DECOMPOSITION_CLOSEOUT);
   assert.match(text, /\{1-unit collapse, `\$ORIGIN_RECORD_NUM` set: "Shaped origin record \{ref\} in place \(no new record created\)"\}/);
   assert.match(text, /\{1-unit collapse, `\$ORIGIN_RECORD_NUM` unset: "Created 1 standalone ready record \(no parent\) — \{ref\}"\}/);
   assert.match(text, /\{2-unit collapse: "Created 2 independent records \(no parent\)/);
@@ -260,7 +262,7 @@ test('spec-template.md\'s canonical `Parent:` field reference is conditional on 
 
 test('every touched specify file remains within the context-cost ceiling', () => {
   const CEILING_BYTES = 40960;
-  for (const rel of [DECOMPOSITION_MODE, RECORD_CREATION, SKILL]) {
+  for (const rel of [DECOMPOSITION_MODE, DECOMPOSITION_CLOSEOUT, COLLAPSE_DECISION, RECORD_CREATION, SKILL]) {
     const bytes = fs.statSync(path.join(REPO_ROOT, rel)).size;
     assert.ok(bytes <= CEILING_BYTES, `${rel} is ${bytes} bytes, over the ${CEILING_BYTES} ceiling`);
   }

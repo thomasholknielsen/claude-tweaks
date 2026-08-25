@@ -132,7 +132,11 @@ Skip entirely when `config.yml`'s `ceremony-profile` is not `fast-lane` (includi
 - Did `/claude-tweaks:review`'s summary (passed into this run) contain a finding at any severity?
 - Did the reflect pass above produce a Safety regression finding (`reflect/SKILL.md` Step 3's routing table)?
 
-If either is true, downgrade `config.yml`'s `ceremony-profile` to `standard` in place and log:
+If either is true, downgrade `config.yml`'s `ceremony-profile` via the sanctioned writer (worktree sessions cannot Edit/Write the run dir — same family as `log-decision.js`/`stage-item.js`, refs #1376):
+
+`node "${CLAUDE_PLUGIN_ROOT}/bin/set-config.js" --run "$PIPELINE_RUN_DIR" --key ceremony-profile --value standard`
+
+Then log:
 
 ```
 AUTO {time} — Ceremony profile downgraded fast-lane → standard: {trigger}. Remaining wrap-up steps run at standard depth.
@@ -226,7 +230,7 @@ Cleanup enumerates the items below, in canonical order: execution plans, ledger,
 
 First check whether **any** of the following conditions holds for this run — record-based work (items 1, 5, 7), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), or a pipeline run directory exists (8):
 
-- **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into the report and the execution step.
+- **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into the report and the execution step. That file's own text names a fast-path fragment for the common no-record/no-worktree/non-multi-spec case (#797) — read it there, not restated here.
 - **None holds** → report "No cleanup actions apply" and skip this step entirely; do not read the file.
 
 Item 8 now holds on **every** run — Phase 1 creates a run directory unconditionally — so this gate is always open in practice, and items 4 and 8 both hold by construction on a pipeline run. The "none holds" branch survives only as a degenerate guard for a run whose Phase 1 run-dir creation failed.
@@ -242,7 +246,7 @@ Empty-console fast path: skip the console entirely and proceed to the report whe
 **Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, and the Auto-merge short-circuit's applicability check — when **either** holds. Once a real stop will actually render (i.e. neither the Auto-resolution short-circuit nor the Empty-console fast path resolved and returned), also read `review-console-interactive.md` for the full console template with every section table (including the conditionally-rendered Low-confidence, Contested findings, and Reference repairs sections), override/stop semantics, and the sort-order requirement:
 
 - The console runs: a run directory exists (always, after Phase 1), `MULTISPEC_REVIEW_DEFER` is unset, and the empty-console fast path above does not apply; **or**
-- This run has a materialized header (`${RUN_DIR}/work/*-spec.md`) whose issue carries a live `auto:merge` label (re-fetch via `gh issue view --json labels`).
+- This run has a materialized header (`${RUN_DIR}/work/*-spec.md`) whose issue carries a live `auto:merge` or `auto:merge-pending` label (re-fetch via `gh issue view --json labels`) — the pending case exists so a still-maturing grant reaches the short-circuit's own maturation check instead of being silently skipped (#309).
 
 The second condition exists because the **Auto-merge short-circuit**'s applicability check lives in `review-console.md`, not in this file — it is not part of the console rendering it precedes. Without it, a run that qualified for the empty-console fast path would silently skip its authorized auto-merge. In practice the fast path cannot fire on such a run — it requires "no cleanup actions apply," and a run with a materialized header is a pipeline run whose worktree row always applies — so this is a belt-and-braces guard against a latent ordering hazard, not a live bug. The full procedure itself is a further lazy-load, one level deeper: `review-console.md`'s Auto-merge short-circuit heading only points at `auto-merge-short-circuit.md` — that file loads only for the run that actually clears the condition above, not for every run that clears the fast path.
 

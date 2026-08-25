@@ -279,8 +279,15 @@ gh pr view {recorded-number} --repo {owner}/{repo} --json state,isDraft,url
 At each phase's own exit (build, test, review, polish, wrap-up — after that phase's own
 phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` field:
 
-- **Not set** (push at run start failed, or this is a `local-merge` run): skip entirely — no PR
-  to update.
+- **Not set, `local-merge` run**: skip entirely — no PR to update.
+- **Not set, `pr-first` run (a degraded run)**: before skipping, check whether recovery is safe —
+  `git rev-parse --abbrev-ref --symbolic-full-name @{u}` against the worktree branch. **Fails**
+  (no upstream configured — the branch never actually reached `origin`, regardless of which phase
+  degraded it): retry "Run start: push, then open (or reuse) the draft PR" Steps 2-4 now, from this
+  phase's own worktree — the `#989` one-shot push exemption is guaranteed to apply cleanly on this
+  attempt, since it keys on exactly this precondition. **Succeeds** (upstream is set but no PR —
+  a rarer case, e.g. an interrupted `gh pr create`): skip this phase's checklist update as before;
+  do not attempt recovery blind against a branch state this section cannot fully diagnose.
 - **Set**: read the current body — `gh pr view {number} --json body` when `gh` is present,
   `mcp__github__pull_request_read` (`get` method) when it is absent
   (`_shared/github-write-transport.md`'s Detection rule). Locate the checklist span using

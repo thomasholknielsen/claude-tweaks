@@ -38,7 +38,7 @@ node -e "
 For each unsynced record, attach a `createdAt` from its own last-commit date (the local driver carries no timestamp facet — same approach `/claude-tweaks:tidy`'s Step 1 staleness clock already uses) via `backlog.js`'s shared `deriveCreatedAtFromGit` helper (the same staleness-clock approach `_shared/record-queue-fetch.md` documents for the `local-files` driver):
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_UNSYNCED=backlog-refine-unsynced.json ST_BACKLOG_REFINE_UNSYNCED_DATED=backlog-refine-unsynced-dated.json ST_BACKLOG_REFINE_FACETED=backlog-refine-faceted.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_UNSYNCED=backlog-refine-unsynced.json ST_BACKLOG_REFINE_UNSYNCED_DATED=backlog-refine-unsynced-dated.json ST_BACKLOG_REFINE_FACETED=backlog-refine-faceted.json ST_BACKLOG_REFINE_FACETED_MERGED=backlog-refine-faceted-merged.json)"
 node -e "
   const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const records = require('$ST_BACKLOG_REFINE_UNSYNCED');
@@ -49,10 +49,11 @@ node -e "
   const github = require('$ST_BACKLOG_REFINE_FACETED');
   const unsynced = require('$ST_BACKLOG_REFINE_UNSYNCED_DATED');
   console.log(JSON.stringify(mergeUnsyncedRecords(github, unsynced)));
-" > "$ST_BACKLOG_REFINE_FACETED"
+" > "$ST_BACKLOG_REFINE_FACETED_MERGED"
+mv "$ST_BACKLOG_REFINE_FACETED_MERGED" "$ST_BACKLOG_REFINE_FACETED"
 ```
 
-This last script reads `{tmp-faceted-file}`'s github-only content and overwrites the same path with the fully merged (github + unsynced) set — Step 2 below reads `session-scoped backlog-refine-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker in rendered output wherever `facets.unsynced === true`.
+The merge writes to a **distinct** path and `mv`s it over the original — `>` truncates its target before the reader opens it (docs/skill-authoring.md, Executable snippets). Step 2 below reads `session-scoped backlog-refine-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker in rendered output wherever `facets.unsynced === true`.
 
 **Grant fetch (`work-backend: github-issues` only, skipped per Preflight under `local-files`).** Fetch per the same shared fragment, this time server-side filtered:
 

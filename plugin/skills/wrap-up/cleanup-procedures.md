@@ -23,6 +23,13 @@ only by Phase 4's execution step, the one call site of the four that actually ru
 cleanup-planning, the phase-trace report checklist, and `review-console.md`'s Cleanup actions
 section all need only this table. Items 1, 2, and 5 are simple enough to execute inline at Phase 4's execution step without a dedicated sub-procedure.
 
+**Fast path (#797).** When this run's filtered list (Condition-filtered, above) is a subset of
+{2, 6, 8} — guaranteed whenever this run has no record identity, used no worktree strategy, and
+is not part of a multi-spec run — read `standalone-fast-path.md` in this skill's directory
+instead of `cleanup-procedures-execution.md`: items 1, 3, 4, 5, and 7 structurally can't apply
+under that precondition, so the ~27 KB of Sections A/C/E covering them is never needed. Any other
+filtered list reads `cleanup-procedures-execution.md` as before.
+
 **Item 1's plan-retention policy, in one paragraph.** Resolve `superpowers-plans-retention` via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values superpowers-plans-retention` (default `keep-forever`). `keep-forever` — today's behavior, unchanged: never delete `docs/superpowers/plans/*.md`. This is this plugin's own default — consistent with, but not dependent on, ADR-0007 (`docs/decisions/0007-historical-design-doc-archive-is-periodically-pruned.md`)'s convention for *this* repo; a consuming project's own `policy.yml` is free to choose otherwise. `prune-after-wrapup` — delete *this spec's own* plan/spec file(s) under `docs/superpowers/plans/` as part of this cleanup step, scoped strictly to this build — never a bulk sweep of the whole archive, which stays a separate, deliberate maintenance action per ADR-0007. `ask` — do not delete, and do not prompt inline (the Auto-Mode Contract's "no new mid-flow stops in auto mode" rule): stage the decision as a `staged/plan-retention-{n}.md` proposal for the Wrap-Up Review Console instead.
 
 **Item 5's two framings, in one line each.** A run under `github-issues` has no file to delete — the record's own lifecycle closes via the merge/PR/commit that carries `Fixes #{issue}` (items 4 and 7), a wrap-up-owned label/claim operation, not a file deletion. A run under `local-files` has a real file to close (there is no GitHub issue whose own closed state does this job) — `closeRecord` marks it `closed: true` in place, mirroring GitHub's closed-not-deleted semantics, then this step commits the change (a local-files record is a tracked file, unlike a GitHub issue edit).
