@@ -404,6 +404,14 @@ const LOCK_STALE_MS = 5000; // a lock dir older than this is treated as abandone
 // machine) — see CLAUDE_TWEAKS_LOCK_WAIT_MS above for the test-only knob
 // that lets a test pin an effectively-unbounded budget to isolate the lock
 // mechanism from this wait cap.
+// #1348 checked this sibling for file-lock.js's acquireLock ENOENT-fail-open gap (#1269) and
+// found it NOT reachable here: every caller passes a `runDir` that already exists on disk —
+// close-run-state.js/pre-compact.js/pre-tool-use.js/session-end.js all pass an already-owned,
+// already-discovered run dir, and post-tool-use.js's stampAdHocRunDir passes a runDir that
+// runDirResolve.resolve({..., create: true}) has just mkdirSync(..., {recursive:true})'d moments
+// earlier. Unlike declined-learning's store (N concurrent *first-ever* writers racing a parent
+// nobody had created), acquireRunStateLock's ENOENT branch below is a genuine defensive
+// fallback, not a live race — left unchanged deliberately, not an oversight.
 function acquireRunStateLock(runDir) {
   const lockPath = path.join(runDir, '.run-state.lock');
   const deadline = Date.now() + LOCK_WAIT_MS;
