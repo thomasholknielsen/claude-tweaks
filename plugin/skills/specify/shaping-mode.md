@@ -6,7 +6,7 @@ backlog reference with no matching design doc), or the `next` form's headless en
 Shape step, which fetches the claimed record itself and hands it to this procedure directly — the
 same in-process invocation `--chained` uses, never a recursive `Skill()` call). Each record already exists and IS the target —
 there is nothing to decompose, and none of decomposition mode's Steps 1-9 (`decomposition-mode.md`
-in this skill's directory) ever run here.
++ `decomposition-mode-closeout.md` in this skill's directory) ever run here.
 
 **Batch = the same procedure, once per record.** A comma-list invocation has already resolved every
 element (case 1's batch branch) before this file loads. Sniff every record's surface first (Step
