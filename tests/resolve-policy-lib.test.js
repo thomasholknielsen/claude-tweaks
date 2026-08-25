@@ -171,6 +171,22 @@ test('review-auto-apply-prose-exempt: run-config (config.yml) wins over policy.y
   assert.deepStrictEqual(result['review-auto-apply-prose-exempt'], { value: true, source: 'run-config' });
 });
 
+test('specify-auto-continue defaults to false (source: default) when unset', () => {
+  const result = resolvePolicyKeys(['specify-auto-continue'], { policyRaw: null, runConfigRaw: null });
+  assert.deepStrictEqual(result['specify-auto-continue'], { value: false, source: 'default' });
+});
+
+test('specify-auto-continue: true in policy.yml resolves to native boolean true', () => {
+  const result = resolvePolicyKeys(['specify-auto-continue'], { policyRaw: 'specify-auto-continue: true\n' });
+  assert.deepStrictEqual(result['specify-auto-continue'], { value: true, source: 'policy' });
+});
+
+test('specify-auto-continue: resolves with no runConfigRaw at all (the no-run-dir standalone read this key is designed for)', () => {
+  const result = resolvePolicyKeys(['specify-auto-continue'], { policyRaw: 'specify-auto-continue: true\n' });
+  assert.deepStrictEqual(result['specify-auto-continue'], { value: true, source: 'policy' });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(result['specify-auto-continue'], 'renamed-from'), false);
+});
+
 test('a key with no schema default, absent everywhere, resolves to value: null, source: "default"', () => {
   const result = resolvePolicyKeys(['integration-branch', 'review-effort-floor'], { policyRaw: '' });
   assert.deepStrictEqual(result['integration-branch'], { value: null, source: 'default' });

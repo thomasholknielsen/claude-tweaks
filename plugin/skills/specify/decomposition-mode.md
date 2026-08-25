@@ -1,14 +1,15 @@
-# Specify — Decomposition Mode (design doc to parent + sub-issues)
+# Specify — Decomposition Mode (design doc to sub-issues, parent when Step 2.6 keeps one)
 
 Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 2 (a design doc path),
 case 3 (a topic matching an existing design doc), case 4 (a bare topic, after `/superpowers:brainstorming`
 produces the doc), or case 5 where the matched record's topic already has a design doc. Decomposes
-one design doc into a parent record plus ready sub-issue records.
+one design doc into ready sub-issue records, plus a parent record when Step 2.6 keeps one.
 
 Step numbering (Steps 1-9, including the 2.5 / 2.5d sub-steps) matches `SKILL.md`'s pre-split
-numbering exactly, so existing cross-references from other skills and from this skill's own
-sub-files (`design-pre-steps.md`, `record-creation.md`, `red-team.md`, `spec-template.md`) keep
-pointing at the right step. Shaping mode never reaches any of them — it runs `shaping-mode.md` in
+numbering for every step that predates the split, so existing cross-references from other skills
+and from this skill's own sub-files (`design-pre-steps.md`, `record-creation.md`, `red-team.md`,
+`spec-template.md`) keep pointing at the right step. **Step 2.6 (Collapse Decision) is the one
+addition** — a new step, not a renumbering, so no pre-existing cross-reference moved. Shaping mode never reaches any of them — it runs `shaping-mode.md` in
 this skill's directory instead and exits straight to `SKILL.md`'s `## Next Actions`.
 
 **Split across two files (#611).** This file holds Steps 1-4 (through Step 2.5's design
@@ -210,7 +211,7 @@ SPECIFY_KEY_FILES=$(node -e "
 ")
 ```
 
-- **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it.
+- **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it. Exclude a record whose body fingerprint matches a unit in this run's list: it IS that unit from a prior partial run — double-entry would fabricate a self-dependency signal and flip Step 2.6's verdict on resume.
 - **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 5's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the sub-issue's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet.
 
 ```bash
@@ -243,7 +244,11 @@ Present any detected implicit dependencies as part of the Step 9 summary. These 
 
 > **Algorithm shared with /claude-tweaks:help:** both /specify and /help call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — /specify runs it at creation time; /help re-runs it at dashboard time to catch new conflicts from records that started building after /specify ran.
 
-> **Why this matters:** An explicit `Blocked by #N` link captures a logical dependency (sub-issue B needs sub-issue A's API). File-based overlap captures a physical dependency (both sub-issues modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
+> **Why this matters:** `Blocked by #N` captures a logical dependency (B needs A's API); file overlap captures a physical one (both touch the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
+
+## Step 2.6: Collapse Decision
+
+Decide whether this decomposition gets a parent record at all: 1 work unit always collapses (no parent), 2 units keep a parent only when dependency-ordered, 3+ units never collapse. Read `collapse-decision.md` in this skill's directory for the full rules — the branch table, the ambiguity/early-production parent-keeping cases, the data-source constraint, and the resume-stable unit-set definition.
 
 ## Step 2.5: Design Pre-Steps (frontend specs only)
 
@@ -284,11 +289,11 @@ Place these recommendations in the Step 9 summary under a `### Diagram suggestio
 
 ## Step 3: Create the records
 
-Records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it, using deterministic fingerprints for idempotent resume across partial or concurrent runs. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the full procedure: the Idempotency (resume path) map, Parent record creation, and Sub-issue creation (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
+When Step 2.6 kept the parent, records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Under collapse (Step 2.6), there is no parent — every produced record is created independently, using deterministic fingerprints for idempotent resume across partial or concurrent runs exactly as today. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the full procedure: the Idempotency (resume path) map, Parent record creation (skipped under collapse), and Sub-issue creation — including the origin-set carve-out where a 1-unit collapse's "create" is an in-place write onto the origin record (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
 
 ## Step 4: Link and order
 
-Every parent and sub-issue number now exists. This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it. Read `record-creation.md` in this skill's directory for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
+Every record this run is going to create now has a number (a parent's, under a kept parent; every unit's own, under collapse). This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it. Read `record-creation.md` in this skill's directory for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
 
 ---
 

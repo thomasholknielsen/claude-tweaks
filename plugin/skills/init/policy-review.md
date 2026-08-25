@@ -43,10 +43,10 @@ On **Show details**: read `${CLAUDE_PLUGIN_ROOT}/skills/help/policy.md` (an expl
 path read — never a `Skill`-tool invocation of `/claude-tweaks:help`, which would run the whole
 mode, gather included) and produce its Render contract's four sections in order — Set levers,
 Issues, Notable defaults, Advanced tier — from that file's own Gather commands. Section 2's
-citation is scoped here to `invalidValues` and `unrecognizedKeys` only: `migratableKeys` and
-`renamedKeys` are Config Home Drift's and Renamed key drift's business earlier in this same
-Phase 1u.5 pass, so rendering them again here would repeat prompts the user just answered and
-diverge from those checks' own `{N}` counts. This entrance is **read-only**: render the sections,
+citation is scoped here to `invalidValues` and `unrecognizedKeys` only: `migratableKeys`,
+`renamedKeys`, and `sourceExcludedKeys` are Config Home Drift's and Renamed key drift's business
+earlier in this same Phase 1u.5 pass, so rendering them again here would repeat prompts the user
+just answered and diverge from those checks' own `{N}` counts. This entrance is **read-only**: render the sections,
 then close with one line — "To change any of these, run `/claude-tweaks:help policy` — its Next
 Actions apply edits with validation." — and never run the contract's apply path from here. When
 zero recognized keys are set (a from-scratch `policy.yml`), no extra step is needed here — the

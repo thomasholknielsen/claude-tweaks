@@ -51,3 +51,24 @@ test('terminal-routing.md exists and names the honest-skip outcomes', () => {
   assert.match(md, /upstream has no terminal track/);
   assert.match(md, /re-open this\ntable|re-open this table/, 'the revisit condition must be recorded');
 });
+
+test('build Common Step 1.7 routes surface: terminal to design-wrapper pre-build', () => {
+  const skill = read('plugin/skills/build/SKILL.md');
+  assert.match(
+    skill,
+    /Common Step 1\.7[\s\S]{0,400}`surface` ∈ `web \| mobile \| desktop \| terminal`/,
+    'Common Step 1.7 must route surface: terminal to /claude-tweaks:design-wrapper pre-build, not only web|mobile|desktop',
+  );
+
+  const prebuild = read('plugin/skills/build/design-prebuild.md');
+  assert.match(
+    prebuild,
+    /^## Terminal track$/m,
+    'design-prebuild.md must carry a Terminal track section',
+  );
+  assert.match(
+    prebuild,
+    /_shared\/terminal-ux\.md/,
+    'design-prebuild.md must name the terminal always-load set',
+  );
+});

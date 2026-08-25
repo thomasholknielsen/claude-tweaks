@@ -6,6 +6,7 @@ const os = require('node:os');
 const { execFileSync } = require('node:child_process');
 const { probePipelineRuns } = require('../../../plugin/bin/lib/residue/probes/pipeline-runs');
 const { archiveRunDir } = require('../../../plugin/bin/lib/reconcile/archive-merged');
+const { filterResultsByScope } = require('../../../plugin/bin/lib/residue/scope-filter');
 
 function makeFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'residue-pipeline-runs-'));
@@ -32,26 +33,60 @@ test('an un-archived clean run dir is reported with remedy auto', () => {
   assert.strictEqual(findings.length, 1);
   assert.strictEqual(findings[0].kind, 'pipeline-run');
   assert.strictEqual(findings[0].remedy, 'auto');
-  assert.strictEqual(findings[0].scope, 'blast-radius');
+  // No attribution inputs supplied -> nothing is provably this run's own (#1118).
+  assert.strictEqual(findings[0].scope, 'observed');
   assert.match(findings[0].subject, /2026-01-01T000000-spec-1/);
 });
 
-// #1011 audited this probe against the same class of gap #499 fixed in
-// probeBranches (unconditional blast-radius tagging regardless of which
-// session's artifact it is) and concluded this probe is NOT the same class:
-// unlike a merged-but-undeleted branch (which could still belong to a LIVE
-// concurrent session), a `status: 'clean'` run dir is a terminal,
-// self-reported "nothing left to do but archive" state — inert regardless of
-// which session's wrap-up produced it. This test pins that a clean run dir
-// belonging to an unrelated record is still correctly tagged blast-radius,
-// confirming the divergence from probeBranches is deliberate, not a
-// regression waiting to happen.
-test('a clean run dir belonging to an unrelated record is still blast-radius (deliberate divergence from probeBranches)', () => {
+// #1118 supersedes the #1011 audit that used to pin the opposite here:
+// observed live during record #706's wrap-up, a `--scope blast-radius`
+// sweep returned 6 un-archived clean run dirs belonging to OTHER records —
+// exactly the cross-session noise residue-sweep.md documents blast-radius
+// as excluding. A clean run dir is only this run's own blast radius when
+// it can be attributed to the invoking run; sibling orphans stay visible
+// under --scope repo (/tidy's sweep).
+test('a clean run dir not attributable to the invoking run is observed (#1118)', () => {
   const root = makeFixture();
-  writeRun(root, '2026-01-01T000000-record-999', { status: 'clean' });
-  const { findings } = probePipelineRuns({ cwd: root });
+  writeRun(root, '2026-01-01T000000-record-999', { status: 'clean', worktree: path.join(root, 'elsewhere') });
+  const { findings } = probePipelineRuns({ cwd: root, runId: '2026-01-02T000000-record-1118', worktreeRoot: root });
   assert.strictEqual(findings.length, 1);
-  assert.strictEqual(findings[0].scope, 'blast-radius', 'a clean run dir is inert regardless of which session produced it');
+  assert.strictEqual(findings[0].scope, 'observed');
+});
+
+test('a clean run dir whose name equals the invoking runId is blast-radius', () => {
+  const root = makeFixture();
+  writeRun(root, '2026-01-01T000000-record-1118', { status: 'clean' });
+  const { findings } = probePipelineRuns({ cwd: root, runId: '2026-01-01T000000-record-1118' });
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].scope, 'blast-radius');
+});
+
+test('a clean run dir whose run-state worktree matches the invoking worktree root is blast-radius', () => {
+  const root = makeFixture();
+  // root sits under os.tmpdir(): on macOS that is a /var -> /private/var
+  // symlink, so this test only passes when the probe realpaths BOTH sides.
+  writeRun(root, '2026-01-01T000000-spec-7', { status: 'clean', worktree: root });
+  const { findings } = probePipelineRuns({ cwd: root, worktreeRoot: root });
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].scope, 'blast-radius');
+});
+
+// Record #1118's acceptance criterion, end to end through the CLI's own
+// filter: one attributable dir, one sibling dir — blast-radius keeps only
+// the invoking run's own; repo scope still sees both, untouched.
+test('AC #1118: blast-radius keeps only the attributable run dir; repo scope keeps both', () => {
+  const root = makeFixture();
+  writeRun(root, '2026-01-01T000000-record-1118', { status: 'clean', worktree: root });
+  writeRun(root, '2026-01-01T000000-record-999', { status: 'clean', worktree: path.join(root, 'elsewhere') });
+  const result = probePipelineRuns({ cwd: root, runId: '2026-01-01T000000-record-1118', worktreeRoot: root });
+  assert.strictEqual(result.findings.length, 2);
+
+  const [blast] = filterResultsByScope([result], 'blast-radius');
+  assert.strictEqual(blast.findings.length, 1);
+  assert.match(blast.findings[0].subject, /record-1118/);
+
+  const [repo] = filterResultsByScope([result], 'repo');
+  assert.strictEqual(repo.findings.length, 2);
 });
 
 test('a non-clean run dir is not reported', () => {

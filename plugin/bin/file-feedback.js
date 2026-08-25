@@ -28,6 +28,7 @@ const fs = require('fs');
 const os = require('os');
 const { execFileSync } = require('child_process');
 const feedback = require('./lib/feedback/file-feedback');
+const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: file-feedback.js --drafts <path.json> [--repo owner/name] [--dry-run] [--help]\n';
 
@@ -50,14 +51,6 @@ function parseArgs(argv) {
   return opts;
 }
 
-// Duplicated one-line regex from bin/link-records.js (source of truth) — not
-// worth a new cross-file dependency for a 1-line helper, matching this repo's
-// existing tolerance for small intentional duplication over premature coupling.
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
 // A malformed entry name, or null if the draft is well-formed.
 function validateDraft(d, index) {
   if (!d || typeof d !== 'object') return `draft[${index}]: not an object`;
@@ -72,6 +65,16 @@ function validateDraft(d, index) {
 }
 
 const realDeps = {
+  // Plain, non-retrying runner — deliberately. `fileOne` (used by the
+  // non-dry-run path below) applies retry internally, per call: the dedup
+  // search and read-back retry freely (idempotent reads), but the create
+  // call goes through feedback.createWithDedupSafeRetry instead of a plain
+  // retry, because gh issue create is not idempotent — see that function's
+  // doc comment. Wrapping this runner here (as before) would let a
+  // transient create failure retry — and possibly duplicate-file — before
+  // fileOne's own dedup-safe handling ever saw the failure. The dry-run
+  // branch below (a read-only dedup search, no create call) wraps this
+  // runner locally instead, since it never calls fileOne.
   runner: feedback.defaultRunner,
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
@@ -125,7 +128,9 @@ function run(argv, deps = realDeps) {
       }
       const marker = `<!-- fingerprint: ${fingerprint} -->`;
       try {
-        const hit = feedback.findDuplicate({ repo, marker, runner: deps.runner });
+        // Read-only search — safe to retry freely, unlike the create path.
+        const readRunner = feedback.withTransientRetry(deps.runner, { maxRetries: 4 });
+        const hit = feedback.findDuplicate({ repo, marker, runner: readRunner });
         if (hit) lines.push(`dedup-hit #${hit.number}`);
         else lines.push(`would-file (fingerprint ${fingerprint})`);
       } catch (err) {
@@ -150,6 +155,6 @@ function run(argv, deps = realDeps) {
   return anyFailure ? 1 : 0;
 }
 
-module.exports = { run, parseArgs, parseRepo, validateDraft };
+module.exports = { run, parseArgs, parseRepo, validateDraft, realDeps };
 
 if (require.main === module) process.exitCode = run(process.argv.slice(2), realDeps);

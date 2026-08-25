@@ -13,7 +13,7 @@
 const { execFileSync } = require('child_process');
 const { classifyClaimBlob, releasePayload, CLAIMS_BRANCH, claimFilePath } = require('../issues/claims');
 
-const GRANT_LABELS = ['auto:build', 'auto:merge'];
+const GRANT_LABELS = ['auto:build', 'auto:merge-pending', 'auto:merge'];
 const IN_PROGRESS_LABEL = 'bot:in-progress';
 
 function defaultRunner(args) {
@@ -74,14 +74,18 @@ function removeLabel({ owner, repo, issueNumber, label, runner = defaultRunner }
 // failure that isn't already-released). Non-fatal diagnostics — the
 // 404/409/422 PUT error text on the already-released path, and any
 // comment-post failure — go into `note` instead (joined with '; ' if both
-// occur).
+// occur). `outcome: 'unreadable'` (a corrupt/malformed claim blob) is
+// deliberately distinct from `'skipped-not-owner'` (a live claim genuinely
+// held by another run) — the two are not mechanically distinguishable
+// otherwise, and a corrupt blob can never self-resolve the way a live
+// holder's claim eventually expires.
 function releaseClaim({ owner, repo, issueNumber, runId, reason, link, removeGrants = false, removeInProgress = false, runner = defaultRunner, now = Date.now() }) {
   const result = { outcome: 'failed', calls: [], commentPosted: false, labelsRemoved: [], labelsFailed: [], note: null };
   let blob;
   try { blob = readClaimBlob({ owner, repo, issueNumber, runner }); } catch (err) { result.error = errorText(err); return result; }
   result.calls.push('read');
   const classified = classifyClaimBlob(blob.content, now);
-  if (classified.state === 'unreadable') { result.outcome = 'skipped-not-owner'; result.holder = 'unreadable'; return result; }
+  if (classified.state === 'unreadable') { result.outcome = 'unreadable'; return result; }
   const isHeld = classified.state === 'live' || classified.state === 'stale';
   if (isHeld) {
     const holder = JSON.parse(blob.content).runId;

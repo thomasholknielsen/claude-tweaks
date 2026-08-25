@@ -39,7 +39,7 @@ gh label list --search "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" -
   | grep -qx "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" && SKIP_BOOTSTRAP=true || SKIP_BOOTSTRAP=false
 ```
 
-`{LABEL_BOOTSTRAP_VERSION}` is the literal integer below — **current value: `4`**. Bump it (and
+`{LABEL_BOOTSTRAP_VERSION}` is the literal integer below — **current value: `5`**. Bump it (and
 this literal) whenever a label is added to or removed from the canonical `LABELS_JSON` array
 below. A marker stamped under the old version no longer matches the search after a bump, so the
 next consumer's Preflight falls through to the full loop, re-establishes the set (including
@@ -96,10 +96,12 @@ one-time provision-now offer, which uses this list whole):
   ["ready",             "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
   ["auto:build",        "Grant: agents may build this record autonomously (human-granted; machinery only removes)"],
   ["auto:merge",        "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)"],
+  ["auto:merge-pending", "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)"],
   ["bot:in-progress",   "Bot state: an agent currently holds the claim on this record"],
   ["bot:blocked",       "Bot state: retry ceiling or merge-verification park — needs human re-triage before autonomous retry"],
   ["demo:pending",           "Acceptance: built and verified — awaiting human sign-off via /claude-tweaks:demo"],
   ["demo:approved",          "Acceptance: a human verified this record does what was asked"],
+  ["demo:approved-batch",    "Acceptance: approved via /demo's #N,#M batch — no per-record walkthrough"],
   ["demo:changes-requested", "Acceptance: a human found a gap during sign-off — see the linked follow-up record"],
   ["wontfix",           "Closed as not-planned; health skills will not re-file findings with this fingerprint"],
   ["upstream-candidate", "A headless health-sweep finding about claude-tweaks — forward via /claude-tweaks:feedback"],
@@ -109,6 +111,7 @@ one-time provision-now offer, which uses this list whole):
   ["shaped:headless",   "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body"],
   ["priority:high",     "Priority: dispatch picks this band first"],
   ["priority:medium",   "Priority: dispatch picks after priority:high"],
-  ["priority:low",      "Priority: dispatch picks last among prioritized records"]
+  ["priority:low",      "Priority: dispatch picks last among prioritized records"],
+  ["digest",            "Container: rolling digest for below-floor deferred findings (see _shared/materiality-floor.md)"]
 ]
 ```

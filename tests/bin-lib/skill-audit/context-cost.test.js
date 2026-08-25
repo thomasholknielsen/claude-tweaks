@@ -121,6 +121,9 @@ const SPECIFY_SUBFILE_CEILING_BYTES = 28 * 1024;
 // crossing the ceiling, still fails below.
 const SPECIFY_SUBFILE_LEGACY_EXCEPTIONS = new Set([
   'specify/record-creation.md',
+  // shaping-mode.md crossed the ceiling via growth on main after #611's split landed;
+  // its own split is filed as #1346 alongside record-creation.md's.
+  'specify/shaping-mode.md',
 ]);
 
 test('no /specify lazy-loaded sub-file exceeds the ~20-28 KB single-read ceiling (legacy exceptions aside)', () => {

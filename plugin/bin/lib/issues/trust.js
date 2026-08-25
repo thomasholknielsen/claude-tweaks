@@ -6,7 +6,7 @@
 // module acts on nothing — it computes and returns rows for display only.
 // Was docs/superpowers/plans/2026-08-07-supervised-trust-table.md — deleted (d83f0720).
 const { resolveProvenance } = require('./provenance.js');
-const { dispositionState } = require('./acceptance.js');
+const { dispositionState, approvalProvenance } = require('./acceptance.js');
 const { resolveValue } = require('../policy-schema.js');
 const { hasNegativeEvidenceMarker } = require('./retry.js');
 
@@ -320,6 +320,11 @@ function trustRows(records, gitLog, now, policy) {
         band,
         total: 0,
         approved: 0,
+        // Of `approved` above, the subset whose demo:approved-batch marker
+        // says the verdict came from a #N,#M batch invocation rather than a
+        // per-record walkthrough (acceptance.js's `approvalProvenance`).
+        // Always <= approved; never its own disposition.
+        approvedBatch: 0,
         changesRequested: 0,
         operationalGood: 0,
         negativeEvidence: 0,
@@ -336,6 +341,7 @@ function trustRows(records, gitLog, now, policy) {
     const disposition = dispositionState(record.labels);
     if (disposition === 'approved') {
       cell.approved += 1;
+      if (approvalProvenance(record.labels) === 'batch') cell.approvedBatch += 1;
     } else if (disposition === 'changes-requested') {
       cell.changesRequested += 1;
     } else if (disposition === 'none') {
@@ -390,6 +396,13 @@ function trustRows(records, gitLog, now, policy) {
     // less-observed than it is, when the honest read is the reverse).
     const dispositioned = cell.approved + cell.changesRequested + cell.operationalGood + cell.negativeEvidence;
     const coverage = cell.total === 0 ? 0 : dispositioned / cell.total;
+    // True when every positive-evidence signal in this cell is a batch-sourced
+    // approval — no walkthrough-backed approval and no operational corroboration
+    // (resolveOperationalOutcome above) backs it. A batch sign-off is legitimate
+    // (#365's originating finding), but it is not itself the human verification
+    // this table exists to grade autonomy on, so a cell resting entirely on it
+    // does not earn 'clean' — see the verdict computation below.
+    const batchOnly = cell.approved > 0 && cell.approvedBatch === cell.approved && cell.operationalGood === 0;
     let verdict = 'insufficient-evidence';
     if (
       cell.kind !== UNGRADABLE_KIND &&
@@ -413,10 +426,10 @@ function trustRows(records, gitLog, now, policy) {
       // many positive (approved/operationalGood) outcomes the cell also
       // holds — one known-bad outcome in the sample is disqualifying, full
       // stop, the same as one changes-requested already was.
-      const clean = cell.changesRequested === 0 && cell.followUps === 0 && cell.negativeEvidence === 0;
+      const clean = cell.changesRequested === 0 && cell.followUps === 0 && cell.negativeEvidence === 0 && !batchOnly;
       verdict = clean ? 'clean' : 'mixed';
     }
-    return { ...cell, dispositioned, coverage, verdict };
+    return { ...cell, dispositioned, coverage, batchOnly, verdict };
   });
 
   rows.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));

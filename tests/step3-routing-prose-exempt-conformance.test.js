@@ -17,9 +17,15 @@ test('resolves review-auto-apply-prose-exempt alongside review-auto-apply-ceilin
 });
 
 test('names the exact exempt glob set', () => {
-  for (const glob of ['skills/**/*.md', 'docs/**/*.md', 'tests/**']) {
+  for (const glob of ['skills/**/*.md', 'docs/**/*.md']) {
     assert.ok(md.includes(glob), `step3-routing.md must name the exempt glob "${glob}"`);
   }
+});
+
+test('tests/** is explicitly excluded from the exempt glob set, with a documented reason (#1059)', () => {
+  assert.ok(!md.includes('`skills/**/*.md`, `docs/**/*.md`, or `tests/**`'),
+    'the old three-glob set (including tests/**) must no longer appear verbatim');
+  assert.ok(md.includes('narrowed out of this set by #1059'), 'step3-routing.md must document why tests/** was narrowed out');
 });
 
 test('states the bump is one tier above the resolved ceiling, capped at medium', () => {

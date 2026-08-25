@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const feedback = require('../../../plugin/bin/lib/feedback/file-feedback');
-const { run, parseArgs, parseRepo, validateDraft } = require('../../../plugin/bin/file-feedback');
+const { run, parseArgs, parseRepo, validateDraft, realDeps } = require('../../../plugin/bin/file-feedback');
 
 // Fake runners are lazy functions inspecting `args` only when called (CLAUDE.md's
 // eager-IIFE ban) and throw on any unhandled args shape rather than silently
@@ -99,6 +99,56 @@ test('fileDraft: a title with backtick, $(...), and single quote round-trips as 
   assert.equal(writes[0].content, 'body text');
 });
 
+// ---- isTransientFailure / withTransientRetry -------------------------------
+
+test('isTransientFailure: matches a 5xx status, a timeout, and a connection reset', () => {
+  assert.equal(feedback.isTransientFailure(new Error('HTTP 503: No server is currently available')), true);
+  assert.equal(feedback.isTransientFailure({ stderr: 'gh: ETIMEDOUT' }), true);
+  assert.equal(feedback.isTransientFailure({ stderr: 'read ECONNRESET' }), true);
+});
+
+test('isTransientFailure: a plain 403/429 (rate-limit shape) is not transient here', () => {
+  // _shared/github-rate-limit.md owns rate-limit classification (403/429);
+  // this file's retry is deliberately narrower — a plain 403 must not retry.
+  assert.equal(feedback.isTransientFailure(new Error('HTTP 403: rate limited')), false);
+  assert.equal(feedback.isTransientFailure(new Error('HTTP 429: too many requests')), false);
+});
+
+test('withTransientRetry: a transient failure followed by success retries once after sleeping', () => {
+  let calls = 0;
+  const runner = (args) => {
+    calls++;
+    if (calls === 1) { const e = new Error('HTTP 503: No server is currently available'); throw e; }
+    return 'ok';
+  };
+  const sleeps = [];
+  const wrapped = feedback.withTransientRetry(runner, { waitMs: 15000, sleep: (ms) => sleeps.push(ms) });
+  const result = wrapped(['issue', 'list']);
+  assert.equal(result, 'ok');
+  assert.equal(calls, 2);
+  assert.deepEqual(sleeps, [15000]);
+});
+
+test('withTransientRetry: two consecutive transient failures rethrows the second (retry once, not indefinitely)', () => {
+  let calls = 0;
+  const runner = () => { calls++; throw new Error('HTTP 503: No server is currently available'); };
+  const sleeps = [];
+  const wrapped = feedback.withTransientRetry(runner, { sleep: (ms) => sleeps.push(ms) });
+  assert.throws(() => wrapped(['issue', 'list']), /503/);
+  assert.equal(calls, 2);
+  assert.equal(sleeps.length, 1);
+});
+
+test('withTransientRetry: a non-transient failure is rethrown immediately, no sleep', () => {
+  let calls = 0;
+  const runner = () => { calls++; throw new Error('HTTP 403: rate limited'); };
+  const sleeps = [];
+  const wrapped = feedback.withTransientRetry(runner, { sleep: (ms) => sleeps.push(ms) });
+  assert.throws(() => wrapped(['issue', 'list']), /403/);
+  assert.equal(calls, 1);
+  assert.equal(sleeps.length, 0);
+});
+
 // ---- fileOne ---------------------------------------------------------------
 
 test('fileOne: dedup hit skips filing entirely', () => {
@@ -108,8 +158,8 @@ test('fileOne: dedup hit skips filing entirely', () => {
   const createCalls = [];
   const runner = (args) => {
     if (isList(args)) {
-      assert.equal(flagValue(args, '--search'), marker);
-      return JSON.stringify([{ number: 501, title: 'existing dup' }]);
+      assert.equal(args.includes('--search'), false, 'must not send --search — eventually-consistent search index');
+      return JSON.stringify([{ number: 501, title: 'existing dup', body: `some body\n${marker}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
     }
     if (isCreate(args)) { createCalls.push(args); throw new Error('must not call issue create on a dedup hit'); }
     throw new Error('unexpected ' + args.join(' '));
@@ -117,6 +167,25 @@ test('fileOne: dedup hit skips filing entirely', () => {
   const result = feedback.fileOne({ repo: 'acme/w', draft, runner, bodyFile: '/fake/body.md', writeFile: () => {} });
   assert.deepEqual(result, { status: 'dedup-hit', number: 501 });
   assert.equal(createCalls.length, 0);
+});
+
+test('findDuplicate: sends a plain list call with no --search flag, per github-write-transport.md', () => {
+  const marker = '<!-- fingerprint: feedback-deadbeef -->';
+  const runner = (args) => {
+    assert.deepEqual(args, ['issue', 'list', '--repo', 'acme/w', '--state', 'all', '--json', 'number,title,body,createdAt', '--limit', '10000']);
+    return JSON.stringify([]);
+  };
+  const result = feedback.findDuplicate({ repo: 'acme/w', marker, runner });
+  assert.equal(result, null);
+});
+
+test('findDuplicate: an unrelated marker present in the list does not count as a hit — filtering is real, not incidental', () => {
+  const marker = '<!-- fingerprint: feedback-deadbeef -->';
+  const runner = () => JSON.stringify([
+    { number: 1, title: 'unrelated', body: '<!-- fingerprint: feedback-00000000 -->', createdAt: '2026-01-01T00:00:00Z' },
+  ]);
+  const result = feedback.findDuplicate({ repo: 'acme/w', marker, runner });
+  assert.equal(result, null);
 });
 
 test('fileOne: read-back title mismatch surfaces filing-failure with a mismatch reason', () => {
@@ -190,10 +259,11 @@ test('CLI: 2-draft batch with a dedup-hit and a clean file exits 0, one line per
   const markerB = `<!-- fingerprint: ${fpB} -->`;
   const runner = (args) => {
     if (isList(args)) {
-      const search = flagValue(args, '--search');
-      if (search === markerA) return JSON.stringify([{ number: 601, title: 'existing' }]);
-      if (search === markerB) return JSON.stringify([]);
-      throw new Error('unexpected search ' + search);
+      assert.equal(args.includes('--search'), false);
+      // markerA already has a filed issue; markerB doesn't — one combined
+      // list covers both drafts' dedup checks, since there's no more
+      // per-draft --search call to key branching off.
+      return JSON.stringify([{ number: 601, title: 'existing', body: `body\n${markerA}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
     }
     if (isCreate(args)) {
       assert.equal(flagValue(args, '--title'), draftB.title);
@@ -249,10 +319,8 @@ test('CLI --dry-run: zero create calls across a multi-draft batch; reports would
   const createCalls = [];
   const runner = (args) => {
     if (isList(args)) {
-      const search = flagValue(args, '--search');
-      if (search === markerA) return JSON.stringify([{ number: 801, title: 'existing' }]);
-      if (search === markerB) return JSON.stringify([]);
-      throw new Error('unexpected search ' + search);
+      assert.equal(args.includes('--search'), false);
+      return JSON.stringify([{ number: 801, title: 'existing', body: `body\n${markerA}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
     }
     if (isCreate(args)) { createCalls.push(args); throw new Error('must not call issue create under --dry-run'); }
     throw new Error('unexpected ' + args.join(' '));
@@ -309,6 +377,115 @@ test('CLI: gh unavailable exits 2, stderr names the fallback, zero runner calls'
   assert.equal(code, 2);
   const stderr = err.join('');
   assert.match(stderr, /Step 8|github-write-transport/);
+});
+
+// ---- realDeps wiring --------------------------------------------------------
+
+test('realDeps.runner is the bare defaultRunner — retry lives inside fileOne now', () => {
+  // Regression guard, inverted from the pre-fix version: retry used to wrap
+  // this runner directly, which meant the non-idempotent `gh issue create`
+  // call retried exactly like the idempotent reads — an ambiguous transient
+  // failure (request succeeded server-side, response lost) could then file
+  // a duplicate issue with nothing to catch it. Retry now lives inside
+  // fileOne, per call, with createWithDedupSafeRetry guarding the create
+  // path specifically — see that function's doc comment. realDeps.runner
+  // must stay unwrapped so fileOne's own catch sees every create failure.
+  assert.equal(realDeps.runner, feedback.defaultRunner);
+});
+
+// ---- createWithDedupSafeRetry ------------------------------------------------
+
+test('createWithDedupSafeRetry: transient failure then success — one dedup recheck, no duplicate created', () => {
+  let createCalls = 0;
+  const create = () => {
+    createCalls++;
+    if (createCalls === 1) throw new Error('HTTP 503: No server is currently available');
+    return 555;
+  };
+  const dedupCalls = [];
+  const runner = (args) => {
+    dedupCalls.push(args);
+    return JSON.stringify([]); // no hit on the safety-net recheck
+  };
+  const sleeps = [];
+  const result = feedback.createWithDedupSafeRetry({
+    repo: 'acme/w', marker: '<!-- fingerprint: feedback-aaaa1111 -->', create, runner,
+    sleep: (ms) => sleeps.push(ms),
+  });
+  assert.equal(result, 555);
+  assert.equal(createCalls, 2);
+  assert.equal(dedupCalls.length, 1, 'one safety-net dedup recheck before the retry');
+  assert.deepEqual(sleeps, [15000]);
+});
+
+test('createWithDedupSafeRetry: transient failure, safety-net recheck finds the phantom success — returns it without retrying create', () => {
+  let createCalls = 0;
+  const create = () => { createCalls++; throw new Error('gh: ETIMEDOUT'); };
+  const marker = '<!-- fingerprint: feedback-bbbb2222 -->';
+  const runner = () => JSON.stringify([{ number: 909, title: 'the phantom-succeeded issue', body: `body\n${marker}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
+  const result = feedback.createWithDedupSafeRetry({
+    repo: 'acme/w', marker, create, runner,
+    sleep: () => {},
+  });
+  assert.equal(result, 909);
+  assert.equal(createCalls, 1, 'create is never called again once the recheck finds the issue already exists');
+});
+
+test('createWithDedupSafeRetry: transient failures exceeding maxRetries rethrows the last error', () => {
+  let createCalls = 0;
+  const create = () => { createCalls++; throw new Error('HTTP 503: No server is currently available'); };
+  const runner = () => JSON.stringify([]);
+  const sleeps = [];
+  assert.throws(
+    () => feedback.createWithDedupSafeRetry({
+      repo: 'acme/w', marker: '<!-- fingerprint: feedback-cccc3333 -->', create, runner,
+      maxRetries: 2, sleep: (ms) => sleeps.push(ms),
+    }),
+    /503/,
+  );
+  assert.equal(createCalls, 3, 'initial attempt plus 2 retries');
+  assert.equal(sleeps.length, 2);
+});
+
+test('createWithDedupSafeRetry: a non-transient failure is rethrown immediately — no sleep, no dedup recheck', () => {
+  let createCalls = 0;
+  const create = () => { createCalls++; throw new Error('HTTP 422: Validation Failed'); };
+  const runner = () => { throw new Error('must not check dedup on a non-transient failure'); };
+  const sleeps = [];
+  assert.throws(
+    () => feedback.createWithDedupSafeRetry({
+      repo: 'acme/w', marker: '<!-- fingerprint: feedback-dddd4444 -->', create, runner,
+      sleep: (ms) => sleeps.push(ms),
+    }),
+    /422/,
+  );
+  assert.equal(createCalls, 1);
+  assert.equal(sleeps.length, 0);
+});
+
+test('fileOne: a transient create failure recovers via dedup safety-net instead of filing a duplicate', () => {
+  const draft = makeDraft();
+  const fp = feedback.computeFingerprint(draft);
+  const marker = `<!-- fingerprint: ${fp} -->`;
+  let createCalls = 0;
+  let listCalls = 0;
+  const runner = (args) => {
+    if (isList(args)) {
+      listCalls++;
+      // First dedup search (pre-create): no hit. Safety-net recheck
+      // (post-transient-failure): the phantom-succeeded issue now exists.
+      if (listCalls === 1) return JSON.stringify([]);
+      return JSON.stringify([{ number: 950, title: draft.title, body: `filed body\n${marker}\n`, createdAt: '2026-01-01T00:00:00Z' }]);
+    }
+    if (isCreate(args)) { createCalls++; throw new Error('HTTP 503: No server is currently available'); }
+    if (isView(args)) return JSON.stringify({ title: draft.title, body: `filed body\n${marker}\n` });
+    throw new Error('unexpected ' + args.join(' '));
+  };
+  const result = feedback.fileOne({
+    repo: 'acme/w', draft, runner, bodyFile: '/fake/body.md', writeFile: () => {}, sleep: () => {},
+  });
+  assert.deepEqual(result, { status: 'filed', number: 950 });
+  assert.equal(createCalls, 1, 'create is attempted once — the safety net finds the phantom success instead of retrying it');
 });
 
 // ---- parseArgs / validateDraft / parseRepo ---------------------------------
