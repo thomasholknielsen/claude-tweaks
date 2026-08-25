@@ -59,6 +59,28 @@ test('reflect SKILL.md documents the conditional watermark offset clause via rea
   assert.match(SKILL, /`readWatermark\(path, \{ consumer: 'reflect' \}\)` returns non-null/);
 });
 
+// --- 2b. #1119: reflect's standalone dispatch gains the shared Skip check (promoted from #701) ---
+
+test('reflect SKILL.md documents the Skip check citing the shared procedure with consumer key reflect', () => {
+  assert.match(
+    SKILL,
+    /run `_shared\/transcript-judge\.md`'s Skip\ncheck with consumer key `reflect`/,
+  );
+  assert.match(SKILL, /isTranscriptUnchanged\(watermark, currentBytes\)/);
+});
+
+test('reflect SKILL.md states reflect defines no full-reset override', () => {
+  assert.match(SKILL, /Reflect\ndefines no full-reset override, so there is no bypass flag to check/);
+});
+
+test('reflect SKILL.md documents skipping the dispatch reports a pointer to filedRecords, not issueUrls', () => {
+  assert.match(
+    SKILL,
+    /Report a pointer to the prior watermark's `filedRecords`\n\(below\) at Step 5 instead of a fresh finding list/,
+  );
+  assert.match(SKILL, /prior filings: \{filedRecords, or "none" if empty\}/);
+});
+
 // --- 3. Watermark write timing: captured before dispatch, written after Step 3, gated on status ---
 
 test('reflect SKILL.md documents bytesAtDispatch captured before dispatch and write after Step 3 routing', () => {
