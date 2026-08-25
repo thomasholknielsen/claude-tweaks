@@ -100,13 +100,28 @@ consumer key `feedback`), the payload is:
   issueUrls,               // the URLs Step 8's `gh issue create` calls produced for this run's
                            // Gather-2-sourced findings, in filing order — what the Skip check
                            // above points a later invocation at instead of re-evaluating
-  dismissedFingerprints,   // bin/lib/declined-learning/store.js's
-                           // listDeclinedFingerprints({ source: 'feedback' }) — every fingerprint
-                           // a human declined at Step 7 across every /feedback run to date, not
-                           // just this one. Filtered to source: 'feedback' so a reflect-sourced
-                           // decline never suppresses a feedback finding by accident.
+  dismissedSubjects,       // bin/lib/declined-learning/store.js's listDeclined({ source: 'feedback' })
+                           // mapped to each entry's subject text, skipping any entry with no
+                           // `subject` (a pre-#1033 decline recorded before the field existed;
+                           // a bare fingerprint is unmatchable in substance, per watermark.js) —
+                           // every declined subject across every /feedback run to date, not just
+                           // this one. Filtered to source: 'feedback' so a reflect-sourced decline
+                           // never suppresses a feedback finding by accident.
 }
 ```
+
+**`dismissedSubjects` is computed live, immediately before composing `formatOffsetClause`'s item 5
+(`_shared/transcript-judge.md`'s "dismissedSubjects sourcing" note) — never read off a previously
+written watermark.** This is the fix for the one-run lag a fingerprint-only, snapshot-into-the-
+watermark design had (#1033): the watermark write below happens once, right after the judge
+returns and before this run's own Step 7 declines exist yet, so a value captured only at write
+time would always be missing this run's own declines and only catch up the *next* time a watermark
+happens to be written. Calling `listDeclined({ source: 'feedback' })` fresh at the moment the offset
+clause is composed removes that extra lag entirely — the only residual gap is the one no design can
+remove (a decline made later in *this same* run, after the judge already dispatched). The value
+written into the watermark payload below is the same live-computed snapshot, kept for audit
+visibility only — a later run never treats it as authoritative; it always recomputes fresh again
+itself.
 
 `filedRecords`/`findingsFiled`/`issueUrls` are populated after Step 8 completes, scoped to **this
 invocation's Gather-2-sourced items only** — never Gather 1's queue candidates, which have their

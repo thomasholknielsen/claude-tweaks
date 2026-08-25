@@ -62,16 +62,23 @@ test('session-evaluation.md documents its four consumer parameters (rubric, temp
 
 // --- 2. session-evaluation.md: feedback's own watermark payload shape survives the migration ---
 
-test('session-evaluation.md still documents the filedRecords/dismissedFingerprints watermark payload', () => {
+test('session-evaluation.md still documents the filedRecords/dismissedSubjects watermark payload', () => {
   assert.match(SESSION_EVAL, /filedRecords,\s*\/\/ the record numbers this run actually filed/);
   assert.match(
     SESSION_EVAL,
-    /dismissedFingerprints,\s*\/\/ bin\/lib\/declined-learning\/store\.js's\s*\/\/ listDeclinedFingerprints\(\{ source: 'feedback' \}\)/,
+    /dismissedSubjects,\s*\/\/ bin\/lib\/declined-learning\/store\.js's listDeclined\(\{ source: 'feedback' \}\)/,
   );
   assert.match(
     SESSION_EVAL,
-    /Filtered to source: 'feedback' so a reflect-sourced\s*\/\/ decline never suppresses a feedback finding/,
+    /Filtered to source: 'feedback' so a reflect-sourced decline\s*\/\/ never suppresses a feedback finding/,
   );
+});
+
+// #1033: dismissedSubjects must be documented as a LIVE read at offset-clause composition time,
+// never sourced from the previously written watermark object (the fix for the one-run lag).
+test('session-evaluation.md documents dismissedSubjects is computed live, never read off a written watermark', () => {
+  assert.match(SESSION_EVAL, /\*\*`dismissedSubjects` is computed live, immediately before composing/);
+  assert.match(SESSION_EVAL, /never read off a previously\s*\nwritten watermark/);
 });
 
 // --- 2b. #701: skip-before-dispatch check + the sessionId/findingsFiled/issueUrls payload fields ---
@@ -175,4 +182,37 @@ test('docs/plugin-structure.md: a bin/lib/transcript-judge/ family line names wa
 
 test('docs/plugin-structure.md: no stale bin/lib/feedback/ watermark.js reference remains', () => {
   assert.doesNotMatch(PLUGIN_STRUCTURE, /bin\/lib\/feedback\/watermark\.js/);
+});
+
+// --- 6. #1033: SKILL.md Step 4 Prior-decline annotation (the reachable half of the fix —
+// lookupDecline wired into feedback's own dedup step, not just the judge-dispatch offset clause) ---
+
+const UPSTREAM_FEEDBACK_BATCH = read('plugin', 'skills', '_shared', 'upstream-feedback-batch.md');
+
+test('SKILL.md Step 4 documents the Prior-decline annotation computing a fingerprint and calling lookupDecline', () => {
+  assert.match(SKILL, /\*\*Prior-decline annotation \(#1033\)\.\*\*/);
+  assert.match(SKILL, /look it up via `bin\/lib\/declined-learning\/store\.js`'s `lookupDecline\(fingerprint\)`/);
+});
+
+test('SKILL.md Step 4 carries priorDecline: { declinedAt, reason } on the drafted item for rendering', () => {
+  assert.match(SKILL, /carry `priorDecline:\s*\{ declinedAt, reason \}` on the drafted item/);
+});
+
+test('upstream-feedback-batch.md renders the priorDecline annotation on the drafted item', () => {
+  assert.match(UPSTREAM_FEEDBACK_BATCH, /\*\*Prior-decline annotation \(#1033\)\.\*\*/);
+  assert.match(UPSTREAM_FEEDBACK_BATCH, /_\(previously declined \{declinedAt date\}: \{reason\}\)_/);
+});
+
+test('upstream-feedback-batch.md chunking step also surfaces priorDecline in the AskUserQuestion option description', () => {
+  assert.match(
+    UPSTREAM_FEEDBACK_BATCH,
+    /\*\*previously\s*\ndeclined:\*\* \{declinedAt date\}: \{reason\}` on its own line within the same description/,
+  );
+});
+
+test('upstream-feedback-batch.md passes subject through on decline (fingerprintBasis.summary)', () => {
+  assert.match(
+    UPSTREAM_FEEDBACK_BATCH,
+    /recordDecline\(fingerprint, \{ reason, source: 'feedback',\s*\nsubject: draft\.fingerprintBasis\.summary \}\)/,
+  );
 });

@@ -28,7 +28,7 @@ const { gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommand
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
-const { runGit } = require('./git-exec');
+const { runGit, FAILURE } = require('./git-exec');
 const { detectIntegrationModel, resolvePolicyConfig } = require('../policy-schema');
 
 function pluginRoot() {
@@ -277,6 +277,19 @@ function denyResult(reason) {
   };
 }
 
+// The write target named by a file-mutation tool (GATE_COVERAGE.tools), or
+// null when the tool is not one of them or carries no string path. Only the
+// input FIELD name varies per tool, so every gate below that inspects a file
+// target resolves it through here rather than restating the NotebookEdit
+// special case three times. Returns the string verbatim — including `''`,
+// which each caller already treats as "no usable target" on its own.
+function fileToolTargetPath(toolName, toolInput) {
+  if (!GATE_COVERAGE.tools.includes(toolName)) return null;
+  const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
+  const target = toolInput && toolInput[field];
+  return typeof target === 'string' ? target : null;
+}
+
 // Resolves the worktree path(s) a teardown call targets, or [] when none can
 // be determined confidently — teardownTargets never fabricates a target;
 // checkTeardownGate below treats an empty result as allow.
@@ -489,8 +502,8 @@ function checkPipelineShadowGuard(ctx) {
   const toolInput = ctx.input && ctx.input.tool_input;
   const candidates = [];
   if (GATE_COVERAGE.tools.includes(toolName)) {
-    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
-    if (toolInput && typeof toolInput[field] === 'string') candidates.push(toolInput[field]);
+    const target = fileToolTargetPath(toolName, toolInput);
+    if (target !== null) candidates.push(target);
   } else if (toolName === 'Bash' && toolInput && typeof toolInput.command === 'string') {
     const command = toolInput.command;
     for (const t of fileWriteTargets(command, ctx.cwd)) candidates.push(t.file);
@@ -552,10 +565,8 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
   // NotebookEdit matchers in hooks/hooks.json — a new file-mutation tool must
   // be added to both or it silently bypasses this gate.
   if (GATE_COVERAGE.tools.includes(toolName)) {
-    const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
-    if (toolInput && typeof toolInput[field] === 'string') {
-      targetPaths = [{ path: toolInput[field], exemptible: true, fileTool: true }];
-    }
+    const target = fileToolTargetPath(toolName, toolInput);
+    if (target !== null) targetPaths = [{ path: target, exemptible: true, fileTool: true }];
   } else if (toolName === 'Bash') {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
     if (command) {
@@ -741,6 +752,24 @@ function hasLoggedPrDegrade(runDir) {
   }
 }
 
+// Chicken-and-egg escape hatch for the PR-stamp branch below (#989): a push
+// that is establishing `dir`'s current branch on `origin` for the very first
+// time (no upstream tracking ref configured yet) IS pr-early-run-lifecycle.md
+// Step 2 itself — the one action a PR stamp cannot exist without. Without
+// this, the PR-stamp deny fires on that very push (worktree stamp already
+// landed, pr not yet recorded), making Step 6 structurally impossible: no run
+// could ever produce the PR this gate demands. `@{u}` fails with a git-error
+// exit when no upstream is configured — the definitive "not pushed yet"
+// signal. Ambiguous outcomes (timeout, no git, spawn failure) resolve to
+// false — NOT exempt, the opposite of this file's usual "ambiguity resolves
+// to allow" posture — because here ambiguity would silently widen a narrow,
+// one-shot exemption into an unbounded one instead of merely allowing a
+// single already-in-flight write through.
+function hasNoUpstreamYet(dir) {
+  const { failure } = runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], dir);
+  return failure === FAILURE.GIT_ERROR;
+}
+
 // The PRODUCTION integration-model read for the PR-stamp branch below.
 // `_shared/integration-model.md`'s contract (and its "Re-detecting mid-run
 // instead of reading the run's pin" anti-pattern) is that a run resolves the
@@ -828,11 +857,10 @@ function hasDistinctOwnedRun(ctx) {
 // (no target, indeterminate git, non-repo path) is simply not exempt and
 // falls through — the same fail-closed posture isPipelineBookkeeping keeps.
 function isStampsGateExemptTarget(ctx) {
-  const toolName = ctx.input && ctx.input.tool_name;
-  if (!GATE_COVERAGE.tools.includes(toolName)) return false;
-  const toolInput = ctx.input && ctx.input.tool_input;
-  const field = toolName === 'NotebookEdit' ? 'notebook_path' : 'file_path';
-  const targetPath = toolInput && typeof toolInput[field] === 'string' ? toolInput[field] : null;
+  const targetPath = fileToolTargetPath(
+    ctx.input && ctx.input.tool_name,
+    ctx.input && ctx.input.tool_input,
+  );
   if (!targetPath) return false;
   const { repoRoot, indeterminate } = wtDetect.repoInfo(targetPath);
   if (indeterminate || !repoRoot) return false;
@@ -862,7 +890,11 @@ function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText, isF
 // prose. This is the mechanical backstop: once THIS run's materialize commit
 // has landed (hasMaterializeCommit above — the exact precondition both
 // sub-steps are documented to precede), a covered call is denied while either
-// stamp is still missing.
+// stamp is still missing — EXCEPT the PR-stamp branch's own one-shot
+// exemption (#989, hasNoUpstreamYet above) for the initial publish push that
+// pr-early-run-lifecycle.md Step 2 itself performs: without it, that push is
+// indistinguishable from any other pre-PR write and gets denied by this same
+// gate, making Step 6 structurally impossible to ever complete.
 //
 // Four checks now compose here, in this order:
 //   1. Coverage + cheap outs — the tool isn't covered, no run resolved, the
@@ -973,6 +1005,19 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   }
 
   if (!ctx.runState.pr) {
+    // #989: exempt an in-flight initial publish (see hasNoUpstreamYet above)
+    // before doing anything else in this branch — this is a narrow, one-shot
+    // allowance for THIS call only, never persisted as `prExempt`, so a push
+    // to an already-tracked branch (Step 2 already ran once, `gh pr create`
+    // never followed it) still falls through to the deny below, preserving
+    // the "keep pushing forever, never open the PR" case IL-131 exists to
+    // close. Applies only to the Bash/git branch (`commandGitTargets`) — an
+    // Edit/Write/NotebookEdit call (`commandGitTargets` null) is never a
+    // push and always continues past this check.
+    if (Array.isArray(commandGitTargets) && commandGitTargets.length > 0
+      && commandGitTargets.every((t) => t.action === 'push' && hasNoUpstreamYet(t.dir))) {
+      return {};
+    }
     const override = deps && deps.resolveIntegrationModel;
     const mainRoot = wtDetect.mainCheckoutRoot(wtRoot) || wtRoot;
     let model;

@@ -227,6 +227,22 @@ the CLI's own dedup lookup). Never scrub the basis to match the scrubbed body: t
 different marker for the same finding and breaks dedup-on-refile. Never call `createFingerprint`
 directly here.
 
+**Prior-decline annotation (#1033).** With `fingerprintBasis` derived above, compute this item's
+fingerprint the same way Step 8's filing CLI would — `computeFingerprint({ fingerprintBasis })`
+(`bin/lib/feedback/file-feedback.js`, the same wrapper around `fingerprintFromBasis` the CLI itself
+calls, so this lookup and Step 8's own dedup-on-refile check always agree on the same hash) — and
+look it up via `bin/lib/declined-learning/store.js`'s `lookupDecline(fingerprint)`. A match means a
+human already declined this exact finding before, via this same fingerprint; carry `priorDecline:
+{ declinedAt, reason }` on the drafted item for `_shared/upstream-feedback-batch.md`'s Rendering and
+Chunking steps to annotate — mirroring reflect's "annotated, never silently suppressed" treatment
+(`reflect/full-mode.md`'s Prior-decline annotation): a re-surfacing finding still gets a full draft
+and a real confirm decision, it just carries the prior context so the human isn't asked to decline
+the same thing twice with no memory of having done so already. This is the reachable half of the
+fix: unlike the judge-dispatch offset clause (`session-evaluation.md`'s `dismissedSubjects`, which
+can only ever omit a finding the judge chooses not to raise), this runs after a candidate item
+already has a computed fingerprint, so an exact-hash lookup here is fully mechanical — no judgment
+call, no near-miss handling needed at this step.
+
 ### Step 5: Draft
 
 Title: `<component>: <symptom>`
