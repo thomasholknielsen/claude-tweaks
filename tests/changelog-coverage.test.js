@@ -35,19 +35,21 @@ const manifestVersion = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')).versi
 // When `headRef` already contains the ref's tip (main, or a caught-up branch),
 // the merge base IS the tip and this returns [] — the strict path, unchanged.
 const staleCache = new Map();
+// Shared by staleWalkedVersions and its test's parent-resolvability probe below.
+function gitQuiet(args) {
+  return execFileSync('git', args, {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'], // keep `fatal: …` off the test run's stderr on the fail-strict path
+  }).trim();
+}
 function staleWalkedVersions(ref, headRef = 'HEAD') {
   const key = `${headRef}:${ref}`;
   if (staleCache.has(key)) return staleCache.get(key);
-  const gitOut = (args) =>
-    execFileSync('git', args, {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'], // keep `fatal: …` off the test run's stderr on the fail-strict path
-    }).trim();
   let stale;
   try {
-    const base = gitOut(['merge-base', '--end-of-options', headRef, ref]);
-    const tip = gitOut(['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
+    const base = gitQuiet(['merge-base', '--end-of-options', headRef, ref]);
+    const tip = gitQuiet(['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`]);
     if (base === tip) {
       stale = [];
     } else {
@@ -258,11 +260,7 @@ test('stale-branch recognition discriminates by branch base', (t) => {
   // so probe the parent's resolvability explicitly: a root/shallow-cutoff commit
   // must skip, not surface as a misleading "got: (none)" assertion failure.
   try {
-    execFileSync(
-      'git',
-      ['rev-parse', '--verify', '--end-of-options', `${introducing}~1^{commit}`],
-      { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    );
+    gitQuiet(['rev-parse', '--verify', '--end-of-options', `${introducing}~1^{commit}`]);
   } catch {
     t.skip(`no parent commit for ${introducing} — cannot probe`);
     return;
