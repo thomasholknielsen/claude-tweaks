@@ -405,13 +405,17 @@ const LOCK_STALE_MS = 5000; // a lock dir older than this is treated as abandone
 // that lets a test pin an effectively-unbounded budget to isolate the lock
 // mechanism from this wait cap.
 // #1348 checked this sibling for file-lock.js's acquireLock ENOENT-fail-open gap (#1269) and
-// found it NOT reachable here: every caller passes a `runDir` that already exists on disk —
-// close-run-state.js/pre-compact.js/pre-tool-use.js/session-end.js all pass an already-owned,
-// already-discovered run dir, and post-tool-use.js's stampAdHocRunDir passes a runDir that
-// runDirResolve.resolve({..., create: true}) has just mkdirSync(..., {recursive:true})'d moments
-// earlier. Unlike declined-learning's store (N concurrent *first-ever* writers racing a parent
-// nobody had created), acquireRunStateLock's ENOENT branch below is a genuine defensive
-// fallback, not a live race — left unchanged deliberately, not an oversight.
+// found it NOT reachable here: every writeRunState caller passes a `runDir` that already
+// exists on disk — close-run-state.js/pre-compact.js/pre-tool-use.js/session-end.js and
+// hooks.js's record-worktree/record-pr verbs all pass an already-owned, already-discovered run
+// dir (resolveRunArg/resolveRunDir only ever return a directory that already exists);
+// post-tool-use.js's stampAdHocRunDir passes a runDir that runDirResolve.resolve({...,
+// create: true}) has just mkdirSync(..., {recursive:true})'d moments earlier; and
+// archive-merged.js's archiveRunDir passes archiveDir, which it mkdirSync(...,
+// {recursive:true})'d at its own top before either of its two writeRunState calls. Unlike
+// declined-learning's store (N concurrent *first-ever* writers racing a parent nobody had
+// created), acquireRunStateLock's ENOENT branch below is a genuine defensive fallback, not a
+// live race — left unchanged deliberately, not an oversight.
 function acquireRunStateLock(runDir) {
   const lockPath = path.join(runDir, '.run-state.lock');
   const deadline = Date.now() + LOCK_WAIT_MS;
