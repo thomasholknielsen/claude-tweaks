@@ -118,6 +118,16 @@ function probeWorktrees({ scope, isPidAlive = defaultIsPidAlive, isDirty = defau
     // work, which it isn't. Only a confirmed-clean or confirmed-dirty read
     // changes behavior from today's locked-only gate.
     const dirty = wt.locked ? null : isDirty(wt.path);
+    // A live lock means a session is using it; that is a human's call —
+    // still true regardless of whether the pid backing that lock turns
+    // out to be live or stale. `dedup.decide` (never wired — see #225's
+    // Gotchas) is the mechanism that would suppress a recurring
+    // known-invariant row; this probe only makes the row informative.
+    // A confirmed-dirty unlocked worktree is the other human's-call case
+    // (#1424): committed-history merge state says nothing about
+    // uncommitted work sitting in the tree, so `dirty: true` routes to
+    // `record` exactly like a lock does, never `auto`.
+    const remedy = wt.locked || dirty === true ? 'record' : 'auto';
     findings.push(makeFinding({
       kind: 'worktree',
       // Every worktree that reaches here is, by construction, NOT the one
@@ -127,16 +137,7 @@ function probeWorktrees({ scope, isPidAlive = defaultIsPidAlive, isDirty = defau
       // radius, so it is never `blast-radius`.
       scope: 'observed',
       subject: wt.path,
-      // A live lock means a session is using it; that is a human's call —
-      // still true regardless of whether the pid backing that lock turns
-      // out to be live or stale. `dedup.decide` (never wired — see #225's
-      // Gotchas) is the mechanism that would suppress a recurring
-      // known-invariant row; this probe only makes the row informative.
-      // A confirmed-dirty unlocked worktree is the other human's-call case
-      // (#1424): committed-history merge state says nothing about
-      // uncommitted work sitting in the tree, so `dirty: true` routes to
-      // `record` exactly like a lock does, never `auto`.
-      remedy: wt.locked ? 'record' : (dirty === true ? 'record' : 'auto'),
+      remedy,
       evidence: wt.locked
         ? lockedEvidence(wt, isPidAlive)
         : `git worktree list --porcelain: unlocked, branch ${wt.branch || 'unknown'}, dirty: ${dirty === null ? 'unknown (git status check failed)' : dirty}, ${reaped ? 'in reaper domain' : 'outside reaper domain (no reaper collects it)'}`,
