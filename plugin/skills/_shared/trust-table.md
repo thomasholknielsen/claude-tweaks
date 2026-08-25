@@ -150,7 +150,7 @@ fi
 Branch on the printed token, never on whether the file appears to exist — `/tmp/trust-table-sub-issues.json` can already be present and stale from an earlier run, so the token is the only observable signal (mirrors the git-log block's both-branches-observable precedent later in this file). When the block above printed `SUBSNAP_FRESH`, `/tmp/trust-table-sub-issues.json` was just written from the snapshot — skip straight to the git-log section below, the fetch and retry ladder that follow are unnecessary. When it printed `SUBSNAP_STALE`, run the batched fetch instead — one CLI call resolving every parent's sub-issues at once (`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), invoked via command substitution rather than an `xargs` pipe so an empty parent list still invokes it validly (its zero-positional contract prints an empty envelope rather than erroring) and the CLI's own exit status survives instead of being replaced by the pipe's:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/trust-table-sub-issues-batch.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" --resolve-retries $(node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/trust-table-sub-issues-batch.json
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
@@ -163,35 +163,19 @@ malformed invocation or a missing `gh`/unresolvable repo: an environment or tran
 a data outcome — stop and surface the CLI's stderr rather than reading the (empty) batch file.
 **Exit 0** — continue to the retry ladder below.
 
-The batch envelope's `retry` array names parents the probe could not resolve in one page — a
-missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true
+`--resolve-retries` already resolved every parent the probe could not fit in one page — a
+missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` was true
 (`native-dependencies.js`'s `fetchNativeSubIssues` never lands a parent in `byParent` for either
-case, so a truncated page can never masquerade as a complete one). Each retry parent gets its own
-paginated REST call, exactly like the Fallback block's per-parent loop, and a retry parent whose
-REST call also fails throws, naming the parent — by design, this never coerces to an empty list:
+case) — via its own per-parent paginated REST call, merged back into `byParent`; a retry parent
+whose REST call failed would have already made the CLI itself exit 3 above, naming the parent, so
+reaching this point means every parent's sub-issues are already in hand. The only work left is
+canonicalization — flatten, dedupe, sort:
 
 ```bash
 node -e "
   const fs = require('fs');
-  const { execFileSync } = require('child_process');
   const batch = require('/tmp/trust-table-sub-issues-batch.json');
-  const byParent = batch.byParent || {};
-  const retryParents = batch.retry || [];
-  const retryResults = [];
-  for (const n of retryParents) {
-    let nums;
-    try {
-      const out = execFileSync('gh', ['api', '--paginate', 'repos/{owner}/{repo}/issues/' + n + '/sub_issues', '--jq', '.[].number'], { encoding: 'utf8' });
-      nums = out.trim().split('\n').filter(Boolean).map(Number);
-    } catch (err) {
-      throw new Error('sub-issue REST retry failed for parent #' + n + ': ' + (err && err.message ? err.message : String(err)));
-    }
-    retryResults.push(...nums);
-  }
-  if (retryParents.length) {
-    console.error('WARNING: ' + retryParents.length + ' parent(s) needed a per-parent REST retry (no alias, or more than one page, in the batched probe): ' + retryParents.join(', '));
-  }
-  const all = Object.values(byParent).flat().concat(retryResults);
+  const all = Object.values(batch.byParent || {}).flat();
   const subIssueNumbers = Array.from(new Set(all)).sort((a, b) => a - b);
   fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
   const subSnapPath = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
@@ -199,8 +183,9 @@ node -e "
 "
 ```
 
-The throw above runs before either write, so a failed retry can never leave a partial
-`/tmp/trust-table-sub-issues.json` or a stale-looking snapshot on disk.
+`/tmp/trust-table-sub-issues.json` and the session snapshot are only ever written here, once the
+envelope is already fully resolved — there is no partial-write hazard left to guard against, since
+a failed retry never reaches this line at all.
 
 #### Fallback (probe unavailable — older GHE)
 
