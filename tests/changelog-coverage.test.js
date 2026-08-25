@@ -39,7 +39,11 @@ function staleWalkedVersions(ref, headRef = 'HEAD') {
   const key = `${headRef}:${ref}`;
   if (staleCache.has(key)) return staleCache.get(key);
   const gitOut = (args) =>
-    execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
+    execFileSync('git', args, {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'], // keep `fatal: …` off the test run's stderr on the fail-strict path
+    }).trim();
   let stale;
   try {
     const base = gitOut(['merge-base', '--end-of-options', headRef, ref]);
@@ -99,7 +103,7 @@ test('every version that shipped on the release branch has a CHANGELOG entry', (
   if (!availability.ok) {
     // Never pass silently on an unreadable history — say which question went
     // unasked. A shallow clone or tarball install cannot answer this one.
-    test.skip(`git history unavailable: ${availability.reason}`);
+    t.skip(`git history unavailable: ${availability.reason}`);
     return;
   }
   const shipped = shippedVersions(REPO_ROOT, availability.ref);
@@ -109,9 +113,13 @@ test('every version that shipped on the release branch has a CHANGELOG entry', (
   );
 
   const { missing } = findCoverageGaps(shipped, changelog);
+  // Excuse only versions the branch demonstrably does NOT know about: a version
+  // this branch's own docs/shipped-versions.tsv already lists breaks the "cannot
+  // carry them" premise, so it stays a hard failure even when it postdates the base.
+  const recorded = new Set(recordedVersions(REPO_ROOT));
   const stale = new Set(staleWalkedVersions(availability.ref));
-  const basePredates = missing.filter((v) => stale.has(v));
-  const missingHere = missing.filter((v) => !stale.has(v));
+  const basePredates = missing.filter((v) => stale.has(v) && !recorded.has(v));
+  const missingHere = missing.filter((v) => !stale.has(v) || recorded.has(v));
   if (basePredates.length > 0) {
     t.diagnostic(
       `${basePredates.length} version(s) shipped on ${availability.ref} after this branch's base ` +
@@ -183,7 +191,7 @@ test('the shipped-versions record parses cleanly and lists each version once', (
 test('the record accounts for every version the git walk can still see', (t) => {
   const availability = historyAvailable(REPO_ROOT);
   if (!availability.ok) {
-    test.skip(`git history unavailable: ${availability.reason}`);
+    t.skip(`git history unavailable: ${availability.reason}`);
     return;
   }
   // One-directional by design. The walk losing versions the record holds is the
@@ -191,10 +199,10 @@ test('the record accounts for every version the git walk can still see', (t) => 
   // one the record does NOT hold means a release skipped the append, and the
   // record is short by however many more went the same way unnoticed.
   const recorded = new Set(recordedVersions(REPO_ROOT));
-  const walked = walkedVersions(REPO_ROOT, availability.ref).filter((v) => !recorded.has(v));
+  const notInRecord = walkedVersions(REPO_ROOT, availability.ref).filter((v) => !recorded.has(v));
   const stale = new Set(staleWalkedVersions(availability.ref));
-  const basePredates = walked.filter((v) => stale.has(v));
-  const unrecorded = walked.filter((v) => !stale.has(v));
+  const basePredates = notInRecord.filter((v) => stale.has(v));
+  const unrecorded = notInRecord.filter((v) => !stale.has(v));
   if (basePredates.length > 0) {
     t.diagnostic(
       `${basePredates.length} version(s) on ${availability.ref} postdate this branch's base ` +
@@ -220,7 +228,7 @@ test('the record accounts for every version the git walk can still see', (t) => 
 test('stale-branch recognition discriminates by branch base', (t) => {
   const availability = historyAvailable(REPO_ROOT);
   if (!availability.ok) {
-    test.skip(`git history unavailable: ${availability.reason}`);
+    t.skip(`git history unavailable: ${availability.reason}`);
     return;
   }
   // From a head that already contains the ref's tip, nothing is stale — the
@@ -246,13 +254,20 @@ test('stale-branch recognition discriminates by branch base', (t) => {
     return;
   }
   const introducing = candidate.commits[0].hash;
-  let stale;
+  // staleWalkedVersions never throws (its internal catch returns [] — fail-strict),
+  // so probe the parent's resolvability explicitly: a root/shallow-cutoff commit
+  // must skip, not surface as a misleading "got: (none)" assertion failure.
   try {
-    stale = staleWalkedVersions(availability.ref, `${introducing}~1`);
+    execFileSync(
+      'git',
+      ['rev-parse', '--verify', '--end-of-options', `${introducing}~1^{commit}`],
+      { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
   } catch {
     t.skip(`no parent commit for ${introducing} — cannot probe`);
     return;
   }
+  const stale = staleWalkedVersions(availability.ref, `${introducing}~1`);
   assert.ok(
     stale.includes(candidate.version),
     `expected ${candidate.version} (introduced by ${introducing}) to be stale ` +
