@@ -235,9 +235,10 @@ test('grant-check.md Step 1 carries the callee obligation citing the contract', 
 
 test('skill-graph rows carry the grant-check extension, still one dedicated contract row', () => {
   const GRAPH = read('docs/skill-graph.md');
-  assert.ok(collapse(GRAPH).includes('and to grant-check by #1391'), 'contract row not extended to grant-check');
-  assert.ok(collapse(GRAPH).includes("and to grant-check by #1391 (`backlog/grant-mode.md`'s Phase B invocation, `assess-agent-autonomy/grant-check.md`'s Step 1)"), 'contract row must name both grant-check files');
-  assert.ok(collapse(GRAPH).includes("Since #1391 `grant-mode.md`'s Phase B invocation carries the same untrusted-content obligation"), 'backlog-section row not extended');
+  const GRAPH_FLAT = collapse(GRAPH);
+  assert.ok(GRAPH_FLAT.includes('and to grant-check by #1391'), 'contract row not extended to grant-check');
+  assert.ok(GRAPH_FLAT.includes("and to grant-check by #1391 (`backlog/grant-mode.md`'s Phase B invocation, `assess-agent-autonomy/grant-check.md`'s Step 1)"), 'contract row must name both grant-check files');
+  assert.ok(GRAPH_FLAT.includes("Since #1391 `grant-mode.md`'s Phase B invocation carries the same untrusted-content obligation"), 'backlog-section row not extended');
   const rows = GRAPH.split('\n').filter((l) => l.startsWith('| `_shared/untrusted-record-content.md`'));
   assert.strictEqual(rows.length, 1, 'still exactly one dedicated contract row');
 });
