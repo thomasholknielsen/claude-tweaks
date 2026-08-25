@@ -21,16 +21,22 @@ idempotent per session+filename, so this resolves to the identical path Step 1.5
 
 `machineGrantOutlook` pre-filters human-filed records (`facets.origin` null/undefined) before
 running the gate chain at all — mirroring `grant-mode.md`'s own Step 1 cheap pre-pass on the same
-condition — so its `eligible`/`refused` population always matches grant-mode's own candidate set;
-excluded records are counted separately via the returned `excludedOrigin` field rather than folded
-into `refused` (#1387).
+condition — so a human-filed record is never counted under `refused` here, exactly as grant-mode's
+own candidate fetch drops it before the chain; excluded records are counted separately via the
+returned `excludedOrigin` field rather than folded into `refused` (#1387). Origin is the only axis
+the pre-filter aligns: `funnel.specified` still keeps a `ready` record with an open `Blocked by #N`
+that grant-mode's Step 1 drops (`deps.every((d) => !openNumbers.has(d))`), so `eligible` can exceed
+grant-mode's candidate count by that population — one more reason it means "reaches the grant
+unit's own grant-check on a future firing", never "is on grant-mode's list this run".
 
 ```bash
 eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_TRUST_ROWS=backlog-overview-trust-rows.json)"
 ```
 
 `trustRows` re-reads from `"$ST_BACKLOG_OVERVIEW_TRUST_ROWS"` rather than re-fetched. Phase-1 gates only (ceiling,
-opt-in, `needs:definition`, class trust, `by:*` origin) — never run grant-check here (overview's
+opt-in, `needs:definition`, class trust) — the chain's `by:*` origin gate never fires inside this
+call, since the pre-filter above already removed every record it would have refused, so `origin`
+can never appear in the `{failedKey}: {count}` list below — never run grant-check here (overview's
 "entirely mechanical" contract); `eligible` means "reaches the grant unit's own grant-check on a
 future firing", not "will be granted". Render one extra `#`-comment line directly under the
 `# specified {n}` line, before its `/claude-tweaks:backlog grant` command line:

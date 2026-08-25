@@ -245,9 +245,14 @@ function funnelBuckets(records) {
 // mirroring grant-mode.md's own Step 1 "cheap pre-pass on the same gate-3
 // condition" (skills/backlog/grant-mode.md), itself only reached once that
 // mode's own Step 0 ceiling/opt-in gate has passed (see the caller
-// precondition documented at the top of machine-grant-outlook.md) — so this
-// outlook's population always matches grant-mode's own candidate set
-// exactly. Without the pre-filter, a human-filed record whose class trust
+// precondition documented at the top of machine-grant-outlook.md) — so a
+// human-filed record is never counted under refused here, exactly as
+// grant-mode's own candidate fetch drops it before the chain. Origin is the
+// only axis this pre-filter aligns: funnelBuckets routes a ready, ungranted
+// record into `specified` regardless of open blockers, while grant-mode's
+// Step 1 candidate fetch drops blocked records — so `eligible` can still
+// exceed grant-mode's candidate count by that blocked population.
+// Without the pre-filter, a human-filed record whose class trust
 // ALSO happens to be non-clean gets misattributed to refused.trust by
 // evaluateGrantGate's gate order (gate 2 runs before gate 3, so gate
 // 3/origin never individually fires for it) even though grant-mode's own
