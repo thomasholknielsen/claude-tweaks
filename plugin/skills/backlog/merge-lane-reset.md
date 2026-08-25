@@ -32,9 +32,11 @@ grant-sweep proceeds:
 
 - **Leave tripped (default/no answer treated as this)** — proceed to the grant-sweep unchanged;
   every grant row in this run still recommends `auto:build` normally, but any row that would
-  otherwise carry `auto:merge` is applied `auto:build`-only for this run (mirrors
+  otherwise carry `auto:merge-pending` is applied `auto:build`-only for this run (mirrors
   `evaluateGrantGate`'s own `mergeLaneBreakerTripped` behavior for the headless path — `grant`
-  unaffected, `autoMerge` forced off) until the breaker is reset in a future run.
+  unaffected, `autoMerge` forced off, which per #309 is what suppresses `grant-mode.md` Step 4's
+  `auto:merge-pending` grant, not a direct `auto:merge` one) until the breaker is reset in a
+  future run.
 - **Reset** — this is the **only** write path that ever clears a trip. CAS-write
   `merge-lane/breaker.json` via `writeBreakerState`: `{ tripped: false, resetAt: {now}, resetBy:
   {the invoking human — best-effort `gh api user -q .login`, or "unknown" if unavailable} }`. Log

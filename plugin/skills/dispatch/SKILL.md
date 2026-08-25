@@ -91,7 +91,7 @@ First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js
 
 Common to all four selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
-The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` — see Anti-Patterns.
+The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` (the Auto-merge gate's promotion of an already-existing `auto:merge-pending` to `auto:merge` is maturation of a grant already present, not origination — see `settle-and-merge.md`) — see Anti-Patterns.
 
 Read `queue-pull-script.md` in this skill's directory and run its script verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), which every selection form below reads. That file also carries the MCP-path substitution and the queue-pull-notes pointer.
 
@@ -220,7 +220,7 @@ Each group's two `Task()` prompts are defined in `task-prompt.md` in this skill'
 
 ### Step 6: Settle — on pipeline failure, and the Auto-merge gate
 
-Two conditional branches that don't run on the common clean pending-review path — a `/flow` HARD-GATE failure (Settle), or an `auto:merge`-granted group reaching `/wrap-up`'s Review Console (Auto-merge gate). Read `settle-and-merge.md` in this skill's directory for the full procedure: Settle's ownership check, `assess-agent-autonomy` failure classification, retry-ceiling counting and `bot:blocked` escalation; the Auto-merge gate's two-layer check and acceptance labeling (both run inside the second Task call). Under `integration-model: pr-first` (`_shared/integration-model.md`), the second Task call also performs the merge itself, right there via `_shared/pr-first-merge.md` — `gh pr merge` needs no checkout, so there is no structural reason to split it out. Under `local-merge`, that split still applies: a Task-tool subagent cannot reach the main checkout (Step 5's sequential-execution note: cwd-pinned to its own worktree), so on `OUTCOME: ready-to-merge` this dispatching session runs the Dispatching-session merge execution (local-merge fallback) section itself, right here in Step 6, before entering the next group's worktree.
+Two conditional branches that don't run on the common clean pending-review path — a `/flow` HARD-GATE failure (Settle), or a group whose every member carries `auto:merge` or a matured `auto:merge-pending` reaching `/wrap-up`'s Review Console (Auto-merge gate). Read `settle-and-merge.md` in this skill's directory for the full procedure: Settle's ownership check, `assess-agent-autonomy` failure classification, retry-ceiling counting and `bot:blocked` escalation; the Auto-merge gate's two-layer check and acceptance labeling (both run inside the second Task call). Under `integration-model: pr-first` (`_shared/integration-model.md`), the second Task call also performs the merge itself, right there via `_shared/pr-first-merge.md` — `gh pr merge` needs no checkout, so there is no structural reason to split it out. Under `local-merge`, that split still applies: a Task-tool subagent cannot reach the main checkout (Step 5's sequential-execution note: cwd-pinned to its own worktree), so on `OUTCOME: ready-to-merge` this dispatching session runs the Dispatching-session merge execution (local-merge fallback) section itself, right here in Step 6, before entering the next group's worktree.
 
 ## Reporting
 
@@ -278,7 +278,7 @@ Render only when a human is present to answer — the bare form is definitionall
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Adding `auto:build`, `auto:merge`, or `ready` from inside dispatch | Machinery may only remove or downgrade grants, never add them — the permission matrix's hard line (`_shared/work-record.md`) |
+| Originating a fresh `auto:build`, `auto:merge`, or `ready` grant from inside dispatch | Machinery may only remove or downgrade grants, never originate them — the permission matrix's hard line (`_shared/work-record.md`). The Auto-merge gate's promotion of an already-`auto:merge-pending` record to `auto:merge` is the one exception, and it is maturation of an existing grant, not origination — nothing is added that wasn't already there |
 | Claiming a single member of a file-overlap group without its partners | The branch and its overlap partners would race — `_shared/issue-claims.md`'s group-claim rule requires the whole group before starting any |
 | Letting a group auto-merge on a retry after a prior `correctness`-classified failure | A `correctness` or `ambiguous` classification unconditionally revokes `auto:merge` before the next retry; only `transient` preserves it |
 | Treating a clean review as sufficient for auto-merge on its own | `merge-check` weighs diff content, review findings, and blast radius as one judgment — a large or structurally sensitive diff can verdict `needs-human` with zero findings, never `auto-merge` |

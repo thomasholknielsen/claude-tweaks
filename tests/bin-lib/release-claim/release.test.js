@@ -61,14 +61,14 @@ test('releaseClaim happy path: read -> PUT with the read sha -> comment; exact c
   assert.equal(r.commentPosted, true);
 });
 
-test('releaseClaim --remove-grants adds exactly two label removals after the comment; --remove-in-progress adds bot:in-progress', () => {
+test('releaseClaim --remove-grants adds exactly three label removals after the comment; --remove-in-progress adds bot:in-progress', () => {
   const f = fakeRunner({ content: live(OWN) });
   const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, removeInProgress: true, runner: f.runner, now: NOW });
   assert.equal(r.outcome, 'released');
   const edits = f.calls.filter(isEdit).map((a) => a[a.indexOf('--remove-label') + 1]);
-  assert.deepEqual(edits, ['auto:build', 'auto:merge', 'bot:in-progress']);
+  assert.deepEqual(edits, ['auto:build', 'auto:merge-pending', 'auto:merge', 'bot:in-progress']);
   assert.ok(f.calls.findIndex(isComment) < f.calls.findIndex(isEdit), 'labels come after the comment');
-  assert.deepEqual(r.labelsRemoved, ['auto:build', 'auto:merge', 'bot:in-progress']);
+  assert.deepEqual(r.labelsRemoved, ['auto:build', 'auto:merge-pending', 'auto:merge', 'bot:in-progress']);
 });
 
 test('a 404/422 on the PUT still posts the comment and reports already-released', () => {
@@ -88,7 +88,7 @@ test('an absent or tombstoned blob is already-released: no PUT, comment posted, 
   assert.equal(r.outcome, 'already-released');
   assert.equal(f.calls.filter(isPut).length, 0);
   assert.equal(f.calls.filter(isComment).length, 1);
-  assert.equal(f.calls.filter(isEdit).length, 2);
+  assert.equal(f.calls.filter(isEdit).length, 3);
 
   const ownTombstone = JSON.stringify({ released: true, runId: OWN, reason: 'merged: spec 999', releasedAt: '2026-08-16T11:30:00.000Z' });
   const t1 = fakeRunner({ content: ownTombstone, sha: 'tomb1' });
@@ -96,7 +96,7 @@ test('an absent or tombstoned blob is already-released: no PUT, comment posted, 
   assert.equal(r1.outcome, 'already-released');
   assert.equal(t1.calls.filter(isPut).length, 0);
   assert.equal(t1.calls.filter(isComment).length, 1);
-  assert.equal(t1.calls.filter(isEdit).length, 2);
+  assert.equal(t1.calls.filter(isEdit).length, 3);
 
   // A tombstone is not a held lock, so the ownership rule doesn't apply here
   // (see skills/_shared/issue-claims.md's Release triggers "Ownership rule" —
@@ -108,7 +108,7 @@ test('an absent or tombstoned blob is already-released: no PUT, comment posted, 
   assert.equal(r2.outcome, 'already-released');
   assert.equal(t2.calls.filter(isPut).length, 0);
   assert.equal(t2.calls.filter(isComment).length, 1);
-  assert.equal(t2.calls.filter(isEdit).length, 2);
+  assert.equal(t2.calls.filter(isEdit).length, 3);
 });
 
 test('a blob owned by another run exits skipped-not-owner and writes nothing', () => {

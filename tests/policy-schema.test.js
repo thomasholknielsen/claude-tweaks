@@ -92,8 +92,11 @@ test('POLICY_KEYS entries are unique', () => {
   // 60 -> 61, #1137 (brainstorming auto-continue): specify-auto-continue —
   // lets a session invoke /claude-tweaks:specify on an approved brainstorming
   // design doc immediately, see skills/specify/SKILL.md's Auto-continue section.
-  assert.strictEqual(POLICY_KEYS.length, 61);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 61);
+  // 61 -> 62, #309 (veto-window maturation): grant-veto-window-hours — how
+  // long a machine-granted auto:merge-pending grant must sit unvetoed before
+  // /claude-tweaks:dispatch's Auto-merge gate matures it to auto:merge.
+  assert.strictEqual(POLICY_KEYS.length, 62);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 62);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

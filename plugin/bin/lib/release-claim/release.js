@@ -13,7 +13,7 @@
 const { execFileSync } = require('child_process');
 const { classifyClaimBlob, releasePayload, CLAIMS_BRANCH, claimFilePath } = require('../issues/claims');
 
-const GRANT_LABELS = ['auto:build', 'auto:merge'];
+const GRANT_LABELS = ['auto:build', 'auto:merge-pending', 'auto:merge'];
 const IN_PROGRESS_LABEL = 'bot:in-progress';
 
 function defaultRunner(args) {
