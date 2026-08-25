@@ -79,6 +79,29 @@ test('hasHitRetryCeiling matches the attemptNumber >= ceiling formula dispatch/S
   assert.strictEqual(hasHitRetryCeiling(comments, ceiling), true);
 });
 
+// #779: reproduces #418's shape — three identical failure attempts — using
+// production-shaped comment bodies (attemptFailedCommentBody's own output,
+// not a hand-typed string) sourced from wherever settle-and-merge.md Step 6
+// step 4 actually fetches them (the PR's own comments under `pr-first`, the
+// issue's under `local-merge` — never a mix of both within one run: the
+// comment-source routing in `_shared/pr-run-comments.md` picks exactly one
+// source per run, so a real Settle invocation never hands this function a
+// split-source list to begin with — see that file's Anti-Patterns table).
+// Because countFailedAttempts/hasHitRetryCeiling only ever see the single
+// comment set their caller fetched, they correctly count all three attempts
+// and fire the ceiling at attempt 3 regardless of whether that source was
+// the issue or a linked PR.
+test('#779: three attempts landing on the same pr-first source (the PR) still fire the ceiling at attempt 3', () => {
+  const comments = [
+    { body: attemptFailedCommentBody({ attemptNumber: 1, reason: 'x', ceilingHit: false }) },
+    { body: attemptFailedCommentBody({ attemptNumber: 2, reason: 'x', ceilingHit: false }) },
+  ];
+  const ceiling = 3;
+  const attemptNumber = countFailedAttempts(comments) + 1;
+  assert.strictEqual(attemptNumber, 3);
+  assert.strictEqual(hasHitRetryCeiling(comments, ceiling), true);
+});
+
 // --- Negative-evidence marker (#268) ---------------------------------------
 
 test('attemptFailedCommentBody embeds the negative-evidence marker for a correctness classification', () => {
