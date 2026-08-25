@@ -230,7 +230,7 @@ Cleanup enumerates the items below, in canonical order: execution plans, ledger,
 
 First check whether **any** of the following conditions holds for this run — record-based work (items 1, 5, 7), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), or a pipeline run directory exists (8):
 
-- **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into the report and the execution step.
+- **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into the report and the execution step. That file's own text names a fast-path fragment for the common no-record/no-worktree/non-multi-spec case (#797) — read it there, not restated here.
 - **None holds** → report "No cleanup actions apply" and skip this step entirely; do not read the file.
 
 Item 8 now holds on **every** run — Phase 1 creates a run directory unconditionally — so this gate is always open in practice, and items 4 and 8 both hold by construction on a pipeline run. The "none holds" branch survives only as a degenerate guard for a run whose Phase 1 run-dir creation failed.
