@@ -19,9 +19,15 @@ test('acquireLock: creates the lock directory and returns its path', () => {
   assert.ok(fs.existsSync(lockPath));
 });
 
-test('acquireLock: parent directory missing -> returns null (fails open), never throws', () => {
+test('acquireLock: parent directory missing -> creates it and still acquires the lock (#1269 follow-up)', () => {
+  // A missing parent is the common case on a brand-new store's first-ever write, not an
+  // unexpected failure -- treating it as "nothing to lock" let every concurrent caller skip
+  // locking entirely on a fresh project (the declined-learning/store-concurrency.test.js
+  // regression this follow-up fixes).
   const lockPath = path.join(tmpDir(), 'nonexistent-subdir', '.x.lock');
-  assert.equal(acquireLock(lockPath), null);
+  const held = acquireLock(lockPath);
+  assert.equal(held, lockPath);
+  assert.ok(fs.existsSync(lockPath));
 });
 
 test('releaseLock: removes the lock directory; a no-op on null is safe', () => {

@@ -25,7 +25,7 @@ Every consumer supplies exactly these four inputs when following this file:
    responsibility.
 
 A consumer may also supply a **watermark payload** shape beyond `bytesAtDispatch`/`evaluatedAt`
-(e.g. feedback's `filedRecords`/`dismissedFingerprints`) — that shape is entirely consumer-owned
+(e.g. feedback's `filedRecords`/`dismissedSubjects`) — that shape is entirely consumer-owned
 and named in the consumer's own file, never here.
 
 ## Transcript resolution
@@ -59,6 +59,41 @@ work was evaluated.
 parameter, parameterization point 4) — key on path, not session id, since a worktree switch
 changes the transcript directory slug mid-session.
 
+## Skip check (before dispatch)
+
+Runs after Transcript resolution above, before the judge dispatch below — **only on the branch
+where a transcript path actually resolved.** Self-assessment (no transcript resolves at all) has
+nothing to compare against and always runs in full; see "Self-assessment is exempted" below.
+
+1. Stat the resolved transcript path's current size in bytes (`wc -c` or equivalent).
+2. Read the watermark for this path (`readWatermark`, the consumer's own `{ consumer }` key,
+   parameterization point 4).
+3. Call `isTranscriptUnchanged(watermark, currentBytes)`
+   (`bin/lib/transcript-judge/watermark.js`). `true` means the transcript has not grown since the
+   watermark was recorded — the cheap `>=` check this procedure exists for, so a run doesn't pay
+   for a Task agent that would evaluate zero new bytes via the offset clause.
+
+**When `true` (unchanged) and the consumer's own full-reset override was not passed** (if the
+consumer defines one at all — e.g. feedback's `--full` flag; not every consumer needs one): skip
+the judge dispatch entirely — no Task agent, no self-assessment. What the consumer reports instead
+of a fresh finding list (a pointer to a prior watermark field, a plain "nothing new" line, or
+similar) is consumer-owned, named in the consumer's own file, never restated here.
+
+**When `false` (grown, or no watermark exists):** proceed to the judge dispatch as normal — the
+offset clause (item 5 of the Prompt contents, below) already scopes the dispatch to only the bytes
+after the watermark, when one exists. This skip check and the offset clause are complementary, not
+redundant: the offset clause narrows an unavoidable dispatch; this check avoids the dispatch
+altogether when narrowing it would leave nothing to evaluate.
+
+**Self-assessment is exempted, explicitly (not an oversight).** The Degradation section below
+states self-assessment "never reads or writes a watermark — there is no resolved transcript path
+to key one on." This skip check inherits that same exemption rather than inventing a parallel
+mechanism for it: self-assessment only fires when no transcript file resolves at all, so there is
+no `currentBytes` to compare and no stamp to check. A self-assessment run therefore always runs in
+full and never writes a stamp on this check's account — duplicate-filing guards across repeated
+self-assessment runs are the consumer's own concern, the same safety net that already covers a
+transcript-judged run's non-duplicate findings.
+
 ## The judge dispatch
 
 Exactly one Task agent per invocation.
@@ -91,11 +126,21 @@ a second failure degrades to the self-assessment path below rather than dispatch
    transcript path, append `formatOffsetClause(...)`'s literal output as this 5th item, verbatim:
 
    ```
-   Evaluate from byte offset {bytesAtDispatch} (line {line}); these records already exist: {filedRecords joined by ", " or "none" if empty}; omit findings they cover. These fingerprints were previously declined: {dismissedFingerprints joined by ", " or "none" if empty}; omit findings matching them.
+   Evaluate from byte offset {bytesAtDispatch} (line {line}); these records already exist: {filedRecords joined by ", " or "none" if empty}; omit findings they cover. A human previously declined findings about: {dismissedSubjects joined by "; " or "none" if empty}; omit any new finding whose symptom matches one of these in substance, even if the wording differs.
    ```
 
    When no watermark exists (first invocation) or a full-reset flag was passed, item 5 is omitted
    entirely — no offset clause, no empty placeholder.
+
+   **`dismissedSubjects` sourcing is consumer-defined, not read blindly off the watermark object
+   above** (#1033). `bytesAtDispatch`/`line`/`filedRecords` legitimately come from the watermark
+   `readWatermark` just returned — they describe state as of the prior dispatch. A consumer that
+   also renders `dismissedSubjects` needs a value current as of *this* dispatch, not the prior
+   one: a `dismissedFingerprints`/`dismissedSubjects` field written into a watermark payload at
+   write time (before that same run's own human declines happen — see the "Watermark write"
+   section below) is already one run stale by the time it's read back here. `feedback`'s own file
+   (`session-evaluation.md`) states its resolution: compute this field live, immediately before
+   this item is composed, never by reading it off the object `readWatermark` returned.
 
 **Finding norms (bind the consumer's own output template above):** every finding carries a
 symptom, an evidence pointer, a proposed fix, and a `Cost this session:` line (one line; `unclear`

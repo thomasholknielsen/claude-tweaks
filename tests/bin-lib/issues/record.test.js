@@ -5,6 +5,8 @@ const {
   recordPayload, TYPE_LABELS, CLASSIFICATION_SCORING, LABELS, DEFER_REASONS,
   extractFingerprint, extractVerifiedAsOf, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues, buildNativeSubIssuesQuery,
+  buildNativeParentQuery,
+  partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
 } = require('../../../plugin/bin/lib/issues/record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -437,6 +439,65 @@ test('hasOpenNativeBlocker returns false when blockedBy is missing entirely', ()
   assert.strictEqual(hasOpenNativeBlocker({ number: 39 }), false);
 });
 
+test('partitionByOpenBodyBlockers excludes a candidate with an open body-text blocker, naming the blocker id', () => {
+  const candidates = [
+    { number: 12, body: 'Blocked by #40' },
+    { number: 15, body: 'no deps' },
+  ];
+  const { eligible, excluded } = partitionByOpenBodyBlockers(candidates, new Set([40]));
+  assert.deepStrictEqual(eligible.map((c) => c.number), [15]);
+  assert.deepStrictEqual(excluded, [{ number: 12, blockedBy: [40] }]);
+});
+
+test('partitionByOpenBodyBlockers keeps a candidate whose blocker is not in openNumbers (already closed)', () => {
+  const candidates = [{ number: 12, body: 'Blocked by #40' }];
+  const { eligible, excluded } = partitionByOpenBodyBlockers(candidates, new Set());
+  assert.deepStrictEqual(eligible.map((c) => c.number), [12]);
+  assert.deepStrictEqual(excluded, []);
+});
+
+test('partitionByOpenBodyBlockers reports a two-member dependency cycle as two entries naming each other', () => {
+  // Neither #10 nor #11 needs cycle-specific detection — each independently fails
+  // the same open-blocker check the other does, so both land in `excluded`.
+  const candidates = [
+    { number: 10, body: 'Blocked by #11' },
+    { number: 11, body: 'Blocked by #10' },
+  ];
+  const { eligible, excluded } = partitionByOpenBodyBlockers(candidates, new Set([10, 11]));
+  assert.deepStrictEqual(eligible, []);
+  assert.deepStrictEqual(excluded, [
+    { number: 10, blockedBy: [11] },
+    { number: 11, blockedBy: [10] },
+  ]);
+});
+
+test('partitionByOpenNativeBlockers excludes a candidate with an OPEN native blockedBy node, naming the blocker id', () => {
+  const candidates = [{ number: 12 }, { number: 15 }];
+  const repoData = {
+    i12: { number: 12, blockedBy: { nodes: [{ number: 40, state: 'OPEN' }] } },
+    i15: { number: 15, blockedBy: { nodes: [{ number: 41, state: 'CLOSED' }] } },
+  };
+  const { eligible, excluded } = partitionByOpenNativeBlockers(candidates, repoData);
+  assert.deepStrictEqual(eligible.map((c) => c.number), [15]);
+  assert.deepStrictEqual(excluded, [{ number: 12, blockedBy: [40] }]);
+});
+
+test('partitionByOpenNativeBlockers keeps a candidate missing from repoData (not work-links: native) eligible', () => {
+  const candidates = [{ number: 12 }];
+  const { eligible, excluded } = partitionByOpenNativeBlockers(candidates, {});
+  assert.deepStrictEqual(eligible.map((c) => c.number), [12]);
+  assert.deepStrictEqual(excluded, []);
+});
+
+test('partitionByOpenNativeBlockers fails safe (never throws) when blockedBy.nodes is malformed (not an array)', () => {
+  const candidates = [{ number: 12 }];
+  const repoData = { i12: { number: 12, blockedBy: { nodes: 'not-an-array' } } };
+  assert.doesNotThrow(() => partitionByOpenNativeBlockers(candidates, repoData));
+  const { eligible, excluded } = partitionByOpenNativeBlockers(candidates, repoData);
+  assert.deepStrictEqual(eligible.map((c) => c.number), [12]);
+  assert.deepStrictEqual(excluded, []);
+});
+
 test('buildNativeDependencyQuery aliases each number and requests blockedBy state', () => {
   const q = buildNativeDependencyQuery([39, 37]);
   assert.match(q, /i39: issue\(number:39\)/);
@@ -465,6 +526,18 @@ test('buildNativeSubIssuesQuery returns null for empty or non-array input', () =
   assert.strictEqual(buildNativeSubIssuesQuery([]), null);
   assert.strictEqual(buildNativeSubIssuesQuery(undefined), null);
   assert.strictEqual(buildNativeSubIssuesQuery('42'), null);
+});
+
+test('buildNativeParentQuery aliases each number and requests parent number/title/state', () => {
+  const q = buildNativeParentQuery([42, 731]);
+  assert.match(q, /i42: issue\(number:42\)\{ number parent\{ number title state \} \}/);
+  assert.match(q, /i731: issue\(number:731\)/);
+  assert.match(q, /query\(\$owner:String!,\$repo:String!\)/);
+});
+
+test('buildNativeParentQuery returns null for empty or non-array input', () => {
+  assert.strictEqual(buildNativeParentQuery([]), null);
+  assert.strictEqual(buildNativeParentQuery(null), null);
 });
 
 // AC — dependency assumptions (cross-spec-promise-tracking)

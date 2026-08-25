@@ -26,7 +26,7 @@ const HOOKS_DIR = path.join(ROOT, 'plugin', 'bin', 'lib', 'hooks');
 const BEGIN = '<!-- friction-lens-vocab:begin -->';
 const END = '<!-- friction-lens-vocab:end -->';
 
-const EVENT_TYPES = ['wd-deny', 'gate-denial', 'contract-violation', 'ask-user-question'];
+const EVENT_TYPES = ['wd-deny', 'gate-denial', 'bookkeeping-stamp-deny', 'contract-violation', 'ask-user-question'];
 
 function vocabBlock() {
   const text = fs.readFileSync(FULL_MODE_PATH, 'utf8');
@@ -66,7 +66,7 @@ test('full-mode.md declares a non-empty friction-lens-vocab block', () => {
   assert.ok(vocabBlock().trim().length > 0);
 });
 
-test('the friction-lens-vocab block declares exactly the four event types the Friction Lens reads', () => {
+test('the friction-lens-vocab block declares exactly the five event types the Friction Lens reads', () => {
   const declared = parseVocab(vocabBlock());
   assert.deepStrictEqual(Object.keys(declared).sort(), [...EVENT_TYPES].sort(),
     'full-mode.md\'s friction-lens-vocab block and the Friction Lens\'s covered event types have diverged');

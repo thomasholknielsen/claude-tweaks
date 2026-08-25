@@ -123,8 +123,11 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   whole sequence (read → classify → ownership check → tombstone `PUT` → comment → optional
   label removals) in one command on the `gh` path — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js"
   <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress]`,
-  exit `0` released / `3` already released or swept / `4` held by another run / `1` failed / `2`
-  malformed or `gh` absent. The MCP path stays the manual read-classify-write above.
+  exit `0` released / `3` already released or swept / `4` held by another run / `5` claim blob is
+  corrupt/unreadable (nothing written — distinct from `4`, since a corrupt blob can never
+  self-resolve the way a live holder's claim eventually expires; do not retry-and-wait on `5` the
+  way `4` permits) / `1` failed / `2` malformed or `gh` absent. The MCP path stays the manual
+  read-classify-write above.
 - **List all claims:** list the `claims/` directory on `CLAIMS_BRANCH`.
   - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/claims?ref=${CLAIMS_BRANCH}" -q '.[].name'`
   - **MCP:** the equivalent read-tree/list-directory tool call against `claims/` on

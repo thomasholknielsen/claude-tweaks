@@ -53,4 +53,4 @@ function mirrorRelease(deps, { version, description, sha, dryRun }) {
   return { changed, sha: blobSha };
 }
 
-module.exports = { composeMirroredCatalog, mirrorRelease };
+module.exports = { composeMirroredCatalog, mirrorRelease, MARKETPLACE_REPO };

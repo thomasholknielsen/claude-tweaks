@@ -33,7 +33,7 @@ Under this driver, a local record's storage location *is* `specs/{n}-{slug}.md`.
 
 ## Materialization hard gate
 
-Before composing anything, check the fetched body against `_shared/work-record.md`'s spec-shaped body definition: the sections `## Current State`, `## Deliverables`, and `## Acceptance Criteria` are present and each non-empty, and no unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) remains anywhere in the body.
+Before composing anything, check the fetched body against `_shared/work-record.md`'s spec-shaped body definition: the sections `## Current State`, `## Deliverables`, and `## Acceptance Criteria` are present and each non-empty, and no unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) remains anywhere outside the verbatim-preserved `## Original request` section (that heading to end of body is exempt — see that definition's #1240 clause).
 
 - **Passes** — proceed to header composition.
 - **Fails** — STOP before any worktree or run-dir work happens: "Record #{n} is not spec-shaped ({missing/empty section list}) — run `/claude-tweaks:specify #{n}` first." For a multi-record run, gate every record before proceeding with any of them — report every failing record's gap in one message, not just the first one encountered.
@@ -54,6 +54,7 @@ fingerprint: {fp}                  # omitted when none
 blocked-by: [n1, n2]               # omitted when none — see Populating the header
 surface: {web|mobile|desktop|backend|infra|terminal}
 design-intent: {value}             # omitted for backend/infra
+ui-stack: {value}                  # omitted for backend/infra, and whenever the body carries no Ui-stack: line — double-quoted when the value contains `:`/`#` or leading/trailing whitespace, since it's the one free-form field in this header (materialize-format.js's yamlSafeScalar)
 design-seed: {opaque token}        # omitted unless the body already carries Design-seed:
 parked-at-shaping: true            # omitted unless the record was parked when shaped
 ---
@@ -72,16 +73,17 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 | `blocked-by` | `/flow`'s multi-spec dependency-aware ordering — DAG construction, cycle detection, and Prerequisites check (`multi-spec.md`) |
 | `surface` | `/claude-tweaks:design-wrapper` wrapper Layer-2 detection (via /build Common Step 1.7 and /flow polish phase) |
 | `design-intent` | design wrapper polish-mode intent-driven dispatch |
+| `ui-stack` | `/claude-tweaks:build` Common Step 1.7 (`design-prebuild.md`) forwards it into the implementer subagent's prompt; `/claude-tweaks:design-wrapper` documents the read side in `frontend-detection.md` |
 | `design-seed` | Audit snapshot of the Impeccable direction contract's seed key — a build's direction is unreproducible without it, since Impeccable 4.x is deliberately non-deterministic by dice. No mechanical reader consumes it at build time; `/claude-tweaks:demo` reads the record body's own `Design-seed:` line, not this copy |
 | `parked-at-shaping` | `/wrap-up` Section E release-with-abandon restores `parked` |
 
-`surface`/`design-intent`/`design-seed` values are LIFTED from the record body's `Surface:`/`Design-intent:`/`Design-seed:` metadata lines (spec 17's wire format). Materialized files live under the run dir — committed as audit trail, never gitignored.
+`surface`/`design-intent`/`ui-stack`/`design-seed` values are LIFTED from the record body's `Surface:`/`Design-intent:`/`Ui-stack:`/`Design-seed:` metadata lines (spec 17's wire format). Materialized files live under the run dir — committed as audit trail, never gitignored.
 
 **Reading a pre-rename header:** materialized files written before this field was renamed carry `effort:` where the format above now writes `size:`. Every reader treats an `effort:` line as `size` when no `size:` line is present — the same permanent read-side fallback `bin/lib/issues/record.js` and `bin/lib/issues/local-store.js` apply to the `effort:*` label and the `effort:` frontmatter line. The emit side is `size:`-only: nothing here ever writes an `effort:` line again.
 
 ## Populating the header
 
-Every field except `surface`/`design-intent`/`design-seed` (next section) and `blocked-by` under `work-links: native` (one extra read — see its bullet below) comes straight off data already fetched during Resolution — nothing extra to read. `ceremony` is usually also free (`facets.ceremony`, from the label `/claude-tweaks:specify` already stamped) — see its own bullet below for the fallback case:
+Every field except `surface`/`design-intent`/`ui-stack`/`design-seed` (next section) and `blocked-by` under `work-links: native` (one extra read — see its bullet below) comes straight off data already fetched during Resolution — nothing extra to read. `ceremony` is usually also free (`facets.ceremony`, from the label `/claude-tweaks:specify` already stamped) — see its own bullet below for the fallback case:
 
 - `record` — the id used to resolve it.
 - `origin` — `facets.origin` (the `by:*` label's suffix — see `_shared/work-record.md`'s Label taxonomy table for the members, stated once there), or the literal `human` when `facets.origin` is `null` (no `by:*` label — human-filed, or a side-effect record, per `_shared/work-record.md`'s origin axis).
@@ -90,27 +92,30 @@ Every field except `surface`/`design-intent`/`design-seed` (next section) and `b
 - `fingerprint` — from Resolution; omit the line when `null`.
 - `blocked-by` — the record's dependency targets, driver/`work-links`-dependent: `work-backend: github-issues` + `work-links: body-text` — `parseDependencies(body)` (`bin/lib/issues/record.js`) over the already-fetched body, no extra read; `work-backend: github-issues` + `work-links: native` — one batched `gh api graphql` call across every record in the run (aliased per record number, reusing `buildNativeDependencyQuery`/`hasOpenNativeBlocker` from `bin/lib/issues/record.js` — the same pattern `/claude-tweaks:dispatch` Step 2 uses for its candidate pool), resolving `blockedBy` (the field `capabilities-probe.js`'s `probeSchema` checks for), added to Resolution. A single-record run is the degenerate one-alias case of the same call; `work-backend: local-files` — `facets.blockedBy`, already present on the read record. Emit as `blocked-by: [n1, n2, ...]`; omit the line when empty. Resolution is read-only and safe to run before any run dir or worktree exists (see "When this runs" below), so this data is available to `/flow`'s multi-spec pre-flight (`multi-spec.md`'s "Frontmatter pre-flight") immediately after Resolution — it does not need to wait for the header to be composed and written to disk.
 - `parked-at-shaping` — `true` when the labels/facets fetched at materialization time still carry `parked`, omitted otherwise. `/specify` strips `parked` on promotion to `ready` (its permission-matrix row in `_shared/work-record.md`), so this is normally absent by the time a record is buildable; it stays meaningful for a record re-parked after promotion — e.g. by `/tidy`'s Defer action — that still got dispatched anyway, which is exactly the case `/wrap-up`'s restore-on-abandon step (see the reader table above) needs to detect.
-- `ceremony` — `facets.ceremony` (the `ceremony:fast-lane`/`ceremony:standard` label `/claude-tweaks:specify` already stamped on every record it shapes). Always emit this line explicitly — never omit it, unlike every other optional field here. **Fallback only:** when `facets.ceremony` is `null` (the record reached `/flow` without ever going through `/specify`'s Step 3 — a hand-authored record, or one created before this behavior shipped), invoke the canonical ceremony-check pattern (`_shared/ceremony-check-invocation.md`) with `#{n}` using the same body/labels already fetched during Resolution. **This call site's delta:** fallback-only, per-record, with `#{n}`, and never writes back — use its `CEREMONY` output for this run's header only; `/specify` remains the sole owner of `ceremony:*`. Full rationale was `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` (deleted `70849915`).
+- `ceremony` — `facets.ceremony` (the `ceremony:fast-lane`/`ceremony:standard` label `/claude-tweaks:specify` already stamped on every record it shapes). Always emit this line explicitly — never omit it, unlike every other optional field here. **Fallback only:** when `facets.ceremony` is `null` (the record reached `/flow` without ever going through `/specify`'s Step 3 — a hand-authored record, or one created before this behavior shipped), invoke the canonical ceremony-check pattern (`_shared/ceremony-check-invocation.md`) with `#{n}` using the same body/labels already fetched during Resolution. **This call site's delta:** fallback-only, per-record, with `#{n}`, and never writes back — use its `CEREMONY` output for this run's header only; `/specify` remains the sole owner of `ceremony:*`. The fallback call passes the Resolution-fetched body wrapped per `_shared/ceremony-check-invocation.md`'s untrusted-content paragraph; rendered output with no `CEREMONY:` line stops the run for that record — never defaulted to `standard`. Full rationale was `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` (deleted `70849915`).
 
-`surface` / `design-intent` / `design-seed` are the exceptions — via the lift rule below. `ceremony` is a partial exception, the same shape as `blocked-by`: free from Resolution's already-fetched facets in the common case, one extra invocation only in the fallback case above. `blocked-by` is a partial exception too: free under `work-links: body-text`/`local-files`, one extra read under `work-links: native` — see its bullet above.
+`surface` / `design-intent` / `ui-stack` / `design-seed` are the exceptions — via the lift rule below. `ceremony` is a partial exception, the same shape as `blocked-by`: free from Resolution's already-fetched facets in the common case, one extra invocation only in the fallback case above. `blocked-by` is a partial exception too: free under `work-links: body-text`/`local-files`, one extra read under `work-links: native` — see its bullet above.
 
-## The Surface / Design-intent / Design-seed lift rule
+## The Surface / Design-intent / Ui-stack / Design-seed lift rule
 
 `/specify`'s Metadata block (`spec-template.md`) writes plain body-metadata lines at the very top of every shaped record body:
 
 ```
 Surface: {web | mobile | desktop | backend | infra | terminal}
 Design-intent: {bold | quiet | minimal | delightful | onboarding | none}
+Ui-stack: {free-form component-library/styling-approach string, or an explicit no-preference answer}
 Design-seed: {opaque token — never written by /specify; see below}
 ```
 
-(`Design-intent:` is omitted on backend/infra records — Step 2.5a's frontend detection only asks the design-intent question for a frontend surface.) These are body text, not labels and not frontmatter — `parseRecordFacets`/`readRecord` never see them. Lift them verbatim by reading the fetched body's leading metadata block — every line before the first blank line, not a fixed line count, since which of these lines are present varies per record: the header's `surface:` copies the body's `Surface:` value; `design-intent:` copies `Design-intent:` when that line is present in the body, omitted from the header otherwise; `design-seed:` copies `Design-seed:` on the same present-or-omitted rule. Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — a record whose body still declares it needs re-shaping via `/specify` first, since a sub-issue that's genuinely both frontend and backend at once is a decomposition smell, not a valid surface value.
+(`Design-intent:` is omitted on backend/infra records — Step 2.5a's frontend detection only asks the design-intent question for a frontend surface. `Ui-stack:` follows that same backend/infra omission, plus a second, independent condition: it is also omitted whenever the body simply carries no `Ui-stack:` line at all — the case for any record shaped before this field existed (pre-#357), since `/specify`'s pre-#357 metadata block never wrote one.) These are body text, not labels and not frontmatter — `parseRecordFacets`/`readRecord` never see them. Lift them verbatim by reading the fetched body's leading metadata block — every line before the first blank line, not a fixed line count, since which of these lines are present varies per record: the header's `surface:` copies the body's `Surface:` value; `design-intent:` copies `Design-intent:` when that line is present in the body, omitted from the header otherwise; `ui-stack:` copies `Ui-stack:` on the same present-or-omitted rule; `design-seed:` copies `Design-seed:` on the same present-or-omitted rule. Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — a record whose body still declares it needs re-shaping via `/specify` first, since a sub-issue that's genuinely both frontend and backend at once is a decomposition smell, not a valid surface value.
 
-`Design-seed:` differs from its two neighbours in **when its value exists**, and materialization must not assume otherwise. `Surface:`/`Design-intent:` are written by `/specify`, so they are always already there by the time a record is materialized. `Design-seed:` is written *after* the build, by `/claude-tweaks:design-wrapper`'s `review` mode reading the built artifact's Impeccable direction contract (`_shared/design-contract.md`). Materialization runs at the *start* of a build — so on the very run that produces a seed, there is nothing to lift, and the header correctly omits the line. It appears in the header of *subsequent* materializations of the same record: a rebuild, a follow-up, a re-run after changes were requested. That is not a gap to work around; it is the field's normal lifecycle, and the header's copy is an audit snapshot either way.
+`Design-seed:` differs from its three neighbours in **when its value exists**, and materialization must not assume otherwise. `Surface:`/`Design-intent:`/`Ui-stack:` are written by `/specify`, so they are always already there by the time a record is materialized. `Design-seed:` is written *after* the build, by `/claude-tweaks:design-wrapper`'s `review` mode reading the built artifact's Impeccable direction contract (`_shared/design-contract.md`). Materialization runs at the *start* of a build — so on the very run that produces a seed, there is nothing to lift, and the header correctly omits the line. It appears in the header of *subsequent* materializations of the same record: a rebuild, a follow-up, a re-run after changes were requested. That is not a gap to work around; it is the field's normal lifecycle, and the header's copy is an audit snapshot either way.
 
 Consequently, nothing may treat a missing `design-seed:` as an error or a reason to stop, and nothing may block waiting for it. The record body's own `Design-seed:` line — not this header copy — is what `/claude-tweaks:demo` reads at acceptance time, and it is read live from the record, so a first-build record whose header omits the line still shows its seed at `/demo`.
 
-This is a lift, not a move: the body keeps its own `Surface:`/`Design-intent:`/`Design-seed:` lines exactly where they were written — see Composing the file below.
+This is a lift, not a move: the body keeps its own `Surface:`/`Design-intent:`/`Ui-stack:`/`Design-seed:` lines exactly where they were written — see Composing the file below.
+
+**Adding a fifth metadata line:** `liftMetadata`'s field regexes (`materialize-format.js`) use `[ \t]*` (never `\s*`) before their capture group — `\s` matches `\n`, so a bare "Field:" line with no value would otherwise cross into the next metadata line and misread its content as this field's own value. #357 shipped this hazard latent on two closed-enum fields before catching and fixing it repo-wide; a new field's regex must follow the same same-line-only pattern from the start.
 
 ## Composing the file
 
@@ -123,7 +128,7 @@ This is a lift, not a move: the body keeps its own `Surface:`/`Design-intent:`/`
 {record body verbatim}
 ```
 
-`{title}` is the title fetched during Resolution (`gh issue view`'s `.title` field, or `readRecord(path).title`) — title is a record facet, never body content (`spec-template.md`'s Facets section), so it is not part of "record body verbatim" and needs this explicit heading line to stay visible to everything downstream that expects a spec file's first line to be its title. `{record body verbatim}` is exactly the fetched body, unmodified — including its own `Surface:`/`Design-intent:`/`Design-seed:` lines; the header's copies of those values are a lift, never a strip.
+`{title}` is the title fetched during Resolution (`gh issue view`'s `.title` field, or `readRecord(path).title`) — title is a record facet, never body content (`spec-template.md`'s Facets section), so it is not part of "record body verbatim" and needs this explicit heading line to stay visible to everything downstream that expects a spec file's first line to be its title. `{record body verbatim}` is exactly the fetched body, unmodified — including its own `Surface:`/`Design-intent:`/`Ui-stack:`/`Design-seed:` lines; the header's copies of those values are a lift, never a strip.
 
 ## Multi-record layout
 
@@ -132,7 +137,7 @@ Each record in a multi-record run (`#A,#B,...`) materializes to its own file, on
 Single-record and multi-spec runs use the two run-dir shapes already established by `_shared/pipeline-run-dir.md` and `multi-spec.md`:
 
 ```
-{run-dir}/work/{n}-spec.md                       ← single-record run
+work/{n}-spec.md                                  ← single-record run (repo-root, git-tracked in the worktree — pipeline-run-dir.md's exception; reaches the main checkout by merge)
 {parent-run-dir}/spec-{a}/work/{a}-spec.md        ← multi-record run, record a
 {parent-run-dir}/spec-{b}/work/{b}-spec.md        ← multi-record run, record b
 ```

@@ -14,7 +14,7 @@ const path = require('path');
 
 // The union field set every consumer needs, so one fetch covers all of them —
 // see record-queue-fetch.md's Deliverables for the field list this mirrors.
-const UNION_FIELDS = 'number,title,labels,body,state,stateReason,closedAt,comments,updatedAt,milestone';
+const UNION_FIELDS = 'number,title,labels,body,state,stateReason,createdAt,closedAt,comments,updatedAt,milestone';
 
 // A session id is required for the snapshot to mean anything — without one,
 // concurrent unrelated sessions would silently share (and race on) the same
