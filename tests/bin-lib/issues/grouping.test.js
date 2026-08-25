@@ -66,6 +66,135 @@ test('group order matches first-seen order of each group', () => {
   assert.deepStrictEqual(groups[1], [2]);
 });
 
+// ── groupByFileOverlap: hub-path exclusion (#1365) ────────────────────────────
+// A generic/hub-like path (e.g. tests/) referenced by an anomalously large
+// fraction of the batch must never act as a transitive union-find bridge
+// between otherwise-unrelated items — see grouping.js's HUB_PATH_MIN_COUNT/
+// HUB_PATH_FRACTION for the threshold this exercises.
+
+test('N otherwise-unrelated items sharing only one hub-like path stay as N singletons', () => {
+  const items = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, keyFiles: ['tests/'] }));
+  const groups = groupByFileOverlap(items);
+  assert.strictEqual(groups.length, 12, 'must not collapse into one 12-member group');
+  for (const g of groups) assert.strictEqual(g.length, 1);
+});
+
+test('a hub-like path is excluded from bridging, but a real shared file among a few items still groups them', () => {
+  const items = [
+    { id: 1, keyFiles: ['tests/', 'src/real.js'] },
+    { id: 2, keyFiles: ['tests/', 'src/real.js'] },
+    ...Array.from({ length: 10 }, (_, i) => ({ id: i + 3, keyFiles: ['tests/'] })),
+  ];
+  const groups = groupByFileOverlap(items);
+  // Items 1 and 2 still union via src/real.js (a non-hub file); the other 10
+  // items, whose only file is the hub path, remain singletons.
+  const sizes = groups.map((g) => g.length).sort((a, b) => a - b);
+  assert.deepStrictEqual(sizes, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]);
+  const pair = groups.find((g) => g.length === 2);
+  assert.deepStrictEqual(pair.sort(), [1, 2]);
+});
+
+test('existing small-batch behavior (below the hub threshold) is unchanged with default options', () => {
+  // Same shape as the pre-existing "two items sharing a file land in one
+  // group" test — 2 shared references never crosses the default hubPathMinCount (3).
+  const groups = groupByFileOverlap([
+    { id: 1, keyFiles: ['a.js'] },
+    { id: 2, keyFiles: ['a.js', 'b.js'] },
+  ]);
+  assert.strictEqual(groups.length, 1);
+  assert.deepStrictEqual(groups[0].sort(), [1, 2]);
+});
+
+test('a custom hubPathMinCount lets a smaller batch exercise the exclusion deterministically', () => {
+  const items = [
+    { id: 1, keyFiles: ['hub.js'] },
+    { id: 2, keyFiles: ['hub.js'] },
+    { id: 3, keyFiles: ['hub.js'] },
+  ];
+  // With hubPathMinCount lowered to 2 (and fraction 0 to disable that half of
+  // the max()), hub.js's 3 references clear the threshold at a tiny batch size.
+  const groups = groupByFileOverlap(items, { hubPathMinCount: 2, hubPathFraction: 0 });
+  assert.strictEqual(groups.length, 3);
+  for (const g of groups) assert.strictEqual(g.length, 1);
+});
+
+test('hubPathFraction alone can trigger exclusion even below hubPathMinCount, when explicitly lowered', () => {
+  const items = [
+    { id: 1, keyFiles: ['hub.js'] },
+    { id: 2, keyFiles: ['hub.js'] },
+  ];
+  // fraction 0.5 of a 2-item batch = 1, but hubPathMinCount default (3) would
+  // normally win via max() — override it down to 1 to isolate the fraction path.
+  const groups = groupByFileOverlap(items, { hubPathMinCount: 1, hubPathFraction: 0.5 });
+  assert.strictEqual(groups.length, 2);
+});
+
+test('an item whose only files are all hub paths never merges, but still appears as its own singleton', () => {
+  const items = Array.from({ length: 5 }, (_, i) => ({ id: i + 1, keyFiles: ['tests/', 'docs/donts.md'] }));
+  const groups = groupByFileOverlap(items);
+  assert.strictEqual(groups.length, 5);
+});
+
+// ── groupByFileOverlap: bare directory-entry exclusion (#1420) ─────────────
+// A bare directory-level Key Files entry (trailing "/", no filename) must
+// never bridge two records via union-find, regardless of citation count —
+// including below the #1365 hub-path threshold. Each test below keeps the hub
+// rule out of play, so a failure can only mean the directory rule broke:
+// either 2 shared references (never clears HUB_PATH_MIN_COUNT of 3) or an
+// explicit hubPathMinCount: Infinity, which makes the hub set unreachable.
+
+test('two records sharing only a bare directory entry stay as separate singletons, even below the hub threshold', () => {
+  const items = [
+    { id: 1, keyFiles: ['tests/'] },
+    { id: 2, keyFiles: ['tests/'] },
+  ];
+  const groups = groupByFileOverlap(items);
+  assert.strictEqual(groups.length, 2, 'must not union on a bare directory entry alone');
+  for (const g of groups) assert.strictEqual(g.length, 1);
+});
+
+test('a handful of records sharing only a broad directory entry do not fuse into one mega-group (live failure shape)', () => {
+  const items = [
+    { id: 1, keyFiles: ['plugin/skills/'] },
+    { id: 2, keyFiles: ['plugin/skills/'] },
+    { id: 3, keyFiles: ['plugin/skills/'] },
+    { id: 4, keyFiles: ['plugin/skills/'] },
+  ];
+  // 4 citations would clear the hub threshold on their own, which would make
+  // this pass with the directory rule removed. Disable the hub rule so the
+  // directory rule is the only thing keeping these four apart.
+  const groups = groupByFileOverlap(items, { hubPathMinCount: Infinity });
+  assert.strictEqual(groups.length, 4, 'a shared directory-level entry must not act as a universal connector');
+  for (const g of groups) assert.strictEqual(g.length, 1);
+});
+
+test('a directory entry is excluded from bridging, but a real shared specific file among the same items still groups them', () => {
+  const items = [
+    { id: 1, keyFiles: ['tests/', 'src/real.js'] },
+    { id: 2, keyFiles: ['tests/', 'src/real.js'] },
+    { id: 3, keyFiles: ['tests/'] },
+  ];
+  // Hub rule disabled — 3 citations of tests/ would otherwise clear the hub
+  // threshold and produce this same result without the directory rule.
+  const groups = groupByFileOverlap(items, { hubPathMinCount: Infinity });
+  // Items 1 and 2 still union via src/real.js (a specific file, not a
+  // directory); item 3, whose only file is the directory entry, stays a
+  // singleton.
+  const sizes = groups.map((g) => g.length).sort((a, b) => a - b);
+  assert.deepStrictEqual(sizes, [1, 2]);
+  const pair = groups.find((g) => g.length === 2);
+  assert.deepStrictEqual(pair.sort(), [1, 2]);
+});
+
+test('two records sharing an actual specific file path (not a directory) are still correctly unioned', () => {
+  const groups = groupByFileOverlap([
+    { id: 1, keyFiles: ['plugin/bin/lib/issues/grouping.js'] },
+    { id: 2, keyFiles: ['plugin/bin/lib/issues/grouping.js'] },
+  ]);
+  assert.strictEqual(groups.length, 1);
+  assert.deepStrictEqual(groups[0].sort(), [1, 2]);
+});
+
 // ── extractKeyFiles ──────────────────────────────────────────────────────────
 
 test('extracts the anchor file from a v2 code-health issue body', () => {

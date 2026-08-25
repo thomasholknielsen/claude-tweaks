@@ -24,17 +24,20 @@ notes: >
   dispatch-retry-ceiling policy flag (default 3), after which auto:build is removed,
   bot:blocked is added, and the record stops auto-retrying. Only /claude-tweaks:backlog refine's
   interactive invocation ever grants auto:build/auto:merge a record didn't already have —
-  this routine only downgrades or strips a grant it reads (auto:merge revoked for a
-  correctness/ambiguous-classified failure, preserved for a transient one, per
+  this routine only downgrades or strips a grant it reads (auto:merge or auto:merge-pending
+  revoked for a correctness/ambiguous-classified failure, preserved for a transient one, per
   assess-agent-autonomy's failure-check mode; auto:build removed at the retry ceiling); it
-  revokes trust, never grants it. Scheduling this routine alone is not enough to make a
+  revokes trust, never originates it. One exception: this routine's own Auto-merge gate does
+  promote an already-present auto:merge-pending to auto:merge once it matures past the
+  grant-veto-window-hours policy key — promotion of a grant the origination opt-in already
+  authorized, not origination of a new one. Scheduling this routine alone is not enough to make a
   code-health/harness-health/journey-health/docs-health routine's filed issues progress — a human
   still has to run `/claude-tweaks:backlog refine` periodically to grant auto:build before
   this routine has anything to pick up. A group whose run comes back clean (per the
   two-layer auto-merge gate, assess-agent-autonomy's merge-check mode verdicting auto-merge)
-  merges without waiting, when every member carries
-  auto:merge; anything less than clean falls back to a normal pending-review wait. There
-  is no consolidated multi-group console — each firing reports only its own group's
+  merges without waiting, when every member carries auto:merge or a matured
+  auto:merge-pending; anything less than clean falls back to a normal pending-review wait.
+  There is no consolidated multi-group console — each firing reports only its own group's
   outcome; the aggregate picture surfaces over time via /claude-tweaks:tidy's own periodic
   GitHub/PR sweep. A pending-review outcome parks (branch and run dir wait for a
   human, or the claim's TTL expires and a later firing supersedes it); a firing with no

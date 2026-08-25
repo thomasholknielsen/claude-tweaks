@@ -111,6 +111,44 @@ test('steps-and-gates.md: a minted-but-empty PIPELINE_RUN_DIR is adopted and ini
   );
 });
 
+test('steps-and-gates.md: an inherited run dir with content but no config.yml (case 3) is recovered explicitly, not treated as case 2 or silently re-created', () => {
+  const start = STEPS_AND_GATES.indexOf('### Adopting an inherited run directory');
+  assert.notStrictEqual(start, -1, 'steps-and-gates.md no longer has an "### Adopting an inherited run directory" heading — this guard has lost its anchor');
+  const end = STEPS_AND_GATES.indexOf('\n### Partial step lists', start);
+  const region = STEPS_AND_GATES.slice(start, end === -1 ? STEPS_AND_GATES.length : end);
+
+  assert.match(
+    region,
+    /already carries other run content/i,
+    'case 3 must name the distinguishing signal — content already exists despite config.yml being absent — the counterexample to case 2\'s "otherwise EMPTY" bar',
+  );
+  assert.match(
+    region,
+    /do not treat this like case 2/i,
+    'case 3 must explicitly say it is NOT case 2 — config.yml\'s absence alone is not evidence nothing has happened yet',
+  );
+  assert.match(
+    region,
+    /never re-initialize `decisions\.md`\/`events\.jsonl`/i,
+    'case 3\'s recovery must preserve the existing audit trail — computing config.yml fresh must not overwrite decisions.md/events.jsonl the way case 2\'s from-scratch init does',
+  );
+  assert.match(
+    region,
+    /record-worktree/,
+    'case 3 must backfill run-state.json\'s worktree registration when missing',
+  );
+  assert.match(
+    region,
+    /pr-early-run-lifecycle\.md/i,
+    'case 3 must backfill the PR-early push+draft-PR lifecycle when missing',
+  );
+  assert.match(
+    region,
+    /materialize\.md/i,
+    'case 3 must backfill the work/{n}-spec.md materialize commit when missing',
+  );
+});
+
 test('dispatch/SKILL.md Step 4: mints the group run directory only, with no claim write present', () => {
   // #464 moved claim acquisition out of dispatch Step 4 into flow's Step 2.8
   // (skills/flow/claim-targets.md), so there is no claim write left here to order the mint

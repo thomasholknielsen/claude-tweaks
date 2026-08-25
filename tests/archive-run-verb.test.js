@@ -12,9 +12,23 @@ function git(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' });
 }
 
-function runHook(args, { cwd = undefined, env = {} } = {}) {
+// #1130: never let an omitted cwd fall through to the spawned subprocess's
+// own process.cwd() — that is the test runner's real working directory, and
+// when npm test runs from a real checkout, hooks that walk
+// .claude-tweaks/pipelines/ from there write fixture events into REAL run
+// dirs (the #657 pollution incident). Calls that don't care about cwd get an
+// isolated, non-git sandbox instead.
+const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-archrun-sandbox-'));
+
+function runHook(args, { cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
-    const stdout = execFileSync('node', [HOOKS, ...args], { cwd, encoding: 'utf8', env: { ...process.env, ...env } });
+    // #1130: `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var
+    // so a call that doesn't explicitly pass one can't resolve against
+    // whatever real run happens to be ambient in this test runner's own
+    // process.env (e.g. when npm test itself runs inside a /flow-dispatched
+    // shell). A caller that needs a run dir still passes it explicitly via
+    // `env`, which wins because it spreads last.
+    const stdout = execFileSync('node', [HOOKS, ...args], { cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env } });
     return { code: 0, stdout };
   } catch (e) {
     return { code: e.status, stdout: e.stdout || '' };
@@ -82,6 +96,60 @@ test('archive-run: never prints a moved: line for a name absent from the fixture
   assert.doesNotMatch(result.stdout, /moved: events\.jsonl/);
   assert.doesNotMatch(result.stdout, /moved: console\.json/);
   assert.doesNotMatch(result.stdout, /moved: staged/);
+});
+
+// #1130 AC4: the direct CLI verb is wrap-up's own archival route and already
+// requires terminal status, but a run parked with a rendered-but-unanswered
+// PR console (console.json present, resolved !== true) could still be
+// archived by a mistaken direct call — sweeping staged decisions before the
+// human answered. Parity with decideArchive's console-unresolved skip.
+test('archive-run: refuses a terminal run whose console.json is rendered but unresolved', () => {
+  const { root, runDir } = runDirFixture('clean');
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ commentIds: ['IC_x'], prNumber: 5, items: [], resolved: false }));
+  const result = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.match(result.stdout, /archival refused — console-unresolved/);
+  assert.ok(fs.existsSync(path.join(runDir, 'config.yml')), 'run dir must not be moved');
+});
+
+// #1130: no production path writes `resolved` (console-execution's own
+// completion write only stamped `executedAt`) — pinning readConsoleState to
+// `resolved === true` alone made this verb's console gate refuse every real
+// answered console forever, since close-run had already made the run
+// terminal before this verb ever runs. A non-empty `executedAt` with no
+// `resolved` field must archive successfully.
+test('archive-run: archives a terminal run whose console.json carries executedAt but no resolved field', () => {
+  const { root, runDir, runId } = runDirFixture('clean');
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({
+    commentIds: ['IC_x'], prNumber: 5, items: [], executedAt: '2026-08-20T10:00:00Z',
+  }));
+  const result = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.doesNotMatch(result.stdout, /archival refused/);
+  assert.ok(!fs.existsSync(runDir), 'run dir must be moved');
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(fs.existsSync(path.join(archiveDir, 'config.yml')));
+});
+
+// #1130 AC2: the two-call dispatch handoff shape, walked end-to-end on ONE
+// run dir — call 1 (build,test) parks the run with a rendered-but-unanswered
+// PR console; between calls the run is closed terminal (close-run) but its
+// console is still unanswered, and archival must refuse even though status
+// is clean; then the console is executed (executedAt stamped, the only field
+// pre-resolved-era writers set) and the same archival call succeeds. This is
+// the exact sequence in which the original #657 incident's run was archived
+// prematurely.
+test('archive-run: parked-dispatch handoff — refuses while the parked console is unanswered, archives after execution stamps executedAt', () => {
+  const { root, runDir, runId } = runDirFixture('clean');
+  // Call 1 parked: console rendered to the PR, not yet answered.
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ commentIds: ['IC_park'], prNumber: 9, items: [{ id: 'staged-1', kind: 'staged' }] }));
+  const refused = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.match(refused.stdout, /archival refused — console-unresolved/);
+  assert.ok(fs.existsSync(path.join(runDir, 'config.yml')), 'parked run must stay in place');
+
+  // Call 2 (or a reconcile console pass) executes the console: executedAt stamped.
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ commentIds: ['IC_park'], prNumber: 9, items: [{ id: 'staged-1', kind: 'staged' }], executedAt: '2026-08-22T12:00:00Z' }));
+  const archived = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.match(archived.stdout, new RegExp(`archived ${runId}`));
+  assert.strictEqual(fs.existsSync(runDir), false);
 });
 
 test('cleanup-procedures-execution.md Section B invokes archive-run instead of a hand-run recipe', () => {

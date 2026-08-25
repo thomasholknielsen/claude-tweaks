@@ -123,7 +123,7 @@ function issueNumberOf(name) {
 }
 
 function readClaim(repoSlug, name, api = ghApi) {
-  const r = claimStore.readClaimBlob(api, repoSlug, issueNumberOf(name));
+  const r = claimStore.readClaimBlob({ ghApi: api }, repoSlug, issueNumberOf(name));
   return { content: r.content, sha: r.sha, failure: r.failure };
 }
 

@@ -173,40 +173,49 @@ test('byteOffsetToLine: readFile returning a plain string (not a Buffer) still w
 
 // ---- formatOffsetClause ------------------------------------------------------
 
-test('formatOffsetClause: exact literal wording, with filed records and dismissed fingerprints', () => {
+test('formatOffsetClause: exact literal wording, with filed records and dismissed subjects', () => {
   const s = watermark.formatOffsetClause({
     bytesAtDispatch: 6815744,
     line: 41203,
     filedRecords: ['#681', '#682'],
-    dismissedFingerprints: ['feedback-deadbeef', 'feedback-c0ffee'],
+    dismissedSubjects: ['watermark.js: stale offset text', 'store.js: missing subject field'],
   });
   assert.equal(
     s,
     'Evaluate from byte offset 6815744 (line 41203); these records already exist: #681, #682; '
-    + 'omit findings they cover. These fingerprints were previously declined: feedback-deadbeef, '
-    + 'feedback-c0ffee; omit findings matching them.',
+    + 'omit findings they cover. A human previously declined findings about: watermark.js: stale offset text; '
+    + 'store.js: missing subject field; omit any new finding whose symptom matches one of these in substance, '
+    + 'even if the wording differs.',
   );
 });
 
-test('formatOffsetClause: empty filedRecords and dismissedFingerprints render "none"', () => {
-  const s = watermark.formatOffsetClause({ bytesAtDispatch: 100, line: 3, filedRecords: [], dismissedFingerprints: [] });
+test('formatOffsetClause: empty filedRecords and dismissedSubjects render "none"', () => {
+  const s = watermark.formatOffsetClause({ bytesAtDispatch: 100, line: 3, filedRecords: [], dismissedSubjects: [] });
   assert.equal(
     s,
     'Evaluate from byte offset 100 (line 3); these records already exist: none; omit findings they cover. '
-    + 'These fingerprints were previously declined: none; omit findings matching them.',
+    + 'A human previously declined findings about: none; omit any new finding whose symptom matches one of '
+    + 'these in substance, even if the wording differs.',
   );
 });
 
-test('formatOffsetClause: missing filedRecords and dismissedFingerprints (both undefined) also render "none"', () => {
+test('formatOffsetClause: missing filedRecords and dismissedSubjects (both undefined) also render "none"', () => {
   const s = watermark.formatOffsetClause({ bytesAtDispatch: 50, line: 1 });
   assert.match(s, /records already exist: none;/);
-  assert.match(s, /previously declined: none;/);
+  assert.match(s, /previously declined findings about: none;/);
 });
 
-test('formatOffsetClause: dismissedFingerprints present, filedRecords empty — independent segments', () => {
-  const s = watermark.formatOffsetClause({ bytesAtDispatch: 10, line: 1, filedRecords: [], dismissedFingerprints: ['reflect-abc12345'] });
+test('formatOffsetClause: dismissedSubjects present, filedRecords empty — independent segments', () => {
+  const s = watermark.formatOffsetClause({ bytesAtDispatch: 10, line: 1, filedRecords: [], dismissedSubjects: ['reflect: stale spec-slug derivation'] });
   assert.match(s, /records already exist: none;/);
-  assert.match(s, /previously declined: reflect-abc12345;/);
+  assert.match(s, /previously declined findings about: reflect: stale spec-slug derivation;/);
+});
+
+test('formatOffsetClause: a subject containing a comma is preserved, not split by the "; " join', () => {
+  const s = watermark.formatOffsetClause({
+    bytesAtDispatch: 1, line: 1, filedRecords: [], dismissedSubjects: ['component: does X, Y, and Z incorrectly'],
+  });
+  assert.match(s, /previously declined findings about: component: does X, Y, and Z incorrectly;/);
 });
 
 // ---- isTranscriptUnchanged (#701 skip-before-dispatch check) ---------------

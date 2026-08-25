@@ -61,14 +61,14 @@ test('releaseClaim happy path: read -> PUT with the read sha -> comment; exact c
   assert.equal(r.commentPosted, true);
 });
 
-test('releaseClaim --remove-grants adds exactly two label removals after the comment; --remove-in-progress adds bot:in-progress', () => {
+test('releaseClaim --remove-grants adds exactly three label removals after the comment; --remove-in-progress adds bot:in-progress', () => {
   const f = fakeRunner({ content: live(OWN) });
   const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, removeInProgress: true, runner: f.runner, now: NOW });
   assert.equal(r.outcome, 'released');
   const edits = f.calls.filter(isEdit).map((a) => a[a.indexOf('--remove-label') + 1]);
-  assert.deepEqual(edits, ['auto:build', 'auto:merge', 'bot:in-progress']);
+  assert.deepEqual(edits, ['auto:build', 'auto:merge-pending', 'auto:merge', 'bot:in-progress']);
   assert.ok(f.calls.findIndex(isComment) < f.calls.findIndex(isEdit), 'labels come after the comment');
-  assert.deepEqual(r.labelsRemoved, ['auto:build', 'auto:merge', 'bot:in-progress']);
+  assert.deepEqual(r.labelsRemoved, ['auto:build', 'auto:merge-pending', 'auto:merge', 'bot:in-progress']);
 });
 
 test('a 404/422 on the PUT still posts the comment and reports already-released', () => {
@@ -88,7 +88,7 @@ test('an absent or tombstoned blob is already-released: no PUT, comment posted, 
   assert.equal(r.outcome, 'already-released');
   assert.equal(f.calls.filter(isPut).length, 0);
   assert.equal(f.calls.filter(isComment).length, 1);
-  assert.equal(f.calls.filter(isEdit).length, 2);
+  assert.equal(f.calls.filter(isEdit).length, 3);
 
   const ownTombstone = JSON.stringify({ released: true, runId: OWN, reason: 'merged: spec 999', releasedAt: '2026-08-16T11:30:00.000Z' });
   const t1 = fakeRunner({ content: ownTombstone, sha: 'tomb1' });
@@ -96,7 +96,7 @@ test('an absent or tombstoned blob is already-released: no PUT, comment posted, 
   assert.equal(r1.outcome, 'already-released');
   assert.equal(t1.calls.filter(isPut).length, 0);
   assert.equal(t1.calls.filter(isComment).length, 1);
-  assert.equal(t1.calls.filter(isEdit).length, 2);
+  assert.equal(t1.calls.filter(isEdit).length, 3);
 
   // A tombstone is not a held lock, so the ownership rule doesn't apply here
   // (see skills/_shared/issue-claims.md's Release triggers "Ownership rule" —
@@ -108,7 +108,7 @@ test('an absent or tombstoned blob is already-released: no PUT, comment posted, 
   assert.equal(r2.outcome, 'already-released');
   assert.equal(t2.calls.filter(isPut).length, 0);
   assert.equal(t2.calls.filter(isComment).length, 1);
-  assert.equal(t2.calls.filter(isEdit).length, 2);
+  assert.equal(t2.calls.filter(isEdit).length, 3);
 });
 
 test('a blob owned by another run exits skipped-not-owner and writes nothing', () => {
@@ -119,9 +119,12 @@ test('a blob owned by another run exits skipped-not-owner and writes nothing', (
   assert.equal(f.calls.length, 1, 'only the read');
 });
 
-test('unreadable blob fails closed to skipped-not-owner; other PUT failures -> failed with no comment', () => {
+test('unreadable/corrupt blob gets its own distinct outcome, never conflated with a live competing claim; other PUT failures -> failed with no comment', () => {
   const u = fakeRunner({ content: 'not json' });
-  assert.equal(releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'r', runner: u.runner, now: NOW }).outcome, 'skipped-not-owner');
+  const ur = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'r', runner: u.runner, now: NOW });
+  assert.equal(ur.outcome, 'unreadable');
+  assert.notEqual(ur.outcome, 'skipped-not-owner', 'must be mechanically distinguishable from a live-held competing claim, not just by message text');
+  assert.equal(u.calls.length, 1, 'only the read — nothing written for a corrupt blob');
   const f = fakeRunner({ content: live(OWN), putThrows: 'HTTP 500 boom' });
   const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'r', runner: f.runner, now: NOW });
   assert.equal(r.outcome, 'failed');
@@ -148,4 +151,152 @@ test('writeTombstone composes the contents-API PUT with -f fields only', () => {
   assert.equal(fieldOf(a, 'message'), 'Release claim on issue #999');
   assert.equal(Buffer.from(fieldOf(a, 'content'), 'base64').toString('utf8'), '{"released":true}');
   assert.equal(fieldOf(a, 'sha'), 's1');
+});
+
+// #787 consolidation: readClaimBlob/writeTombstone now delegate to
+// claim-store.js's readClaimBlob/writeClaimBlob (the surviving single
+// write-path module) instead of composing their own gh api calls directly.
+const claimStore = require('../../../plugin/bin/lib/issues/claim-store');
+
+test('releaseClaim delegates its read/write through claim-store.js, not its own gh api calls', (t) => {
+  const readSpy = t.mock.method(claimStore, 'readClaimBlob', () => ({ content: null, sha: null, failure: null, absent: true }));
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob');
+  releaseClaim({
+    owner: 'acme', repo: 'w', issueNumber: 7, runId: 'r1', reason: 'test',
+    runner: () => { throw new Error('a raw gh runner call means the delegation did not happen'); },
+  });
+  assert.equal(readSpy.mock.calls.length, 1);
+  // absent -> already-released, no write expected; readSpy call proves delegation either way.
+  assert.equal(writeSpy.mock.calls.length, 0);
+});
+
+// #787 amendment (git-CAS): `gitRunner` must reach claim-store on BOTH legs.
+// Silently dropping the forward anywhere in the chain degrades every claim
+// write back to the contents API — the exact endpoint this change moved off —
+// and no other test in this suite would notice.
+test('releaseClaim forwards gitRunner through to claim-store.readClaimBlob AND writeClaimBlob', (t) => {
+  const gitRunner = () => { throw new Error('the injected gitRunner is only forwarded here, never invoked'); };
+  const readSpy = t.mock.method(claimStore, 'readClaimBlob', () => ({ content: live(OWN), sha: 'tip1', failure: null, absent: false }));
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: true, failure: null }));
+  const runner = (args) => {
+    if (args[0] === 'issue' && args[1] === 'comment') return '';
+    throw new Error(`unexpected raw gh call: ${args.join(' ')}`);
+  };
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner, gitRunner, now: NOW });
+  assert.equal(r.outcome, 'released');
+  assert.equal(readSpy.mock.calls.length, 1);
+  assert.equal(readSpy.mock.calls[0].arguments[0].gitRunner, gitRunner, 'read leg carries the injected gitRunner, not undefined');
+  assert.equal(writeSpy.mock.calls.length, 1);
+  assert.equal(writeSpy.mock.calls[0].arguments[0].gitRunner, gitRunner, 'write leg carries the injected gitRunner, not undefined');
+});
+
+// git-CAS leases the whole claims-registry branch tip, so a conflict can come
+// from a commit that has nothing to do with THIS issue. Classifying that as
+// already-released would post a release comment and strip the grant labels off
+// a claim that is still live and still ours.
+test('a write conflict whose re-read shows the claim still live under this run is failed, not already-released', (t) => {
+  t.mock.method(claimStore, 'readClaimBlob', () => ({ content: live(OWN), sha: 'tip1', failure: null, absent: false }));
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const calls = [];
+  const runner = (args) => { calls.push(args); return ''; };
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, removeInProgress: true, runner, gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'failed');
+  assert.match(r.error, /still held by this run/);
+  assert.match(r.error, /HTTP 409\/422/, 'the original conflict text is preserved');
+  assert.equal(r.commentPosted, false);
+  assert.deepEqual(calls, [], 'no release comment, no label stripping — the release did not happen');
+  assert.deepEqual(r.labelsRemoved, []);
+});
+
+test('a write conflict whose re-read shows a successor now holds the claim stays already-released', (t) => {
+  const SUCCESSOR = '2026-08-16T110000-spec-999';
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return { content: live(reads === 1 ? OWN : SUCCESSOR), sha: `tip${reads}`, failure: null, absent: false };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const calls = [];
+  const runner = (args) => { calls.push(args); return ''; };
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner, gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'already-released');
+  assert.equal(reads, 2, 'the conflict triggered a fresh read');
+  assert.equal(r.commentPosted, true);
+  assert.equal(calls.filter(isComment).length, 1);
+  assert.equal(r.error, undefined);
+});
+
+test('a write conflict whose re-read shows the claim gone stays already-released', (t) => {
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return reads === 1
+      ? { content: live(OWN), sha: 'tip1', failure: null, absent: false }
+      : { content: null, sha: null, failure: null, absent: true };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner: () => '', gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'already-released');
+  assert.equal(r.commentPosted, true);
+});
+
+test('a write conflict whose re-read itself fails is failed (never an unverified already-released)', (t) => {
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return reads === 1
+      ? { content: live(OWN), sha: 'tip1', failure: null, absent: false }
+      : { content: null, sha: null, failure: 'network-failure', absent: false };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const calls = [];
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, runner: (a) => { calls.push(a); return ''; }, gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'failed');
+  assert.match(r.error, /HTTP 409\/422/, 'names the original conflict');
+  assert.match(r.error, /network-failure/, 'names the re-read failure too');
+  assert.deepEqual(calls, [], 'nothing is commented or stripped on an unverifiable release');
+});
+
+// A non-conflict already-released-shaped error (a 404 from the contents-API
+// path — the blob was swept) must NOT trigger the re-read: it is a genuine
+// already-released, and the pre-git-CAS behavior is unchanged for it.
+test('a 404-shaped PUT error still short-circuits to already-released without a second read', (t) => {
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return { content: live(OWN), sha: 'tip1', failure: null, absent: false };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: false, failure: 'gh: Not Found (HTTP 404)' }));
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner: () => '', gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'already-released');
+  assert.equal(reads, 1);
+});
+
+test('releaseClaim: a held claim by this run writes the tombstone through claim-store.writeClaimBlob', (t) => {
+  const blobContent = JSON.stringify({ runId: 'r1', claimedAt: new Date(0).toISOString(), ttlHours: 72 });
+  t.mock.method(claimStore, 'readClaimBlob', () => ({
+    content: blobContent,
+    sha: 'sha1',
+    failure: null,
+    absent: false,
+  }));
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: true, failure: null }));
+  const runner = (args) => {
+    if (args[0] === 'issue' && args[1] === 'comment') return '';
+    throw new Error(`unexpected runner call in delegated path: ${args.join(' ')}`);
+  };
+  const result = releaseClaim({
+    owner: 'acme', repo: 'w', issueNumber: 7, runId: 'r1', reason: 'test', runner, now: Date.now(),
+  });
+  assert.equal(result.outcome, 'released');
+  assert.equal(writeSpy.mock.calls.length, 1);
+  // #787 residual finding (progress.md's parked "expectedContent has zero
+  // test coverage" item): releaseClaim's write must thread expectedContent
+  // = the blob content its own read saw, so claim-store.js can tell a
+  // genuine contest from a push rejected by unrelated claims-registry
+  // activity (I1/C1). Deleting `expectedContent: blob.content` at the call
+  // site would leave every other test in this file green (none of the
+  // conflict-path tests inspect the write options object) while silently
+  // reintroducing the false-contest/lost-update bug in production.
+  assert.equal(writeSpy.mock.calls[0].arguments[3].expectedContent, blobContent, "writeTombstone's expectedContent must be the exact content releaseClaim's own read returned");
 });

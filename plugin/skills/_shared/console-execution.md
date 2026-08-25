@@ -64,12 +64,18 @@ when it happens anyway, surface it rather than executing: there is nowhere to ap
 **Reply comment first, then the resolved marker edit** on the console comment itself — never the
 reverse. Post one reply comment (`<!-- console-item: executed -->`) summarizing per-item outcomes
 (executed / declined / unexecutable / unexecutable-stale), then edit the console comment's first
-line to add `<!-- claude-tweaks-console-resolved -->`, then write `console.json.executedAt`. The
-comment marker is the source of truth; `console.json.executedAt` is the local cache. A split-brain
+line to add `<!-- claude-tweaks-console-resolved -->`, then write `console.json.executedAt` and
+`console.json.resolved: true` together, in one write. The comment marker is the source of truth;
+the `console.json` completion fields are the local cache. A split-brain
 (reply posted, marker edit failed partway) is repaired by the next detection pass: it keys
 "already executed" off the reply comment's presence on the PR, not off `console.json` alone, so a
 missing marker with a present reply comment is read as "executed, retry only the marker edit,"
 never as "not yet executed."
+
+Both code readers of these completion fields — `readConsoleState`
+(`bin/lib/reconcile/archive-merged.js`) and `preFetchSkipReason` (`bin/lib/reconcile/console-execute.js`)
+— treat a non-empty `executedAt` as sufficient on its own, since consoles written before this
+write order set `resolved: true` carry `executedAt` alone; this write order sets both.
 
 ## Idempotence
 
@@ -86,7 +92,7 @@ step also asks via `AskUserQuestion`, using the same Approve all / Override / St
 just posted to the PR. Two surfaces, one answer: whichever resolves first wins.
 
 - **Chat answers first:** execute directly via this file's Execution routing above, then perform
-  the same Write order (reply comment, resolved marker, `console.json.executedAt`) so a later
+  the same Write order (reply comment, resolved marker, `console.json.executedAt`/`resolved`) so a later
   reconciler pass detects the resolved marker and no-ops rather than re-asking.
 - **PR ticks resolve first** (a human ticked boxes on the PR while the chat prompt was still open,
   or a reconciler pass executed it in the interim): before acting on the chat answer, re-check the

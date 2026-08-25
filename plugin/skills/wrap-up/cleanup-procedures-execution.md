@@ -31,7 +31,7 @@ Cleanup is silent — no user prompt. The caches are pipeline state, not user-au
 If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet):
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
-2. Verify the Review Console ran and applied/dismissed all staged items.
+2. Verify the Review Console ran and applied/dismissed all staged items. Since #1130 this precondition is also code-enforced at both archival call sites — the reconcile sweep skips a run whose console was never rendered or is unresolved (decideArchive), and the archive-run verb below refuses a rendered-but-unresolved console.
 3. **Mark the run terminal, if not already closed by Section C's step 3.6** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). Idempotent: re-running it on an already-clean run (the worktree-strategy case, where Section C's step 3.6 closed it first) is a harmless no-op. E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
 4. **Archive the run directory** — `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" archive-run --run "$RUN_DIR"`. This archives the tracked `work/` directory and moves every other entry (`config.yml`, `decisions.md`, `events.jsonl`, `staged/`, and anything else the run directory holds — the verb enumerates rather than assuming a fixed list) in one call. The verb refuses a non-terminal run (`active`/`interrupted`) — step 3's `close-run` call above is what makes this refusal unreachable in practice here, not a redundant check.
 5. Skipped staged items remain in the archive; they are NOT silently dropped.
@@ -303,9 +303,13 @@ checks 1 or 3 fail.
    `runId` other than `$RUN_ID` mean a successor holds it: the CLI exits `4`, writes nothing,
    posts nothing, and appends `AUTO — skipped release of issue #{issue}: claim held by run
    {claim.runId}` to `decisions.md`; skip the remaining steps for this issue — a successor owns
-   it now. (An unreadable/corrupt blob fails closed the same way, with `holder: unreadable`, per
-   `_shared/issue-claims.md`'s Failure posture table's "Claim write rejected, blob classified
-   `'unreadable'`" row — treated as live, so it also skips and logs.)
+   it now. **An unreadable/corrupt blob is a distinct third outcome, not folded into either of
+   the two above:** the CLI exits `5` (never `4`), writes nothing, and appends `AUTO — skipped
+   release of issue #{issue}: claim blob is corrupt/unreadable` to `decisions.md` — this is not a
+   competing claim (there is no `holder` to report), so do not treat exit `5` the way exit `4`'s
+   "a successor owns it now" is treated; a corrupt blob can never self-resolve the way a live
+   holder's claim eventually expires via TTL. See `_shared/issue-claims.md`'s release
+   exit-code line.
 
    **Multi-spec bundle callout.** This section is skipped entirely for a bundle spec under
    `MULTISPEC_REVIEW_DEFER=1` (see "Multi-spec defer behavior" in `cleanup-procedures.md`) —
@@ -326,16 +330,22 @@ checks 1 or 3 fail.
    (set `REMOVE_GRANTS=1` per step 6's rule.) The CLI wraps `gh` only — in a `gh`-absent environment
    run the same read-classify-write over the MCP tools per `_shared/github-write-transport.md`;
    the MCP path stays the documented fallback rather than a second mode of the CLI.
-5. Exit `0` = released. Exit `3` = a 404/409/422 from the blob write — the claim was already released
-   or swept (or the sha went stale between the read and this write); the CLI still posts the
-   release comment so the trail records the outcome. Exit `1` = any other failure: retry the
+5. Exit `0` = released. Exit `3` = already released or swept — a 404 from the blob write, or a
+   409/422 whose fresh re-read confirms the claim is gone or now held by a successor; the CLI
+   still posts the release comment so the trail records the outcome. A 409/422 is no longer
+   read as "already released" on its own: under git-CAS the compare-and-swap lease is on the
+   whole `claims-registry` branch tip, so an unrelated concurrent commit rejects the write too.
+   Exit `1` = any other failure — including a 409/422 whose re-read shows the claim is **still
+   held by this run** (nothing was released), or one whose re-read itself failed so the outcome
+   could not be verified: retry the
    command once, then log and continue — TTL is the backstop, never block wrap-up. Exit `2` =
    malformed call or `gh` absent (see step 4's fallback).
 6. **Remove grants** when the outcome was `merged:` or `pr-opened:`: pass `--remove-grants`, which
-   strips `auto:build` and `auto:merge`, whichever are present, best-effort per label — reversible,
-   each removal logged to `decisions.md` by the CLI. Omit it for issues released as `abandoned:`
-   (the grant is the standing retry request); an issue carrying no `auto:*` label is a harmless
-   no-op. See "Grant revocation" and the "Release triggers" table in `_shared/issue-claims.md`.
+   strips `auto:build`, `auto:merge-pending`, and `auto:merge`, whichever are present, best-effort
+   per label — reversible, each removal logged to `decisions.md` by the CLI. Omit it for issues
+   released as `abandoned:` (the grant is the standing retry request); an issue carrying no
+   `auto:*` label is a harmless no-op. See "Grant revocation" and the "Release triggers" table
+   in `_shared/issue-claims.md`.
 7. **Remove `bot:in-progress`; restore `parked` if applicable.** `--remove-in-progress` (always
    passed) removes `bot:in-progress` — best-effort, the CLI logs a warning and continues on
    failure. Then, only when the outcome reason is `abandoned: spec {spec}` (i.e. NOT

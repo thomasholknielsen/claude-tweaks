@@ -54,7 +54,7 @@ function validateConfidenceArg(value) {
     `(must be one of ${Object.keys(CONFIDENCE_RANK).join('|')}) — an unrecognized value would silently ` +
     'file every finding regardless of confidence, defeating the floor.\n',
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 function parseArgs(argv) {
@@ -116,10 +116,12 @@ function cmdValidateFindings(args) {
       'usage: docs-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] ' +
       '[--target <id>] [--run-id <id>] [--min-confidence <level>] [--dry-run]\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   validateConfidenceArg(args['min-confidence']);
+  if (process.exitCode) return;
 
   // buildValidateFindingsUpdate only patches a cursor when target is present
   // (see lib/docs-health/cache.js) — docs-health has no gap-scan-equivalent
@@ -135,7 +137,8 @@ function cmdValidateFindings(args) {
       'without it, no audit cursor advances and rotation state silently drifts. ' +
       'Pass --dry-run to preview without it.\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   let raw;
@@ -143,11 +146,13 @@ function cmdValidateFindings(args) {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
   } catch {
     process.stderr.write(`validate-findings: could not read or parse findings file: ${findingsPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (!Array.isArray(raw)) {
     process.stderr.write('validate-findings: findings file must contain a JSON array\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const survivors = [];
@@ -244,14 +249,16 @@ function cmdWordCount(args) {
   const targetPath = args._[1];
   if (!targetPath) {
     process.stderr.write('usage: docs-health.js word-count <path>\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   let content;
   try {
     content = fs.readFileSync(targetPath, 'utf8');
   } catch {
     process.stderr.write(`word-count: could not read file: ${targetPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const result = computeWordCount(content);
   process.stdout.write(JSON.stringify({ result }, null, 2) + '\n');
@@ -275,7 +282,8 @@ function cmdFindRefs(args) {
   const targetPath = args._[1];
   if (!targetPath) {
     process.stderr.write('usage: docs-health.js find-refs <path> [--root <dir>]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const root = args.root || process.cwd();
   // Resolve against root, not process.cwd(), the same way deriveDocId does
@@ -283,7 +291,8 @@ function cmdFindRefs(args) {
   // targetPath is meant to be read relative to that root.
   if (!fs.existsSync(path.resolve(root, targetPath))) {
     process.stderr.write(`find-refs: could not read file: ${targetPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const docId = deriveDocId(targetPath, root);
   const result = computeInboundReferences(docId, root);
@@ -294,7 +303,8 @@ function cmdCheckFreshness(args) {
   const targetPath = args._[1];
   if (!targetPath) {
     process.stderr.write('usage: docs-health.js check-freshness <path> [--root <dir>]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const root = args.root || process.cwd();
   let content;
@@ -305,7 +315,8 @@ function cmdCheckFreshness(args) {
     content = fs.readFileSync(path.resolve(root, targetPath), 'utf8');
   } catch {
     process.stderr.write(`check-freshness: could not read file: ${targetPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const docId = deriveDocId(targetPath, root);
   const cursors = readDurableState(root).cursors;
@@ -336,7 +347,7 @@ function main(argv) {
     'word-count <path>, find-refs <path> [--root <dir>], check-freshness <path> [--root <dir>], ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 if (require.main === module) main(process.argv.slice(2));

@@ -40,42 +40,27 @@ Recommended option.
 
 ## Skip check (before dispatch) — #701
 
-Runs after Transcript resolution (`_shared/transcript-judge.md`), before the judge dispatch —
-**only on the branch where a transcript path actually resolved.** Self-assessment (no transcript
-resolves at all) has nothing to compare against and always runs; see "Self-assessment is exempted"
-below.
+Follows `_shared/transcript-judge.md`'s Skip check procedure — stat the resolved transcript's
+current size, read the watermark (consumer key `feedback`), and call
+`isTranscriptUnchanged(watermark, currentBytes)` (`bin/lib/transcript-judge/watermark.js`) — on
+the branch where a transcript path actually resolved, before the judge dispatch. Self-assessment
+is exempted from the shared procedure's own check; see `_shared/transcript-judge.md`'s
+"Self-assessment is exempted" paragraph, not restated here.
 
-1. Stat the resolved transcript path's current size in bytes (`wc -c` or equivalent).
-2. Read the watermark for this path (`readWatermark`, consumer key `feedback`).
-3. Call `isTranscriptUnchanged(watermark, currentBytes)` (`bin/lib/transcript-judge/watermark.js`).
-   `true` means the transcript has not grown since the watermark was recorded — the cheap `>=`
-   check `[record #701]`'s Deliverables call for, so this run doesn't pay for a Task agent that
-   would evaluate zero new bytes via the offset clause.
+**When `true` (unchanged) and `--full` was not passed:** skip the judge dispatch entirely, per the
+shared procedure — no Task agent, no self-assessment. Gather 2 contributes nothing new to this
+invocation's merged batch. Report a pointer to the prior watermark's `issueUrls` (below) in the
+Step 0 run summary instead of a fresh finding list: "session evaluation unchanged since
+{evaluatedAt} — prior filings: {issueUrls, or "none" if empty or absent}." A watermark written
+before this field existed (a pre-#701 stamp) has no `issueUrls` at all, not merely an empty one —
+treat absent the same as empty rather than surfacing `undefined`.
 
-**When `true` (unchanged) and `--full` was not passed:** skip the judge dispatch entirely — no
-Task agent, no self-assessment. Gather 2 contributes nothing new to this invocation's merged
-batch. Report a pointer to the prior watermark's `issueUrls` (below) in the Step 0 run summary
-instead of a fresh finding list: "session evaluation unchanged since {evaluatedAt} — prior filings:
-{issueUrls, or "none" if empty or absent}." A watermark written before this field existed (a
-pre-#701 stamp) has no `issueUrls` at all, not merely an empty one — treat absent the same as
-empty rather than surfacing `undefined`. `--full` bypasses this check entirely (SKILL.md's Input
-table) and always dispatches fresh, exactly as today.
+`--full` bypasses this check entirely (SKILL.md's Input table) and always dispatches fresh,
+exactly as today — feedback's own full-reset override, per `_shared/transcript-judge.md`'s
+parameterization note.
 
-**When `false` (grown, or no watermark exists):** proceed to the judge dispatch as today —
-`_shared/transcript-judge.md`'s own offset clause (item 5 of the Prompt contents) already scopes
-the dispatch to only the bytes after the watermark, when one exists. This skip check and the
-offset clause are complementary, not redundant: the offset clause narrows an unavoidable dispatch;
-this check avoids the dispatch altogether when narrowing it would leave nothing to evaluate.
-
-**Self-assessment is exempted, explicitly (not an oversight).** `_shared/transcript-judge.md`'s
-Degradation section states self-assessment "never reads or writes a watermark — there is no
-resolved transcript path to key one on." This skip check inherits that same exemption rather than
-inventing a parallel mechanism for it: self-assessment only fires when no transcript file resolves
-at all, so there is no `currentBytes` to compare and no stamp to check. A self-assessment run
-therefore always runs in full (self-assessment already runs in-thread, so the dispatch cost this
-check exists to avoid does not apply there) and never writes a stamp — duplicate filings across two
-self-assessment runs remain guarded only by Step 4's dedup fingerprint and Step 8's fingerprint
-marker, the same safety net that already covers a transcript-judged run's non-duplicate findings.
+**When `false` (grown, or no watermark exists):** proceed to the judge dispatch as today, per the
+shared procedure.
 
 ## Watermark payload
 
@@ -100,13 +85,28 @@ consumer key `feedback`), the payload is:
   issueUrls,               // the URLs Step 8's `gh issue create` calls produced for this run's
                            // Gather-2-sourced findings, in filing order — what the Skip check
                            // above points a later invocation at instead of re-evaluating
-  dismissedFingerprints,   // bin/lib/declined-learning/store.js's
-                           // listDeclinedFingerprints({ source: 'feedback' }) — every fingerprint
-                           // a human declined at Step 7 across every /feedback run to date, not
-                           // just this one. Filtered to source: 'feedback' so a reflect-sourced
-                           // decline never suppresses a feedback finding by accident.
+  dismissedSubjects,       // bin/lib/declined-learning/store.js's listDeclined({ source: 'feedback' })
+                           // mapped to each entry's subject text, skipping any entry with no
+                           // `subject` (a pre-#1033 decline recorded before the field existed;
+                           // a bare fingerprint is unmatchable in substance, per watermark.js) —
+                           // every declined subject across every /feedback run to date, not just
+                           // this one. Filtered to source: 'feedback' so a reflect-sourced decline
+                           // never suppresses a feedback finding by accident.
 }
 ```
+
+**`dismissedSubjects` is computed live, immediately before composing `formatOffsetClause`'s item 5
+(`_shared/transcript-judge.md`'s "dismissedSubjects sourcing" note) — never read off a previously
+written watermark.** This is the fix for the one-run lag a fingerprint-only, snapshot-into-the-
+watermark design had (#1033): the watermark write below happens once, right after the judge
+returns and before this run's own Step 7 declines exist yet, so a value captured only at write
+time would always be missing this run's own declines and only catch up the *next* time a watermark
+happens to be written. Calling `listDeclined({ source: 'feedback' })` fresh at the moment the offset
+clause is composed removes that extra lag entirely — the only residual gap is the one no design can
+remove (a decline made later in *this same* run, after the judge already dispatched). The value
+written into the watermark payload below is the same live-computed snapshot, kept for audit
+visibility only — a later run never treats it as authoritative; it always recomputes fresh again
+itself.
 
 `filedRecords`/`findingsFiled`/`issueUrls` are populated after Step 8 completes, scoped to **this
 invocation's Gather-2-sourced items only** — never Gather 1's queue candidates, which have their

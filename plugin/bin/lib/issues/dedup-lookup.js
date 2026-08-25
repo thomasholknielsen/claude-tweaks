@@ -8,8 +8,12 @@
 // idiom (plain list + explicit --limit + in-process marker match) for callers
 // that don't need the full work-record fingerprint scheme, just "does an issue
 // with this marker already exist, and if more than one does, which is
-// canonical." No network — the caller fetches `gh issue list ... --limit 500`
-// output into a file first; this module only reads the parsed array.
+// canonical." No network — the caller fetches `gh issue list ... --limit N`
+// output into a file first; this module only reads the parsed array. `N`
+// is the caller's own call to size correctly (`_shared/github-write-transport.md`'s
+// "Sizing the list-then-filter window") — a label-scoped list can stay small,
+// an unscoped `--state all` list must cover the repo's whole issue history or
+// risk truncating away an older duplicate (#1094).
 'use strict';
 
 function bodyMatches(body, markerPattern) {

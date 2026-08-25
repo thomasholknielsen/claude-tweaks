@@ -4,7 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { run } = require('../../../plugin/bin/release-claim');
+const { run, realDeps } = require('../../../plugin/bin/release-claim');
+const claimsGitCas = require('../../../plugin/bin/lib/issues/claims-git-cas');
+const release = require('../../../plugin/bin/lib/release-claim/release');
 
 const NOW = Date.parse('2026-08-16T12:00:00Z');
 const RUN_DIR_NAME = '2026-08-16T100000-spec-999';
@@ -53,13 +55,13 @@ const streamOf = (out, kind) => out.filter((o) => o[0] === kind).map((o) => o[1]
 const stderrOf = (out) => streamOf(out, 'err');
 const envelope = (out) => JSON.parse(streamOf(out, 'out'));
 
-test('happy path: read -> PUT(sha) -> comment; --remove-grants adds two label removals; exit 0; logs to decisions.md', () => {
+test('happy path: read -> PUT(sha) -> comment; --remove-grants adds three label removals; exit 0; logs to decisions.md', () => {
   const runDir = mkRun();
   const out = [];
   const { calls, d } = deps({ content: live(RUN_DIR_NAME), out, mainRoot: rootOf(runDir) });
   const code = run(['999', '--run', runDir + '/', '--reason', 'merged: spec 999', '--link', 'https://x/1', '--remove-grants'], d);
   assert.equal(code, 0);
-  assert.deepEqual(calls.map(callKind), ['get', 'put', 'comment', 'auto:build', 'auto:merge']);
+  assert.deepEqual(calls.map(callKind), ['get', 'put', 'comment', 'auto:build', 'auto:merge-pending', 'auto:merge']);
   const put = calls.find(isPut);
   assert.ok(put.includes('sha=blobsha1'), 'PUT carries the read sha');
   const env = envelope(out);
@@ -67,7 +69,7 @@ test('happy path: read -> PUT(sha) -> comment; --remove-grants adds two label re
   assert.equal(env.runId, RUN_DIR_NAME, 'runId is basename(--run), trailing slash stripped');
   assert.equal(env.logged, true);
   const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
-  assert.match(log, /^- AUTO \d{2}:\d{2}:\d{2} — Section E: released claim on #999 \(merged: spec 999\); link https:\/\/x\/1; labels removed: auto:build, auto:merge\. Reversibility: high\.$/m);
+  assert.match(log, /^- AUTO \d{2}:\d{2}:\d{2} — Section E: released claim on #999 \(merged: spec 999\); link https:\/\/x\/1; labels removed: auto:build, auto:merge-pending, auto:merge\. Reversibility: high\.$/m);
 });
 
 test('a failed label removal (issue edit throws) warns to stderr and logs "label removal failed"; exit unchanged', () => {
@@ -79,7 +81,7 @@ test('a failed label removal (issue edit throws) warns to stderr and logs "label
   const err = stderrOf(out);
   assert.match(err, /release-claim\.js: warning — could not remove label auto:merge on #999 \(best-effort, continuing\)/);
   const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
-  assert.match(log, /labels removed: auto:build; label removal failed: auto:merge\./);
+  assert.match(log, /labels removed: auto:build, auto:merge-pending; label removal failed: auto:merge\./);
 });
 
 test('--section places the log line under the named heading; --step overrides the default "Section E"', () => {
@@ -112,6 +114,18 @@ test('blob owned by another run: exit 4, nothing written, skip line logged', () 
   assert.match(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), /skipped release of issue #999: claim held by run 2026-08-16T110000-spec-999/);
 });
 
+test('corrupt/unreadable claim blob: exit 5 (distinct from exit 4), nothing written, skip line logged', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: 'not json', out, mainRoot: rootOf(runDir) });
+  const code = run(['999', '--run', runDir, '--reason', 'merged: spec 999'], d);
+  assert.equal(code, 5);
+  assert.notEqual(code, 4, 'must not be conflated with a live competing claim');
+  assert.equal(calls.length, 1, 'only the read');
+  assert.equal(envelope(out).outcome, 'unreadable');
+  assert.match(fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'), /skipped release of issue #999: claim blob is corrupt\/unreadable/);
+});
+
 test('failed PUT (500): exit 1, no comment, FAILED line still logged; missing run dir still releases (logged:false, warning)', () => {
   const runDir = mkRun();
   const out = [];
@@ -141,6 +155,36 @@ test('failed PUT (500): exit 1, no comment, FAILED line still logged; missing ru
   assert.equal(envelope(out3).logged, false);
   assert.match(stderrOf(out3), /not anchored/);
   assert.equal(fs.existsSync(path.join(shadowRunDir, 'decisions.md')), false);
+});
+
+// Wiring, not behavior: every test above injects its own deps, so a dropped
+// `gitRunner` in realDeps would leave this whole suite green while the real
+// CLI silently fell back to the contents-API transport #787 moved off.
+test('realDeps wires the real git-CAS runner and the real gh runner', () => {
+  assert.equal(realDeps.gitRunner, claimsGitCas.defaultRunner, 'gitRunner is claims-git-cas.js\'s defaultRunner export');
+  assert.equal(realDeps.runner, release.defaultRunner, 'runner is release.js\'s defaultRunner export');
+});
+
+// The middle link of the same chain: `realDeps` holds the real git-CAS runner (test
+// above) and `releaseClaim` forwards a `gitRunner` on to claim-store (release.test.js) —
+// but neither notices if the CLI's own call site stops passing it. Deleting
+// `gitRunner: deps.gitRunner` from that call leaves every other test in the repo green
+// while production releases silently drop back to the contents-API transport.
+test('run() forwards deps.gitRunner into the release.releaseClaim call', (t) => {
+  const runDir = mkRun();
+  const out = [];
+  const { d } = deps({ content: live(RUN_DIR_NAME), out, mainRoot: rootOf(runDir) });
+  const sentinelGitRunner = () => { throw new Error('sentinel gitRunner must never be invoked in this test'); };
+  d.gitRunner = sentinelGitRunner;
+  const spy = t.mock.method(release, 'releaseClaim', () => ({
+    outcome: 'released', calls: ['read', 'put', 'comment'], commentPosted: true,
+    labelsRemoved: [], labelsFailed: [], note: null,
+  }));
+  assert.equal(run(['999', '--run', runDir, '--reason', 'merged: spec 999'], d), 0);
+  assert.equal(spy.mock.calls.length, 1, 'the CLI made exactly one releaseClaim call');
+  const arg = spy.mock.calls[0].arguments[0];
+  assert.equal(arg.gitRunner, sentinelGitRunner, 'the call carries deps.gitRunner by reference — not undefined, not some other function');
+  assert.equal(arg.runner, d.runner, 'and deps.runner alongside it');
 });
 
 test('malformed invocation / gh absent exit 2 with the MCP fallback named; --help exits 0', () => {

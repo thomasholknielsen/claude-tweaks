@@ -3,6 +3,9 @@ files:
   - plugin/skills/design-wrapper/modes/explore.md
   - plugin/skills/design-wrapper/SKILL.md
   - plugin/skills/design-wrapper/impeccable-plugin.md
+  - plugin/skills/design-wrapper/compare-shell/template.html
+  - plugin/skills/design-wrapper/compare-shell/seed-compare.mjs
+  - plugin/skills/_shared/visual-decision.md
 ---
 
 # Explore Competing Design Identities at a Project's Genesis
@@ -25,8 +28,8 @@ files:
 - **URL:** The ephemeral server URL the mode prints (serving `docs/plans/YYYY-MM-DD-{feature}-explore/index.html`)
 - **Action:** Upstream's `concept-seed.mjs` deals; the mode derives and weighs per upstream's instruction block, then builds one shared HTML scaffold and one CSS skin per *presented* direction (assigned + surviving challengers — never the full candidate list). Cycle skins with arrow keys; the "1 / N — {direction}" indicator names each world.
 - **Should feel:** A real comparison of identities, not layouts — the markup never changes between slots, only the skin stylesheet swaps, so what differs is exactly the visual world.
-- **Should understand:** Scaffold copy is partly invented placeholder content (the offer text says so); a builder that couldn't express its direction as a pure restyle appears as a degraded slot — visible, named, not pickable.
-- **Red flags:** A skin that restructures markup; external fonts/CDN assets in the switcher; all candidates rendered instead of the presented set.
+- **Should understand:** Scaffold copy is partly invented placeholder content (the offer text says so); a builder that couldn't express its direction as a pure restyle appears as a degraded slot — visible, named, not pickable. The focus view also carries the shared shell's hue / spacing / radius tweak levers — the same panel the layout scope uses, since one `seed-compare.mjs` template serves both scopes. In this scope they are especially not a way to adjust the dealt world: they preview the shell's own panel only, never the skin under judgment, and a nudge records a `tweak` event that is never a verdict.
+- **Red flags:** A skin that restructures markup; external fonts/CDN assets in the switcher; all candidates rendered instead of the presented set; a tweak lever appearing to restyle the dealt world's own skin, or a tweak event resolving the round.
 
 ### 3. Verdict and lock-in — browser + terminal
 - **URL:** The same `AskUserQuestion` verdict, reused each round: pick / reroll / steer / the canon standing exit (listed last, never recommended).

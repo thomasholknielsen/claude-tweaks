@@ -6,6 +6,7 @@ const { execFileSync } = require('child_process');
 const { runRelease } = require('./lib/release/run.js');
 const { releaseStatus, formatStatusLine, formatBackfillSection, isBadRefValue, CHANGELOG } = require('./lib/release/status.js');
 const { appendShippedVersion } = require('./lib/shipped-record.js');
+const { MARKETPLACE_REPO } = require('./lib/release/mirror.js');
 
 const USAGE = `Usage: node plugin/bin/release.js <minor|patch> "<summary>" [--dry-run] [--allow-unnamed <n>[,<m>...]]
        node plugin/bin/release.js status --merge <sha> --records <n>[,<m>...] [--ref <ref>] [--json] [--backfill]
@@ -114,6 +115,13 @@ function main(argv) {
   try {
     const out = runRelease(deps, { part, summary, date, dryRun, allowUnnamed, log: (m) => console.log(m) });
     console.log(dryRun ? `[dry-run] v${out.version} — no changes written` : `released v${out.version}`);
+    if (!dryRun) {
+      const marketplaceName = MARKETPLACE_REPO.split('/')[1];
+      console.log('');
+      console.log('Install/update this release from the CLI:');
+      console.log(`  claude plugin marketplace add ${MARKETPLACE_REPO}`);
+      console.log(`  claude plugin install claude-tweaks@${marketplaceName}`);
+    }
     return 0;
   } catch (err) {
     console.error(String(err.message || err));

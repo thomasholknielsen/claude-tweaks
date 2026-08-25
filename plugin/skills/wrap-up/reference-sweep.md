@@ -69,8 +69,10 @@ Resolve the `autonomy` ceiling per `_shared/autonomy-ceiling.md`.
   `[ref] {file} — {old} → {new}` row for the Review Console. Nothing is applied.
 - **`trusted` / `unattended`** — pass each candidate through
   `bin/lib/issues/initiative-budget.js`'s `permittedInitiative` and apply those that clear it, up to
-  the budget, in their own commit with the `Initiative-Fix: {run-id}` trailer. Stage every denial
-  with its reason — over budget, over a cap, test file, merge-sensitive path.
+  the budget, as a working-tree edit only — never a judge-side commit. The controller's serial-commit
+  pass (`curation-engine.md` section 4) is what commits it, carrying the `Initiative-Fix: {run-id}`
+  trailer. Stage every denial with its reason — over budget, over a cap, test file, merge-sensitive
+  path.
 
 When staging a candidate, pack the repair (`{old} → {new}`), the `brokenBy` path, and — at
 `trusted`/`unattended` — `permittedInitiative`'s own reason string into the finding's `summary`
