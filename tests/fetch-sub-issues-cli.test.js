@@ -132,3 +132,49 @@ test('101 numbers fan out as three chunked fetch calls (50/50/1)', () => {
   const fetches = d.calls.filter((args) => args.some((a) => typeof a === 'string' && a.includes('subIssues(first:100)')));
   assert.strictEqual(fetches.length, 3);
 });
+
+test('--resolve-retries resolves a retry parent via REST and merges it into byParent', () => {
+  const d = deps({
+    runner(args) {
+      d.calls.push(args);
+      const q = args.find((a) => a.startsWith('query='));
+      if (q && q.includes('__type')) return probeOk;
+      if (q) {
+        // batch GraphQL call: parent 5 comes back with hasNextPage true, so it lands in retry
+        return JSON.stringify({ data: { repository: { i5: { number: 5, subIssues: { nodes: [{ number: 6 }], pageInfo: { hasNextPage: true } } } } } });
+      }
+      // REST retry call: gh api --paginate repos/{owner}/{repo}/issues/5/sub_issues --jq '.[].number'
+      assert.deepStrictEqual(args, ['api', '--paginate', 'repos/o/r/issues/5/sub_issues', '--jq', '.[].number']);
+      return '6\n9\n';
+    },
+  });
+  assert.strictEqual(run(['5', '--repo', 'o/r', '--resolve-retries'], d), 0);
+  assert.deepStrictEqual(JSON.parse(d.out.join('')), { byParent: { 5: [6, 9] }, retry: [] });
+});
+
+test('--resolve-retries: a failing REST retry call exits 3, names the parent, and prints nothing to stdout', () => {
+  const d = deps({
+    runner(args) {
+      d.calls.push(args);
+      const q = args.find((a) => a.startsWith('query='));
+      if (q && q.includes('__type')) return probeOk;
+      if (q) return JSON.stringify({ data: { repository: { i5: { number: 5, subIssues: { nodes: [], pageInfo: { hasNextPage: true } } } } } });
+      throw new Error('gh api: sub_issues 404');
+    },
+  });
+  assert.strictEqual(run(['5', '--repo', 'o/r', '--resolve-retries'], d), 3);
+  assert.match(d.err.join(''), /sub-issue REST retry failed for parent #5/);
+  assert.match(d.err.join(''), /sub_issues 404/);
+  assert.deepStrictEqual(d.out, []);
+});
+
+test('--resolve-retries with an empty retry array is a no-op (unaffected output)', () => {
+  const d = deps();
+  assert.strictEqual(run(['5', '--repo', 'o/r', '--resolve-retries'], d), 0);
+  assert.deepStrictEqual(JSON.parse(d.out.join('')), { byParent: { 5: [6] }, retry: [] });
+});
+
+test('--resolve-retries does not change exit-4 (probe unavailable) behavior', () => {
+  const d = deps({ runner: () => probeNo });
+  assert.strictEqual(run(['5', '--repo', 'o/r', '--resolve-retries'], d), 4);
+});

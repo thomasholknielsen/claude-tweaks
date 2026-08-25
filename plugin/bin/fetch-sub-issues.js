@@ -9,7 +9,7 @@
 // Shell constraint section) has a single-command escape hatch for #1097's
 // batched sub-issue fetch. Zero runtime npm deps.
 //
-// Usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--help]
+// Usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--resolve-retries] [--help]
 // Output: one JSON line {"byParent":{"1095":[1097,1101]},"retry":[]} on
 // stdout — byParent as a plain object keyed by stringified number (JSON has
 // no Map). Prose invokes this via command substitution, not `xargs`; zero
@@ -21,7 +21,8 @@
 // failure, or fetchNativeSubIssues' own missing-repository guard) — or when
 // capabilities-probe.js's probeSchemaStrict call fails outright (runner
 // throw, JSON.parse failure): a transient/network probe failure, distinct
-// from genuine capability absence (#1185); 4 when that same probe call
+// from genuine capability absence (#1185); also covers a `--resolve-retries`
+// per-parent REST retry call failing (parent named on stderr); 4 when that same probe call
 // completes cleanly and reports the subIssues GraphQL field genuinely
 // unavailable on this host — the caller falls back to the per-parent REST
 // loop. Input is chunked at 50 numbers per fetchNativeSubIssues call,
@@ -41,10 +42,11 @@ const USAGE = 'usage: fetch-sub-issues.js [<n> ...] [--repo owner/name] [--help]
 const isPos = (n) => Number.isInteger(n) && n > 0;
 
 function parseArgs(argv) {
-  const opts = { numbers: [], repo: null, help: false };
+  const opts = { numbers: [], repo: null, help: false, resolveRetries: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') { opts.help = true; }
+    else if (a === '--resolve-retries') { opts.resolveRetries = true; }
     else if (a === '--repo') {
       const v = argv[i + 1];
       if (!v || v.startsWith('--')) return { error: 'missing value for --repo' };
@@ -114,6 +116,20 @@ function run(argv, deps = realDeps) {
   } catch (err) {
     deps.stderr(`fetch-sub-issues.js: ${err && err.message ? err.message : String(err)}\n`);
     return 3;
+  }
+  if (opts.resolveRetries && retry.length > 0) {
+    for (const n of retry) {
+      let nums;
+      try {
+        const out = deps.runner(['api', '--paginate', `repos/${owner}/${repo}/issues/${n}/sub_issues`, '--jq', '.[].number']);
+        nums = out.trim().split('\n').filter(Boolean).map(Number);
+      } catch (err) {
+        deps.stderr(`fetch-sub-issues.js: sub-issue REST retry failed for parent #${n}: ${err && err.message ? err.message : String(err)}\n`);
+        return 3;
+      }
+      byParent[n] = (byParent[n] || []).concat(nums);
+    }
+    retry.length = 0;
   }
   deps.stdout(`${JSON.stringify({ byParent, retry })}\n`);
   return 0;
