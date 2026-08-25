@@ -86,5 +86,9 @@
   "skill:github-write-transport": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1787634435773
+  },
+  "skill:feedback": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1787634448741
   }
 }
