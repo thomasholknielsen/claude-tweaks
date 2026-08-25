@@ -1,26 +1,43 @@
 // bin/lib/issues/claim-store.js
-// The one contents-API implementation for the claims-registry blob store
+// The one write-path implementation for the claims-registry blob store
 // (`claims/issue-{n}.json` on `CLAIMS_BRANCH` — see `_shared/issue-claims.md`
-// "The lock"). Both the claim-side preflight CLI and
+// "The lock"). `readClaimBlob`/`writeClaimBlob` try a **git compare-and-swap**
+// first (`./claims-git-cas.js` — fetch the branch tip, commit the blob on
+// it, push with `--force-with-lease`), falling back to the contents-API PUT
+// implementation below only when git-CAS fails for a transport reason (no
+// git push credential — an MCP-only sandbox, for instance) or a secondary
+// rate limit (#787's amendment: the contents-API claim writes were the
+// fleet's most-contended endpoint; git-protocol operations cost zero API
+// budget). Both the claim-side preflight CLI and
 // `bin/lib/reconcile/release-merged.js`'s release path delegate their I/O
-// here so there is exactly one code path shelling to `gh` for this
-// keyspace, instead of two implementations drifting apart.
+// here so there is exactly one code path performing this keyspace's writes,
+// instead of multiple implementations drifting apart.
 //
-// The `ghApi` seam is injectable (never real `gh` in tests): `ghApi(args)`
-// is invoked as if `gh api ${args.join(' ')}` and returns a non-throwing
-// `{stdout, failure, status}` — the same object shape release-merged.js's
-// own (pre-extraction) ghApi already used, extended with `status` so a 404
-// can be told apart from a genuine failure. `defaultGhApi` below is the
-// real implementation; release-merged.js keeps supplying its own ghApi
-// (which never sets `status`), so `readClaimBlob`'s `absent` branch simply
-// never fires there — see release-merged.js's delegation comments for why
-// that is exactly the pre-extraction behavior, unchanged.
+// The `deps.ghApi` seam is injectable (never real `gh` in tests):
+// `ghApi(args)` is invoked as if `gh api ${args.join(' ')}` and returns a
+// non-throwing `{stdout, failure, status}` — the same object shape
+// release-merged.js's own (pre-extraction) ghApi already used, extended
+// with `status` so a 404 can be told apart from a genuine failure.
+// `defaultGhApi` below is the real implementation; release-merged.js keeps
+// supplying its own ghApi (which never sets `status`) and no `gitRunner`,
+// so `readClaimBlob`'s `absent` branch simply never fires there and it stays
+// on the contents-API-only path deliberately — see release-merged.js's
+// delegation comments for why that is exactly the pre-extraction behavior,
+// unchanged. `deps.gitRunner` is optional — omitted, both functions skip
+// straight to the contents-API path (the gh-absent/MCP fallback seam).
 'use strict';
 
 const { execFileSync } = require('child_process');
 const { CLAIMS_BRANCH } = require('./claims');
+const { readClaimBlobGit, writeClaimBlobGit } = require('./claims-git-cas');
 
 const GH_TIMEOUT_MS = 5000;
+// How many times `writeClaimBlob` re-leases and re-pushes a git-CAS write
+// whose rejection a fresh read proves spurious (#787 final-review finding I1 —
+// see that function). Bounded: an unbounded retry against a busy
+// `claims-registry` branch would spin, and a rejection that stays spurious
+// across every attempt is itself a transient condition, not a contest.
+const MAX_CAS_ATTEMPTS = 3;
 
 function claimPath(issueNumber) {
   return `claims/issue-${issueNumber}.json`;
@@ -61,9 +78,17 @@ function claimPath(issueNumber) {
 //
 // ENOENT (no `gh` binary) is reported separately as `gh-absent` so a
 // preflight CLI can name the real fallback instead of a generic failure.
+//
+// A secondary/abuse rate limit (403 + "secondary rate limit" text, an abuse
+// detection mechanism message, or a `Retry-After` header) is checked first,
+// before every other branch — it must never be misread as a contest or a
+// generic network failure (record-697's incident read exactly that way
+// before diagnosis; #787's amendment requires this to classify as its own
+// distinct, transient outcome).
 function classifyGhApiError(e) {
   if (e && e.code === 'ENOENT') return { failure: 'gh-absent', status: null };
   const text = [e && e.message, e && e.stderr, e && e.stdout].filter(Boolean).map(String).join(' ');
+  if (/secondary rate limit|abuse detection mechanism|Retry-After/i.test(text)) return { failure: 'secondary-rate-limit', status: 403 };
   if (/HTTP 404|Not Found/.test(text)) return { failure: null, status: 404 };
   if (/HTTP 422|Unprocessable|Validation failed/.test(text)) return { failure: null, status: 422 };
   if (/HTTP 409|Conflict|does not match/i.test(text)) return { failure: null, status: 409 };
@@ -109,13 +134,42 @@ function listClaimNames(ghApi, repoSlug) {
   return { names: entries.map((e) => e.name), failure };
 }
 
+// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber) -> { content, sha, failure, absent }
+// Tries git-CAS first (no `gitRunner` dep = skip straight to contents-API,
+// the gh-absent/MCP-only-sandbox seam #787's amendment requires — see
+// `_shared/issue-claims.md`). A git-CAS transport failure (auth, no remote
+// access) falls back to contents-API silently — the documented degrade, not
+// an error. `sha` doubles as the git-CAS tip sha (a **commit** sha) when this
+// read came from git, and is the blob sha when it came from the contents API —
+// two different shapes, only distinguishable by which transport produced them.
+// `writeClaimBlob` takes it as a compare-and-swap lease for whichever
+// transport it tries FIRST, and never carries it across a transport fallback
+// (see that function — a git-tip sha is not a valid contents-API `sha`).
+// `absent: true` (with `failure: null`) also fires on the contents-API path
+// only when the ghApi dep sets `status: 404` — a caller whose ghApi never
+// sets `status` (release-merged's own, pre-extraction) simply never sees
+// `absent: true` there; every failure still lands as
+// `gh-absent`/`network-failure`, exactly as before this extraction.
+function readClaimBlob(deps, repoSlug, issueNumber) {
+  if (deps.gitRunner) {
+    const gitResult = readClaimBlobGit({ issueNumber, runner: deps.gitRunner });
+    if (gitResult.failure === null) {
+      return {
+        content: gitResult.content, sha: gitResult.tipSha, failure: null, absent: gitResult.absent,
+      };
+    }
+    // fall through to contents-API on a git-side transport failure
+  }
+  return readClaimBlobContentsApi(deps.ghApi, repoSlug, issueNumber);
+}
+
 // (ghApi, repoSlug, issueNumber) -> { content, sha, failure, absent }
-// `absent: true` (with `failure: null`) fires only when the ghApi dep sets
-// `status: 404` — a caller whose ghApi never sets `status` (release-merged's
-// own, pre-extraction) simply never sees `absent: true`; every failure
-// still lands as `gh-absent`/`network-failure`, exactly as before this
-// extraction.
-function readClaimBlob(ghApi, repoSlug, issueNumber) {
+// The contents-API half of `readClaimBlob`, split out so `writeClaimBlob`'s
+// transport-fallback path can re-derive a contents-API-shaped blob sha
+// without re-entering the git-CAS branch. Same return shape (and same single
+// `gh api` call) `readClaimBlob` has always produced on this path — a pure
+// extraction, no behavior change.
+function readClaimBlobContentsApi(ghApi, repoSlug, issueNumber) {
   const r = ghApi([`repos/${repoSlug}/contents/${claimPath(issueNumber)}?ref=${CLAIMS_BRANCH}`, '-q', '{content: (.content | @base64d), sha: .sha}']);
   if (r.status === 404) return { content: null, sha: null, failure: null, absent: true };
   if (r.failure) return { content: null, sha: null, failure: r.failure, absent: false };
@@ -127,26 +181,126 @@ function readClaimBlob(ghApi, repoSlug, issueNumber) {
   }
 }
 
-// (ghApi, repoSlug, issueNumber, { content, sha, message }) -> { ok, failure }
-// or, on a lost race, { ok: false, conflict: true, failure: null }.
-// `sha` included only when provided: omitted = create-only (PUT rejects if
-// the path already exists), present = conditional-update (must match the
-// blob's current sha) — the create-vs-reclaim split
-// `_shared/issue-claims.md`'s "The lock" steps 3-4 document.
-// A `status: 422` or `status: 409` response (see `classifyGhApiError`) is a
-// genuine write-conflict — someone else's create-only write landed first
-// (422), or a conditional write's sha no longer matches because someone
-// else's reclaim landed first (409) — and must resolve `ok: false` on its
-// own, not fall through to the generic `status !== 404` formula below (422
-// / 409 !== 404 would otherwise read as success). Callers distinguish this
-// from a transient `ghApi` failure via `conflict: true` vs a non-null
-// `failure` — `_shared/issue-claims.md`'s "the lock" step 3: "a rejection
-// on either transport is contested — same handling as `'live'`, not a
-// retry." A consumer supplying its own `ghApi` that never sets `status`
-// (e.g. `release-merged.js`) never sees `status === 422` or `status === 409`
-// here, so its `ok` computation is unchanged by this branch — see that
-// module's delegation comments.
-function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message }) {
+// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber,
+//  {content, sha, createOnly, expectedContent, message})
+// -> { ok, conflict?, secondaryRateLimit?, failure }
+//
+// `expectedContent` is the blob content the decision to make THIS write was
+// based on — the `content` the caller's own preceding read returned (`null`/
+// omitted for a `createOnly` write, which has no prior content to compare
+// against). It is the fix for the two final-review findings on #787, which
+// share one root cause — trusting a lease that was re-derived AFTER the write
+// decision was made:
+//
+//   * **C1 (lost update).** The contents-API fallback below used to re-derive
+//     a fresh blob sha and write with it unconditionally. If another agent's
+//     claim landed while the git-CAS attempt was failing, that write silently
+//     clobbered it — a double-claim. The fallback now compares the fresh read
+//     against `expectedContent` and reports a genuine contest instead.
+//   * **I1 (spurious contest).** `writeClaimBlobGit`'s `--force-with-lease` is
+//     leased on the whole `claims-registry` branch tip, not on this claim's
+//     file, so ANY concurrent commit to the registry — including one claiming
+//     an unrelated issue — rejects the push. Every caller treats a rejection
+//     as a per-file contest (aborting a whole group claim, or stranding a live
+//     claim whose label the rollback already stripped). A rejection now
+//     triggers a fresh git read: content actually changed = a genuine contest,
+//     reported as before; content unchanged = unrelated branch activity, so
+//     the write retries on the fresh tip, up to `MAX_CAS_ATTEMPTS`. Still
+//     spurious on the last attempt = `transport-failure` (transient — the
+//     branch is too busy to land on), never a manufactured contest.
+//
+// Both verifications live strictly inside the `deps.gitRunner && sha` block.
+// A caller with no `gitRunner` (or no `sha` lease) — `release-merged.js`'s
+// contents-API-only path — reaches the PUT below exactly as it always did:
+// no fresh read, and `expectedContent` neither needed nor consulted.
+//
+// `sha` here is the compare-and-swap lease for the transport tried FIRST —
+// the git-CAS branch tip (a **commit** sha) when the preceding read went
+// through git, the contents-API blob sha otherwise. The two shapes are never
+// interchangeable, so a lease is NEVER carried across a transport fallback:
+// handing a git tip sha to the contents API's `-f sha=` would be rejected as
+// a 409/422 and misreport a transient git-side failure as a contest — the
+// exact secondary-rate-limit-read-as-contested regression #787's amendment
+// exists to prevent (record-697). On fallback this re-reads the blob through
+// the contents API (`readClaimBlobContentsApi`) to derive a correctly-shaped
+// lease AND to verify the content is still what this write's decision was
+// based on (C1 above); a failure there returns that failure (never a spurious
+// contest), and a now-absent or now-different target IS a genuine contest (the
+// claim was released, broken, or re-taken since the git read).
+//
+// git-CAS is attempted whenever both a `gitRunner` dep AND a `sha` lease are
+// present — including a create-only write (`createOnly: true`), which is the
+// fleet's most-contended write and the whole reason for moving off the
+// contents API: adding a new `claims/issue-{n}.json` is still a commit built
+// on the current tip and protected by the same `--force-with-lease`, so the
+// tip sha is a valid lease for it. `createOnly` only changes the fallback
+// behavior: no fresh read (there is no existing blob to re-derive a sha
+// from) and never a `-f sha=` argument on the PUT, so a create-only write
+// keeps its create-vs-clobber semantics on either transport; its own
+// post-rejection verification is `absent` vs not-absent rather than a content
+// comparison, since a create-only write's premise is exactly "nothing is
+// there". A git-CAS contest, once a fresh read confirms it is genuine, is
+// reported as-is (never silently retried against contents-API — that would
+// race the same write twice under two different concurrency mechanisms). A
+// git-CAS secondary-rate-limit or transport-failure falls back to
+// contents-API once.
+//
+// `sha` included in the contents-API fallback only when provided and this is
+// not a create-only write: omitted = create-only (PUT rejects if the path
+// already exists), present = conditional-update (must match the blob's
+// current sha) — the create-vs-reclaim split `_shared/issue-claims.md`'s
+// "The lock" steps 3-4 document. A `status: 422` or `status: 409` response (see
+// `classifyGhApiError`) is a genuine write-conflict — someone else's
+// create-only write landed first (422), or a conditional write's sha no
+// longer matches because someone else's reclaim landed first (409) — and
+// must resolve `ok: false` on its own, not fall through to the generic
+// `status !== 404` formula below (422 / 409 !== 404 would otherwise read as
+// success). Callers distinguish this from a transient `ghApi` failure via
+// `conflict: true` vs a non-null `failure` — `_shared/issue-claims.md`'s
+// "the lock" step 3: "a rejection on either transport is contested — same
+// handling as `'live'`, not a retry." A consumer supplying its own `ghApi`
+// that never sets `status` (e.g. `release-merged.js`) never sees
+// `status === 422` or `status === 409` here, so its `ok` computation is
+// unchanged by this branch — see that module's delegation comments.
+function writeClaimBlob(deps, repoSlug, issueNumber, {
+  content, sha, createOnly = false, expectedContent, message,
+}) {
+  if (deps.gitRunner && sha) {
+    let leaseSha = sha;
+    for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt += 1) {
+      const gitResult = writeClaimBlobGit({
+        issueNumber, content, message, expectedTipSha: leaseSha, runner: deps.gitRunner,
+      });
+      if (gitResult.ok) return gitResult;
+      if (!gitResult.conflict) break; // transport-failure or secondaryRateLimit -> contents-API fallback below
+      // A rejected push could mean THIS claim genuinely changed, or that an
+      // unrelated commit moved the branch tip (#787 final-review finding I1
+      // — the lease is branch-wide, not per-file). Disambiguate with a
+      // fresh git read before deciding.
+      const freshGit = readClaimBlobGit({ issueNumber, runner: deps.gitRunner });
+      if (freshGit.failure) return { ok: false, failure: 'transport-failure' };
+      const unchanged = createOnly
+        ? freshGit.absent
+        : (!freshGit.absent && freshGit.content === expectedContent);
+      if (!unchanged) return { ok: false, conflict: true, failure: null }; // genuine contest
+      if (attempt === MAX_CAS_ATTEMPTS) return { ok: false, failure: 'transport-failure' }; // proven spurious every time, but couldn't land the CAS — transient, not a contest
+      leaseSha = freshGit.tipSha; // unrelated activity — retry with the fresh lease
+    }
+    // Fell through from a non-conflict git failure (transport-failure or
+    // secondaryRateLimit). NEVER reuse the git tip sha as a contents-API
+    // lease (wrong shape). NEVER write blind with a freshly re-derived lease
+    // either (#787 final-review finding C1 — that was a lost-update: the
+    // fresh lease is valid for SOME write, but not necessarily the one this
+    // caller decided to make). Verify content before proceeding. A create-only
+    // write skips this — it sends no sha at all, so there is nothing to
+    // re-derive.
+    if (!createOnly) {
+      const fresh = readClaimBlobContentsApi(deps.ghApi, repoSlug, issueNumber);
+      if (fresh.failure) return { ok: false, failure: fresh.failure };
+      if (fresh.absent || fresh.content !== expectedContent) return { ok: false, conflict: true, failure: null };
+      sha = fresh.sha;
+    }
+  }
   const encoded = Buffer.from(content, 'utf8').toString('base64');
   const args = [
     '--method', 'PUT', `repos/${repoSlug}/contents/${claimPath(issueNumber)}`,
@@ -154,12 +308,60 @@ function writeClaimBlob(ghApi, repoSlug, issueNumber, { content, sha, message })
     '-f', `content=${encoded}`,
     '-f', `branch=${CLAIMS_BRANCH}`,
   ];
-  if (sha) args.push('-f', `sha=${sha}`);
-  const r = ghApi(args);
+  if (!createOnly && sha) args.push('-f', `sha=${sha}`);
+  const r = deps.ghApi(args);
+  if (r.failure === 'secondary-rate-limit') return { ok: false, secondaryRateLimit: true, failure: null };
   if (r.status === 422 || r.status === 409) return { ok: false, conflict: true, failure: null };
   return { ok: r.failure === null && r.status !== 404, failure: r.failure };
 }
 
+// Escapes a literal string for embedding inside a `new RegExp(...)` pattern —
+// `owner`/`repo` come from this claim's own caller (trusted), but are still
+// escaped defensively since GitHub does allow `.` in either.
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isSameRepoPrUrl(link, owner, repo) {
+  if (typeof link !== 'string') return false;
+  if (typeof owner !== 'string' || !owner || typeof repo !== 'string' || !repo) return false;
+  const re = new RegExp(`^https://github\\.com/${escapeRegExp(owner)}/${escapeRegExp(repo)}/pull/\\d+$`);
+  return re.test(link);
+}
+
+// content: the raw tombstone blob text just read. gh: the generic throwing
+// gh runner (NOT ghApi — this needs `gh pr view`, not a contents-API call).
+// owner/repo: the SAME owner/repo as the issue being claimed. Moved here
+// verbatim from the now-retired claim-engine.js (#787 consolidation) — see
+// `_shared/issue-claims.md`'s "in-flight detection" section for the full
+// #315 rationale: a `pr-opened:` tombstone whose linked PR is still open
+// means a build already completed and is awaiting merge, so reclaiming here
+// would race that open PR. `link` is untrusted (any session with
+// registry-branch write access can set it), so this validates it — a
+// well-formed `https://github.com/{owner}/{repo}/pull/{number}` URL for the
+// SAME owner/repo as the issue being claimed — before ever calling `gh`.
+function tombstoneInFlightPr(content, gh, owner, repo) {
+  try {
+    const parsed = JSON.parse(content);
+    const reason = parsed && parsed.reason;
+    const link = parsed && parsed.link;
+    if (typeof reason !== 'string' || !reason.startsWith('pr-opened:')) return null;
+    if (!isSameRepoPrUrl(link, owner, repo)) return null;
+    const state = gh(['pr', 'view', link, '--json', 'state', '--jq', '.state']).trim();
+    return state === 'OPEN' ? { link } : null;
+  } catch {
+    return null; // fail open — a broken check must never block a legitimate reclaim
+  }
+}
+
 module.exports = {
-  listClaimEntries, listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, claimPath, classifyGhApiError,
+  listClaimEntries,
+  listClaimNames,
+  readClaimBlob,
+  writeClaimBlob,
+  defaultGhApi,
+  claimPath,
+  classifyGhApiError,
+  tombstoneInFlightPr,
+  isSameRepoPrUrl,
 };

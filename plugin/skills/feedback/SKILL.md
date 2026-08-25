@@ -426,12 +426,14 @@ goes via `--body-file`.
    is the host project `/feedback` is running from, not the upstream `claude-tweaks` repo the
    learning is filed against. (No `--dry-run` here — Step 7's own dry-run gate already stopped
    before Step 8 is ever reached; the CLI's `--dry-run` flag noted in Step 7 is a separate,
-   direct-invocation-only affordance.) Every `gh` call this CLI makes (Step 4's own dedup search
-   inside the CLI and the read-back `gh issue view`) automatically retries up to 4 times (5 total
+   direct-invocation-only affordance.) Every `gh` call this CLI makes (the CLI's own
+   fingerprint-marker dedup lookup — this step's authoritative check, a plain `gh issue list` plus
+   an in-process marker match, never `--search`, per `_shared/github-write-transport.md`; not Step
+   4's component-keyword screen — and the read-back `gh issue view`) automatically retries up to 4 times (5 total
    attempts — this record's own observed worst case) after a 15-second wait on a transient-looking
    failure — `bin/lib/feedback/file-feedback.js`'s `withTransientRetry`, applied internally by
    `fileOne`. `gh issue create` retries the same way, but dedup-safe: since issue creation isn't
-   idempotent, a retry first re-runs the dedup search for this draft's fingerprint marker — a hit
+   idempotent, a retry first re-runs that same dedup lookup for this draft's fingerprint marker — a hit
    means the "failed" attempt actually succeeded server-side (its response was lost to the same
    transient condition), so that issue is reused instead of a second one being filed
    (`createWithDedupSafeRetry`). No per-call shell loop needed either way.

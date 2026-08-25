@@ -96,6 +96,7 @@ one-time provision-now offer, which uses this list whole):
   ["ready",             "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
   ["auto:build",        "Grant: agents may build this record autonomously (human-granted; machinery only removes)"],
   ["auto:merge",        "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)"],
+  ["auto:merge-pending", "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)"],
   ["bot:in-progress",   "Bot state: an agent currently holds the claim on this record"],
   ["bot:blocked",       "Bot state: retry ceiling or merge-verification park — needs human re-triage before autonomous retry"],
   ["demo:pending",           "Acceptance: built and verified — awaiting human sign-off via /claude-tweaks:demo"],

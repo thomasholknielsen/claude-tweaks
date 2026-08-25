@@ -88,8 +88,12 @@ test('session-evaluation.md documents the #701 Skip check section', () => {
   assert.match(SESSION_EVAL, /isTranscriptUnchanged\(watermark, currentBytes\)/);
 });
 
-test('session-evaluation.md Skip check explicitly exempts self-assessment (not silent)', () => {
-  assert.match(SESSION_EVAL, /Self-assessment is exempted, explicitly \(not an oversight\)/);
+// #1119: the Skip check's mechanic (including the self-assessment exemption)
+// moved to _shared/transcript-judge.md — session-evaluation.md now cites it
+// rather than restating the exemption paragraph.
+test('session-evaluation.md cites the shared self-assessment exemption instead of restating it', () => {
+  assert.match(SESSION_EVAL, /Self-assessment\s*\nis exempted from the shared procedure's own check/);
+  assert.doesNotMatch(SESSION_EVAL, /Self-assessment is exempted, explicitly \(not an oversight\)/);
 });
 
 test('session-evaluation.md watermark payload documents sessionId/findingsFiled/issueUrls', () => {

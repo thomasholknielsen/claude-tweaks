@@ -67,6 +67,31 @@ truncation-warning discipline as the main record fetch further down, not a separ
 set is bounded to the last 30 days; that reasoning covers only that one call, not its
 `--state all` parent-issue fetch, which is bounded the same way this one is.)
 
+Every intermediate file this procedure writes below lands in the session scratchpad, never bare
+`/tmp` — per `_shared/session-tmp-root.md`'s convention (cited, not restated): a literal
+`/tmp/trust-table-*` path is not guaranteed visible from one Bash call to the next in this
+harness, the same per-call isolation `backlog-fetch-limit` above is worked around for. Resolve
+every path below once, before running anything else, via the CLI wrapper — seven files is over
+that convention's three-file cutoff for preferring it to the inline `node -e` form:
+
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" \
+  PARENT_ISSUES=trust-table-parent-issues.json \
+  SUB_ISSUES=trust-table-sub-issues.json \
+  SUB_ISSUES_BATCH=trust-table-sub-issues-batch.json \
+  GIT_LOG=trust-table-git-log.txt \
+  RECORDS=trust-table-records.json \
+  SUB_ISSUE_NUMBERS=trust-table-sub-issue-numbers.jsonl \
+  SUB_ISSUE_FAILURES=trust-table-sub-issue-failures.txt)"
+echo "$PARENT_ISSUES|$SUB_ISSUES|$SUB_ISSUES_BATCH|$GIT_LOG|$RECORDS|$SUB_ISSUE_NUMBERS|$SUB_ISSUE_FAILURES"
+```
+
+Substitute the seven printed absolute paths for `{tmp-parent-issues}`, `{tmp-sub-issues}`,
+`{tmp-sub-issues-batch}`, `{tmp-git-log}`, `{tmp-records}`, `{tmp-sub-issue-numbers}`, and
+`{tmp-sub-issue-failures}` respectively, literally, in **every** block below that references
+one — the same discipline `{resolved-limit}` above already uses, never a shell variable relied
+on to survive across calls or reach a subagent.
+
 ### `work-links` resolution
 
 **Read `work-links` before choosing between the two branches below** — they are mutually
@@ -83,7 +108,7 @@ The printed value names the branch to take — the resolver applies the document
 (`body-text`) when the key is unset. Taking the `body-text` branch on a `work-links: native` repo
 is not a degraded read but a silent total failure: a native parent's body carries no task list by
 construction, so `parseSubIssues` returns `[]` for every parent,
-`/tmp/trust-table-sub-issues.json` is empty, and every decomposed sub-issue re-enters `cell.total`
+`{tmp-sub-issues}` is empty, and every decomposed sub-issue re-enters `cell.total`
 as ungraded evidence — reinstating exactly the manufactured-`clean` path this filter exists to
 close, in the one direction this table must never fail in.
 
@@ -93,16 +118,16 @@ close, in the one direction this table must never fail in.
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 gh issue list --label parent-issue --state all --json number,body --limit "$LIMIT" \
-  > /tmp/trust-table-parent-issues.json
+  > "{tmp-parent-issues}"
 node -e "
   const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
-  const parents = require('/tmp/trust-table-parent-issues.json');
+  const parents = require('{tmp-parent-issues}');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + parents.length + ' parent-issue records (the configured backlog-fetch-limit) — older parent issues were dropped, so their sub-issues may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
   const subIssueNumbers = parents.flatMap((p) => parseSubIssues(p.body));
-  fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
+  fs.writeFileSync('{tmp-sub-issues}', JSON.stringify(subIssueNumbers));
 "
 ```
 
@@ -114,14 +139,14 @@ fallback:
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 gh issue list --label parent-issue --state all --json number --limit "$LIMIT" \
-  > /tmp/trust-table-parent-issues.json
+  > "{tmp-parent-issues}"
 ```
 
 ```bash
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 node -e "
-  const parents = require('/tmp/trust-table-parent-issues.json');
+  const parents = require('{tmp-parent-issues}');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + parents.length + ' parent-issue records (the configured backlog-fetch-limit) — older parent issues were dropped, so their sub-issues may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
@@ -140,67 +165,52 @@ if [ -n "$SUBSNAP" ] && node -e "
   const { isFresh } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js');
   process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
 " "$SUBSNAP" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
-  cp "$SUBSNAP" /tmp/trust-table-sub-issues.json
+  cp "$SUBSNAP" "{tmp-sub-issues}"
   echo SUBSNAP_FRESH
 else
   echo SUBSNAP_STALE
 fi
 ```
 
-Branch on the printed token, never on whether the file appears to exist — `/tmp/trust-table-sub-issues.json` can already be present and stale from an earlier run, so the token is the only observable signal (mirrors the git-log block's both-branches-observable precedent later in this file). When the block above printed `SUBSNAP_FRESH`, `/tmp/trust-table-sub-issues.json` was just written from the snapshot — skip straight to the git-log section below, the fetch and retry ladder that follow are unnecessary. When it printed `SUBSNAP_STALE`, run the batched fetch instead — one CLI call resolving every parent's sub-issues at once (`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), invoked via command substitution rather than an `xargs` pipe so an empty parent list still invokes it validly (its zero-positional contract prints an empty envelope rather than erroring) and the CLI's own exit status survives instead of being replaced by the pipe's:
+Branch on the printed token, never on whether the file appears to exist — `{tmp-sub-issues}` can already be present and stale from an earlier run, so the token is the only observable signal (mirrors the git-log block's both-branches-observable precedent later in this file). When the block above printed `SUBSNAP_FRESH`, `{tmp-sub-issues}` was just written from the snapshot — skip straight to the git-log section below, the fetch and retry ladder that follow are unnecessary. When it printed `SUBSNAP_STALE`, run the batched fetch instead — one CLI call resolving every parent's sub-issues at once (`bin/fetch-sub-issues.js`, wrapping `native-dependencies.js`'s `fetchNativeSubIssues`), invoked via command substitution rather than an `xargs` pipe so an empty parent list still invokes it validly (its zero-positional contract prints an empty envelope rather than erroring) and the CLI's own exit status survives instead of being replaced by the pipe's:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/trust-table-sub-issues-batch.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" --resolve-retries $(node -e "require('{tmp-parent-issues}').forEach(p => console.log(p.number))") > "{tmp-sub-issues-batch}"
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
 GraphQL field is unavailable on this host — run the Fallback block below for **every** parent
 instead of the canonicalization step that follows; it produces the same
-`/tmp/trust-table-sub-issues.json` by the older, verbatim REST path. **Exit 3** — the GraphQL call
+`{tmp-sub-issues}` by the older, verbatim REST path. **Exit 3** — the GraphQL call
 itself failed (network/API error, or a missing-repository response) — the run fails loud: report
 no verdict at all, naming the failed parents from the command's stderr. **Exit 1 or 2** — a
 malformed invocation or a missing `gh`/unresolvable repo: an environment or transcription bug, not
 a data outcome — stop and surface the CLI's stderr rather than reading the (empty) batch file.
-**Exit 0** — continue to the retry ladder below.
+**Exit 0** — continue to the canonicalization step below.
 
-The batch envelope's `retry` array names parents the probe could not resolve in one page — a
-missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true
+`--resolve-retries` already resolved every parent the probe could not fit in one page — a
+missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` was true
 (`native-dependencies.js`'s `fetchNativeSubIssues` never lands a parent in `byParent` for either
-case, so a truncated page can never masquerade as a complete one). Each retry parent gets its own
-paginated REST call, exactly like the Fallback block's per-parent loop, and a retry parent whose
-REST call also fails throws, naming the parent — by design, this never coerces to an empty list:
+case) — via its own per-parent paginated REST call, merged back into `byParent`; a retry parent
+whose REST call failed would have already made the CLI itself exit 3 above, naming the parent, so
+reaching this point means every parent's sub-issues are already in hand. The only work left is
+canonicalization — flatten, dedupe, sort:
 
 ```bash
 node -e "
   const fs = require('fs');
-  const { execFileSync } = require('child_process');
-  const batch = require('/tmp/trust-table-sub-issues-batch.json');
-  const byParent = batch.byParent || {};
-  const retryParents = batch.retry || [];
-  const retryResults = [];
-  for (const n of retryParents) {
-    let nums;
-    try {
-      const out = execFileSync('gh', ['api', '--paginate', 'repos/{owner}/{repo}/issues/' + n + '/sub_issues', '--jq', '.[].number'], { encoding: 'utf8' });
-      nums = out.trim().split('\n').filter(Boolean).map(Number);
-    } catch (err) {
-      throw new Error('sub-issue REST retry failed for parent #' + n + ': ' + (err && err.message ? err.message : String(err)));
-    }
-    retryResults.push(...nums);
-  }
-  if (retryParents.length) {
-    console.error('WARNING: ' + retryParents.length + ' parent(s) needed a per-parent REST retry (no alias, or more than one page, in the batched probe): ' + retryParents.join(', '));
-  }
-  const all = Object.values(byParent).flat().concat(retryResults);
+  const batch = require('{tmp-sub-issues-batch}');
+  const all = Object.values(batch.byParent || {}).flat();
   const subIssueNumbers = Array.from(new Set(all)).sort((a, b) => a - b);
-  fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
+  fs.writeFileSync('{tmp-sub-issues}', JSON.stringify(subIssueNumbers));
   const subSnapPath = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
   if (subSnapPath) fs.writeFileSync(subSnapPath, JSON.stringify(subIssueNumbers));
 "
 ```
 
-The throw above runs before either write, so a failed retry can never leave a partial
-`/tmp/trust-table-sub-issues.json` or a stale-looking snapshot on disk.
+`{tmp-sub-issues}` and the session snapshot are only ever written here, once the
+envelope is already fully resolved — there is no partial-write hazard left to guard against, since
+a failed retry never reaches this line at all (`--resolve-retries` exits 3 naming the parent instead).
 
 #### Fallback (probe unavailable — older GHE)
 
@@ -208,27 +218,27 @@ Runs only on exit 4 above, for every parent — the older, per-parent REST loop 
 before the batched probe existed:
 
 ```bash
-: > /tmp/trust-table-sub-issue-numbers.jsonl
-: > /tmp/trust-table-sub-issue-failures.txt
-node -e "require('/tmp/trust-table-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/trust-table-sub-issue-numbers.jsonl || echo "$N" >> /tmp/trust-table-sub-issue-failures.txt
+: > "{tmp-sub-issue-numbers}"
+: > "{tmp-sub-issue-failures}"
+node -e "require('{tmp-parent-issues}').forEach(p => console.log(p.number))" | while read -r N; do
+  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> "{tmp-sub-issue-numbers}" || echo "$N" >> "{tmp-sub-issue-failures}"
 done
 
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 node -e "
   const fs = require('fs');
-  const failures = fs.readFileSync('/tmp/trust-table-sub-issue-failures.txt', 'utf8').trim().split('\n').filter(Boolean);
+  const failures = fs.readFileSync('{tmp-sub-issue-failures}', 'utf8').trim().split('\n').filter(Boolean);
   if (failures.length) {
-    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write /tmp/trust-table-sub-issues.json or the session snapshot on an undercounted set');
+    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write {tmp-sub-issues} or the session snapshot on an undercounted set');
   }
-  const parents = require('/tmp/trust-table-parent-issues.json');
+  const parents = require('{tmp-parent-issues}');
   if (parents.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + parents.length + ' parent-issue records (the configured backlog-fetch-limit) — older parent issues were dropped, so their sub-issues may silently re-enter cell totals as ungraded evidence. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
-  const raw = fs.readFileSync('/tmp/trust-table-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  const raw = fs.readFileSync('{tmp-sub-issue-numbers}', 'utf8').trim().split('\n').filter(Boolean).map(Number);
   const subIssueNumbers = Array.from(new Set(raw)).sort((a, b) => a - b);
-  fs.writeFileSync('/tmp/trust-table-sub-issues.json', JSON.stringify(subIssueNumbers));
+  fs.writeFileSync('{tmp-sub-issues}', JSON.stringify(subIssueNumbers));
   const subSnapPath = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').subIssuesPath(process.env.CLAUDE_CODE_SESSION_ID);
   if (subSnapPath) fs.writeFileSync(subSnapPath, JSON.stringify(subIssueNumbers));
 "
@@ -236,9 +246,9 @@ node -e "
 
 The `while read` loop's own exit code can't surface a failed per-parent `gh api` call — the loop
 itself always exits 0 — so each iteration appends its own parent number to
-`/tmp/trust-table-sub-issue-failures.txt` on failure, and the assembly step reads that file
+`{tmp-sub-issue-failures}` on failure, and the assembly step reads that file
 **before** touching either output file. A non-empty failures file throws, naming every failed
-parent, before either `/tmp/trust-table-sub-issues.json` or the session snapshot is written — this
+parent, before either `{tmp-sub-issues}` or the session snapshot is written — this
 branch feeds both, and an undercounted set would otherwise cache silently for the whole TTL.
 
 The error ladder, end to end: the batched alias resolves the common case in one call; a missing
@@ -246,12 +256,12 @@ alias or a truncated `hasNextPage` page joins `retry` rather than ever being rea
 sub-issues"; a per-parent REST retry covers those; and a retry that also fails, or the batched
 call itself failing outright (exit 3), fails loud rather than rendering a verdict on incomplete
 data — partial pages are never used as if they were complete. Both the primary path and the
-Fallback path converge on the same canonicalized `/tmp/trust-table-sub-issues.json` — numerically
+Fallback path converge on the same canonicalized `{tmp-sub-issues}` — numerically
 sorted, deduplicated — which is what makes them interchangeable: the downstream consumer wraps
 its contents in a `Set`, so canonical order is the equality bar between the two paths' output, not
 just set-equivalence.
 
-With `/tmp/trust-table-sub-issues.json` written by whichever branch applies, fetch the record
+With `{tmp-sub-issues}` written by whichever branch applies, fetch the record
 set itself — this block resolves its own `$LIMIT`/`FETCH_LIMIT` too, for the same reason:
 
 Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting
@@ -273,10 +283,10 @@ if [ -n "$GITLOG" ] && node -e "
   const { isFresh } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js');
   process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
 " "$GITLOG" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
-  cp "$GITLOG" /tmp/trust-table-git-log.txt
+  cp "$GITLOG" "{tmp-git-log}"
 else
-  git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/trust-table-git-log.txt
-  [ -n "$GITLOG" ] && cp /tmp/trust-table-git-log.txt "$GITLOG"
+  git log "{integration-branch}" --format='%H%x1f%B%x1e' > "{tmp-git-log}"
+  [ -n "$GITLOG" ] && cp "{tmp-git-log}" "$GITLOG"
 fi
 ```
 
@@ -289,17 +299,17 @@ field set already carries it. Read through the snapshot instead of a bare fetch:
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 {Session-scoped record snapshot's read-fresh-or-fetch block (_shared/record-queue-fetch.md),
- with {tmp-records-file} = /tmp/trust-table-records.json}
+ with {tmp-records-file} = {tmp-records}}
 node -e "
   const fs = require('fs');
   const { trustRows, parseGitLog } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/trust.js');
-  const issues = require('/tmp/trust-table-records.json');
-  const subIssues = new Set(require('/tmp/trust-table-sub-issues.json'));
+  const issues = require('{tmp-records}');
+  const subIssues = new Set(require('{tmp-sub-issues}'));
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + issues.length + ' records (the configured backlog-fetch-limit) — history beyond this cap was dropped, so every cell below may be under-counted. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
   const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name), hasParent: subIssues.has(i.number) }));
-  const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
+  const gitLog = parseGitLog(fs.readFileSync('{tmp-git-log}', 'utf8'));
   const policy = { 'trust-revert-window-days': process.argv[1] };
   console.log(JSON.stringify(trustRows(records, gitLog, Date.now(), policy)));
 " -- "{resolved-window}"

@@ -115,6 +115,12 @@ function main() {
     suiteResult = probeSuite({ scope, run: suiteRun });
   }
 
+  // A blank or whitespace-only value (the shape an unset $PIPELINE_RUN_DIR
+  // expands to in shell) is treated as no value at all — same shape as
+  // materialize.js's --run-dir and resolve-policy.js's --run (#1118).
+  const pipelineRunDir = process.env.PIPELINE_RUN_DIR;
+  const pipelineRunId = pipelineRunDir && pipelineRunDir.trim() !== '' ? path.basename(pipelineRunDir) : null;
+
   // NOTE the runner shapes differ and are NOT interchangeable. probeBranches
   // calls run(['branch', ...]) — bare git args, so it gets the `git` wrapper.
   // probeRelease calls run(['git', 'show', ...]) — full argv including the
@@ -127,7 +133,13 @@ function main() {
     probeForge({ scope, run }),
     suiteResult,
     probeRelease({ scope, manifest, run }),
-    probePipelineRuns({ cwd }),
+    probePipelineRuns({
+      cwd,
+      // The invoking run's identity, when one is threaded (wrap-up runs
+      // inside a pipeline run; standalone invocations have none) — #1118.
+      runId: pipelineRunId,
+      worktreeRoot: git(['rev-parse', '--show-toplevel']),
+    }),
     probeArtifacts({ cwd, run: git }),
   ], opts.scope);
 

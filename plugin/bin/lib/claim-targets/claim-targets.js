@@ -22,7 +22,7 @@
 const claimStore = require('../issues/claim-store');
 const { classifyClaimBlob, claimPayload, releasePayload } = require('../issues/claims');
 const { ensureLabelPayload } = require('../issues/labels');
-const { tombstoneInFlightPr } = require('../issues/claim-engine');
+const { tombstoneInFlightPr } = claimStore;
 
 const BOT_IN_PROGRESS = 'bot:in-progress';
 const BOT_IN_PROGRESS_DESC = 'Bot state: an agent currently holds the claim on this record';
@@ -104,7 +104,7 @@ function removeLabelBestEffort(gh, issue) {
 // affects claim/contest state — a failed or absent re-read simply leaves
 // `holder` at `null`, same as an unreadable blob's holder.
 function holderFromFreshRead(deps, repoSlug, issue) {
-  const fresh = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
+  const fresh = claimStore.readClaimBlob(deps, repoSlug, issue);
   if (fresh.failure || fresh.absent) return null;
   const classified = classifyClaimBlob(fresh.content, deps.now());
   if (classified.state !== 'live') return null;
@@ -122,7 +122,7 @@ function releaseClaimedThisRun(deps, repoSlug, runId, issues) {
   const released = [];
   const releaseFailed = [];
   for (const issue of issues) {
-    const fresh = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
+    const fresh = claimStore.readClaimBlob(deps, repoSlug, issue);
     if (fresh.failure || fresh.absent) {
       releaseFailed.push({ issue, error: fresh.failure || 'absent' });
       continue; // nothing we can safely overwrite
@@ -130,13 +130,17 @@ function releaseClaimedThisRun(deps, repoSlug, runId, issues) {
     const payload = releasePayload({
       issueNumber: issue, runId, reason: ABORT_REASON, now: deps.now(),
     });
-    const w = claimStore.writeClaimBlob(deps.ghApi, repoSlug, issue, {
-      content: payload.tombstoneContent, sha: fresh.sha, message: `Release issue #${issue} — ${ABORT_REASON}`,
+    // `expectedContent` = what this very read saw, so a git-CAS push rejected
+    // by unrelated `claims-registry` activity retries instead of aborting the
+    // rollback and stranding a claim whose label was already stripped (#787
+    // final-review finding I1 — see claim-store.js's writeClaimBlob).
+    const w = claimStore.writeClaimBlob(deps, repoSlug, issue, {
+      content: payload.tombstoneContent, sha: fresh.sha, expectedContent: fresh.content, message: `Release issue #${issue} — ${ABORT_REASON}`,
     });
     if (w.ok) {
       released.push(issue);
     } else {
-      releaseFailed.push({ issue, error: w.failure || (w.conflict ? 'conflict' : 'unknown') });
+      releaseFailed.push({ issue, error: w.failure || (w.conflict ? 'conflict' : (w.secondaryRateLimit ? 'secondary-rate-limit' : 'unknown')) });
     }
     removeLabelBestEffort(deps.gh, issue);
   }
@@ -183,7 +187,7 @@ function run(argv, deps) {
   }
 
   for (const issue of targets) {
-    const read = claimStore.readClaimBlob(deps.ghApi, repoSlug, issue);
+    const read = claimStore.readClaimBlob(deps, repoSlug, issue);
     if (read.failure) {
       if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: read.failure }); continue; }
       return abort({ transient: [{ issue, error: read.failure }] }, 4);
@@ -198,7 +202,7 @@ function run(argv, deps) {
     // ahead of the reclaimable branch below since a tombstone is otherwise
     // always reclaimable; every other tombstone reason, and any failure in
     // the check itself, falls straight through unchanged (fail open) —
-    // see `tombstoneInFlightPr`'s own doc comment in claim-engine.js.
+    // see `tombstoneInFlightPr`'s own doc comment in claim-store.js.
     if (classified.state === 'tombstone') {
       const inFlight = tombstoneInFlightPr(content, deps.gh, repoOwner, repoName);
       if (inFlight) {
@@ -228,13 +232,40 @@ function run(argv, deps) {
     const payload = claimPayload({
       issueNumber: issue, runId: opts.runId, sessionId: deps.sessionId, host: deps.hostname, now: deps.now(),
     });
-    const writeOpts = { content: payload.fileContent, message: `Claim issue #${issue}` };
-    if (classified.state !== 'absent') writeOpts.sha = read.sha;
-    const write = claimStore.writeClaimBlob(deps.ghApi, repoSlug, issue, writeOpts);
+    // `sha` is always the lease from this same read — the git-CAS branch tip
+    // when the read came through git, the blob sha when it came through the
+    // contents API — including for a create-only write: adding a new
+    // `claims/issue-{n}.json` is still a commit on the current tip, protected
+    // by the same `--force-with-lease`, and the create-only claim is exactly
+    // the contended write #787's amendment moves off the contents API.
+    // `createOnly` (not the presence of a sha) is what keeps that write
+    // create-vs-clobber on the contents-API fallback — see
+    // claim-store.js's writeClaimBlob. When no `gitRunner` dep is supplied
+    // (release-merged.js's contents-API-only callers), an 'absent' read
+    // returns `sha: null` anyway, so this is a no-op there.
+    // `expectedContent` is the blob this same read saw (`null` when absent —
+    // the create-only case, which compares on absence instead). It is what
+    // lets claim-store tell a genuine lost race from a push rejected by
+    // unrelated `claims-registry` activity, and what stops a fallback write
+    // from clobbering a claim that landed meanwhile (#787 final-review
+    // findings I1/C1 — see claim-store.js's writeClaimBlob).
+    const writeOpts = {
+      content: payload.fileContent,
+      message: `Claim issue #${issue}`,
+      sha: read.sha,
+      createOnly: classified.state === 'absent',
+      expectedContent: content,
+    };
+    const write = claimStore.writeClaimBlob(deps, repoSlug, issue, writeOpts);
 
-    if (write.failure) {
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: write.failure }); continue; }
-      return abort({ transient: [{ issue, error: write.failure }] }, 4);
+    if (write.failure || write.secondaryRateLimit) {
+      // A secondary/abuse rate limit is transient, never contested — a
+      // throttle must not masquerade as another agent holding the claim
+      // (record-697's incident read exactly that way before diagnosis,
+      // #787's amendment).
+      const reason = write.secondaryRateLimit ? 'secondary-rate-limit' : write.failure;
+      if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: reason }); continue; }
+      return abort({ transient: [{ issue, error: reason }] }, 4);
     }
     if (!write.ok) {
       // Rejected (race lost between this read and this write) — contested,

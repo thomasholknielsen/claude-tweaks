@@ -26,24 +26,30 @@ reaches a subagent, so that expansion always resolves empty and this block would
 quiet and in the safe direction, which is exactly why it needs stating: nothing errors, the console
 simply renders a false claim about live policy.
 
-This trust block reuses `/tmp/trust-table-git-log.txt`, already written by the Fetch section above — it must never shell its own separate `git log` call, or its verdicts could silently disagree with the trust table this same run just rendered from the identical underlying evidence.
+This trust block reuses the same session-scoped `trust-table-git-log.txt` the Fetch section above
+already wrote — it must never shell its own separate `git log` call, or its verdicts could silently
+disagree with the trust table this same run just rendered from the identical underlying evidence.
+Re-resolve that path (and the records snapshot's) here rather than trusting a shell variable from
+the earlier Bash call to survive — it won't (see `_shared/session-tmp-root.md`); `sessionTmpPath`
+is deterministic per session id + filename, so re-resolving returns the identical path the Fetch
+section already populated in this same session.
 `{resolved-window}` reaches the script as a `process.argv` arg after `--`, never spliced into the
 JS source — a value containing a quote character would otherwise break out of the string literal,
 the same reason `code-health/focus-mode.md`'s F1 block passes its own values that way.
 
 ```bash
-BACKLOG_REFINE_TRUST=$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'backlog-refine-trust.json') || require('path').join(require('os').tmpdir(), 'backlog-refine-trust.json'))
-")
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" \
+  BACKLOG_REFINE_TRUST=backlog-refine-trust.json \
+  TT_RECORDS=trust-table-records.json \
+  TT_GIT_LOG=trust-table-git-log.txt)"
 node -e "
   const fs = require('fs');
   const root = '${CLAUDE_PLUGIN_ROOT}';
   const { trustRows, riskBand, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
   const { resolveProvenance } = require(root + '/bin/lib/issues/provenance.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
-  const issues = require('/tmp/trust-table-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
-  const gitLog = parseGitLog(fs.readFileSync('/tmp/trust-table-git-log.txt', 'utf8'));
+  const issues = require('$TT_RECORDS').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
+  const gitLog = parseGitLog(fs.readFileSync('$TT_GIT_LOG', 'utf8'));
   const policy = { 'trust-revert-window-days': process.argv[1] };
   const rows = new Map(trustRows(issues, gitLog, Date.now(), policy).map((r) => [r.key, r]));
   const ceiling = resolveCeiling({ policy: '{resolved-ceiling}' });

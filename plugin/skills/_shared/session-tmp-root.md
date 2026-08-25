@@ -96,4 +96,11 @@ caller trusts a stale read.
 `skills/dispatch/SKILL.md`, `skills/backlog/overview-mode.md`,
 `skills/backlog/refine-mode.md`, `skills/backlog/refine-lanes.md`,
 `skills/backlog/grant-mode.md`, `skills/backlog/attention-mode.md`,
-`skills/backlog/trust-signal.md`, `skills/assess-agent-autonomy/grant-check.md`.
+`skills/backlog/trust-signal.md`, `skills/assess-agent-autonomy/grant-check.md`,
+`skills/_shared/trust-table.md` — whose Fetch section resolves seven paths at once via the
+CLI wrapper and hands their literal values downstream as `{tmp-*}` placeholders (see that
+file's Fetch section); `skills/backlog/trust-signal.md` re-resolves two of the same
+filenames (`trust-table-records.json`, `trust-table-git-log.txt`) independently, since
+`sessionTmpPath` is deterministic per session id + filename and a shell variable from
+`trust-table.md`'s own resolution call cannot survive into `trust-signal.md`'s separate
+Bash call.

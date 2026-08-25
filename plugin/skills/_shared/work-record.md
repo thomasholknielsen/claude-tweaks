@@ -46,7 +46,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 | **Origin** | one `by:*` label — members listed once, in the Label taxonomy table's Origin row below — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
 | **Scoring** | `risk:low\|medium\|high` × `size:low\|medium\|high` | Labels — at most one of each family |
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
-| **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
+| **Authorization** | `auto:build`, `auto:merge`, `auto:merge-pending` | Labels — human-granted, except `auto:merge-pending` (machine-only waypoint, see Grant semantics) — absence of all three is the default not-authorized state |
 | **Bot state** | `bot:in-progress`, `bot:blocked` | Labels — machinery-owned visibility layer |
 | **Acceptance** | `demo:pending` \| `demo:approved` \| `demo:changes-requested` — or no label | Labels — `demo:pending` is written by every skill the permission matrix below grants it to (more than one, and the matrix is the list; do not restate a single writer here), resolved to `demo:approved`/`demo:changes-requested` by `/claude-tweaks:demo` alone; independent of Stage and of the issue's own open/closed state |
 | **Acceptance provenance** | `demo:approved-batch` — a modifier, always stacked alongside `demo:approved`, never on its own | Label — written only when `/claude-tweaks:demo` resolves the verdict via a `#N,#M` batch invocation rather than a dedicated single-record session (both run the same per-item walkthrough — this distinguishes invocation shape, not whether one happened); absent means single-record-backed (including every `demo:approved` label applied before this modifier existed). Sole consumer: `bin/lib/issues/trust.js`'s coverage/verdict computation, via `bin/lib/issues/acceptance.js`'s `approvalProvenance` |
@@ -85,7 +85,7 @@ are about to apply.
 | Size (3) | `size:low`, `size:medium`, `size:high` | Scoring |
 | Ceremony (2) | `ceremony:fast-lane`, `ceremony:standard` | Ceremony depth — cross-cutting, not one of the axes; stamped by `/specify` alongside Scoring, always explicit (no unscored state) |
 | Stage (2) | `parked`, `ready` | Stage |
-| Grants (2) | `auto:build`, `auto:merge` | Authorization |
+| Grants (3) | `auto:build`, `auto:merge`, `auto:merge-pending` | Authorization |
 | Bot state (2) | `bot:in-progress`, `bot:blocked` | Bot state |
 | Acceptance (3) | `demo:pending`, `demo:approved`, `demo:changes-requested` | Acceptance |
 | Acceptance provenance (1) | `demo:approved-batch` | Modifier stacked alongside `demo:approved` — batch-invocation-sourced vs. single-record-backed (absent) |
@@ -142,12 +142,12 @@ as written whatever the ceiling says.
 | **`/feedback`** | `needs:definition` (content judgment at filing time, same posture as `/capture`'s), `bug`/`enhancement` **only** when `gh label list` confirms the label exists on `thomasholknielsen/claude-tweaks` | nothing | every other label in this repository's own internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `size:*`, `ready`, `ceremony:*`, `auto:*`, `bot:*`, `parked`) — `needs:definition` is the single named exception |
 | **`/specify`** (shaper) | `ready`, `risk:*`/`size:*` when unstamped, `ceremony:*` (always — no unscored state), `solution:unjustified` (via `/claude-tweaks:challenge`'s `framing-check`), Type, `parent-issue` (decomposition parents only, never sub-issues), `shaped:headless` (`next` mode only, stamped alongside `ready` in the same call — never on an interactively-shaped record) | `parked` (promotion); `ready`/`risk:*`/`size:*`/`ceremony:*`/`solution:unjustified` from a parent-marked record only (case-1 parent-record guard cleanup — `skills/specify/SKILL.md`); `needs:definition` from the origin record a 1-unit collapse shapes in place (`specify/record-creation.md`'s Origin-set carve-out) | `auto:*`, `bot:*` |
 | **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`size:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
-| **`/backlog grant`** (headless machine-grant mode, `github-issues` only — the one machine-origination path, see Grant semantics above) | `auto:build` (+`auto:merge` when `permittedGrants` also authorizes it), only on a record whose full gate chain clears (`bin/lib/issues/grant-gate.js`, `backlog/grant-mode.md`) | `bot:blocked` (re-authorize, `auto:build` only — never bundles `auto:merge`) | granting a human-filed record (no `by:*`), adding `ready`/`priority:*`/any `bot:*`, body-shaping beyond the audit comment, running at all under `work-backend: local-files` (no headless consumer acts on a local grant) |
+| **`/backlog grant`** (headless machine-grant mode, `github-issues` only — the one machine-origination path, see Grant semantics above) | `auto:build` (+`auto:merge-pending` when authorized), only on a record whose full gate chain clears (`bin/lib/issues/grant-gate.js`, `backlog/grant-mode.md`) | `bot:blocked` (re-authorize, `auto:build` only — never bundles `auto:merge`) | granting a human-filed record (no `by:*`), adding `ready`/`priority:*`/any `bot:*`, body-shaping beyond the audit comment, running at all under `work-backend: local-files` (no headless consumer acts on a local grant) |
 | **`/backlog overview`** (read mode) | nothing | nothing | everything — pure read-only distribution/recommendation view |
-| **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling), `demo:pending` (group auto-merge gate, `dispatch/settle-and-merge.md` — reuses `/wrap-up`'s own `verification-brief.md` procedure, including its parent-gate routing, so on a parent-linked sub-issue the label lands on the parent instead) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready`, `demo:approved`, `demo:changes-requested` |
+| **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling), `demo:pending` (group auto-merge gate, `dispatch/settle-and-merge.md` — reuses `/wrap-up`'s own `verification-brief.md` procedure, including its parent-gate routing, so on a parent-linked sub-issue the label lands on the parent instead), `auto:merge` (**maturation only**) | `auto:merge` (failure downgrade), `auto:merge-pending` (maturation's label swap), `auto:*` (at ceiling), `bot:in-progress` (release) | originating a fresh `auto:*` grant (promotion, not origination), adding `ready`, `demo:approved`, `demo:changes-requested` |
 | **`/tidy`** (hygiene) | `parked` (Defer action, with trigger), `demo:pending` (Open parent gate action, either driver — the local twin writes the parent's `acceptance: pending` facet; both reuse `/wrap-up`'s own gate-opening write) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*`, `demo:approved`, `demo:changes-requested` |
 | **Executors** (`/flow`, `/build`) | `bot:blocked` — merge-verification park only (`_shared/pr-first-merge.md` Step 2.5's red path). This path parks **without** revoking `auto:*`: a red or timed-out CI check is not a build failure, so there is no Settle classification and no retry increment behind it — unlike `/dispatch`'s retry-ceiling write above | nothing | `auto:*`, `ready` |
-| **`/wrap-up`** (all filing paths: leftover routing, ledger Phase 2/3 routing, residue-sweep records) | `demo:pending`; `parked` (a `Trigger:` leftover or Defer — never alongside `ready`); `bot:blocked` (the same `_shared/pr-first-merge.md` Step 2.5 red path, reached through `wrap-up/review-console.md`'s fast-lane merge — same no-`auto:*`-revocation rule as the Executors row); `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer; a `Trigger:` leftover carries `parked` instead of `ready`); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant) | `bot:in-progress` (claim release) | `auto:*`, `bot:*` (other than the release), `priority:*`, `demo:approved`, `demo:approved-batch`, `demo:changes-requested`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
+| **`/wrap-up`** (all filing paths: leftover routing, ledger Phase 2/3 routing, residue-sweep records) | `demo:pending`; `parked` (a `Trigger:` leftover or Defer — never alongside `ready`); `bot:blocked` (the same `_shared/pr-first-merge.md` Step 2.5 red path, reached through `wrap-up/review-console.md`'s fast-lane merge — same no-`auto:*`-revocation rule as the Executors row); `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer; a `Trigger:` leftover carries `parked` instead of `ready`); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant); `auto:merge` (**maturation only**) | `bot:in-progress` (claim release); `auto:merge-pending` (short-circuit's swap) | originating a fresh `auto:*` grant (promotion, not origination), `bot:*` (other than the release), `priority:*`, `demo:approved`, `demo:approved-batch`, `demo:changes-requested`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
 | **`/reflect`** (tangential routing, Defer) | `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant); `parked` (a Defer with a real `Trigger:` — never alongside `ready`) | nothing | `auto:*`, `bot:*`, `priority:*`, `demo:*`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
 | **`/review`** (Step 3 Defer — Capture routes file under `/capture`'s own row) | `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant); `parked` (a Defer with a real `Trigger:` — never alongside `ready`) | nothing | `auto:*`, `bot:*`, `priority:*`, `demo:*`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
 | **`/visual-review`** (Findings & Ideas Defer — standalone runs; under `/review` its findings route through that row) | `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant); `parked` (a Defer with a real `Trigger:` — never alongside `ready`) | nothing | `auto:*`, `bot:*`, `priority:*`, `demo:*`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
@@ -161,22 +161,28 @@ headless dispatch is github-issues only.
 
 ## Grant semantics
 
-Authorization is two stackable human-granted labels. Their **absence is the default
-not-authorized state** — no label means no autonomous action, ever.
+Authorization is two stackable human-granted labels (`auto:build`, `auto:merge`), plus a
+machine-only waypoint label, `auto:merge-pending` (never granted directly by a human — see
+below). Their **absence is the default not-authorized state** — no label means no autonomous
+action, ever.
 
 - `auto:build` — agents may claim and build this record autonomously.
 - `auto:merge` — a completely clean autonomous run may merge without waiting for a live
   review. **Additive on `auto:build`:** the gate always grants `auto:build` when granting
   `auto:merge`. Dispatch queries `auto:build` only; `auto:merge` **alone is inert** — no
   queue selects on it.
-- **Machinery may only remove grants, never add them** (save for the one carve-out in the
-  next bullet, which is shut by default). Failure handling is
+- `auto:merge-pending` — a waypoint on the machine-origination path only (`/backlog refine`
+  writes `auto:merge` directly). Additive on `auto:build`, exclusive of `auto:merge`, inert
+  for queue selection the same way. Matures into `auto:merge` once older than
+  `grant-veto-window-hours` (default 24) and unvetoed — see the maturation bullet below.
+- **Machinery may only remove grants, never originate them** (two carve-outs excepted).
+  Failure handling is
   classification-driven (via `/claude-tweaks:assess-agent-autonomy`'s `failure-check` mode):
   a `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before retry; a
   `transient`-classified one preserves it. At the retry ceiling (`dispatch-retry-ceiling`),
   regardless of classification, machinery removes all `auto:*` labels and adds `bot:blocked` —
   the record needs a human re-grant to run again.
-- `auto:*` labels are only ever added by an interactive human session, with **one
+- `auto:*` labels are only ever originated by an interactive human session, with **one
   machine-origination path**: `/claude-tweaks:backlog`'s headless `grant` mode
   (`backlog/grant-mode.md`). It requires the full key set together — the `autonomy` ceiling
   resolving `unattended` AND the `grant-origination-enabled` policy opt-in
@@ -190,7 +196,15 @@ not-authorized state** — no label means no autonomous action, ever.
   existing invariant exactly once, deliberately, rather than widening any actor's row generally.
   Both opt-in keys are human-set project policy (`policy.yml`), never written by any skill; with
   either absent — `policy.yml`'s shipped default — this path grants nothing and every candidate
-  is skipped with the failing key logged.
+  is skipped with the failing key logged. **This path writes `auto:merge-pending` in place of
+  `auto:merge` directly** (#309): the veto-window feature replaces the old immediate-grant
+  behavior outright — `grant-veto-window-hours` ships a concrete default (24h), and a
+  machine-originated merge grant with zero human awareness is exactly what a standing veto
+  window exists to close.
+- A **second, narrower machine carve-out — maturation, not origination** (#309): matures
+  `auto:merge-pending` to `auto:merge` past `grant-veto-window-hours` unvetoed — never fresh,
+  only promotion of one already authorized. A veto is permanent. Full mechanics:
+  `dispatch/grant-maturation-gate.md`.
 
 ## Acceptance semantics
 
