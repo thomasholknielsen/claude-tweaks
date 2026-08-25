@@ -86,6 +86,57 @@ test('writeClaimBlob: sha present -> conditional write sends it in argv', () => 
   assert.equal(fieldOf(calls[0], 'sha'), 'deadbeef');
 });
 
+test('writeClaimBlob: literal string "undefined" content is rejected before any write attempt', () => {
+  const ghApi = () => { throw new Error('ghApi must never be called for invalid content'); };
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: 'undefined', message: 'Claim issue-7.json' });
+  assert.equal(r.ok, false);
+  assert.equal(r.failure, 'invalid-content');
+});
+
+test('writeClaimBlob: undefined content value is rejected before any write attempt', () => {
+  const ghApi = () => { throw new Error('ghApi must never be called for invalid content'); };
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: undefined, message: 'Claim issue-7.json' });
+  assert.equal(r.ok, false);
+  assert.equal(r.failure, 'invalid-content');
+});
+
+test('writeClaimBlob: non-JSON garbage content is rejected before any write attempt', () => {
+  const ghApi = () => { throw new Error('ghApi must never be called for invalid content'); };
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{not valid json', message: 'Claim issue-7.json' });
+  assert.equal(r.ok, false);
+  assert.equal(r.failure, 'invalid-content');
+});
+
+test('writeClaimBlob: invalid content is rejected even on the git-CAS path (before hash-object)', () => {
+  const gitCalls = [];
+  const gitRunner = (args) => { gitCalls.push(args); throw new Error('gitRunner must never be called for invalid content'); };
+  const ghApi = () => { throw new Error('ghApi must never be called for invalid content'); };
+  const r = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 7, {
+    content: 'undefined', sha: 'deadbeef', message: 'Claim issue-7.json', expectedContent: null,
+  });
+  assert.equal(r.ok, false);
+  assert.equal(r.failure, 'invalid-content');
+  assert.equal(gitCalls.length, 0, 'git-CAS must never be attempted for invalid content');
+});
+
+test('writeClaimBlob: valid JSON content (the real claimPayload shape) still writes successfully', () => {
+  const calls = [];
+  const ghApi = (args) => {
+    calls.push(args);
+    if (args[0] === '--method' && args[1] === 'PUT' && args[2] === 'repos/acme/w/contents/claims/issue-7.json') {
+      return { stdout: '{}', failure: null, status: null };
+    }
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 7, {
+    content: JSON.stringify({ runId: 'r1', sessionId: 's1', claimedAt: 1, ttlHours: 4, host: 'h' }, null, 2),
+    message: 'Claim issue-7.json',
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.failure, null);
+  assert.equal(calls.length, 1);
+});
+
 test('writeClaimBlob: failure propagates, ok:false', () => {
   const ghApi = (args) => {
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: 'network-failure', status: null };

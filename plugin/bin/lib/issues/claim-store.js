@@ -108,6 +108,26 @@ function defaultGhApi(args) {
   }
 }
 
+// A claims-registry blob is always `JSON.stringify(...)` of a plain object
+// (`claimPayload`/`releasePayload` in `./claims.js`) — never string
+// concatenation or template interpolation. Any caller handing writeClaimBlob
+// a `content` that isn't a string, or a string that doesn't parse as JSON,
+// is a defect upstream of this module (issue #821: a hand-scripted write
+// following `_shared/issue-claims.md`'s "The lock" procedure by hand — the
+// doc's bash snippets reference $FILE_CONTENT without showing its jq
+// extraction — produced the literal 9-character string "undefined" instead
+// of a JSON blob). Reject here, before either write mechanism, rather than
+// silently persisting corrupt content that only a later read discovers.
+function isValidClaimContent(content) {
+  if (typeof content !== 'string') return false;
+  try {
+    JSON.parse(content);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // (ghApi, repoSlug) -> { entries: [{name, sha}], failure: null|'gh-absent'|'network-failure' }
 // One Contents-API directory listing — the SAME single call this module
 // already made — extended to keep each entry's `sha` (previously discarded
@@ -265,6 +285,7 @@ function readClaimBlobContentsApi(ghApi, repoSlug, issueNumber) {
 function writeClaimBlob(deps, repoSlug, issueNumber, {
   content, sha, createOnly = false, expectedContent, message,
 }) {
+  if (!isValidClaimContent(content)) return { ok: false, failure: 'invalid-content' };
   if (deps.gitRunner && sha) {
     let leaseSha = sha;
     for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt += 1) {
@@ -362,6 +383,7 @@ module.exports = {
   defaultGhApi,
   claimPath,
   classifyGhApiError,
+  isValidClaimContent,
   tombstoneInFlightPr,
   isSameRepoPrUrl,
 };
