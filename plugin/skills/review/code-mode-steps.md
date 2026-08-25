@@ -30,6 +30,16 @@ If a spec number was provided, read the spec file and verify the implementation 
 1. **Deliverables** — for each deliverable checkbox in the spec, search the codebase for the implementation. Mark each as `done`, `partial`, or `missing`.
 2. **Acceptance Criteria** — for each criterion, determine whether it's verifiable from the code and tests. Mark as `met`, `partially met`, or `not met`.
 3. **Non-Goals** — verify the implementation didn't accidentally include work scoped out by the spec's Non-Goals section.
+4. **Risk-Marker Verification** — runs alongside check 2 above (Acceptance Criteria). Scan the
+   spec (the same materialized file this step already reads — no separate fetch) for unresolved
+   risk markers left over from `/claude-tweaks:specify`: Gotchas bullets whose validation status
+   is not "validated" (contains "unvalidated," "assumed," or "unconfirmed" —
+   `shaping-mode.md`'s framing-check fold), inline `<!-- ambiguity: ... -->` markers
+   (`red-team.md`'s per-sentence write-back), and `## Open Questions` rows (`red-team.md`'s
+   general-finding table). For each marker found, independently verify it against the artifact's
+   real external validator/schema/tool — **a structural or syntax check alone (e.g. "the config
+   parses," "the file exists") is necessary but not sufficient; the value itself must be confirmed
+   against ground truth**, not merely well-formed. Mark each as `verified` or `unresolved`.
 
 ### Gate:
 
@@ -37,6 +47,7 @@ If a spec number was provided, read the spec file and verify the implementation 
 |--------|--------|
 | All deliverables done + all criteria met | Proceed to Step 1.5 |
 | Minor gaps (1-2 partial items) | Flag gaps, proceed — they may be addressed in Implementation Hindsight |
+| Any risk marker `unresolved` after independent verification | **BLOCKED** — same tier as Significant gaps. Name the unverified marker(s) (file:line or table row) so the user knows exactly what still needs ground-truth confirmation |
 | Significant gaps (missing deliverables or criteria) | **BLOCKED** — the spec isn't fully built yet. List what's missing so the user can resume `/claude-tweaks:build` |
 
 If blocked, skip the rest of the review. Present the gap analysis so the user knows exactly what to finish.
