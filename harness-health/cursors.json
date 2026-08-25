@@ -82,5 +82,9 @@
   "skill:_shared/pr-early-run-lifecycle": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1787583604113
+  },
+  "skill:github-write-transport": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1787634435773
   }
 }
