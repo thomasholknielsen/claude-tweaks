@@ -10,8 +10,8 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
-const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 const collapse = (s) => s.replace(/\s+/g, ' ');
+const readFlat = (rel) => collapse(read(rel));
 
 const CONTRACT = read('plugin/skills/_shared/untrusted-record-content.md');
 const CONTRACT_FLAT = collapse(CONTRACT);
