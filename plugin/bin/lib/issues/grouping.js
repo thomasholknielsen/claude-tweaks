@@ -31,8 +31,9 @@ const HUB_PATH_FRACTION = 0.1;
 // to anything else in the batch are singleton groups. A file path referenced
 // by an anomalously large fraction of the batch (see HUB_PATH_MIN_COUNT/
 // HUB_PATH_FRACTION above, overridable via options) is excluded from the
-// union-find step entirely — it can never bridge two items together, though
-// each item's other (non-hub) files still can.
+// union-find step entirely — as is any bare directory-level entry, regardless
+// of count. Such a path can never bridge two items together, though each
+// item's other files still can.
 function groupByFileOverlap(items, options = {}) {
   const hubPathMinCount = options.hubPathMinCount ?? HUB_PATH_MIN_COUNT;
   const hubPathFraction = options.hubPathFraction ?? HUB_PATH_FRACTION;
@@ -68,10 +69,17 @@ function groupByFileOverlap(items, options = {}) {
     if (count >= hubThreshold) hubPaths.add(file);
   }
 
+  // Two independent, additive exclusions from bridging. Neither removes a file
+  // from an item's keyFiles — only its eligibility to bridge two items here:
+  //   - a hub path (counted above, #1365);
+  //   - a bare directory-level entry (trailing "/", no filename component —
+  //     "tests/", "plugin/skills/"), which is syntactically generic no matter
+  //     how few records cite it, so two records sharing only one would
+  //     otherwise still union transitively below the hub threshold (#1420).
   const fileToId = new Map();
   for (const item of items) {
     for (const file of item.keyFiles || []) {
-      if (hubPaths.has(file)) continue;
+      if (hubPaths.has(file) || file.endsWith('/')) continue;
       if (fileToId.has(file)) union(item.id, fileToId.get(file));
       else fileToId.set(file, item.id);
     }

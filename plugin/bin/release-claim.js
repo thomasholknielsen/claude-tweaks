@@ -10,20 +10,27 @@
 // <run-dir>/decisions.md when that directory exists AND resolves as anchored under the
 // main checkout (resolveTarget — a worktree-local shadow is refused, never silently
 // written, matching bin/log-decision.js's guard [IL-127]). runId = basename(<run-dir>).
-// Exit 0 released; 3 already released or swept (404/409/422 — comment still posted);
-// 4 skipped, claim held by another run (nothing written); 5 skipped, claim blob is
-// corrupt/unreadable (nothing written — distinct from 4: a corrupt blob can never
-// self-resolve the way a live holder's claim eventually expires; do not retry-and-wait
-// on exit 5 the way exit 4 permits); 1 failed; 2 malformed invocation or `gh` absent —
-// the MCP path in _shared/github-write-transport.md is the documented fallback there,
-// deliberately not grown into this CLI. Logging is bookkeeping, never a gate: the exit
-// code always reflects the release outcome, never whether decisions.md was written.
+// Exit 0 released; 3 already released or swept — a 404 from the blob write, or a
+// 409/422 whose fresh re-read confirms the claim is gone or now held by a successor
+// (comment still posted in both cases); 4 skipped, claim held by another run (nothing
+// written); 5 skipped, claim blob is corrupt/unreadable (nothing written — distinct
+// from 4: a corrupt blob can never self-resolve the way a live holder's claim
+// eventually expires; do not retry-and-wait on exit 5 the way exit 4 permits);
+// 1 failed — any other error, and specifically a 409/422 whose re-read shows
+// the claim is STILL held by this run (an unrelated commit on `claims-registry` lost us
+// the compare-and-swap: nothing was released, retry) or a re-read that itself failed, so
+// the outcome could not be verified; 2 malformed
+// invocation or `gh` absent — the MCP path in _shared/github-write-transport.md is the
+// documented fallback there, deliberately not grown into this CLI. Logging is
+// bookkeeping, never a gate: the exit code always reflects the release outcome, never
+// whether decisions.md was written.
 'use strict';
 
 const path = require('path');
 const { execFileSync } = require('child_process');
 const release = require('./lib/release-claim/release');
 const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/append');
+const { defaultRunner: gitDefaultRunner } = require('./lib/issues/claims-git-cas');
 const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--repo owner/name] [--section "/<skill>"] [--step <text>] [--help]\n';
@@ -52,6 +59,7 @@ function parseArgs(argv) {
 
 const realDeps = {
   runner: release.defaultRunner,
+  gitRunner: gitDefaultRunner,
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
   now: () => Date.now(),
@@ -94,7 +102,7 @@ function run(argv, deps = realDeps) {
   const reason = o.reason.trim();
   const r = release.releaseClaim({
     owner: repoSpec.owner, repo: repoSpec.repo, issueNumber: issue, runId, reason, link: o.link || undefined,
-    removeGrants: o.removeGrants, removeInProgress: o.removeInProgress, runner: deps.runner, now: deps.now(),
+    removeGrants: o.removeGrants, removeInProgress: o.removeInProgress, runner: deps.runner, gitRunner: deps.gitRunner, now: deps.now(),
   });
   for (const label of r.labelsFailed) {
     deps.stderr(`release-claim.js: warning — could not remove label ${label} on #${issue} (best-effort, continuing)\n`);
@@ -115,6 +123,10 @@ function run(argv, deps = realDeps) {
   return EXIT[r.outcome] ?? 1;
 }
 
-module.exports = { run, parseArgs, parseRepo };
+// `realDeps` is exported so the CLI's own wiring is testable — specifically
+// that `gitRunner` is the real claims-git-cas runner and not silently dropped
+// (a drop degrades every claim write back to the contents API without failing
+// anything). Tests inject their own deps into `run` and never use this object.
+module.exports = { run, parseArgs, parseRepo, realDeps };
 
 if (require.main === module) process.exitCode = run(process.argv.slice(2), realDeps);

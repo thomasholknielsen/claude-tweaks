@@ -5,7 +5,6 @@ files:
   - plugin/bin/lib/claim-targets/claim-targets.js
   - plugin/bin/lib/issues/claim-store.js
   - plugin/skills/_shared/issue-claims.md
-  - plugin/bin/lib/issues/claim-engine.js
 ---
 
 # Act on a Contested Claim at the Start of a Run
