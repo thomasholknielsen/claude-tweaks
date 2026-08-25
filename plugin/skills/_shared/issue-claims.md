@@ -57,6 +57,11 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),
   runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
   host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$RUN_ID" > /tmp/claim-payload-${ISSUE}.json
+node -e "const p=require('/tmp/claim-payload-${ISSUE}.json');
+  console.log(JSON.stringify({claimPath: p.claimPath, fileContent: p.fileContent}))" \
+  > /tmp/claim-fields-${ISSUE}.json
+CLAIM_PATH=$(node -e "console.log(require('/tmp/claim-fields-${ISSUE}.json').claimPath)")
+FILE_CONTENT=$(node -e "console.log(require('/tmp/claim-fields-${ISSUE}.json').fileContent)")
 ```
 
 - **Bootstrap the branch** (once per run, before the first claim/release write). Branch creation
@@ -81,11 +86,20 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   as "contested" would reject every re-claim forever after its first release.
 
   1. Read the claim file at the payload's `claimPath` on `CLAIMS_BRANCH`, capturing both its
-     content (or absence) and its current **blob sha** when it exists.
-     - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/${CLAIM_PATH}?ref=${CLAIMS_BRANCH}" -q '{content: (.content | @base64d), sha: .sha}'`
+     content (or absence) and its current **blob sha** when it exists. Save the read output to
+     `/tmp/claim-read-${ISSUE}.json` so downstream steps can extract the content and sha.
+     - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/${CLAIM_PATH}?ref=${CLAIMS_BRANCH}" -q '{content: (.content | @base64d), sha: .sha}' > /tmp/claim-read-${ISSUE}.json`
        (404 = file does not exist, a normal outcome, not an error).
      - **MCP:** the equivalent "get file contents" tool call against `claimPath` on
-       `CLAIMS_BRANCH`; not-found is a normal outcome.
+       `CLAIMS_BRANCH`, saving the output to `/tmp/claim-read-${ISSUE}.json`; not-found is a normal outcome.
+
+  When step 1's read found an existing blob (state `'tombstone'`/`'stale'` below), capture its
+  blob sha for the conditional write in step 4:
+  ```bash
+  # Only needed for conditional writes when an existing blob is present:
+  CURRENT_SHA=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).sha)" /tmp/claim-read-${ISSUE}.json)
+  ```
+
   2. Classify what step 1 read (or its absence) with `classifyClaimBlob`:
      ```bash
      node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
