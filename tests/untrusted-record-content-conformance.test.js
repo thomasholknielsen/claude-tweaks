@@ -213,6 +213,8 @@ test('grant-mode.md wraps per the contract and pins the RECOMMEND_BUILD/RECOMMEN
 test('grant-mode.md never defaults a missing grant-check verdict to a grant or refusal', () => {
   assert.ok(GRANT_MODE_FLAT.includes('grant-unit failure for that candidate'), 'grant-unit failure rule missing');
   assert.ok(GRANT_MODE_FLAT.includes('never default to a grant or a refusal'), 'never-default rule missing');
+  assert.ok(GRANT_MODE_FLAT.includes("failedKey: 'grant-check-no-verdict'"), 'missing-verdict skip must carry a failedKey so Step 4 logs it and Step 5 groups it');
+  assert.ok(!FROZEN_GRANT_MODE_PHASE_B.includes('grant-check-no-verdict'), 'control: frozen pre-change tail must lack the failedKey (proves go-red)');
   assert.ok(!FROZEN_GRANT_MODE_PHASE_B.includes('grant-unit failure'), 'control: frozen pre-change tail must lack the rule (proves go-red)');
 });
 
