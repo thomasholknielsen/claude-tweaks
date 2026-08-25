@@ -72,6 +72,16 @@ function groupByFileOverlap(items, options = {}) {
   for (const item of items) {
     for (const file of item.keyFiles || []) {
       if (hubPaths.has(file)) continue;
+      // A bare directory-level entry (trailing "/", no filename component —
+      // e.g. "tests/", "plugin/skills/") is syntactically generic regardless
+      // of how many or few records cite it — the #1365 hub-path exclusion
+      // above only excludes a path once it clears a count/fraction
+      // threshold, so two records sharing only a directory entry (below
+      // that threshold) would otherwise still union transitively (#1420).
+      // This check is independent of and additive to hubPaths: it never
+      // removes a file from an item's keyFiles, only its eligibility to
+      // bridge two items together here.
+      if (file.endsWith('/')) continue;
       if (fileToId.has(file)) union(item.id, fileToId.get(file));
       else fileToId.set(file, item.id);
     }
