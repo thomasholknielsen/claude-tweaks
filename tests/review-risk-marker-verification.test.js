@@ -77,7 +77,7 @@ test('Step 1 names the Risk-Marker Verification sub-check', () => {
 });
 
 test('Step 1 scans for all three marker vocabularies, matching the real syntax shipped elsewhere', () => {
-  assertPinnedInStep1(/unvalidated.*assumed.*unconfirmed/s, 'Gotchas validation-status vocabulary (unvalidated/assumed/unconfirmed)');
+  assertPinnedInStep1(/unvalidated[\s\S]{0,20}assumed[\s\S]{0,20}unconfirmed/, 'Gotchas validation-status vocabulary (unvalidated/assumed/unconfirmed)');
   assertPinnedInStep1(/<!-- ambiguity: \.\.\. -->/, "red-team's inline ambiguity marker syntax");
   assertPinnedInStep1(/## Open Questions/, 'Open Questions row vocabulary');
 });
