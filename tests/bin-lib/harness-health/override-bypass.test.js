@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -171,6 +171,6 @@ test('CLI end-to-end: no CLAUDE.md declares nothing and reports no bypasses', ()
 });
 
 test('CLI rejects an unknown argument', () => {
-  const result = require('child_process').spawnSync('node', [CLI, '--bogus'], { encoding: 'utf8' });
+  const result = spawnSync('node', [CLI, '--bogus'], { encoding: 'utf8' });
   assert.notStrictEqual(result.status, 0);
 });

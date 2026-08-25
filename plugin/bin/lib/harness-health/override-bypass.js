@@ -25,13 +25,9 @@ const OVERRIDE_RE = /\broutes?\s+to\s+`(\/[A-Za-z0-9:_-]+)`[^.;]*?\bnever\s+`(\/
 
 function parseDeclaredOverrides(claudeMdText) {
   const text = String(claudeMdText || '');
-  const overrides = [];
-  const re = new RegExp(OVERRIDE_RE);
-  let m;
-  while ((m = re.exec(text))) {
-    overrides.push({ substitute: m[1], forbidden: m[2] });
-  }
-  return overrides;
+  // matchAll clones the regex internally, so OVERRIDE_RE's own lastIndex
+  // never carries between calls.
+  return [...text.matchAll(OVERRIDE_RE)].map((m) => ({ substitute: m[1], forbidden: m[2] }));
 }
 
 // Bare vs. qualified invocation compare equal on base name — a bare Skill
@@ -47,22 +43,24 @@ function baseSkillName(name) {
 // active runs and archived ones (archive/{run-id}/), since most of the
 // evidence a bypass needs to be detected against lives in already-completed,
 // already-archived runs by the time this check runs.
+function subdirNames(dir) {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
 function listPipelineRunDirs(root) {
   const base = path.join(root, '.claude-tweaks', 'pipelines');
-  let entries;
-  try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return []; }
   const dirs = [];
-  for (const e of entries) {
-    if (!e.isDirectory()) continue;
-    if (e.name === 'archive') {
-      let archived;
-      try { archived = fs.readdirSync(path.join(base, 'archive'), { withFileTypes: true }); } catch { archived = []; }
-      for (const a of archived) {
-        if (a.isDirectory()) dirs.push(path.join(base, 'archive', a.name));
-      }
+  for (const name of subdirNames(base)) {
+    if (name === 'archive') {
+      const archiveBase = path.join(base, 'archive');
+      for (const archived of subdirNames(archiveBase)) dirs.push(path.join(archiveBase, archived));
       continue;
     }
-    dirs.push(path.join(base, e.name));
+    dirs.push(path.join(base, name));
   }
   return dirs;
 }
@@ -100,8 +98,8 @@ function detectBypasses({ overrides, invocations }) {
     const fBase = baseSkillName(forbidden);
     const sBase = baseSkillName(substitute);
     const forbiddenHits = invocations.filter((inv) => baseSkillName(inv.skill) === fBase);
-    const substituteHits = invocations.filter((inv) => baseSkillName(inv.skill) === sBase);
-    if (forbiddenHits.length > 0 && substituteHits.length === 0) {
+    const substituteInvoked = invocations.some((inv) => baseSkillName(inv.skill) === sBase);
+    if (forbiddenHits.length > 0 && !substituteInvoked) {
       bypasses.push({
         forbidden,
         substitute,

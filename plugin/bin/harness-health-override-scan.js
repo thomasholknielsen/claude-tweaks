@@ -26,14 +26,14 @@ const {
 const USAGE = 'usage: harness-health-override-scan.js [--root <dir>] [--help]\n';
 
 function parseArgs(argv) {
-  const o = { root: process.cwd(), help: false };
+  const opts = { root: process.cwd(), help: false };
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === '--help' || a === '-h') o.help = true;
-    else if (a === '--root') o.root = argv[++i];
-    else return { error: `unknown argument: ${a}` };
+    const arg = argv[i];
+    if (arg === '--help' || arg === '-h') opts.help = true;
+    else if (arg === '--root') opts.root = argv[++i];
+    else return { error: `unknown argument: ${arg}` };
   }
-  return o;
+  return opts;
 }
 
 const realDeps = {
@@ -45,13 +45,13 @@ const realDeps = {
 };
 
 function run(argv, deps = realDeps) {
-  const o = parseArgs(argv);
-  if (o.error) { deps.stderr(`harness-health-override-scan.js: ${o.error}\n${USAGE}`); return 2; }
-  if (o.help) { deps.stdout(USAGE); return 0; }
+  const opts = parseArgs(argv);
+  if (opts.error) { deps.stderr(`harness-health-override-scan.js: ${opts.error}\n${USAGE}`); return 2; }
+  if (opts.help) { deps.stdout(USAGE); return 0; }
 
-  const claudeMd = deps.readClaudeMd(o.root);
+  const claudeMd = deps.readClaudeMd(opts.root);
   const overrides = parseDeclaredOverrides(claudeMd);
-  const runDirs = listPipelineRunDirs(o.root);
+  const runDirs = listPipelineRunDirs(opts.root);
   const invocations = collectSkillInvocations(runDirs);
   const bypasses = overrides.length ? detectBypasses({ overrides, invocations }) : [];
 
