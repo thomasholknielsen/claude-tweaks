@@ -167,7 +167,7 @@ command substitution rather than an `xargs` pipe so an empty parent list still i
 status survives instead of being replaced by the pipe's:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))") > /tmp/tidy-gap-sub-issues-batch.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" --resolve-retries $(node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))") > /tmp/tidy-gap-sub-issues-batch.json
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
@@ -180,42 +180,24 @@ stderr. **Exit 1 or 2** — a malformed invocation or a missing `gh`/unresolvabl
 environment or transcription bug, not a data outcome — stop and surface the CLI's stderr rather
 than reading the (empty) batch file. **Exit 0** — continue to the retry ladder below.
 
-The batch envelope's `retry` array names parents the probe could not resolve in one page — a
-missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true
-(`native-dependencies.js`'s `fetchNativeSubIssues` never lands a parent in `byParent` for either
-case, so a truncated page can never masquerade as a complete one). Each retry parent gets its own
-paginated REST call, exactly like the Fallback block's per-parent loop, and a retry parent whose
-REST call also fails throws, naming the parent — by design, this never coerces to an empty list:
+`--resolve-retries` already resolved every parent the probe could not fit in one page via its own
+per-parent paginated REST call, merged back into `byParent` — a retry parent whose REST call
+failed would have already made the CLI exit 3 above, naming the parent. The only work left is
+canonicalization — flatten, dedupe, sort:
 
 ```bash
 node -e "
   const fs = require('fs');
-  const { execFileSync } = require('child_process');
   const batch = require('/tmp/tidy-gap-sub-issues-batch.json');
-  const byParent = batch.byParent || {};
-  const retryParents = batch.retry || [];
-  const retryResults = [];
-  for (const n of retryParents) {
-    let nums;
-    try {
-      const out = execFileSync('gh', ['api', '--paginate', 'repos/{owner}/{repo}/issues/' + n + '/sub_issues', '--jq', '.[].number'], { encoding: 'utf8' });
-      nums = out.trim().split('\n').filter(Boolean).map(Number);
-    } catch (err) {
-      throw new Error('sub-issue REST retry failed for parent #' + n + ': ' + (err && err.message ? err.message : String(err)));
-    }
-    retryResults.push(...nums);
-  }
-  if (retryParents.length) {
-    console.error('WARNING: ' + retryParents.length + ' parent(s) needed a per-parent REST retry (no alias, or more than one page, in the batched probe): ' + retryParents.join(', '));
-  }
-  const all = Object.values(byParent).flat().concat(retryResults);
+  const all = Object.values(batch.byParent || {}).flat();
   const subIssueNumbers = Array.from(new Set(all)).sort((a, b) => a - b);
   fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
 "
 ```
 
-The throw above runs before the write, so a failed retry can never leave a partial
-`/tmp/tidy-acceptance-gap-sub-issues.json` on disk.
+`/tmp/tidy-acceptance-gap-sub-issues.json` is only ever written here, once the envelope is already
+fully resolved — there is no partial-write hazard left to guard against, since a failed retry never
+reaches this line at all.
 
 #### Fallback (probe unavailable — older GHE)
 
@@ -451,7 +433,7 @@ sub-issues API instead, via the same batched aliased-GraphQL probe with a per-pa
 that the `acceptance-gap` scope above uses:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" $(node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/tidy-parentgate-sub-issues-batch.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" --resolve-retries $(node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/tidy-parentgate-sub-issues-batch.json
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
@@ -464,36 +446,18 @@ missing `gh`/unresolvable repo: an environment or transcription bug, not a data 
 surface the CLI's stderr rather than reading the (empty) batch file. **Exit 0** — continue to the
 composing step below.
 
-The batch envelope's `retry` array names parents the probe could not resolve in one page — a
-missing alias, or a `subIssues` connection whose `pageInfo.hasNextPage` is true
-(`native-dependencies.js`'s `fetchNativeSubIssues` never lands a parent in `byParent` for either
-case, so a truncated page can never masquerade as a complete one). Each retry parent gets its own
-paginated REST call, exactly like the Fallback block's per-parent loop, and a retry parent whose
-REST call also fails throws, naming the parent — by design, this never coerces to an empty list.
-Unlike `acceptance-gap`'s flattened union, this scope keeps each parent's own sub-issue set intact
-— the composing step below reads the envelope's `byParent` (plus retry results merged into it)
-per-parent, because `subIssues` needs each parent's own numbers, not existence alone:
+`--resolve-retries` already resolved every parent the probe could not fit in one page via its own
+per-parent paginated REST call, merged back into `byParent` — a retry parent whose REST call
+failed would have already made the CLI exit 3 above, naming the parent. Unlike `acceptance-gap`'s
+flattened union, this scope keeps each parent's own sub-issue set intact — the composing step
+below reads the envelope's `byParent` directly, per-parent, because `subIssues` needs each
+parent's own numbers, not existence alone:
 
 ```bash
 node -e "
   const fs = require('fs');
-  const { execFileSync } = require('child_process');
   const batch = require('/tmp/tidy-parentgate-sub-issues-batch.json');
   const byParent = batch.byParent || {};
-  const retryParents = batch.retry || [];
-  for (const n of retryParents) {
-    let nums;
-    try {
-      const out = execFileSync('gh', ['api', '--paginate', 'repos/{owner}/{repo}/issues/' + n + '/sub_issues', '--jq', '.[].number'], { encoding: 'utf8' });
-      nums = out.trim().split('\n').filter(Boolean).map(Number);
-    } catch (err) {
-      throw new Error('sub-issue REST retry failed for parent #' + n + ': ' + (err && err.message ? err.message : String(err)));
-    }
-    byParent[n] = nums;
-  }
-  if (retryParents.length) {
-    console.error('WARNING: ' + retryParents.length + ' parent(s) needed a per-parent REST retry (no alias, or more than one page, in the batched probe): ' + retryParents.join(', '));
-  }
   const parents = require('/tmp/tidy-parent-issues.json');
   const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
   const gates = parents.map((p) => ({
@@ -509,8 +473,9 @@ node -e "
 "
 ```
 
-The throw above runs before the write, so a failed retry can never leave a partial
-`/tmp/tidy-parent-gates.json` on disk.
+`/tmp/tidy-parent-gates.json` is only ever written here, once the envelope is already fully
+resolved — there is no partial-write hazard left to guard against, since a failed retry never
+reaches this line at all.
 
 #### Fallback (probe unavailable — older GHE)
 
