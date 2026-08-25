@@ -93,12 +93,12 @@ FILE_CONTENT=$(node -e "console.log(require('/tmp/claim-fields-${ISSUE}.json').f
      - **MCP:** the equivalent "get file contents" tool call against `claimPath` on
        `CLAIMS_BRANCH`, saving the output to `/tmp/claim-read-${ISSUE}.json`; not-found is a normal outcome.
 
-  When step 1's read found an existing blob (state `'tombstone'`/`'stale'` below), capture its
-  blob sha for the conditional write in step 4:
-  ```bash
-  # Only needed for conditional writes when an existing blob is present:
-  CURRENT_SHA=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).sha)" /tmp/claim-read-${ISSUE}.json)
-  ```
+     When step 1's read found an existing blob (state `'tombstone'`/`'stale'` below), capture its
+     blob sha for the conditional write in step 4:
+     ```bash
+     # Only needed for conditional writes when an existing blob is present:
+     CURRENT_SHA=$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).sha)" /tmp/claim-read-${ISSUE}.json)
+     ```
 
   2. Classify what step 1 read (or its absence) with `classifyClaimBlob`:
      ```bash
