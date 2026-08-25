@@ -59,6 +59,41 @@ work was evaluated.
 parameter, parameterization point 4) — key on path, not session id, since a worktree switch
 changes the transcript directory slug mid-session.
 
+## Skip check (before dispatch)
+
+Runs after Transcript resolution above, before the judge dispatch below — **only on the branch
+where a transcript path actually resolved.** Self-assessment (no transcript resolves at all) has
+nothing to compare against and always runs in full; see "Self-assessment is exempted" below.
+
+1. Stat the resolved transcript path's current size in bytes (`wc -c` or equivalent).
+2. Read the watermark for this path (`readWatermark`, the consumer's own `{ consumer }` key,
+   parameterization point 4).
+3. Call `isTranscriptUnchanged(watermark, currentBytes)`
+   (`bin/lib/transcript-judge/watermark.js`). `true` means the transcript has not grown since the
+   watermark was recorded — the cheap `>=` check this procedure exists for, so a run doesn't pay
+   for a Task agent that would evaluate zero new bytes via the offset clause.
+
+**When `true` (unchanged) and the consumer's own full-reset override was not passed** (if the
+consumer defines one at all — e.g. feedback's `--full` flag; not every consumer needs one): skip
+the judge dispatch entirely — no Task agent, no self-assessment. What the consumer reports instead
+of a fresh finding list (a pointer to a prior watermark field, a plain "nothing new" line, or
+similar) is consumer-owned, named in the consumer's own file, never restated here.
+
+**When `false` (grown, or no watermark exists):** proceed to the judge dispatch as normal — the
+offset clause (item 5 of the Prompt contents, below) already scopes the dispatch to only the bytes
+after the watermark, when one exists. This skip check and the offset clause are complementary, not
+redundant: the offset clause narrows an unavoidable dispatch; this check avoids the dispatch
+altogether when narrowing it would leave nothing to evaluate.
+
+**Self-assessment is exempted, explicitly (not an oversight).** The Degradation section below
+states self-assessment "never reads or writes a watermark — there is no resolved transcript path
+to key one on." This skip check inherits that same exemption rather than inventing a parallel
+mechanism for it: self-assessment only fires when no transcript file resolves at all, so there is
+no `currentBytes` to compare and no stamp to check. A self-assessment run therefore always runs in
+full and never writes a stamp on this check's account — duplicate-filing guards across repeated
+self-assessment runs are the consumer's own concern, the same safety net that already covers a
+transcript-judged run's non-duplicate findings.
+
 ## The judge dispatch
 
 Exactly one Task agent per invocation.

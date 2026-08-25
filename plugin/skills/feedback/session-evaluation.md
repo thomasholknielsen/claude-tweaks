@@ -40,42 +40,27 @@ Recommended option.
 
 ## Skip check (before dispatch) — #701
 
-Runs after Transcript resolution (`_shared/transcript-judge.md`), before the judge dispatch —
-**only on the branch where a transcript path actually resolved.** Self-assessment (no transcript
-resolves at all) has nothing to compare against and always runs; see "Self-assessment is exempted"
-below.
+Follows `_shared/transcript-judge.md`'s Skip check procedure — stat the resolved transcript's
+current size, read the watermark (consumer key `feedback`), and call
+`isTranscriptUnchanged(watermark, currentBytes)` (`bin/lib/transcript-judge/watermark.js`) — on
+the branch where a transcript path actually resolved, before the judge dispatch. Self-assessment
+is exempted from the shared procedure's own check; see `_shared/transcript-judge.md`'s
+"Self-assessment is exempted" paragraph, not restated here.
 
-1. Stat the resolved transcript path's current size in bytes (`wc -c` or equivalent).
-2. Read the watermark for this path (`readWatermark`, consumer key `feedback`).
-3. Call `isTranscriptUnchanged(watermark, currentBytes)` (`bin/lib/transcript-judge/watermark.js`).
-   `true` means the transcript has not grown since the watermark was recorded — the cheap `>=`
-   check `[record #701]`'s Deliverables call for, so this run doesn't pay for a Task agent that
-   would evaluate zero new bytes via the offset clause.
+**When `true` (unchanged) and `--full` was not passed:** skip the judge dispatch entirely, per the
+shared procedure — no Task agent, no self-assessment. Gather 2 contributes nothing new to this
+invocation's merged batch. Report a pointer to the prior watermark's `issueUrls` (below) in the
+Step 0 run summary instead of a fresh finding list: "session evaluation unchanged since
+{evaluatedAt} — prior filings: {issueUrls, or "none" if empty or absent}." A watermark written
+before this field existed (a pre-#701 stamp) has no `issueUrls` at all, not merely an empty one —
+treat absent the same as empty rather than surfacing `undefined`.
 
-**When `true` (unchanged) and `--full` was not passed:** skip the judge dispatch entirely — no
-Task agent, no self-assessment. Gather 2 contributes nothing new to this invocation's merged
-batch. Report a pointer to the prior watermark's `issueUrls` (below) in the Step 0 run summary
-instead of a fresh finding list: "session evaluation unchanged since {evaluatedAt} — prior filings:
-{issueUrls, or "none" if empty or absent}." A watermark written before this field existed (a
-pre-#701 stamp) has no `issueUrls` at all, not merely an empty one — treat absent the same as
-empty rather than surfacing `undefined`. `--full` bypasses this check entirely (SKILL.md's Input
-table) and always dispatches fresh, exactly as today.
+`--full` bypasses this check entirely (SKILL.md's Input table) and always dispatches fresh,
+exactly as today — feedback's own full-reset override, per `_shared/transcript-judge.md`'s
+parameterization note.
 
-**When `false` (grown, or no watermark exists):** proceed to the judge dispatch as today —
-`_shared/transcript-judge.md`'s own offset clause (item 5 of the Prompt contents) already scopes
-the dispatch to only the bytes after the watermark, when one exists. This skip check and the
-offset clause are complementary, not redundant: the offset clause narrows an unavoidable dispatch;
-this check avoids the dispatch altogether when narrowing it would leave nothing to evaluate.
-
-**Self-assessment is exempted, explicitly (not an oversight).** `_shared/transcript-judge.md`'s
-Degradation section states self-assessment "never reads or writes a watermark — there is no
-resolved transcript path to key one on." This skip check inherits that same exemption rather than
-inventing a parallel mechanism for it: self-assessment only fires when no transcript file resolves
-at all, so there is no `currentBytes` to compare and no stamp to check. A self-assessment run
-therefore always runs in full (self-assessment already runs in-thread, so the dispatch cost this
-check exists to avoid does not apply there) and never writes a stamp — duplicate filings across two
-self-assessment runs remain guarded only by Step 4's dedup fingerprint and Step 8's fingerprint
-marker, the same safety net that already covers a transcript-judged run's non-duplicate findings.
+**When `false` (grown, or no watermark exists):** proceed to the judge dispatch as today, per the
+shared procedure.
 
 ## Watermark payload
 
