@@ -118,13 +118,20 @@ function computeFingerprint(draft) {
   return fingerprintFromBasis('feedback', [basis.component, normalizeText(basis.summary)]);
 }
 
+// The one place that renders a fingerprint value into its HTML-comment
+// marker form — embedFingerprint, verifyReadBack, and fileOne all need the
+// exact same string, so they share this instead of re-templating it each time.
+function fingerprintMarker(fingerprint) {
+  return `<!-- fingerprint: ${fingerprint} -->`;
+}
+
 // The sole source of truth for what fingerprint marker actually gets filed.
 // Step 5's draft template already renders a `<!-- fingerprint: <marker> -->`
 // placeholder line as part of the human-readable preview — possibly the
 // literal `[object Object]` bug text if drafted before this fix. Never trust
 // that incoming value: replace the line wholesale if present, else append it.
 function embedFingerprint(body, fingerprint) {
-  const line = `<!-- fingerprint: ${fingerprint} -->`;
+  const line = fingerprintMarker(fingerprint);
   const marker = /<!-- fingerprint:[^\n]*-->/;
   if (marker.test(String(body))) return String(body).replace(marker, line);
   const sep = String(body).endsWith('\n') ? '' : '\n';
@@ -172,7 +179,7 @@ function verifyReadBack({ draft, fingerprint, readBack }) {
   if (readBack.title !== draft.title) {
     return { ok: false, reason: `title mismatch: expected ${JSON.stringify(draft.title)}, got ${JSON.stringify(readBack.title)}` };
   }
-  const marker = `<!-- fingerprint: ${fingerprint} -->`;
+  const marker = fingerprintMarker(fingerprint);
   if (!String(readBack.body || '').includes(marker)) {
     return { ok: false, reason: `fingerprint marker missing from read-back body (expected "${marker}")` };
   }
@@ -197,7 +204,7 @@ function verifyReadBack({ draft, fingerprint, readBack }) {
 function fileOne({ repo, draft, runner = defaultRunner, bodyFile, writeFile = fs.writeFileSync, waitMs = 15000, maxRetries = 4, sleep = sleepSync }) {
   const fingerprint = computeFingerprint(draft);
   const body = embedFingerprint(draft.body, fingerprint);
-  const marker = `<!-- fingerprint: ${fingerprint} -->`;
+  const marker = fingerprintMarker(fingerprint);
   const retryingReader = withTransientRetry(runner, { waitMs, maxRetries, sleep });
   let number;
   try {
