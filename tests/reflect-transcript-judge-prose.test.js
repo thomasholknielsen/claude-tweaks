@@ -59,6 +59,28 @@ test('reflect SKILL.md documents the conditional watermark offset clause via rea
   assert.match(SKILL, /`readWatermark\(path, \{ consumer: 'reflect' \}\)` returns non-null/);
 });
 
+// --- 2b. #1119: reflect's standalone dispatch gains the shared Skip check (promoted from #701) ---
+
+test('reflect SKILL.md documents the Skip check citing the shared procedure with consumer key reflect', () => {
+  assert.match(
+    SKILL,
+    /run `_shared\/transcript-judge\.md`'s Skip\ncheck with consumer key `reflect`/,
+  );
+  assert.match(SKILL, /isTranscriptUnchanged\(watermark, currentBytes\)/);
+});
+
+test('reflect SKILL.md states reflect defines no full-reset override', () => {
+  assert.match(SKILL, /Reflect\ndefines no full-reset override, so there is no bypass flag to check/);
+});
+
+test('reflect SKILL.md documents skipping the dispatch reports a pointer to filedRecords, not issueUrls', () => {
+  assert.match(
+    SKILL,
+    /Report a pointer to the prior watermark's `filedRecords`\n\(below\) at Step 5 instead of a fresh finding list/,
+  );
+  assert.match(SKILL, /prior filings: \{filedRecords, or "none" if empty\}/);
+});
+
 // --- 3. Watermark write timing: captured before dispatch, written after Step 3, gated on status ---
 
 test('reflect SKILL.md documents bytesAtDispatch captured before dispatch and write after Step 3 routing', () => {
@@ -75,6 +97,23 @@ test('reflect SKILL.md documents the reflect-specific filedRecords payload (rout
     SKILL,
     /filedRecords` holds one short summary per insight that Step 3 resolved to a \*\*durable routed outcome\*\*/,
   );
+});
+
+// --- 3b. #1033: reflect's own judge dispatch supplies dismissedSubjects, computed live ---
+// (#849's final review flagged that reflect's judge dispatch always rendered an inert
+// "previously declined: none" segment — the payload carried no dismissedSubjects/
+// dismissedFingerprints field at all. This mirrors session-evaluation.md's fix for feedback.)
+
+test('reflect SKILL.md documents dismissedSubjects sourced from listDeclined({ source: \'wrap-up\' })', () => {
+  assert.match(SKILL, /listDeclined\(\{ source: 'wrap-up' \}\)` mapped to each entry's `subject` text/);
+});
+
+test('reflect SKILL.md documents dismissedSubjects is computed live, never read off the returned watermark object', () => {
+  assert.match(SKILL, /computed live, immediately before composing the offset clause, never read off the watermark object/);
+});
+
+test('reflect SKILL.md documents the written watermark payload deliberately excludes dismissedSubjects', () => {
+  assert.match(SKILL, /`dismissedSubjects` is deliberately not part of this written payload/);
 });
 
 // --- 4. Degradation binding names the shared self-assessment path ---
@@ -207,4 +246,28 @@ test('wrap-up SKILL.md anti-pattern row cites the Evidence: line as the mechanic
 
 test('wrap-up SKILL.md stays under the 40KB sub-file ceiling', () => {
   assert.ok(Buffer.byteLength(WRAP_UP, 'utf8') < 40960, `got ${Buffer.byteLength(WRAP_UP, 'utf8')} bytes`);
+});
+
+// --- 14. #1033: full-mode.md's Subject scan for a near-miss (agent-judgment fallback when the
+// exact-hash Prior-decline lookup finds nothing — AC2's "wording differs but subject is the same") ---
+
+test('full-mode.md documents the Subject scan for a near-miss, sourced from listDeclined({ source: \'wrap-up\' })', () => {
+  assert.match(FULL_MODE, /\*\*Subject scan for a near-miss \(#1033\)\.\*\*/);
+  assert.match(FULL_MODE, /listDeclined\(\{ source: 'wrap-up' \}\)` and read each\nreturned entry's `subject` text/);
+});
+
+test('full-mode.md frames the subject scan as agent judgment, not a mechanical match', () => {
+  assert.match(FULL_MODE, /Judge — as the agent already forming this table, not via any\nmechanical string match/);
+  assert.match(FULL_MODE, /when genuinely uncertain whether two insights are "the\nsame point," do not annotate/);
+});
+
+test('full-mode.md clears the matched listDeclined entry\'s own fingerprint on a subject-scan match, not a freshly-computed one', () => {
+  assert.match(
+    FULL_MODE,
+    /For a subject-scan match \(no exact-hash match\), clear the matched entry's own\nfingerprint — the one the `listDeclined` entry carries/,
+  );
+});
+
+test('full-mode.md\'s Don\'t-capture resolution passes subject: description to recordDecline', () => {
+  assert.match(FULL_MODE, /recordDecline\(fingerprint, \{ reason, source: 'wrap-up', subject: description \}\)/);
 });

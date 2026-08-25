@@ -62,6 +62,7 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Res
 2. `staged/` directory — patches and proposals awaiting decisions
 3. `config.yml` — the Manifesto answers (for context)
 4. `events.jsonl` — hook-recorded typed events; surface `wd-deny`, `wd-push-mismatch`, `contract-violation`, and `gate-denial` events
+5. **Staged inventory reconciliation** — run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" check-staged-inventory --run "{run-dir}"` (`_shared/run-resume-freshness.md`'s companion check, #1269). When it reports `MISMATCH`, surface it as a visible warning line in the rendered console output (never a silent log entry) — a `STAGED` entry in `decisions.md` whose named `staged/` file does not exist means that proposal needs to be manually re-derived from `decisions.md`'s prose before it can be applied at this console.
 
 ## Ledger narrowing auto-file (runs before rendering)
 

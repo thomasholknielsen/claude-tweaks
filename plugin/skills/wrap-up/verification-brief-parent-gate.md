@@ -88,8 +88,9 @@ Resolve the sub-issue's parent the same way `/claude-tweaks:review` Step 1.6 doe
 from this sub-issue's own side; `work-backend: github-issues` + `work-links: body-text` — the
 `Parent: #N` line in this sub-issue's own body.
 
-**No parent resolvable** (a record human-filed or `/capture`d directly, not produced by a
-`/specify` decomposition) — skip this section entirely: fall through to Steps 1-4 in
+**No parent resolvable** (a record human-filed or `/capture`d directly, or one produced by a
+`/specify` decomposition whose Step 2.6 collapse decision created no parent —
+`specify/decomposition-mode.md`) — skip this section entirely: fall through to Steps 1-4 in
 `verification-brief.md` and apply `demo:pending` to this record itself, exactly as today.
 
 ## Enumerate the parent's sub-issues

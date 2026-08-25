@@ -38,7 +38,7 @@ node -e "
 For each unsynced record, attach a `createdAt` from its own last-commit date (the local driver carries no timestamp facet — same approach `/claude-tweaks:tidy`'s Step 1 staleness clock already uses) via `backlog.js`'s shared `deriveCreatedAtFromGit` helper (the same staleness-clock approach `_shared/record-queue-fetch.md` documents for the `local-files` driver):
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_UNSYNCED=backlog-refine-unsynced.json ST_BACKLOG_REFINE_UNSYNCED_DATED=backlog-refine-unsynced-dated.json ST_BACKLOG_REFINE_FACETED=backlog-refine-faceted.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_UNSYNCED=backlog-refine-unsynced.json ST_BACKLOG_REFINE_UNSYNCED_DATED=backlog-refine-unsynced-dated.json ST_BACKLOG_REFINE_FACETED=backlog-refine-faceted.json ST_BACKLOG_REFINE_FACETED_MERGED=backlog-refine-faceted-merged.json)"
 node -e "
   const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const records = require('$ST_BACKLOG_REFINE_UNSYNCED');
@@ -49,10 +49,11 @@ node -e "
   const github = require('$ST_BACKLOG_REFINE_FACETED');
   const unsynced = require('$ST_BACKLOG_REFINE_UNSYNCED_DATED');
   console.log(JSON.stringify(mergeUnsyncedRecords(github, unsynced)));
-" > "$ST_BACKLOG_REFINE_FACETED"
+" > "$ST_BACKLOG_REFINE_FACETED_MERGED"
+mv "$ST_BACKLOG_REFINE_FACETED_MERGED" "$ST_BACKLOG_REFINE_FACETED"
 ```
 
-This last script reads `{tmp-faceted-file}`'s github-only content and overwrites the same path with the fully merged (github + unsynced) set — Step 2 below reads `session-scoped backlog-refine-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker in rendered output wherever `facets.unsynced === true`.
+The merge writes to a **distinct** path and `mv`s it over the original — `>` truncates its target before the reader opens it (docs/skill-authoring.md, Executable snippets). Step 2 below reads `session-scoped backlog-refine-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker in rendered output wherever `facets.unsynced === true`.
 
 **Grant fetch (`work-backend: github-issues` only, skipped per Preflight under `local-files`).** Fetch per the same shared fragment, this time server-side filtered:
 
@@ -123,7 +124,7 @@ Read every selected body in one pass and produce:
 - A narrative summary + thematic clusters (group by shared theme/origin/root cause, not just by label — the same read a human gets from reading a handful of related issues side by side).
 - A per-record `priority:*` suggestion with a one-line rationale.
 - A per-record, **non-binding** tier guess (`quick`/`full`) — purely to help a human eyeball a batch before deciding what to send to `/specify` next. This is never written as a label; only `/specify`'s own `ceremony-check` (a separate, authoritative computation with deeper context — the record's fully shaped Deliverables/Acceptance Criteria, not this pass's rougher read) writes `ceremony:*`. Rationale was `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`.
-- Detected `**Related:**` cross-references — pairs of selected records whose bodies reference each other's context in prose without a formal link (`**Related:**` is `/capture`'s own body-template line; nothing else reads or maintains it — `_shared/work-record.md`). Never suggest `Blocked by #N` here — that's the formally-parsed hard-dependency mechanism, out of scope for this skill (`_shared/work-record.md`'s permission matrix).
+- Detected `**Related:**` cross-references — pairs of selected records whose bodies reference each other's context in prose without a formal link (`**Related:**` is `/capture`'s own body-template line, and `/specify`'s independent-2-unit collapse is its one other producer — that pass writes the same bolded line onto each of the two cross-linked records, so Step 5's replace updates it in place rather than adding a second one — `_shared/work-record.md`). Never suggest `Blocked by #N` here — that's the formally-parsed hard-dependency mechanism, out of scope for this skill (`_shared/work-record.md`'s permission matrix).
 
 If `.prioritySlice.remaining > 0`, state it plainly in the report: "`{remaining}` more records missing priority exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them.
 
@@ -204,7 +205,7 @@ else
 fi
 ```
 
-Check per `_shared/work-record.md`'s spec-shaped body definition: the sections `## Current State`, `## Deliverables`, and `## Acceptance Criteria` are present and each non-empty, and no unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) remains anywhere in the body. This is structural-plus-minimal — whether the deliverables are the *right* ones stays human judgment (the batch table just confirmed), not this check.
+Check per `_shared/work-record.md`'s spec-shaped body definition: the sections `## Current State`, `## Deliverables`, and `## Acceptance Criteria` are present and each non-empty, and no unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) remains anywhere outside the verbatim-preserved `## Original request` section (exempt per that definition's #1240 clause). This is structural-plus-minimal — whether the deliverables are the *right* ones stays human judgment (the batch table just confirmed), not this check.
 
 A failing row auto-downgrades to flag-back, using Step 5's flag-back mechanics with this exact comment (substitute the missing/empty section list and issue number):
 

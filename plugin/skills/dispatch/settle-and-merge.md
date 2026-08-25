@@ -4,6 +4,19 @@ Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the
 
 **The Auto-merge gate splits across two threads; Settle does not.** Settle (below) runs entirely inside whichever Task call hits the failure, as it always has. The Auto-merge gate's authorization check, content judgment, and acceptance labeling also run inside the second Task call — but its actual merge execution cannot: a Task-tool subagent is cwd-pinned to the worktree it inherited at launch and cannot reach the main checkout (`dispatch/SKILL.md` Step 5's sequential-execution note: "A Task-tool subagent is always launched cwd-pinned to the dispatching session's own worktree"). That final step runs in the *dispatching session's own thread* instead, per **Dispatching-session merge execution** at the end of this file.
 
+**The `ExitWorktree`/worktree-removal constraint is structural, when it applies, and
+outcome-independent within its scope.** A Task-tool subagent that did not itself `EnterWorktree`
+a worktree can never run `ExitWorktree` or `git worktree remove` on it, regardless of which
+outcome that call ultimately reports — the cwd-pinning fact above already explains why the merge
+itself can't run there either; worktree teardown is blocked for the identical structural reason
+on every Task-call branch below (Settle, and the Auto-merge gate's own Task-call branches), not
+only the merge path. The `Dispatching-session merge execution` section further down runs outside
+any Task call, so this constraint does not apply there at all — its own conflict-abort branch
+states a distinct, non-structural reason for parking worktree teardown alongside claim release
+and run-dir archival. Wherever this constraint DOES apply, the branch below still states its own
+claim-release and run-dir-archival disposition separately — neither is inherited from this
+constraint.
+
 **MCP path, file-wide.** Every label read/edit and comment operation in this file that isn't called out individually below (e.g. the `gh issue view --json labels` / `gh issue edit --remove-label` pair in Settle step 3, and the failure-comment post in step 5) uses the standard CRUD mapping from `_shared/github-write-transport.md`: `issue_write` (update mode) for label edits, `add_issue_comment` for comments, `issue_read` for reads. The one call site with special MCP-path handling — the retry-ceiling comment fetch (step 4 below) — already has its own dedicated note.
 
 This blanket mapping also covers the `gh` calls the Auto-merge gate's acceptance-labeling step
@@ -268,22 +281,33 @@ there is no second thread, no `OUTCOME: ready-to-merge` relay, and no
 `close-run`/branch-guard/push-from-worktree dance — those existed only for a *local* merge. Report the outcome that procedure returned
 (`merged` / `armed` / `pending-review`) (pending-review now also covers a red or timed-out check
 per that gate) per `task-prompt.md`'s updated second-call template. On
-`merged`, this call also owes the cleanup a merge unlocks — worktree removal, claim release,
-run-dir archival (wrap-up's Items 4, 7, 8) — run them directly, citing the same canonical
-procedures Settle already cites for claim release: `wrap-up/cleanup-procedures-execution.md` Section C
-(worktree), Section E (claim), Section B (run dir). On `armed` or `pending-review`, none of
-those three run yet — they wait for `merged` evidence, which the reconciler picks up
-convergently at its next trigger point, same as `_shared/pr-first-merge.md` states.
+`merged`, this call also owes the cleanup a merge unlocks for the two items it can actually run
+directly — claim release and run-dir archival (wrap-up's Items 7, 8) — citing the same canonical
+procedures Settle already cites: `wrap-up/cleanup-procedures-execution.md` Section E (claim),
+Section B (run dir). Worktree removal (Item 4) is NOT run directly here, `merged` included: this
+call inherited the worktree and never itself `EnterWorktree`'d it, so `ExitWorktree` is a
+documented no-op for it — the same structural constraint stated at the top of this file, which
+applies to every Task-call branch without exception. Worktree removal instead defers to the
+reconciler on merged-PR evidence — the identical mechanism `armed`/`pending-review` already rely
+on below, and already unconditional across every path that reaches `merged` (`reap-merged.js`'s
+PR-state check reaps regardless of which branch produced the merge). On `armed` or
+`pending-review`, none of the three run yet — they wait for `merged` evidence, which the
+reconciler picks up convergently at its next trigger point, same as `_shared/pr-first-merge.md`
+states.
 
 **Both layers pass — merge (`integration-model: local-merge`):** this Task call never touches
 the main checkout — a Task-tool subagent launched by dispatch is cwd-pinned to the worktree it
 inherited at launch and cannot reach a sibling directory (see the note at the top of this file).
-Do not run `git merge`, do not run `ExitWorktree`/`git worktree remove`, and do not run
-wrap-up's own Item 4 (worktree removal), Item 7 (issue claim release), or Item 8 (run-dir
-archival) — all three depend on a merge that has not happened yet. Items 1, 2, 3, 5, and 6 are
-unaffected (not merge-dependent) and may still run normally as part of this call's own wrap-up
-execution. Report `OUTCOME: ready-to-merge` (see `task-prompt.md`'s second-call template) and
-return — `Dispatching-session merge execution (local-merge fallback)`, below, is what actually
+This call cannot run `git merge`, `ExitWorktree`, or `git worktree remove` — the structural,
+outcome-independent constraint stated at the top of this file. Separately, wrap-up's own Item 7
+(issue claim release) and Item 8 (run-dir archival) stay deferred on this branch specifically
+because the merge that would make them safe has not happened yet and this outcome is not
+terminal — not because they inherit the worktree constraint. Item 4 (worktree removal) is
+blocked here by that constraint itself, exactly as on the pr-first branch above, and is
+merge-dependent besides; the dispatching session runs all three after it merges. Items 1, 2, 3,
+5, and 6 are unaffected (not merge-dependent) and may still run normally as part of this call's
+own wrap-up execution. Report `OUTCOME: ready-to-merge` (see `task-prompt.md`'s second-call
+template) and return — `Dispatching-session merge execution (local-merge fallback)`, below, is what actually
 merges, in `dispatch/SKILL.md` Step 6, in the dispatching session's own thread, immediately after
 this call's report is read.
 
@@ -357,4 +381,4 @@ Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already p
 
 **That claim covers what wrap-up *found*, not everything its Phase 4 execution step *does*.** Acceptance labeling is an action the second Task call already performed, before ever reporting `ready-to-merge` — not something this section repeats.
 
-**If the merge conflicts, or the branch guard aborts:** `git merge --abort` if a merge is actually in progress. Conflict resolution requires judgment a headless run can't supply. Leave the worktree and run dir parked exactly as an ordinary un-pushed `pending-review` outcome does today (`dispatch/SKILL.md`'s Reporting section) — no Item 4/7/8 cleanup on this branch; a human resuming the parked run handles it normally. **One accepted residual:** `close-run` already ran, above, before this conflict was discovered — unlike a normal `pending-review` outcome, this run is no longer E1-protected while parked. Not fixed here; there is no "reopen-run" mechanic to reverse it. Report this group's outcome as `pending-review` (not `ready-to-merge`, which is a transient signal, never terminal), and log why the auto-merge path was abandoned.
+**If the merge conflicts, or the branch guard aborts:** `git merge --abort` if a merge is actually in progress. Conflict resolution requires judgment a headless run can't supply. Unlike the Task-call branches above, this session (the dispatching session's own thread — see this section's own opening) has no structural barrier to tearing the worktree down itself; it chooses not to, for the same reason it defers claim release and run-dir archival here: the run genuinely isn't finished, and a human needs to resolve the conflict before any of the three is safe to run — exactly the ordinary un-pushed `pending-review` case `dispatch/SKILL.md`'s Reporting section already parks for. Leave the worktree and run dir parked accordingly; a human resuming the parked run handles all three normally. **One accepted residual:** `close-run` already ran, above, before this conflict was discovered — unlike a normal `pending-review` outcome, this run is no longer E1-protected while parked. Not fixed here; there is no "reopen-run" mechanic to reverse it. Report this group's outcome as `pending-review` (not `ready-to-merge`, which is a transient signal, never terminal), and log why the auto-merge path was abandoned.

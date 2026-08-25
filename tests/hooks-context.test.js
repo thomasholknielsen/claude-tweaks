@@ -144,17 +144,63 @@ test('iterRunDirsWithState: stray dir is still yielded when it has no archive tw
   assert.deepStrictEqual(ctx.listRunDirs(project), [genuinelyOpen]);
 });
 
-// #208: archived is terminal regardless of the archive twin's own run-state —
-// existence of archive/{run-id}/ alone is authoritative, since that twin's
-// status field is exactly the untrustworthy resurrected data #208 fixes
-// (a later hook write can corrupt or resurrect it after the real archival).
-// Supersedes the pre-#208 assumption that a non-terminal archive twin meant
-// the archival hadn't "really" finished — AC3 states this explicitly.
-test('iterRunDirsWithState: #208 — a run-id present under archive/ is skipped even when that twin\'s own state is non-terminal', () => {
+// #1103 fix-wave-1: the existence-only check that used to make this pass
+// (`isArchivedRunId`, an fs.existsSync/statSync check with no read of the
+// twin's own run-state.json) is removed — it stranded ANY incomplete archive
+// attempt (archiveRunDir creates archive/{run-id}/ via fs.mkdirSync as its
+// very first action, before any content actually moves) as permanently
+// "already archived" the instant that mkdirSync ran, even when the real
+// content never moved — the literal double-nesting bug #1103 reports.
+// Supersedes the #208 test this replaces: a non-terminal (or absent) archive
+// twin state is no longer authoritative on its own — only a twin whose own
+// run-state.json genuinely reads status: 'clean' (the content-aware check a
+// few lines below in iterRunDirsWithState) hides the live run dir.
+test('iterRunDirsWithState: a run-id present under archive/ with a non-terminal twin state is now yielded — the existence-only #208 skip was removed by #1103\'s fix-wave-1', () => {
   const project = tmpProject();
-  mkRun(project, '2026-07-02T090000-spec-2'); // stray active-side dir, no local run-state.json
+  const live = mkRun(project, '2026-07-02T090000-spec-2'); // stray active-side dir, no local run-state.json
   mkRun(project, path.join('archive', '2026-07-02T090000-spec-2'), { status: 'active' }); // resurrected/corrupted twin state
+  assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
+});
+
+// #1103 fix-wave-1 regression test: archiveRunDir's very first action is
+// `fs.mkdirSync(archiveDir)` — before any content actually moves. If
+// archival then fails for any reason, that empty archive/{run-id}/
+// directory is left behind with no run-state.json of its own. This proves
+// the run is NOT considered done just because an archive directory happens
+// to exist — only a twin that genuinely reads status: 'clean' does that.
+test('iterRunDirsWithState: an incomplete archive twin (exists but not status:clean) does not hide the live run dir', () => {
+  const project = tmpProject();
+  const runId = '2026-07-03T090000-spec-7';
+  const live = mkRun(project, runId, { status: 'active' }); // real, still-open run
+  mkRun(project, path.join('archive', runId)); // archiveRunDir's mkdirSync ran, then failed before any move — no run-state.json at all
+  assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
+});
+
+// #1103 second-round finding: removing the existence-only archive-twin skip
+// (test above) widened a race — two concurrent, unlocked `reconcile`
+// invocations (dispatch/tidy's own pre-step; only `reconcile-background`
+// holds a lock) could both select the same merged run dir for archival
+// before either's status:'clean' write lands. archiveRunDir now writes a
+// content-aware 'archiving' claim the instant it mkdir's archiveDir — this
+// proves a fresh claim still hides the run dir from a second scan.
+test('iterRunDirsWithState: a fresh archiving claim on the archive twin hides the live run dir (concurrent-archival protection)', () => {
+  const project = tmpProject();
+  const runId = '2026-07-04T090000-spec-9';
+  mkRun(project, runId, { status: 'active' });
+  mkRun(project, path.join('archive', runId), { status: 'archiving', updatedAt: new Date().toISOString() });
   assert.deepStrictEqual(ctx.listRunDirs(project), []);
+});
+
+// The claim must expire — unlike the removed existence-only check, a claim
+// left behind by a crashed or failed archival attempt must not strand the
+// run dir forever. A 10-minute-old claim is well past the 5-minute TTL.
+test('iterRunDirsWithState: a stale archiving claim (crashed attempt) does not hide the live run dir', () => {
+  const project = tmpProject();
+  const runId = '2026-07-04T090000-spec-10';
+  const live = mkRun(project, runId, { status: 'active' });
+  const staleTs = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  mkRun(project, path.join('archive', runId), { status: 'archiving', updatedAt: staleTs });
+  assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
 });
 
 test('listRunDirs is derived from listRunDirsWithState (same dirs, same order)', () => {
@@ -182,12 +228,55 @@ test('findRunsByWorktreePath excludes excludeDir (the caller\'s own primary run 
   assert.deepStrictEqual(result.map((r) => r.runDir), [adhoc]);
 });
 
+// #1175: excludeDir was compared with a plain path.resolve() while `dir`
+// (built from the already-realpath'd main-checkout root) is canonical — a
+// symlink-spelled --run (macOS /tmp -> /private/tmp, or any symlinked repo
+// parent) never matched, so the primary run's own events were never
+// excluded and got re-emitted tagged `_source: 'adhoc'`.
+test('#1175 findRunsByWorktreePath excludes excludeDir even when passed through a symlinked spelling', () => {
+  const project = fs.realpathSync(tmpProject());
+  const primary = mkRun(project, '2026-07-01T090000-spec-500', { status: 'active', worktree: '/tmp/wt-a' });
+  const adhoc = mkRun(project, '2026-07-02T060000-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-hooks-symlink-'));
+  const alias = path.join(parent, 'alias');
+  fs.symlinkSync(project, alias, 'dir');
+  const excludeDirViaSymlink = path.join(alias, '.claude-tweaks', 'pipelines', path.basename(primary));
+  const result = ctx.findRunsByWorktreePath(project, '/tmp/wt-a', excludeDirViaSymlink);
+  assert.deepStrictEqual(result.map((r) => r.runDir), [adhoc]);
+});
+
 test('findRunsByWorktreePath returns [] when nothing matches or the path is empty', () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-record-1-adhoc-standalone', { status: 'active', worktree: '/tmp/wt-a' });
   assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, '/tmp/no-match'), []);
   assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, ''), []);
   assert.deepStrictEqual(ctx.findRunsByWorktreePath(project, null), []);
+});
+
+// #1177: rollbackMint was extracted from post-tool-use.js's inline
+// staged/decisions.md/dir-removal sequence — pin its own behavior directly
+// here rather than only transitively via post-tool-use's test suite.
+test('rollbackMint: removes staged/, decisions.md, and the directory itself', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-07-01T090000-record-500-adhoc-standalone');
+  fs.mkdirSync(path.join(run, 'staged'));
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
+  ctx.rollbackMint(run);
+  assert.ok(!fs.existsSync(run), 'the mint directory must be gone');
+});
+
+test('rollbackMint: each step is independently best-effort — a partial mint (no staged/) still removes decisions.md and the directory', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-07-02T090000-record-501-adhoc-standalone');
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
+  ctx.rollbackMint(run);
+  assert.ok(!fs.existsSync(run), 'the mint directory must still be removed despite no staged/ subdirectory');
+});
+
+test('rollbackMint: never throws on a directory that does not exist at all', () => {
+  const project = tmpProject();
+  const missing = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-03T090000-record-502-adhoc-standalone');
+  assert.doesNotThrow(() => ctx.rollbackMint(missing));
 });
 
 test('writeRunState merges, stamps updatedAt; readRunState round-trips', () => {

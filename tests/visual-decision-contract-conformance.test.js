@@ -8,7 +8,7 @@ const CONTRACT = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'visu
 const TEMPLATE = path.join(__dirname, '..', 'plugin', 'skills', 'design-wrapper', 'compare-shell', 'template.html');
 const EXPLORE = path.join(__dirname, '..', 'plugin', 'skills', 'design-wrapper', 'modes', 'explore.md');
 
-const EVENT_SHAPES = ['pick', 'reroll', 'steer', 'exit'];
+const EVENT_SHAPES = ['pick', 'reroll', 'steer', 'tweak', 'exit'];
 
 // The one exclusion mechanism this repo's conformance greps honor — a line
 // carrying this literal marker is never counted as a restatement.
@@ -25,7 +25,7 @@ function readNonTombstone(file) {
   return stripTombstoneLines(fs.readFileSync(file, 'utf8'));
 }
 
-test('AC1: the contract file states each of the four event shapes exactly once', () => {
+test('AC1: the contract file states each of the five event shapes exactly once', () => {
   const text = readNonTombstone(CONTRACT);
   for (const shape of EVENT_SHAPES) {
     const literal = `"type":"${shape}"`;
@@ -34,7 +34,7 @@ test('AC1: the contract file states each of the four event shapes exactly once',
   }
 });
 
-test('AC1: the template serializer constructs exactly the same four shapes, one branch each', () => {
+test('AC1: the template serializer constructs exactly the same five shapes, one branch each', () => {
   const text = readNonTombstone(TEMPLATE);
   const fnMatch = text.match(/function serializeEvent\(kind, extra\) \{[\s\S]*?\n  \}/);
   assert.ok(fnMatch, 'expected a serializeEvent function in template.html');
@@ -112,4 +112,46 @@ test('AC7: the degraded-mode path (server-start failure -> static file + termina
   const exploreText = readNonTombstone(EXPLORE);
   assert.match(exploreText, /Degraded mode \(server fails to start\)/);
   assert.match(exploreText, /refreshing the page manually/);
+});
+
+test('#1207 finding 1: the Turn loop names tweak as a browser action and states the non-tweak resume rule', () => {
+  const text = readNonTombstone(CONTRACT);
+  assert.match(text, /dragging a tweak\s*\n?\s*lever/, 'expected the Turn loop to name the tweak lever alongside Pick/Reroll/Steer/Exit');
+  assert.match(
+    text,
+    /act on\s*\n?\s*the \*\*last non-`tweak` event\*\*/,
+    'expected the Turn loop to state resume acts on the last non-tweak event',
+  );
+  assert.match(
+    text,
+    /An events file containing only `tweak` events[\s\S]*?treated the same as an empty events file/,
+    'expected an events-file-of-only-tweaks to be documented as equivalent to empty',
+  );
+});
+
+test('#1207 finding 1: the Precedence section explicitly excludes tweak from the verdict-word list, with a reason', () => {
+  const text = readNonTombstone(CONTRACT);
+  assert.match(
+    text,
+    /`tweak` is deliberately not part of this list/,
+    'expected the Precedence section to explain why tweak is excluded from the verdict-word list, not silently omit it',
+  );
+});
+
+test('#1207 finding 1: explore.md documents a fifth Verdict branch for tweak, without restating the JSON event shape', () => {
+  const exploreText = readNonTombstone(EXPLORE);
+  assert.match(exploreText, /\*\*Tweak\*\* events are never a verdict this step acts on/);
+  assert.equal(exploreText.includes('"type":"tweak"'), false);
+});
+
+test('#1207 finding 2: the contract states the judged candidate is deliberately never restyled (sandboxed iframe), not merely "only how it renders"', () => {
+  const text = readNonTombstone(CONTRACT);
+  assert.match(text, /allow-scripts/);
+  assert.match(text, /allow-same-origin/);
+  assert.match(text, /deliberate scope\s*\n?\s*boundary, not a gap/);
+  assert.equal(
+    text.includes('it never changes which variant is selected, only how the currently-focused one renders'),
+    false,
+    'expected the factually-wrong summary sentence to be replaced, not merely appended to',
+  );
 });

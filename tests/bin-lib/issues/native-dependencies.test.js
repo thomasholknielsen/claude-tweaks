@@ -36,6 +36,14 @@ test('null repository throws rather than returning a partial map', () => {
   assert.throws(() => fetchNativeSubIssues({ numbers: [5], owner: 'o', repo: 'r', runner }), /boom|no sub-issue data/);
 });
 
+test('a null connection node is dropped from byParent, genuine sub-issue numbers retained in order', () => {
+  const runner = () => resp({
+    i1095: { number: 1095, subIssues: { nodes: [{ number: 1097 }, null, { number: 1101 }], pageInfo: { hasNextPage: false } } },
+  });
+  const out = fetchNativeSubIssues({ numbers: [1095], owner: 'o', repo: 'r', runner });
+  assert.deepStrictEqual(out.byParent.get(1095), [1097, 1101]);
+});
+
 test('empty input returns empty result without calling the runner', () => {
   const out = fetchNativeSubIssues({ numbers: [], owner: 'o', repo: 'r', runner: () => { throw new Error('must not run'); } });
   assert.strictEqual(out.byParent.size, 0);
