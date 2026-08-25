@@ -172,7 +172,7 @@ test('fileOne: dedup hit skips filing entirely', () => {
 test('findDuplicate: sends a plain list call with no --search flag, per github-write-transport.md', () => {
   const marker = '<!-- fingerprint: feedback-deadbeef -->';
   const runner = (args) => {
-    assert.deepEqual(args, ['issue', 'list', '--repo', 'acme/w', '--state', 'all', '--json', 'number,title,body,createdAt', '--limit', '500']);
+    assert.deepEqual(args, ['issue', 'list', '--repo', 'acme/w', '--state', 'all', '--json', 'number,title,body,createdAt', '--limit', '10000']);
     return JSON.stringify([]);
   };
   const result = feedback.findDuplicate({ repo: 'acme/w', marker, runner });

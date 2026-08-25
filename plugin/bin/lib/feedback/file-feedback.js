@@ -146,9 +146,15 @@ function embedFingerprint(body, fingerprint) {
 // #1089). Reuses the same findByMarker idiom `_shared/headless-self-report.md`
 // already documents. One call per draft: dedup is cheap and per-item
 // fail-safe matters more here than batching — unlike link.js's databaseId
-// resolution, there's no shared batch call to make.
+// resolution, there's no shared batch call to make. Unlike that precedent's
+// `--label by:{caller}`-scoped list, this caller has no reliable label to
+// scope by (feedback drafts carry caller-supplied labels, not a fixed one),
+// so `--limit` is the only truncation guard — set high enough to cover the
+// whole repo's issue history rather than a bounded recent window (#1094
+// review finding: `--limit 500` already truncated ~half of this repo's
+// then-998 issues).
 function findDuplicate({ repo, marker, runner = defaultRunner }) {
-  const out = runner(['issue', 'list', '--repo', repo, '--state', 'all', '--json', 'number,title,body,createdAt', '--limit', '500']);
+  const out = runner(['issue', 'list', '--repo', repo, '--state', 'all', '--json', 'number,title,body,createdAt', '--limit', '10000']);
   const issues = JSON.parse(out);
   const result = findByMarker(Array.isArray(issues) ? issues : [], marker);
   return result ? result.canonical : null;
