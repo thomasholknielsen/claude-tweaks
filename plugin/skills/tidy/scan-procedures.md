@@ -143,9 +143,15 @@ otherwise indistinguishable from "needs -D" and would get the wrong remedy.
 | `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** — this is the only case that actually means unmerged work |
 
 **Dirty-worktree override** (before `Remove/delete`): merge state says nothing about
-working-tree state (#1424). `dirty: true|unknown` routes to `dirty — manual review required`
-with the changed files (`git -C {path} status --porcelain`) — never `Remove/delete`, never a
-bare `--force` suggestion.
+working-tree state (#1424). `dirty: true` routes to `dirty — manual review required` with the
+changed files (`git -C {path} status --porcelain`) — never `Remove/delete`, never a bare
+`--force` suggestion. `dirty: unknown` (the `git status` check itself failed — path gone,
+permission error, transient git error) does **not** trigger this override: the probe's `remedy`
+stays whatever it would have been absent this check (`auto` when unlocked, `record` when locked)
+— an unrelated read failure is deliberately never read as proof of uncommitted work
+(`probes/worktrees.js`'s `defaultIsDirty`/remedy-computation comments). Report `dirty: unknown` in
+the evidence line regardless, so a human scanning the row still sees the check could not confirm
+clean.
 
 Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
 
