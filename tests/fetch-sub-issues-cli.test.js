@@ -187,3 +187,17 @@ test('--help output documents --resolve-retries', () => {
   assert.strictEqual(run(['--help'], d), 0);
   assert.match(d.out.join(''), /--resolve-retries/);
 });
+
+test('--repo owner/.. is rejected before any gh call (review finding: parseRepo accepts ".." segments)', () => {
+  const d = deps({ runner: () => { throw new Error('should not be called'); } });
+  assert.strictEqual(run(['5', '--repo', 'owner/..'], d), 2);
+  assert.match(d.err.join(''), /invalid --repo value/);
+  assert.deepStrictEqual(d.calls, []);
+});
+
+test('--repo ../evil is rejected before any gh call', () => {
+  const d = deps({ runner: () => { throw new Error('should not be called'); } });
+  assert.strictEqual(run(['5', '--repo', '../evil'], d), 2);
+  assert.match(d.err.join(''), /invalid --repo value/);
+  assert.deepStrictEqual(d.calls, []);
+});

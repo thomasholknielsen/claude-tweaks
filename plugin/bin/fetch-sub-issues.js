@@ -92,6 +92,16 @@ function run(argv, deps = realDeps) {
   const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(remote);
   if (!repoSpec) { deps.stderr('fetch-sub-issues.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
   const { owner, repo } = repoSpec;
+  // parseRepo's regex accepts any non-'/' owner/repo segment, including '.'/'..' — review finding
+  // (#1153): the --resolve-retries REST call below interpolates owner/repo directly into a path
+  // rather than using gh's bound-variable mechanism (unlike the GraphQL fetch, which already binds
+  // via native-dependencies.js's -f owner=/-f repo=), so a '..' segment from a crafted --repo value
+  // would reach that path string. Reject it here rather than narrowing the shared parseRepo, which
+  // 9 other CLIs also call.
+  if (owner === '.' || owner === '..' || repo === '.' || repo === '..') {
+    deps.stderr('fetch-sub-issues.js: invalid --repo value — owner/repo cannot be "." or ".."\n');
+    return 2;
+  }
 
   let schema;
   try {
