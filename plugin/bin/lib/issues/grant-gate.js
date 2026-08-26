@@ -69,11 +69,10 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   // Gate 1c: needs:* — cheapest possible per-record disqualifier (no
   // trustVerdicts row lookup, independent of origin), so it runs first among the
   // per-record checks, before any trust-row computation is spent on a record
-  // this gate would refuse anyway. Generalized (#1488) from a needs:definition-only
-  // check to _shared/work-record.md's worklist rule: a headless unit skips any
-  // record carrying any needs:*-prefixed label. needs:definition keeps its own
-  // named failedKey for backward compatibility with existing callers; any other
-  // needs:* label (e.g. needs:decision) denies under the generic 'needs-label' key.
+  // this gate would refuse anyway. Generalized (#1488) to match the worklist rule
+  // in `_shared/work-record.md` (see '### Worklist rule'). needs:definition keeps
+  // its own named failedKey for backward compatibility with existing callers; any
+  // other needs:* label denies under the generic 'needs-label' key.
   if (facets.needsDefinition === true) {
     return deny('needs-definition', 'record carries needs:definition — an open choice has not been decided yet; run /claude-tweaks:specify to route through brainstorming first');
   }
