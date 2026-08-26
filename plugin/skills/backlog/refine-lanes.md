@@ -221,7 +221,7 @@ missing-priority record's tier suggestion, plus any `**Related:**` cross-referen
 among the same selected set.
 
 **Already-laned records get an annotation, never a dropped suggestion.** A selected record that
-already has a row in the Re-authorize, Grant, or Flag-back lane above does not get a second,
+already has a row in the Re-authorize, Grant, Human-only, or Flag-back lane above does not get a second,
 full row here — the common case, since a record ready enough to be a grant/re-authorize candidate
 frequently also lacks a `priority:*` label. Instead it gets one annotation line under its existing
 row in that earlier lane, the literal template:

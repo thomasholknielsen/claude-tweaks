@@ -248,9 +248,10 @@ born-`ready` by this path and this step does nothing.
 
 *(Narration allowance: same as Step 1 — no "running"/"passed" line, only the opening/failure line.)*
 
-One lane per record, precedence: Re-authorize → Grant → Flag-back → Priority → Dependency repair →
-Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its priority/Related
-suggestion as an annotation line under its row — a suggestion is never silently dropped.
+One lane per record, precedence: Re-authorize → Grant → Human-only → Flag-back → Priority →
+Dependency repair → Needs you. A record already laned above (Re-authorize/Grant/Human-only/
+Flag-back) keeps its priority/Related suggestion as an annotation line under its row — a
+suggestion is never silently dropped.
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
 and paste-block templates, the consequence-line trust and `solution:unjustified` annotation templates, the
