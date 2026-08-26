@@ -6,7 +6,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const { renderVerifyTable, runVerify, registerCheck, resolvePrNumber, resolveArchivedRunDir } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
-const { gitRepo } = require('../../helpers/git-fixtures');
+const { gitRepo, linkedWorktreeOf } = require('../../helpers/git-fixtures');
 
 function makeTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -1084,6 +1084,32 @@ test('wrap-up-engine.js verify prints a check table for a real, anchored run dir
     out = err.stdout;
   }
   assert.match(out, /\| Check \| Result \| Detail \|/);
+});
+
+// record #1222: the CLI must scan the checkout it was actually invoked
+// from (a linked worktree, under this project's default worktree/pr-first
+// mode), not silently fall back to the main checkout that resolveRepoRoot()
+// resolves for repoRoot's own (unrelated) purposes. linkedWorktreeOf's main
+// checkout is left genuinely clean here — only the worktree gets the
+// leftover — so a pass on this test is only possible if the CLI is reading
+// cwd, not repoRoot, for plans-ledger.
+test('wrap-up-engine.js verify catches a worktree-local plans-ledger leftover invisible to the main checkout', () => {
+  const cliPath = path.join(__dirname, '../../../plugin/bin/wrap-up-engine.js');
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  fs.mkdirSync(path.join(wt, 'docs', 'superpowers', 'plans'), { recursive: true });
+  fs.writeFileSync(path.join(wt, 'docs', 'superpowers', 'plans', '2026-08-26-some-topic.md'), '# plan\n');
+  const runDir = fs.mkdtempSync(path.join(main, 'verify-rundir-cwd-'));
+  let out;
+  try {
+    out = realExecFileSync('node', [cliPath, 'verify', '--run-dir', runDir, '--base', 'main'], {
+      encoding: 'utf8', cwd: wt,
+    });
+  } catch (err) {
+    out = err.stdout;
+  }
+  assert.match(out, /\| plans-ledger \| fail \|/);
+  assert.match(out, /2026-08-26-some-topic\.md/);
 });
 
 // #1230: defaultGit spawned execFileSync with no `timeout` option, unlike
