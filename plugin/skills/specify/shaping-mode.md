@@ -169,14 +169,19 @@ gh issue view {n} --json comments -q '.comments[] | select(.body | contains("<!-
 ```
 
 For each returned GraphQL node ID, fetch that comment's current body, prepend `**Resolved:**
-promoted via /specify — {date}\n\n` to it, and edit it in place — the identical
+promoted via /specify — {date}\n\n` to it, write the result to this run's session-scoped temp file
+(`_shared/session-tmp-root.md`), and edit the comment in place — the identical
 `updateIssueComment` GraphQL mutation `_shared/pr-run-comments.md`'s Post-or-update procedure Step
 2 uses for PR comments, applied here to an issue comment's node ID instead of a PR's (same
 `IssueComment` type, same mutation shape):
 
 ```bash
+NEEDS_DECISION_RESOLVED_BODY=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'needs-decision-resolved-{n}-{found-id}.md') || require('path').join(require('os').tmpdir(), 'needs-decision-resolved-{n}-{found-id}.md'))
+")
 gh api graphql -f query='mutation($id:ID!,$body:String!){updateIssueComment(input:{id:$id,body:$body}){issueComment{id}}}' \
-  -f id="{found-id}" -F body=@/tmp/needs-decision-resolved-{n}-{found-id}.md
+  -f id="{found-id}" -F body=@"$NEEDS_DECISION_RESOLVED_BODY"
 ```
 
 Do this for every unresolved comment found — a record refused by both `backlog-refine` and

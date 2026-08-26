@@ -4,6 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -36,7 +37,27 @@ test('shaping-mode.md read-back verification asserts no needs:* label survived t
 // stamped ready + full scoring while needs:definition remained on the final label set (verified
 // live via `gh issue view 763 --json labels` — both `ready` and `needs:definition` are present on
 // the closed issue today). This is AC4's own named historical scenario.
-const PRE_CHANGE_STAMP_BULLETS = '- **`parked` present** — remove it; a record entering shaping mode is being promoted out of hold.\n- **`ready`** — add it (idempotent when already present, e.g. a born-ready record).';
+//
+// The pre-change stamp bullets below are read live from the last commit that touched
+// shaping-mode.md before this task's own edit landed (140ff9d7b is that file's immediate parent
+// commit, verified via `git log --oneline -- plugin/skills/specify/shaping-mode.md`) — not typed
+// by hand — so this control can actually go red if the historical claim it grounds turns out to
+// be wrong.
+const PRE_CHANGE_COMMIT = '140ff9d7b4da1265185f93a51b728e3f3b7b0918';
+const PRE_CHANGE_SHAPING_MODE = execFileSync(
+  'git',
+  ['show', `${PRE_CHANGE_COMMIT}:plugin/skills/specify/shaping-mode.md`],
+  { cwd: ROOT, encoding: 'utf8' },
+);
+// Scope to exactly the two-bullet region Task 10's brief edited between (the `parked` bullet
+// through the `ready` bullet) rather than the whole file — the full pre-change file legitimately
+// mentions `needs:definition` elsewhere (e.g. the Per-record invocation paragraph's unrelated
+// `next`-mode framing-guard note), so a whole-file substring check would false-negative here.
+const bulletMatch = PRE_CHANGE_SHAPING_MODE.match(
+  /- \*\*`parked` present\*\*[^\n]*\n- \*\*`ready`\*\*[^\n]*/,
+);
+assert.ok(bulletMatch, `could not locate the parked/ready stamp bullets in commit ${PRE_CHANGE_COMMIT}'s shaping-mode.md`);
+const PRE_CHANGE_STAMP_BULLETS = bulletMatch[0];
 
 test('go-red control (#763\'s bug): pre-change stamp bullets have no needs:* removal step at all', () => {
   assert.ok(!PRE_CHANGE_STAMP_BULLETS.includes('needs:'), 'control must not already remove any needs:* label — this is the exact absence #763 hit and #825 reported');
