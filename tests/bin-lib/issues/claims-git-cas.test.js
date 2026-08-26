@@ -123,6 +123,46 @@ test('writeClaimBlobGit: a second write on a stale expectedTipSha is contested',
   assert.equal(write2.conflict, true);
 });
 
+// #787 hindsight finding: FETCH_HEAD is a single shared pseudo-ref, not
+// scoped to one call — a concurrent `git fetch` elsewhere in the same
+// checkout between this function's own fetch and its read used to be able to
+// overwrite it, making the read resolve someone else's fetch instead of its
+// own. Simulates exactly that interleaving (an unrelated fetch sneaked in
+// right after this call's own fetch) and pins that the read still resolves
+// this call's own target, never the decoy.
+test('readClaimBlobGit: a concurrent unrelated fetch in the same checkout does not corrupt the read', () => {
+  const { root, cloneDir } = makeBareOriginAndClone();
+  const originDir = path.join(root, 'origin.git');
+  // A second branch, unrelated to claims-registry, whose tip an interleaved
+  // fetch will plant into the shared FETCH_HEAD pseudo-ref.
+  setupGit(['-C', cloneDir, 'checkout', '-q', '-b', 'decoy']);
+  fs.writeFileSync(path.join(cloneDir, 'decoy.txt'), 'decoy\n');
+  setupGit(['-C', cloneDir, 'add', 'decoy.txt']);
+  setupGit(['-C', cloneDir, 'commit', '-q', '-m', 'decoy']);
+  setupGit(['-C', cloneDir, 'push', '-q', 'origin', 'decoy']);
+  setupGit(['-C', cloneDir, 'checkout', '-q', 'main']);
+
+  let fetchCount = 0;
+  const runner = (args, opts) => {
+    const out = realRunner(args, { ...opts, cwd: cloneDir });
+    if (args[0] === 'fetch') {
+      fetchCount += 1;
+      if (fetchCount === 1) {
+        // An unrelated concurrent fetch, interleaved right after this call's
+        // own fetch — the exact race window the fix closes.
+        realRunner(['fetch', '-q', 'origin', 'decoy'], { cwd: cloneDir });
+      }
+    }
+    return out;
+  };
+  const result = readClaimBlobGit({ issueNumber: 42, remote: 'origin', runner });
+  assert.equal(result.absent, true, 'claims-registry genuinely has no issue-42 claim yet — must not resolve the decoy branch instead');
+  const decoyTip = realRunner(['ls-remote', originDir, 'decoy'], { cwd: cloneDir }).split('\t')[0];
+  const registryTip = realRunner(['ls-remote', originDir, CLAIMS_BRANCH], { cwd: cloneDir }).split('\t')[0];
+  assert.notEqual(result.tipSha, decoyTip, "must resolve claims-registry's own tip, never the interleaved decoy fetch's");
+  assert.equal(result.tipSha, registryTip);
+});
+
 test('writeClaimBlobGit: unrelated existing files in the tree survive a write', () => {
   const { cloneDir } = makeBareOriginAndClone();
   const runner = (args, opts) => realRunner(args, { ...opts, cwd: cloneDir });

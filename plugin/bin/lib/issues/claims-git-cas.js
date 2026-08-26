@@ -55,13 +55,26 @@ function defaultRunner(args, opts = {}) {
 // Fetches the branch fresh every call (cheap — one ref) so `tipSha` is
 // always the live remote tip, never a locally-cached one that could be
 // stale by the time writeClaimBlobGit uses it as the compare-and-swap lease.
+//
+// Fetches into a per-call scratch ref rather than reading FETCH_HEAD: that
+// pseudo-ref is a single shared pointer, not scoped to this call, so a
+// concurrent `git fetch` elsewhere in the same checkout (a sibling
+// claim-targets.js/release-claim.js invocation, or this same process fetching
+// again before this call finishes) can overwrite it between the fetch above
+// and the read below — this call would then resolve someone else's fetch
+// instead of its own. A unique ref name has no such collision; the object
+// itself (read via `show` below) survives its own deletion, so cleanup here
+// never races the read that follows.
 function readClaimBlobGit({ issueNumber, remote = 'origin', branch = CLAIMS_BRANCH, runner = defaultRunner }) {
+  const scratchRef = `refs/claims-cas-read/${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   let tipSha;
   try {
-    runner(['fetch', '-q', remote, branch]);
-    tipSha = runner(['rev-parse', 'FETCH_HEAD']).trim();
+    runner(['fetch', '-q', remote, `${branch}:${scratchRef}`]);
+    tipSha = runner(['rev-parse', scratchRef]).trim();
   } catch {
     return { content: null, tipSha: null, absent: false, failure: 'transport-failure' };
+  } finally {
+    try { runner(['update-ref', '-d', scratchRef]); } catch { /* best-effort cleanup — never mask the read's own outcome */ }
   }
   const targetPath = claimFilePath(issueNumber);
   try {

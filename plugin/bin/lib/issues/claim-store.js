@@ -38,6 +38,22 @@ const GH_TIMEOUT_MS = 5000;
 // `claims-registry` branch would spin, and a rejection that stays spurious
 // across every attempt is itself a transient condition, not a contest.
 const MAX_CAS_ATTEMPTS = 3;
+// Randomized, increasing backoff between git-CAS retry attempts — same
+// rationale as health-core/durable-state.js's casBackoffMs (a proven-spurious
+// rejection is exactly as likely to collide again on an immediate retry with
+// no de-synchronization from other writers on the same busy branch tip).
+const CAS_BACKOFF_BASE_MS = 100;
+const CAS_BACKOFF_JITTER_MS = 100;
+
+function casBackoffMs(attempt) {
+  return attempt * CAS_BACKOFF_BASE_MS + Math.random() * CAS_BACKOFF_JITTER_MS;
+}
+
+// Synchronous sleep (matches this module's execFileSync-based style).
+// Injectable via deps.sleep so tests substitute a fake instead of blocking.
+function defaultSleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
 
 function claimPath(issueNumber) {
   return `claims/issue-${issueNumber}.json`;
@@ -283,8 +299,9 @@ function writeClaimBlob(deps, repoSlug, issueNumber, {
         ? freshGit.absent
         : (!freshGit.absent && freshGit.content === expectedContent);
       if (!unchanged) return { ok: false, conflict: true, failure: null }; // genuine contest
-      if (attempt === MAX_CAS_ATTEMPTS) return { ok: false, failure: 'transport-failure' }; // proven spurious every time, but couldn't land the CAS — transient, not a contest
+      if (attempt === MAX_CAS_ATTEMPTS) break; // proven spurious every time, but couldn't land the CAS on git — fall through to the contents-API fallback below instead of reporting a bare transient failure
       leaseSha = freshGit.tipSha; // unrelated activity — retry with the fresh lease
+      (deps.sleep || defaultSleep)(casBackoffMs(attempt));
     }
     // Fell through from a non-conflict git failure (transport-failure or
     // secondaryRateLimit). NEVER reuse the git tip sha as a contents-API
@@ -297,6 +314,11 @@ function writeClaimBlob(deps, repoSlug, issueNumber, {
     if (!createOnly) {
       const fresh = readClaimBlobContentsApi(deps.ghApi, repoSlug, issueNumber);
       if (fresh.failure) return { ok: false, failure: fresh.failure };
+      // This write's own target content is already the live blob — an
+      // earlier git-CAS push landed server-side but its local ack was lost
+      // to the transport failure that brought us here. Report the success
+      // that already happened instead of a contest against ourselves.
+      if (!fresh.absent && fresh.content === content) return { ok: true, failure: null };
       if (fresh.absent || fresh.content !== expectedContent) return { ok: false, conflict: true, failure: null };
       sha = fresh.sha;
     }
@@ -311,8 +333,27 @@ function writeClaimBlob(deps, repoSlug, issueNumber, {
   if (!createOnly && sha) args.push('-f', `sha=${sha}`);
   const r = deps.ghApi(args);
   if (r.failure === 'secondary-rate-limit') return { ok: false, secondaryRateLimit: true, failure: null };
-  if (r.status === 422 || r.status === 409) return { ok: false, conflict: true, failure: null };
-  return { ok: r.failure === null && r.status !== 404, failure: r.failure };
+  // A 404 on the PUT joins 422/409 here — release.js's own header comment
+  // has always documented all three as "not by itself evidence of
+  // already-released" (a 404 there reads as "already swept", but per that
+  // same comment still needs the caller's re-verification before believing
+  // it) — this is what makes that documented contract actually hold: without
+  // it, a caller whose ghApi never sets `status` (release-merged.js) is
+  // unaffected (this branch can't fire for it), but one that does — a PUT
+  // rejected 404 — used to fall to the generic `{ok:false, failure:null}`
+  // below with no `conflict` flag, silently skipping the exact
+  // re-verification the header comment already promises.
+  if (r.status === 422 || r.status === 409 || r.status === 404) {
+    // Same self-write check as the pre-PUT fallback above, for the paths
+    // that reach the PUT directly (createOnly skips that block entirely,
+    // and a plain contents-API-only caller with no gitRunner either) — a
+    // rejection here can mean this exact write already landed via an
+    // earlier attempt whose local ack was lost, not a real contest.
+    const fresh = readClaimBlobContentsApi(deps.ghApi, repoSlug, issueNumber);
+    if (!fresh.failure && !fresh.absent && fresh.content === content) return { ok: true, failure: null };
+    return { ok: false, conflict: true, failure: null };
+  }
+  return { ok: r.failure === null, failure: r.failure };
 }
 
 // Escapes a literal string for embedding inside a `new RegExp(...)` pattern —
@@ -364,4 +405,6 @@ module.exports = {
   classifyGhApiError,
   tombstoneInFlightPr,
   isSameRepoPrUrl,
+  casBackoffMs,
+  defaultSleep,
 };

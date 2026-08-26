@@ -79,9 +79,14 @@ function lockedEvidence(wt, isPidAlive) {
 // shape this probe exists to avoid (#1424's own root cause was a check
 // that was never run at all; a check that fails open on error would just
 // relocate the same hazard rather than closing it).
+// 10s, matching bin/lib/hooks/git-exec.js's measured ceiling for a git query
+// under real multi-worktree contention (#134) — a hang here would otherwise
+// block the whole residue sweep indefinitely.
+const IS_DIRTY_TIMEOUT_MS = 10000;
+
 function defaultIsDirty(worktreePath) {
   try {
-    const out = execFileSync('git', ['-C', worktreePath, 'status', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const out = execFileSync('git', ['-C', worktreePath, 'status', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: IS_DIRTY_TIMEOUT_MS });
     return out.trim().length > 0;
   } catch {
     return null;

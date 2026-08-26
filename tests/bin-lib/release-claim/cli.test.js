@@ -35,11 +35,26 @@ function mkRun() {
 // bin/log-decision.js's own cli.test.js uses), since a synthetic fixture root never
 // matches the real repo that mainCheckoutRoot(process.cwd()) would resolve to.
 function rootOf(runDir) { return path.dirname(path.dirname(path.dirname(runDir))); }
-function deps({ content, putThrows, gh = true, out, mainRoot, editFailLabel }) {
+function deps({
+  content, putThrows, gh = true, out, mainRoot, editFailLabel, contentAfterConflict,
+}) {
   const calls = [];
+  let getCount = 0;
   const runner = (a) => {
     calls.push(a);
-    if (isGet(a)) { if (content === null) throw new Error('HTTP 404'); return JSON.stringify({ content, sha: 'blobsha1' }); }
+    if (isGet(a)) {
+      getCount += 1;
+      // A conflicted PUT's own safety net re-reads the blob one or more
+      // times (the fallback's pre-PUT/self-write checks inside
+      // claim-store.js, and releaseClaim's own post-conflict
+      // re-verification) — contentAfterConflict lets a test model those
+      // later reads returning something different from the FIRST read
+      // (e.g. a genuine tombstone), distinct from the "nothing really
+      // changed" case where every read returns the same `content`.
+      const c = (getCount > 1 && contentAfterConflict !== undefined) ? contentAfterConflict : content;
+      if (c === null) throw new Error('HTTP 404');
+      return JSON.stringify({ content: c, sha: 'blobsha1' });
+    }
     if (isPut(a)) { if (putThrows) throw new Error(putThrows); return '{}'; }
     if (isEdit(a)) {
       const label = a[a.indexOf('--remove-label') + 1];
@@ -96,13 +111,34 @@ test('--section places the log line under the named heading; --step overrides th
   assert.match(lines[1], /^- AUTO \d{2}:\d{2}:\d{2} — Settle: released claim on #999 \(failed: build\)\. Reversibility: high\.$/);
 });
 
-test('404/422 on the PUT: comment still posted, exit 3', () => {
+// A 422/409 rejection whose re-verification shows a genuine tombstone (the
+// claim really was released — by a sweep, or a duplicate release call) is
+// a true already-released: comment posted, exit 3.
+test('404/422 on the PUT, re-verified as a genuine tombstone: comment still posted, exit 3', () => {
   const runDir = mkRun();
   const out = [];
-  const { calls, d } = deps({ content: live(RUN_DIR_NAME), putThrows: 'HTTP 422 sha mismatch', out });
+  const { calls, d } = deps({
+    content: live(RUN_DIR_NAME), contentAfterConflict: JSON.stringify({ released: true }), putThrows: 'HTTP 422 sha mismatch', out,
+  });
   assert.equal(run(['999', '--run', runDir, '--reason', 'merged: spec 999'], d), 3);
   assert.equal(calls.filter(isComment).length, 1);
   assert.equal(envelope(out).outcome, 'already-released');
+});
+
+// #787 hindsight finding: a 422/409 rejection whose re-verification shows
+// the SAME content (this run still holds a live claim — the rejection came
+// from unrelated claims-registry activity, not a real release) must fail
+// closed, not report a false already-released that strips grant labels off
+// a claim that is still live and still ours.
+test('404/422 on the PUT, re-verified as STILL held by this run: fails closed, exit 1, no comment', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: live(RUN_DIR_NAME), putThrows: 'HTTP 422 sha mismatch', out });
+  assert.equal(run(['999', '--run', runDir, '--reason', 'merged: spec 999'], d), 1);
+  assert.equal(calls.filter(isComment).length, 0, 'no release comment — the release did not actually happen');
+  const env = envelope(out);
+  assert.equal(env.outcome, 'failed');
+  assert.match(env.error, /still held by this run/);
 });
 
 test('blob owned by another run: exit 4, nothing written, skip line logged', () => {
@@ -133,7 +169,12 @@ test('failed PUT (500): exit 1, no comment, FAILED line still logged; missing ru
   assert.equal(run(['999', '--run', runDir, '--reason', 'r'], d), 1);
   assert.equal(calls.filter(isComment).length, 0);
   const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
-  assert.match(log, /^- AUTO \d{2}:\d{2}:\d{2} — Section E: release of #999 FAILED \(r\): HTTP 500\. Reversibility: n\/a\.$/m);
+  // writeTombstone's ghApi now classifies the raw PUT error (#787 hindsight
+  // finding — see release.test.js) rather than letting it escape unclassified
+  // with `.conflict` unset; an unrecognized status collapses to the same
+  // generic 'network-failure' claim-store.js's own defaultGhApi already uses
+  // for any other unclassified gh failure.
+  assert.match(log, /^- AUTO \d{2}:\d{2}:\d{2} — Section E: release of #999 FAILED \(r\): network-failure\. Reversibility: n\/a\.$/m);
   const out2 = [];
   const { d: d2 } = deps({ content: live(RUN_DIR_NAME), out: out2 });
   // Same basename (so the ownership check still matches) under a directory that does not exist.
