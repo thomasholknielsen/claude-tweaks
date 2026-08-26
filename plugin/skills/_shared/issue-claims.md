@@ -81,18 +81,57 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   as "contested" would reject every re-claim forever after its first release.
 
   1. Read the claim file at the payload's `claimPath` on `CLAIMS_BRANCH`, capturing both its
-     content (or absence) and its current **blob sha** when it exists.
-     - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/${CLAIM_PATH}?ref=${CLAIMS_BRANCH}" -q '{content: (.content | @base64d), sha: .sha}'`
-       (404 = file does not exist, a normal outcome, not an error).
+     content (or absence) and its current **blob sha** when it exists. A 404 (file does not
+     exist) is a normal outcome, not an error — it means "never claimed." Emit the literal
+     sentinel `__ABSENT__` on a 404 so step 2 can classify it the same way whether the read
+     came from a live claim or a never-claimed issue:
+     - **gh CLI:**
+       ```bash
+       if RAW=$(gh api "repos/{owner}/{repo}/contents/${CLAIM_PATH}?ref=${CLAIMS_BRANCH}" \
+           -q '{content: (.content | @base64d), sha: .sha}' 2>/tmp/claim-read-err-${ISSUE}.txt); then
+         echo "$RAW" > /tmp/claim-wrapper-${ISSUE}.json
+         CONTENT_PATH_OR_ABSENT_SENTINEL="/tmp/claim-wrapper-${ISSUE}.json"
+       elif grep -q 'HTTP 404\|Not Found' /tmp/claim-read-err-${ISSUE}.txt; then
+         CONTENT_PATH_OR_ABSENT_SENTINEL="__ABSENT__"
+       else
+         # any other non-zero exit (network, auth, rate limit) — not a normal
+         # absent-file outcome; handle per the Failure posture table below,
+         # do not treat as absent.
+         cat /tmp/claim-read-err-${ISSUE}.txt >&2
+         exit 1
+       fi
+       ```
+       The command's output (when it succeeds) is the **wrapper object**
+       `{content: "<decoded blob text>", sha: "<blob sha>"}` — step 2 below needs only the
+       `.content` field's *value*, not this wrapper, so extract it before classifying (see step 2).
      - **MCP:** the equivalent "get file contents" tool call against `claimPath` on
-       `CLAIMS_BRANCH`; not-found is a normal outcome.
-  2. Classify what step 1 read (or its absence) with `classifyClaimBlob`:
+       `CLAIMS_BRANCH`; a not-found response is the same normal outcome — set
+       `CONTENT_PATH_OR_ABSENT_SENTINEL="__ABSENT__"` in that case, otherwise write the tool's
+       returned content to a file and use that path.
+  2. **Extract the content before classifying.** When step 1 produced a real file (not the
+     `__ABSENT__` sentinel), that file holds the **wrapper object** `{content, sha}` from the
+     `gh api` call's `-q` filter — step 2's classifier needs the **`.content` field's value**
+     (the decoded claim-blob text itself), never the wrapper object. Extract it first:
+     ```bash
+     if [ "$CONTENT_PATH_OR_ABSENT_SENTINEL" = "__ABSENT__" ]; then
+       CLASSIFY_INPUT="__ABSENT__"
+     else
+       jq -r '.content' "$CONTENT_PATH_OR_ABSENT_SENTINEL" > /tmp/claim-content-${ISSUE}.txt
+       CLASSIFY_INPUT="/tmp/claim-content-${ISSUE}.txt"
+     fi
+     ```
+     Then classify:
      ```bash
      node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
        const content = process.argv[1] === '__ABSENT__' ? null : require('fs').readFileSync(process.argv[1],'utf8');
        console.log(JSON.stringify(c.classifyClaimBlob(content, Date.now())))" \
-       "${CONTENT_PATH_OR_ABSENT_SENTINEL}"
+       "${CLASSIFY_INPUT}"
      ```
+     A literal follower who skips the extraction and passes the wrapper-object file straight to
+     this script hands `classifyClaimBlob` a JSON object with no `claimedAt`/`released` keys —
+     it classifies `'unreadable'` (fails closed to *not reclaimable*, same as `'live'`), a false
+     contest on a claim that may not exist or may be safely reclaimable. The extraction step
+     above is what prevents this.
   3. **`state: 'absent'`** — no prior claim. Write **create-only** (no `sha`): the payload's
      `fileContent` at `claimPath` on `CLAIMS_BRANCH`.
      - **gh CLI:** `gh api --method PUT "repos/{owner}/{repo}/contents/${CLAIM_PATH}" -f "message=Claim issue #${ISSUE}" -f "content=$(base64 <<<"$FILE_CONTENT")" -f "branch=${CLAIMS_BRANCH}"`
@@ -208,7 +247,9 @@ is atomic regardless of whether the label add/remove succeeds.
 
 **Authoritative: read the blob, classify with `classifyClaimBlob`** — "The lock" step 1-2 above.
 This is the single source of truth for whether an issue is claimed, by whom, and whether the
-claim is breakable.
+claim is breakable. As in "The lock" step 2 above, the path passed below is the already-extracted
+claim-blob content (or `__ABSENT__`) — never the raw `{content, sha}` wrapper object a fresh
+`gh api` read produces; run "The lock" step 2's extraction first if reading fresh here.
 
 ```bash
 node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
@@ -216,7 +257,7 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   const classified = c.classifyClaimBlob(content, Date.now());
   const identity = content ? JSON.parse(content) : null;
   console.log(JSON.stringify({ ...classified, claim: classified.state === 'live' || classified.state === 'stale' ? identity : null }))" \
-  "${CONTENT_PATH_OR_ABSENT_SENTINEL}"
+  "${CLASSIFY_INPUT}"
 ```
 
 `state: 'absent'` — never claimed (a tombstone still reads `'tombstone'`, not `'absent'`, so

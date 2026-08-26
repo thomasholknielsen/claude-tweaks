@@ -197,16 +197,15 @@ the sweep step, note it in the report"), not silently. See `_shared/issue-claims
 full protocol.
 
 **Primary: list the `claims/` blob keyspace** (`_shared/issue-claims.md`'s "The lock" — "List
-all claims"). For each entry, read the blob and classify with `classifyClaimBlob`:
+all claims"), then read and classify each entry via that same file's "The lock" steps 1-2
+(the corrected 404→`__ABSENT__` branch and the `.content` extraction — do not hand-roll a
+raw decode pipe here; a bare form drops the absent-file branch and hands the classifier the
+wrapper object instead of its `.content` field):
 
 ```bash
 gh api "repos/{owner}/{repo}/contents/claims?ref=claims-registry" -q '.[].name'
-# for each claims/issue-<n>.json:
-gh issue view <n> --json state -q .state
-gh api "repos/{owner}/{repo}/contents/claims/issue-<n>.json?ref=claims-registry" -q '.content' | base64 -d > /tmp/tidy-claim-<n>.json
-node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
-  const content = require('fs').readFileSync(process.argv[1],'utf8');
-  console.log(JSON.stringify(c.classifyClaimBlob(content, Date.now())))" /tmp/tidy-claim-<n>.json
+# for each claims/issue-<n>.json: gh issue view <n> --json state -q .state, then
+# "The lock" steps 1-2 against claims/issue-<n>.json to get CLASSIFY_INPUT, then classify.
 ```
 
 (gh path shown above; use `_shared/issue-claims.md`'s MCP-path "List all claims" / read-file
