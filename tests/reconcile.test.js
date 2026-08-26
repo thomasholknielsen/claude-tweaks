@@ -868,7 +868,14 @@ test('reconcile(): a failing GitHub-health preflight skips every requested check
 
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const original = preflight.ghHealthCheck;
+  const originalAsync = preflight.ghHealthCheckAsync;
   preflight.ghHealthCheck = () => ({ ok: false, reason: 'github-unreachable' });
+  // checks: ['mirror', 'release'] is the FAST_CHECKS shape (mirror,
+  // remote-prune not requested, #872) — reconcile() runs the preflight via
+  // ghHealthCheckAsync (concurrently with the shared fetch), not the sync
+  // ghHealthCheck above, so both must be stubbed or the async twin would
+  // reach a real `gh` call.
+  preflight.ghHealthCheckAsync = async () => ({ ok: false, reason: 'github-unreachable' });
   try {
     const r = await reconcile({ cwd: mainDir, checks: ['mirror', 'release'] });
     // mirror is pure git (mirror-ff.js never shells to `gh`) and is
@@ -881,6 +888,7 @@ test('reconcile(): a failing GitHub-health preflight skips every requested check
     assert.deepEqual(r.skipped, [{ check: 'release', reason: 'preflight-github-unreachable' }]);
   } finally {
     preflight.ghHealthCheck = original;
+    preflight.ghHealthCheckAsync = originalAsync;
   }
 });
 
@@ -919,7 +927,13 @@ test('reconcile(): an exhausted wall-clock budget skips every remaining check in
   // GitHub, which the test environment cannot guarantee.
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const originalHealth = preflight.ghHealthCheck;
+  const originalHealthAsync = preflight.ghHealthCheckAsync;
   preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  // checks: ['mirror', 'red-tip'] is the FAST_CHECKS shape (#872) —
+  // reconcile() runs the preflight via ghHealthCheckAsync (concurrently
+  // with the shared fetch) for this shape, not the sync ghHealthCheck
+  // stubbed above, so both must be stubbed to avoid a real `gh` call.
+  preflight.ghHealthCheckAsync = async () => ({ ok: true, reason: null });
 
   const budgetMod = require('../plugin/bin/lib/reconcile/budget');
   const original = budgetMod.createBudget;
@@ -930,6 +944,7 @@ test('reconcile(): an exhausted wall-clock budget skips every remaining check in
   } finally {
     budgetMod.createBudget = original;
     preflight.ghHealthCheck = originalHealth;
+    preflight.ghHealthCheckAsync = originalHealthAsync;
   }
 });
 
@@ -1043,6 +1058,38 @@ test('sharedFetch: a mirror-only pass fetches the single integration ref, never 
   assert.doesNotMatch(calls[0], /--prune/, 'mirror-only must not pay for a --prune all-refs fetch');
 });
 
+// sharedFetchAsync (#872) — the mirror-only async twin dispatched
+// concurrently with ghHealthCheckAsync in reconcile/index.js's FAST_CHECKS
+// shape. Same fetch shape as sharedFetch's mirror-only branch above, just
+// non-blocking.
+
+test('sharedFetchAsync: fetches the single integration ref, never --prune all-refs', async () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetchAsync } = require('../plugin/bin/lib/reconcile/shared-fetch');
+  let r;
+  const calls = await withFetchArgvLog(async () => {
+    r = await sharedFetchAsync(mainDir, { integration: 'main' });
+    assert.equal(r.failure, null, 'the narrow fetch must succeed against the local bare origin');
+  });
+  assert.equal(calls.length, 1, `expected exactly one fetch, saw ${JSON.stringify(calls)}`);
+  assert.match(calls[0], /fetch origin main$/, `mirror-only must fetch a single ref, saw: ${calls[0]}`);
+  assert.doesNotMatch(calls[0], /--prune/, 'mirror-only must not pay for a --prune all-refs fetch');
+});
+
+test('sharedFetchAsync: pins its own tight hot-path timeout — CT_HOOKS_GIT_TIMEOUT_MS cannot shrink it', async () => {
+  const { mainDir } = pairedFixture();
+  const { sharedFetchAsync } = require('../plugin/bin/lib/reconcile/shared-fetch');
+  const original = process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+  process.env.CT_HOOKS_GIT_TIMEOUT_MS = '1';
+  try {
+    const r = await sharedFetchAsync(mainDir, { integration: 'main' });
+    assert.equal(r.failure, null, 'the mirror shape must carry an explicit timeoutMs, which git-exec resolves ahead of the env override');
+  } finally {
+    if (original === undefined) delete process.env.CT_HOOKS_GIT_TIMEOUT_MS;
+    else process.env.CT_HOOKS_GIT_TIMEOUT_MS = original;
+  }
+});
+
 test('sharedFetch: a remote-prune pass still fetches --prune all-refs', async () => {
   const { mainDir } = pairedFixture();
   const { sharedFetch } = require('../plugin/bin/lib/reconcile/shared-fetch');
@@ -1106,7 +1153,12 @@ test('reconcile(): a FAST_CHECKS pass (session-start\'s inline hot path) issues 
 
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const originalHealth = preflight.ghHealthCheck;
+  const originalHealthAsync = preflight.ghHealthCheckAsync;
   preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  // FAST_CHECKS is exactly the shape (#872) that runs the preflight via
+  // ghHealthCheckAsync, concurrently with the shared fetch — stub both or
+  // the async twin reaches a real `gh` call.
+  preflight.ghHealthCheckAsync = async () => ({ ok: true, reason: null });
 
   const { FAST_CHECKS } = require('../plugin/bin/lib/hooks/session-start');
   let calls;
@@ -1114,9 +1166,52 @@ test('reconcile(): a FAST_CHECKS pass (session-start\'s inline hot path) issues 
     calls = await withFetchArgvLog(() => reconcile({ cwd: mainDir, checks: FAST_CHECKS }));
   } finally {
     preflight.ghHealthCheck = originalHealth;
+    preflight.ghHealthCheckAsync = originalHealthAsync;
   }
   assert.equal(calls.length, 1, `expected exactly one fetch on the fast path, saw ${JSON.stringify(calls)}`);
   assert.match(calls[0], /fetch origin main$/, `the inline hot path must not pay for --prune, saw: ${calls[0]}`);
+});
+
+// AC (#872): FAST_CHECKS runs ghHealthCheckAsync and the shared fetch
+// concurrently via Promise.all, not serially. Proven by an artificially
+// slow preflight: a real (fast, local) git fetch running concurrently with
+// it makes total elapsed time track the SLOWER of the two (the preflight
+// delay), not their sum — a regression back to the old serial order would
+// add the fetch's own time on top.
+test('reconcile(): FAST_CHECKS runs the preflight and the shared fetch concurrently, not serially (#872)', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  const originalHealthAsync = preflight.ghHealthCheckAsync;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  const HEALTH_DELAY_MS = 200;
+  preflight.ghHealthCheckAsync = () => new Promise((resolve) => {
+    setTimeout(() => resolve({ ok: true, reason: null }), HEALTH_DELAY_MS);
+  });
+
+  const { FAST_CHECKS } = require('../plugin/bin/lib/hooks/session-start');
+  const start = Date.now();
+  try {
+    await reconcile({ cwd: mainDir, checks: FAST_CHECKS });
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+    preflight.ghHealthCheckAsync = originalHealthAsync;
+  }
+  const elapsed = Date.now() - start;
+  // A serial implementation would take at least HEALTH_DELAY_MS plus the
+  // fetch's own time (and every other dispatched check's time on top);
+  // concurrent execution stays close to HEALTH_DELAY_MS alone. The margin
+  // is generous (2x) to absorb load on a shared test machine while still
+  // failing a genuine regression to serial dispatch.
+  assert.ok(
+    elapsed < HEALTH_DELAY_MS * 2,
+    `expected concurrent dispatch to keep elapsed (${elapsed}ms) close to the ${HEALTH_DELAY_MS}ms preflight delay, not stack the fetch on top`,
+  );
 });
 
 // --- session-level freshness TTL short-circuit (#820, D7) ---
