@@ -45,8 +45,10 @@ test('specify resolve-input case 0 routes literal next to next-mode.md with flag
   assert.ok(SPECIFY_SKILL_FLAT.includes('flag-rejection step'), 'case 0 must point at next-mode.md\'s own flag-rejection step');
 });
 
-test('next-mode.md states the eligibility predicate excluding all 5 labels', () => {
-  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must exclude ready, needs:definition, parked, parent-issue, and bot:in-progress');
+test('next-mode.md states the eligibility predicate: ready, any needs:*-prefixed label, parked, parent-issue, bot:in-progress', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, any `needs:*`-prefixed label'), 'eligibility predicate must exclude ready and any needs:*-prefixed label');
+  assert.ok(NEXT_MODE_FLAT.includes("`_shared/work-record.md`'s worklist rule"), 'eligibility predicate must cite the shared worklist rule rather than restate it');
+  assert.ok(NEXT_MODE_FLAT.includes('`parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must still exclude parked, parent-issue, and bot:in-progress');
 });
 
 test('next-mode.md states priority-then-age single selection', () => {
@@ -144,8 +146,18 @@ test('next-mode.md notes the Routine no-run-dir decision-log fallback', () => {
   assert.ok(NEXT_MODE_FLAT.includes('standalone-auto fallback, ensuring every auto-resolved decision is recorded'), 'standalone-auto fallback decision-log guarantee missing');
 });
 
-test('next-mode.md eligibility predicate still excludes needs:definition and parked (AC 5 re-pin)', () => {
-  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must still exclude needs:definition and parked — this is #967\'s own loop-guard invariant, re-asserted here since #968\'s guard depends on it staying true');
+test('next-mode.md eligibility predicate still excludes needs:definition, now via the needs:* prefix (AC 5 re-pin, generalized by #1488)', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, any `needs:*`-prefixed label'), 'eligibility predicate must still exclude needs:definition — #967/#968\'s own loop-guard invariant, re-asserted here since #968\'s guard depends on it staying true, now expressed as a needs:* prefix rather than a literal');
+  assert.ok(NEXT_MODE_FLAT.includes("EXCLUDE.has(l.name) || l.name.startsWith('needs:')"), 'EXCLUDE construction must generalize to a needs:* prefix check, not a literal needs:definition Set entry');
+  assert.ok(!NEXT_MODE_FLAT.includes("'ready', 'needs:definition', 'parked'"), 'needs:definition must no longer be a literal EXCLUDE Set member — it is covered by the prefix check instead');
+});
+
+test('next-mode.md Claim-step re-read excludes any needs:*-prefixed label, not just needs:definition', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('now carries `ready`, any `needs:*`-prefixed label, `parked`, `parent-issue`, or `bot:in-progress`'), 'Claim-step re-read must generalize to any needs:*-prefixed label');
+});
+
+test('next-mode.md Framing Guard cites the needsDecisionMarker capability retroactively', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('needsDecisionMarker'), 'Framing Guard must cite the needsDecisionMarker capability naming its needs:definition stamp');
 });
 
 test('_shared/work-record.md declares shaped:headless in its taxonomy and permission matrix, with writer and readers named', () => {
