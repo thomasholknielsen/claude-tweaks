@@ -48,6 +48,11 @@ deliberate: a resolved comment must never gate a fresh one.
   `grant-mode.md`'s Needs-decision rows), since a record on this branch has no higher-precedence
   lane row to attach beneath.
 - **Empty** — lane/apply it as a fresh row.
+- **Query failed** (network error, non-zero `gh` exit) — fail closed, the same as a mismatch in
+  `refine-mode.md`'s own pre-write reverify: never treat an unreadable result as "no unresolved
+  comment exists." Skip this record this run, log `AUTO … skipped …` with `{what changed}` =
+  `live-state fetch failed: {error}`, and report it — an empty result from a genuine query and an
+  empty result from a failed one must never be treated the same.
 
 ## Write mechanics (`needs:decision` outcome only)
 
