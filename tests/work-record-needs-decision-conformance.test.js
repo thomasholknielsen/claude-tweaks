@@ -62,3 +62,17 @@ test('label-bootstrap.md bumps LABEL_BOOTSTRAP_VERSION from 5 to 6', () => {
 test('needs:decision description fits GitHub\'s 100-char label description cap', () => {
   assert.doesNotThrow(() => ensureLabelPayload('needs:decision', 'a headless unit proposed an action it may not take alone — see the newest decision comment'));
 });
+
+const AUTONOMY_CEILING_FLAT = readFlat('plugin/skills/_shared/autonomy-ceiling.md');
+
+test('autonomy-ceiling.md documents needsDecisionMarker as a trusted+ Bookkeeping capability', () => {
+  assert.ok(AUTONOMY_CEILING_FLAT.includes('`needsDecisionMarker`'), 'needsDecisionMarker row missing from Bookkeeping capabilities table');
+  assert.ok(AUTONOMY_CEILING_FLAT.includes('| `needsDecisionMarker` | `trusted`+ |'), 'needsDecisionMarker must be unlocked at trusted+, matching the table\'s own column format');
+  assert.ok(AUTONOMY_CEILING_FLAT.includes('a headless unit may write a `needs:*` label plus its explanatory comment as its residue channel, with no per-write approval'), 'needsDecisionMarker description missing its core behavior statement');
+  assert.ok(AUTONOMY_CEILING_FLAT.includes('never a per-record override'), 'needsDecisionMarker row must disclaim a per-record ceiling override');
+});
+
+test('bookkeepingPermissions() return shape is unchanged by the needsDecisionMarker doc row (no code key added)', () => {
+  const { bookkeepingPermissions } = require('../plugin/bin/lib/issues/autonomy.js');
+  assert.ok(!('needsDecisionMarker' in bookkeepingPermissions('unattended')), 'needsDecisionMarker must NOT be a bookkeepingPermissions() key — it is documentation-only, per this task\'s own design note');
+});
