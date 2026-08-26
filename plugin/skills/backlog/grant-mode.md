@@ -375,7 +375,13 @@ above names both.
 Post the audit comment (evidence snapshot — see the Audit format below), then log to
 `decisions.md`.
 
-**Skip rows** (any `failedKey` set, at any phase): no label change, no comment on the record —
+**Needs-decision rows** (`failedKey === 'grant-check'` only — gate 4 refused a candidate that
+already cleared gates 1-3): see `grant-lane-decision.md`'s Idempotence check and Write mechanics
+sections in this skill's directory — the identical `needs:decision` outcome `/backlog refine`'s
+Grant lane produces, keyed `{unit}` = `backlog-grant`. Log the same way any other write is logged
+here (Audit format, below), naming the `grant-check` `RATIONALE` as `{grant-check RATIONALE}`.
+
+**Skip rows** (every other `failedKey`, at any phase): no label change, no comment on the record —
 a skip is silent to the record itself (a human-filed record, an out-of-cap record, or a
 transiently-unclean class should not accumulate visible noise every firing). Log to
 `decisions.md` only, naming the exact `failedKey` and `reason` — no per-verdict branching, per
