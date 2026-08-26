@@ -55,18 +55,11 @@ function buildContext({
   const range = `${base}...${branch}`;
   const diff = git(['diff', range]);
 
-  let files;
-  if (filesFrom) {
-    files = readFile(filesFrom, 'utf8')
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-  } else {
-    files = git(['diff', range, '--name-only'])
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
+  const filesText = filesFrom ? readFile(filesFrom, 'utf8') : git(['diff', range, '--name-only']);
+  const files = filesText
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const emptySections = [];
   let out = diff;
