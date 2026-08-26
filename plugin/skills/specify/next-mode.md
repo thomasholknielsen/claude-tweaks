@@ -116,20 +116,30 @@ queue pull already guards against). Check the raw pre-filter fetch count
 against the cap, not the post-filter `eligible` count, which will rarely
 hit 500 exactly even when the raw fetch was truncated:
 
+Resolve this fence's session-scoped temp paths first (`_shared/session-tmp-root.md`):
+
 ```bash
-gh issue list --state open --json number,title,labels,createdAt --limit 500 > /tmp/specify-next-raw.json
-RAW_COUNT=$(node -e "console.log(require('/tmp/specify-next-raw.json').length)")
+RAW=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-next-raw.json') || require('path').join(require('os').tmpdir(), 'specify-next-raw.json'))
+")
+CANDIDATES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-next-candidates.json') || require('path').join(require('os').tmpdir(), 'specify-next-candidates.json'))
+")
+gh issue list --state open --json number,title,labels,createdAt --limit 500 > "$RAW"
+RAW_COUNT=$(node -e "console.log(require('$RAW').length)")
 if [ "$RAW_COUNT" -ge 500 ]; then
   echo "Warning: the open-issue pull for /claude-tweaks:specify next returned exactly the --limit cap (500) — this repo may have more open records than fetched. gh issue list returns newest-first, so any records beyond the cap are the OLDEST ones, exactly what next's own oldest-first tie-break exists to surface first. Consider raising the cap, or filing this as a signal to re-triage the backlog down." >&2
 fi
 node -e "
-  const records = require('/tmp/specify-next-raw.json');
+  const records = require('$RAW');
   const EXCLUDE = new Set(['ready', 'needs:definition', 'parked', 'parent-issue', 'bot:in-progress']);
   const eligible = records.filter((r) =>
     !r.labels.some((l) => EXCLUDE.has(l.name))
   );
   console.log(JSON.stringify(eligible));
-" > /tmp/specify-next-candidates.json
+" > "$CANDIDATES"
 ```
 
 No further claim-state filtering runs here — the `bot:in-progress`
@@ -146,23 +156,33 @@ Exactly one record, by dispatch's own ranking (`dispatch/SKILL.md` Step 3):
 `priority:high` > `priority:medium` > `priority:low` > unprioritized,
 oldest `createdAt` first within each band.
 
+Re-resolve this fence's session-scoped temp paths (a fresh bash invocation does not inherit the Eligibility fence's shell variables, `_shared/session-tmp-root.md`):
+
 ```bash
+CANDIDATES=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-next-candidates.json') || require('path').join(require('os').tmpdir(), 'specify-next-candidates.json'))
+")
+PICK=$(node -e "
+  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-next-pick.json') || require('path').join(require('os').tmpdir(), 'specify-next-pick.json'))
+")
 node -e "
   const RANK = { high: 0, medium: 1, low: 2 };
   const bandOf = (r) => {
     const p = r.labels.find((l) => l.name.startsWith('priority:'));
     return p ? RANK[p.name.slice('priority:'.length)] : 3;
   };
-  const candidates = require('/tmp/specify-next-candidates.json');
+  const candidates = require('$CANDIDATES');
   const ranked = candidates.slice().sort((a, b) =>
     bandOf(a) - bandOf(b) || new Date(a.createdAt) - new Date(b.createdAt));
   console.log(JSON.stringify(ranked.length ? ranked[0] : null));
-" > /tmp/specify-next-pick.json
+" > "$PICK"
 ```
 
 ## Zero eligible
 
-A `null` result in `/tmp/specify-next-pick.json` (no candidates after the
+A `null` result at this fence's `$PICK` path (no candidates after the
 Eligibility query's filter, or its initial fetch was empty): report "nothing
 eligible this firing" and exit cleanly — no self-report, no notification.
 The firing's own session transcript line is the only trace, deliberately

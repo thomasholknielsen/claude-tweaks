@@ -85,26 +85,28 @@ If the path does not exist, stop and report the error. Set `AREA` and `ROOT` for
 
 **Step 2 — GATHER OPEN ISSUES for dedup.**
 
-Collect existing `by:code-health`-labelled issues so the engine can skip/reopen/suppress correctly:
+Collect existing `by:code-health`-labelled issues so the engine can skip/reopen/suppress correctly. Resolve this run's session-scoped temp paths first, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated):
 
 ```bash
-gh issue list --label by:code-health --state all --json number,state,labels,body --limit 500 > /tmp/code-health-issues-raw.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_ISSUES_RAW=code-health-issues-raw.json CODE_HEALTH_OPEN=code-health-open.json)"
+gh issue list --label by:code-health --state all --json number,state,labels,body --limit 500 > "$CODE_HEALTH_ISSUES_RAW"
 ```
 
-Parse each issue body for its fingerprint marker and build an array of `{ number, state, labels, fingerprint }` objects. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: codehealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Write to `/tmp/code-health-open.json`.
+Parse each issue body for its fingerprint marker and build an array of `{ number, state, labels, fingerprint }` objects. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: codehealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Write to `$CODE_HEALTH_OPEN`.
 
-**Transport and outcomes:** apply `_shared/health-issue-index.md` with `{SKILL}` = `code-health`, `{ISSUES_FILE}` = `/tmp/code-health-open.json`. `gh` absent means rebuild the index via MCP `list_issues`, never skip; `ISSUES_FILE=""` is only for "no transport reaches GitHub", and is reported.
+**Transport and outcomes:** apply `_shared/health-issue-index.md` with `{SKILL}` = `code-health`, `{ISSUES_FILE}` = `$CODE_HEALTH_OPEN`. `gh` absent means rebuild the index via MCP `list_issues`, never skip; `ISSUES_FILE=""` is only for "no transport reaches GitHub", and is reported.
 
 A matched issue carrying the `wontfix` label is a standing suppression decision, not a skip or reopen: `validate-findings` (Step 8) suppresses re-filing entirely and persists `status: 'wontfix'` to the local cache — a Routine's fresh container recreates that cache empty, covering repeat *local* runs only on its own. The MCP transport above covers `gh`-absent headless runs; (#171) the suppression is also persisted durably to the `declined` slice on the `health-state` branch (`decide()`'s `durableDeclined` param, `mergeWontfixIntoDeclined`) — read via `git fetch`, so it survives GitHub being unreachable outright, or a label applied before this container existed.
 
-**Digest-mode fold.** Before writing `/tmp/code-health-open.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `code-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 8 rather than being re-judged or re-digested.
+**Digest-mode fold.** Before writing `$CODE_HEALTH_OPEN`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `code-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 8 rather than being re-judged or re-digested.
 
 **Step 3 — READ THE SLICE.**
 
-If `focus=<vertical>` was provided, skip this step entirely — `focus-mode.md`'s Step F3 reads every candidate file under this same 60 KB read-budget discipline, restated there rather than here. Otherwise, stamp a freshness marker before reading anything, so Step 7.5 can later detect whether the slice changed underneath this run — a concurrent fix pass, another parallel code-health sweep, or an ordinary human edit landing between this read and eventual filing:
+If `focus=<vertical>` was provided, skip this step entirely — `focus-mode.md`'s Step F3 reads every candidate file under this same 60 KB read-budget discipline, restated there rather than here. Otherwise, stamp a freshness marker before reading anything, so Step 7.5 can later detect whether the slice changed underneath this run — a concurrent fix pass, another parallel code-health sweep, or an ordinary human edit landing between this read and eventual filing. Resolve this run's session-scoped marker path (`_shared/session-tmp-root.md`; re-resolved here since a fresh bash invocation does not inherit Step 2's shell variables):
 
 ```bash
-touch /tmp/code-health-read-marker
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_READ_MARKER=code-health-read-marker)"
+touch "$CODE_HEALTH_READ_MARKER"
 ```
 
 Read the source files in `${ROOT}/${AREA}`. Use Read and Glob:
@@ -210,7 +212,7 @@ For each finding, emit exactly this shape:
 - Examples: `src/api/user.js#getUser`, `lib/parser.js#Parser`, `bin/code-health.js#cmdRun`
 - When a finding is module-level (no named symbol), use the file itself: `src/api/user.js#module`
 
-Write the array to `/tmp/code-health-findings.json`.
+Write the array to this run's session-scoped `code-health-findings.json` (`_shared/session-tmp-root.md`; resolve via `eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_FINDINGS=code-health-findings.json)"` in whichever fence writes it).
 
 **Step 7 — VERIFY GATE: sanity-check surviving findings before dedup.**
 
@@ -230,39 +232,41 @@ The verify gate is a judgment step, not a mechanical check. It cannot be automat
 
 The verify gate above judges whether a finding is *correct*. This step is a separate, purely mechanical check for whether it is *still current*: a judge agent reads a file once, at Step 3, but filing (Step 9) can land much later — long enough for a concurrent fix pass, another parallel code-health sweep, or an ordinary human edit to change the very file a finding is anchored to. Filing on stale content produces duplicate or already-resolved issues (the incident that motivated this step: a 6-agent parallel sweep ran alongside an unrelated large fix pass touching the same files, and by review time most surviving findings had already been resolved by that fix pass).
 
-For every finding still in the candidate set after Step 7, check its anchor file — and every entry in `relatedAnchors`, when present, since a changed sibling occurrence stales the whole bundled finding — against the Step 3 marker:
+For every finding still in the candidate set after Step 7, check its anchor file — and every entry in `relatedAnchors`, when present, since a changed sibling occurrence stales the whole bundled finding — against the Step 3 marker. Re-resolve both session-scoped paths first (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit Step 3's or Step 6's shell variables):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_READ_MARKER=code-health-read-marker CODE_HEALTH_FINDINGS=code-health-findings.json)"
 ANCHOR_FILE="${ROOT}/${anchor%%#*}"
 if [ ! -e "$ANCHOR_FILE" ]; then
   echo "possibly-stale: anchor file deleted since read"
-elif [ -n "$(find "$ANCHOR_FILE" -newer /tmp/code-health-read-marker 2>/dev/null)" ]; then
+elif [ -n "$(find "$ANCHOR_FILE" -newer "$CODE_HEALTH_READ_MARKER" 2>/dev/null)" ]; then
   echo "possibly-stale: anchor file modified since read"
 fi
 ```
 
 (`${anchor%%#*}` strips the `#NearestNamedSymbol` suffix, leaving the relative file path — the same parsing as the Step 6 anchor format.)
 
-Tag any finding that trips either condition with `"possiblyStale": true` in its JSON and rewrite `/tmp/code-health-findings.json` with the tag applied — do not drop the finding outright, since the underlying change might be unrelated to what the finding actually describes (a docstring edit two lines from the flagged block). Findings whose anchor (and every related anchor) is unchanged proceed as-is, with no tag.
+Tag any finding that trips either condition with `"possiblyStale": true` in its JSON and rewrite `$CODE_HEALTH_FINDINGS` with the tag applied — do not drop the finding outright, since the underlying change might be unrelated to what the finding actually describes (a docstring edit two lines from the flagged block). Findings whose anchor (and every related anchor) is unchanged proceed as-is, with no tag.
 
 This check is cheap and mechanical — one `find -newer` per anchor — so run it every time, even under time pressure. Step 9 reads `possiblyStale` to route the finding to a human for re-confirmation (interactive mode) or to hold it back entirely (headless/Routine mode) rather than filing it against content the judge never actually saw.
 
-**Step 8 — VALIDATE, FINGERPRINT, DEDUP.**
+**Step 8 — VALIDATE, FINGERPRINT, DEDUP.** Re-resolve this run's session-scoped paths first (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variables):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" validate-findings /tmp/code-health-findings.json \
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_FINDINGS=code-health-findings.json CODE_HEALTH_PAYLOADS=code-health-payloads.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" validate-findings "$CODE_HEALTH_FINDINGS" \
   --root "${ROOT:-$PWD}" \
   --slice "${SLICE_ID}" \
   --run-id "${RUN_ID}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
   ${MIN_RISK:+--min-risk "$MIN_RISK"} \
   ${DRY_RUN:+--dry-run} \
-  > /tmp/code-health-payloads.json
+  > "$CODE_HEALTH_PAYLOADS"
 ```
 
 `SLICE_ID` is the `id` field from the `next-slice` output in Step 1 (or the `--area` value when using manual override; under focus mode, `focus:<vertical>` — see `focus-mode.md`'s F5). `RUN_ID` is the run identifier for this sweep (ISO timestamp or any stable string unique per run).
 
-Read `/tmp/code-health-payloads.json`. The command:
+Read `$CODE_HEALTH_PAYLOADS`. The command:
 - Validates each finding (drops malformed ones with a logged reason on stderr).
 - Fingerprints via `criterion + areaId + normalizeAnchor(anchor)`.
 - Deduplicates against open `by:code-health` issues and the local cache — including honoring a `wontfix`-labelled match as a standing suppression (see Step 2).

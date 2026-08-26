@@ -14,19 +14,21 @@ Every code-health record files onto the unified work record (`skills/_shared/wor
 
 **Drain-rate cap and digest mode.** Before filing any survivor whose Step 8 decision is `'file'`, apply the `health-open-cap` throttle per `_shared/health-filing-digest.md`'s FILE-step shape (`{PREFIX}` = `code-health`) — at or above the cap, the finding is appended to `code-health`'s digest issue instead of filed as a new singleton. A `'reopen'` decision (regression) always bypasses the cap.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `code-health.js`, `{PREFIX}` = `code-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt:
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `code-health.js`, `{PREFIX}` = `code-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt. Resolve this run's session-scoped temp paths first, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue drain --root "${ROOT:-$PWD}" > /tmp/code-health-retry-payloads.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_RETRY_PAYLOADS=code-health-retry-payloads.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue drain --root "${ROOT:-$PWD}" > "$CODE_HEALTH_RETRY_PAYLOADS"
 ```
 
-For each payload in `/tmp/code-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track the outcome of every attempt (this firing's retry-queue payloads AND any brand-new payload from Step 9's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/code-health-retry-results.json`, then:
+For each payload in `$CODE_HEALTH_RETRY_PAYLOADS`, attempt `gh issue create` exactly as below. Track the outcome of every attempt (this firing's retry-queue payloads AND any brand-new payload from Step 9's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to this run's session-scoped `code-health-retry-results.json`, then re-resolve both session-scoped paths this fence needs (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue update /tmp/code-health-retry-results.json --root "${ROOT:-$PWD}" > /tmp/code-health-escalated.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_RETRY_RESULTS=code-health-retry-results.json CODE_HEALTH_ESCALATED=code-health-escalated.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue update "$CODE_HEALTH_RETRY_RESULTS" --root "${ROOT:-$PWD}" > "$CODE_HEALTH_ESCALATED"
 ```
 
-This records successes (removed from the queue) and failures (added/incremented) in one durable write. If `/tmp/code-health-escalated.json` is non-empty, file (or update) a `code-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
+This records successes (removed from the queue) and failures (added/incremented) in one durable write. If `$CODE_HEALTH_ESCALATED` is non-empty, file (or update) a `code-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
 Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Pairs copied verbatim from `_shared/label-bootstrap.md`'s canonical `LABELS_JSON`:
 
