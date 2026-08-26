@@ -136,34 +136,20 @@ function expectationsUnknownDetail(expectations) {
 // wrap-up finishes -- slug-matching a plan's TOPIC filename against the
 // run's SPEC identity essentially never matches (they come from unrelated
 // naming schemes), so this scans for untracked entries via `git status`
-// instead. repoRoot -- not runDir, not process.cwd() -- since these paths
-// are relative to the repo root and the CLI may be invoked from a worktree.
-//
-// Known, deliberate gap (record #900 whole-branch re-review, finding #3):
-// under this project's default `worktree`/`pr-first` mode, an execution-plan
-// or design-cache file created by THIS run lives in the worktree's own
-// working tree, not the main checkout's -- repoRoot resolves to the main
-// checkout, which cannot see worktree-local untracked state at all (a
-// worktree's untracked files never appear in any other checkout's `git
-// status`, even though they share one object store). So under the default
-// mode this check is effectively blind to the run's own leftovers and can
-// only catch leftovers from a run invoked directly against the main
-// checkout (current-branch / local-merge mode). Fixing this correctly
-// requires threading the invoking checkout's own cwd through separately
-// from repoRoot (repoRoot must stay the main checkout for
-// run-dir-archived's `.claude-tweaks/pipelines/` lookups) and reworking
-// this suite's test fixtures, which default to isolating repoRoot from live
-// repo state specifically to avoid depending on this worktree's own churn
-// (see makeCleanRepoRoot() in the test file) -- deliberately left as a
-// known limitation rather than widened in this fix round; ruled and
-// captured for follow-up rather than silently dropped.
+// instead. `cwd` -- the invoking checkout, not `repoRoot` -- since a
+// worktree's own untracked content is invisible from any other checkout's
+// `git status` even though they share one object store (record #1222 fixed
+// this after `run-dir-archived`'s `repoRoot`-only resolution left this check
+// structurally blind to worktree-local leftovers under this project's
+// default `worktree`/`pr-first` mode -- record #900 whole-branch re-review,
+// finding #3).
 // `--porcelain=v1 -uall` (not the default `-uno`) so a wholly-untracked
 // directory reports every file inside it individually instead of collapsing
 // to one `?? {dir}/` line the suffix/name filters below could never match.
-registerCheck('plans-ledger', ({ repoRoot, deps }) => {
+registerCheck('plans-ledger', ({ cwd, deps }) => {
   let status;
   try {
-    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/superpowers/plans', 'docs/plans'], repoRoot);
+    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/superpowers/plans', 'docs/plans'], cwd);
   } catch (err) {
     return { result: 'unknown', detail: `git status failed: ${err.message}` };
   }
@@ -174,7 +160,7 @@ registerCheck('plans-ledger', ({ repoRoot, deps }) => {
   // deleted at wrap-up. Dotfiles (the directory's own `.gitignore`
   // scaffolding, always present) are not leftovers -- only real content
   // counts.
-  const sddDir = path.join(repoRoot, '.superpowers', 'sdd');
+  const sddDir = path.join(cwd, '.superpowers', 'sdd');
   let sddEntries = [];
   try {
     if (fs.existsSync(sddDir)) {
@@ -190,16 +176,15 @@ registerCheck('plans-ledger', ({ repoRoot, deps }) => {
 
 // ---- design caches deleted --------------------------------------------------
 //
-// repoRoot, matching plans-ledger's reasoning above (including its known
-// gap under the default worktree/pr-first mode -- see the comment there).
-registerCheck('design-caches', ({ repoRoot, expectations, deps }) => {
+// cwd, matching plans-ledger's reasoning above (record #1222).
+registerCheck('design-caches', ({ cwd, expectations, deps }) => {
   const deferred = deferredSet(expectations);
   if (deferred.has('design-caches')) return { result: 'skip', detail: 'deferred to parent console' };
-  const cacheDir = path.join(repoRoot, 'docs', 'plans');
+  const cacheDir = path.join(cwd, 'docs', 'plans');
   if (!fs.existsSync(cacheDir)) return { result: 'pass', detail: '' };
   let status;
   try {
-    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/plans'], repoRoot);
+    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/plans'], cwd);
   } catch (err) {
     return { result: 'unknown', detail: `git status failed: ${err.message}` };
   }
@@ -587,10 +572,18 @@ registerCheck('upstream-feedback', ({ expectations, deps }) => {
   return { result: 'pass', detail: '' };
 });
 
-function runVerify({ runDir, originalRunDir, base, repoRoot, deps = {} }) {
+function runVerify({ runDir, originalRunDir, base, repoRoot, cwd, deps = {} }) {
   const git = deps.git || defaultGit;
   const gh = deps.gh || defaultGh;
   const resolvedRepoRoot = repoRoot || process.cwd();
+  // `cwd` is the invoking checkout (a worktree, under this project's default
+  // `worktree`/`pr-first` mode) — distinct from `repoRoot`, which must stay
+  // the main checkout for `run-dir-archived`'s pipeline-directory lookups.
+  // Falls back to `repoRoot`, then `process.cwd()`, when the caller doesn't
+  // separately supply one, so every existing repoRoot-isolating test fixture
+  // isolates `cwd` too, for free, with no call-site changes required
+  // (record #1222).
+  const resolvedCwd = cwd || repoRoot || process.cwd();
   const resolvedOriginalRunDir = originalRunDir || runDir;
   const expectations = runDir === null ? null : readExpectations(runDir);
 
@@ -615,7 +608,7 @@ function runVerify({ runDir, originalRunDir, base, repoRoot, deps = {} }) {
         // never silently non-execute -- erring toward blocking closure.
         try {
           const { result, detail } = fn({
-            runDir, originalRunDir: resolvedOriginalRunDir, base, repoRoot: resolvedRepoRoot,
+            runDir, originalRunDir: resolvedOriginalRunDir, base, repoRoot: resolvedRepoRoot, cwd: resolvedCwd,
             expectations, deps: { git, gh },
           });
           return { check: name, result, detail: detail || '' };

@@ -532,6 +532,65 @@ test('plans-ledger check does not count .superpowers/sdd/.gitignore itself as a 
   }
 });
 
+// ---- cwd vs. repoRoot: worktree-local leftovers must be caught even when
+// repoRoot (the main checkout) is clean (record #1222) ----
+
+test('plans-ledger check catches a worktree-local .superpowers/sdd leftover even when repoRoot (main checkout) is clean', () => {
+  const repoRoot = makeCleanRepoRoot(); // simulates the clean main checkout
+  const cwd = makeCleanRepoRoot();      // simulates the invoking worktree's own checkout
+  const runDir = makeTmpDir('verify-plans-ledger-cwd-');
+  const sddDir = path.join(cwd, '.superpowers', 'sdd', '2026-08-21-some-topic');
+  fs.mkdirSync(sddDir, { recursive: true });
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd, deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(row.result, 'fail', row.detail);
+    assert.match(row.detail, /2026-08-21-some-topic/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('design-caches check catches a worktree-local cache leftover even when repoRoot (main checkout) is clean', () => {
+  const repoRoot = makeCleanRepoRoot();
+  const cwd = makeCleanRepoRoot();
+  const runDir = makeTmpDir('verify-design-caches-cwd-');
+  fs.mkdirSync(path.join(cwd, 'docs', 'plans'), { recursive: true });
+  const fakeGit = (args, gitCwd) => {
+    if (args[0] === 'status') {
+      assert.strictEqual(gitCwd, cwd, 'design-caches must run git status against cwd, not repoRoot');
+      return '?? docs/plans/some-topic-audit.json\n';
+    }
+    return '';
+  };
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd, deps: { git: fakeGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'design-caches');
+    assert.strictEqual(row.result, 'fail', row.detail);
+    assert.match(row.detail, /some-topic-audit\.json/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('runVerify resolves cwd to repoRoot when cwd is omitted (existing repoRoot-isolating fixtures stay isolated for free)', () => {
+  const repoRoot = makeCleanRepoRoot();
+  const runDir = makeTmpDir('verify-cwd-fallback-');
+  const sddDir = path.join(repoRoot, '.superpowers', 'sdd', 'fallback-topic');
+  fs.mkdirSync(sddDir, { recursive: true });
+  try {
+    // No `cwd` passed — must fall back to the isolated `repoRoot`, not process.cwd().
+    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(row.result, 'fail', row.detail);
+    assert.match(row.detail, /fallback-topic/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
 function writeSpecFile(runDir, specId, record) {
   const workDir = path.join(runDir, 'work');
   fs.mkdirSync(workDir, { recursive: true });
