@@ -1,0 +1,5 @@
+# Open Items — Implement create_webhook_trigger integration for /claude-tweaks:routine (#1302)
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | build | `create_webhook_trigger`'s request/response shape in `plugin/skills/routine/webhook-trigger.md` and the `webhook_triggers` schema field in `plugin/skills/_shared/routine-template-schema.md` are documented from the tool's own description (captured at spec-shaping time, 2026-08-23) — not live-verified in this build session, since `RemoteTrigger` was confirmed unavailable via `ToolSearch select:RemoteTrigger` in this build's own (Task-dispatched) session, consistent with the spec's own caution that availability may be session-type-dependent. A future session where the tool is reachable should perform a real (or explicitly logged dry-run) `create_webhook_trigger` call against a test routine, confirm the response shape and any app-not-installed error text match what's documented, and update this note. | open | — |
