@@ -176,10 +176,7 @@ promoted via /specify — {date}\n\n` to it, write the result to this run's sess
 `IssueComment` type, same mutation shape):
 
 ```bash
-NEEDS_DECISION_RESOLVED_BODY=$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'needs-decision-resolved-{n}-{found-id}.md') || require('path').join(require('os').tmpdir(), 'needs-decision-resolved-{n}-{found-id}.md'))
-")
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "NEEDS_DECISION_RESOLVED_BODY=needs-decision-resolved-{n}-{found-id}.md")"
 gh api graphql -f query='mutation($id:ID!,$body:String!){updateIssueComment(input:{id:$id,body:$body}){issueComment{id}}}' \
   -f id="{found-id}" -F body=@"$NEEDS_DECISION_RESOLVED_BODY"
 ```
