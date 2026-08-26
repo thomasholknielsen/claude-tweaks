@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-24T222201-record-1315",
-  "reason": "failed: blocked-by-unmerged-prerequisite (#309/PR #1310 not merged; target code bin/lib/issues/grant-maturation.js and both call sites do not exist on this branch)",
-  "releasedAt": "2026-08-24T22:26:13.424Z"
+  "runId": "2026-08-26T042502-record-1315",
+  "sessionId": "0e514967-3705-49c1-883e-3d29306043cd",
+  "claimedAt": "2026-08-26T04:26:57.940Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
