@@ -109,7 +109,7 @@ When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIG
 
 ## Step 2: Priority/Related synthesis (bounded)
 
-*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+*(Narration allowance: same as Step 1 — no "running"/"passed" line, only the opening/failure line.)*
 
 Over the **missing-priority** population — records carrying no `priority:*` label at all, the
 population Step 1's compute block actually keys on via `refineWorklist`'s `missingPriority` (refs
@@ -130,7 +130,7 @@ If `.prioritySlice.remaining > 0`, state it plainly in the report: "`{remaining}
 
 ## Step 3: Grant-check (bounded, `work-backend: github-issues` only)
 
-*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+*(Narration allowance: same as Step 1 — no "running"/"passed" line, only the opening/failure line.)*
 
 ### Merge-lane circuit breaker reset offer (at this sub-stage's start)
 
@@ -160,26 +160,12 @@ string instead, per Step 4.
 
 - **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
   `true`).
-- **`RECOMMEND_BUILD: false`** on a record **missing** `risk:*` and/or `size:*` — the row's own
-  `.facets.risk`/`.facets.size` from Step 1's fetch (`session-scoped backlog-refine-worklist.json`,
-  already `parseRecordFacets`-derived — no extra read) → `flag back (needs scoring)`. The human may
-  supply scoring inline as a free-text override instead of flagging back — the gate then stamps the
-  supplied `risk:*`/`size:*` labels alongside the grant (Step 5).
-- **`RECOMMEND_BUILD: false`** on a record that already carries **both** `risk:*` and `size:*` —
-  a content-based denial, not a scoring gap (a `Defer-reason: needs-human-decision` body, risk:high
-  merge-authority work, a deliverable that needs a human-present session, or a record already
-  resolved live) → **human-only**: leave `ready` in place, write no `auto:*` grant, and record the
-  verdict once as an audit marker comment (Step 5's Human-only rows) so a deliberately human-only
-  record stays dispatchable instead of looping between `ready` and backlog on the next refine.
-  **Idempotence check, before lanning:** query whether this record already carries the human-only
-  marker comment —
-  ```bash
-  gh issue view "$ISSUE" --json comments -q '.comments[] | select(.body | startswith("<!-- backlog-refine-human-only -->")) | .id'
-  ```
-  A non-empty result means an earlier refine run already marked this record — render it as one
-  annotation line only (`refine-lanes.md`'s Human-only lane), never a fresh lane row, and skip
-  every Step 5 write for it (zero label/comment writes on the repeat pass). An empty result lanes
-  it as a fresh Human-only row.
+- **`RECOMMEND_BUILD: false`** on a record missing `risk:*`/`size:*` → `flag back (needs
+  scoring)` — a free-text scoring override stamps `risk:*`/`size:*` alongside the grant instead
+  (Step 5).
+- **`RECOMMEND_BUILD: false`** on a record already scored (`risk:*` + `size:*` present) →
+  **human-only** (leave `ready`, no grant, marker comment). Read `human-only-outcome.md` in this
+  skill's directory for the idempotence check and write mechanics — not repeated here.
 
 For every record in `blocked` (unaffected by the budget — the retry-ceiling population is
 typically small and its re-authorization recommendation needs no `grant-check` call at all), skip
@@ -206,7 +192,7 @@ fetch/render this sub-stage advises with, and how it never changes what the gate
 
 ## Step 3.5: Body-shape re-verification (before granting)
 
-*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+*(Narration allowance: same as Step 1 — no "running"/"passed" line, only the opening/failure line.)*
 
 For every record the grant-check pass recommends **granting** (not flag-back/blocked rows) — fetch the body and re-verify spec shape immediately before writing any label, using the same cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check` already fetched and cached the body at this run's session-scoped `assess-grant-{n}.json` — `_shared/session-tmp-root.md`; reuse it instead of a second API round-trip).
 
@@ -239,7 +225,7 @@ Report every downgrade to the user before proceeding — a silent downgrade woul
 
 ## Step 3.6: Ceiling-authorized born-ready (`autonomy: trusted`+)
 
-*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+*(Narration allowance: same as Step 1 — no "running"/"passed" line, only the opening/failure line.)*
 
 The ceiling's only effect inside this skill is on **which records reach the worklist at all**, not
 on what is recommended for them once here. At `trusted` or higher, a record `/claude-tweaks:capture`
@@ -260,7 +246,7 @@ born-`ready` by this path and this step does nothing.
 
 ## Step 4: Decision lanes
 
-*(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
+*(Narration allowance: same as Step 1 — no "running"/"passed" line, only the opening/failure line.)*
 
 One lane per record, precedence: Re-authorize → Grant → Flag-back → Priority → Dependency repair →
 Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its priority/Related
@@ -320,11 +306,8 @@ For every record the `**Related:**` decision resolved to apply, replace the exis
 For every row still marked for granting after Step 3.5:
 
 ```bash
-# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-# [['auto:build', 'Grant: agents may build this record autonomously (human-granted; machinery only removes)'],
-#  ['auto:merge', 'Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)']]
-# — add the matching risk:low|medium|high / size:low|medium|high pair too, only for a row where
-# the human supplied scoring inline during the override step (Step 4).
+# Bootstrap per _shared/label-bootstrap.md (auto:build/auto:merge); add risk:*/size:* too when
+# the human supplied scoring inline at Step 4's override.
 
 if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx bot:blocked; then
   gh issue edit "$ISSUE" --remove-label bot:blocked --add-label auto:build
@@ -333,36 +316,15 @@ else
 fi
 # Row also grants auto:merge:
 gh issue edit "$ISSUE" --add-label auto:merge
-# Row's scoring came from an inline override in Step 4 (a grant row missing risk/size the human
-# supplied risk:$RISK_TIER / size:$SIZE_TIER for directly, rather than flagging back or accepting the
-# default "needs scoring" recommendation) — persist the human-supplied scoring as labels too,
-# not just the grant, so the record doesn't re-enter later batch views (e.g.
-# /claude-tweaks:backlog overview risk-value's ranked table) still showing as missing risk/size:
+# Inline-override scoring (Step 4) — persist risk:*/size:* too, so the record doesn't re-enter
+# later batch views (e.g. /backlog overview) still showing as missing risk/size:
 gh issue edit "$ISSUE" --add-label "risk:$RISK_TIER" --add-label "size:$SIZE_TIER"
 ```
 
 Stripping `bot:blocked` in the same edit as the grant matters: without it, the record carries both `bot:blocked` and a fresh `auto:build`, and `/claude-tweaks:dispatch`'s skip rule ignores anything `bot:blocked` forever regardless of the new grant.
 
-**Human-only rows:** For every row lanned Human-only in Step 4 (Step 3's scored
-`RECOMMEND_BUILD: false` branch, idempotence check already cleared) — post one audit marker
-comment, no label writes at all: `ready` stays, no `auto:*` grant is added.
-
-```
-<!-- backlog-refine-human-only -->
-Marked human-only by /claude-tweaks:backlog refine: {grant-check RATIONALE}
-
-Kept `ready` — still selectable by /claude-tweaks:dispatch #{n} / /claude-tweaks:flow #{n} for a
-human-driven build.
-```
-
-```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_REFINE_HUMANONLY=backlog-refine-humanonly-${ISSUE}.md")"
-gh issue comment "$ISSUE" --body-file "$BACKLOG_REFINE_HUMANONLY"
-```
-
-The `<!-- backlog-refine-human-only -->` marker — the comment's first line, unconditionally — is
-what Step 3's idempotence check greps for on a later run; never hand-write or omit it. Local-files
-driver: this lane never fires (Step 3's grant-check pass is `github-issues` only).
+**Human-only rows:** read `human-only-outcome.md` in this skill's directory for the marker-comment
+write mechanics — no label writes, `ready` stays, no `auto:*` grant is added.
 
 **Dependency-repair rows:**
 

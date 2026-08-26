@@ -7,17 +7,19 @@ const path = require('node:path');
 
 const REFINE_MODE_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'refine-mode.md');
 const REFINE_LANES_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'refine-lanes.md');
-const WORK_RECORD_PATH = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'work-record.md');
+const HUMAN_ONLY_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'human-only-outcome.md');
 
 const refineModeProse = fs.readFileSync(REFINE_MODE_PATH, 'utf8');
 const refineLanesProse = fs.readFileSync(REFINE_LANES_PATH, 'utf8');
-const workRecordProse = fs.readFileSync(WORK_RECORD_PATH, 'utf8');
+const humanOnlyProse = fs.readFileSync(HUMAN_ONLY_PATH, 'utf8');
 
 // #1317: /claude-tweaks:backlog refine had no "ready but human-only" outcome — every
 // RECOMMEND_BUILD: false from grant-check was treated as "needs scoring" and flag-backed, even on
-// a record that was already scored and denied for content reasons. This is the pre-change text the
-// new branch/lane replaced — used below to prove each regex actually goes red on the text it
-// replaced, not just green on the new text [IL-105].
+// a record that was already scored and denied for content reasons. These are the pre-change texts
+// the new branch/lane replaced — used below to prove each regex actually goes red on the text it
+// replaced, not just green on the new text [IL-105]. (`human-only-outcome.md` is a brand-new file
+// with no pre-change text of its own — an empty string stands in as its negative control, since a
+// file that didn't exist yet trivially fails to match any of these patterns.)
 const PRE_CHANGE_STEP3_MAPPING = `- **\`RECOMMEND_BUILD: true\`** → \`auto:build\` (append \`+ auto:merge\` when \`RECOMMEND_MERGE\` is also
   \`true\`).
 - **\`RECOMMEND_BUILD: false\`** → \`flag back (needs scoring)\`. The human may supply scoring inline as
@@ -50,9 +52,6 @@ Step 3.5's body-shape auto-downgrade (a row Step 3 recommended granting whose bo
 spec-shape re-check immediately before Step 4).
 `;
 
-const PRE_CHANGE_WORK_RECORD_REFINE_ROW = `| **\`/backlog refine\`** (write mode, human present) | \`auto:build\`, \`auto:merge\` (human-confirmed), \`priority:*\` (human-confirmed via batch-apply), updates the \`**Related:**\` body line (human-confirmed), scoring supplied inline | \`ready\` (flag back), \`bot:blocked\` (re-grant strip) | granting on a headless path, adding any \`bot:*\`, \`risk:*\`/\`size:*\` beyond the inline-override case, body-shaping beyond the \`**Related:**\` line |
-`;
-
 // One claim per call: the pattern must match the shipped prose AND fail against the pre-change
 // text, so a green result proves the regex can actually go red [IL-105].
 function assertClaimPinned(prose, pattern, preChangeText, missingMessage) {
@@ -63,45 +62,27 @@ function assertClaimPinned(prose, pattern, preChangeText, missingMessage) {
 test('refine-mode.md Step 3 branches RECOMMEND_BUILD: false on scored vs unscored records', () => {
   assertClaimPinned(
     refineModeProse,
-    /a record that already carries \*\*both\*\* `risk:\*` and `size:\*`/,
+    /on a record already scored \(`risk:\*` \+ `size:\*` present\) →\n {2}\*\*human-only\*\*/,
     PRE_CHANGE_STEP3_MAPPING,
     'scored-vs-unscored RECOMMEND_BUILD: false branch missing from refine-mode.md Step 3',
   );
 });
 
-test('refine-mode.md Step 3 keeps ready and writes no auto:* grant for a scored human-only denial', () => {
+test('refine-mode.md Step 3 keeps ready and writes no grant for a scored human-only denial, and points at the shared write-mechanics file', () => {
   assertClaimPinned(
     refineModeProse,
-    /\*\*human-only\*\*: leave `ready` in place, write no `auto:\*` grant/,
+    /\*\*human-only\*\* \(leave `ready`, no grant, marker comment\)\. Read `human-only-outcome\.md`/,
     PRE_CHANGE_STEP3_MAPPING,
-    'human-only outcome (leave ready, no grant) missing from refine-mode.md Step 3',
+    'human-only outcome (leave ready, no grant) + cross-reference missing from refine-mode.md Step 3',
   );
 });
 
-test('refine-mode.md Step 3 runs an idempotence check for an existing human-only marker comment before lanning', () => {
+test('refine-mode.md Step 5 Human-only rows carries no label writes and points at the shared write-mechanics file', () => {
   assertClaimPinned(
     refineModeProse,
-    /<!-- backlog-refine-human-only -->/,
-    PRE_CHANGE_STEP3_MAPPING,
-    'human-only marker comment idempotence check missing from refine-mode.md Step 3',
-  );
-});
-
-test('refine-mode.md Step 3 skips every Step 5 write for an already-marked record', () => {
-  assertClaimPinned(
-    refineModeProse,
-    /zero label\/comment writes on the repeat pass/,
-    PRE_CHANGE_STEP3_MAPPING,
-    'zero-writes-on-repeat-pass idempotence guarantee missing from refine-mode.md Step 3',
-  );
-});
-
-test('refine-mode.md Step 5 posts a marker-only comment for Human-only rows, no label writes', () => {
-  assertClaimPinned(
-    refineModeProse,
-    /\*\*Human-only rows:\*\* For every row lanned Human-only in Step 4[\s\S]{0,200}no label writes at all: `ready` stays, no `auto:\*` grant is added\./,
+    /\*\*Human-only rows:\*\* read `human-only-outcome\.md` in this skill's directory[\s\S]{0,120}no label writes, `ready` stays, no `auto:\*` grant is added\./,
     PRE_CHANGE_STEP5_GRANT_TAIL,
-    'Human-only rows write mechanics missing from refine-mode.md Step 5',
+    'Human-only rows cross-reference missing from refine-mode.md Step 5',
   );
 });
 
@@ -153,20 +134,35 @@ test('refine-lanes.md Human-only lane documents the idempotence annotation for a
   );
 });
 
-test('work-record.md permission matrix documents the human-only marker comment on the /backlog refine row', () => {
+test('human-only-outcome.md runs the idempotence check for an existing marker comment before lanning', () => {
   assertClaimPinned(
-    workRecordProse,
-    /posts a `<!-- backlog-refine-human-only -->`-marked audit comment \(no label\) on a scored `RECOMMEND_BUILD: false` record/,
-    PRE_CHANGE_WORK_RECORD_REFINE_ROW,
-    'human-only marker comment write missing from work-record.md permission matrix /backlog refine row',
+    humanOnlyProse,
+    /gh issue view "\$ISSUE" --json comments -q '\.comments\[\] \| select\(\.body \| startswith\("<!-- backlog-refine-human-only -->"\)\) \| \.id'/,
+    '',
+    'idempotence marker-comment check missing from human-only-outcome.md',
   );
 });
 
-test('work-record.md permission matrix forbids /backlog refine from stripping ready off a human-only-marked record', () => {
+test('human-only-outcome.md posts the human-only marker comment with no accompanying label edit', () => {
   assertClaimPinned(
-    workRecordProse,
-    /removing `ready` from a human-only-marked record/,
-    PRE_CHANGE_WORK_RECORD_REFINE_ROW,
-    '"never removes ready from a human-only record" constraint missing from work-record.md permission matrix',
+    humanOnlyProse,
+    /<!-- backlog-refine-human-only -->\nMarked human-only by \/claude-tweaks:backlog refine/,
+    '',
+    'marker comment template missing from human-only-outcome.md',
+  );
+  assertClaimPinned(
+    humanOnlyProse,
+    /No label\s+edit accompanies this write/,
+    '',
+    'no-label-edit guarantee missing from human-only-outcome.md',
+  );
+});
+
+test('human-only-outcome.md documents zero writes on a repeat pass over an already-marked record', () => {
+  assertClaimPinned(
+    humanOnlyProse,
+    /a repeat pass over an already-marked record produces zero\s+label\/comment writes/,
+    '',
+    'zero-writes-on-repeat-pass guarantee missing from human-only-outcome.md',
   );
 });
