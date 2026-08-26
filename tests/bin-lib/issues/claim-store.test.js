@@ -185,6 +185,9 @@ test('classifyGhApiError: generic error text -> network-failure, status null', (
 test('writeClaimBlob: write-conflict (status 422) -> ok:false, conflict:true, failure:null (lost race, not a transient failure)', () => {
   const ghApi = (args) => {
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: null, status: 422 };
+    // The self-write recheck's own re-read (#787 hindsight finding) —
+    // reports someone else's content, so this stays a genuine contest.
+    if (isRead(args, 'claims/issue-7.json')) return { stdout: JSON.stringify({ content: '{"runId":"rival"}', sha: 'rivalsha' }), failure: null, status: null };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
   const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });
@@ -194,6 +197,7 @@ test('writeClaimBlob: write-conflict (status 422) -> ok:false, conflict:true, fa
 test('writeClaimBlob: write-conflict (status 409, sha-mismatch) -> ok:false, conflict:true, failure:null — same signal as a 422 (#723)', () => {
   const ghApi = (args) => {
     if (isWrite(args, 'claims/issue-7.json')) return { stdout: null, failure: null, status: 409 };
+    if (isRead(args, 'claims/issue-7.json')) return { stdout: JSON.stringify({ content: '{"runId":"rival"}', sha: 'rivalsha' }), failure: null, status: null };
     throw new Error(`unexpected ${args.join(' ')}`);
   };
   const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{}', sha: 'deadbeef', message: 'x' });
@@ -256,8 +260,14 @@ test('classifyGhApiError: a plain 403 with no rate-limit text still falls to net
 
 function fakeGitRunnerAlwaysWorks(tipSha, existingContent) {
   return (args) => {
+    // readClaimBlobGit fetches into a per-call scratch ref rather than
+    // FETCH_HEAD (#787 hindsight finding — a shared pseudo-ref races a
+    // concurrent fetch elsewhere in the same checkout) — match by shape
+    // (fetch's 2nd positional arg, rev-parse against whatever ref name was
+    // just fetched into) instead of the literal old 'FETCH_HEAD' name.
     if (args[0] === 'fetch') return '';
-    if (args[0] === 'rev-parse' && args[1] === 'FETCH_HEAD') return `${tipSha}\n`;
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') return `${tipSha}\n`;
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
     if (args[0] === 'show') {
       if (existingContent === null) { const e = new Error(`fatal: path does not exist in '${tipSha}'`); throw e; }
       return existingContent;
@@ -326,7 +336,7 @@ test('writeClaimBlob: a git-CAS rejection whose fresh read shows UNCHANGED conte
     reads: [{ content: HELD_BY_STALE, tipSha: 'b'.repeat(40) }],
   });
   const ghApi = () => { throw new Error('contents-API must not be called — this never left the git transport'); };
-  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+  const result = writeClaimBlob({ ghApi, gitRunner: runner, sleep: () => {} }, 'acme/w', 42, {
     content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
   });
   assert.equal(result.ok, true);
@@ -351,9 +361,11 @@ test('writeClaimBlob: a git-CAS rejection whose fresh read shows DIFFERENT conte
 });
 
 // The retry is bounded. A rejection that verifies as spurious on every attempt
-// means the branch is too busy to land on — transient, never a manufactured
-// contest (which would abort a whole group claim on a lie).
-test('writeClaimBlob: a rejection that stays spurious for every attempt exhausts the bounded retry as transport-failure, not a contest', () => {
+// means the branch is too busy to land the git-CAS write on — it must fall
+// through to the contents-API fallback below (the whole reason that fallback
+// exists), never report a bare transport-failure while a still-functional
+// fallback transport goes untried.
+test('writeClaimBlob: a rejection that stays spurious for every git-CAS attempt falls through to the contents-API fallback', () => {
   const { runner, state } = fakeGitCasRunner({
     pushes: ['reject', 'reject', 'reject'],
     reads: [
@@ -362,12 +374,119 @@ test('writeClaimBlob: a rejection that stays spurious for every attempt exhausts
       { content: HELD_BY_STALE, tipSha: 'd'.repeat(40) },
     ],
   });
-  const ghApi = () => { throw new Error('contents-API must not be called — the git transport itself never failed'); };
-  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+  let ghApiCalls = 0;
+  const ghApi = (args) => {
+    ghApiCalls += 1;
+    if (args[0] === '--method') return { stdout: '', failure: null, status: null }; // the fallback PUT succeeds
+    return { stdout: JSON.stringify({ content: HELD_BY_STALE, sha: 'fresh-blob-sha' }), failure: null, status: null };
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner: runner, sleep: () => {} }, 'acme/w', 42, {
     content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
   });
-  assert.deepEqual(result, { ok: false, failure: 'transport-failure' });
-  assert.equal(state.pushCount, 3, 'exactly MAX_CAS_ATTEMPTS pushes — bounded, never a spin');
+  assert.deepEqual(result, { ok: true, failure: null });
+  assert.equal(state.pushCount, 3, 'exactly MAX_CAS_ATTEMPTS git pushes — bounded, never a spin');
+  assert.equal(ghApiCalls, 2, 'falls through to the contents-API fallback (one verification read, one PUT) instead of giving up with git alone');
+});
+
+// If the contents-API fallback ALSO can't land it, the caller sees a genuine
+// failure from that transport rather than the git-side transport-failure —
+// the exhausted git retry is not itself the final answer once a fallback ran.
+test('writeClaimBlob: exhausted git-CAS retries, then a contents-API fallback failure, reports the fallback failure', () => {
+  const { runner, state } = fakeGitCasRunner({
+    pushes: ['reject', 'reject', 'reject'],
+    reads: [
+      { content: HELD_BY_STALE, tipSha: 'b'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'c'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'd'.repeat(40) },
+    ],
+  });
+  const ghApi = () => ({ stdout: null, failure: 'network-failure', status: null });
+  const result = writeClaimBlob({ ghApi, gitRunner: runner, sleep: () => {} }, 'acme/w', 42, {
+    content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.deepEqual(result, { ok: false, failure: 'network-failure' });
+  assert.equal(state.pushCount, 3);
+});
+
+// A rejected PUT (422/409) can mean this exact write already landed via an
+// earlier git-CAS attempt whose local ack was lost to the transport failure
+// that brought us here — not a real contest against someone else's write.
+test('writeClaimBlob: a fallback PUT rejected as a conflict, but whose live content already matches this write, reports success', () => {
+  const { runner, state } = fakeGitCasRunner({
+    pushes: ['reject', 'reject', 'reject'],
+    reads: [
+      { content: HELD_BY_STALE, tipSha: 'b'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'c'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'd'.repeat(40) },
+    ],
+  });
+  const THIS_WRITE_CONTENT = '{"runId":"me"}';
+  let ghApiCalls = 0;
+  const ghApi = (args) => {
+    ghApiCalls += 1;
+    // First call: the pre-PUT fallback re-read. Reports the OLD content
+    // (matches expectedContent), so the code proceeds to the PUT below.
+    if (ghApiCalls === 1) return { stdout: JSON.stringify({ content: HELD_BY_STALE, sha: 'fresh-blob-sha' }), failure: null, status: null };
+    // Second call: the PUT itself, rejected as a sha mismatch (someone —
+    // really, this run's own earlier git-CAS attempt — already updated it).
+    if (ghApiCalls === 2) return { stdout: null, failure: null, status: 409 };
+    // Third call: the self-write recheck re-read shows THIS write's own
+    // content already live.
+    return { stdout: JSON.stringify({ content: THIS_WRITE_CONTENT, sha: 'landed-blob-sha' }), failure: null, status: null };
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner: runner, sleep: () => {} }, 'acme/w', 42, {
+    content: THIS_WRITE_CONTENT, message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.deepEqual(result, { ok: true, failure: null });
+  assert.equal(state.pushCount, 3);
+  assert.equal(ghApiCalls, 3);
+});
+
+// Same self-write scenario, but the pre-PUT fallback re-read itself already
+// shows this write's own content live (the earlier ack-lost write landed
+// before the fallback even issued its PUT) — resolved without ever calling PUT.
+test('writeClaimBlob: the pre-PUT fallback re-read already shows this write\'s own content live — reports success without a PUT', () => {
+  const { runner, state } = fakeGitCasRunner({
+    pushes: ['reject', 'reject', 'reject'],
+    reads: [
+      { content: HELD_BY_STALE, tipSha: 'b'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'c'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'd'.repeat(40) },
+    ],
+  });
+  const THIS_WRITE_CONTENT = '{"runId":"me"}';
+  const ghApi = (args) => {
+    if (args[0] === '--method') throw new Error('the PUT must not be attempted — the self-write check already resolved this as a success');
+    return { stdout: JSON.stringify({ content: THIS_WRITE_CONTENT, sha: 'landed-blob-sha' }), failure: null, status: null };
+  };
+  const result = writeClaimBlob({ ghApi, gitRunner: runner, sleep: () => {} }, 'acme/w', 42, {
+    content: THIS_WRITE_CONTENT, message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.deepEqual(result, { ok: true, failure: null });
+  assert.equal(state.pushCount, 3);
+});
+
+// The git-CAS retry loop now backs off with increasing jitter between
+// attempts, mirroring health-core/durable-state.js's casBackoffMs — a
+// collision on retry is exactly as likely as the first one with no
+// de-synchronization from other writers on the same busy branch.
+test('writeClaimBlob: backs off between git-CAS retry attempts, never after the final one', () => {
+  const { runner } = fakeGitCasRunner({
+    pushes: ['reject', 'reject', 'ok'],
+    reads: [
+      { content: HELD_BY_STALE, tipSha: 'b'.repeat(40) },
+      { content: HELD_BY_STALE, tipSha: 'c'.repeat(40) },
+    ],
+  });
+  const ghApi = () => { throw new Error('contents-API must not be called — this never left the git transport'); };
+  const sleepCalls = [];
+  const result = writeClaimBlob({ ghApi, gitRunner: runner, sleep: (ms) => sleepCalls.push(ms) }, 'acme/w', 42, {
+    content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), expectedContent: HELD_BY_STALE,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(sleepCalls.length, 2, 'sleeps between attempts 1->2 and 2->3, never after the final successful one');
+  for (const ms of sleepCalls) assert.ok(ms > 0, `every wait must be a positive duration, got ${ms}`);
+  assert.ok(sleepCalls[1] > sleepCalls[0], `wait must increase across attempts: ${sleepCalls}`);
 });
 
 // A create-only write has no prior content to compare, so its verification is
@@ -379,7 +498,7 @@ test('writeClaimBlob: create-only — a rejection whose fresh read still shows t
     reads: [{ content: null, tipSha: 'b'.repeat(40) }],
   });
   const ghApi = () => { throw new Error('contents-API must not be called — this never left the git transport'); };
-  const result = writeClaimBlob({ ghApi, gitRunner: runner }, 'acme/w', 42, {
+  const result = writeClaimBlob({ ghApi, gitRunner: runner, sleep: () => {} }, 'acme/w', 42, {
     content: '{"runId":"me"}', message: 'Claim #42', sha: 'a'.repeat(40), createOnly: true,
   });
   assert.equal(result.ok, true);

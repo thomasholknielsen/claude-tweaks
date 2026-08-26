@@ -14,13 +14,22 @@ const isPut = (a) => a[0] === 'api' && a[1] === '--method' && a[2] === 'PUT' && 
 const isComment = (a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '999';
 const isEdit = (a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '999';
 const fieldOf = (a, name) => { for (let k = 0; k < a.length; k++) if (a[k] === '-f' && String(a[k + 1]).startsWith(name + '=')) return a[k + 1].slice(name.length + 1); return undefined; };
-function fakeRunner({ content, sha = 'blobsha1', putThrows, commentThrows, editThrows }) {
+function fakeRunner({
+  content, sha = 'blobsha1', putThrows, commentThrows, editThrows, contentAfterConflict,
+}) {
   const calls = [];
+  let getCount = 0;
   const runner = (args) => {
     calls.push(args);
     if (isGet(args)) {
-      if (content === null) throw new Error('gh: Not Found (HTTP 404)');
-      return JSON.stringify({ content, sha });
+      getCount += 1;
+      // A conflicted PUT's own safety net re-reads the blob (claim-store.js's
+      // self-write recheck, and releaseClaim's own post-conflict
+      // re-verification) — contentAfterConflict lets a test model those
+      // later reads returning something different from the FIRST read.
+      const c = (getCount > 1 && contentAfterConflict !== undefined) ? contentAfterConflict : content;
+      if (c === null) throw new Error('gh: Not Found (HTTP 404)');
+      return JSON.stringify({ content: c, sha });
     }
     if (isPut(args)) { if (putThrows) throw new Error(putThrows); return '{"content":{"sha":"newsha"}}'; }
     if (isComment(args)) { if (commentThrows) throw new Error(commentThrows); return ''; }
@@ -71,15 +80,32 @@ test('releaseClaim --remove-grants adds exactly three label removals after the c
   assert.deepEqual(r.labelsRemoved, ['auto:build', 'auto:merge-pending', 'auto:merge', 'bot:in-progress']);
 });
 
-test('a 404/422 on the PUT still posts the comment and reports already-released', () => {
+// A 404/422/409 on the PUT, re-verified as a genuine tombstone (the claim
+// really was released), stays already-released: comment posted.
+test('a 404/422 on the PUT, re-verified as a genuine tombstone, still posts the comment and reports already-released', () => {
+  const tombstone = JSON.stringify({ released: true, runId: 'someone-else', reason: 'r', releasedAt: '2026-08-16T11:30:00.000Z' });
   for (const msg of ['gh: Not Found (HTTP 404)', 'gh: sha does not match (HTTP 422)']) {
-    const f = fakeRunner({ content: live(OWN), putThrows: msg });
+    const f = fakeRunner({ content: live(OWN), putThrows: msg, contentAfterConflict: tombstone });
     const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner: f.runner, now: NOW });
     assert.equal(r.outcome, 'already-released', msg);
     assert.equal(f.calls.filter(isComment).length, 1, 'comment still posted');
     assert.equal(r.commentPosted, true);
   }
   assert.equal(isAlreadyReleasedError(new Error('HTTP 500')), false);
+});
+
+// #787 hindsight finding: the same 404/422 PUT rejections, but re-verified as
+// STILL held by this run (the fakeRunner default — nothing about the target
+// actually changed) — must fail closed, never silently already-released.
+test('a 404/422 on the PUT, re-verified as STILL held by this run, fails closed with no comment', () => {
+  for (const msg of ['gh: Not Found (HTTP 404)', 'gh: sha does not match (HTTP 422)']) {
+    const f = fakeRunner({ content: live(OWN), putThrows: msg });
+    const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner: f.runner, now: NOW });
+    assert.equal(r.outcome, 'failed', msg);
+    assert.match(r.error, /still held by this run/, msg);
+    assert.equal(f.calls.filter(isComment).length, 0, 'no release comment — the release did not actually happen');
+    assert.equal(r.commentPosted, false);
+  }
 });
 
 test('an absent or tombstoned blob is already-released: no PUT, comment posted, labels still processed', () => {
@@ -128,7 +154,11 @@ test('unreadable/corrupt blob gets its own distinct outcome, never conflated wit
   const f = fakeRunner({ content: live(OWN), putThrows: 'HTTP 500 boom' });
   const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'r', runner: f.runner, now: NOW });
   assert.equal(r.outcome, 'failed');
-  assert.match(r.error, /500/);
+  // writeTombstone's ghApi now classifies the raw error (#787 hindsight
+  // finding) instead of letting it escape verbatim — an unrecognized status
+  // collapses to the same generic 'network-failure' claim-store.js's own
+  // defaultGhApi already uses for any other unclassified gh failure.
+  assert.match(r.error, /network-failure/);
   assert.equal(f.calls.filter(isComment).length, 0);
 });
 
@@ -255,6 +285,51 @@ test('a write conflict whose re-read itself fails is failed (never an unverified
   assert.match(r.error, /HTTP 409\/422/, 'names the original conflict');
   assert.match(r.error, /network-failure/, 'names the re-read failure too');
   assert.deepEqual(calls, [], 'nothing is commented or stripped on an unverifiable release');
+});
+
+// #787 hindsight finding: a re-read that comes back unreadable after a
+// conflict proves neither of the safe outcomes this safety net requires
+// (still held by us, or genuinely released) — it must fail closed, exactly
+// like an unreadable INITIAL read does (the sibling test above), not fall
+// through to the same 'already-released' the live/stale branch reaches.
+test('a write conflict whose re-read comes back unreadable is failed, never silently already-released', (t) => {
+  let reads = 0;
+  t.mock.method(claimStore, 'readClaimBlob', () => {
+    reads += 1;
+    return reads === 1
+      ? { content: live(OWN), sha: 'tip1', failure: null, absent: false }
+      : { content: 'not-valid-json{{{', sha: 'tip2', failure: null, absent: false };
+  });
+  t.mock.method(claimStore, 'writeClaimBlob', () => ({ ok: false, conflict: true, failure: null }));
+  const calls = [];
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', removeGrants: true, runner: (a) => { calls.push(a); return ''; }, gitRunner: () => '', now: NOW });
+  assert.equal(r.outcome, 'failed');
+  assert.match(r.error, /unreadable/);
+  assert.equal(reads, 2, 'the conflict triggered a fresh read');
+  assert.deepEqual(calls, [], 'nothing is commented or stripped when the re-read cannot verify the release');
+});
+
+// #787 hindsight finding: writeTombstone's own ghApi closure had no
+// try/catch, unlike readClaimBlob's — a genuine PUT rejection propagated as
+// a raw throw with `.conflict` unset instead of the classified, conflict-
+// tagged shape claim-store.js's contract requires, so releaseClaim's own
+// catch block skipped the re-verification safety net entirely (the exact
+// case the two tests above exist to require). Exercises the REAL
+// claim-store.js (no mocking) through a git-CAS transport failure that
+// forces the contents-API fallback, so writeTombstone's ghApi closure is
+// the one actually invoked for the rejected PUT.
+test('writeTombstone: a genuine PUT rejection through the real contents-API fallback is classified, not thrown raw — the safety net runs instead of being skipped', () => {
+  const gitRunner = () => { throw new Error('fatal: unable to access: Could not resolve host'); };
+  const runner = (args) => {
+    if (isGet(args)) return JSON.stringify({ content: live(OWN), sha: 'freshsha' });
+    if (isPut(args)) throw new Error('gh: HTTP 409: Conflict (sha does not match)');
+    if (isComment(args)) return '';
+    throw new Error('unexpected ' + args.join(' '));
+  };
+  const r = releaseClaim({ owner: 'acme', repo: 'w', issueNumber: 999, runId: OWN, reason: 'merged: spec 999', runner, gitRunner, now: NOW });
+  assert.equal(r.outcome, 'failed', 'a genuine conflict must trigger the re-verification safety net, not fall through raw to already-released');
+  assert.match(r.error, /still held by this run/);
+  assert.equal(r.commentPosted, false, 'no release comment when the claim is still live and the release did not actually happen');
 });
 
 // A non-conflict already-released-shaped error (a 404 from the contents-API

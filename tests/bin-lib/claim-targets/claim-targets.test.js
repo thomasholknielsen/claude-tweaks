@@ -183,7 +183,11 @@ test('(a2) absent target with a gitRunner: create-only claim goes through git-CA
   const gitRunner = (args) => {
     gitCalls.push(args);
     if (args[0] === 'fetch') return '';
-    if (args[0] === 'rev-parse' && args[1] === 'FETCH_HEAD') return `${TIP}\n`;
+    // readClaimBlobGit fetches into a per-call scratch ref rather than
+    // FETCH_HEAD (#787 hindsight finding — see claims-git-cas.test.js) —
+    // match by shape, not the literal old 'FETCH_HEAD' name.
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') return `${TIP}\n`;
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
     if (args[0] === 'show') throw new Error(`fatal: path 'claims/issue-720.json' does not exist in '${TIP}'`);
     if (args[0] === 'hash-object') return 'deadbeef\n';
     if (args[0] === 'read-tree') return '';
@@ -536,7 +540,11 @@ test('write conflict (lost race): contested exit 3, all-or-abort release, holder
   assert.equal(body.contested.length, 1);
   assert.equal(body.contested[0].issue, 721);
   assert.equal(body.contested[0].holder.runId, 'winnerRun');
-  assert.equal(calls.filter((a) => isRead(a, '721')).length, 2, 'expected the initial read plus one best-effort holder re-read');
+  // 3, not 2: the initial read, writeClaimBlob's own self-write recheck on
+  // the 422/409 rejection (#787 hindsight finding — tells a lost-ack retry
+  // of THIS write apart from a genuine rival), and claim-targets.js's own
+  // best-effort holder re-read afterward.
+  assert.equal(calls.filter((a) => isRead(a, '721')).length, 3, 'expected the initial read, writeClaimBlob\'s self-write recheck, and one best-effort holder re-read');
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
 });
 
@@ -565,7 +573,11 @@ test('write conflict (409 sha-mismatch on the conditional write): contested exit
   assert.equal(body.contested.length, 1);
   assert.equal(body.contested[0].issue, 721);
   assert.equal(body.contested[0].holder.runId, 'winnerRun');
-  assert.equal(calls.filter((a) => isRead(a, '721')).length, 2, 'expected the initial read plus one best-effort holder re-read');
+  // 3, not 2: the initial read, writeClaimBlob's own self-write recheck on
+  // the 422/409 rejection (#787 hindsight finding — tells a lost-ack retry
+  // of THIS write apart from a genuine rival), and claim-targets.js's own
+  // best-effort holder re-read afterward.
+  assert.equal(calls.filter((a) => isRead(a, '721')).length, 3, 'expected the initial read, writeClaimBlob\'s self-write recheck, and one best-effort holder re-read');
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
 });
 

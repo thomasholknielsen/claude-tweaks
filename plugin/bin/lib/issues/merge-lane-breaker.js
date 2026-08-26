@@ -169,6 +169,13 @@ function classifyWatchedRecord(entry, gitLog, now, windowDays) {
   }
 
   const closedAtMs = typeof rec.closedAt === 'string' ? Date.parse(rec.closedAt) : NaN;
+  // An unparseable/missing closedAt deliberately resolves ageDays to 0 rather
+  // than an "unknown age" branch (contrast grant-maturation.js's
+  // evaluateMaturation, which early-returns 'unknown-age' before ever
+  // dividing) — both are fail-safe in the same direction, just shaped
+  // differently for what each caller does next: age 0 here means "never
+  // ages out on bad data," so the record stays watched (`update`/`CLOSED`
+  // below) rather than being silently pruned from tracking.
   const ageDays = Number.isFinite(closedAtMs) ? (now - closedAtMs) / MS_PER_DAY : 0;
   if (ageDays >= windowDays) {
     return { action: 'prune' };

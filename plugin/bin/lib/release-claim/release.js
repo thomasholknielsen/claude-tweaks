@@ -70,8 +70,19 @@ function readClaimBlob({ owner, repo, issueNumber, runner = defaultRunner, gitRu
 // stays byte-for-byte the same write it always made.
 function writeTombstone({ owner, repo, issueNumber, sha, tombstoneContent, expectedContent, message, runner = defaultRunner, gitRunner }) {
   const ghApi = (args) => {
-    const stdout = runner(['api', ...args]);
-    return { stdout, failure: null, status: null };
+    try {
+      const stdout = runner(['api', ...args]);
+      return { stdout, failure: null, status: null };
+    } catch (err) {
+      // Mirror readClaimBlob's ghApi above: claim-store.js's contract says
+      // ghApi never throws (see that file's header comment) — an uncaught
+      // exception here bypassed writeClaimBlob's own conflict classification
+      // entirely, so a genuine 409/422 rejection surfaced as a raw throw with
+      // `.conflict` unset, skipping releaseClaim's re-verification safety net
+      // below (a false 'already-released' with a still-live claim).
+      const { failure, status } = claimStore.classifyGhApiError(err);
+      return { stdout: null, failure, status };
+    }
   };
   const result = claimStore.writeClaimBlob({ ghApi, gitRunner }, `${owner}/${repo}`, issueNumber, {
     content: tombstoneContent, sha, expectedContent, message,
@@ -169,6 +180,13 @@ function releaseClaim({
             result.error = `write conflict releasing #${issueNumber}, but the claim is still held by this run (${runId}) — the release did NOT happen (unrelated claims-registry activity lost us the compare-and-swap; retry): ${errorText(err)}`;
             return result;
           }
+        } else if (after.state === 'unreadable') {
+          // A corrupt/partial re-read is none of the three states this
+          // safety net requires before falling through (absent, tombstoned,
+          // or held by a successor) — it proves nothing either way. Fail
+          // closed rather than let it silently reach 'already-released'.
+          result.error = `write conflict releasing #${issueNumber}, and the re-read claim blob is unreadable — could not verify whether the release happened or the claim is still live: ${errorText(err)}`;
+          return result;
         }
       }
       result.outcome = 'already-released';
