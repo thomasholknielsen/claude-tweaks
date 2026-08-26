@@ -151,7 +151,7 @@ spec-shape re-check immediately before Step 4).
 
 Accepted defaults, paste-ready (Step 5's Flag-back-rows mechanics — bootstrap comment lives there,
 not repeated here). Write every flag-back row's action to `"$ST_BACKLOG_REFINE_ACTIONS_FLAGBACK"`
-(`removeLabels: ["ready"], commentFile: "/tmp/backlog-refine-flagback-{issue}.md"` per record —
+(`removeLabels: ["ready"], commentFile: "$BACKLOG_REFINE_FLAGBACK"` per record —
 the per-record flagback body file is still written exactly as before, just referenced by path
 instead of pasted as its own `gh issue comment` line), then apply the whole lane in one call:
 
