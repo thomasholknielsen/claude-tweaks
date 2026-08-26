@@ -57,3 +57,26 @@ test('go-red control: pre-change Skip rows section treats every failedKey identi
   assert.ok(!PRE_CHANGE_SKIP_ROWS.includes('grant-lane-decision.md'), 'control must not already cite grant-lane-decision.md');
   assert.ok(!PRE_CHANGE_SKIP_ROWS.includes('needs:decision'), 'control must not already carve out a needs:decision case');
 });
+
+const REFINE_LANES_FLAT = readFlat('plugin/skills/backlog/refine-lanes.md');
+
+test('refine-lanes.md declares a Needs-decision lane between Flag-back and Priority', () => {
+  const flagBackIdx = REFINE_LANES_FLAT.indexOf('## Flag-back');
+  const needsDecisionIdx = REFINE_LANES_FLAT.indexOf('## Needs-decision');
+  const priorityIdx = REFINE_LANES_FLAT.indexOf('## Priority');
+  assert.ok(flagBackIdx !== -1 && needsDecisionIdx !== -1 && priorityIdx !== -1, 'all three lane headings must exist');
+  assert.ok(flagBackIdx < needsDecisionIdx && needsDecisionIdx < priorityIdx, 'Needs-decision lane must sit between Flag-back and Priority');
+});
+
+test('refine-lanes.md Needs-decision lane writes addLabels + commentFile via apply-refine-labels.js', () => {
+  const needsDecisionIdx = REFINE_LANES_FLAT.indexOf('## Needs-decision');
+  const priorityIdx = REFINE_LANES_FLAT.indexOf('## Priority');
+  const section = REFINE_LANES_FLAT.slice(needsDecisionIdx, priorityIdx);
+  assert.ok(section.includes('ST_BACKLOG_REFINE_ACTIONS_NEEDSDECISION'), 'Needs-decision lane must resolve its own actions-file variable');
+  assert.ok(section.includes('apply-refine-labels.js'), 'Needs-decision lane must apply via apply-refine-labels.js');
+  assert.ok(section.includes('needs:decision'), 'Needs-decision lane must name the needs:decision label');
+});
+
+test('refine-lanes.md lane precedence line names Needs-decision', () => {
+  assert.ok(REFINE_LANES_FLAT.includes('Needs-decision'), 'the one-lane-per-record precedence statement must name the Needs-decision lane');
+});
