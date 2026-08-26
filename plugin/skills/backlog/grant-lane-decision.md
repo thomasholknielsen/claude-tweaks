@@ -29,7 +29,7 @@ returns `grant: false, failedKey: 'grant-check'` — gate 4 denied a candidate t
 gates 1-3. Unlike `refine`'s path, no risk/size precondition applies here — every other `failedKey`
 at any phase stays a silent Skip row (`grant-mode.md` Step 4, unchanged).
 
-## Idempotence check (before lanning/applying)
+## Idempotence check (before laning/applying)
 
 Query whether this record already carries an *unresolved* decision comment from this unit:
 
@@ -43,7 +43,10 @@ comment never matches this query even though the marker text is still present in
 deliberate: a resolved comment must never gate a fresh one.
 
 - **Non-empty** — an earlier run already marked this record for this unit. Render one annotation
-  line only, never a fresh row, and write nothing this run.
+  line only, never a fresh row, and write nothing this run — as its own bare line under the
+  caller's own Needs-decision lane heading (`refine-lanes.md`'s Needs-decision lane, or
+  `grant-mode.md`'s Needs-decision rows), since a record on this branch has no higher-precedence
+  lane row to attach beneath.
 - **Empty** — lane/apply it as a fresh row.
 
 ## Write mechanics (`needs:decision` outcome only)
@@ -61,8 +64,10 @@ Keep `ready`, add no `auto:*` grant, add `needs:decision` (bootstrap per
 
 `{unit}` is `backlog-refine` or `backlog-grant` — the literal skill/mode name that wrote it, per
 `_shared/work-record.md`'s decision-comment template. `**Command:**` is always
-`/claude-tweaks:backlog refine #{n}`, regardless of which unit wrote the comment — both origins
-resolve through the same front door (`grant-mode.md`'s own Gotcha).
+`/claude-tweaks:backlog refine #{n}`, regardless of which unit wrote the comment — `grant-mode.md`
+is a headless unit with no human-facing apply step of its own, so a record it stamps
+`needs:decision` is resolved the same way as one `refine` stamped directly: through `/backlog
+refine`'s own Needs-decision lane, the only place this outcome is ever applied.
 
 ```bash
 eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_NEEDS_DECISION=backlog-needs-decision-${ISSUE}.md")"

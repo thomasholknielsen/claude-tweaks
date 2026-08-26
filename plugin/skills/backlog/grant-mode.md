@@ -421,17 +421,18 @@ already uses.
 AUTO {time} — Backlog grant: ceiling gate not satisfied (ceiling={x}, opt-in={y}) — nothing to do this firing.
 AUTO {time} — Backlog grant: granted auto:build{ + auto:merge-pending} to #{n} (class {classKey}, verdict clean). Rationale: {grant-check RATIONALE}.
 AUTO {time} — Backlog grant: re-authorized #{n} — stripped bot:blocked, granted auto:build only.
+AUTO {time} — Backlog grant: stamped needs:decision on #{n} — {grant-check RATIONALE}.
 AUTO {time} — Backlog grant: skipped #{n} — {failedKey}: {reason}.
 ```
 
-Every grant and every skip gets exactly one line — "no silent outcome in either direction" is
-this record's own Deliverables wording, not a stylistic preference.
+Every grant, every needs-decision stamp, and every skip gets exactly one line — "no silent outcome
+in either direction" is this record's own Deliverables wording, not a stylistic preference.
 
 ## Step 5: Report
 
 No `AskUserQuestion` for any individual decision — this mode's entire point is that the gate
 chain, not a human, decides. At the end, render a short summary (record count granted /
-re-authorized / skipped, with skip reasons grouped by `failedKey`) and the Next Actions block
+re-authorized / needs-decision / skipped, with skip reasons grouped by `failedKey`) and the Next Actions block
 from `SKILL.md` (rendered only when a human is present — see that file's Next Actions section
 and Component-Skill Contract).
 

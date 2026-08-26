@@ -1,7 +1,7 @@
 # Backlog Refine — Step 4: Decision Lanes
 
 Loaded by `refine-mode.md`'s Step 4 at render time — this file is the full rendering procedure the
-stub there points to. Holds the one-lane-per-record precedence rule, the six lane table/paste-block
+stub there points to. Holds the one-lane-per-record precedence rule, the seven lane table/paste-block
 templates, the consequence-line trust and `solution:unjustified` annotation templates, the count-summary
 line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line rule, and the
 confirm gate.
@@ -181,7 +181,11 @@ Population: rows `grant-lane-decision.md`'s branch routes to `needs:decision` �
 spec-shaped record `grant-check` refused for a content reason, not a scoring gap (`refine-mode.md`
 Step 3 / Step 3.5). Rows already carrying an unresolved `<!-- needs-decision: backlog-refine -->`
 comment (`grant-lane-decision.md`'s Idempotence check) render one annotation line instead of a
-fresh row and write nothing this run.
+fresh row and write nothing this run. Unlike the Priority/Dependency-repair annotation lines, which
+attach beneath a record's row in a higher-precedence lane, this one has no such row to attach
+to — a record on this branch is idempotent by construction, not newly laned elsewhere this run —
+so it renders as its own bare line directly under this `## Needs-decision` heading, above the table
+when both render this run.
 
 | # | Record | Current → Recommended | Evidence |
 |---|---|---|---|
@@ -190,7 +194,7 @@ fresh row and write nothing this run.
 Accepted defaults, paste-ready (`grant-lane-decision.md`'s Write mechanics — bootstrap comment
 lives there, not repeated here). Write every needs-decision row's action to
 `"$ST_BACKLOG_REFINE_ACTIONS_NEEDSDECISION"` (`addLabels: ["needs:decision"], commentFile:
-"/tmp/backlog-needs-decision-{issue}.md"` per record), then apply the whole lane in one call:
+"$BACKLOG_NEEDS_DECISION"` per record), then apply the whole lane in one call:
 
 ```bash
 ── Needs-decision ──

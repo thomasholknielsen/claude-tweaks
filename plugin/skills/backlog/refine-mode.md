@@ -247,9 +247,8 @@ born-`ready` by this path and this step does nothing.
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-One lane per record, precedence: Re-authorize → Grant → Flag-back → Priority → Dependency repair →
-Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its priority/Related
-suggestion as an annotation line under its row — a suggestion is never silently dropped.
+One lane per record, precedence: Re-authorize → Grant → Flag-back → Needs-decision → Priority →
+Dependency repair → Needs you.
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
 and paste-block templates, the consequence-line trust and `solution:unjustified` annotation templates, the
@@ -359,8 +358,9 @@ AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: repaired dependency on #{n} — {wired native blocked-by referencing #{m} | appended Blocked by #{m} line}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
+AUTO {time} — Backlog refine: stamped needs:decision on #{n} — {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: skipped #{n} — premise changed since confirmation ({what changed}); dropped without writing.
-FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
+FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back | needs-decision} write failed on #{n}: {error}.
 ```
 
 The closing summary below counts these lines by type — `FAILED` feeds the tally's `failed` count and per-failure lines; `AUTO … skipped …` (including a reverify-fetch failure) feeds `skipped` and its per-skip lines; a write with no matching line was never attempted and counts toward neither.
