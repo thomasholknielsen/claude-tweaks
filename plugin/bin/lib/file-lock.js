@@ -47,7 +47,10 @@ function acquireLock(lockPath) {
         // retry the lock attempt, rather than treating this as "nothing to
         // lock" and letting every concurrent caller skip locking entirely
         // (#1269 follow-up: this was silently unlocking every worker racing
-        // a brand-new store).
+        // a brand-new store — also the confirmed root cause of #1192's
+        // ~2/3-of-isolated-runs flake in
+        // store-concurrency.test.js, root-caused there before this fix
+        // landed and re-verified passing reliably afterward).
         try { fs.mkdirSync(parentDir, { recursive: true }); } catch { /* races with a sibling creator are fine */ }
         if (Date.now() >= deadline) return null;
         continue;

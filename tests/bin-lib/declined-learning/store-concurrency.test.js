@@ -6,6 +6,13 @@
 // the second write would silently drop the first's entry. Mirrors
 // tests/hooks-context.test.js's real cross-process concurrency regression test for
 // writeRunState's identical shape.
+//
+// Also the regression test for #1192 (observed failing ~2/3 of isolated runs): root-caused to
+// ../../../plugin/bin/lib/file-lock.js's acquireLock treating a missing lock-parent-directory
+// (ENOENT, the normal state on a brand-new project's first-ever concurrent write) as "nothing to
+// lock" and failing open unlocked for every racing worker. Fixed by 6e54e0d ("Fix acquireLock:
+// missing parent dir must retry, not fail open unlocked", refs #1269 — same underlying bug,
+// filed independently) — re-verified passing reliably in isolation after that fix landed.
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
