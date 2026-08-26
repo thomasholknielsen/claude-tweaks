@@ -436,6 +436,34 @@ test('run-dir-archived check still behaves as before for a single-spec (non-subd
   }
 });
 
+// record #1222 AC3: run-dir-archived must keep resolving against repoRoot
+// even when cwd differs and is genuinely dirty -- proves the cwd threading
+// in Task 1 did not accidentally widen run-dir-archived's own scope.
+test('run-dir-archived check keeps resolving against repoRoot even when cwd differs and is dirty (AC3 regression guard)', () => {
+  const runId = 'test-archived-cwd-regression-900';
+  const repoRoot = makeCleanRepoRoot();
+  const cwd = makeCleanRepoRoot(); // a different, dirty "worktree" -- must not affect this check
+  const archivePath = path.join(repoRoot, '.claude-tweaks', 'pipelines', 'archive', runId);
+  fs.mkdirSync(archivePath, { recursive: true });
+  // Plant a leftover under cwd that plans-ledger WOULD fail on, proving
+  // run-dir-archived ignores cwd entirely (a genuine sanity check, not just
+  // an assumption).
+  fs.mkdirSync(path.join(cwd, '.superpowers', 'sdd', 'stray'), { recursive: true });
+  try {
+    const result = runVerify({
+      runDir: path.join(repoRoot, '.claude-tweaks', 'pipelines', runId),
+      base: 'main', repoRoot, cwd, deps: { git: () => '', gh: () => '' },
+    });
+    const archivedRow = result.rows.find((r) => r.check === 'run-dir-archived');
+    assert.strictEqual(archivedRow.result, 'pass', archivedRow.detail);
+    const plansRow = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(plansRow.result, 'fail', 'sanity check: the stray cwd leftover must actually be visible to plans-ledger');
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 // ---- resolveArchivedRunDir: real (ISO-timestamped) run ids (record #900
 // whole-branch re-review, finding #1 -- Critical regression) ----
 //
