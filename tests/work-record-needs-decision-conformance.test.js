@@ -45,3 +45,20 @@ test('go-red control: pre-change Definition-family row does not carry needs:deci
   assert.ok(!PRE_CHANGE_DEFINITION_ROW.includes('needs:decision'), 'control must not already contain needs:decision (proves the row-presence assertion above can fail)');
   assert.ok(!PRE_CHANGE_DEFINITION_ROW.includes('a headless unit skips any open record'), 'control must not already contain the worklist rule (proves that assertion above can fail)');
 });
+
+const { ensureLabelPayload } = require('../plugin/bin/lib/issues/labels.js');
+const LABEL_BOOTSTRAP_FLAT = readFlat('plugin/skills/_shared/label-bootstrap.md');
+
+test('label-bootstrap.md carries needs:decision in the canonical LABELS_JSON list', () => {
+  assert.ok(LABEL_BOOTSTRAP_FLAT.includes('["needs:decision",'), 'needs:decision missing from LABELS_JSON');
+  assert.ok(LABEL_BOOTSTRAP_FLAT.includes('a headless unit proposed an action it may not take alone — see the newest decision comment'), 'needs:decision description text missing or altered');
+});
+
+test('label-bootstrap.md bumps LABEL_BOOTSTRAP_VERSION from 5 to 6', () => {
+  assert.ok(LABEL_BOOTSTRAP_FLAT.includes('current value: `6`'), 'LABEL_BOOTSTRAP_VERSION must read current value: 6');
+  assert.ok(!LABEL_BOOTSTRAP_FLAT.includes('current value: `5`'), 'stale current value: 5 must be gone');
+});
+
+test('needs:decision description fits GitHub\'s 100-char label description cap', () => {
+  assert.doesNotThrow(() => ensureLabelPayload('needs:decision', 'a headless unit proposed an action it may not take alone — see the newest decision comment'));
+});
