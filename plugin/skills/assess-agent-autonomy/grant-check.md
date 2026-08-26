@@ -103,8 +103,10 @@ RATIONALE: {one paragraph, naming the specific content signal the recommendation
 ```
 
 If nothing in the record's content or scoring supports any recommendation, output
-`RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` — backlog refine's grant sub-stage already treats this the same
-as today's "flag back (needs scoring)" case; no separate error path is needed here.
+`RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` — backlog refine's grant sub-stage already
+routes this on the record's own `risk:*`/`size:*` labels, independent of why this mode couldn't
+recommend: unscored → "flag back (needs scoring)"; already scored → human-only (`refine-mode.md`
+Step 3, `human-only-outcome.md`). No separate error path is needed here.
 
 **Ceremony-tier disclosure.** When recommending `RECOMMEND_MERGE: true` for a record whose
 `ceremony:*` label is `fast-lane`, the RATIONALE must explicitly state the review-depth this
