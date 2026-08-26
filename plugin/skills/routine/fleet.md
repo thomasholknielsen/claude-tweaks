@@ -171,7 +171,7 @@ delete-and-recreate offer, which would break this section's read-only promise mi
 |---|---|---|---|
 | {name} | {record.schedule} | {last-run field from `RemoteTrigger get`, or "unknown — get response carries no last-run field"} | {STATUS verdict: In sync / Drifted / Orphaned / Stale / Malformed} |
 
-Health is exactly `status.md`'s five-verdict set — never a sixth value.
+Health is exactly `status.md`'s five-verdict set — never a sixth value. When a record's `webhook_triggers` array (`_shared/routine-template-schema.md`) is non-empty, append its length to the Routine cell, e.g. `code-health-daily (+1 webhook)` — empty or absent renders nothing extra, never a literal `(+0 webhook)`.
 
 ### Step S2 — Trust table
 

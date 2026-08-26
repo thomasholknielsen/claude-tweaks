@@ -54,3 +54,16 @@ test('SKILL.md Workflow table routes webhook-trigger to webhook-trigger.md', () 
   const content = fs.readFileSync(skillMdPath, 'utf8');
   assert.match(content, /webhook-trigger[\s\S]{0,200}webhook-trigger\.md/);
 });
+
+const statusMdPath = path.join(__dirname, '../plugin/skills/routine/status.md');
+const fleetMdPath = path.join(__dirname, '../plugin/skills/routine/fleet.md');
+
+test('status.md reports webhook_triggers presence in its per-record verdict', () => {
+  const content = fs.readFileSync(statusMdPath, 'utf8');
+  assert.match(content, /webhook_triggers/);
+});
+
+test('fleet.md surfaces webhook_triggers in its fleet status table', () => {
+  const content = fs.readFileSync(fleetMdPath, 'utf8');
+  assert.match(content, /webhook_triggers/);
+});
