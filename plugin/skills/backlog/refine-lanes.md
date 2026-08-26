@@ -1,7 +1,7 @@
 # Backlog Refine — Step 4: Decision Lanes
 
 Loaded by `refine-mode.md`'s Step 4 at render time — this file is the full rendering procedure the
-stub there points to. Holds the one-lane-per-record precedence rule, the six lane table/paste-block
+stub there points to. Holds the one-lane-per-record precedence rule, the seven lane table/paste-block
 templates, the consequence-line trust and `solution:unjustified` annotation templates, the count-summary
 line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line rule, and the
 confirm gate.
