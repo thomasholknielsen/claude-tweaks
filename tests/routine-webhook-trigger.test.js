@@ -67,3 +67,8 @@ test('fleet.md surfaces webhook_triggers in its fleet status table', () => {
   const content = fs.readFileSync(fleetMdPath, 'utf8');
   assert.match(content, /webhook_triggers/);
 });
+
+test('webhook-trigger.md confirms GitHub event triggers are tool-supported, not web-UI-only', () => {
+  const content = fs.readFileSync(webhookTriggerMdPath, 'utf8');
+  assert.match(content, /programmatically|via this tool|via `?RemoteTrigger`?/i);
+});
