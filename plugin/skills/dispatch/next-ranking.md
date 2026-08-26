@@ -27,8 +27,9 @@ node -e "
   // Size guard (#1228): exclude an oversized group from next's headless
   // candidate pool -- see queue-pull-script.md for the oversized set.
   const oversized = require(process.argv[3]);
-  const oversizedKeys = new Set(oversized.map((o) => o.records.slice().sort((a, b) => a - b).join(',')));
-  const keyOf = (g) => g.map((r) => r.number).sort((a, b) => a - b).join(',');
+  const sortedKey = (nums) => nums.slice().sort((a, b) => a - b).join(',');
+  const oversizedKeys = new Set(oversized.map((o) => sortedKey(o.records)));
+  const keyOf = (g) => sortedKey(g.map((r) => r.number));
   const eligibleGroups = groups.filter((g) => !oversizedKeys.has(keyOf(g)));
   const representative = (g) => g.slice().sort((a, b) =>
     bandOf(a) - bandOf(b) || new Date(a.createdAt) - new Date(b.createdAt))[0];
