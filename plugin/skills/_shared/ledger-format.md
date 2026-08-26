@@ -66,7 +66,7 @@ The qualifier adds specificity when a skill produces multiple finding types, but
 
 | Phase | Source | Typical Items |
 |-------|--------|---------------|
-| `ops` | `/claude-tweaks:build` | Manual steps from spec that survived auto-classification triage (only items with a `reason-not-auto` qualifier — see below) |
+| `ops` | `/claude-tweaks:build` | Manual steps from spec that survived auto-classification triage, or discovered at AC-verification time inside the build itself (only items with a `reason-not-auto` qualifier — see below) |
 | `build` | `/claude-tweaks:build` | Architecture deviations, blocked work, shared constants |
 | `build/ops` | `/claude-tweaks:build` | Operational requirements that survived the platform probe — auto-executable items do not appear here |
 | `build/skill` | `/claude-tweaks:build` | Skill update candidates from build observations |

@@ -22,8 +22,10 @@ function neverReversibleSection() {
 
 function requiredForOpsSection() {
   const start = LEDGER_FORMAT.indexOf('Required for `ops`-phase items');
+  const end = LEDGER_FORMAT.indexOf('## Resolve Gate (Nothing-Left-Behind)', start);
   assert.notStrictEqual(start, -1, 'Required for ops-phase items heading present');
-  return LEDGER_FORMAT.slice(start);
+  assert.ok(end > start, 'section delimited by the Resolve Gate heading');
+  return LEDGER_FORMAT.slice(start, end);
 }
 
 test('auto-mode-contract.md names the deferred-live-verification AC class as never-reversible', () => {
@@ -40,7 +42,7 @@ test('the documented rule generalizes past the worktree\\/PR\\/merge example (sp
   assert.match(section, /irreversible external API call/i);
 });
 
-test('_shared/auto-mode-contract.md stays within the context-cost ceiling with headroom', () => {
+test('_shared/auto-mode-contract.md stays within the context-cost ceiling', () => {
   const CEILING_BYTES = 40 * 1024;
   const bytes = Buffer.byteLength(CONTRACT, 'utf8');
   assert.ok(bytes <= CEILING_BYTES, `auto-mode-contract.md is ${bytes} bytes, over the ${CEILING_BYTES} ceiling`);
