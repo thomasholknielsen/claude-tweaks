@@ -12,8 +12,13 @@ function makeTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-// plans-ledger's sdd-leftover check reads repoRoot's own filesystem directly
-// (not via deps.git), so any test whose assertions depend on an exact
+// plans-ledger's sdd-leftover check reads cwd's own filesystem directly (not
+// via deps.git), not repoRoot -- but runVerify resolves cwd as
+// `cwd || repoRoot || process.cwd()`, so an isolated repoRoot still isolates
+// cwd too (via that fallback) whenever a test doesn't separately pass its
+// own cwd. That's exactly why the existing makeCleanRepoRoot() convention at
+// every call site that already isolates repoRoot remains sufficient with no
+// call-site changes. So any test whose assertions depend on an exact
 // failing-row set or a specific exitCode -- but isn't itself exercising
 // plans-ledger/design-caches -- must pass an isolated repoRoot rather than
 // let it default to process.cwd(). This repo's own worktree legitimately has

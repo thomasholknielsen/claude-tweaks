@@ -34,7 +34,7 @@ function defaultGh(args, cwd) {
 }
 
 // Registry of check functions, populated by Tasks 2-5. Each entry:
-// { name: string, fn: ({runDir, originalRunDir, base, repoRoot, expectations, deps}) => {result, detail} }.
+// { name: string, fn: ({runDir, originalRunDir, base, repoRoot, cwd, expectations, deps}) => {result, detail} }.
 // A flat array (not an object keyed by name) preserves the fixed row order
 // the table renders in, matching the prose checklist's original order.
 const CHECKS = [];
@@ -583,6 +583,14 @@ function runVerify({ runDir, originalRunDir, base, repoRoot, cwd, deps = {} }) {
   // separately supply one, so every existing repoRoot-isolating test fixture
   // isolates `cwd` too, for free, with no call-site changes required
   // (record #1222).
+  // Tradeoff this fallback accepts: a caller that supplies `repoRoot` but
+  // omits `cwd` silently gets main-checkout-only scanning for
+  // `plans-ledger`/`design-caches` -- exactly the #1222 blind spot this fix
+  // closes elsewhere. That's intentional for today's one production caller
+  // (`wrap-up-engine.js`'s `runVerifyVerb`, which always supplies both), but
+  // any FUTURE caller of `runVerify` must supply `cwd` explicitly to get the
+  // fix's benefit -- it does not come for free just because `repoRoot` is
+  // set.
   const resolvedCwd = cwd || repoRoot || process.cwd();
   const resolvedOriginalRunDir = originalRunDir || runDir;
   const expectations = runDir === null ? null : readExpectations(runDir);
