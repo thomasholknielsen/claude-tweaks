@@ -52,11 +52,14 @@ Record set: closed records from the last 30 days. The `date` fallback covers bot
 plugin runs on — BSD `date` (macOS, this project's development platform) uses `-v-30d`; GNU `date`
 (Linux, cloud Routine sandboxes) uses `-d '30 days ago'`.
 
+Resolve session-scoped paths first (`_shared/session-tmp-root.md`, cited throughout this file rather than restated):
+
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CLOSED=tidy-closed-records.json)"
 gh issue list --state closed --limit 200 \
   --json number,title,state,labels,closedAt \
   --jq '[.[] | select(.closedAt > "'"$(date -u -v-30d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)"'")]' \
-  > /tmp/tidy-closed-records.json
+  > "$CLOSED"
 ```
 
 A closed record whose acceptance lives on a `/claude-tweaks:specify` decomposition parent must
@@ -85,8 +88,8 @@ The printed value names the branch to take — the resolver applies the document
 (`body-text`) when the key is unset. Taking the `body-text` branch on a `work-links: native` repo
 is not a degraded read but a silent total failure: a native parent's body carries no task list by
 construction, so `parseSubIssues` returns `[]` for every parent,
-`/tmp/tidy-acceptance-gap-sub-issues.json` is empty, and every decomposed sub-issue re-enters this
-scope as a false `[acceptance-gap]` row — the
+this scope's session-scoped `tidy-acceptance-gap-sub-issues.json` is empty, and every decomposed
+sub-issue re-enters this scope as a false `[acceptance-gap]` row — the
 exact flood `hasParent` exists to stop, with no error anywhere to say so.
 
 ### Fetch limit
@@ -110,53 +113,59 @@ rows the filter exists to remove.
 
 **`work-links: body-text`** — every parent's task list comes back in the same fetch:
 
+Resolve session-scoped paths first (`_shared/session-tmp-root.md`):
+
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PFG_NEW=tidy-parents-for-gap-new.json PFG_LEG=tidy-parents-for-gap-legacy.json GAP_SUBS=tidy-acceptance-gap-sub-issues.json)"
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 gh issue list --label parent-issue --state all --json number,body --limit "$LIMIT" \
-  > /tmp/tidy-parents-for-gap-new.json
+  > "$PFG_NEW"
 # Legacy-label fetch — PERMANENT cross-project support for adopter repos that haven't migrated;
 # removable only at a major version dropping pre-rename repo support. [IL-85]
 gh issue list --label family:parent --state all --json number,body --limit "$LIMIT" \
-  > /tmp/tidy-parents-for-gap-legacy.json
+  > "$PFG_LEG"
 
 node -e "
   const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
   const LIMIT = Number(process.env.FETCH_LIMIT);
-  const fetched = ['/tmp/tidy-parents-for-gap-new.json', '/tmp/tidy-parents-for-gap-legacy.json'].map(require);
+  const fetched = ['$PFG_NEW', '$PFG_LEG'].map(require);
   // Number-keyed dedup across the two label fetches — identical rows, either fetch may win.
   const parents = [...new Map(fetched.flat().map((p) => [p.number, p])).values()];
   if (fetched.some((f) => f.length === LIMIT)) {
     console.error('WARNING: a parent fetch returned exactly ' + LIMIT + ' records (the configured backlog-fetch-limit) — older parents were dropped, so their sub-issues re-enter this scope as false acceptance-gap rows. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before acting on any row below.');
   }
   const subIssueNumbers = parents.flatMap((p) => parseSubIssues(p.body));
-  fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
+  fs.writeFileSync('$GAP_SUBS', JSON.stringify(subIssueNumbers));
 "
 ```
 
 **`work-links: native`** — one `sub_issues` call per parent, same endpoint as `parent-gate`'s
 native branch:
 
+Resolve session-scoped paths first (`_shared/session-tmp-root.md`):
+
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PFG_NEW=tidy-parents-for-gap-new.json PFG_LEG=tidy-parents-for-gap-legacy.json PFG=tidy-parents-for-gap.json)"
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 gh issue list --label parent-issue --state all --json number --limit "$LIMIT" \
-  > /tmp/tidy-parents-for-gap-new.json
+  > "$PFG_NEW"
 # Legacy-label fetch — PERMANENT cross-project support for adopter repos that haven't migrated;
 # removable only at a major version dropping pre-rename repo support. [IL-85]
 gh issue list --label family:parent --state all --json number --limit "$LIMIT" \
-  > /tmp/tidy-parents-for-gap-legacy.json
+  > "$PFG_LEG"
 
 node -e "
   const fs = require('fs');
-  const fetched = ['/tmp/tidy-parents-for-gap-new.json', '/tmp/tidy-parents-for-gap-legacy.json'].map(require);
+  const fetched = ['$PFG_NEW', '$PFG_LEG'].map(require);
   // Number-keyed dedup across the two label fetches — identical rows, either fetch may win.
   const parents = [...new Map(fetched.flat().map((p) => [p.number, p])).values()];
   if (fetched.some((f) => f.length === Number(process.env.FETCH_LIMIT))) {
     console.error('WARNING: a parent fetch returned exactly ' + process.env.FETCH_LIMIT + ' records (the configured backlog-fetch-limit) — older parents were dropped, so their sub-issues re-enter this scope as false acceptance-gap rows. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before acting on any row below.');
   }
-  fs.writeFileSync('/tmp/tidy-parents-for-gap.json', JSON.stringify(parents));
+  fs.writeFileSync('$PFG', JSON.stringify(parents));
 "
 ```
 
@@ -167,13 +176,14 @@ command substitution rather than an `xargs` pipe so an empty parent list still i
 status survives instead of being replaced by the pipe's:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" --resolve-retries $(node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))") > /tmp/tidy-gap-sub-issues-batch.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PFG=tidy-parents-for-gap.json GAP_BATCH=tidy-gap-sub-issues-batch.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" --resolve-retries $(node -e "require('$PFG').forEach(p => console.log(p.number))") > "$GAP_BATCH"
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
 GraphQL field is unavailable on this host — run the Fallback block below for **every** parent
-instead of the canonicalization step that follows; it produces the same
-`/tmp/tidy-acceptance-gap-sub-issues.json` by the older, verbatim REST path. **Exit 3** — the
+instead of the canonicalization step that follows; it produces the same session-scoped
+`tidy-acceptance-gap-sub-issues.json` by the older, verbatim REST path. **Exit 3** — the
 GraphQL call itself failed (network/API error, or a missing-repository response) — the run fails
 loud: report no `[acceptance-gap]` rows at all, naming the failed parents from the command's
 stderr. **Exit 1 or 2** — a malformed invocation or a missing `gh`/unresolvable repo: an
@@ -186,45 +196,47 @@ failed would have already made the CLI exit 3 above, naming the parent. The only
 canonicalization — flatten, dedupe, sort:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" GAP_BATCH=tidy-gap-sub-issues-batch.json GAP_SUBS=tidy-acceptance-gap-sub-issues.json)"
 node -e "
   const fs = require('fs');
-  const batch = require('/tmp/tidy-gap-sub-issues-batch.json');
+  const batch = require('$GAP_BATCH');
   const all = Object.values(batch.byParent || {}).flat();
   const subIssueNumbers = Array.from(new Set(all)).sort((a, b) => a - b);
-  fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
+  fs.writeFileSync('$GAP_SUBS', JSON.stringify(subIssueNumbers));
 "
 ```
 
-`/tmp/tidy-acceptance-gap-sub-issues.json` is only ever written here, once the envelope is already
-fully resolved — there is no partial-write hazard left to guard against, since a failed retry never
-reaches this line at all.
+This run's session-scoped `tidy-acceptance-gap-sub-issues.json` is only ever written here, once the
+envelope is already fully resolved — there is no partial-write hazard left to guard against, since a
+failed retry never reaches this line at all.
 
 #### Fallback (probe unavailable — older GHE)
 
 Runs only on exit 4 above, for every parent — the older, per-parent REST loop this branch used
-before the batched probe existed:
+before the batched probe existed. Resolve session-scoped paths first (`_shared/session-tmp-root.md`):
 
 ```bash
-: > /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl
-: > /tmp/tidy-acceptance-gap-fallback-failures.txt
-node -e "require('/tmp/tidy-parents-for-gap.json').forEach(p => console.log(p.number))" | while read -r N; do
-  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> /tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl || echo "$N" >> /tmp/tidy-acceptance-gap-fallback-failures.txt
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PFG=tidy-parents-for-gap.json GAP_NUMS=tidy-acceptance-gap-sub-issue-numbers.jsonl GAP_FAIL=tidy-acceptance-gap-fallback-failures.txt GAP_SUBS=tidy-acceptance-gap-sub-issues.json)"
+: > "$GAP_NUMS"
+: > "$GAP_FAIL"
+node -e "require('$PFG').forEach(p => console.log(p.number))" | while read -r N; do
+  gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq '.[].number' >> "$GAP_NUMS" || echo "$N" >> "$GAP_FAIL"
 done
 
 node -e "
   const fs = require('fs');
-  const failures = fs.readFileSync('/tmp/tidy-acceptance-gap-fallback-failures.txt', 'utf8').trim().split('\n').filter(Boolean);
+  const failures = fs.readFileSync('$GAP_FAIL', 'utf8').trim().split('\n').filter(Boolean);
   if (failures.length) {
-    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write /tmp/tidy-acceptance-gap-sub-issues.json on an undercounted set');
+    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write the acceptance-gap sub-issues file on an undercounted set');
   }
-  const raw = fs.readFileSync('/tmp/tidy-acceptance-gap-sub-issue-numbers.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  const raw = fs.readFileSync('$GAP_NUMS', 'utf8').trim().split('\n').filter(Boolean).map(Number);
   const subIssueNumbers = Array.from(new Set(raw)).sort((a, b) => a - b);
-  fs.writeFileSync('/tmp/tidy-acceptance-gap-sub-issues.json', JSON.stringify(subIssueNumbers));
+  fs.writeFileSync('$GAP_SUBS', JSON.stringify(subIssueNumbers));
 "
 ```
 
-Both the primary path and the Fallback path converge on the same canonicalized
-`/tmp/tidy-acceptance-gap-sub-issues.json` — numerically sorted, deduplicated — which is what makes
+Both the primary path and the Fallback path converge on the same canonicalized session-scoped
+`tidy-acceptance-gap-sub-issues.json` — numerically sorted, deduplicated — which is what makes
 them interchangeable. The `while read` loop's own exit code can't surface a failed per-parent
 `gh api` call, so each iteration appends its parent number to the failures file on failure, and the
 assembly step throws — naming every failed parent — before the output file is written, never an
@@ -239,24 +251,26 @@ separate one: shell state does not survive between separate Bash calls, so a val
 earlier block is empty by the time a later block runs (the same discipline the Fetch-limit and
 `work-links` resolutions above state for their own identical case).
 
-With `/tmp/tidy-acceptance-gap-sub-issues.json` written by whichever branch applies, filter the
-closed-record set — note the filename: this scope's sub-issue list and the `parent-gate` scope's
-`/tmp/tidy-parent-gates.json` are different artifacts written by different procedures in the same
-agent prompt, so they never share a path. A closed, undisposed record is only reported when it
-both exceeds the oversight floor (`bin/lib/issues/oversight-floor.js`'s `exceedsOversightFloor`,
-built by #366) and is a `needsBackstop` gap — a record that closed below the floor never needed a
-disposition in the first place, so it is not a gap at all, not merely a low-priority one. The
-closed-record fetch above already carries `labels`, so `parseRecordFacets` reads `risk`/`size`
-straight off data already in hand — no second round-trip:
+With this run's session-scoped `tidy-acceptance-gap-sub-issues.json` written by whichever branch
+applies, filter the closed-record set — note the filename: this scope's sub-issue list and the
+`parent-gate` scope's `tidy-parent-gates.json` are different artifacts written by different
+procedures in the same agent prompt, so they never share a path. A closed, undisposed record is
+only reported when it both exceeds the oversight floor (`bin/lib/issues/oversight-floor.js`'s
+`exceedsOversightFloor`, built by #366) and is a `needsBackstop` gap — a record that closed below
+the floor never needed a disposition in the first place, so it is not a gap at all, not merely a
+low-priority one. The closed-record fetch above already carries `labels`, so `parseRecordFacets`
+reads `risk`/`size` straight off data already in hand — no second round-trip. Resolve session-scoped
+paths first (`_shared/session-tmp-root.md`):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CLOSED=tidy-closed-records.json GAP_SUBS=tidy-acceptance-gap-sub-issues.json)"
 { read -r RISK_FLOOR; read -r SIZE_FLOOR; } < <(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor)
 node -e "
   const { needsBackstop } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
   const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
   const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const records = require('/tmp/tidy-closed-records.json');
-  const subIssues = new Set(require('/tmp/tidy-acceptance-gap-sub-issues.json'));
+  const records = require('$CLOSED');
+  const subIssues = new Set(require('$GAP_SUBS'));
   const [riskFloor, sizeFloor] = process.argv.slice(1);
   const gaps = records
     .map(r => ({ ...r, labels: r.labels.map(l => l.name), hasParent: subIssues.has(r.number) }))
@@ -333,27 +347,30 @@ which is why it cannot carry a fixed cap: past that cap every truncated sub-issu
 `OPEN`, so every parent containing one reads `incomplete` and this backstop stops firing —
 permanently, and with nothing on the output to say it did.
 
+Resolve session-scoped paths first (`_shared/session-tmp-root.md`):
+
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PI_NEW=tidy-parent-issues-new.json PI_LEG=tidy-parent-issues-legacy.json ALL_STATES=tidy-all-issue-states.json PARENTS=tidy-parent-issues.json)"
 LIMIT="{resolved-limit}"
 export FETCH_LIMIT="$LIMIT"
 gh issue list --label parent-issue --state open --json number,title,body,labels --limit "$LIMIT" \
-  > /tmp/tidy-parent-issues-new.json
+  > "$PI_NEW"
 # Legacy-label fetch — PERMANENT cross-project support for adopter repos that haven't migrated;
 # removable only at a major version dropping pre-rename repo support. [IL-85]
 gh issue list --label family:parent --state open --json number,title,body,labels --limit "$LIMIT" \
-  > /tmp/tidy-parent-issues-legacy.json
+  > "$PI_LEG"
 
 gh issue list --state all --json number,state,labels --limit "$LIMIT" \
-  > /tmp/tidy-all-issue-states.json
+  > "$ALL_STATES"
 
 node -e "
   const fs = require('fs');
   const LIMIT = Number(process.env.FETCH_LIMIT);
-  const fetched = ['/tmp/tidy-parent-issues-new.json', '/tmp/tidy-parent-issues-legacy.json'].map(require);
+  const fetched = ['$PI_NEW', '$PI_LEG'].map(require);
   // Number-keyed dedup across the two label fetches — identical rows, either fetch may win.
   const parents = [...new Map(fetched.flat().map((p) => [p.number, p])).values()];
-  fs.writeFileSync('/tmp/tidy-parent-issues.json', JSON.stringify(parents));
-  const states = require('/tmp/tidy-all-issue-states.json');
+  fs.writeFileSync('$PARENTS', JSON.stringify(parents));
+  const states = require('$ALL_STATES');
   if (fetched.some((f) => f.length === LIMIT)) {
     console.error('WARNING: a parent fetch returned exactly ' + LIMIT + ' records (the configured backlog-fetch-limit) — older parents were dropped and are invisible to this scope entirely. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before treating this scope as complete.');
   }
@@ -407,14 +424,15 @@ sub-issue must never let a parent read as `due` (mirrors `parentGateState`'s own
 `due` for a parent with no discoverable sub-issues" rule).
 
 **`work-links: body-text`** — every parent's task list is already in hand from the first fetch
-above; no further `gh` calls:
+above; no further `gh` calls. Resolve session-scoped paths first (`_shared/session-tmp-root.md`):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PARENTS=tidy-parent-issues.json ALL_STATES=tidy-all-issue-states.json GATES=tidy-parent-gates.json)"
 node -e "
   const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
-  const parents = require('/tmp/tidy-parent-issues.json');
-  const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
+  const parents = require('$PARENTS');
+  const infoOf = new Map(require('$ALL_STATES').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
   const gates = parents.map(p => ({
     number: p.number,
     title: p.title,
@@ -424,7 +442,7 @@ node -e "
       return { number: n, state: (info && info.state) || 'OPEN', labels: (info && info.labels) || [] };
     }),
   }));
-  fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
+  fs.writeFileSync('$GATES', JSON.stringify(gates));
 "
 ```
 
@@ -433,13 +451,14 @@ sub-issues API instead, via the same batched aliased-GraphQL probe with a per-pa
 that the `acceptance-gap` scope above uses:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" --resolve-retries $(node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))") > /tmp/tidy-parentgate-sub-issues-batch.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PARENTS=tidy-parent-issues.json PG_BATCH=tidy-parentgate-sub-issues-batch.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/fetch-sub-issues.js" --resolve-retries $(node -e "require('$PARENTS').forEach(p => console.log(p.number))") > "$PG_BATCH"
 ```
 
 Branch on this command's exit code before doing anything else. **Exit 4** — the `subIssues`
 GraphQL field is unavailable on this host — run the Fallback block below for **every** parent
-instead of the composing step that follows; it produces the same `/tmp/tidy-parent-gates.json` by
-the older, verbatim REST path. **Exit 3** — the GraphQL call itself failed (network/API error, or
+instead of the composing step that follows; it produces the same session-scoped
+`tidy-parent-gates.json` by the older, verbatim REST path. **Exit 3** — the GraphQL call itself failed (network/API error, or
 a missing-repository response) — the run fails loud: report no `[parent-gate]` rows at all, naming
 the failed parents from the command's stderr. **Exit 1 or 2** — a malformed invocation or a
 missing `gh`/unresolvable repo: an environment or transcription bug, not a data outcome — stop and
@@ -454,12 +473,13 @@ below reads the envelope's `byParent` directly, per-parent, because `subIssues` 
 parent's own numbers, not existence alone:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PG_BATCH=tidy-parentgate-sub-issues-batch.json PARENTS=tidy-parent-issues.json ALL_STATES=tidy-all-issue-states.json GATES=tidy-parent-gates.json)"
 node -e "
   const fs = require('fs');
-  const batch = require('/tmp/tidy-parentgate-sub-issues-batch.json');
+  const batch = require('$PG_BATCH');
   const byParent = batch.byParent || {};
-  const parents = require('/tmp/tidy-parent-issues.json');
-  const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
+  const parents = require('$PARENTS');
+  const infoOf = new Map(require('$ALL_STATES').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
   const gates = parents.map((p) => ({
     number: p.number,
     title: p.title,
@@ -469,13 +489,13 @@ node -e "
       return { number: n, state: (info && info.state) || 'OPEN', labels: (info && info.labels) || [] };
     }),
   }));
-  fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
+  fs.writeFileSync('$GATES', JSON.stringify(gates));
 "
 ```
 
-`/tmp/tidy-parent-gates.json` is only ever written here, once the envelope is already fully
-resolved — there is no partial-write hazard left to guard against, since a failed retry never
-reaches this line at all.
+This run's session-scoped `tidy-parent-gates.json` is only ever written here, once the envelope is
+already fully resolved — there is no partial-write hazard left to guard against, since a failed
+retry never reaches this line at all.
 
 #### Fallback (probe unavailable — older GHE)
 
@@ -485,26 +505,27 @@ before the batched probe existed (exactly `wrap-up/verification-brief.md`'s own 
 fetched set — each **page** appended as one JSON line rather than assembled by hand, so no
 shell-side JSON construction is needed; the composing step merges pages per parent, and a failed
 call appends its parent number to the failures file, which the composing step throws on — never a
-silently vanished parent):
+silently vanished parent). Resolve session-scoped paths first (`_shared/session-tmp-root.md`):
 
 ```bash
-: > /tmp/tidy-sub-issues.jsonl
-: > /tmp/tidy-parentgate-fallback-failures.txt
-node -e "require('/tmp/tidy-parent-issues.json').forEach(p => console.log(p.number))" | while read -r N; do
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PARENTS=tidy-parent-issues.json ALL_STATES=tidy-all-issue-states.json SUB_ISSUES=tidy-sub-issues.jsonl PG_FAIL=tidy-parentgate-fallback-failures.txt GATES=tidy-parent-gates.json)"
+: > "$SUB_ISSUES"
+: > "$PG_FAIL"
+node -e "require('$PARENTS').forEach(p => console.log(p.number))" | while read -r N; do
   gh api --paginate "repos/{owner}/{repo}/issues/$N/sub_issues" --jq "{number: $N, subIssueNumbers: [.[].number]}" \
-    >> /tmp/tidy-sub-issues.jsonl || echo "$N" >> /tmp/tidy-parentgate-fallback-failures.txt
+    >> "$SUB_ISSUES" || echo "$N" >> "$PG_FAIL"
 done
 
 node -e "
   const fs = require('fs');
-  const failures = fs.readFileSync('/tmp/tidy-parentgate-fallback-failures.txt', 'utf8').trim().split('\n').filter(Boolean);
+  const failures = fs.readFileSync('$PG_FAIL', 'utf8').trim().split('\n').filter(Boolean);
   if (failures.length) {
-    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write /tmp/tidy-parent-gates.json with silently missing parents');
+    throw new Error('sub-issue REST fallback failed for parent(s): ' + failures.join(', ') + ' — refusing to write the parent-gates file with silently missing parents');
   }
-  const parents = require('/tmp/tidy-parent-issues.json');
-  const infoOf = new Map(require('/tmp/tidy-all-issue-states.json').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
+  const parents = require('$PARENTS');
+  const infoOf = new Map(require('$ALL_STATES').map(i => [i.number, { state: i.state, labels: (i.labels || []).map(l => l.name) }]));
   const byNumber = new Map(parents.map(p => [p.number, p]));
-  const subRows = fs.readFileSync('/tmp/tidy-sub-issues.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+  const subRows = fs.readFileSync('$SUB_ISSUES', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
   const merged = new Map();
   for (const { number, subIssueNumbers } of subRows) {
     merged.set(number, (merged.get(number) || []).concat(subIssueNumbers));
@@ -521,12 +542,13 @@ node -e "
       }),
     };
   });
-  fs.writeFileSync('/tmp/tidy-parent-gates.json', JSON.stringify(gates));
+  fs.writeFileSync('$GATES', JSON.stringify(gates));
 "
 ```
 
-Both the primary path and the Fallback path converge on the same `/tmp/tidy-parent-gates.json`
-shape — `{number, title, parentLabels, subIssues:[{number,state,labels}]}` per parent.
+Both the primary path and the Fallback path converge on the same session-scoped
+`tidy-parent-gates.json` shape — `{number, title, parentLabels, subIssues:[{number,state,labels}]}`
+per parent.
 
 ### Oversight-floor pre-filter
 
@@ -539,21 +561,23 @@ passes the literal `null` for it, per `exceedsOversightFloor`'s contract (#366) 
 no `size:*` label of its own (`specify/record-creation.md`'s Parent record section), so evaluating
 size at this level would mean gating on a fact that does not exist.
 
-With `/tmp/tidy-parent-gates.json` assembled by whichever branch above applies, filter to parents
-that both exceed the floor and whose gate is due. A parent's aggregate risk is the **max** risk
-tier across its `subIssues` — never a size read at the parent level, and never omitted or defaulted
-to the resolved `size-floor` value, which would silently fail every sub-issue's missing `size` facet
-closed and gate every parent regardless of risk. Any single unscored sub-issue (`risk:*` missing or
-out-of-vocabulary) makes the whole parent's aggregate unscored too, matching
-`exceedsOversightFloor`'s own fail-closed rule for a missing facet:
+With this run's session-scoped `tidy-parent-gates.json` assembled by whichever branch above
+applies, filter to parents that both exceed the floor and whose gate is due. A parent's aggregate
+risk is the **max** risk tier across its `subIssues` — never a size read at the parent level, and
+never omitted or defaulted to the resolved `size-floor` value, which would silently fail every
+sub-issue's missing `size` facet closed and gate every parent regardless of risk. Any single
+unscored sub-issue (`risk:*` missing or out-of-vocabulary) makes the whole parent's aggregate
+unscored too, matching `exceedsOversightFloor`'s own fail-closed rule for a missing facet. Resolve
+session-scoped paths first (`_shared/session-tmp-root.md`):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" GATES=tidy-parent-gates.json)"
 RISK_FLOOR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor)
 node -e "
   const { parentGateState } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/acceptance.js');
   const { exceedsOversightFloor } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/oversight-floor.js');
   const { parseRecordFacets, TIERS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const gates = require('/tmp/tidy-parent-gates.json'); // [{number, title, subIssues, parentLabels}]
+  const gates = require('$GATES'); // [{number, title, subIssues, parentLabels}]
   const [riskFloor] = process.argv.slice(1);
   function maxRiskTier(subIssues) {
     let hasUnscored = false;

@@ -7,15 +7,17 @@ health skills, `/capture`, `/specify`, `/backlog`, `/dispatch`, `/tidy`,
 shared `parked` restoration step). Consumers reference this file; do not restate the loop
 inline.
 
-Given a `LABELS` array of `[name, description]` pairs:
+Given a `LABELS` array of `[name, description]` pairs. Resolve this run's session-scoped temp
+path first, per `_shared/session-tmp-root.md`:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" LABEL_BOOTSTRAP_PAYLOADS=label-bootstrap-payloads.json)"
 node -e "
   const { ensureLabelPayload } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/labels.js');
   const labels = ${LABELS_JSON};
   console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));
-" > /tmp/label-bootstrap-payloads.json
-node -e "const ls=require('/tmp/label-bootstrap-payloads.json'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
+" > "$LABEL_BOOTSTRAP_PAYLOADS"
+node -e "const ls=require('$LABEL_BOOTSTRAP_PAYLOADS'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
   gh label list --search "$NAME" --json name -q '.[].name' | grep -qx "$NAME" || \
     gh label create "$NAME" --description "$DESCRIPTION"
 done
