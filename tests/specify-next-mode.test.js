@@ -160,18 +160,22 @@ test('next-mode.md Framing Guard cites the needsDecisionMarker capability retroa
   assert.ok(NEXT_MODE_FLAT.includes('needsDecisionMarker'), 'Framing Guard must cite the needsDecisionMarker capability naming its needs:definition stamp');
 });
 
-test('_shared/work-record.md declares shaped:headless in its taxonomy and permission matrix, with writer and readers named', () => {
+test('_shared/work-record.md declares shaped:headless in its taxonomy row, with writer and readers named', () => {
   const WORK_RECORD_FLAT = readFlat('plugin/skills/_shared/work-record.md');
   const occurrences = (WORK_RECORD_FLAT.match(/shaped:headless/g) || []).length;
-  // Two occurrences by design: the taxonomy row's declaration and the
-  // permission-matrix row's Adds column both name the label — this is the
-  // established pattern every label family in this file follows (see e.g.
-  // `demo:pending`), not duplication to collapse. A count outside [1, 3]
-  // signals either a missing declaration or an unexpected third restatement.
-  assert.ok(occurrences >= 1 && occurrences <= 3, `shaped:headless must be declared in work-record.md's taxonomy and permission matrix, found ${occurrences} occurrence(s)`);
+  // One occurrence by design since #1488's Task 1: the taxonomy row's own
+  // declaration lives here. The permission-matrix row's Adds column — the
+  // second occurrence this test used to pin before that extraction — now
+  // lives in work-record-permission-matrix.md, asserted by the next test.
+  assert.strictEqual(occurrences, 1, `shaped:headless must be declared exactly once in work-record.md's taxonomy row, found ${occurrences} occurrence(s)`);
   assert.ok(WORK_RECORD_FLAT.includes('Writer: `/specify` `next` mode only'), 'writer must be named');
   assert.ok(WORK_RECORD_FLAT.includes('grant gate'), 'grant-gate reader must be named');
   assert.ok(WORK_RECORD_FLAT.includes('/backlog attention'), '/backlog attention reader must be named');
+});
+
+test('_shared/work-record-permission-matrix.md declares shaped:headless in the /specify row\'s Adds column, next mode only', () => {
+  const MATRIX_FLAT = readFlat('plugin/skills/_shared/work-record-permission-matrix.md');
+  assert.ok(MATRIX_FLAT.includes('`shaped:headless` (`next` mode only, stamped alongside `ready` in the same call — never on an interactively-shaped record)'), 'permission-matrix /specify row must name shaped:headless as next-mode-only, stamped alongside ready, never on an interactively-shaped record');
 });
 
 test('_shared/label-bootstrap.md carries shaped:headless in the canonical LABELS_JSON list', () => {
