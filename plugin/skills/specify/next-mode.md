@@ -119,14 +119,7 @@ hit 500 exactly even when the raw fetch was truncated:
 Resolve this fence's session-scoped temp paths first (`_shared/session-tmp-root.md`):
 
 ```bash
-RAW=$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-next-raw.json') || require('path').join(require('os').tmpdir(), 'specify-next-raw.json'))
-")
-CANDIDATES=$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-next-candidates.json') || require('path').join(require('os').tmpdir(), 'specify-next-candidates.json'))
-")
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" RAW=specify-next-raw.json CANDIDATES=specify-next-candidates.json)"
 gh issue list --state open --json number,title,labels,createdAt --limit 500 > "$RAW"
 RAW_COUNT=$(node -e "console.log(require('$RAW').length)")
 if [ "$RAW_COUNT" -ge 500 ]; then
@@ -159,14 +152,7 @@ oldest `createdAt` first within each band.
 Re-resolve this fence's session-scoped temp paths (a fresh bash invocation does not inherit the Eligibility fence's shell variables, `_shared/session-tmp-root.md`):
 
 ```bash
-CANDIDATES=$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-next-candidates.json') || require('path').join(require('os').tmpdir(), 'specify-next-candidates.json'))
-")
-PICK=$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'specify-next-pick.json') || require('path').join(require('os').tmpdir(), 'specify-next-pick.json'))
-")
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CANDIDATES=specify-next-candidates.json PICK=specify-next-pick.json)"
 node -e "
   const RANK = { high: 0, medium: 1, low: 2 };
   const bandOf = (r) => {
