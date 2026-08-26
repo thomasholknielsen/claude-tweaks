@@ -33,8 +33,8 @@ function ghAbsentPath() {
   return binDir;
 }
 
-function runResolvePolicy(args, { cwd } = {}) {
-  return execFileSync('node', [RESOLVE_POLICY, ...args], { cwd, encoding: 'utf8' });
+function runResolvePolicy(args, { cwd, env } = {}) {
+  return execFileSync(process.execPath, [RESOLVE_POLICY, ...args], { cwd, env, encoding: 'utf8' });
 }
 
 // --- Schema shape ---
@@ -158,6 +158,20 @@ test('CLI: this repo pins integration-model: pr-first in policy.yml — resolves
   assert.match(policyRaw, /^integration-model:\s*pr-first\s*$/m, '.claude-tweaks/policy.yml must pin integration-model: pr-first');
   const out = runResolvePolicy(['--values', 'integration-model'], { cwd: REPO_ROOT });
   assert.strictEqual(out.trim(), 'pr-first');
+});
+
+test('CLI: --mcp-reachable resolves pr-first when gh is faked absent and a real remote exists (AC4)', () => {
+  const dir = gitRepo({ remote: 'https://github.com/thomasholknielsen/claude-tweaks.git' });
+  const env = { ...process.env, PATH: ghAbsentPath() };
+  const out = runResolvePolicy(['--values', 'integration-model', '--mcp-reachable'], { cwd: dir, env });
+  assert.strictEqual(out.trim(), 'pr-first');
+});
+
+test('CLI: omitting --mcp-reachable preserves todays local-merge fail-open behavior when gh is absent (AC4)', () => {
+  const dir = gitRepo({ remote: 'https://github.com/thomasholknielsen/claude-tweaks.git' });
+  const env = { ...process.env, PATH: ghAbsentPath() };
+  const out = runResolvePolicy(['--values', 'integration-model'], { cwd: dir, env });
+  assert.strictEqual(out.trim(), 'local-merge');
 });
 
 // --- Consumer conformance ---

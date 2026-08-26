@@ -56,6 +56,7 @@ function main(argv) {
   let runDir = null;
   let valuesMode = false;
   let allMode = false;
+  let mcpReachable = false;
   const keys = [];
   while (args.length) {
     const arg = args.shift();
@@ -74,6 +75,8 @@ function main(argv) {
       valuesMode = true;
     } else if (arg === '--all') {
       allMode = true;
+    } else if (arg === '--mcp-reachable') {
+      mcpReachable = true;
     } else {
       // A key argument may be a single lever or a comma-joined list
       // (`--values a,b,c`) — both shapes collect into the same flat key list,
@@ -134,7 +137,7 @@ function main(argv) {
   if (keys.includes('integration-model')) {
     const entry = result['integration-model'];
     if (entry && entry.source === 'default' && !entry.invalid) {
-      result['integration-model'] = { value: detectIntegrationModel(root), source: 'default' };
+      result['integration-model'] = { value: detectIntegrationModel(root, { mcpReachable }), source: 'default' };
     }
   }
 
