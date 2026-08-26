@@ -34,10 +34,14 @@ test('Shape 8 node -e script filters out needsDefinition closed records', () => 
 });
 
 // Go-red control: pre-change Shape 7/8 scripts had no needsDefinition-aware filter anywhere.
+// Fixed to a specific pre-Task-11 base SHA (Task 10's final commit), not HEAD — HEAD moves past
+// Task 11's own commit once that commit lands, which would make this control read post-change
+// content and defeat its purpose.
 const { execFileSync } = require('node:child_process');
+const PRE_TASK11_BASE_SHA = '59e1967a555fe7b5776124c762d55854dab2e0df';
 const PRE_CHANGE_STEP1_RECORDS = execFileSync(
   'git',
-  ['show', 'HEAD:plugin/skills/tidy/step-1-records.md'],
+  ['show', `${PRE_TASK11_BASE_SHA}:plugin/skills/tidy/step-1-records.md`],
   { cwd: ROOT, encoding: 'utf8' }
 );
 
