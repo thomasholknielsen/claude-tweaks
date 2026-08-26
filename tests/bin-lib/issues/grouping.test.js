@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { groupByFileOverlap, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList } = require('../../../plugin/bin/lib/issues/grouping');
+const { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList } = require('../../../plugin/bin/lib/issues/grouping');
 
 // ── groupByFileOverlap ──────────────────────────────────────────────────────
 
@@ -193,6 +193,49 @@ test('two records sharing an actual specific file path (not a directory) are sti
   ]);
   assert.strictEqual(groups.length, 1);
   assert.deepStrictEqual(groups[0].sort(), [1, 2]);
+});
+
+// ── partitionGroupsBySizeGuard (#1228) ────────────────────────────────────
+// A second, independent line of defense alongside the hub-path/directory
+// bridging exclusions above: even a batch of records that DID legitimately
+// union (or a bridging rule this file doesn't yet anticipate) must not be
+// silently auto-selected once the resulting group is implausibly large.
+
+test('a group at or under the default threshold is withinGuard, not oversized', () => {
+  const groups = [Array.from({ length: GROUP_SIZE_GUARD_DEFAULT }, (_, i) => i + 1)];
+  const { withinGuard, oversized } = partitionGroupsBySizeGuard(groups);
+  assert.strictEqual(withinGuard.length, 1);
+  assert.strictEqual(oversized.length, 0);
+});
+
+test('a group over the default threshold is oversized, not withinGuard', () => {
+  const groups = [Array.from({ length: GROUP_SIZE_GUARD_DEFAULT + 1 }, (_, i) => i + 1)];
+  const { withinGuard, oversized } = partitionGroupsBySizeGuard(groups);
+  assert.strictEqual(withinGuard.length, 0);
+  assert.strictEqual(oversized.length, 1);
+  assert.strictEqual(oversized[0].length, GROUP_SIZE_GUARD_DEFAULT + 1);
+});
+
+test('reproduces the reported incident shape: a 52-member group is oversized, small groups are not', () => {
+  const hairball = Array.from({ length: 52 }, (_, i) => i + 1);
+  const groups = [hairball, [200, 201], [300]];
+  const { withinGuard, oversized, threshold } = partitionGroupsBySizeGuard(groups);
+  assert.strictEqual(threshold, GROUP_SIZE_GUARD_DEFAULT);
+  assert.strictEqual(oversized.length, 1);
+  assert.deepStrictEqual(oversized[0], hairball);
+  assert.strictEqual(withinGuard.length, 2);
+});
+
+test('a custom groupSizeGuard threshold overrides the default', () => {
+  const groups = [[1, 2, 3]];
+  assert.strictEqual(partitionGroupsBySizeGuard(groups, { groupSizeGuard: 2 }).oversized.length, 1);
+  assert.strictEqual(partitionGroupsBySizeGuard(groups, { groupSizeGuard: 3 }).oversized.length, 0);
+});
+
+test('empty input returns no withinGuard and no oversized groups', () => {
+  const { withinGuard, oversized } = partitionGroupsBySizeGuard([]);
+  assert.deepStrictEqual(withinGuard, []);
+  assert.deepStrictEqual(oversized, []);
 });
 
 // ── extractKeyFiles ──────────────────────────────────────────────────────────

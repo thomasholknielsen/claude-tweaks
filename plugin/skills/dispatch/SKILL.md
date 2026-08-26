@@ -103,6 +103,8 @@ The `bot:*` filter here is the cheap label-based pre-filter — labels are proje
 
 **Blocked-exclusion report (refs #1101).** Read this run's session-scoped `dispatch-blocked-excluded.json` (`queue-pull-script.md`'s own output, `{number, blockedBy: [ids]}[]`) — every otherwise-`auto:build`-eligible candidate the queue pull dropped for an open blocked-by dependency, whether via a body-text `Blocked by #N` line or (`work-links: native`) a native `blockedBy` link. When non-empty, render one line before the rest of this step's own output: `{n} excluded — blocked by an open dependency: #{a} (blocked by #{x}), #{b} (blocked by #{y}, #{z})`. **Exception — the headless `next` steady state above:** when this is the `next` form and the zero-eligible-groups case just above applies, render nothing here either, same as that case's own rule — a persistently-blocked queue must not turn an intended-silent Routine firing into per-firing noise on an otherwise cheap no-op. Every other case (bare/`#N`/`#N,#M,...` regardless of group count, or `next` when at least one group is eligible) renders normally. Render nothing at all when the exclusion array is empty, the same no-line-when-clean convention this skill already follows elsewhere. A two-member dependency cycle needs no special detection: each member independently fails the same open-blocker check the other does, so both appear here, each naming the other. This is where the visibility `/claude-tweaks:backlog overview`'s now-retired per-record Dispatch paste block used to carry directly disappeared to — this report is its replacement, at the one place blockers are actually evaluated.
 
+**Oversized-group report (refs #1228).** Read `dispatch-oversized-excluded.json` (`queue-pull-script.md`'s output, `{records, size, threshold}[]`). Non-empty: render one line before the rest of Step 3: `{n} group(s) over the size guard (threshold {threshold}): #{a},#{b},... (size {size})`. These groups stay selectable via bare/`#N`/`#N,#M,...` (a human naming/picking one is the required surfacing); only `next`'s ranking below excludes them from its candidate pool. Same `next`+zero-eligible exception as the Blocked-exclusion report above; omit the line when the array is empty.
+
 **Bare** `/dispatch` — render a batch table, one row per group from Step 2 (skip this and the rest of Step 3 entirely if the zero-groups case above applies):
 
 ```markdown
@@ -121,34 +123,7 @@ Resolve `{batch-size}` first — `--batch-size <n>` if present on this invocatio
 
 Selecting more groups than `{batch-size}` is not an error — the extra selections remain unclaimed in the queue for a later firing to select (Step 5 no longer runs them this firing at all, since there are no concurrent slots to free), same posture overlapping `next` firings already have across routine windows.
 
-**`next`** — no human decision. Pick exactly ONE group by this literal ordering: `priority:high` > `priority:medium` > `priority:low` > unprioritized, oldest-first within each band. **A group's rank = its highest-priority member** — find each group's highest-priority (then oldest) member as its representative, then sort groups by that representative's priority band and `createdAt`. When `--priority <band>` (Input table above) is present, filter to only groups whose representative's band matches before ranking — this lets multiple differently-scheduled Routines each own a distinct slice of the queue instead of competing for the same top-of-queue pick:
-
-```bash
-eval "$(node -e "
-  const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-  const os = require('os'); const path = require('path');
-  const files = { DISPATCH_GROUPS: 'dispatch-groups.json', DISPATCH_NEXT_PICK: 'dispatch-next-pick.json' };
-  for (const [varName, filename] of Object.entries(files)) {
-    const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-    console.log(varName + '=' + JSON.stringify(p));
-  }
-")"
-node -e "
-  const RANK = { high: 0, medium: 1, low: 2 };
-  const bandOf = (r) => (r.facets.priority ? RANK[r.facets.priority] : 3);
-  const groups = require(process.argv[2]);
-  const representative = (g) => g.slice().sort((a, b) =>
-    bandOf(a) - bandOf(b) || new Date(a.createdAt) - new Date(b.createdAt))[0];
-  const priorityFilter = process.argv[1] || null; // '--priority' value, or unset
-  let candidates = groups.map((g) => ({ group: g, rep: representative(g) }));
-  if (priorityFilter) candidates = candidates.filter((c) => c.rep.facets.priority === priorityFilter);
-  const ranked = candidates
-    .sort((x, y) => bandOf(x.rep) - bandOf(y.rep) || new Date(x.rep.createdAt) - new Date(y.rep.createdAt));
-  console.log(JSON.stringify(ranked.length ? ranked[0].group : null));
-" "$PRIORITY_FILTER" "$DISPATCH_GROUPS" > "$DISPATCH_NEXT_PICK"
-```
-
-A `null` result here (no eligible groups, or none matching `--priority`) is the zero-eligible-groups case documented at the top of this step — report nothing eligible and stop, do not proceed to Step 4.
+**`next`** — no human decision. Pick exactly ONE group by this literal ordering: `priority:high` > `priority:medium` > `priority:low` > unprioritized, oldest-first within each band. **A group's rank = its highest-priority member** — find each group's highest-priority (then oldest) member as its representative, then sort groups by that representative's priority band and `createdAt`. When `--priority <band>` (Input table above) is present, filter to only groups whose representative's band matches before ranking — this lets multiple differently-scheduled Routines each own a distinct slice of the queue instead of competing for the same top-of-queue pick. Also excludes any oversized group (#1228) from the candidate pool outright — a headless firing has nobody present to see the Oversized-group report above, so `next` alone must not auto-select one. Read `next-ranking.md` in this skill's directory and run its script verbatim — it writes the picked group (or `null`) to `dispatch-next-pick.json`; that file's own closing note states the `null` case.
 
 `next` is the headless-safe unit — the only selection form a scheduled Routine ever fires (see Routine Configuration below), since it needs no `AskUserQuestion` answer to resolve.
 
