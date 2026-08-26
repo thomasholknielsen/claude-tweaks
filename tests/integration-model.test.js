@@ -174,6 +174,34 @@ test('CLI: omitting --mcp-reachable preserves todays local-merge fail-open behav
   assert.strictEqual(out.trim(), 'local-merge');
 });
 
+test('CLI: --mcp-reachable forwards into merge-verification even when integration-model is NOT also requested (#1421 Finding 3)', () => {
+  // A fixture repo that reaches deriveMergeVerification's branch (3)
+  // (merge-when-green) only when integration-model resolves pr-first: a
+  // real remote, a PR-triggered workflow, and an integration branch equal
+  // to the default branch (both read off origin/HEAD).
+  const dir = gitRepo({ remote: 'https://github.com/thomasholknielsen/claude-tweaks.git' });
+  const git = (...args) => execFileSync('git', ['-C', dir, ...args], { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' });
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'init');
+  const branch = git('symbolic-ref', '--short', 'HEAD').trim();
+  git('update-ref', `refs/remotes/origin/${branch}`, 'HEAD');
+  git('symbolic-ref', 'refs/remotes/origin/HEAD', `refs/remotes/origin/${branch}`);
+  fs.mkdirSync(path.join(dir, '.github', 'workflows'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.github', 'workflows', 'ci.yml'), 'name: ci\non:\n  push:\n    branches: [main]\n  pull_request:\njobs: {}\n');
+  const env = { ...process.env, PATH: ghAbsentPath() };
+
+  // Without the flag: gh absent -> forge detection falls open to local-merge
+  // -> branch (1) -> off.
+  const withoutFlag = runResolvePolicy(['--values', 'merge-verification'], { cwd: dir, env });
+  assert.strictEqual(withoutFlag.trim(), 'off');
+
+  // With the flag, requesting ONLY merge-verification (not integration-model
+  // in the same call): before the fix, the flag was silently dropped on this
+  // path and the result matched the line above (off). After the fix, it
+  // forwards through resolveIntegrationModel -> pr-first -> merge-when-green.
+  const withFlag = runResolvePolicy(['--values', 'merge-verification', '--mcp-reachable'], { cwd: dir, env });
+  assert.strictEqual(withFlag.trim(), 'merge-when-green');
+});
+
 // --- Consumer conformance ---
 // Mirrors tests/integration-branch-conformance.test.js's regex-plus-allowlist
 // shape: any file mentioning the resolved key routes on it and must cite the
