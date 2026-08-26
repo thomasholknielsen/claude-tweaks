@@ -158,8 +158,8 @@ afterward, not be computed and then silently discarded. `blocked` rows (below) h
 `assess-agent-autonomy` call to draw a rationale from — their Evidence column reads a fixed
 string instead, per Step 4.
 
-Read `grant-lane-decision.md` in this skill's directory for the full `RECOMMEND_BUILD` outcome
-table and Step 5's write mechanics for each — not restated here.
+Read `grant-lane-decision.md` in this skill's directory for its `RECOMMEND_BUILD: false`-branch
+outcome table and Step 5's write mechanics for each — not restated here.
 
 For every record in `blocked` (unaffected by the budget — the retry-ceiling population is
 typically small and its re-authorization recommendation needs no `grant-check` call at all), skip
@@ -188,8 +188,9 @@ fetch/render this sub-stage advises with, and how it never changes what the gate
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-For every record `grant-lane-decision.md`'s outcome table resolves to granting or `needs:decision`
-— fetch the body and re-verify spec shape immediately before writing any label, using the same
+For every record recommended for granting (Step 3) or resolved to `needs:decision` per
+`grant-lane-decision.md`'s outcome table — fetch the body and re-verify spec shape immediately
+before writing any label, using the same
 cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check`
 already fetched and cached the body at this run's session-scoped `assess-grant-{n}.json` —
 `_shared/session-tmp-root.md`; reuse it instead of a second API round-trip).
