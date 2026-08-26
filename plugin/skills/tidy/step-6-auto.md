@@ -146,6 +146,17 @@ No finding may be presented information-only: anything actionable carries its pa
 
 `(likewise #41 #113 …)`, `(and N more)`, `et al.` and every other multi-record shorthand are never acceptable, in any section — one row per record, and one command line per row (or one batch / ref-less line per group). The conformance scan below rejects a render that carries any of them.
 
+#### Why-not-auto sourcing
+
+Every Yours row's trailing column states, in one clause, why this finding needs the human instead of resolving itself — sourced from this file's own routing table above, never re-derived per render: use that finding's row's own explanatory text from the table's `Stage` / `Auto (no-op, always surfaced)` cell, trimmed to fit the row's trailing-column width. Two reasons cover the overwhelming majority of Yours rows and are the default phrasing when the table's own cell carries no more specific sentence to trim from:
+
+- **`outward GitHub write, never auto per reversibility floor`** — a finding whose eventual action is a GitHub-visible mutation (label, comment, milestone, close) that the auto-mode contract's reversibility floor keeps off every aggressiveness tier before it can even reach Approve (`[pr-unarmed]` ungranted, `[unsettled]`, an informational PR row like `awaiting review`, `[legacy]`'s label rename).
+- **`judgment call, no mechanical fix`** — a finding whose recommendation exists but resolving it requires reading intent, not applying a rule (`[scoring]`, `[blocked]`, `[sizing]`, `[pattern]`, `[health]`, `[doctor]`, `[calibration]`, `[acceptance-gap]`, design-record drift).
+
+Never leave the column blank, and never ship the literal placeholder text unfilled — a row with no stated reason is exactly the gap this section exists to close: a reader who cannot tell "needs judgment" from "policy forbids auto for outward writes" from "no mechanical fix exists" is back to guessing.
+
+A **Yours group** in the digest (Report rules' Digest bullet below) states this same reasoning once, at the group level, rather than once per row — every row folded into one command group shares the group's key command, and in practice shares its why-not-auto reason too (a `specify (3)` group is uniformly a judgment call on scope/sizing; a `git (2)` group of stale-PR closes is uniformly an outward-write reversibility case). When a group's rows genuinely carry different reasons, state the more specific (rarer) one — the full report's per-row column still carries every row's own exact reason, so nothing is lost, only compressed for the digest's line budget.
+
 ### Report rules
 
 Binding rules for every rendering of this template, on both surfaces (`step-6-interactive.md` cross-references this heading rather than restating):
@@ -157,11 +168,11 @@ Binding rules for every rendering of this template, on both surfaces (`step-6-in
 - Records render as `#{N}` in the record column followed by the title column — titles come from the scan agents' Template-A findings, which already carry them (the dispatch prompts require item titles in the Finding column); never from a fresh per-row `gh issue view`. A record-less finding renders `—` there instead (column shape above).
 - `{run-dir}/decisions.md` is referenced by path exactly once, in the report footer, and never replayed into chat.
 - Empty-state: **Applied automatically**, **Approve ({N})**, and **Yours ({N})** are each omitted entirely when empty; **Clean:** always renders — as its fence, or as the single line **Clean:** nothing — every scan surfaced findings.
-- Digest: when the rendered report exceeds **40 lines** (fences, headers and footer all counted), do not send it whole. Write the full report to `{run-dir}/report.md` (Bash append — the same write path as `decisions.md`; the run dir lives under the main checkout) and send a digest of about 20 lines instead — the budget yields to Approve, so a digest with a large Approve section runs longer, never truncated: the `## Tidy Report` line; **Applied automatically** collapsed to one line with its count; **Approve ({N})** in full — it is the click surface, and nothing is approved unseen; **Yours ({N})** as group heads with counts, each followed by its batch or ref-less line when the group has one (paste blocks stay in `report.md`); **Clean:** collapsed to `{n} scans clean`; and a footer `Full report: {run-dir}/report.md` in place of the decisions.md line (the full report carries that one). At 40 lines or fewer nothing extra is written and the report is sent whole.
+- Digest: when the rendered report exceeds **40 lines** (fences, headers and footer all counted), do not send it whole. Write the full report to `{run-dir}/report.md` (Bash append — the same write path as `decisions.md`; the run dir lives under the main checkout) and send a digest of about 20 lines instead — the budget yields to Approve, so a digest with a large Approve section runs longer, never truncated: the `## Tidy Report` line; **Applied automatically** collapsed to one line with its count; **Approve ({N})** in full — it is the click surface, and nothing is approved unseen; **Yours ({N})** as group heads with counts, each followed by one shared why-not-auto clause for the group (Why-not-auto sourcing above) and then its batch or ref-less line when the group has one (paste blocks stay in `report.md`); **Clean:** collapsed to `{n} scans clean`; and a footer `Full report: {run-dir}/report.md` in place of the decisions.md line (the full report carries that one). At 40 lines or fewer nothing extra is written and the report is sent whole.
 
 #### Conformance scan (before the hard gate)
 
-Run this scan over the literal markdown about to be sent — the whole report, or the digest plus `report.md` when the digest rule fired — before the hard gate below. Every row is a check and a remedy; a failing row is fixed and the scan re-run. A non-conformant render is never shipped as-is, and a clean pass logs nothing (mirrors `flow/multi-spec.md`'s pre-flight verify sweep, which stays silent on a clean sweep). Against a digest, only the Width, Titles, No shorthand, Command alone, Batch only where allowed, Aligned and Digest rows apply; the section-shape rows (One record per row, Every Yours row covered, Fenced, Group order, Clean shape, Footer once) are checked against the full report in `report.md`.
+Run this scan over the literal markdown about to be sent — the whole report, or the digest plus `report.md` when the digest rule fired — before the hard gate below. Every row is a check and a remedy; a failing row is fixed and the scan re-run. A non-conformant render is never shipped as-is, and a clean pass logs nothing (mirrors `flow/multi-spec.md`'s pre-flight verify sweep, which stays silent on a clean sweep). Against a digest, the Width, Titles, No shorthand, Command alone, Batch only where allowed, Aligned, Digest, and Digest why rows apply — and so does **Every Yours row covered**: a digest that drops the Yours section into a one-line prose summary (or a file attachment with no literal group heads+commands in the chat response itself) fails this row exactly the way an omitted Approve section already fails the Hard gate below, even though the digest is short enough to satisfy the 40-line budget on its own. The remaining section-shape rows (One record per row, Why stated, Fenced, Group order, Clean shape, Footer once) are checked against the full report in `report.md`.
 
 | Rule | Check | Remedy on failure |
 |---|---|---|
@@ -172,12 +183,14 @@ Run this scan over the literal markdown about to be sent — the whole report, o
 | No shorthand | none of `(likewise`, `(also`, `(and {n} more`, `(+{n}`, `et al` appear anywhere | expand into one row per record and one command line per row |
 | Command alone | a command line holds only the command — no leading `—`/`→`, no trailing prose | move the annotation to the row line above |
 | Every Yours row covered | each Yours group except `review` closes with one batch or ref-less line, or a paste block with exactly one line per row | add the missing command line(s) |
+| Why stated | every Yours row's trailing column states a one-clause reason (never blank, never the unfilled placeholder) — sourced per Why-not-auto sourcing above | add the sourced reason |
 | Batch only where allowed | a batch line's target skill accepts multiple refs per its `argument-hint` (`flow`, `dispatch`, `specify`, `demo` today) | expand into a paste block |
 | Fenced, no box art | every non-empty section's rows sit inside a ```text fence; no `┌ ─ ┐ │ ├ ┤ └ ┘` characters anywhere | re-render inside the fence |
 | Group order | Yours groups run `specify`, `demo`, `git`, `capture`, `backlog refine`, then alphabetical | reorder |
 | Clean shape | `**Clean:**` followed by a fence of `{scan}  {count} checked` lines, or the literal `**Clean:** nothing — every scan surfaced findings` | re-render |
 | Footer once | `{run-dir}/decisions.md` appears exactly once, in the footer | dedupe |
 | Digest | a report over 40 lines was written to `{run-dir}/report.md` and the chat carries the digest, not the whole | apply the digest rule |
+| Digest why | each Yours group head in the digest is followed by one shared why-not-auto clause before its command line | add the group's shared reason (Why-not-auto sourcing above) |
 
 #### Hard gate (report before question)
 
