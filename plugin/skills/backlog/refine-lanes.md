@@ -6,14 +6,17 @@ templates, the consequence-line trust and `solution:unjustified` annotation temp
 line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line rule, and the
 confirm gate.
 
-One lane per record, precedence: Re-authorize → Grant → Flag-back (populated during the run by
-Step 3.5 downgrades) → Priority (annotation-line when the record is already laned above) →
-Dependency repair (annotation-line when the record is already laned) → Needs you (residual:
-`needs:definition` records, then judgment-required rows; interactive launchers, no paste block). A
-record that would otherwise qualify for more than one lane renders exactly once, in the earliest
-lane on this list it reaches — Flag-back rows are already flag-back before this step ever reads the
+One lane per record, precedence: Re-authorize → Grant → Human-only (Step 3's scored
+`RECOMMEND_BUILD: false` branch) → Flag-back (populated during the run by Step 3.5 downgrades) →
+Priority (annotation-line when the record is already laned above) → Dependency repair
+(annotation-line when the record is already laned) → Needs you (residual: `needs:definition`
+records, then judgment-required rows; interactive launchers, no paste block). A record that would
+otherwise qualify for more than one lane renders exactly once, in the earliest lane on this list it
+reaches — Flag-back rows are already flag-back before this step ever reads the
 worklist (Step 3's `flag back (needs scoring)` recommendation, Step 3.5's body-shape auto-downgrade),
-so they never also compete as Grant candidates. A record already laned above (Re-authorize/Grant/
+so they never also compete as Grant candidates; Human-only rows are already human-only before this
+step reads the worklist (Step 3's scored-`RECOMMEND_BUILD: false` branch), so they never compete as
+Flag-back candidates either. A record already laned above (Re-authorize/Grant/Human-only/
 Flag-back) keeps its priority/Related suggestion as an annotation line under its existing row rather
 than a full Priority-lane row — a suggestion is never silently dropped; see the Priority lane
 section below for the exact template. The lanes themselves now do the job the retired `Type` column
@@ -24,15 +27,17 @@ Empty lanes render nothing this run: no heading, no table, no paste block. Lead 
 count summary naming only the lanes that do render (adapting the old 10+-rows count-summary rule
 to always fire, since the lane split needs the overview up front regardless of count), e.g.:
 
-`23` suggestions across `6` lanes: `2` re-authorize, `7` grant, `3` flag-back, `8` priority,
-`1` dependency-repair, `2` needs-you — counts are lane array lengths, computed fresh every run. A
-record carrying only a Priority or Dependency-repair *annotation* (below) is counted under its
-primary lane, never double-counted under Priority or Dependency-repair too.
+`23` suggestions across `7` lanes: `2` re-authorize, `7` grant, `1` human-only, `3` flag-back,
+`8` priority, `1` dependency-repair, `2` needs-you — counts are lane array lengths, computed fresh
+every run. A record carrying only a Priority or Dependency-repair *annotation* (below) is counted
+under its primary lane, never double-counted under Priority or Dependency-repair too. A record
+already marked human-only on an earlier run (Step 3's idempotence check) is never counted here at
+all — it renders as a bare annotation line, not a lane row (see Human-only below).
 
 Resolve this run's session-scoped actions-file paths once, up front (`_shared/session-tmp-root.md`) — every lane below writes its actions to its own variable instead of a literal `/tmp` path:
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_ACTIONS_REAUTHORIZE=backlog-refine-actions-reauthorize.json ST_BACKLOG_REFINE_ACTIONS_GRANT=backlog-refine-actions-grant.json ST_BACKLOG_REFINE_ACTIONS_FLAGBACK=backlog-refine-actions-flagback.json ST_BACKLOG_REFINE_ACTIONS_PRIORITY=backlog-refine-actions-priority.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_ACTIONS_REAUTHORIZE=backlog-refine-actions-reauthorize.json ST_BACKLOG_REFINE_ACTIONS_GRANT=backlog-refine-actions-grant.json ST_BACKLOG_REFINE_ACTIONS_HUMANONLY=backlog-refine-actions-humanonly.json ST_BACKLOG_REFINE_ACTIONS_FLAGBACK=backlog-refine-actions-flagback.json ST_BACKLOG_REFINE_ACTIONS_PRIORITY=backlog-refine-actions-priority.json)"
 ```
 
 ## Re-authorize
@@ -133,6 +138,42 @@ Like the trust consequence line, this is informational only — it rides along w
 the row is in, is never gated behind its own confirm, and is never written by this skill. An `unjustified`
 row is not a reason to withhold a grant; it is a prompt to read the record's `## Gotchas` before
 approving one.
+
+## Human-only
+
+Population: rows that reached this lane before Step 4 ever rendered — Step 3's scored
+`RECOMMEND_BUILD: false` branch (a record that already carries both `risk:*` and `size:*`, so the
+denial is content-based rather than a scoring gap), whose idempotence check found no existing
+`<!-- backlog-refine-human-only -->` marker comment.
+
+| # | Record | Current → Recommended | Evidence |
+|---|---|---|---|
+| 1 | #1317: {title} | ready (unchanged) → mark human-only (no grant) | RECOMMEND_BUILD: false — {grant-check RATIONALE} |
+
+Accepted defaults, paste-ready (Step 5's Human-only-rows mechanics — the marker comment template
+lives there, not repeated here). Write every human-only row's action to
+`"$ST_BACKLOG_REFINE_ACTIONS_HUMANONLY"` (`commentFile: "/tmp/backlog-refine-humanonly-{issue}.md"`
+only — no `addLabels`/`removeLabels`, since this lane never touches labels), then apply the whole
+lane in one call:
+
+```bash
+── Human-only ──
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" "$ST_BACKLOG_REFINE_ACTIONS_HUMANONLY" --run "$PIPELINE_RUN_DIR"
+```
+
+**Already-marked records (idempotence).** A record whose idempotence check (Step 3) found an
+existing marker comment is not laned here at all — it renders as one annotation line beneath the
+lane table (or, when no fresh row exists this run, as its own standalone line under the lane
+heading), the literal template:
+
+```
+  # human-only (already marked {date}) — unchanged, no write this run
+```
+
+`{date}` is the marker comment's own creation date. This record contributes nothing to
+`"$ST_BACKLOG_REFINE_ACTIONS_HUMANONLY"` and nothing to Step 5's apply pass — the whole point of
+the idempotence check is that a second refine run over an already-marked record produces zero
+label/comment writes.
 
 ## Flag-back
 

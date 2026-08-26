@@ -160,9 +160,26 @@ string instead, per Step 4.
 
 - **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
   `true`).
-- **`RECOMMEND_BUILD: false`** → `flag back (needs scoring)`. The human may supply scoring inline as
-  a free-text override instead of flagging back — the gate then stamps the supplied `risk:*`/
-  `size:*` labels alongside the grant (Step 5).
+- **`RECOMMEND_BUILD: false`** on a record **missing** `risk:*` and/or `size:*` — the row's own
+  `.facets.risk`/`.facets.size` from Step 1's fetch (`session-scoped backlog-refine-worklist.json`,
+  already `parseRecordFacets`-derived — no extra read) → `flag back (needs scoring)`. The human may
+  supply scoring inline as a free-text override instead of flagging back — the gate then stamps the
+  supplied `risk:*`/`size:*` labels alongside the grant (Step 5).
+- **`RECOMMEND_BUILD: false`** on a record that already carries **both** `risk:*` and `size:*` —
+  a content-based denial, not a scoring gap (a `Defer-reason: needs-human-decision` body, risk:high
+  merge-authority work, a deliverable that needs a human-present session, or a record already
+  resolved live) → **human-only**: leave `ready` in place, write no `auto:*` grant, and record the
+  verdict once as an audit marker comment (Step 5's Human-only rows) so a deliberately human-only
+  record stays dispatchable instead of looping between `ready` and backlog on the next refine.
+  **Idempotence check, before lanning:** query whether this record already carries the human-only
+  marker comment —
+  ```bash
+  gh issue view "$ISSUE" --json comments -q '.comments[] | select(.body | startswith("<!-- backlog-refine-human-only -->")) | .id'
+  ```
+  A non-empty result means an earlier refine run already marked this record — render it as one
+  annotation line only (`refine-lanes.md`'s Human-only lane), never a fresh lane row, and skip
+  every Step 5 write for it (zero label/comment writes on the repeat pass). An empty result lanes
+  it as a fresh Human-only row.
 
 For every record in `blocked` (unaffected by the budget — the retry-ceiling population is
 typically small and its re-authorization recommendation needs no `grant-check` call at all), skip
@@ -326,6 +343,27 @@ gh issue edit "$ISSUE" --add-label "risk:$RISK_TIER" --add-label "size:$SIZE_TIE
 
 Stripping `bot:blocked` in the same edit as the grant matters: without it, the record carries both `bot:blocked` and a fresh `auto:build`, and `/claude-tweaks:dispatch`'s skip rule ignores anything `bot:blocked` forever regardless of the new grant.
 
+**Human-only rows:** For every row lanned Human-only in Step 4 (Step 3's scored
+`RECOMMEND_BUILD: false` branch, idempotence check already cleared) — post one audit marker
+comment, no label writes at all: `ready` stays, no `auto:*` grant is added.
+
+```
+<!-- backlog-refine-human-only -->
+Marked human-only by /claude-tweaks:backlog refine: {grant-check RATIONALE}
+
+Kept `ready` — still selectable by /claude-tweaks:dispatch #{n} / /claude-tweaks:flow #{n} for a
+human-driven build.
+```
+
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_REFINE_HUMANONLY=backlog-refine-humanonly-${ISSUE}.md")"
+gh issue comment "$ISSUE" --body-file "$BACKLOG_REFINE_HUMANONLY"
+```
+
+The `<!-- backlog-refine-human-only -->` marker — the comment's first line, unconditionally — is
+what Step 3's idempotence check greps for on a later run; never hand-write or omit it. Local-files
+driver: this lane never fires (Step 3's grant-check pass is `github-issues` only).
+
 **Dependency-repair rows:**
 
 - Refine runs the detection itself — it does not consume overview's output. After Step 1's fetch (which already carries `,body`), and after performing the same `work-links: native` blocked-by attachment overview's Step 3 specifies (one aliased `buildNativeDependencyQuery` call over the fetched candidates; per-node failures attach nothing), run `findUnresolvedDependencyProse` via the same `{ flags }` output shape. Attaching native blockers first means already-natively-wired records resolve non-empty and are never flagged for re-wiring. The same per-node failure narration line applies here — when any alias in an otherwise-successful batch failed, render one failure-only narration line naming exactly those ids (e.g. `blocker data incomplete for #12, #40 — node fetch failed; they rank on body-text fallback this run`) — and probe unavailability or whole-fetch failure degrades to the body-text fallback with one failure-only narration line, never a hard stop (restated here at point of use rather than left to the cross-reference). Under `work-links: body-text`, no attachment is needed — the body fallback resolves canonical lines on its own. Offer the mode-aware repair as a new confirmable item type in the existing Step 4 lanes + confirm gate — surfaced and applied exactly like every other write in this step, never bypassing or altering when the gate fires or that it blocks until confirmed.
@@ -354,8 +392,9 @@ AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: repaired dependency on #{n} — {wired native blocked-by referencing #{m} | appended Blocked by #{m} line}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
+AUTO {time} — Backlog refine: marked #{n} human-only — kept ready, no grant. Rationale: {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: skipped #{n} — premise changed since confirmation ({what changed}); dropped without writing.
-FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
+FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back | human-only} write failed on #{n}: {error}.
 ```
 
 The closing summary below counts these lines by type — `FAILED` feeds the tally's `failed` count and per-failure lines; `AUTO … skipped …` (including a reverify-fetch failure) feeds `skipped` and its per-skip lines; a write with no matching line was never attempted and counts toward neither.
@@ -369,7 +408,7 @@ second bookkeeping channel:
    present, even at zero:
 
    ```
-   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 0 skipped · 0 failed
+   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 human-only marked · 1 dependency-repair · 0 skipped · 0 failed
    ```
 
 2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry
