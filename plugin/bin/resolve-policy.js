@@ -26,8 +26,8 @@
 'use strict';
 const fs = require('fs');
 const { execFileSync } = require('child_process');
-const { detectIntegrationModel, POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
-const { deriveMergeVerification } = require('./lib/merge-verification');
+const { POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
+const { computeDerivedDefaults } = require('./lib/policy-derived-defaults');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 const { anchoredOrOutsideMessage } = require('./lib/run-dir-guard');
 
@@ -127,35 +127,16 @@ function main(argv) {
   // have written one yet; readFileSafe's null simply means no overlay.
   const { root, policyRaw, result } = resolvePolicyConfig({ git: gitRoot, readFile: readFileSafe, runDir, keys });
 
-  // integration-model has no static schema default (skills/_shared/integration-
-  // model.md) — an absent value (not a typo'd/invalid one; `invalid: true`
-  // stays visible as an error, never silently overwritten) is computed via
-  // forge detection instead of a literal.
-  if (keys.includes('integration-model')) {
-    const entry = result['integration-model'];
-    if (entry && entry.source === 'default' && !entry.invalid) {
-      result['integration-model'] = { value: detectIntegrationModel(root), source: 'default' };
-    }
-  }
-
-  // merge-verification (#559) has no static schema default either — an absent
-  // value (never an invalid one; `invalid: true` stays visible) is derived by
-  // bin/lib/merge-verification.js's four-branch ladder, whose prose statement
-  // of record is skills/_shared/policy-schema-coverage.md's coverage block.
-  if (keys.includes('merge-verification')) {
-    const entry = result['merge-verification'];
-    if (entry && entry.source === 'default' && !entry.invalid) {
-      // Reuse this call's own integration-model result (already computed
-      // above) instead of letting deriveMergeVerification's internal
-      // resolveIntegrationModel()->detectIntegrationModel() redo forge
-      // detection from scratch — avoids running it twice per invocation.
-      const modelEntry = result['integration-model'];
-      const deps = keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
-        ? { integrationModel: () => modelEntry.value }
-        : {};
-      result['merge-verification'] = { value: deriveMergeVerification(root, deps), source: 'default' };
-    }
-  }
+  // integration-model / merge-verification have no static schema default
+  // (skills/_shared/integration-model.md; #559) — an absent value (never a
+  // typo'd/invalid one; `invalid: true` stays visible as an error, never
+  // silently overwritten) is computed via forge detection / the four-branch
+  // derivation ladder instead of a literal, with merge-verification reusing
+  // this call's own integration-model result to avoid running forge
+  // detection twice per invocation. Extracted into bin/lib/policy-derived-
+  // defaults.js (#604) so the dedup is unit-testable via an injectable deps
+  // map — see that module for the full block.
+  computeDerivedDefaults(result, keys, root);
 
   // model-profiles is the one block-style key — policy-only (the --run
   // overlay never applies; run configs hold flat lever lines, not nested
