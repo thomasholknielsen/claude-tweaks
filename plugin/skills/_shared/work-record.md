@@ -93,7 +93,7 @@ are about to apply.
 | Upstream (1) | `upstream-candidate` | marks a record whose real destination is the claude-tweaks plugin, filed locally only because a headless run could not clear `/claude-tweaks:feedback`'s confirmation gate |
 | Structure (1) | `parent-issue` | Structure: parent issue — carries the acceptance gate for its sub-issues. Marks a `/claude-tweaks:specify` decomposition parent — the only thing that makes it enumerable for `/claude-tweaks:tidy`'s `parent-gate` sweep (`_shared/github-pr-scan-acceptance.md`); never carried by a sub-issue |
 | Justification (1) | `solution:unjustified` | Marks a record whose stated problem names a solution that was never traded off; stamped by `/specify` via `/claude-tweaks:challenge`'s `framing-check`, absent means the framing read clean. Non-gating: the remedy is a one-line human call — `/claude-tweaks:challenge #{n}` resolves it in one step (supply evidence or accept the risk); re-running `/specify #N` also clears it, but only if the re-shape changes the framing itself. Pre-rename spelling `framing:baked` stays readable forever (`[IL-85]`), never emitted |
-| Definition (1) | `needs:definition` | Marks a record naming a genuine open choice with no tradeoff made yet, rather than a single clear ask; stamped by `/capture` and `/feedback` at filing time (a content judgment, not a structural heuristic), absent means the ask read clear |
+| Definition (2) | `needs:definition`, `needs:decision` | Marks a record naming a genuine open choice with no tradeoff made yet (`needs:definition`, stamped by `/capture`/`/feedback` at filing time — a content judgment), or a record where a headless unit proposed an action it may not take alone (`needs:decision` — the proposal and its command are in the record's newest unresolved decision comment; stamped by `/backlog refine`'s Grant lane and `/backlog grant`'s gate-4 refusal, see `backlog/grant-lane-decision.md`) |
 | Provenance (1) | `shaped:headless` | Marks a record shaped by `/specify`'s headless `next` unit with no human review of the resulting spec body — absent means either a human shaped it, or it predates this feature. Writer: `/specify` `next` mode only, applied in the same call as `ready` — never on an interactively-shaped record. Readers: the grant gate (`evaluateGrantGate`, #969), `/backlog attention`, and `/assess-agent-autonomy`'s `grant-check.md` Step 2 Judge (weighs this provenance toward a conservative verdict, #969). Never blocks an interactive human grant. |
 | Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
 | Container (1) | `digest` | marks the rolling digest issue container for below-materiality-floor deferred findings, per `_shared/materiality-floor.md` |
@@ -120,6 +120,39 @@ Step 0 queue mode shipped — see `skills/feedback/SKILL.md`) is unaffected; thi
 on filing a *new* write-only label the way `remembered.json`'s harness-health/docs-health gap and
 `upstream-candidate`'s original orphan state both did (#239) — both closed by giving the writer an
 actual reader rather than by deleting the write.
+
+### Decision-comment template
+
+The canonical shape for a `needs:decision` residue comment — cited by every writer
+(`backlog/grant-lane-decision.md`, `backlog/grant-mode.md`) rather than restated:
+
+```
+<!-- needs-decision: {unit} -->
+## Decision needed
+**Proposed:** {one line — the action}
+**Why:** {one line — the rationale, e.g. the grant-check RATIONALE}
+**Command:** `{paste-ready, fully-qualified}`
+```
+
+`{unit}` is the literal skill/mode name that wrote it (`backlog-refine`, `backlog-grant`, `tidy`) —
+this is what lets a later reader (and Phase 6's tidy loop-safety rule) tell which unit's proposal a
+given comment is.
+
+**Resolution rule.** A resolver prepends `**Resolved:** {choice} — {date}` to the comment body and
+removes the label **only when zero unresolved `needs-decision:*` comments remain on the record** —
+a record refused by both `backlog-refine` and `backlog-grant` concurrently carries two separate
+comments under the one shared label; resolving one leaves the label in place until the other is
+also resolved, so a still-open proposal from a second unit is never silently hidden by the first
+unit's own resolution. A comment with no `**Resolved:**` line is unresolved.
+
+### Worklist rule
+
+The worklist rule: a headless unit skips any open record carrying a `needs:*` label — a genuine
+open choice (`needs:definition`) or a proposal awaiting a human decision (`needs:decision`) is
+never a candidate for further autonomous action until a human resolves it. Every headless
+eligibility/candidate filter cites this rule rather than restating the label list:
+`bin/lib/issues/grant-gate.js`'s Gate 1c, `specify/next-mode.md`'s Eligibility query, and
+`tidy/step-1-records.md`'s record-scoped shapes.
 
 ## Permission matrix
 
