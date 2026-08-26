@@ -42,3 +42,15 @@ test('WEBHOOK-TRIGGER mode requires an existing routine record', () => {
   const section = content.slice(content.indexOf('## WEBHOOK-TRIGGER'));
   assert.match(section, /create <skill>.*first|run.*create.*first/i);
 });
+
+const skillMdPath = path.join(__dirname, '../plugin/skills/routine/SKILL.md');
+
+test('SKILL.md Input table documents the webhook-trigger mode', () => {
+  const content = fs.readFileSync(skillMdPath, 'utf8');
+  assert.match(content, /webhook-trigger\s*<skill>/);
+});
+
+test('SKILL.md Workflow table routes webhook-trigger to webhook-trigger.md', () => {
+  const content = fs.readFileSync(skillMdPath, 'utf8');
+  assert.match(content, /webhook-trigger[\s\S]{0,200}webhook-trigger\.md/);
+});
