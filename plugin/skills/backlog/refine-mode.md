@@ -158,11 +158,8 @@ afterward, not be computed and then silently discarded. `blocked` rows (below) h
 `assess-agent-autonomy` call to draw a rationale from — their Evidence column reads a fixed
 string instead, per Step 4.
 
-- **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
-  `true`).
-- **`RECOMMEND_BUILD: false`** → `flag back (needs scoring)`. The human may supply scoring inline as
-  a free-text override instead of flagging back — the gate then stamps the supplied `risk:*`/
-  `size:*` labels alongside the grant (Step 5).
+Read `grant-lane-decision.md` in this skill's directory for the full `RECOMMEND_BUILD` outcome
+table and Step 5's write mechanics for each — not restated here.
 
 For every record in `blocked` (unaffected by the budget — the retry-ceiling population is
 typically small and its re-authorization recommendation needs no `grant-check` call at all), skip
@@ -191,7 +188,11 @@ fetch/render this sub-stage advises with, and how it never changes what the gate
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-For every record the grant-check pass recommends **granting** (not flag-back/blocked rows) — fetch the body and re-verify spec shape immediately before writing any label, using the same cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check` already fetched and cached the body at this run's session-scoped `assess-grant-{n}.json` — `_shared/session-tmp-root.md`; reuse it instead of a second API round-trip).
+For every record `grant-lane-decision.md`'s outcome table resolves to granting or `needs:decision`
+— fetch the body and re-verify spec shape immediately before writing any label, using the same
+cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check`
+already fetched and cached the body at this run's session-scoped `assess-grant-{n}.json` —
+`_shared/session-tmp-root.md`; reuse it instead of a second API round-trip).
 
 ```bash
 eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "ASSESS_GRANT=assess-grant-${ISSUE}.json" "BACKLOG_REFINE_BODY=backlog-refine-body-${ISSUE}.md")"
@@ -341,6 +342,9 @@ gh issue edit "$ISSUE" --remove-label ready
 gh issue comment "$ISSUE" --body-file "$BACKLOG_REFINE_FLAGBACK"
 ```
 
+**Needs-decision rows:** `grant-lane-decision.md`'s Write mechanics — label, comment, keep `ready`,
+no `auto:*`. Logged the same as any row above.
+
 Check each write's own result before logging it — a non-zero exit from any `gh`/`writeRecord` call
 above is a failure, not a success, regardless of which lane produced it (a reverify fetch above
 is not itself a write; it follows its own skip rule instead). Log every action to this
@@ -369,7 +373,7 @@ second bookkeeping channel:
    present, even at zero:
 
    ```
-   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 0 skipped · 0 failed
+   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 1 needs-decision · 0 skipped · 0 failed
    ```
 
 2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry
