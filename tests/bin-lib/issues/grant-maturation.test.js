@@ -54,6 +54,24 @@ test('evaluateMaturation: defaults vetoWindowHours to 24 when absent or invalid'
   assert.strictEqual(withNaN.mature, true);
 });
 
+test('evaluateMaturation: does not treat an empty-string-derived 0 as a valid veto window', () => {
+  const pendingSince = new Date('2026-08-23T11:59:00Z'); // 1 minute before NOW
+  // Number('') === 0 — the exact resolver-failure hazard: a finite, non-NaN
+  // value that must still hit the 24h fallback, not be honored as a real window.
+  const result = evaluateMaturation({ hasPendingLabel: true, hasMergeLabel: false, pendingSince, vetoWindowHours: Number(''), now: NOW });
+  assert.strictEqual(result.mature, false);
+  assert.strictEqual(result.state, 'within-veto-window');
+  assert.strictEqual(result.windowHours, 24);
+});
+
+test('evaluateMaturation: does not treat a negative vetoWindowHours as valid', () => {
+  const pendingSince = new Date('2026-08-23T11:59:00Z'); // 1 minute before NOW
+  const result = evaluateMaturation({ hasPendingLabel: true, hasMergeLabel: false, pendingSince, vetoWindowHours: -5, now: NOW });
+  assert.strictEqual(result.mature, false);
+  assert.strictEqual(result.state, 'within-veto-window');
+  assert.strictEqual(result.windowHours, 24);
+});
+
 test('extractPendingGrantedAt: null for non-array, empty array, or no marker', () => {
   assert.strictEqual(extractPendingGrantedAt(undefined), null);
   assert.strictEqual(extractPendingGrantedAt([]), null);
