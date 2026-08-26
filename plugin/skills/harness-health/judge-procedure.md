@@ -69,8 +69,19 @@ Run these mechanical checks first and treat their output as **evidence a later j
    # Use awk, not a sed range plus a trailing `sed '$d'`: when the section is the
    # LAST in the file, a range print runs to EOF and `$d` then deletes a genuine
    # content line instead of a heading.
-   awk '/^## <section heading>$/{p=1; print; next} /^## /{ if (p) exit } p' "{target.path}" > /tmp/harness-health-section.txt
-   grep -c '^- ' /tmp/harness-health-section.txt; wc -w /tmp/harness-health-section.txt
+   # Session-scoped destination, suffixed with this target's own id (_shared/
+   # session-tmp-root.md's "record-suffixed callers keep both suffixes" case) —
+   # the id keeps this scratch file distinct across sibling Task agents auditing
+   # different targets in the same parallel dispatch batch; the session segment
+   # keeps it distinct across separate firings. Degrades to the plain suffixed
+   # path when no $CLAUDE_CODE_SESSION_ID is visible, harmlessly.
+   HARNESS_HEALTH_SECTION=$(node -e "
+     const { sessionTmpPath } = require('{plugin-root}/bin/lib/session-tmp.js');
+     const name = 'harness-health-section-{target.id}.txt';
+     console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, name) || require('path').join(require('os').tmpdir(), name))
+   ")
+   awk '/^## <section heading>$/{p=1; print; next} /^## /{ if (p) exit } p' "{target.path}" > "$HARNESS_HEALTH_SECTION"
+   grep -c '^- ' "$HARNESS_HEALTH_SECTION"; wc -w "$HARNESS_HEALTH_SECTION"
    ```
 
    Divide word count by bullet count over the same extracted content. Above roughly 40 words/bullet is evidence — not a verdict — that specific bullets drifted from a terse constraint into an incident narrative. Feed it into dimension 8 rather than emitting it standalone.

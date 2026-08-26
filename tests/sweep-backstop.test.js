@@ -81,20 +81,24 @@ test('item 10 (unsettled run): every embedded node -e script is syntactically va
 test("item 9's green-check filter treats SKIPPED as non-blocking, not a failure (regression)", () => {
   const filterScript = extractNodeScripts(ITEM9)[0];
   assert.ok(
-    filterScript && /pr-scan-unarmed-candidates\.json/.test(filterScript),
-    'expected the first item-9 script to be the candidate filter (writes pr-scan-unarmed-candidates.json)',
+    filterScript && /PR_SCAN_UNARMED_CANDIDATES/.test(filterScript),
+    'expected the first item-9 script to be the candidate filter (writes $PR_SCAN_UNARMED_CANDIDATES)',
   );
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-item9-filter-'));
   const inputPath = path.join(tmpDir, 'pr-scan-unarmed.json');
   const candidatesPath = path.join(tmpDir, 'pr-scan-unarmed-candidates.json');
 
-  // Source-text substitution of the script's hardcoded literals — the script
-  // closes over these paths as literals, not via process.argv, so isolation
-  // has to happen before the script is written to disk and run.
+  // Source-text substitution standing in for bash's own $VAR expansion — the
+  // script closes over these as the session-scoped shell variables
+  // github-pr-scan.md's own `eval "$(session-tmp-resolve.js ...)"` line
+  // resolves (_shared/session-tmp-root.md), never literal paths, so running
+  // it standalone here (outside that bash fence) requires substituting them
+  // ourselves first. Longer name first — $PR_SCAN_UNARMED is a prefix of
+  // $PR_SCAN_UNARMED_CANDIDATES.
   const isolatedScript = filterScript
-    .split('/tmp/pr-scan-unarmed-candidates.json').join(candidatesPath)
-    .split('/tmp/pr-scan-unarmed.json').join(inputPath);
+    .split('$PR_SCAN_UNARMED_CANDIDATES').join(candidatesPath)
+    .split('$PR_SCAN_UNARMED').join(inputPath);
 
   // Comfortably older than the pr-unarmed-age-hours default (24h) used below,
   // so the age filter doesn't trip first and mask the conclusion-filter
@@ -170,9 +174,10 @@ test("item 9's filter script treats a wrap-up-residue-pr-marked PR as a housekee
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-item9-residue-'));
   const inputPath = path.join(tmpDir, 'pr-scan-unarmed.json');
   const candidatesPath = path.join(tmpDir, 'pr-scan-unarmed-candidates.json');
+  // Longer name first — $PR_SCAN_UNARMED is a prefix of $PR_SCAN_UNARMED_CANDIDATES.
   const isolatedScript = filterScript
-    .split('/tmp/pr-scan-unarmed-candidates.json').join(candidatesPath)
-    .split('/tmp/pr-scan-unarmed.json').join(inputPath);
+    .split('$PR_SCAN_UNARMED_CANDIDATES').join(candidatesPath)
+    .split('$PR_SCAN_UNARMED').join(inputPath);
 
   const oldEnough = new Date(Date.now() - 25 * 3600000).toISOString();
   fs.writeFileSync(inputPath, JSON.stringify([{

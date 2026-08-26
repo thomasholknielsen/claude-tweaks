@@ -60,12 +60,15 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 7. **Docs-health issues** — `gh issue list --label by:docs-health --state open --json number,title,labels,updatedAt,url --limit 100`.
 8. **Grant-queue counts** — one self-contained query feeds three maintenance-signal counts, per `_shared/work-record.md`'s record taxonomy. Not gated on `work-backend` — this scope only runs once the Detection Ladder already confirmed a reachable GitHub remote, regardless of which driver stores records:
 
+   Resolve this item's session-scoped temp path first, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated):
+
    ```bash
-   gh issue list --state open --json number,title,labels --limit 200 > /tmp/pr-scan-records.json
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PR_SCAN_RECORDS=pr-scan-records.json)"
+   gh issue list --state open --json number,title,labels --limit 200 > "$PR_SCAN_RECORDS"
    node -e "
      const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
      const { isPendingAuthorization } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/pending-authorization.js');
-     const issues = require('/tmp/pr-scan-records.json');
+     const issues = require('$PR_SCAN_RECORDS');
      const faceted = issues.map((i) => parseRecordFacets(i.labels));
      const withFacets = issues.map((i, idx) => ({ number: i.number, title: i.title, facets: faceted[idx] }));
      const pending = withFacets.filter((i) => i.facets.stage === 'ready' && isPendingAuthorization(i.facets)).length;
@@ -83,11 +86,14 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
 9. **Unarmed ready PR** — a green, gate-passed, granted or grantable, plugin-created PR whose `--auto` was never armed. "Plugin-created" is detected purely GitHub-side, from the PR body's `<!-- claude-tweaks-run: {run-id} -->` marker (stamped by `_shared/pr-early-run-lifecycle.md`'s PR-open template) or one of the two mechanical-housekeeping markers — `<!-- tidy-housekeeping-pr -->` (stamped by `/claude-tweaks:tidy` Step 7 at creation) or `<!-- wrap-up-residue-pr -->` (stamped by `wrap-up/residue-sweep.md`'s pr-first landing path — the same low-judgment, purely-mechanical shape as a tidy Step-7 commit, gated by the identical `housekeeping-auto-merge` lever) — no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.
 
+   Resolve this item's session-scoped temp paths first, per `_shared/session-tmp-root.md`:
+
    ```bash
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PR_SCAN_UNARMED=pr-scan-unarmed.json PR_SCAN_UNARMED_CANDIDATES=pr-scan-unarmed-candidates.json)"
    UNARMED_AGE=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values pr-unarmed-age-hours)
    HOUSEKEEPING_GRANT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values housekeeping-auto-merge)
    gh pr list --state open --json number,title,updatedAt,isDraft,body,autoMergeRequest,statusCheckRollup,closingIssuesReferences,url --limit 100 \
-     > /tmp/pr-scan-unarmed.json
+     > "$PR_SCAN_UNARMED"
 
    UNARMED_AGE="$UNARMED_AGE" node -e "
      const fs = require('fs');
@@ -95,7 +101,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
      const now = Date.now();
      const RUN_MARKER = /<!-- claude-tweaks-run: [^\s]+ -->/;
      const HOUSEKEEPING_MARKER = /<!-- (?:tidy-housekeeping-pr|wrap-up-residue-pr) -->/;
-     const prs = require('/tmp/pr-scan-unarmed.json');
+     const prs = require('$PR_SCAN_UNARMED');
      const candidates = prs.filter((pr) => {
        if (pr.isDraft || pr.autoMergeRequest) return false;
        const ageHours = (now - Date.parse(pr.updatedAt)) / 3600000;
@@ -110,32 +116,34 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
        if (checks.length && !green) return false;
        return RUN_MARKER.test(pr.body || '') || HOUSEKEEPING_MARKER.test(pr.body || '');
      });
-     fs.writeFileSync('/tmp/pr-scan-unarmed-candidates.json', JSON.stringify(candidates));
+     fs.writeFileSync('$PR_SCAN_UNARMED_CANDIDATES', JSON.stringify(candidates));
    "
    ```
 
-   The age/gate/marker filter above narrows to a small candidate set before any further per-PR calls — unresolved threads (the same GraphQL query as `current-pr` item 2, run once per **candidate**, never against the full open-PR list) gate out any candidate that still has one, since a PR with an open thread is not actually ready regardless of CI or age. For each surviving candidate carrying the `claude-tweaks-run` marker (not the housekeeping one), fetch every linked record's labels — `closingIssuesReferences` names the numbers, not their labels:
+   The age/gate/marker filter above narrows to a small candidate set before any further per-PR calls — unresolved threads (the same GraphQL query as `current-pr` item 2, run once per **candidate**, never against the full open-PR list) gate out any candidate that still has one, since a PR with an open thread is not actually ready regardless of CI or age. For each surviving candidate carrying the `claude-tweaks-run` marker (not the housekeeping one), fetch every linked record's labels — `closingIssuesReferences` names the numbers, not their labels. Re-resolve this fence's session-scoped paths (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
    ```bash
-   : > /tmp/pr-scan-unarmed-links.jsonl
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PR_SCAN_UNARMED_CANDIDATES=pr-scan-unarmed-candidates.json PR_SCAN_UNARMED_LINKS=pr-scan-unarmed-links.jsonl)"
+   : > "$PR_SCAN_UNARMED_LINKS"
    node -e "
      const seen = new Set();
-     require('/tmp/pr-scan-unarmed-candidates.json').forEach((p) => (p.closingIssuesReferences || []).forEach((i) => seen.add(i.number)));
+     require('$PR_SCAN_UNARMED_CANDIDATES').forEach((p) => (p.closingIssuesReferences || []).forEach((i) => seen.add(i.number)));
      [...seen].forEach((n) => console.log(n));
    " | while read -r N; do
-     gh issue view "$N" --json number,labels --jq '{number: .number, labels: [.labels[].name]}' >> /tmp/pr-scan-unarmed-links.jsonl
+     gh issue view "$N" --json number,labels --jq '{number: .number, labels: [.labels[].name]}' >> "$PR_SCAN_UNARMED_LINKS"
    done
    ```
 
-   Classify each surviving candidate — granted when every linked record carries `auto:merge` **and none carries `bot:blocked`** (a housekeeping-marker PR is granted instead by `housekeeping-auto-merge` alone, no record grant needed). The `bot:blocked` exclusion is what keeps this sweep from un-parking a deliberately parked run: a record carries it either because dispatch hit its retry ceiling or because `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) took the red path, and both mean a human owes a re-triage before anything arms that PR — a later-green rollup does not retract the park.
+   Classify each surviving candidate — granted when every linked record carries `auto:merge` **and none carries `bot:blocked`** (a housekeeping-marker PR is granted instead by `housekeeping-auto-merge` alone, no record grant needed). The `bot:blocked` exclusion is what keeps this sweep from un-parking a deliberately parked run: a record carries it either because dispatch hit its retry ceiling or because `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) took the red path, and both mean a human owes a re-triage before anything arms that PR — a later-green rollup does not retract the park. Re-resolve this fence's session-scoped paths:
 
    ```bash
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PR_SCAN_UNARMED_CANDIDATES=pr-scan-unarmed-candidates.json PR_SCAN_UNARMED_LINKS=pr-scan-unarmed-links.jsonl)"
    HOUSEKEEPING_GRANT="$HOUSEKEEPING_GRANT" node -e "
      const fs = require('fs');
      const HOUSEKEEPING = process.env.HOUSEKEEPING_GRANT === 'true';
-     const candidates = require('/tmp/pr-scan-unarmed-candidates.json');
-     const links = fs.existsSync('/tmp/pr-scan-unarmed-links.jsonl')
-       ? fs.readFileSync('/tmp/pr-scan-unarmed-links.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse)
+     const candidates = require('$PR_SCAN_UNARMED_CANDIDATES');
+     const links = fs.existsSync('$PR_SCAN_UNARMED_LINKS')
+       ? fs.readFileSync('$PR_SCAN_UNARMED_LINKS', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse)
        : [];
      const labelsByIssue = new Map(links.map((l) => [l.number, l.labels]));
      candidates.forEach((pr) => {
@@ -162,7 +170,13 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
 10. **Unsettled run** — a claimed or `bot:in-progress`-labeled issue whose pipeline shows no evidence of progress since it was claimed, past a threshold. Detected purely GitHub-side, in three fetches:
 
+    Resolve this item's session-scoped temp paths first, per `_shared/session-tmp-root.md`:
+
     ```bash
+    eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" \
+      PR_SCAN_UNSETTLED_CLAIMS=pr-scan-unsettled-claims.jsonl \
+      PR_SCAN_UNSETTLED_LABELLED=pr-scan-unsettled-labelled.json \
+      PR_SCAN_UNSETTLED_PRS=pr-scan-unsettled-prs.json)"
     UNSETTLED_AGE=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values unsettled-age-hours)
 
     # 1. Claims-registry: filenames are `issue-{n}.json`; read each blob and pair it
@@ -170,7 +184,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
     #    other than 'live'/'stale' (tombstoned, or the file vanished between the
     #    list and the read) is dropped here, not surfaced — a released or contested
     #    claim is not an unsettled one.
-    : > /tmp/pr-scan-unsettled-claims.jsonl
+    : > "$PR_SCAN_UNSETTLED_CLAIMS"
     gh api "repos/{owner}/{repo}/contents/claims?ref=claims-registry" -q '.[].name' 2>/dev/null | while read -r FNAME; do
       NUM=$(echo "$FNAME" | sed -E 's/^issue-([0-9]+)\.json$/\1/')
       CONTENT=$(gh api "repos/{owner}/{repo}/contents/claims/${FNAME}?ref=claims-registry" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null)
@@ -180,7 +194,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
         if (c.state !== 'live' && c.state !== 'stale') process.exit(0);
         const parsed = JSON.parse(process.argv[2]);
         console.log(JSON.stringify({ number: Number(process.argv[1]), claimedAt: parsed.claimedAt, source: 'claim' }));
-      " "$NUM" "$CONTENT" >> /tmp/pr-scan-unsettled-claims.jsonl
+      " "$NUM" "$CONTENT" >> "$PR_SCAN_UNSETTLED_CLAIMS"
     done
 
     # 2. bot:in-progress-labelled issues with no matching claim above (a claim/
@@ -189,31 +203,37 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
     #    best available timestamp once there is no claim blob to read a
     #    claimedAt from.
     gh issue list --label bot:in-progress --state open --json number,updatedAt --limit 200 \
-      > /tmp/pr-scan-unsettled-labelled.json
+      > "$PR_SCAN_UNSETTLED_LABELLED"
 
     # 3. Every PR, to reverse-join by closingIssuesReferences (the same field
     #    GitHub computes from a PR's own `Fixes #{n}` line — no marker regex
     #    needed here, unlike item 9's plugin-created detection).
     gh pr list --state all --json number,url,closingIssuesReferences,comments,commits --limit 200 \
-      > /tmp/pr-scan-unsettled-prs.json
+      > "$PR_SCAN_UNSETTLED_PRS"
     ```
 
     A live claim with `claimedAt` older than `unsettled-age-hours` qualifies; a `bot:in-progress` label with no matching claim entry above qualifies once its `updatedAt` clears the same threshold. For a qualifying candidate, find the PR whose `closingIssuesReferences` includes its issue number. **No PR found** qualifies unconditionally — there is nothing to check progress against. A PR found qualifies only when its progress — the later of its last head-branch commit date and its last comment date, any actor, bot comments included — is **no more recent than the claim's `claimedAt`** (nothing has happened since the claim was taken, however active the PR looked when it was first opened); a PR with newer activity is not unsettled; it does not report:
 
+    Re-resolve this fence's session-scoped paths (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variables):
+
     ```bash
+    eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" \
+      PR_SCAN_UNSETTLED_CLAIMS=pr-scan-unsettled-claims.jsonl \
+      PR_SCAN_UNSETTLED_LABELLED=pr-scan-unsettled-labelled.json \
+      PR_SCAN_UNSETTLED_PRS=pr-scan-unsettled-prs.json)"
     node -e "
       const fs = require('fs');
       const AGE_HOURS = Number(process.env.UNSETTLED_AGE);
       const now = Date.now();
-      const claimed = fs.existsSync('/tmp/pr-scan-unsettled-claims.jsonl')
-        ? fs.readFileSync('/tmp/pr-scan-unsettled-claims.jsonl', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse)
+      const claimed = fs.existsSync('$PR_SCAN_UNSETTLED_CLAIMS')
+        ? fs.readFileSync('$PR_SCAN_UNSETTLED_CLAIMS', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse)
         : [];
       const claimedNumbers = new Set(claimed.map((c) => c.number));
-      const labelled = require('/tmp/pr-scan-unsettled-labelled.json')
+      const labelled = require('$PR_SCAN_UNSETTLED_LABELLED')
         .filter((i) => !claimedNumbers.has(i.number))
         .map((i) => ({ number: i.number, claimedAt: i.updatedAt, source: 'label' }));
       const candidates = claimed.concat(labelled);
-      const prs = require('/tmp/pr-scan-unsettled-prs.json');
+      const prs = require('$PR_SCAN_UNSETTLED_PRS');
       function matchedPr(issueNumber) {
         return prs.find((pr) => (pr.closingIssuesReferences || []).some((i) => i.number === issueNumber));
       }
@@ -268,12 +288,15 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 
 1. **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: matches `/claude-tweaks:backlog refine`'s own `ready`-queue pull (`skills/backlog/refine-mode.md`), which tiers no health-skill origin specially — every `ready` record, with or without a `by:*` label, is in scope.
 
+   Resolve this item's session-scoped temp path first, per `_shared/session-tmp-root.md`:
+
    ```bash
-   gh issue list --label ready --state open --json number,labels --limit 200 > /tmp/triage-queue-ready.json
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" TRIAGE_QUEUE_READY=triage-queue-ready.json)"
+   gh issue list --label ready --state open --json number,labels --limit 200 > "$TRIAGE_QUEUE_READY"
    node -e "
      const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
      const { isPendingAuthorization } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/pending-authorization.js');
-     const issues = require('/tmp/triage-queue-ready.json');
+     const issues = require('$TRIAGE_QUEUE_READY');
      const pending = issues.filter((i) => isPendingAuthorization(parseRecordFacets(i.labels))).length;
      console.log(pending);
    "
