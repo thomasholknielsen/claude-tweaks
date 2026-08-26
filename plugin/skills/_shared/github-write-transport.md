@@ -55,6 +55,13 @@ production incidents when `tidy`'s Rolling digest briefly used `gh issue list --
 (#1016, #1079, #1089). Always use the plain list-then-filter approach (`list_issues`/
 `gh issue list`, no `--search`, then `findByMarker` in-process), on both transports.
 
+**Sanctioned alternative for a marker *count* over a label-scoped set** (not a lookup by number —
+a tally, like "how many issues carry today's marker in a comment"): list-then-read-comments,
+never search. List the label-scoped issue set (the row above), then read each one's comments (the
+"List an issue's comments" row below) and filter/count client-side. `/claude-tweaks:backlog
+grant`'s Cap tracking section (`backlog/mcp-transport.md`) is the reference consumer — see that
+file for the full bounded procedure and its accepted small undercount caveat.
+
 **Sizing the list-then-filter window.** With `--search` gone, `--limit` (or `list_issues`' page
 size) is the only thing narrowing the read — so an under-sized window silently reintroduces by
 truncation the same dedup-miss the rule above prevents by dropping the index. Size it from the

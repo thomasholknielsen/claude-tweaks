@@ -180,6 +180,11 @@ historical `--state all` fetch reads through `_shared/record-queue-fetch.md`'s s
 record snapshot the same way every other citer of that section does, rather than a bare fetch of
 its own:
 
+**MCP path** (`gh` unavailable): `bin/backlog-grant-gate.js` itself hard-requires `gh` and cannot
+run at all under this transport — see `mcp-transport.md`'s Step 1 + Step 2 Phase A section in this
+skill's directory for the fetch/compute split that reproduces this CLI's outcome via MCP calls
+plus its already-exported pure functions, with no new module.
+
 ```bash
 eval "$(node -e "
   const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
@@ -372,6 +377,9 @@ merged anything yet, so there is nothing for the circuit breaker to watch. That 
 at whichever maturation site actually promotes `auto:merge-pending` to `auto:merge` — Step 0.5
 above names both.
 
+**MCP path** (`gh` unavailable): see `mcp-transport.md`'s Step 4 section in this skill's directory
+for the bot:blocked probe's and grant/re-authorize edit's MCP-tool equivalents.
+
 Post the audit comment (evidence snapshot — see the Audit format below), then log to
 `decisions.md`.
 
@@ -408,6 +416,9 @@ The trailing HTML comment is the durable, greppable marker Step 2's cap-seeding 
 (`date=` truncated to the UTC calendar date for same-day comparison) — same dual-purpose
 human-readable-plus-machine-marker convention `_shared/work-record.md`'s fingerprint marker
 already uses.
+
+**MCP path** (`gh` unavailable): see `mcp-transport.md`'s Audit format section in this skill's
+directory for the comment post's MCP-tool equivalent.
 
 **`decisions.md`** (this run's standalone-auto run dir):
 
@@ -453,6 +464,12 @@ resolver read above),
 skip this whole section — `evaluateGrantGate` treats an absent cap as uncapped and this search
 never runs (avoids an unnecessary `gh search` call on the common, uncapped-by-default path).
 
+**MCP path, and a `gh`-form change too.** `gh search issues --match comments` rides the same
+eventually-consistent search index `_shared/github-write-transport.md` already bans for
+find-by-marker lookups (#1016/#1079/#1089) — see `mcp-transport.md`'s Cap tracking section in this
+skill's directory for the bounded list-then-read-comments walk that replaces it on *both*
+transports, plus its accepted small undercount caveat.
+
 ## Concurrency
 
 Same reasoning as `refine-mode.md`'s Concurrency section: every label add is idempotent, so two
@@ -462,3 +479,9 @@ firings could each read the same "N of M" count and both grant, overshooting the
 self-correcting margin. Acceptable for the same reason `refine-mode.md` accepts its own narrow
 race: the next firing reads the true, now-current count and stops appropriately; this is not
 worth a distributed lock for a soft fleet-hygiene cap.
+
+**Holds unchanged on the MCP transport** — `mcp-transport.md`'s own Concurrency section works
+through why `issue_write`'s plain field update preserves the same idempotency this section relies
+on, and why `_shared/issue-claims.md`'s lock is not needed here on either transport (a different
+problem — mutual exclusion over who *builds* an issue — that this mode's label-add writes never
+had).
