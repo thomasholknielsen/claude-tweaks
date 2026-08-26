@@ -583,19 +583,16 @@ function runVerify({ runDir, originalRunDir, base, repoRoot, cwd, deps = {} }) {
   // `cwd` is the invoking checkout (a worktree, under this project's default
   // `worktree`/`pr-first` mode) — distinct from `repoRoot`, which must stay
   // the main checkout for `run-dir-archived`'s pipeline-directory lookups.
-  // Falls back to `repoRoot`, then `process.cwd()`, when the caller doesn't
-  // separately supply one, so every existing repoRoot-isolating test fixture
-  // isolates `cwd` too, for free, with no call-site changes required
-  // (record #1222).
-  // Tradeoff this fallback accepts: a caller that supplies `repoRoot` but
-  // omits `cwd` silently gets main-checkout-only scanning for
-  // `plans-ledger`/`design-caches` -- exactly the #1222 blind spot this fix
-  // closes elsewhere. That's intentional for today's one production caller
-  // (`wrap-up-engine.js`'s `runVerifyVerb`, which always supplies both), but
-  // any FUTURE caller of `runVerify` must supply `cwd` explicitly to get the
-  // fix's benefit -- it does not come for free just because `repoRoot` is
-  // set.
-  const resolvedCwd = cwd || repoRoot || process.cwd();
+  // It defaults to the already-resolved repoRoot, so every existing
+  // repoRoot-isolating test fixture isolates `cwd` too, for free, with no
+  // call-site changes required. Tradeoff that default accepts: a caller that
+  // supplies `repoRoot` but omits `cwd` silently gets main-checkout-only
+  // scanning for `plans-ledger`/`design-caches` -- exactly the blind spot
+  // this fix closes elsewhere -- so any FUTURE caller must supply `cwd`
+  // explicitly rather than assume `repoRoot` covers it. Today's one
+  // production caller (`wrap-up-engine.js`'s `runVerifyVerb`) always supplies
+  // both (record #1222).
+  const resolvedCwd = cwd || resolvedRepoRoot;
   const resolvedOriginalRunDir = originalRunDir || runDir;
   const expectations = runDir === null ? null : readExpectations(runDir);
 
