@@ -20,6 +20,12 @@ const SEVERITY_BUCKETS = {
 // Alternative scheme (from spec gotchas): { critical: 'crit', high: 'mid',
 // medium: 'mid', low: 'low', info: 'low' }. Swap by replacing the map above.
 
+// Finer-grained ranking than SEVERITY_BUCKETS — used only to pick "the lower
+// of the two" literal severities for a severity-contested reproduction pair
+// (#733), never to decide whether two findings match. Lower number = more
+// severe.
+const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+
 const RED_TEAM_PERSONAS = [
   {
     name: 'Implementer',
@@ -128,6 +134,20 @@ function findingsMatch(a, b, tolerance = LINE_TOLERANCE_REPRODUCTION) {
   return severityBucket(na.severity) === severityBucket(nb.severity);
 }
 
+// Returns the less severe of two severity values (case-insensitive; an
+// unrecognized or non-string value ranks as 'low', matching severityBucket's
+// own fallback). Used only for #733's severity-contested reproduction pairs
+// below — never for the match decision itself, which stays on severityBucket.
+function severityRank(severity) {
+  if (typeof severity !== 'string') return SEVERITY_RANK.low;
+  const rank = SEVERITY_RANK[severity.toLowerCase()];
+  return rank === undefined ? SEVERITY_RANK.low : rank;
+}
+
+function lowerSeverity(severityA, severityB) {
+  return severityRank(severityA) >= severityRank(severityB) ? severityA : severityB;
+}
+
 function categoriseReproduction(agentAFindings, agentBFindings) {
   const confirmed = [];
   const unconfirmed = [];
@@ -135,14 +155,36 @@ function categoriseReproduction(agentAFindings, agentBFindings) {
 
   for (const rawFa of agentAFindings) {
     const fa = normalizeFinding(rawFa);
-    const matchIdx = agentBFindings.findIndex(
+    const bucketMatchIdx = agentBFindings.findIndex(
       (fb, i) => !matchedB.has(i) && findingsMatch(fa, fb, LINE_TOLERANCE_REPRODUCTION),
     );
-    if (matchIdx === -1) {
+    if (bucketMatchIdx !== -1) {
+      confirmed.push(fa);
+      matchedB.add(bucketMatchIdx);
+      continue;
+    }
+
+    // No severity-bucket-agreeing match — but a pair that agrees on
+    // location (substance) while straddling the bucket boundary (e.g. high
+    // vs medium) is still a real reproduction, not a false negative (#733).
+    // Match on location alone and, when found, confirm with the lower of
+    // the two severities rather than dropping to `unconfirmed`.
+    const locationMatchIdx = agentBFindings.findIndex((rawFb, i) => {
+      if (matchedB.has(i)) return false;
+      return sameLocation(fa, normalizeFinding(rawFb), LINE_TOLERANCE_REPRODUCTION);
+    });
+    if (locationMatchIdx === -1) {
       unconfirmed.push({ ...fa, source: 'A' });
     } else {
-      confirmed.push(fa);
-      matchedB.add(matchIdx);
+      const fb = normalizeFinding(agentBFindings[locationMatchIdx]);
+      confirmed.push({
+        ...fa,
+        severity: lowerSeverity(fa.severity, fb.severity),
+        severityContested: true,
+        severityA: fa.severity,
+        severityB: fb.severity,
+      });
+      matchedB.add(locationMatchIdx);
     }
   }
 
@@ -247,6 +289,7 @@ module.exports = {
   RED_TEAM_PERSONAS,
   // Comparison / aggregation logic
   severityBucket,
+  lowerSeverity,
   parsePathLine,
   normalizeFinding,
   sameLocation,

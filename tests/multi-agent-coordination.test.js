@@ -186,6 +186,76 @@ test('reproduction: severity buckets collapse correctly (critical+high vs medium
   assert.strictEqual(c.findingsMatch(a, otherBucket), false);
 });
 
+test('lowerSeverity: returns the less severe of two severity values, case-insensitive, unknowns rank as low', () => {
+  assert.strictEqual(c.lowerSeverity('high', 'medium'), 'medium');
+  assert.strictEqual(c.lowerSeverity('medium', 'high'), 'medium');
+  assert.strictEqual(c.lowerSeverity('critical', 'info'), 'info');
+  assert.strictEqual(c.lowerSeverity('High', 'Medium'), 'Medium');
+  assert.strictEqual(c.lowerSeverity('high', 'high'), 'high');
+  assert.strictEqual(c.lowerSeverity('high', 'nonsense'), 'nonsense');
+});
+
+// ============================================================
+// #733 — reproduction pairs: location+substance agreement with a
+// straddled severity bucket is reproduced (severity contested), not
+// dropped to unconfirmed.
+// ============================================================
+
+test('categoriseReproduction: location agreement with a straddled severity bucket (high vs medium) is confirmed, severity contested, lower severity wins', () => {
+  const a = [{ path: 'step-6-auto.md', line: 154, severity: 'medium', text: 'digest-vs-Approve mismatch' }];
+  const b = [{ path: 'step-6-auto.md', line: 154, severity: 'high', text: 'digest-vs-Approve mismatch' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 1);
+  assert.strictEqual(unconfirmed.length, 0);
+  assert.strictEqual(confirmed[0].severityContested, true);
+  assert.strictEqual(confirmed[0].severity, 'medium');
+  assert.strictEqual(confirmed[0].severityA, 'medium');
+  assert.strictEqual(confirmed[0].severityB, 'high');
+});
+
+test('categoriseReproduction: a straddled-bucket pair within line tolerance (±2) is still reproduced', () => {
+  const a = [{ path: 'x.js', line: 100, severity: 'low' }];
+  const b = [{ path: 'x.js', line: 102, severity: 'critical' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 1);
+  assert.strictEqual(unconfirmed.length, 0);
+  assert.strictEqual(confirmed[0].severityContested, true);
+  assert.strictEqual(confirmed[0].severity, 'low');
+});
+
+test('categoriseReproduction: same-bucket agreement is unaffected — no severityContested flag, no bucket loosening', () => {
+  const a = [{ path: 'x.js', line: 10, severity: 'critical' }];
+  const b = [{ path: 'x.js', line: 10, severity: 'high' }];
+  const { confirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 1);
+  assert.strictEqual(confirmed[0].severityContested, undefined);
+  assert.strictEqual(confirmed[0].severity, 'critical');
+});
+
+test('categoriseReproduction: genuine location disagreement (different files) stays unconfirmed even when severity ranks differ (Gotchas — no loosening beyond the straddled-bucket case)', () => {
+  const a = [{ path: 'src/other.ts', line: 100, severity: 'medium' }];
+  const b = [{ path: 'src/different.ts', line: 900, severity: 'high' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 0);
+  assert.strictEqual(unconfirmed.length, 2);
+});
+
+test('categoriseReproduction: a straddled-bucket pair beyond line tolerance (±3) does NOT reproduce', () => {
+  const a = [{ path: 'x.js', line: 100, severity: 'low' }];
+  const b = [{ path: 'x.js', line: 104, severity: 'critical' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 0);
+  assert.strictEqual(unconfirmed.length, 2);
+});
+
+test('review skill doc: severity-contested reproduction decision-log template matches the documented format', () => {
+  const pattern = decisionLogPattern(REVIEW_SKILL, ['reproduced, severity contested']);
+  const rendered =
+    '- AUTO 14:32:08 — Reproduction: lens "Security" finding src/auth.ts:42 reproduced, ' +
+    'severity contested (medium vs high; confirmed as medium). Reversibility: high.';
+  assert.match(rendered, pattern);
+});
+
 test('parsePathLine / normalizeFinding: bridges Template A\'s combined "Path:Line" column into separate path/line fields', () => {
   assert.deepStrictEqual(c.parsePathLine('src/auth.ts:42'), { path: 'src/auth.ts', line: 42 });
   assert.deepStrictEqual(c.parsePathLine('src/auth.ts'), { path: 'src/auth.ts', line: undefined });
@@ -542,7 +612,10 @@ test('/review reproduction integration: per-lens reproduction → confirmed/unco
   const lensName = 'security';
   const confirmedEntry =
     `- AUTO 14:32:08 — Reproduction: lens "${lensName}" finding ${confirmed[0].path}:${confirmed[0].line} reproduced. Confirmed. Reversibility: high.`;
-  assert.match(confirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Findings present in both agents']));
+  assert.match(
+    confirmedEntry,
+    decisionLogPattern(REVIEW_SKILL, ['Findings present in both agents', 'matching severity bucket']),
+  );
   const unconfirmedEntry =
     `- STAGED 14:32:11 — Reproduction: lens "${lensName}" finding ${unconfirmed[0].path}:${unconfirmed[0].line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.`;
   assert.match(unconfirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Findings present in only one']));
