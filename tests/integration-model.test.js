@@ -94,9 +94,17 @@ test('CLI: run-config value is pinned and wins over policy.yml (run-scoped stabi
   assert.strictEqual(out.trim(), 'pr-first');
 });
 
-test('CLI: this repo (real gh session) resolves a valid enum value with no policy.yml key set (AC1 shape)', () => {
+test('CLI: this repo resolves a valid enum value regardless of policy.yml state (AC1 shape)', () => {
   const out = runResolvePolicy(['--values', 'integration-model'], { cwd: REPO_ROOT });
   assert.ok(['pr-first', 'local-merge'].includes(out.trim()));
+});
+
+test('CLI: this repo pins integration-model: pr-first in policy.yml — resolves without shelling out to git/gh (AC1)', () => {
+  const policyPath = path.join(REPO_ROOT, '.claude-tweaks', 'policy.yml');
+  const policyRaw = fs.readFileSync(policyPath, 'utf8');
+  assert.match(policyRaw, /^integration-model:\s*pr-first\s*$/m, '.claude-tweaks/policy.yml must pin integration-model: pr-first');
+  const out = runResolvePolicy(['--values', 'integration-model'], { cwd: REPO_ROOT });
+  assert.strictEqual(out.trim(), 'pr-first');
 });
 
 // --- Consumer conformance ---
