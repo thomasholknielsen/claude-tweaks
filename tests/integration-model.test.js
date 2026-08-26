@@ -18,6 +18,21 @@ function gitRepo({ remote } = {}) {
   return dir;
 }
 
+// Fakes "gh absent, git present" without an empty PATH — on some machines
+// (this repo's dev environment included) git and gh live in the SAME
+// directory (e.g. both under /opt/homebrew/bin via Homebrew), so blanking
+// PATH entirely would also break the git remote-get-url probe that must
+// keep succeeding. Instead, resolve git's real absolute path once (via the
+// *current* PATH, before any override), symlink only that into a fresh
+// empty directory, and use that directory as the override PATH — git
+// resolves, gh does not.
+function ghAbsentPath() {
+  const gitPath = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-nogh-bin-'));
+  fs.symlinkSync(gitPath, path.join(binDir, 'git'));
+  return binDir;
+}
+
 function runResolvePolicy(args, { cwd } = {}) {
   return execFileSync('node', [RESOLVE_POLICY, ...args], { cwd, encoding: 'utf8' });
 }
@@ -66,6 +81,44 @@ test('detectIntegrationModel: this repo (real GitHub remote) resolves a valid en
   // value, so it stays green in a gh-absent/unauthenticated sandbox too.
   const value = detectIntegrationModel(REPO_ROOT);
   assert.ok(['pr-first', 'local-merge'].includes(value));
+});
+
+test('detectIntegrationModel: mcpReachable:true resolves pr-first for a real GitHub remote even when gh is faked absent (AC2)', () => {
+  const dir = gitRepo({ remote: 'https://github.com/thomasholknielsen/claude-tweaks.git' });
+  const originalPath = process.env.PATH;
+  process.env.PATH = ghAbsentPath();
+  try {
+    assert.strictEqual(detectIntegrationModel(dir, { mcpReachable: true }), 'pr-first');
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});
+
+test('detectIntegrationModel: mcpReachable:true with no git remote still resolves local-merge — a remote is required regardless of MCP reachability', () => {
+  const dir = gitRepo();
+  assert.strictEqual(detectIntegrationModel(dir, { mcpReachable: true }), 'local-merge');
+});
+
+test('detectIntegrationModel: no override (undefined opts) is unchanged — gh absent still resolves local-merge (AC3)', () => {
+  const dir = gitRepo({ remote: 'https://example.invalid/nowhere/nothing.git' });
+  assert.strictEqual(detectIntegrationModel(dir), 'local-merge');
+});
+
+test('detectIntegrationModel: mcpReachable:false is unchanged from no-override — gh absent still resolves local-merge (AC3)', () => {
+  const dir = gitRepo({ remote: 'https://example.invalid/nowhere/nothing.git' });
+  assert.strictEqual(detectIntegrationModel(dir, { mcpReachable: false }), 'local-merge');
+});
+
+test('resolveIntegrationModel: forwards opts through to detectIntegrationModel', () => {
+  const { resolveIntegrationModel } = require('../plugin/bin/lib/policy-schema');
+  const dir = gitRepo({ remote: 'https://github.com/thomasholknielsen/claude-tweaks.git' });
+  const originalPath = process.env.PATH;
+  process.env.PATH = ghAbsentPath();
+  try {
+    assert.strictEqual(resolveIntegrationModel(dir, { mcpReachable: true }), 'pr-first');
+  } finally {
+    process.env.PATH = originalPath;
+  }
 });
 
 // --- CLI (bin/resolve-policy.js) ---
