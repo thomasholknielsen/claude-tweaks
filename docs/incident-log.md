@@ -1253,3 +1253,27 @@ defect had already cost a live incident during #893's wrap-up before this run ex
 it — a fix that closes one instance of a TOCTOU hazard in a function is not the same as closing
 the hazard in that function, if the function still has another step racing the same kind of
 concurrent write.
+
+## IL-148 — AskUserQuestion narrating a wait on a background dispatch
+
+During a live `/claude-tweaks:flow` run (spec-343-900, `subagent-driven-development` execution of
+record #900, 2026-08-21), the executing agent repeatedly called `AskUserQuestion` with a single
+option — "Acknowledged (Recommended)" — purely to narrate "waiting for background agent X" between
+implementer/reviewer dispatches, many times in a row, with no real decision for the user to make.
+This directly undermined `auto` mode's own hands-off contract (`flow/SKILL.md`: auto "silences ...
+all path-selection prompts mid-pipeline") and created significant interruption/attention burden
+during what should have been a hands-off run. Nothing in `flow/SKILL.md` or
+`subagent-driven-development`'s own guidance instructed this pattern — it was the executing
+agent's own judgment error, and the `AskUserQuestion` tool's own description already states a
+question needs at least two genuinely distinct choices, which "acknowledge that I'm waiting" never
+has.
+
+Fixed by adding an explicit rule to `docs/donts.md` — inherited by every dispatched subagent's
+system prompt (this file's own header) — naming the two things a wait on a background/async
+dispatch is never grounds for: it is not a decision point, and it does not satisfy
+`AskUserQuestion`'s own two-distinct-options requirement.
+
+Cost on the #900 run: significant interruption/attention burden — repeated no-op confirmation
+prompts throughout what should have been a hands-off `auto`-mode run, with no corresponding
+decision made at any of them. No code defect and no incorrect output; the cost was entirely to the
+human's attention and to the hands-off contract itself.
