@@ -91,6 +91,7 @@ All `ops`-phase items must embed a `(reason-not-auto: {value})` qualifier in the
 | `requires-judgment` | A name, value, or copy decision someone must make at execution time |
 | `requires-signoff` | Security, legal, change-management, or product approval gates the action |
 | `auth-not-configured` | A CLI exists but credentials aren't set up on this machine. After the user runs the login command, the item should be re-triaged — it often becomes auto-executable. |
+| `live-verification` | The AC's own verification is itself a real, side-effecting, hard-to-reverse action against shared state (a live PR/merge/delete cycle, an irreversible external API call) — never executed inline during an autonomous run to prove the AC; deferred here instead. See `_shared/auto-mode-contract.md`'s Never-reversible list. Worked example: #683's AC4 (a live worktree/PR/merge/teardown cycle). |
 
 Items without a `reason-not-auto` qualifier are classification errors (the spec writer or the build skill missed the triage). If you encounter one, propose the correct classification rather than appending as-is — most "outside the codebase" tasks have a CLI and should not land here.
 

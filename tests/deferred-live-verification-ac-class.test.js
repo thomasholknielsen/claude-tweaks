@@ -1,0 +1,53 @@
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const CONTRACT = fs.readFileSync(
+  path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'auto-mode-contract.md'),
+  'utf8',
+);
+const LEDGER_FORMAT = fs.readFileSync(
+  path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'ledger-format.md'),
+  'utf8',
+);
+
+function neverReversibleSection() {
+  const start = CONTRACT.indexOf('### Never-reversible (auto-FORBIDDEN, regardless of mode)');
+  const end = CONTRACT.indexOf('## What `auto` silences', start);
+  assert.notStrictEqual(start, -1, 'Never-reversible heading present');
+  assert.ok(end > start, 'section delimited by the What auto silences heading');
+  return CONTRACT.slice(start, end);
+}
+
+function requiredForOpsSection() {
+  const start = LEDGER_FORMAT.indexOf('Required for `ops`-phase items');
+  assert.notStrictEqual(start, -1, 'Required for ops-phase items heading present');
+  return LEDGER_FORMAT.slice(start);
+}
+
+test('auto-mode-contract.md names the deferred-live-verification AC class as never-reversible', () => {
+  const section = neverReversibleSection();
+  assert.match(section, /live[, ].*side-effecting.*hard-to-reverse/i);
+  assert.match(section, /acceptance criterion/i);
+  assert.match(section, /#683/, 'cites #683 as the worked example');
+  assert.match(section, /reason-not-auto: live-verification/);
+});
+
+test('the documented rule generalizes past the worktree\\/PR\\/merge example (spec AC3)', () => {
+  const section = neverReversibleSection();
+  // Must name at least one non-PR/merge example of the class, not just the worked example.
+  assert.match(section, /irreversible external API call/i);
+});
+
+test('_shared/auto-mode-contract.md stays within the context-cost ceiling with headroom', () => {
+  const CEILING_BYTES = 40 * 1024;
+  const bytes = Buffer.byteLength(CONTRACT, 'utf8');
+  assert.ok(bytes <= CEILING_BYTES, `auto-mode-contract.md is ${bytes} bytes, over the ${CEILING_BYTES} ceiling`);
+});
+
+test('ledger-format.md defines the live-verification reason-not-auto qualifier', () => {
+  const section = requiredForOpsSection();
+  assert.match(section, /`live-verification`/);
+  assert.match(section, /#683/, 'qualifier row cites #683 as the worked example');
+});

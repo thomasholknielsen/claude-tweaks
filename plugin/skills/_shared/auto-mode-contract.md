@@ -152,6 +152,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
   work-record keys still resident in CLAUDE.md (`work-backend`, `work-types`,
   `record-staleness-weeks`)
 - Deleting specs
+- Executing a live, side-effecting, hard-to-reverse action against shared state solely to verify an acceptance criterion — a real PR/merge/branch-delete cycle, an irreversible external API call, or anything similarly destructive taken just to prove the AC — defer it instead to the closing summary's Manual Steps table (an `ops` ledger entry, `reason-not-auto: live-verification` — `_shared/ledger-format.md`'s Required-for-ops table). Worked example: #683's AC4 asked for a live create-worktree/commit/PR/merge/teardown cycle against the actual repo; deferred rather than executed mid-pipeline.
 
 ## What `auto` silences
 
