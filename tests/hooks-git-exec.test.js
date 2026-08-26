@@ -97,11 +97,39 @@ test('runGitAsync: a non-git directory is git-error — git ANSWERED, in the neg
 });
 
 test('runGitAsync: a blown budget is timeout, and timeout is indeterminate (#134)', async () => {
-  const dir = gitRepo();
-  const { stdout, failure } = await runGitAsync(['rev-parse', '--show-toplevel'], dir, { timeoutMs: 1 });
-  assert.strictEqual(stdout, null);
-  assert.strictEqual(failure, FAILURE.TIMEOUT);
-  assert.strictEqual(isIndeterminate(failure), true);
+  // Unlike runGit's own version of this test above, a real `timeoutMs: 1`
+  // race against a real `git rev-parse` is NOT reliable here: on a fast,
+  // cache-warm CI runner the async child can complete before the 1ms JS
+  // timer callback is serviced, so the real command sometimes "wins" the
+  // race and this test observed a genuine (not one of the pre-authorized)
+  // flake on GitHub Actions. Mock a hung child instead, so the assertion
+  // exercises the TIMEOUT classification branch deterministically,
+  // regardless of host speed.
+  const cp = require('child_process');
+  const { promisify } = require('util');
+  const original = cp.execFile;
+  // git-exec.js resolves `cp.execFile` at call time (promisify(cp.execFile)
+  // inside runGitAsync, not hoisted to module scope) specifically so this
+  // plain property reassignment is observed without needing a require.cache
+  // eviction — same call-time-resolution contract runGit's own
+  // `cp.execFileSync` already relies on.
+  const stub = () => {};
+  stub[promisify.custom] = () => new Promise((_resolve, reject) => {
+    const err = new Error('Command failed: git');
+    err.killed = true;
+    err.signal = 'SIGTERM';
+    setImmediate(() => reject(err));
+  });
+  cp.execFile = stub;
+  try {
+    const dir = gitRepo();
+    const { stdout, failure } = await runGitAsync(['rev-parse', '--show-toplevel'], dir, { timeoutMs: 1 });
+    assert.strictEqual(stdout, null);
+    assert.strictEqual(failure, FAILURE.TIMEOUT);
+    assert.strictEqual(isIndeterminate(failure), true);
+  } finally {
+    cp.execFile = original;
+  }
 });
 
 test('runGitAsync: always returns an object, never null, on every path', async () => {

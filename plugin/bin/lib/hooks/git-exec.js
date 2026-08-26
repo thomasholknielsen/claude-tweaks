@@ -12,7 +12,13 @@
 // this is the minimum needed for a spawn-count test to observe these calls at all (#381).
 const cp = require('child_process');
 const { promisify } = require('util');
-const execFileAsync = promisify(cp.execFile);
+// promisify(cp.execFile) is called fresh inside runGitAsync below, not
+// snapshotted here — the same call-time-resolution reason as the comment
+// above: promisify captures its argument by reference at the point it's
+// called, so hoisting this to module scope would silently defeat a test's
+// `cp.execFile = stub` monkeypatch (#872 follow-up — exactly this hoisted
+// form shipped once and broke `runGitAsync`'s own timeout test's ability to
+// mock a slow child deterministically).
 
 // Budget for one git query, sized from measurement rather than intuition (#134).
 //
@@ -124,7 +130,7 @@ function runGit(args, cwd, opts = {}) {
 async function runGitAsync(args, cwd, opts = {}) {
   const timeout = resolveTimeout(opts);
   try {
-    const { stdout } = await execFileAsync('git', ['-C', cwd, ...args], {
+    const { stdout } = await promisify(cp.execFile)('git', ['-C', cwd, ...args], {
       encoding: 'utf8', timeout, windowsHide: true,
     });
     return { stdout: stdout.trim(), failure: null };
