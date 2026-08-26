@@ -2,7 +2,8 @@
 
 Single source of truth for the `autonomy` policy lever (`supervised` default | `trusted` |
 `unattended`). Referenced, not restated, by every consumer: `_shared/work-record.md` (permission
-matrix, Grant semantics, Born-ready rule), `_shared/auto-mode-contract.md` (never-reversible list),
+matrix, Grant semantics, Born-ready rule), `_shared/work-record-permission-matrix.md` (the
+`/capture` row's ceiling-gated `--chained` shaping clause), `_shared/auto-mode-contract.md` (never-reversible list),
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
 `backlog/refine-mode.md` (Step 3.6), `backlog/refine-lanes.md` (the `refineAutoApply` batch-confirm
 short-circuit — see Bookkeeping capabilities below), `backlog/grant-mode.md` (the
