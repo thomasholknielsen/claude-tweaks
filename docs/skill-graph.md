@@ -95,6 +95,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/backlog` | Records `/capture` files reach `refine`'s grant worklist after `/specify` shapes them to `ready` — human-invoked, or, under `autonomy: trusted`+ when `producer:capture` carries a `clean` trust verdict, machine-chained immediately after filing; `overview` mode surveys and prioritizes them. |
 | `_shared/autonomy-ceiling.md` | The one actor the ceiling's born-`ready` tier covers. `/capture` resolves it through `permittedGrants` — never from the policy value alone, since the class verdict is half the condition — and files plain, then chains into `/claude-tweaks:specify #{n} --chained` when both hold, which stamps `ready` under its own authority. Inert at `supervised`, the default. |
 | `_shared/issue-claims.md` | Adding an idea that proposes a new `bin/` CLI cites this file's Deliverable-name-collisions section — grep the shipped tree and the open queue for the proposed name before filing, so two independent records never propose the same `bin/` deliverable undetected until a merge conflict. |
+| `_shared/health-recent-commit-check.md` | The canonical recent-commit overlap screen `/capture`'s `github-issues` filing step runs immediately after `gh issue create` succeeds — shared with `/code-health`, `/docs-health`, `/harness-health`, and `/journey-health`. |
 | `/challenge` | Indirect only — `/challenge`'s `framing-check` mode judges the record `/capture` created, but it is invoked by `/specify` while shaping that record, not by `/capture` itself. See the `## challenge` and `## specify` sections. |
 | `/code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `/demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label. |
@@ -130,6 +131,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `_shared/health-routine-notes.md` | The canonical text of this skill's Routine Configuration billing note — shared with `/harness-health`, `/journey-health`, and `/docs-health` (which also share its confidence-floor-asymmetry paragraph, not applicable to this skill since `--min-risk` closes that gap here). |
 | `_shared/learning-routing.md` | The "Subject check (health sweeps)" section this skill's Step 9 applies before filing — a finding about a claude-tweaks skill routes to D5 (`/feedback`) instead of a project issue; a headless run with no human to clear `/feedback`'s gate instead labels it `upstream-candidate` locally. |
 | `_shared/materiality-floor.md` | Before `code-health`'s own per-origin cap digest (`_shared/health-filing-digest.md`), a would-be-new finding first clears this floor — below-floor findings route to the shared materiality digest container instead of either a singleton issue or `code-health`'s cap digest. |
+| `_shared/health-recent-commit-check.md` | The canonical recent-commit overlap screen this skill's Step 9 (`filing.md`) runs immediately after each `gh issue create` succeeds — shared with `/capture`, `/docs-health`, `/harness-health`, and `/journey-health`. |
 
 ## deepen
 
@@ -212,6 +214,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `_shared/health-routine-notes.md` | The canonical billing note, shared with `/code-health`, `/harness-health`, and `/journey-health` — and the confidence-floor paragraph, shared with `/harness-health` and `/journey-health` now that all three (plus `/code-health`'s `--min-risk`) have closed the gap it used to describe as open. This skill and `/harness-health` hold sub-threshold findings in a durable `remembered` cache; `/journey-health` drops them for that run instead. |
 | `_shared/learning-routing.md` | The "Subject check (health sweeps)" section this skill's Step 6 applies before filing — a finding about a claude-tweaks skill routes to D5 (`/feedback`) instead of a project issue; a headless run with no human to clear `/feedback`'s gate instead labels it `upstream-candidate` locally. |
 | `_shared/materiality-floor.md` | Before `docs-health`'s own per-origin cap digest (`_shared/health-filing-digest.md`), a would-be-new finding first clears this floor — below-floor findings route to the shared materiality digest container instead of either a singleton issue or `docs-health`'s cap digest. |
+| `_shared/health-recent-commit-check.md` | The canonical recent-commit overlap screen this skill's Step 6 runs immediately after each `gh issue create` succeeds — shared with `/capture`, `/code-health`, `/harness-health`, and `/journey-health`. |
 
 ## feedback
 
@@ -262,6 +265,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `_shared/health-verify-gate.md` | The canonical adversarial-verify-gate question shape this skill applies via its embedded copy in `_shared/harness-health-analysis.md` — `/code-health`, `/docs-health`, and `/journey-health` each inline their own copy the same way. |
 | `_shared/learning-routing.md` | The "Subject check (health sweeps)" section this skill's `filing.md` (Step 7) applies before filing — a finding about a claude-tweaks skill routes to D5 (`/feedback`) instead of a project issue; a headless run with no human to clear `/feedback`'s gate instead labels it `upstream-candidate` locally. |
 | `_shared/materiality-floor.md` | Before `harness-health`'s own per-origin cap digest (`_shared/health-filing-digest.md`), a would-be-new finding first clears this floor — below-floor findings route to the shared materiality digest container instead of either a singleton issue or `harness-health`'s cap digest. |
+| `_shared/health-recent-commit-check.md` | The canonical recent-commit overlap screen this skill's `filing.md` (Step 7) runs immediately after each `gh issue create` succeeds — shared with `/capture`, `/code-health`, `/docs-health`, and `/journey-health`. |
 
 ## help
 
@@ -303,6 +307,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/wrap-up` | Wrap-up's Journeys curation row applies this skill's own `_shared/journey-self-review.md` criteria inline, wrap-up-time, to journeys the just-completed work's diff touches — a fix-inline safety net rather than this skill's file-an-issue routing, since wrap-up still has full session context on what was just built. |
 | `_shared/learning-routing.md` | The "Subject check (health sweeps)" section this skill's Step 6 applies before filing — a finding about a claude-tweaks skill routes to D5 (`/feedback`) instead of a project issue; a headless run with no human to clear `/feedback`'s gate instead labels it `upstream-candidate` locally. |
 | `_shared/materiality-floor.md` | Before `journey-health`'s own per-origin cap digest (`_shared/health-filing-digest.md`), a would-be-new finding first clears this floor — below-floor findings route to the shared materiality digest container instead of either a singleton issue or `journey-health`'s cap digest. Inert today — this skill's flat `size:medium` axis means no finding is ever below floor; the edge holds the ordering for the day that axis gains a low tier. |
+| `_shared/health-recent-commit-check.md` | The canonical recent-commit overlap screen this skill's Step 6 runs immediately after each `gh issue create` succeeds — shared with `/capture`, `/code-health`, `/docs-health`, and `/harness-health`. |
 
 ## journeys
 

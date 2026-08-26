@@ -215,6 +215,8 @@ toward the grant.
    Append `--label needs:definition` to whichever `gh issue create` call above ran, when
    `$NEEDS_DEFINITION` is `true`.
 
+   **Recent-commit overlap check.** Immediately after the `gh issue create` call above succeeds, run `_shared/health-recent-commit-check.md` and apply it in full (`title: "$TITLE"`) — it screens the just-filed record against recently-merged commits and, on a strong match, posts a triage comment rather than blocking or reopening anything.
+
    Immediately after the `gh issue create` call succeeds, invalidate the session-scoped record
    snapshot (`_shared/record-queue-fetch.md`) — this filing changed what a `--state all` pull
    would return, so the next consumer must re-fetch rather than read the pre-filing snapshot — and

@@ -263,6 +263,8 @@ gh issue create --title "<payload.title>" --body "<payload.body>" \
 
 Apply the same branch to every payload regardless of category — a `coverage` payload's call carries `journey-health:coverage` and `--type task`/`--label type:task` the same way a `drift` payload does; only the `--type task`/`--type bug` vs. `--label type:task`/`--label type:bug` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. `/journey-health` never edits journey files, stories, or code.
 
+**Recent-commit overlap check.** After each `gh issue create` above succeeds, run `_shared/health-recent-commit-check.md` in full.
+
 In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
 **Step 7 — SUMMARIZE.**
