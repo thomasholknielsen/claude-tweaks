@@ -6,7 +6,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { checkRunIntegrity } = require('../plugin/bin/lib/hooks/run-integrity');
+const { checkRunIntegrity, repoRootOf } = require('../plugin/bin/lib/hooks/run-integrity');
 const { fixtureGit } = require('./helpers/git-fixtures');
 
 function sh(cwd, ...args) {
@@ -50,6 +50,15 @@ const EV_OTHER = '{"path":"/x","ts":"2026-08-01T09:00:00.000Z","type":"commit"}'
 function writeEvents(runDir, lines) {
   fs.writeFileSync(path.join(runDir, 'events.jsonl'), lines.join('\n') + '\n');
 }
+
+test('repoRootOf: resolves the repo root three levels up from {root}/.claude-tweaks/pipelines/{run-id} (pins the anchoring layout in _shared/pipeline-run-dir.md)', () => {
+  const { root, runDir } = fixtureRepo();
+  assert.strictEqual(repoRootOf(runDir), root);
+  // A run dir NOT at the documented depth must not resolve to that same root —
+  // pins the specific three-levels-up arithmetic, not just "some root nearby".
+  const shallower = path.join(root, '.claude-tweaks', 'pipelines');
+  assert.notStrictEqual(repoRootOf(shallower), root);
+});
 
 test('AC1: merged (ancestor) + active + non-wrap-up skill_invoked -> shipped-unclosed', () => {
   const { root, runDir } = fixtureRepo();
