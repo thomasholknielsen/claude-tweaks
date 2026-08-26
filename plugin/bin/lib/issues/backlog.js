@@ -313,21 +313,32 @@ function machineGrantOutlook(records, policy, trustRowsArray) {
 // mechanical prelude in one pass. allRows = the merged faceted open set;
 // readyRows = the grant fetch's rows, already origin-filtered by the caller —
 // defaults to [] for work-backend: local-files, where the grant fetch never
-// runs (Preflight skips it), so fresh/blocked/inProgress and grantSlice.selected
-// all come back empty while missingPriority/missingRiskSize/prioritySlice still
-// compute from allRows. prioritySlice keys on missingPriority — the population
-// Step 2's sweep actually stamps (refs #460); grantSlice keys on fresh, unchanged.
+// runs (Preflight skips it), so fresh/blocked/inProgress/parked and
+// grantSlice.selected all come back empty while missingPriority/missingRiskSize/
+// prioritySlice still compute from allRows. prioritySlice keys on
+// missingPriority — the population Step 2's sweep actually stamps (refs #460);
+// grantSlice keys on fresh, unchanged.
 function refineWorklist({ allRows, readyRows = [], priorityBudget, grantBudget }) {
   const worklist = readyRows.filter((r) => !r.facets.grants.build && !r.facets.grants.merge);
   const blocked = worklist.filter((r) => r.facets.bot.blocked);
   const inProgress = worklist.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
-  const fresh = worklist.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress);
+  // parked (bot:parked — a merge-verification park, `_shared/pr-first-merge.md`
+  // Step 2.5's red path) is computed straight from readyRows, not worklist: a
+  // parked record keeps its auto:* grants (parking doesn't revoke them), so the
+  // grants-absent `worklist` filter above would always exclude it in the normal
+  // case. `fresh` below still excludes bot.parked explicitly (not just
+  // bot.blocked/bot.inProgress) so a record whose state is somehow
+  // inconsistent — parked with no grants, which should never happen — can never
+  // double-count in both `parked` and `fresh`.
+  const parked = readyRows.filter((r) => r.facets.bot.parked);
+  const fresh = worklist.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && !r.facets.bot.parked);
   const missingPriority = allRows.filter((r) => r.facets.priority == null);
   const missingRiskSize = allRows.filter((r) => !(r.facets.risk && r.facets.size));
   return {
     fresh,
     blocked,
     inProgress,
+    parked,
     missingPriority,
     missingRiskSize,
     prioritySlice: selectBudgetSlice(missingPriority, priorityBudget),
@@ -336,6 +347,7 @@ function refineWorklist({ allRows, readyRows = [], priorityBudget, grantBudget }
       fresh: fresh.length,
       blocked: blocked.length,
       inProgress: inProgress.length,
+      parked: parked.length,
       missingPriority: missingPriority.length,
       missingRiskSize: missingRiskSize.length,
     },

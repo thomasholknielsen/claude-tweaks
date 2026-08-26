@@ -6,10 +6,11 @@ templates, the consequence-line trust and `solution:unjustified` annotation temp
 line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line rule, and the
 confirm gate.
 
-One lane per record, precedence: Re-authorize → Grant → Flag-back (populated during the run by
-Step 3.5 downgrades) → Priority (annotation-line when the record is already laned above) →
-Dependency repair (annotation-line when the record is already laned) → Needs you (residual:
-`needs:definition` records, then judgment-required rows; interactive launchers, no paste block). A
+One lane per record, precedence: Re-authorize → Re-triage (parked) → Grant → Flag-back (populated
+during the run by Step 3.5 downgrades) → Priority (annotation-line when the record is already laned
+above) → Dependency repair (annotation-line when the record is already laned) → Needs you
+(residual: `needs:definition` records, then judgment-required rows; interactive launchers, no
+paste block). A
 record that would otherwise qualify for more than one lane renders exactly once, in the earliest
 lane on this list it reaches — Flag-back rows are already flag-back before this step ever reads the
 worklist (Step 3's `flag back (needs scoring)` recommendation, Step 3.5's body-shape auto-downgrade),
@@ -24,8 +25,9 @@ Empty lanes render nothing this run: no heading, no table, no paste block. Lead 
 count summary naming only the lanes that do render (adapting the old 10+-rows count-summary rule
 to always fire, since the lane split needs the overview up front regardless of count), e.g.:
 
-`23` suggestions across `6` lanes: `2` re-authorize, `7` grant, `3` flag-back, `8` priority,
-`1` dependency-repair, `2` needs-you — counts are lane array lengths, computed fresh every run. A
+`23` suggestions across `7` lanes: `2` re-authorize, `1` re-triage (parked), `7` grant, `3` flag-back,
+`8` priority, `1` dependency-repair, `2` needs-you — counts are lane array lengths, computed fresh
+every run. A
 record carrying only a Priority or Dependency-repair *annotation* (below) is counted under its
 primary lane, never double-counted under Priority or Dependency-repair too.
 
@@ -62,6 +64,23 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" "$ST_BACKLOG_REFINE_ACTI
 
 Re-authorizing grants `auto:build` only, never `auto:merge` — restoring that too requires an
 explicit override in your next message.
+
+## Re-triage (parked)
+
+Population: `.parked` from `session-scoped backlog-refine-worklist.json` — records `_shared/pr-first-merge.md`'s
+Step 2.5 (merge-verification gate) parked on a red or timed-out PR check (`bot:parked`),
+unaffected by Step 3's grant-check budget. Every row recommends the same fixed action regardless
+of content: the park never revoked any grant, so there is nothing to re-authorize — only a PR to
+check.
+
+| # | Record | Current → Recommended | Evidence |
+|---|---|---|---|
+| 1 | #204: {title} | bot:parked → re-triage (bot:parked) | Parked by merge-verification — grants intact, check the PR's checks |
+
+No paste block — unlike Re-authorize, this lane mutates no label (`auto:*` was never revoked, so
+there is nothing to restore, and `bot:parked` clears on its own once the PR resumes and merges).
+Report it for visibility only: name the PR each row is parked on and point at
+`/claude-tweaks:dispatch` to resume once its checks are green.
 
 ## Grant
 

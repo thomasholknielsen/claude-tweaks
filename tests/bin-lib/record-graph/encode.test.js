@@ -21,7 +21,17 @@ test('encodeRecord: code-health-origin, scored, in-progress record gets a scorin
 });
 
 test('encodeRecord: bot:blocked wins over bot:inProgress when (hypothetically) both are true', () => {
-  const both = { ...FIXTURE_RECORDS[1], facets: { ...FIXTURE_RECORDS[1].facets, bot: { inProgress: true, blocked: true } } };
+  const both = { ...FIXTURE_RECORDS[1], facets: { ...FIXTURE_RECORDS[1].facets, bot: { inProgress: true, blocked: true, parked: false } } };
+  assert.strictEqual(encodeRecord(both).borderStyle, 'blocked');
+});
+
+test('encodeRecord: bot:parked gets the same "blocked" border style as bot:blocked (#605)', () => {
+  const parked = { ...FIXTURE_RECORDS[1], facets: { ...FIXTURE_RECORDS[1].facets, bot: { inProgress: false, blocked: false, parked: true } } };
+  assert.strictEqual(encodeRecord(parked).borderStyle, 'blocked');
+});
+
+test('encodeRecord: bot:parked wins over bot:inProgress when both are true', () => {
+  const both = { ...FIXTURE_RECORDS[1], facets: { ...FIXTURE_RECORDS[1].facets, bot: { inProgress: true, blocked: false, parked: true } } };
   assert.strictEqual(encodeRecord(both).borderStyle, 'blocked');
 });
 

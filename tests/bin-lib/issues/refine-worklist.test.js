@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const { refineWorklist, selectBudgetSlice } = require('../../../plugin/bin/lib/issues/backlog');
 
 // Minimal faceted-record builder for refineWorklist cases — matches the
-// shape refineWorklist reads: grants.{build,merge}, bot.{blocked,inProgress},
+// shape refineWorklist reads: grants.{build,merge}, bot.{blocked,inProgress,parked},
 // priority, risk, size. createdAt matters only for the slicing tests, which
 // need selectBudgetSlice's oldest-first ordering to be exercisable.
 function rec(number, facetOverrides = {}, createdAt = '2026-01-01T00:00:00Z') {
@@ -13,7 +13,7 @@ function rec(number, facetOverrides = {}, createdAt = '2026-01-01T00:00:00Z') {
     createdAt,
     facets: {
       grants: { build: false, merge: false },
-      bot: { blocked: false, inProgress: false },
+      bot: { blocked: false, inProgress: false, parked: false },
       priority: null,
       risk: null,
       size: null,
@@ -109,7 +109,7 @@ test('refineWorklist: prioritySlice/grantSlice remaining math matches selectBudg
   assert.strictEqual(result.grantSlice.remaining, 1);
 });
 
-test('refineWorklist: omitting readyRows (work-backend: local-files) defaults it to [] — fresh/blocked/inProgress and grantSlice.selected come back empty while missingPriority/prioritySlice still compute from allRows', () => {
+test('refineWorklist: omitting readyRows (work-backend: local-files) defaults it to [] — fresh/blocked/inProgress/parked and grantSlice.selected come back empty while missingPriority/prioritySlice still compute from allRows', () => {
   const missingPrio = rec(1, { priority: null, risk: 'high', size: 'low' }, '2026-01-01T00:00:00Z');
   const hasPrio = rec(2, { priority: 'high', risk: null, size: null }, '2026-01-02T00:00:00Z');
   const allRows = [missingPrio, hasPrio];
@@ -118,18 +118,20 @@ test('refineWorklist: omitting readyRows (work-backend: local-files) defaults it
   assert.deepStrictEqual(result.fresh, []);
   assert.deepStrictEqual(result.blocked, []);
   assert.deepStrictEqual(result.inProgress, []);
+  assert.deepStrictEqual(result.parked, []);
   assert.deepStrictEqual(result.grantSlice.selected, []);
   assert.strictEqual(result.grantSlice.remaining, 0);
   assert.deepStrictEqual(result.missingPriority.map((r) => r.number), [1]);
   assert.deepStrictEqual(result.prioritySlice.selected.map((r) => r.number), [1]);
 });
 
-test('refineWorklist: counts has exactly the five expected keys, each equal to its array\'s length', () => {
+test('refineWorklist: counts has exactly the six expected keys, each equal to its array\'s length', () => {
   const readyRows = [
     rec(1),
-    rec(2, { bot: { blocked: true, inProgress: false } }),
-    rec(3, { bot: { blocked: false, inProgress: true } }),
+    rec(2, { bot: { blocked: true, inProgress: false, parked: false } }),
+    rec(3, { bot: { blocked: false, inProgress: true, parked: false } }),
     rec(4, { grants: { build: true, merge: false } }),
+    rec(7, { bot: { blocked: false, inProgress: false, parked: true }, grants: { build: true, merge: false } }),
   ];
   const allRows = [
     ...readyRows,
@@ -138,10 +140,48 @@ test('refineWorklist: counts has exactly the five expected keys, each equal to i
   ];
   const result = refineWorklist({ allRows, readyRows, priorityBudget: 10, grantBudget: 10 });
 
-  assert.deepStrictEqual(Object.keys(result.counts).sort(), ['blocked', 'fresh', 'inProgress', 'missingPriority', 'missingRiskSize']);
+  assert.deepStrictEqual(Object.keys(result.counts).sort(), ['blocked', 'fresh', 'inProgress', 'missingPriority', 'missingRiskSize', 'parked']);
   assert.strictEqual(result.counts.fresh, result.fresh.length);
   assert.strictEqual(result.counts.blocked, result.blocked.length);
   assert.strictEqual(result.counts.inProgress, result.inProgress.length);
+  assert.strictEqual(result.counts.parked, result.parked.length);
   assert.strictEqual(result.counts.missingPriority, result.missingPriority.length);
   assert.strictEqual(result.counts.missingRiskSize, result.missingRiskSize.length);
+});
+
+// ── parked lane (#605 — bot:parked, merge-verification park) ─────────────────
+// Unlike blocked/inProgress/fresh, the parked lane is computed straight from
+// readyRows, not the grants-absent `worklist` — a merge-verification park never
+// revokes auto:*, so a parked record keeps its grants and would otherwise be
+// invisible to the ungranted three-way split.
+
+test('refineWorklist: a bot:parked record with grants still intact lands in parked, not fresh/blocked/inProgress', () => {
+  const parkedWithGrants = rec(1, {
+    bot: { blocked: false, inProgress: false, parked: true },
+    grants: { build: true, merge: false },
+  });
+  const readyRows = [parkedWithGrants];
+  const result = refineWorklist({ allRows: readyRows, readyRows, priorityBudget: 10, grantBudget: 10 });
+
+  assert.deepStrictEqual(result.parked.map((r) => r.number), [1]);
+  assert.deepStrictEqual(result.fresh, []);
+  assert.deepStrictEqual(result.blocked, []);
+  assert.deepStrictEqual(result.inProgress, []);
+});
+
+test('refineWorklist: a bot:parked record with no grants (should not happen in practice) still lands in parked only, never blocked/fresh', () => {
+  const parkedNoGrants = rec(1, { bot: { blocked: false, inProgress: false, parked: true } });
+  const readyRows = [parkedNoGrants];
+  const result = refineWorklist({ allRows: readyRows, readyRows, priorityBudget: 10, grantBudget: 10 });
+
+  assert.deepStrictEqual(result.parked.map((r) => r.number), [1]);
+  assert.deepStrictEqual(result.blocked, []);
+  assert.deepStrictEqual(result.fresh, []);
+});
+
+test('refineWorklist: a non-parked record never lands in parked', () => {
+  const fresh = rec(1);
+  const blocked = rec(2, { bot: { blocked: true, inProgress: false, parked: false } });
+  const result = refineWorklist({ allRows: [fresh, blocked], readyRows: [fresh, blocked], priorityBudget: 10, grantBudget: 10 });
+  assert.deepStrictEqual(result.parked, []);
 });

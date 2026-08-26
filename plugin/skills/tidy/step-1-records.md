@@ -32,7 +32,7 @@ node -e "
 " > "$TIDY_UNSYNCED"
 ```
 
-Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. The shapes below are not all driver-universal, in both directions. Three never fire under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (Shape 5.5 — its frontmatter schema never held the retired label vocabulary in the first place; that vocabulary is GitHub-label-only). Conversely, the two acceptance backstops — Shape 7 (parent gate due) and Shape 8 (closed record with no disposition) — fire **only** under this driver; their `github-issues` counterparts are Step 4.8's `parent-gate` and `acceptance-gap` scopes, which read GitHub issues. Both also run their own `queryRecords` pass rather than reading the fetch above, since both look at closed records and that fetch returns open ones.
+Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. The shapes below are not all driver-universal, in both directions. Three never fire under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked`/`bot:parked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (Shape 5.5 — its frontmatter schema never held the retired label vocabulary in the first place; that vocabulary is GitHub-label-only). Conversely, the two acceptance backstops — Shape 7 (parent gate due) and Shape 8 (closed record with no disposition) — fire **only** under this driver; their `github-issues` counterparts are Step 4.8's `parent-gate` and `acceptance-gap` scopes, which read GitHub issues. Both also run their own `queryRecords` pass rather than reading the fetch above, since both look at closed records and that fetch returns open ones.
 
 **Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock and
 Threshold resolution sections (`{REPO_ROOT}` resolves the same way Step 4.5 already
@@ -43,7 +43,7 @@ and including the threshold itself, `stale` beyond it. Shapes 1 and 2 below are 
 consumers of this scale — Step 3's design-doc age rows and Step 4.7's claim-staleness
 rows read different data sources and are not governed by `record-staleness-weeks`.
 
-The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `classifyStaleness`
+The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`, `isBotParked`) and `classifyStaleness`
 come from `require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-buckets.js')`
 (`bin/lib/issues/record-buckets.js`).
 
@@ -98,7 +98,7 @@ The prose-only row's live-evidence guard exists because a trigger can state its 
 
 ### Shape 5 — `bot:blocked` needing re-triage
 
-`isBotBlocked(record)` (`bin/lib/issues/record-buckets.js`; `work-backend: github-issues` only — the local driver's `facets.bot.blocked` is always `false`, per `facet-shape.js`'s shared defaults, so this predicate never fires there). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) — or `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) parked it on a red or timed-out check on its PR, the label's second writer, which parks without revoking any grant — and needs a human's renewed judgment at `/claude-tweaks:backlog refine` before it can re-enter the autonomous queue.
+`isBotBlocked(record)` (`bin/lib/issues/record-buckets.js`; `work-backend: github-issues` only — the local driver's `facets.bot.blocked` is always `false`, per `facet-shape.js`'s shared defaults, so this predicate never fires there). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step): grants revoked, and it needs a human's renewed judgment at `/claude-tweaks:backlog refine` before it can re-enter the autonomous queue.
 
 → Collect each as: `[blocked] {title} — hit its retry ceiling — re-authorize at /claude-tweaks:backlog refine`
 
@@ -134,6 +134,12 @@ user's call, since `gh label edit` re-labels every issue carrying it repo-wide i
 outward-facing API write. It is therefore not one of the Action
 Vocabulary's atomic actions (`SKILL.md`), and routes as an always-surfaced no-op at every
 aggressiveness tier (`step-6-auto.md`'s **Legacy taxonomy** row), exactly like Shapes 4 and 5.
+
+### Shape 5.6 — `bot:parked` needing re-triage
+
+`isBotParked(record)` (`bin/lib/issues/record-buckets.js`; `work-backend: github-issues` only — the local driver's `facets.bot.parked` is always `false`, per `facet-shape.js`'s shared defaults, so this predicate never fires there). `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) parked the record on a red or timed-out check on its PR — this park does **not** revoke any grant (a red/timed-out CI check is not a build failure), so the record still carries its `auto:*` grants and needs no re-authorization, only a human checking the PR's checks before it can resume. Numbered 5.6 rather than appended, so Shapes 6, 7, and 8 keep the numbers other files already cite.
+
+→ Collect each as: `[bot-parked] {title} — parked by merge-verification — check the PR's checks, resume via /claude-tweaks:dispatch`
 
 ### Shape 6 — flagged code demonstrably gone
 

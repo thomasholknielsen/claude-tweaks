@@ -62,6 +62,15 @@ test('parent-issue is exported as a LABELS constant matching the canonical boots
   );
 });
 
+test('bot:parked is exported as a LABELS constant matching the canonical bootstrap row, distinct from bot:blocked (#605)', () => {
+  assert.strictEqual(LABELS.BOT_PARKED, 'bot:parked');
+  assert.strictEqual(LABELS.BOT_BLOCKED, 'bot:blocked');
+  assert.ok(
+    canonicalLabelsFromBootstrapDoc().some(([name]) => name === LABELS.BOT_PARKED),
+    'bot:parked must carry a canonical LABELS_JSON row so `gh label create` bootstraps it',
+  );
+});
+
 // Reads skills/_shared/label-bootstrap.md's own "Canonical LABELS_JSON" fence live, so this
 // test can never silently drift from the descriptions every real `gh label create` bootstrap
 // flow actually uses (see the [reuse] finding this replaces — 7 of these rows used to be

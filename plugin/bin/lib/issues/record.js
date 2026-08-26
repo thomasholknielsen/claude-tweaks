@@ -39,6 +39,7 @@ const LABELS = {
   AUTO_MERGE: 'auto:merge',
   BOT_IN_PROGRESS: 'bot:in-progress',
   BOT_BLOCKED: 'bot:blocked',
+  BOT_PARKED: 'bot:parked',
   WONTFIX: 'wontfix',
   SOLUTION_UNJUSTIFIED: 'solution:unjustified',
   // Read-side legacy fallback — PERMANENT cross-project support (other repos' records keep framing:baked labels, pre-rename); removable only at a major version that drops pre-rename repo support. [IL-85] Never emitted.
@@ -308,6 +309,10 @@ function parseRecordFacets(labels) {
     }
     if (name === LABELS.BOT_BLOCKED) {
       facets.bot.blocked = true;
+      continue;
+    }
+    if (name === LABELS.BOT_PARKED) {
+      facets.bot.parked = true;
       continue;
     }
     if (name === LABELS.WONTFIX) {

@@ -40,7 +40,7 @@ node -e "
   const openNumbers = new Set(require(process.argv[2]).map((i) => i.number));
   const eligiblePreDep = issues
     .map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))
-    .filter((i) => i.facets.grants.build && !i.facets.bot.inProgress && !i.facets.bot.blocked);
+    .filter((i) => i.facets.grants.build && !i.facets.bot.inProgress && !i.facets.bot.blocked && !i.facets.bot.parked);
   // '--limit 200' can silently truncate the open-issues pull on a repo with more open
   // issues than that — a dependency number absent from openNumbers means 'not in the
   // fetched 200', not 'closed'. Collect those as unresolved for a targeted live check below

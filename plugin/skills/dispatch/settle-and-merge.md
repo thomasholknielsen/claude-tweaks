@@ -240,7 +240,7 @@ Order is load-bearing: the merge carries one `Fixes #{issue}` line per record, s
 **Both layers pass — merge (`integration-model: pr-first`, `_shared/integration-model.md`):**
 run `_shared/pr-first-merge.md`'s procedure now, in this same Task call — its Step 2.5
 (Merge-verification gate) applies the resolved merge-verification lever before any merge attempt:
-green arms or merges, pending waits or arms, red parks the group with bot:blocked and reports
+green arms or merges, pending waits or arms, red parks the group with bot:parked and reports
 pending-review, never merges (this is where a #540-shaped red merge is stopped) —
 `tag: auto-merge`, `issue-list` the group's full record set, `summary` the lowest-numbered
 record's title for a singleton or a semicolon-joined list of every member's title for a bundle.

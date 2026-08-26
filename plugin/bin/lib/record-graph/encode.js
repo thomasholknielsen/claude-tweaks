@@ -53,7 +53,10 @@ function badgesFor(record) {
 }
 
 function borderStyleFor(bot) {
-  if (bot.blocked) return 'blocked';
+  // bot:blocked (retry ceiling) and bot:parked (merge-verification park,
+  // `_shared/pr-first-merge.md` Step 2.5's red path) both mean "needs a
+  // human's renewed judgment" — same visual treatment, no separate style.
+  if (bot.blocked || bot.parked) return 'blocked';
   if (bot.inProgress) return 'in-progress';
   return 'default';
 }

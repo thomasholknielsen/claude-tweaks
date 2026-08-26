@@ -220,7 +220,7 @@ test('extractFingerprint returns null for null, undefined, and empty-string bodi
 test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
     origin: 'capture', risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null, stage: 'parked',
-    grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false, parked: false },
     acceptance: null, isParentIssue: false, notPlanned: false, shapedHeadless: false,
   });
 });
@@ -229,7 +229,7 @@ test('parseRecordFacets: ready + auto:build + bot:in-progress', () => {
   const result = parseRecordFacets(['ready', 'auto:build', 'bot:in-progress']);
   assert.strictEqual(result.stage, 'ready');
   assert.deepStrictEqual(result.grants, { build: true, merge: false });
-  assert.deepStrictEqual(result.bot, { inProgress: true, blocked: false });
+  assert.deepStrictEqual(result.bot, { inProgress: true, blocked: false, parked: false });
   assert.strictEqual(result.origin, null);
 });
 
@@ -238,15 +238,20 @@ test('parseRecordFacets: auto:build + auto:merge grants both build and merge', (
   assert.deepStrictEqual(result.grants, { build: true, merge: true });
 });
 
-test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', () => {
+test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress or bot.parked', () => {
   const result = parseRecordFacets(['bot:blocked']);
-  assert.deepStrictEqual(result.bot, { inProgress: false, blocked: true });
+  assert.deepStrictEqual(result.bot, { inProgress: false, blocked: true, parked: false });
+});
+
+test('parseRecordFacets: bot:parked sets bot.parked without bot.blocked or bot.inProgress', () => {
+  const result = parseRecordFacets(['bot:parked']);
+  assert.deepStrictEqual(result.bot, { inProgress: false, blocked: false, parked: true });
 });
 
 test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
     origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, needsDefinition: false, priority: null, stage: 'backlog',
-    grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false, parked: false },
     acceptance: null, isParentIssue: false, notPlanned: false, shapedHeadless: false,
   });
 });

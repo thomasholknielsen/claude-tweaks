@@ -95,7 +95,7 @@ node -e "
 " > "$ST_BACKLOG_REFINE_WORKLIST"
 ```
 
-Under `work-backend: local-files`, the grant fetch above never ran (Preflight skips it), so `session-scoped backlog-refine-ready-faceted.json` doesn't exist; `readyRows` defaults to `[]` and the compute block still produces every priority-path field (`missingPriority`, `missingRiskSize`, `prioritySlice`) from `allRows` — the grant lanes (`fresh`/`blocked`/`inProgress`/`grantSlice`) are simply empty.
+Under `work-backend: local-files`, the grant fetch above never ran (Preflight skips it), so `session-scoped backlog-refine-ready-faceted.json` doesn't exist; `readyRows` defaults to `[]` and the compute block still produces every priority-path field (`missingPriority`, `missingRiskSize`, `prioritySlice`) from `allRows` — the grant lanes (`fresh`/`blocked`/`inProgress`/`parked`/`grantSlice`) are simply empty.
 
 **Decomposition parents are in the priority population, deliberately.** `refineWorklist`'s `missingPriority` and `missingRiskSize` are computed over `allRows` with no `facets.isParentIssue` filter, so an open decomposition parent reaches the Priority lane like any other unlabelled record. This is the one place `refine` and `overview` treat parents differently: `funnelBuckets` routes parents to their own mutually-exclusive `parents` bucket (`overview-mode.md`'s third annotation line), keeping them out of `captured`/`prioritized` and therefore out of the Prioritize and Specify paste blocks — a parent is never `ready` and never scored (`_shared/work-record.md`'s Decomposition rules: "Only sub-issue records get `ready` (+ scoring)"). Priority is not scoring: a parent legitimately carries a `priority:*` tier to rank the decomposition as a whole, so it stays in this lane. What must NOT happen here is a risk/size ask or a `flag back (needs scoring)` recommendation against a parent — those are sub-issue-only, and `missingRiskSize` counting parents is a count artifact, not a work item. Never emit a `/claude-tweaks:specify #{N}` grooming command for a parent from any lane; its close-out path is `wrap-up/verification-brief.md`'s Parent-Gate Procedure (backstopped by `/claude-tweaks:tidy`'s `Open parent gate`) or `/claude-tweaks:demo`.
 
@@ -103,7 +103,7 @@ Under `work-backend: local-files`, the grant fetch above never ran (Preflight sk
 
 When `--budget <n>` was passed (see `SKILL.md`'s Input), set `PRIORITY_BUDGET=<n> GRANT_BUDGET=<n>` in the **same Bash invocation** as the compute block above (e.g. `PRIORITY_BUDGET=<n> GRANT_BUDGET=<n> node -e "..."`) — shell environment does not survive between separate Bash calls, so exporting them in an earlier call and relying on the compute block's later call to inherit them silently resolves both to the `|| 40` default instead. Omitted, both are unset and the block's own `|| 40` defaults apply — Step 2's priority/Related synthesis pass and Step 3's grant-check pass stay independently budgeted, exactly as before.
 
-When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the fetch script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the compute block above resolves the split three ways: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `grant-mode.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
+When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the fetch script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the compute block above resolves the ungranted split three ways: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `grant-mode.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over. A fourth lane, `parked` (`bot:parked` — Step 2.5's merge-verification park), reads straight from `readyRows`: parking never revokes `auto:*`, so it never reaches this ungranted split.
 
 **These are two separate fetches, not one.** The priority/Related fetch is unfiltered (needs the whole backlog); the grant fetch is server-side filtered to `--label ready` (preserves today's exact starvation-avoidance guarantee — an unfiltered pull risks pushing older `ready`-labeled issues out of a shared result window on a large backlog). Both route through the same `backlog-fetch-limit` config key and truncation-warning pattern, just as two independent invocations of it.
 
@@ -138,10 +138,10 @@ Read `merge-lane-reset.md` in this skill's directory and follow it, before the g
 runs — a best-effort breaker read (#311) and, only when tripped, the one `AskUserQuestion` that is
 the sole path back to a clear breaker.
 
-Bound the grant-check LLM pass independently of Step 2's budget. Read `.grantSlice.selected` and
-`.grantSlice.remaining` (already bounded to `--budget`, default 40, by Step 1's compute block) and
-`.blocked` from `session-scoped backlog-refine-worklist.json` — no separate script runs here. Below, `selected`
-and `blocked` refer to these two fields.
+Bound the grant-check LLM pass independently of Step 2's budget. Read `.grantSlice.selected`,
+`.grantSlice.remaining` (already bounded to `--budget`, default 40, by Step 1's compute block),
+`.blocked`, and `.parked` from `session-scoped backlog-refine-worklist.json` — no separate script
+runs here.
 
 For every record in `selected`, invoke `/claude-tweaks:assess-agent-autonomy` in `grant-check` mode, once per record, every backlog refine session — never pre-filtered to "borderline" records:
 
@@ -154,9 +154,8 @@ Each invocation returns `RECOMMEND_BUILD`/`RECOMMEND_MERGE`/`RATIONALE` (see
 grant rows directly from this output, and carry `RATIONALE` through to the lane's own Evidence
 column (Step 4) and the `decisions.md` log line (Step 5) — a content-aware judgment the
 human is about to act on must stay visible at decision time and stay in the audit trail
-afterward, not be computed and then silently discarded. `blocked` rows (below) have no
-`assess-agent-autonomy` call to draw a rationale from — their Evidence column reads a fixed
-string instead, per Step 4.
+afterward, not be computed and then silently discarded. `blocked`/`parked` rows (below) have no
+`assess-agent-autonomy` call to draw a rationale from — Evidence reads a fixed string, per Step 4.
 
 - **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
   `true`).
@@ -164,15 +163,12 @@ string instead, per Step 4.
   a free-text override instead of flagging back — the gate then stamps the supplied `risk:*`/
   `size:*` labels alongside the grant (Step 5).
 
-For every record in `blocked` (unaffected by the budget — the retry-ceiling population is
-typically small and its re-authorization recommendation needs no `grant-check` call at all), skip
-`grant-check` and recommend **`re-authorize (bot:blocked)`** directly, regardless of content — a
-prior failure means the human's renewed judgment is the point, not a mechanical (or
-judgment-driven) replay: applying this row grants `auto:build` only, never bundling `auto:merge`
-automatically. Restoring `auto:merge` too requires an explicit override. A `bot:blocked` record
-whose grants are still intact was parked by the merge-verification gate (checks red or timed out on
-its PR — `_shared/pr-first-merge.md`'s Step 2.5), not failed; re-triage there means checking the
-PR's checks, not re-authorizing a build.
+For every record in `blocked` or `parked` (unaffected by the budget), skip `grant-check` and
+recommend a fixed action regardless of content: **`re-authorize (bot:blocked)`** for `blocked` — a
+prior failure means the human's renewed judgment is the point, granting `auto:build` only, never
+`auto:merge` (an explicit override is required to restore that too); **`re-triage (bot:parked)`**
+for `parked` — never a grant action, since the merge-verification park (Step 2.5) never revoked
+anything, so re-triage means checking the PR's checks and resuming via `/claude-tweaks:dispatch`.
 
 If `.grantSlice.remaining > 0`, state it plainly in the report: "`{remaining}`
 more ready records awaiting grant-check exist beyond this run's `--budget {N}` — re-run to
@@ -245,9 +241,10 @@ born-`ready` by this path and this step does nothing.
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-One lane per record, precedence: Re-authorize → Grant → Flag-back → Priority → Dependency repair →
-Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its priority/Related
-suggestion as an annotation line under its row — a suggestion is never silently dropped.
+One lane per record, precedence: Re-authorize → Re-triage (parked) → Grant → Flag-back → Priority →
+Dependency repair → Needs you. A record already laned above (Re-authorize/Re-triage/Grant/Flag-back)
+keeps its priority/Related suggestion as an annotation line under its row — a suggestion is never
+silently dropped.
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
 and paste-block templates, the consequence-line trust and `solution:unjustified` annotation templates, the
