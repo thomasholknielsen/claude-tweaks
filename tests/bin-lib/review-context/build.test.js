@@ -50,10 +50,10 @@ test('resolveDir: explicit dir wins and is created recursively', () => {
   assert.ok(fs.existsSync(target));
 });
 
-test('resolveDir: run-dir scoping lands under {run}/tmp/review-ctx', () => {
+test('resolveDir: run-dir scoping lands under {run}/review-ctx (no tmp/ segment — refs #1213)', () => {
   const run = fs.mkdtempSync(path.join(os.tmpdir(), 'review-ctx-run-'));
   const dir = resolveDir({ run });
-  assert.strictEqual(dir, path.join(run, 'tmp', 'review-ctx'));
+  assert.strictEqual(dir, path.join(run, 'review-ctx'));
   assert.ok(fs.existsSync(dir));
 });
 

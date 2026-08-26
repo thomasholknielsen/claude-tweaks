@@ -26,7 +26,10 @@ function resolveDir({ dir, run, tmpdir = os.tmpdir(), mkdtemp = fs.mkdtempSync, 
     return dir;
   }
   if (run) {
-    const scoped = path.join(run, 'tmp', 'review-ctx');
+    // No 'tmp' path segment (refs #1213) — a common Read(**/tmp/**) permissions.deny glob
+    // matches any tmp/ segment, not only a leading system one, and blocked lens agents from
+    // reading this bundle during #316's review.
+    const scoped = path.join(run, 'review-ctx');
     mkdir(scoped, { recursive: true });
     return scoped;
   }
