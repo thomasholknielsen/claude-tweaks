@@ -233,6 +233,13 @@ function listRunDirs(cwd) {
 function isForeignWorktreeCandidate(cwd, sessionId, state) {
   return classifyOwnership({ sessionId, cwd }, state) === 'foreign';
 }
+// Shared by both resolveRun fallback arms below: a candidate is never
+// eligible to be guessed into if it's an unadopted mint (#721) or provably
+// worktree-foreign (#1410) — both checks apply regardless of whether the
+// caller's own session id is known.
+function isSkippableFallbackCandidate(cwd, sessionId, dir, state) {
+  return isUnadoptedMint(dir, state) || isForeignWorktreeCandidate(cwd, sessionId, state);
+}
 function resolveRun(cwd, env, sessionId) {
   if (env && env.PIPELINE_RUN_DIR) {
     try {
@@ -249,8 +256,7 @@ function resolveRun(cwd, env, sessionId) {
     // they do NOT own so they can report that fact (see bin/hooks.js). The
     // worktree-binding check above is a different axis and still applies.
     for (const { dir, state } of iterRunDirsWithState(cwd)) {
-      if (isUnadoptedMint(dir, state)) continue;
-      if (isForeignWorktreeCandidate(cwd, me, state)) continue;
+      if (isSkippableFallbackCandidate(cwd, me, dir, state)) continue;
       return { dir, attribution: 'fallback' };
     }
     return { dir: null, attribution: null };
@@ -261,7 +267,7 @@ function resolveRun(cwd, env, sessionId) {
     if (owner === me) return { dir, attribution: 'session' };
     // Newest-first, so the first unowned, worktree-compatible run is the one
     // the old code returned unconditionally.
-    if (!owner && !unowned && !isUnadoptedMint(dir, state) && !isForeignWorktreeCandidate(cwd, me, state)) unowned = dir;
+    if (!owner && !unowned && !isSkippableFallbackCandidate(cwd, me, dir, state)) unowned = dir;
   }
   return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
 }
