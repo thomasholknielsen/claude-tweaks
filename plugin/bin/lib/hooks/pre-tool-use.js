@@ -24,7 +24,9 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
+const {
+  gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags, findGitLead,
+} = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -336,13 +338,18 @@ function teardownTargets(ctx) {
   if (toolName !== 'Bash' || !toolInput || typeof toolInput.command !== 'string') return [];
   const out = [];
   forEachCommandSegment(toolInput.command, ctx.cwd || process.cwd(), (toks, effCwd) => {
-    if (toks[0] !== 'git') return;
+    // Shares gitTargets' own #590 lead normalization: findGitLead walks past
+    // a leading NAME=value assignment and/or the env builtin (with env's own
+    // flags, including -C/--chdir) to find the real git/.../git lead token —
+    // a bare `toks[0] !== 'git'` check misses every wrapped form (#1308).
+    const lead = findGitLead(toks, effCwd);
+    if (lead.index === -1 || lead.unprovable) return;
     // Shares gitTargets' own global-flag skipper: any global flag ahead of
     // the subcommand (-C, -c, --exec-path, --namespace, --git-dir,
     // --work-tree, or an unrecognized `-...` flag) used to defeat this
     // parser entirely when it only checked for a literal `-C`, silently
     // allowing `git -c foo=bar worktree remove <path>` past the gate.
-    const { index: i, dir, unprovable } = skipGlobalFlags(toks, 1, effCwd);
+    const { index: i, dir, unprovable } = skipGlobalFlags(toks, lead.index + 1, lead.dir);
     if (unprovable) return;
     if (dir === null) return; // cwd unknown and no provable -C -> no target
     // Derived from GATE_COVERAGE.teardownGitCommands rather than a hardcoded
@@ -1259,4 +1266,5 @@ module.exports = {
   checkPipelineShadowGuard,
   checkBookkeepingStampsGate,
   hasLoggedPrDegrade,
+  teardownTargets,
 };

@@ -9,6 +9,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { findRunByWorktreePath, readRunState } = require('../plugin/bin/lib/hooks/context');
 const { fixtureGit } = require('./helpers/git-fixtures');
+const preToolUse = require('../plugin/bin/lib/hooks/pre-tool-use');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
@@ -293,6 +294,41 @@ test('whole-branch review: Bash `git --no-pager worktree remove <abs-path>` on a
   const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
   const out = JSON.parse(r.stdout);
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+// #1308: teardownTargets used to check toks[0] !== 'git' directly, so a
+// command-wrapper prefix (env, and whatever else #590's findGitLead
+// normalizes) defeated the parser and let the raw removal through
+// completely ungated.
+test('#1308: Bash `env git worktree remove <abs-path>` on an active run\'s worktree is denied', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `env git worktree remove ${wt}` }, cwd: root });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+// #1308: env-prefixed and bare forms must resolve to the identical
+// teardown target from teardownTargets() itself, not merely both deny —
+// a direct unit-level check against the function the spec names.
+test('#1308: teardownTargets() resolves `env git worktree remove <path>` to the same target as the bare form', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const bareCtx = {
+    input: { tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` } },
+    cwd: root,
+  };
+  const envCtx = {
+    input: { tool_name: 'Bash', tool_input: { command: `env git worktree remove ${wt}` } },
+    cwd: root,
+  };
+  const bare = preToolUse.teardownTargets(bareCtx);
+  const withEnv = preToolUse.teardownTargets(envCtx);
+  assert.deepStrictEqual(withEnv, bare);
+  assert.strictEqual(bare.length, 1);
+  assert.strictEqual(bare[0].source, 'bash');
 });
 
 // IMPORTANT 4 (whole-branch review): teardownTargets must track `cd` across

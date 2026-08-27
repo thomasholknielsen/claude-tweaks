@@ -636,4 +636,6 @@ function mkdirTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, fileWriteTargets, mkdirTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, WRITE_SHAPES };
+module.exports = {
+  gitTargets, fileWriteTargets, mkdirTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, findGitLead, WRITE_SHAPES,
+};
