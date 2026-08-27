@@ -75,14 +75,32 @@ function transcript(lastText) {
 
 test('subagent-stop flags a missing status line as contract violation (warn, non-blocking)', () => {
   const run = mkRun();
-  const out = substop.run({ input: { agent_transcript_path: transcript('I did some things.') }, runDir: run, runState: null, cwd: '/x' });
+  const out = substop.run({ input: { agent_transcript_path: transcript('I did some things.') }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' });
   assert.match(out.json.systemMessage, /status line/i);
-  assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
+  const ev = readEvents(run)[0];
+  assert.strictEqual(ev.type, 'contract-violation');
+  assert.strictEqual(ev.attribution, undefined, 'a session-owned run must NOT be tagged fallback');
 });
 
 test('subagent-stop accepts a compliant status line silently', () => {
   const run = mkRun();
-  const out = substop.run({ input: { agent_transcript_path: transcript('DONE\nAll checks green.') }, runDir: run, runState: null, cwd: '/x' });
+  const out = substop.run({ input: { agent_transcript_path: transcript('DONE\nAll checks green.') }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' });
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
+});
+
+test('subagent-stop tags a fallback-attributed (guessed) run\'s contract-violation event as attribution: fallback, not silently trusted (#1431)', () => {
+  const run = mkRun();
+  const out = substop.run({ input: { agent_transcript_path: transcript('I did some things.') }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'fallback' }, cwd: '/x' });
+  assert.match(out.json.systemMessage, /status line/i);
+  const ev = readEvents(run)[0];
+  assert.strictEqual(ev.type, 'contract-violation');
+  assert.strictEqual(ev.attribution, 'fallback');
+});
+
+test('subagent-stop with no confirmed run ownership (ownedRun.dir unset) does not append to a run it does not own (#1431)', () => {
+  const run = mkRun();
+  const out = substop.run({ input: { agent_transcript_path: transcript('I did some things.') }, runDir: run, runState: null, ownedRun: { dir: null, attribution: null }, cwd: '/x' });
   assert.deepStrictEqual(out, {});
   assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
 });
@@ -101,7 +119,7 @@ function multiTurnTranscript(texts) {
 test('subagent-stop checks the LAST assistant message, not an earlier compliant one', () => {
   const run = mkRun();
   const t = multiTurnTranscript(['DONE\nfirst pass looked fine.', 'Actually let me also check this other thing.']);
-  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' });
   assert.match(out.json.systemMessage, /status line/i);
   assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
 });
@@ -109,7 +127,7 @@ test('subagent-stop checks the LAST assistant message, not an earlier compliant 
 test('subagent-stop checks the LAST assistant message, not an earlier non-compliant one', () => {
   const run = mkRun();
   const t = multiTurnTranscript(['still investigating', 'DONE\nAll checks green.']);
-  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' });
   assert.deepStrictEqual(out, {});
   assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
 });
@@ -130,7 +148,7 @@ function toolOnlyLastTurnTranscript() {
 test('subagent-stop treats a tool-call-only LAST assistant turn as nothing to grade, not a fallback to an earlier text message (finding regression)', () => {
   const run = mkRun();
   const t = toolOnlyLastTurnTranscript();
-  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' });
   // The real last turn has no text at all — best-effort no-op, matching
   // this file's "unreadable/ungradable -> no-op" posture. Previously the
   // scan fell through to the EARLIER "still investigating" text (which
@@ -142,6 +160,6 @@ test('subagent-stop treats a tool-call-only LAST assistant turn as nothing to gr
 
 test('subagent-stop with unreadable transcript or no run dir is a silent no-op', () => {
   const run = mkRun();
-  assert.deepStrictEqual(substop.run({ input: { agent_transcript_path: '/nope.jsonl' }, runDir: run, runState: null, cwd: '/x' }), {});
-  assert.deepStrictEqual(substop.run({ input: {} , runDir: null, runState: null, cwd: '/x' }), {});
+  assert.deepStrictEqual(substop.run({ input: { agent_transcript_path: '/nope.jsonl' }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' }), {});
+  assert.deepStrictEqual(substop.run({ input: {}, runDir: null, runState: null, ownedRun: { dir: null, attribution: null }, cwd: '/x' }), {});
 });

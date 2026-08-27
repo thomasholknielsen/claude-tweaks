@@ -41,13 +41,20 @@ function lastAssistantText(transcriptPath) {
 }
 
 function run(ctx) {
-  if (!ctx.runDir) return {};
+  // Scoped to ctx.ownedRun (a session's confirmed identity), not ctx.runDir
+  // (possibly a cross-session fallback guess) — mirrors post-tool-use.js's
+  // commit-event hardening (#1431). A guessed run still gets the event, but
+  // tagged `attribution: 'fallback'` via appendEvent's fourth argument so a
+  // reader auditing events.jsonl can filter out lines that may belong to a
+  // different, concurrent session's run rather than trusting them silently.
+  const ownedRun = ctx.ownedRun || {};
+  if (!ownedRun.dir) return {};
   const transcriptPath = ctx.input.agent_transcript_path || ctx.input.transcript_path;
   if (typeof transcriptPath !== 'string' || !transcriptPath) return {};
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
   if (STATUS_RE.test(text.trim())) return {};
-  ctxLib.appendEvent(ctx.runDir, 'contract-violation', { firstLine: text.trim().split('\n')[0].slice(0, 120) });
+  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: text.trim().split('\n')[0].slice(0, 120) }, ownedRun.attribution);
   return { json: { systemMessage: 'claude-tweaks: a subagent reply is missing the Subagent Contract status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED). Logged to events.jsonl.' } };
 }
 
