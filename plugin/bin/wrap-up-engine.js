@@ -192,31 +192,50 @@ function runPlan(args) {
   process.stdout.write(`${JSON.stringify(worklist, null, 2)}\n`);
 }
 
+// Shared by runRecord/runAmend: a run dir with no engine-state.json means
+// plan never ran (or the run dir was wiped) — a malformed invocation, not a
+// bad payload, so it must exit 2 like render's identical check, not fall
+// through to recordResult's/amendResult's readEngineState() throwing inside
+// the generic catch below (which would misreport it as exit 1). Returns
+// true when the precondition holds; false (having already written the error
+// and exit code) otherwise.
+function requireEngineState(runDir, verb) {
+  if (fs.existsSync(path.join(runDir, 'engine-state.json'))) return true;
+  process.stderr.write(`wrap-up-engine.js ${verb}: no engine-state.json in ${runDir} — run plan first\n`);
+  process.exitCode = 2;
+  return false;
+}
+
+// Shared by runRecord/runAmend: read stdin and parse it as JSON. Invocation
+// shape (--run-dir) was already fine by this point; the payload wasn't, so
+// this is exit 1, not 2 — the model retries with a fixed payload rather than
+// re-reading usage. Returns the parsed payload, or null (having already
+// written the error and exit code) on a parse failure.
+function parseStdinPayload(verb) {
+  const raw = readStdin();
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    process.stderr.write(`wrap-up-engine.js ${verb}: stdin is not valid JSON: ${e.message}\n`);
+    process.exitCode = 1;
+    return null;
+  }
+}
+
+// Shared by runRecord/runAmend: print decisions.md's last line — the
+// SCANNED/AMENDED line the underlying recordResult/amendResult call just
+// appended.
+function printLastDecisionLine(runDir) {
+  const decisionLines = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8').trim().split('\n');
+  process.stdout.write(`${decisionLines[decisionLines.length - 1]}\n`);
+}
+
 function runRecord(args) {
   if (!args.runDir) { usageExit(); return; }
+  if (!requireEngineState(args.runDir, 'record')) return;
 
-  // Same precondition render checks: a run dir with no engine-state.json
-  // means plan never ran (or the run dir was wiped) — that's a malformed
-  // invocation, not a bad payload, so it must exit 2 like render's identical
-  // check, not fall through to recordResult's readEngineState() throwing
-  // inside the generic catch below (which would misreport it as exit 1).
-  if (!fs.existsSync(path.join(args.runDir, 'engine-state.json'))) {
-    process.stderr.write(`wrap-up-engine.js record: no engine-state.json in ${args.runDir} — run plan first\n`);
-    process.exitCode = 2;
-    return;
-  }
-
-  const raw = readStdin();
-  let payload;
-  try {
-    payload = JSON.parse(raw);
-  } catch (e) {
-    // Invocation shape (--run-dir) was fine; the payload wasn't. exit 1, not
-    // 2 — the model retries with a fixed payload rather than re-reading usage.
-    process.stderr.write(`wrap-up-engine.js record: stdin is not valid JSON: ${e.message}\n`);
-    process.exitCode = 1;
-    return;
-  }
+  const payload = parseStdinPayload('record');
+  if (!payload) return;
 
   const cwd = process.cwd();
   const telemetryPath = args.dryRun ? null : resolveTelemetryPath(cwd);
@@ -230,32 +249,15 @@ function runRecord(args) {
     return;
   }
 
-  const decisionLines = fs.readFileSync(path.join(args.runDir, 'decisions.md'), 'utf8').trim().split('\n');
-  process.stdout.write(`${decisionLines[decisionLines.length - 1]}\n`);
+  printLastDecisionLine(args.runDir);
 }
 
 function runAmend(args) {
   if (!args.runDir) { usageExit(); return; }
+  if (!requireEngineState(args.runDir, 'amend')) return;
 
-  // Same precondition as record: no engine-state.json means plan never ran
-  // (or the run dir was wiped) — malformed invocation, exit 2.
-  if (!fs.existsSync(path.join(args.runDir, 'engine-state.json'))) {
-    process.stderr.write(`wrap-up-engine.js amend: no engine-state.json in ${args.runDir} — run plan first\n`);
-    process.exitCode = 2;
-    return;
-  }
-
-  const raw = readStdin();
-  let payload;
-  try {
-    payload = JSON.parse(raw);
-  } catch (e) {
-    // Invocation shape (--run-dir) was fine; the payload wasn't. exit 1, not
-    // 2 — the model retries with a fixed payload rather than re-reading usage.
-    process.stderr.write(`wrap-up-engine.js amend: stdin is not valid JSON: ${e.message}\n`);
-    process.exitCode = 1;
-    return;
-  }
+  const payload = parseStdinPayload('amend');
+  if (!payload) return;
 
   try {
     amendResult({ runDir: args.runDir, payload, now: new Date() });
@@ -265,8 +267,7 @@ function runAmend(args) {
     return;
   }
 
-  const decisionLines = fs.readFileSync(path.join(args.runDir, 'decisions.md'), 'utf8').trim().split('\n');
-  process.stdout.write(`${decisionLines[decisionLines.length - 1]}\n`);
+  printLastDecisionLine(args.runDir);
 }
 
 function runRender(args) {
