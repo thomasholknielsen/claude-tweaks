@@ -64,13 +64,7 @@ test('post-tool-use without run dir or without git targets is a no-op', () => {
 });
 
 function transcript(lastText) {
-  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e3-')), 'agent.jsonl');
-  const lines = [
-    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'task' }] } }),
-    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: lastText }] } }),
-  ];
-  fs.writeFileSync(f, lines.join('\n') + '\n');
-  return f;
+  return multiTurnTranscript([lastText]);
 }
 
 test('subagent-stop flags a missing status line as contract violation (warn, non-blocking)', () => {

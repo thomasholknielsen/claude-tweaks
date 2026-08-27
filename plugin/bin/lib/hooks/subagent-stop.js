@@ -53,8 +53,9 @@ function run(ctx) {
   if (typeof transcriptPath !== 'string' || !transcriptPath) return {};
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
-  if (STATUS_RE.test(text.trim())) return {};
-  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: text.trim().split('\n')[0].slice(0, 120) }, ownedRun.attribution);
+  const trimmed = text.trim();
+  if (STATUS_RE.test(trimmed)) return {};
+  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: trimmed.split('\n')[0].slice(0, 120) }, ownedRun.attribution);
   return { json: { systemMessage: 'claude-tweaks: a subagent reply is missing the Subagent Contract status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED). Logged to events.jsonl.' } };
 }
 

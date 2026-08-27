@@ -383,9 +383,10 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
   // be nonsensical (whole-branch review MINOR 6). Computed only when there is
   // at least one target, since it costs an fs walk on every hook call
   // otherwise.
-  const mainRoot = safeReal(wtDetect.mainCheckoutRoot(ctx.cwd || process.cwd()));
+  const effCwd = ctx.cwd || process.cwd();
+  const mainRoot = safeReal(wtDetect.mainCheckoutRoot(effCwd));
   // Own-cwd guard (#693): resolved once per call, reused across targets.
-  const cwdReal = safeReal(ctx.cwd || process.cwd());
+  const cwdReal = safeReal(effCwd);
   for (const { path: target, source } of targets) {
     if (mainRoot && safeReal(target) === mainRoot) continue;
 
