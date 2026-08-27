@@ -129,4 +129,4 @@ function main(argv) {
   }
 }
 
-process.exit(main(process.argv));
+process.exitCode = main(process.argv);
