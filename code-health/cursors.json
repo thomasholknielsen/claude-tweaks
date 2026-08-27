@@ -90,5 +90,9 @@
   "plugin/bin/lib/backlog-grant-gate": {
     "lastSweptMs": 1787713905156,
     "lastHash": "f51c27524d94256780a0976400add1c72ed50556"
+  },
+  "plugin/bin/lib/calibration": {
+    "lastSweptMs": 1787800160470,
+    "lastHash": "db4bafae90436543b1df3a0986ea80112996a913"
   }
 }
