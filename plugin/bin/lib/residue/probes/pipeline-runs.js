@@ -55,11 +55,7 @@ function findLockedWorktree(worktreePath, scope) {
   if (!worktreePath || !scope || !Array.isArray(scope.worktrees) || scope.worktrees.length === 0) return null;
   const real = safeReal(worktreePath);
   if (!real) return null;
-  for (const wt of scope.worktrees) {
-    if (!wt || !wt.locked) continue;
-    if (safeReal(wt.path) === real) return wt;
-  }
-  return null;
+  return scope.worktrees.find((wt) => wt && wt.locked && safeReal(wt.path) === real) || null;
 }
 
 function probePipelineRuns({ cwd, runId, worktreeRoot, scope } = {}) {
