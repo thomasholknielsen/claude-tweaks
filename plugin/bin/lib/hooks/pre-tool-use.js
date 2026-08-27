@@ -883,7 +883,7 @@ function isStampsGateExemptTarget(ctx) {
 // currently assigned to" (a session-agnostic fact), and the event IS that
 // enforcement outcome (this assigned run got a stamp warning/deny), not a
 // guess about which run some session's activity belongs to. Switching to
-// ownedRun would drop the event entirely for the exact bystander-session
+// ownedRun would drop or misfile the event for the exact bystander-session
 // case (isForeign) this is meant to capture. Matches the wd-foreign-teardown
 // precedent above (checkTeardownGate: "event to the TARGET run's dir —
 // enforcement-target, not ownedRun").
