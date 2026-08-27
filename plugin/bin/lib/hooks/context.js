@@ -42,7 +42,8 @@ function isStaleClaim(archiveState, now = Date.now()) {
 // run-state.json is still an adopted run, and readRunState's null covers
 // both cases), never on config.yml — standalone run dirs legitimately carry
 // decisions.md but no config.yml. Consequence: hooks.js CLI verbs that rely
-// on this fallback with no --run (record-worktree, record-pr, close-run) now
+// on this fallback with no --run (record-pr, close-run — record-worktree no
+// longer does, #1124: it now hard-requires an explicit --run, never guessing)
 // only ever resolve an adopted run — safe because every sanctioned caller
 // runs after flow Step 3 has already initialized the run dir (decisions.md
 // or run-state.json already exists by then).

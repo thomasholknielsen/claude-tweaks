@@ -85,7 +85,7 @@ test('invariant: unknown event and missing event exit 0', () => {
 test('record-worktree writes run-state, prints a confirmation line, and close-run marks clean', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  const recorded = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+  const recorded = runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
   assert.strictEqual(recorded.code, 0);
   assert.match(recorded.stdout, /claude-tweaks: worktree recorded for 2026-07-01T090000-spec-1/);
   let state = readRunState(run);
@@ -130,38 +130,54 @@ test('close-run does NOT warn about un-archived work/ when no work/ content exis
   assert.doesNotMatch(result.stdout, /still holds un-archived work\/ content/);
 });
 
-test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
+// #1124: record-worktree without --run (including a bare --help) used to
+// fall through to resolveRunDir's "newest non-terminal run" GUESS and could
+// silently clobber a DIFFERENT live session's run-state.json — reproduced 3x
+// independently on 2026-08-20, across three different dispatched subagents,
+// each time hitting a different live sibling run's run-state.json. This is
+// the regression test: two concurrent run directories, each already carrying
+// its own run-state.json (representing two genuinely live sibling sessions,
+// neither of which this invocation is scoped to), and an invocation omitting
+// --run (bare, or `--help`) must leave BOTH byte-unchanged and exit non-zero
+// — never guess which one to write into.
+test('record-worktree without --run (including --help) is a true no-op against two concurrent run directories, and exits non-zero', () => {
   const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  // staleDir sorts newer than ownDir and is non-terminal (interrupted, never
-  // closed) — resolveRunDir's fallback (listRunDirs[0], newest non-terminal
-  // by name) would pick staleDir over ownDir with no --run override. This is
-  // exactly #19/#36's cross-contamination shape: a later, unrelated call
-  // resolving to an older run's directory because it was never marked clean.
+  // Both run dirs are already-adopted, non-terminal, live sibling runs —
+  // exactly the shape resolveRunDir's fallback (listRunDirs[0], newest
+  // non-terminal by name) used to guess between with no --run override, and
+  // exactly #19/#36's cross-contamination shape this record closes off.
   fs.mkdirSync(staleDir, { recursive: true });
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'interrupted' }));
   fs.mkdirSync(ownDir, { recursive: true });
+  fs.writeFileSync(path.join(ownDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const staleStateBefore = readRunState(staleDir);
+  const ownStateBefore = readRunState(ownDir);
 
-  const noFlag = runHook(['record-worktree', '/tmp/wt-fallback'], { cwd: project });
-  assert.strictEqual(noFlag.code, 0);
-  assert.match(noFlag.stdout, /worktree recorded for 2026-07-15T090000-record-19/,
-    'sanity check: without --run, the fallback really does pick the newer stale run, not ownDir');
-  assert.strictEqual(fs.existsSync(path.join(ownDir, 'run-state.json')), false);
-  // The no-flag call above IS the vulnerability being demonstrated — it just
-  // corrupted staleDir's state exactly like #19/#36. Snapshot that corrupted
-  // state so the next assertion can prove the FIX (an explicitly-targeted
-  // --run call) doesn't compound it by touching staleDir a second time.
-  const staleStateAfterFallback = readRunState(staleDir);
+  const bare = runHook(['record-worktree', '/tmp/wt-fallback'], { cwd: project });
+  assert.notStrictEqual(bare.code, 0, 'record-worktree without --run must exit non-zero, not silently guess a target run');
+  assert.match(bare.stdout, /record-worktree requires --run/);
+  assert.doesNotMatch(bare.stdout, /worktree recorded/);
 
+  const help = runHook(['record-worktree', '--help'], { cwd: project });
+  assert.notStrictEqual(help.code, 0, '--help must never be treated as an implicit-resolution invocation either');
+  assert.match(help.stdout, /record-worktree requires --run/);
+  assert.doesNotMatch(help.stdout, /worktree recorded/);
+
+  assert.deepStrictEqual(readRunState(staleDir), staleStateBefore, 'staleDir must be byte-unchanged');
+  assert.deepStrictEqual(readRunState(ownDir), ownStateBefore, 'ownDir must be byte-unchanged');
+
+  // The FIX still works correctly when the caller names its own run
+  // explicitly — proves this isn't a blanket regression, only the implicit
+  // guess is closed off.
   const withFlag = runHook(['record-worktree', '--run', ownDir, '/tmp/wt-correct'], { cwd: project });
   assert.strictEqual(withFlag.code, 0);
   assert.match(withFlag.stdout, /worktree recorded for 2026-07-01T090000-spec-1/);
   const ownState = readRunState(ownDir);
   assert.strictEqual(ownState.worktree, path.resolve('/tmp/wt-correct'));
   assert.strictEqual(ownState.status, 'active');
-  const staleStateAfterExplicitCall = readRunState(staleDir);
-  assert.deepStrictEqual(staleStateAfterExplicitCall, staleStateAfterFallback,
+  assert.deepStrictEqual(readRunState(staleDir), staleStateBefore,
     'an explicitly-targeted --run call must not touch a different run dir at all');
 });
 
@@ -174,11 +190,37 @@ test('record-worktree accepts --run before or after the worktree positional', ()
   assert.strictEqual(state.worktree, path.resolve('/tmp/wt-2'));
 });
 
-test('record-worktree without a run dir exits 0 and prints a not-recorded notice', () => {
+// #1124 review finding: the fix's OTHER guard — rejecting a flag-shaped
+// worktree positional (e.g. `--run <dir> --help`) — had no regression test,
+// even though it's the exact shape every observed pre-fix incident hit and
+// the code's own comment calls out. Discrimination check: reverting just the
+// `worktreeArg.startsWith('-')` branch (hooks.js's "unrecognized argument"
+// guard) would let this test's run-state.json end up with a literal
+// `worktree: "--help"` value and exit 0 — this assertion set fails in that
+// case, not just on the guard's total absence.
+test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --help)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const before = readRunState(run);
+
+  const result = runHook(['record-worktree', '--run', run, '--help'], { cwd: project });
+  assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
+  assert.match(result.stdout, /unrecognized argument --help/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--help\\"" write');
+});
+
+// #1124: --run is now required unconditionally — a call that omits it exits
+// non-zero with "requires --run" regardless of whether any run dir exists to
+// guess at, so this no-run-dir-at-all case hits the same guard as every other
+// omitted---run invocation, not a distinct "nothing found" message.
+test('record-worktree without --run and with no resolvable run dir anywhere still refuses (not "no pipeline run dir found")', () => {
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
   const result = runHook(['record-worktree', '/tmp/wt'], { cwd: bare });
-  assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /claude-tweaks: no pipeline run dir found — worktree not recorded/);
+  assert.notStrictEqual(result.code, 0);
+  assert.match(result.stdout, /record-worktree requires --run/);
 });
 
 test('record-worktree with a non-existent --run path fails loudly instead of falling back or claiming success', () => {
@@ -212,7 +254,7 @@ test('record-worktree reports a distinct failure when the run-state write itself
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.chmodSync(run, 0o500); // read+execute only — fs.writeFileSync inside it must throw
   try {
-    const result = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+    const result = runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
     assert.strictEqual(result.code, 0);
     assert.match(result.stdout, /failed to record worktree/);
     assert.doesNotMatch(result.stdout, /worktree recorded for/);
@@ -224,7 +266,7 @@ test('record-worktree reports a distinct failure when the run-state write itself
 test('close-run with a non-existent --run path fails loudly instead of falling back', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
   const bogus = path.join(project, 'does-not-exist');
   const result = runHook(['close-run', '--run', bogus], { cwd: project });
   assert.strictEqual(result.code, 0);
@@ -240,7 +282,7 @@ test('close-run --run with no following value fails loudly instead of falling ba
   // value were silently ignored: record a worktree so it's active and
   // non-terminal — exactly what resolveRunDir's "newest non-terminal run"
   // scan picks up (see the #19/#36 cross-contamination shape above).
-  assert.strictEqual(runHook(['record-worktree', '/tmp/wt-1'], { cwd: project }).code, 0);
+  assert.strictEqual(runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project }).code, 0);
   assert.strictEqual(readRunState(run).status, 'active');
 
   const result = runHook(['close-run', '--run'], { cwd: project });
@@ -256,7 +298,7 @@ test('close-run --run with no following value fails loudly instead of falling ba
 test('record-worktree with a resolvable run dir but no worktree argument prints a not-recorded notice instead of silent success', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  const result = runHook(['record-worktree'], { cwd: project });
+  const result = runHook(['record-worktree', '--run', run], { cwd: project });
   assert.strictEqual(result.code, 0);
   assert.ok(result.stdout.trim().length > 0, 'expected a diagnostic message, not silent success');
   assert.doesNotMatch(result.stdout, /worktree recorded/);
@@ -278,10 +320,10 @@ test('close-run with no resolvable run dir and no --run given prints a not-close
 test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and preserves it on env-less re-record', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'sess-owner' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'sess-owner' } });
   let state = readRunState(run);
   assert.strictEqual(state.sessionId, 'sess-owner');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
   state = readRunState(run);
   assert.strictEqual(state.sessionId, 'sess-owner', 'env-less re-record must not clobber the stamp');
 });
@@ -289,7 +331,7 @@ test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and 
 test('record-worktree without CLAUDE_CODE_SESSION_ID records no owner', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-2'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-2'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
   const state = readRunState(run);
   assert.ok(!('sessionId' in state), 'no env var -> no sessionId field');
 });
@@ -301,7 +343,7 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   // enforcement with no way for it to know.
   const foreignProject = tmpProject();
   const foreignRun = path.join(foreignProject, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  runHook(['record-worktree', '--run', foreignRun, '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const foreign = runHook(['close-run'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(foreign.code, 0);
   assert.match(foreign.stdout, /recorded by another session/);
@@ -311,7 +353,8 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   assert.strictEqual(foreignState.worktree, path.resolve('/tmp/wt'), 'the foreign session\'s worktree assignment must survive');
 
   const ownProject = tmpProject();
-  runHook(['record-worktree', '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const ownRun = path.join(ownProject, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', ownRun, '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const own = runHook(['close-run'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   assert.strictEqual(own.code, 0);
   assert.match(own.stdout, /no recorded wrap-up/,
@@ -321,7 +364,7 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
 test('close-run WITH an explicit --run still closes a run recorded by another session — the refusal only applies to the implicit fallback', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const result = runHook(['close-run', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /recorded by another session/);
@@ -338,7 +381,8 @@ test('e2e: foreign-session commit in the main checkout is allowed with a systemM
   // foreign repo and short-circuit to a bare allow with no systemMessage.
   execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
   const worktree = linkedWorktreeOf(project);
-  runHook(['record-worktree', worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', run, worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
 
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: project, session_id: 'bystander' }),
@@ -356,7 +400,7 @@ test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the o
   const worktree = gitRepo();
   const otherRepo = gitRepo();
 
-  assert.strictEqual(runHook(['record-worktree', worktree], { cwd: project }).code, 0);
+  assert.strictEqual(runHook(['record-worktree', '--run', run, worktree], { cwd: project }).code, 0);
   assert.strictEqual(runHook(['close-run'], { cwd: project }).code, 0);
 
   const result = runHook(['pre-tool-use'], {
