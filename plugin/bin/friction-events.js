@@ -59,6 +59,18 @@ function parseArgs(argv) {
 // at the write site, so the underlying test that asserts the event IS
 // written still sees it — only this aggregation-facing read excludes it,
 // keeping a real operator denial (never tagged) unaffected.
+//
+// #1402: a `primary`-sourced event carrying `attribution: 'fallback'` is
+// evidence context.js's own appendEvent doc comment says a reader "may [need
+// to] filter on" — resolveRun's fallback guess (context.js) is now
+// worktree-aware for every NEW write, but an events.jsonl written before
+// that fix can still hold an older cross-worktree misattribution, and this
+// CLI has no way to recover which worktree an already-written fallback event
+// actually belongs to. Dropped here, defense-in-depth, rather than trusted:
+// the Friction lens's own judgments (aggregate volume, avoidability) need
+// this run's own evidence only, and ambiguous-provenance noise is worse for
+// that than an undercount. `adhoc`-sourced events are unaffected — those
+// already passed a worktree-binding check via findRunsByWorktreePath.
 function readEvents(runDir, source) {
   let raw;
   try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return []; }
@@ -69,6 +81,7 @@ function readEvents(runDir, source) {
       const parsed = JSON.parse(line);
       if (!parsed || typeof parsed !== 'object') continue;
       if (parsed.type === 'gate-denial' && parsed.test === true) continue;
+      if (source === 'primary' && parsed.attribution === 'fallback') continue;
       out.push({ ...parsed, _source: source, _runDir: runDir });
     } catch { /* skip malformed line, keep reading */ }
   }

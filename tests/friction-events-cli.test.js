@@ -174,3 +174,32 @@ test('#1337: readEvents drops a test-tagged gate-denial event but keeps a real o
   assert.equal(events.find((e) => e.type === 'gate-denial').tool, 'Edit');
   assert.equal(events.find((e) => e.type === 'wd-deny').test, true, 'filter is scoped to gate-denial, not event type generally');
 });
+
+// #1402: a fallback-attributed event is "evidence that may belong to another
+// session" by appendEvent's own doc comment (context.js) — a run's own
+// events.jsonl can carry one that was actually misattributed from a
+// concurrent sibling worktree (the #1033 shape). readEvents drops any such
+// event from the `primary` source, since this CLI has no way to recover
+// which worktree an already-written one actually belongs to; a real,
+// unattributed event (or any event on the `adhoc` source, already
+// worktree-validated by findRunsByWorktreePath) still comes through.
+test('#1402: readEvents drops a primary fallback-attributed event but keeps a real one and an adhoc fallback one', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { readEvents } = require('../plugin/bin/friction-events');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-fe-events-'));
+  fs.writeFileSync(
+    path.join(dir, 'events.jsonl'),
+    [
+      '{"type":"commit","ts":"t1","attribution":"fallback"}',
+      '{"type":"worktree-staleness","ts":"t2"}',
+    ].join('\n') + '\n',
+  );
+  const primary = readEvents(dir, 'primary');
+  assert.equal(primary.length, 1, 'the fallback-attributed primary event must be dropped, the real one kept');
+  assert.equal(primary[0].type, 'worktree-staleness');
+
+  const adhoc = readEvents(dir, 'adhoc');
+  assert.equal(adhoc.length, 2, 'the adhoc source is unaffected — already worktree-validated by findRunsByWorktreePath');
+});
