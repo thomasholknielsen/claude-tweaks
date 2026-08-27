@@ -878,6 +878,15 @@ function isStampsGateExemptTarget(ctx) {
   return isPipelineBookkeeping(repoRoot, targetPath) || isPolicyFile(repoRoot, targetPath);
 }
 
+// #1431 audit: both appendEvent calls below deliberately stay on ctx.runDir,
+// not ctx.ownedRun — this gate enforces against "the run this worktree is
+// currently assigned to" (a session-agnostic fact), and the event IS that
+// enforcement outcome (this assigned run got a stamp warning/deny), not a
+// guess about which run some session's activity belongs to. Switching to
+// ownedRun would drop the event entirely for the exact bystander-session
+// case (isForeign) this is meant to capture. Matches the wd-foreign-teardown
+// precedent above (checkTeardownGate: "event to the TARGET run's dir —
+// enforcement-target, not ownedRun").
 // Shared outcome for both stamp checks in checkBookkeepingStampsGate below —
 // each is an always-return branch (see the header comment there), so this
 // returns the value the caller returns directly. A provably foreign-owned
@@ -1135,6 +1144,16 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
   // it denied one in the wrong in-project checkout.
   const mainRoot = safeReal(wtDetect.mainCheckoutRoot(assigned));
 
+  // #1431 audit: the four appendEvent(ctx.runDir, ...) calls in this loop
+  // (wd-ambiguous, wd-push-mismatch, wd-foreign-session, wd-deny) all stay on
+  // ctx.runDir by design, not ctx.ownedRun — this whole loop is E1's
+  // enforcement of "does this command target the worktree THIS run
+  // (ctx.runDir) is assigned to," a session-agnostic comparison per this
+  // file's header, and each event records that enforcement outcome against
+  // the run being enforced, not a guess about which run the caller's own
+  // activity belongs to. A caller with no owned run at all (or an unrelated
+  // one) can still legitimately trip this gate against someone else's
+  // assigned run — ownedRun would silently drop or misfile those events.
   for (const target of commandGitTargets || []) {
     const top = toplevel(target.dir);
     if (!top) continue; // cannot prove the target -> allow
