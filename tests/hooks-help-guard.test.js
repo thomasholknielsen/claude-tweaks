@@ -105,3 +105,30 @@ test('#1143: AC2 — the documented state-mutating verbs named in the issue each
     assert.ok(USAGE[verb], `${verb} must have a USAGE entry`);
   }
 });
+
+// review 3c (medium, direct-verification-confirmed): the tests above only
+// prove every USAGE-table key gets a guard — none of them prove the reverse,
+// that every argv-dispatched verb IN hooks.js's main() has a USAGE entry. A
+// future subcommand added to main()'s `cmd === '...'` chain without a
+// matching USAGE entry would silently ship with no --help guard at all,
+// reintroducing the exact hazard this record exists to close, and none of
+// the tests above would catch it (they only ever iterate Object.keys(USAGE),
+// never hooks.js's actual dispatch branches). This test closes that gap by
+// scanning main()'s own source text for every `cmd === '...'` branch and
+// asserting each one is a USAGE key — EVENTS names are dispatched via a
+// separate `EVENTS.includes(cmd)` check (line ~818), never a `cmd === 'x'`
+// branch, so they're correctly excluded by construction, not by an allowlist
+// that could itself drift.
+test('#1143: every cmd === \'...\' dispatch branch in main() has a matching USAGE entry (guard coverage cannot silently regress)', () => {
+  const source = fs.readFileSync(HOOKS, 'utf8');
+  const mainStart = source.indexOf('async function main(');
+  assert.ok(mainStart !== -1, 'main() not found in hooks.js — has it been renamed?');
+  const mainEnd = source.indexOf('\nif (require.main === module)', mainStart);
+  assert.ok(mainEnd !== -1, 'end-of-main marker not found in hooks.js — has the require.main guard moved?');
+  const mainBody = source.slice(mainStart, mainEnd);
+  const dispatchedVerbs = [...mainBody.matchAll(/cmd === '([a-z-]+)'/g)].map((m) => m[1]);
+  assert.ok(dispatchedVerbs.length >= 14, `expected at least the 14 documented verbs, found ${dispatchedVerbs.length} — has the extraction regex broken?`);
+  for (const verb of dispatchedVerbs) {
+    assert.ok(USAGE[verb], `main() dispatches '${verb}' via cmd === '${verb}' but USAGE has no entry for it — that verb gets no --help guard`);
+  }
+});
