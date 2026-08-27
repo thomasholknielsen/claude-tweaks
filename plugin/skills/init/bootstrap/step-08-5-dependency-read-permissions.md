@@ -2,16 +2,16 @@
 
 *Core Bootstrap step — order-dependent, so later steps may assume earlier ones completed; runs unconditionally and idempotently, acting only on missing state. Gated by `version-check.md` in this directory.*
 
-Reading an installed dependency's own source or type definitions (`node_modules/**`) is routine, safe research — but with no permission entry for it, every such `Read`/`Grep` is denied by default, and the denial recurs identically on every re-inspection, within a session and across sessions (#811, #836). On a pnpm workspace, reads resolve through the nested `node_modules/.pnpm/**` layout — a `**` glob rooted at plain `node_modules/**` does not reliably match a dot-prefixed path segment like `.pnpm`, so an allowlist scoped only to the top-level pattern still leaves those reads denied. This step seeds both.
+Reading an installed dependency's own source or type definitions (`node_modules/**`) is routine, safe research — but with no permission entry for it, every such `Read` is denied by default, and the denial recurs identically on every re-inspection, within a session and across sessions (#811, #836). Claude Code checks path rules against `Edit(path)`/`Read(path)` only; it makes a best-effort attempt to apply matching `Read` rules to other file-reading tools like `Grep` and `Glob` automatically, so a separate `Grep(...)` entry is never consulted and can produce a startup warning — the `Read` entries below already cover `Grep`/`Glob` for the same paths, and no separate `Grep(...)` entry is seeded. On a pnpm workspace, reads resolve through the nested `node_modules/.pnpm/**` layout, so this step also seeds an explicit `.pnpm/**` entry as a belt-and-braces measure — whether `node_modules/**` alone reliably matches the dot-prefixed `.pnpm` segment is unverified.
 
 **Detect a pnpm workspace:** a `pnpm-lock.yaml` file at the project root, or a `.pnpm` directory under `node_modules/`.
 
-**Compute the entries to seed** (read-only — `Read`/`Grep` only; never `Edit`/`Write`/`Bash`, so nothing here grants write or execute access under `node_modules`):
+**Compute the entries to seed** (read-only — `Read` only, which Claude Code's best-effort matching extends to `Grep`/`Glob` over the same paths; never `Edit`/`Write`/`Bash`, so nothing here grants write or execute access under `node_modules`):
 
 | Condition | Entries |
 |---|---|
-| Always | `Read(node_modules/**)`, `Grep(node_modules/**)` |
-| pnpm workspace detected | `Read(node_modules/.pnpm/**)`, `Grep(node_modules/.pnpm/**)` |
+| Always | `Read(node_modules/**)` |
+| pnpm workspace detected | `Read(node_modules/.pnpm/**)` |
 
 **Merge into `.claude/settings.json`:**
 
@@ -19,6 +19,12 @@ Reading an installed dependency's own source or type definitions (`node_modules/
 2. Back up first when the file exists: `cp .claude/settings.json .claude/settings.json.bak` (nothing to back up when it doesn't).
 3. Ensure `permissions.allow` is an array (create both keys if absent). Append only the computed entries above that are not already present (exact string match against existing array entries) — never remove, reorder, or deduplicate anything already there, and never touch `permissions.deny`.
 4. Write the file.
+
+**Check for a conflicting deny rule.** Before or after writing the allow entries, read the effective `permissions.deny` lists this project's settings inherit from — at minimum `~/.claude/settings.json` (user-level) and this project's own `.claude/settings.json`/`.claude/settings.local.json` if present — for any pattern that would also match `node_modules/**` (e.g. `Read(**/node_modules/**)`, `Read(node_modules/**)`). Deny always wins over allow, unconditionally, regardless of rule specificity or which settings file each lives in — an allow entry seeded here cannot override a broader deny already in place elsewhere. If a conflicting deny pattern is found, this step still seeds the allow entries (they're correct and will take effect for any project that doesn't have the broader deny), but also surfaces a note rather than silently reporting success:
+
+> Note: a broader deny rule (`{pattern}` in `{file}`) already blocks `node_modules` reads and takes precedence over the allow entry just seeded — it will not take effect until that deny rule is narrowed or removed. This is a deliberate existing choice in `{file}`, not something `/init` will change automatically.
+
+No conflicting deny found: nothing further to say — the seeded allow entries take effect as normal.
 
 No prompt — this step is unconditional and strictly additive, the same posture as every other Core Bootstrap step (1-8.5): a read-only allowlist entry carries no risk profile that warrants an `AskUserQuestion` gate, unlike the Optional Enhancement steps (9 onward), which do prompt.
 
