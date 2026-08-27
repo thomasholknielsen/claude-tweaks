@@ -74,6 +74,31 @@ test('settle-and-merge.md documents the claim-contest special case', () => {
   assert.match(content, /DISPATCH_HEADLESS/);
 });
 
+test('settle-and-merge.md Claim-contest special case also recognizes the in-flight-tombstone stop (#315, #974)', () => {
+  const content = read('plugin/skills/dispatch/settle-and-merge.md');
+  const sectionStart = content.indexOf('**Claim-contest special case');
+  assert.ok(sectionStart !== -1, 'Claim-contest special case section should exist');
+  const sectionEnd = content.indexOf('\n\n1. The CLI in step 2', sectionStart);
+  assert.ok(sectionEnd !== -1, 'section should end before the numbered release steps');
+  const section = content.slice(sectionStart, sectionEnd);
+  assert.match(section, /Claim in-flight/);
+  assert.match(section, /flow-step-2\.8-claim-contest/);
+  assert.match(section, /flow-step-2\.8-claim-in-flight/);
+});
+
+test('issue-claims.md "The lock" step 4 checks for an in-flight PR before a tombstone/stale reclaim (#315, #974)', () => {
+  const content = read('plugin/skills/_shared/issue-claims.md');
+  const step4Start = content.indexOf("4. **`state: 'tombstone'` or `'stale'`**");
+  assert.ok(step4Start !== -1, 'step 4 heading should exist');
+  const step5Start = content.indexOf("5. **`state: 'live'`**", step4Start);
+  assert.ok(step5Start !== -1, "step 5 heading should exist after step 4");
+  const step4 = content.slice(step4Start, step5Start);
+  assert.match(step4, /pr-opened:/);
+  assert.match(step4, /mcp__github__pull_request_read/);
+  assert.match(step4, /OPEN/);
+  assert.match(step4, /fail-open/);
+});
+
 test('mcp-transport.md no longer carries claim-write sections', () => {
   const content = read('plugin/skills/dispatch/mcp-transport.md');
   assert.doesNotMatch(content, /## Step 4 — claiming a group/);
