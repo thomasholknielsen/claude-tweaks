@@ -114,8 +114,15 @@ function appendEntry({ runDir, section, entry }) {
   const lockPath = path.join(runDir, '.decisions.lock');
   return withLock(lockPath, () => {
     const file = path.join(runDir, 'decisions.md');
-    const created = !fs.existsSync(file);
-    let text = created ? '' : fs.readFileSync(file, 'utf8');
+    let created = false;
+    let text;
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+      created = true;
+      text = '';
+    }
     if (text && !text.endsWith('\n')) text += '\n';
     let finalText;
     if (!section) {
