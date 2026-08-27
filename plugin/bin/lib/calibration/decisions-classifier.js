@@ -5,7 +5,7 @@
 // this array is the single source both prose and this parser cite).
 const TERMINAL_DECISION_VALUES = ['approve-all', 'approve-all-merge', 'leave-pr-open', 'override', 'stop'];
 
-const KIND_RE = /^-\s+(AUTO|STAGED|KEPT-PROMPT|REFUSED|SCANNED)\b/;
+const KIND_RE = /^-\s+(AUTO|STAGED|KEPT-PROMPT|REFUSED|SCANNED|FAILED)\b/;
 const TERMINAL_RE = new RegExp(
   `Review Console: terminal decision (${TERMINAL_DECISION_VALUES.join('|')})\\.`,
 );

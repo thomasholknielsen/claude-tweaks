@@ -47,6 +47,7 @@ test('classifyDecisionLine recognizes every entry kind and the terminal-decision
   assert.strictEqual(classifyDecisionLine('- KEPT-PROMPT 14:41:22 — Step 3 Routing: 1 finding.').kind, 'KEPT-PROMPT');
   assert.strictEqual(classifyDecisionLine('- REFUSED 09:00:00 — Queue write blocked, no Defer-reason.').kind, 'REFUSED');
   assert.strictEqual(classifyDecisionLine('- SCANNED 09:00:00 — Step 4.5 scan complete, 0 findings.').kind, 'SCANNED');
+  assert.strictEqual(classifyDecisionLine('- FAILED 09:00:00 — apply-refine-labels: priority write failed on #42: HTTP 500.').kind, 'FAILED');
   assert.strictEqual(classifyDecisionLine('this is not a decision line at all').kind, 'other');
 
   const terminal = classifyDecisionLine('- AUTO 12:00:00 — Review Console: terminal decision approve-all. Reversibility: n/a.');
