@@ -98,6 +98,38 @@ test('needs:definition refuses even with no trustVerdicts/grantCheck passed at a
   assert.equal(result.needsGrantCheck, undefined);
 });
 
+test('needs:decision (a different needs:* label) refuses under a new needs-label failedKey, not needs-definition', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:decision'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'needs-label');
+  assert.match(result.reason, /needs:decision/);
+});
+
+test('needs:decision refuses even with no trustVerdicts/grantCheck passed at all (same posture as needs:definition)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:decision'] }),
+    policy: basePolicy(),
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'needs-label');
+  assert.equal(result.needsGrantCheck, undefined);
+});
+
+test('a record carrying both needs:definition and needs:decision denies under needs-definition (checked first)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:definition', 'needs:decision'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.failedKey, 'needs-definition');
+});
+
 test('AC2 key 3: no cell at all for this class refuses (distinct from a present insufficient-evidence row)', () => {
   const result = evaluateGrantGate({
     record: baseRecord(),

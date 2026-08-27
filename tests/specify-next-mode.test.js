@@ -45,8 +45,10 @@ test('specify resolve-input case 0 routes literal next to next-mode.md with flag
   assert.ok(SPECIFY_SKILL_FLAT.includes('flag-rejection step'), 'case 0 must point at next-mode.md\'s own flag-rejection step');
 });
 
-test('next-mode.md states the eligibility predicate excluding all 5 labels', () => {
-  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must exclude ready, needs:definition, parked, parent-issue, and bot:in-progress');
+test('next-mode.md states the eligibility predicate: ready, any needs:*-prefixed label, parked, parent-issue, bot:in-progress', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, any `needs:*`-prefixed label'), 'eligibility predicate must exclude ready and any needs:*-prefixed label');
+  assert.ok(NEXT_MODE_FLAT.includes("`_shared/work-record.md`'s worklist rule"), 'eligibility predicate must cite the shared worklist rule rather than restate it');
+  assert.ok(NEXT_MODE_FLAT.includes('`parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must still exclude parked, parent-issue, and bot:in-progress');
 });
 
 test('next-mode.md states priority-then-age single selection', () => {
@@ -144,22 +146,36 @@ test('next-mode.md notes the Routine no-run-dir decision-log fallback', () => {
   assert.ok(NEXT_MODE_FLAT.includes('standalone-auto fallback, ensuring every auto-resolved decision is recorded'), 'standalone-auto fallback decision-log guarantee missing');
 });
 
-test('next-mode.md eligibility predicate still excludes needs:definition and parked (AC 5 re-pin)', () => {
-  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must still exclude needs:definition and parked — this is #967\'s own loop-guard invariant, re-asserted here since #968\'s guard depends on it staying true');
+test('next-mode.md eligibility predicate still excludes needs:definition, now via the needs:* prefix (AC 5 re-pin, generalized by #1488)', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, any `needs:*`-prefixed label'), 'eligibility predicate must still exclude needs:definition — #967/#968\'s own loop-guard invariant, re-asserted here since #968\'s guard depends on it staying true, now expressed as a needs:* prefix rather than a literal');
+  assert.ok(NEXT_MODE_FLAT.includes("EXCLUDE.has(l.name) || l.name.startsWith('needs:')"), 'EXCLUDE construction must generalize to a needs:* prefix check, not a literal needs:definition Set entry');
+  assert.ok(!NEXT_MODE_FLAT.includes("'ready', 'needs:definition', 'parked'"), 'needs:definition must no longer be a literal EXCLUDE Set member — it is covered by the prefix check instead');
 });
 
-test('_shared/work-record.md declares shaped:headless in its taxonomy and permission matrix, with writer and readers named', () => {
+test('next-mode.md Claim-step re-read excludes any needs:*-prefixed label, not just needs:definition', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('now carries `ready`, any `needs:*`-prefixed label, `parked`, `parent-issue`, or `bot:in-progress`'), 'Claim-step re-read must generalize to any needs:*-prefixed label');
+});
+
+test('next-mode.md Framing Guard cites the needsDecisionMarker capability retroactively', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('needsDecisionMarker'), 'Framing Guard must cite the needsDecisionMarker capability naming its needs:definition stamp');
+});
+
+test('_shared/work-record.md declares shaped:headless in its taxonomy row, with writer and readers named', () => {
   const WORK_RECORD_FLAT = readFlat('plugin/skills/_shared/work-record.md');
   const occurrences = (WORK_RECORD_FLAT.match(/shaped:headless/g) || []).length;
-  // Two occurrences by design: the taxonomy row's declaration and the
-  // permission-matrix row's Adds column both name the label — this is the
-  // established pattern every label family in this file follows (see e.g.
-  // `demo:pending`), not duplication to collapse. A count outside [1, 3]
-  // signals either a missing declaration or an unexpected third restatement.
-  assert.ok(occurrences >= 1 && occurrences <= 3, `shaped:headless must be declared in work-record.md's taxonomy and permission matrix, found ${occurrences} occurrence(s)`);
+  // One occurrence by design since #1488's Task 1: the taxonomy row's own
+  // declaration lives here. The permission-matrix row's Adds column — the
+  // second occurrence this test used to pin before that extraction — now
+  // lives in work-record-permission-matrix.md, asserted by the next test.
+  assert.strictEqual(occurrences, 1, `shaped:headless must be declared exactly once in work-record.md's taxonomy row, found ${occurrences} occurrence(s)`);
   assert.ok(WORK_RECORD_FLAT.includes('Writer: `/specify` `next` mode only'), 'writer must be named');
   assert.ok(WORK_RECORD_FLAT.includes('grant gate'), 'grant-gate reader must be named');
   assert.ok(WORK_RECORD_FLAT.includes('/backlog attention'), '/backlog attention reader must be named');
+});
+
+test('_shared/work-record-permission-matrix.md declares shaped:headless in the /specify row\'s Adds column, next mode only', () => {
+  const MATRIX_FLAT = readFlat('plugin/skills/_shared/work-record-permission-matrix.md');
+  assert.ok(MATRIX_FLAT.includes('`shaped:headless` (`next` mode only, stamped alongside `ready` in the same call — never on an interactively-shaped record)'), 'permission-matrix /specify row must name shaped:headless as next-mode-only, stamped alongside ready, never on an interactively-shaped record');
 });
 
 test('_shared/label-bootstrap.md carries shaped:headless in the canonical LABELS_JSON list', () => {

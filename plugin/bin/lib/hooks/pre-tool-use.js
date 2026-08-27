@@ -663,7 +663,18 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     // strictly less bad than a failed tool call, and this hook must never
     // throw on a deny.
     const ownedRun = ctx.ownedRun || {};
-    ctxLib.appendEvent(ownedRun.dir, 'gate-denial', { tool: toolName, path: targetPath }, ownedRun.attribution);
+    // #1337: the test suite exercises this exact deny path against synthetic
+    // repos (tests/hooks-dispatcher.test.js's runHook sets CT_HOOKS_TEST_MODE
+    // for every pre-tool-use invocation it spawns), and those denials landed
+    // in whatever real run dir happened to be reachable from cwd — polluting
+    // friction-events.js's aggregate gate-denial count with fixture noise the
+    // reflect Friction Lens couldn't tell apart from a real operator denial.
+    // Tag rather than skip the write: existing tests assert the event IS
+    // written (this is the mechanism under test), so the write must stay —
+    // only its downstream aggregation (friction-events.js's readEvents)
+    // should exclude it.
+    const testTag = process.env.CT_HOOKS_TEST_MODE === '1' ? { test: true } : null;
+    ctxLib.appendEvent(ownedRun.dir, 'gate-denial', { tool: toolName, path: targetPath, ...testTag }, ownedRun.attribution);
 
     const retryGuidance = action === 'push'
       ? `If you're trying to delete a branch whose worktree is already gone, there is nothing to ` +

@@ -1,13 +1,14 @@
 # Backlog Refine — Step 4: Decision Lanes
 
 Loaded by `refine-mode.md`'s Step 4 at render time — this file is the full rendering procedure the
-stub there points to. Holds the one-lane-per-record precedence rule, the six lane table/paste-block
+stub there points to. Holds the one-lane-per-record precedence rule, the seven lane table/paste-block
 templates, the consequence-line trust and `solution:unjustified` annotation templates, the count-summary
 line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line rule, and the
 confirm gate.
 
 One lane per record, precedence: Re-authorize → Grant → Flag-back (populated during the run by
-Step 3.5 downgrades) → Priority (annotation-line when the record is already laned above) →
+Step 3.5 downgrades) → Needs-decision (populated by `grant-lane-decision.md`'s scored-but-refused
+branch) → Priority (annotation-line when the record is already laned above) →
 Dependency repair (annotation-line when the record is already laned) → Needs you (residual:
 `needs:definition` records, then judgment-required rows; interactive launchers, no paste block). A
 record that would otherwise qualify for more than one lane renders exactly once, in the earliest
@@ -24,15 +25,16 @@ Empty lanes render nothing this run: no heading, no table, no paste block. Lead 
 count summary naming only the lanes that do render (adapting the old 10+-rows count-summary rule
 to always fire, since the lane split needs the overview up front regardless of count), e.g.:
 
-`23` suggestions across `6` lanes: `2` re-authorize, `7` grant, `3` flag-back, `8` priority,
-`1` dependency-repair, `2` needs-you — counts are lane array lengths, computed fresh every run. A
+`24` suggestions across `7` lanes: `2` re-authorize, `7` grant, `3` flag-back, `1` needs-decision,
+`8` priority, `1` dependency-repair, `2` needs-you — counts are lane array lengths, computed fresh
+every run. A
 record carrying only a Priority or Dependency-repair *annotation* (below) is counted under its
 primary lane, never double-counted under Priority or Dependency-repair too.
 
 Resolve this run's session-scoped actions-file paths once, up front (`_shared/session-tmp-root.md`) — every lane below writes its actions to its own variable instead of a literal `/tmp` path:
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_ACTIONS_REAUTHORIZE=backlog-refine-actions-reauthorize.json ST_BACKLOG_REFINE_ACTIONS_GRANT=backlog-refine-actions-grant.json ST_BACKLOG_REFINE_ACTIONS_FLAGBACK=backlog-refine-actions-flagback.json ST_BACKLOG_REFINE_ACTIONS_PRIORITY=backlog-refine-actions-priority.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_ACTIONS_REAUTHORIZE=backlog-refine-actions-reauthorize.json ST_BACKLOG_REFINE_ACTIONS_GRANT=backlog-refine-actions-grant.json ST_BACKLOG_REFINE_ACTIONS_FLAGBACK=backlog-refine-actions-flagback.json ST_BACKLOG_REFINE_ACTIONS_NEEDSDECISION=backlog-refine-actions-needsdecision.json ST_BACKLOG_REFINE_ACTIONS_PRIORITY=backlog-refine-actions-priority.json)"
 ```
 
 ## Re-authorize
@@ -149,7 +151,7 @@ spec-shape re-check immediately before Step 4).
 
 Accepted defaults, paste-ready (Step 5's Flag-back-rows mechanics — bootstrap comment lives there,
 not repeated here). Write every flag-back row's action to `"$ST_BACKLOG_REFINE_ACTIONS_FLAGBACK"`
-(`removeLabels: ["ready"], commentFile: "/tmp/backlog-refine-flagback-{issue}.md"` per record —
+(`removeLabels: ["ready"], commentFile: "$BACKLOG_REFINE_FLAGBACK"` per record —
 the per-record flagback body file is still written exactly as before, just referenced by path
 instead of pasted as its own `gh issue comment` line), then apply the whole lane in one call:
 
@@ -172,6 +174,35 @@ the comment failure erased the edit's AUTO line, so the record surfaced only as 
 that record once, under `failed` — `ready` is off but no explanation was posted, so the row is
 not flagged back until the comment retry lands. Counting it under both would make the tally's
 counts exceed the number of rows applied, which the per-row tally does not mean.
+
+## Needs-decision
+
+Population: rows `grant-lane-decision.md`'s branch routes to `needs:decision` — a scored,
+spec-shaped record `grant-check` refused for a content reason, not a scoring gap (`refine-mode.md`
+Step 3 / Step 3.5). Rows already carrying an unresolved `<!-- needs-decision: backlog-refine -->`
+comment (`grant-lane-decision.md`'s Idempotence check) render one annotation line instead of a
+fresh row and write nothing this run. Unlike the Priority/Dependency-repair annotation lines, which
+attach beneath a record's row in a higher-precedence lane, this one has no such row to attach
+to — a record on this branch is idempotent by construction, not newly laned elsewhere this run —
+so it renders as its own bare line directly under this `## Needs-decision` heading, above the table
+when both render this run.
+
+| # | Record | Current → Recommended | Evidence |
+|---|---|---|---|
+| 1 | #301: {title} | ready → ready + needs:decision | RECOMMEND_BUILD: false, already scored — {grant-check RATIONALE} |
+
+Accepted defaults, paste-ready (`grant-lane-decision.md`'s Write mechanics — bootstrap comment
+lives there, not repeated here). Write every needs-decision row's action to
+`"$ST_BACKLOG_REFINE_ACTIONS_NEEDSDECISION"` (`addLabels: ["needs:decision"], commentFile:
+"$BACKLOG_NEEDS_DECISION"` per record), then apply the whole lane in one call:
+
+```bash
+── Needs-decision ──
+node "${CLAUDE_PLUGIN_ROOT}/bin/apply-refine-labels.js" "$ST_BACKLOG_REFINE_ACTIONS_NEEDSDECISION" --run "$PIPELINE_RUN_DIR"
+```
+
+Unlike Flag-back, this lane never removes `ready` — `apply-refine-labels.js`'s action carries only
+`addLabels` + `commentFile`, no `removeLabels`.
 
 ## Priority
 

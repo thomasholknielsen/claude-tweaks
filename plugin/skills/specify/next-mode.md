@@ -79,8 +79,9 @@ condition below — never swallowed as a success.
 ## Eligibility query
 
 Per `_shared/record-queue-fetch.md`'s `work-backend: github-issues` fetch:
-open records carrying none of `ready`, `needs:definition`, `parked`,
-`parent-issue`, and `bot:in-progress`. The last is a cheap label-based
+open records carrying none of `ready`, any `needs:*`-prefixed label
+(`_shared/work-record.md`'s worklist rule), `parked`, `parent-issue`, and
+`bot:in-progress`. The last is a cheap label-based
 pre-filter, the identical posture `dispatch/SKILL.md` Step 2 already takes
 for its own `bot:*` exclusion ("labels are projection, not truth... the
 authoritative unclaimed check is `/flow`'s Step 2.8 atomic claim
@@ -96,12 +97,12 @@ label-only and selection-time; an unlabeled legacy parent (a
 `SKILL.md` case 1's parent-record guard is the shaping-time backstop that
 still refuses it here, headlessly, without repair. The other two exclusions
 are content judgments, not mechanical ones, and each rules out headless
-shaping for a different reason: **`needs:definition`** marks "a genuine open
-choice with no tradeoff made yet, rather than a single clear ask"
-(`_shared/work-record.md`'s Definition family) — an undecided record cannot
-be born-ready, and a headless firing has nobody present to make the decision
-it's waiting on, so shaping it would mean fabricating that human
-call. **`parked`** marks a record a human deliberately deferred;
+shaping for a different reason: **any `needs:*`-prefixed label** marks a record another unit is
+already asking a human to decide (`_shared/work-record.md`'s worklist rule; `needs:definition`
+specifically marks "a genuine open choice with no tradeoff made yet, rather than a single clear
+ask" — that file's Definition family) — an undecided record cannot be born-ready, and a headless
+firing has nobody present to make the decision it's waiting on, so shaping it would mean
+fabricating that human call. **`parked`** marks a record a human deliberately deferred;
 unattended shaping must not un-defer it on its own — promoting a `parked`
 record out of hold is exactly what shaping mode does (removes the label,
 per `shaping-mode.md`'s Stamp scoring and stage labels section), so
@@ -127,9 +128,9 @@ if [ "$RAW_COUNT" -ge 500 ]; then
 fi
 node -e "
   const records = require('$RAW');
-  const EXCLUDE = new Set(['ready', 'needs:definition', 'parked', 'parent-issue', 'bot:in-progress']);
+  const EXCLUDE = new Set(['ready', 'parked', 'parent-issue', 'bot:in-progress']);
   const eligible = records.filter((r) =>
-    !r.labels.some((l) => EXCLUDE.has(l.name))
+    !r.labels.some((l) => EXCLUDE.has(l.name) || l.name.startsWith('needs:'))
   );
   console.log(JSON.stringify(eligible));
 " > "$CANDIDATES"
@@ -187,7 +188,7 @@ gh issue view {n} --json labels -q '[.labels[].name]'
 ```
 
 If the re-read shows the record no longer eligible (now carries `ready`,
-`needs:definition`, `parked`, `parent-issue`, or `bot:in-progress`) — exit
+any `needs:*`-prefixed label, `parked`, `parent-issue`, or `bot:in-progress`) — exit
 as a clean no-op for this firing. No same-firing re-selection; the next
 firing picks up (dispatch's no-retry posture, mirrored exactly). This is
 a different outcome from the `gh issue view` re-read command, or the
@@ -240,6 +241,11 @@ interactive path: on `solution-baked` it routes straight to
 `solution:unjustified`. That asymmetry is an accepted v1 tradeoff — the
 route is human-reversible, and the evidence-side improvement is tracked as
 `#772` (framing-check not reading `## Gotchas` evidence), not fixed here.
+
+This stamp is the original instance of the residue-channel capability `_shared/autonomy-ceiling.md`'s
+Bookkeeping capabilities table names `needsDecisionMarker` (`trusted`+, documented retroactively by
+#1488) — a headless unit may write a `needs:*` label plus its explanatory comment with no per-write
+approval.
 
 Fetch the record's full title + body first (the same fetch `## Shape`
 below performs — do this fetch once, here, and hand the same result to

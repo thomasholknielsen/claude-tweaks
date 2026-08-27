@@ -206,13 +206,14 @@ test('auto-decision-log.md defines the REFUSED entry kind', () => {
 
 test('work-record.md carries the born-shaped rows for /wrap-up, /reflect, /review', () => {
   const wr = read('plugin/skills/_shared/work-record.md');
+  const matrix = read('plugin/skills/_shared/work-record-permission-matrix.md');
   for (const actor of ['/wrap-up', '/reflect', '/review']) {
-    const row = wr.split('\n').find((l) => l.startsWith(`| **\`${actor}\`**`));
+    const row = matrix.split('\n').find((l) => l.startsWith(`| **\`${actor}\`**`));
     assert.ok(row, `${actor} row`);
     assert.ok(row.includes('ready'), `${actor} Adds ready`);
     assert.ok(row.includes('specShapedBody'), `${actor} conditions on specShapedBody`);
   }
-  assert.ok(!wr.includes('is the only actor this covers'));
+  assert.ok(!matrix.includes('is the only actor this covers'));
   const bornReady = wr.slice(wr.indexOf('## Born-ready rule'));
   assert.ok(bornReady.includes('side-effect'));
 });
