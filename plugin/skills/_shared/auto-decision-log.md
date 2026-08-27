@@ -62,7 +62,8 @@ An aggregate line lists one `defer-reason` value per item, comma-separated in it
 canonical appender for this schema — it timestamps and status-prefixes `message` (composed by the
 caller per the shape below) and inserts it under the given `--skill` heading (creating the section
 if absent) or at end of file otherwise. Every consumer of this file writes through it instead of
-hand-appending a formatted line per call site.
+hand-appending a formatted line per call site — with one documented exception: `FAILED`, which is
+hand-composed by its two writers (see the `STATUS` row below).
 
 Each entry follows this shape:
 
@@ -77,7 +78,7 @@ Each entry follows this shape:
 | Step or location | yes | Skill step name OR file:line if relevant |
 | Short action | yes | One sentence: what was decided |
 | Detail line | optional | Wraps to second line if needed; explain rationale |
-| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED and REFUSED entries: N/A — nothing to revert) |
+| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED, REFUSED, and FAILED entries: N/A — nothing to revert) |
 | Commit ref / stage path | when reversible | `commit abc1234` or `stage path: staged/...` |
 
 ## Lever attribution (optional trailing field)
