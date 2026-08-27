@@ -277,6 +277,135 @@ test('releaseMerged: Phase 1.5 resolves prState via the pool and reaches a merge
   }
 });
 
+// #1378: a convergent (merged:) release used to leave auto:build/auto:merge live
+// on the now-closed issue — release-merged.js called only removeInProgressLabel.
+// This pins the fix end-to-end: every GRANT_LABELS entry (never a hardcoded
+// 2-element list — release-claim/release.js's actual export carries 3) is
+// stripped via the same injectable `api` seam removeInProgressLabel already
+// uses, and the removal is logged as an AUTO decisions.md entry against the
+// candidate's own run dir.
+test('releaseMerged: a merged: release strips every GRANT_LABELS entry and logs the removal to decisions.md', async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { execFileSync } = require('child_process');
+  const { GRANT_LABELS } = require('../../../plugin/bin/lib/release-claim/release');
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-grants-')));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
+  execFileSync('git', ['commit', '--allow-empty', '-q', '-m', 'init'], { cwd: root });
+
+  const wtPath = path.join(root, '.worktrees', 'wt-run-grants');
+  execFileSync('git', ['worktree', 'add', '-q', '-b', 'run-grants-branch', wtPath], { cwd: root });
+
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', 'run-grants');
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active', worktree: wtPath }));
+
+  const liveContent = JSON.stringify({
+    runId: 'run-grants', sessionId: 's1', claimedAt: new Date().toISOString(), ttlHours: 72, host: 'h',
+  });
+  const labelDeletes = [];
+  const ghApi = (args) => {
+    if (args[0].includes('/contents/claims?')) {
+      return { stdout: JSON.stringify([{ name: 'issue-21.json', sha: 'live-sha' }]), failure: null, status: null };
+    }
+    if (args[0].includes('/contents/claims/issue-21.json')) {
+      return { stdout: JSON.stringify({ content: liveContent, sha: 'live-sha' }), failure: null, status: null };
+    }
+    if (args.some((a) => a.includes('/labels/'))) {
+      const labelPath = args[args.length - 1];
+      labelDeletes.push(decodeURIComponent(labelPath.slice(labelPath.lastIndexOf('/') + 1)));
+      return { stdout: '', failure: null, status: null };
+    }
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-grants-ghwrap-'));
+  const wrapperPath = path.join(wrapperDir, 'gh');
+  fs.writeFileSync(
+    wrapperPath,
+    '#!/bin/sh\ncat <<\'EOF\'\n[{"number":55,"state":"MERGED","mergedAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}]\nEOF\n',
+  );
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+
+  try {
+    const result = await releaseMerged({ cwd: root, ghApi });
+    assert.equal(result.released.length, 1);
+    assert.equal(result.released[0].issueNumber, 21);
+
+    for (const label of GRANT_LABELS) {
+      assert.ok(labelDeletes.includes(label), `expected a DELETE for ${label}, got ${JSON.stringify(labelDeletes)}`);
+    }
+    assert.ok(labelDeletes.includes('bot:in-progress'), 'bot:in-progress removal is pre-existing behavior, unaffected by this fix');
+
+    const decisionsText = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+    assert.match(decisionsText, /stripped auto:build\/auto:merge grants on convergent release/);
+    assert.match(decisionsText, /merged: reconciled from PR #55/);
+    assert.match(decisionsText, /^- AUTO \d{2}:\d{2}:\d{2} — reconcile: /m);
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});
+
+// Companion to the fixture above (#1378 AC2): a release reason other than
+// `merged:` must leave grants untouched — matches
+// wrap-up/cleanup-procedures-execution.md Section E step 6's existing rule.
+// Only `bot:in-progress` (removeInProgressLabel, pre-existing) is deleted.
+test('releaseMerged: an issue-closed release does not touch grant labels', async () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { execFileSync } = require('child_process');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-issueclosed-'));
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
+
+  // No run-state -> joinFailure 'no-run-state' -> prState stays null ->
+  // needsIssueEvidence(null) is true -> the issue-closed evidence path fires.
+  const liveContent = JSON.stringify({
+    runId: 'no-such-run', sessionId: 's1', claimedAt: new Date().toISOString(), ttlHours: 72, host: 'h',
+  });
+  const labelDeletes = [];
+  const ghApi = (args) => {
+    if (args[0].includes('/contents/claims?')) {
+      return { stdout: JSON.stringify([{ name: 'issue-31.json', sha: 'live-sha' }]), failure: null, status: null };
+    }
+    if (args[0].includes('/contents/claims/issue-31.json')) {
+      return { stdout: JSON.stringify({ content: liveContent, sha: 'live-sha' }), failure: null, status: null };
+    }
+    if (args[0].includes('/issues/31')) {
+      return { stdout: 'CLOSED\n', failure: null, status: null };
+    }
+    if (args.some((a) => a.includes('/labels/'))) {
+      const labelPath = args[args.length - 1];
+      labelDeletes.push(decodeURIComponent(labelPath.slice(labelPath.lastIndexOf('/') + 1)));
+      return { stdout: '', failure: null, status: null };
+    }
+    throw new Error(`unexpected ${args.join(' ')}`);
+  };
+
+  // writeTombstone's PUT always shells through this module's own raw ghRunner
+  // (real execFileSync), not the injectable `api` — a `gh` wrapper on PATH
+  // answers it, same technique as the merged-PR test above.
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-issueclosed-ghwrap-'));
+  const wrapperPath = path.join(wrapperDir, 'gh');
+  fs.writeFileSync(wrapperPath, '#!/bin/sh\necho \'{}\'\n');
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+
+  try {
+    const result = await releaseMerged({ cwd: root, ghApi });
+    assert.equal(result.released.length, 1);
+    assert.deepEqual(labelDeletes, ['bot:in-progress'], 'only bot:in-progress removed — no grant-label DELETE for a non-merged release');
+  } finally {
+    process.env.PATH = originalPath;
+  }
+});
+
 // #820 review: the final cache write must re-read immediately before
 // writing, not reuse the `cache` snapshot captured at function entry (before
 // Phase 1.5/2's async gh-pool calls, which can take real wall-clock time).
