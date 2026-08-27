@@ -142,9 +142,26 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
        race.
      A rejection on either transport is **contested** — same handling as `'live'` below, not a
      retry.
-  4. **`state: 'tombstone'` or `'stale'`** — a legitimate re-claim, not a contest. Write
-     **conditionally** (**with** `sha` = the current file's blob sha from step 1):
-     - **gh CLI:** the same `PUT contents` call as step 3, adding `-f "sha=${CURRENT_SHA}"`.
+  4. **`state: 'tombstone'` or `'stale'`** — a legitimate re-claim, not a contest, EXCEPT: first
+     check for an in-flight build (#974) — the MCP-transport equivalent of the in-flight check
+     the "In-flight detection at claim time (#315)" section below documents for the `gh`-CLI
+     transport (`tombstoneInFlightPr`, run inside `bin/claim-targets.js`, which does not apply
+     here — this manual MCP path has no CLI to delegate to). Parse the tombstone content already
+     extracted in step 2: when its `reason` field starts with `pr-opened:` and its `link` field is
+     a well-formed `https://github.com/{owner}/{repo}/pull/{number}` URL for the SAME owner/repo
+     as the issue being claimed (anything else — missing link, wrong repo, malformed value — skip
+     this check and proceed to the write below, the identical fail-open posture
+     `tombstoneInFlightPr` uses), read that PR's state via `mcp__github__pull_request_read`
+     (`get` method) — the one documented PR-read exception to `_shared/github-write-transport.md`'s
+     "Pull requests are not covered by this mapping" note, already used the same way by
+     `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A still-`OPEN` state
+     means a build for this issue already exists and reclaiming would race it — stop here, do not
+     write, and report it the same way `flow/claim-targets.md`'s in-flight card does. Any other
+     state (closed, merged) or a failed read falls through to the write below unchanged. Otherwise,
+     write **conditionally** (**with** `sha` = the current file's blob sha from step 1):
+     - **gh CLI:** the same `PUT contents` call as step 3, adding `-f "sha=${CURRENT_SHA}"`. (This
+       transport's in-flight check runs inside `bin/claim-targets.js` itself, not this manual
+       step — see "In-flight detection at claim time (#315)" below.)
      - **MCP:** the same `create_or_update_file` call as step 3, adding `sha: currentSha`.
      A rejection here means someone else re-claimed or broke it first — contested.
   5. **`state: 'live'`** — contested. Do not attempt any write.
@@ -334,7 +351,9 @@ treated the same as a missing `link` and never reaches `gh` at all.
 `bin/lib/claim-targets/claim-targets.js` — the group-claim loop `/claude-tweaks:flow` Step 2.8 and
 `/claude-tweaks:dispatch` actually call — imports this same `tombstoneInFlightPr` from
 `claim-store.js` and reports the stopped target via `inFlight`/`reason: 'in-flight'` instead of
-`outcome` (`flow/claim-targets.md`'s "Branch on exit code").
+`outcome` (`flow/claim-targets.md`'s "Branch on exit code"). That CLI is the `gh`-transport only
+(see "The lock" step 4's MCP note above) — "The lock" step 4's own in-flight check (#974) is
+where the `gh`-absent MCP path gets the equivalent stop, since it has no CLI to delegate to.
 
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a
