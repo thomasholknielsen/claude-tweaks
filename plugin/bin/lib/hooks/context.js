@@ -249,25 +249,32 @@ function resolveRun(cwd, env, sessionId) {
     } catch { /* fall through */ }
   }
   const me = typeof sessionId === 'string' && sessionId ? sessionId : null;
+  // Resolve once, up front, so the worktree-binding check below always sees
+  // the same cwd the candidate scan itself uses — iterRunDirsWithState falls
+  // back to process.cwd() internally on a falsy cwd, but isForeignWorktreeCandidate
+  // (via classifyOwnership) treats a falsy cwd as 'indeterminate', never
+  // 'foreign' — passing the raw, unresolved cwd there would silently no-op
+  // the filter for any falsy-cwd caller.
+  const resolvedCwd = cwd || process.cwd();
   if (!me) {
     // Caller identity unknown — behave exactly as before #62. Filtering by an
     // owner we cannot compare against would just be the old guess with fewer
     // candidates, and `record-worktree`/`close-run` deliberately resolve runs
     // they do NOT own so they can report that fact (see bin/hooks.js). The
     // worktree-binding check above is a different axis and still applies.
-    for (const { dir, state } of iterRunDirsWithState(cwd)) {
-      if (isSkippableFallbackCandidate(cwd, me, dir, state)) continue;
+    for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
+      if (isSkippableFallbackCandidate(resolvedCwd, me, dir, state)) continue;
       return { dir, attribution: 'fallback' };
     }
     return { dir: null, attribution: null };
   }
   let unowned = null;
-  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+  for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
     if (owner === me) return { dir, attribution: 'session' };
     // Newest-first, so the first unowned, worktree-compatible run is the one
     // the old code returned unconditionally.
-    if (!owner && !unowned && !isSkippableFallbackCandidate(cwd, me, dir, state)) unowned = dir;
+    if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state)) unowned = dir;
   }
   return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
 }
