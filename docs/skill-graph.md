@@ -308,7 +308,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 
 | Target | Relationship |
 |---|---|
-| `/flow` | `/flow`'s build step invokes `/journeys` transitively through `/build`. |
+| `/flow` | `/flow`'s build step invokes `/journeys` transitively through `/build`. In a multi-spec shared worktree, `journeys/SKILL.md`'s "Multi-spec shared worktree (#786)" note namespaces generated journey filenames by spec id (`docs/journeys/{journey-name}-{N}.md`); `flow/multispec-artifact-namespacing.md` verifies from git history, before the Consolidated Review Console renders, that no spec's journey artifact was overwritten by a later spec's write. |
 | `/help` | `/help` references `/journeys` in the workflow diagram and reference card. |
 | `/journey-health` | Applies the same `_shared/journey-self-review.md` checks at audit time, on journeys nobody has touched recently. Never edits — files a GitHub issue instead of the fix-inline/stage/BLOCK routing `/journeys` uses. |
 | `/review` | `/journeys` produces the journey files `/review` consults in Step 6 to recommend visual review for affected journeys, and in lens `3g-cov` for journey-to-story coverage. `/review` detects journey regressions when changed files overlap with journey `files:` frontmatter, and surfaces uncovered journey steps and orphaned stories as informational findings. Visual review modes walk documented journeys. |
@@ -430,7 +430,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 
 | Target | Relationship |
 |---|---|
-| `/flow` | Auto-triggers `/stories` between build and test when UI files change (unless `no-stories`). Both consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
+| `/flow` | Auto-triggers `/stories` between build and test when UI files change (unless `no-stories`). Both consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. In a multi-spec shared worktree, `stories/SKILL.md`'s "Multi-spec shared worktree (#786)" note namespaces generated story filenames by spec id (`{OUTPUT_DIR}/{site-name}-{persona-or-area}-{N}.yaml`); `flow/multispec-artifact-namespacing.md` verifies from git history, before the Consolidated Review Console renders, that no spec's story artifact was overwritten by a later spec's write. |
 | `/help` | `/help` recommends `/stories` when UI files change and no stories exist; `/stories`' Next Actions block routes back to `/test qa`, which `/help` surfaces as next-up. |
 | `/journey-health` | `/journey-health`'s coverage scan checks journeys against the QA story YAMLs `/stories` produces; coverage-gap findings recommend `/stories journey={name}` to close the gap. |
 | `/review` | `/stories` generates the YAML stories `/test` validates; `/review` gates on `/test` passing (which includes QA when stories exist) via `TEST_PASSED`, and checks journey-to-story coverage in code review lens `3g-cov` — uncovered journey steps and orphaned stories surface as informational findings. |
