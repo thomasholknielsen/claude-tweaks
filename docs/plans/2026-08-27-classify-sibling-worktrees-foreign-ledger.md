@@ -1,0 +1,6 @@
+# Open Items — pre-tool-use E-checks + resolveRun attribution: classify same-session sibling worktrees as foreign (#1099)
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | review | classifyOwnership binding branch classifies an owner-absent worktree-bound run foreign regardless of caller identity, newly exposed at pre-tool-use.js:433,1184 by this record's classifier swap -- confirmed via independent reproduction (2 lens agents + direct verification) | deferred | Filed as backlog issue #1563 -- origin: review Step 3, files: plugin/bin/lib/hooks/context.js, pre-tool-use.js, trigger: when someone picks up #1563 |
+| 2 | review/hindsight | Skill-worthy pattern: when swapping a raw session-id-equality deny gate for a composite ownership predicate, explicitly verify the predicate's permissive branch still requires the same identity preconditions the old code implicitly required -- a predicate that proves foreign via structural evidence alone (worktree binding) can silently widen the allow surface for identity-absent callers | deferred | Staged for wrap-up Skills curation -- see staged/reflect-1.md, [skill: NEW - predicate-swap-identity-precondition-audit] |
