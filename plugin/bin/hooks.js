@@ -257,8 +257,12 @@ async function main(argv) {
     // "newest non-terminal run" GUESS and could silently clobber a DIFFERENT
     // live session's run-state.json (reproduced 3x independently on
     // 2026-08-20, across three different dispatched subagents). Never guess
-    // here: refuse loudly, before `resolveRunArg` even had a chance to read
-    // (let alone this handler write) anything — a true no-op, non-zero exit.
+    // here: refuse loudly, before this handler ever gets a chance to WRITE
+    // anything — a true no-op, non-zero exit. (`resolveRunArg` itself still
+    // runs unconditionally above and, on the no-`--run` path, still calls
+    // `ctxLib.resolveRunDir` — a real scan of sibling run-state.json files —
+    // whose result this branch simply discards; the guarantee here is "no
+    // write," not "no read.")
     if (!explicit) {
       process.stdout.write('claude-tweaks: record-worktree requires --run — worktree not recorded\n');
       return 1;

@@ -190,6 +190,28 @@ test('record-worktree accepts --run before or after the worktree positional', ()
   assert.strictEqual(state.worktree, path.resolve('/tmp/wt-2'));
 });
 
+// #1124 review finding: the fix's OTHER guard — rejecting a flag-shaped
+// worktree positional (e.g. `--run <dir> --help`) — had no regression test,
+// even though it's the exact shape every observed pre-fix incident hit and
+// the code's own comment calls out. Discrimination check: reverting just the
+// `worktreeArg.startsWith('-')` branch (hooks.js's "unrecognized argument"
+// guard) would let this test's run-state.json end up with a literal
+// `worktree: "--help"` value and exit 0 — this assertion set fails in that
+// case, not just on the guard's total absence.
+test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --help)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const before = readRunState(run);
+
+  const result = runHook(['record-worktree', '--run', run, '--help'], { cwd: project });
+  assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
+  assert.match(result.stdout, /unrecognized argument --help/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--help\\"" write');
+});
+
 // #1124: --run is now required unconditionally — a call that omits it exits
 // non-zero with "requires --run" regardless of whether any run dir exists to
 // guess at, so this no-run-dir-at-all case hits the same guard as every other
