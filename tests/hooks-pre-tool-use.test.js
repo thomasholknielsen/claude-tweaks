@@ -108,6 +108,42 @@ test('wrong-checkout commit from the OWNING session is still denied', () => {
   assert.match(events, /"type":"wd-deny"/);
 });
 
+// #1099: session-id equality alone is not proof of ownership — a sibling
+// agent under the SAME shared CLAUDE_CODE_SESSION_ID (#965) can be standing
+// in its OWN worktree while the run this gate resolved is bound to a
+// DIFFERENT sibling worktree. classifyOwnership (#1098) proves this foreign
+// via the worktree binding, even though the raw ids match.
+test('#1099: a same-SESSION-ID sibling committing from its OWN worktree, against a run bound to a different sibling worktree, classifies foreign (allow + wd-foreign-session)', () => {
+  const main = gitRepoWithCommit();
+  const wtA = linkedWorktreeOf(main); // caller's own worktree
+  const wtB = linkedWorktreeOf(main); // the run's bound worktree
+  const { run, state } = mkRun(wtB, 'shared-session');
+  const input = { ...bashInput('git commit -m "x"', wtA), session_id: 'shared-session' };
+  const out = pre.run({ input, runDir: run, runState: state, cwd: wtA });
+  assert.ok(!(out.json && out.json.hookSpecificOutput),
+    'a same-session sibling committing from a DIFFERENT worktree must not be denied — it is provably foreign via the worktree binding');
+  assert.match(out.json.systemMessage, /allowing this commit/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8');
+  assert.match(events, /"type":"wd-foreign-session"/);
+  assert.doesNotMatch(events, /"type":"wd-deny"/);
+});
+
+// The dual case (AC1 in #1099's issue): the run's OWN session, whose cwd
+// matches the run's recorded binding, still classifies 'mine' (not
+// 'foreign') even when the git target itself points elsewhere — same-session
+// wrong-checkout denial is unaffected by the sibling fix above.
+test("#1099: the SAME session, whose cwd IS the run's own bound worktree, still denies a wrong-checkout commit (mine, not foreign)", () => {
+  const main = gitRepoWithCommit();
+  const wtB = linkedWorktreeOf(main);
+  const { run, state } = mkRun(wtB, 'shared-session');
+  const input = { ...bashInput(`git -C ${main} commit -m "x"`, wtB), session_id: 'shared-session' };
+  const out = pre.run({ input, runDir: run, runState: state, cwd: wtB });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+    "the run's own session, called from inside its own bound worktree, must still deny a wrong-checkout commit");
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8');
+  assert.match(events, /"type":"wd-deny"/);
+});
+
 test('missing or malformed session identity on either side falls back to deny (status quo)', () => {
   // Legacy run-state (no recorded owner), caller id present.
   const { main: legacyMain, wt: legacyWt } = mainAndWorktree();

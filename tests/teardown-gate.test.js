@@ -393,6 +393,53 @@ test('AC5: an unowned run with a payload carrying no session_id is denied', () =
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+// #1099: session-id equality alone is not proof of ownership — a sibling
+// agent under the SAME shared CLAUDE_CODE_SESSION_ID (#965) can be standing
+// in its OWN worktree and try to tear down a run bound to a different one.
+// classifyOwnership (#1098) proves this foreign via the worktree binding,
+// even though the raw ids match.
+test('#1099: a same-SESSION-ID sibling in a DIFFERENT worktree tearing down another worktree\'s run classifies foreign (allow + wd-foreign-teardown)', () => {
+  const root = fixtureRoot();
+  const wtA = addWorktree(root); // sibling caller's own worktree
+  const wtB = addWorktree(root); // target worktree, bound to a run under the SAME shared session id
+  makeRun(root); // empty run dir for record-worktree to claim
+  const recorded = runHook(['record-worktree', wtB], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'shared-session' } });
+  assert.strictEqual(recorded.code, 0);
+  const runDir = findRunByWorktreePath(root, wtB).runDir;
+  const payload = JSON.stringify({
+    tool_name: 'Bash', tool_input: { command: `git worktree remove ${wtB}` }, cwd: wtA, session_id: 'shared-session',
+  });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wtA });
+  assert.strictEqual(r.code, 0);
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput, undefined,
+    'a same-session sibling standing in a DIFFERENT worktree must not be denied — it is provably foreign via the worktree binding');
+  assert.ok(out.systemMessage, 'foreign-owned teardown must warn');
+  const events = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8').trim().split('\n');
+  const last = JSON.parse(events[events.length - 1]);
+  assert.strictEqual(last.type, 'wd-foreign-teardown');
+  assert.strictEqual(last.path, wtB);
+});
+
+// The dual case (AC1 in #1099's issue): the run's OWN session, called from
+// INSIDE the recorded worktree, still classifies 'mine' and takes the
+// same-session (deny) branch — unaffected by the sibling fix above.
+test('#1099: the SAME session, called from INSIDE its own recorded worktree, still denies (mine, not foreign)', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  makeRun(root);
+  const recorded = runHook(['record-worktree', wt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'shared-session' } });
+  assert.strictEqual(recorded.code, 0);
+  const payload = JSON.stringify({
+    tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` }, cwd: wt, session_id: 'shared-session',
+  });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: wt });
+  assert.strictEqual(r.code, 0);
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny',
+    'the run\'s own session acting from inside its own bound worktree must still deny, not be reclassified foreign');
+});
+
 // IMPORTANT 3 (whole-branch review): the foreign-owner WARN path must not
 // short-circuit runInner — previously, `git worktree remove <foreign-wt> &&
 // git commit -m x` returned on the warn and never reached the trailing

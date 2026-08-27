@@ -23,6 +23,7 @@ const path = require('node:path');
 const ctxLib = require('../plugin/bin/lib/hooks/context.js');
 const sessionEnd = require('../plugin/bin/lib/hooks/session-end.js');
 const preCompact = require('../plugin/bin/lib/hooks/pre-compact.js');
+const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 function project() {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-attr-')));
@@ -107,6 +108,52 @@ test('a clean run is terminal and never resolved, even for its owner', () => {
   mkRun(cwd, '2026-07-01T090000-done', { status: 'clean', sessionId: 'me' });
 
   assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, 'me'), { dir: null, attribution: null });
+});
+
+// ─── #1099: same-session sibling worktrees ─────────────────────────────────
+// classifyOwnership (#1098) closes the gap raw session-id equality left open:
+// CLAUDE_CODE_SESSION_ID is shared across every subagent of a session (#965),
+// so `owner === me` alone cannot distinguish the caller from a sibling agent
+// with its own bound worktree. These fixtures need REAL git worktrees (unlike
+// project()'s plain tmpdir above) because classifyOwnership's binding check
+// falls open to 'indeterminate' — same as before this fix — whenever
+// wtDetect.repoInfo can't prove a real git structure.
+
+test('#1099: a same-session run bound to a DIFFERENT live worktree is skipped as foreign, not returned as attribution: session', () => {
+  const main = gitRepo();
+  const mineWt = linkedWorktreeOf(main); // caller's own worktree
+  const siblingWt = linkedWorktreeOf(main); // a sibling's worktree, bound to the run below
+
+  mkRun(main, '2026-07-01T090000-sibling', { status: 'active', sessionId: 'shared', worktree: siblingWt });
+
+  // Caller shares the session id but is physically inside mineWt — a
+  // DIFFERENT live worktree than the one `sibling` is bound to (the #965
+  // incident shape). Pre-fix, raw `owner === me` returned `sibling` as
+  // 'session'-attributed; classifyOwnership's binding check now proves it
+  // foreign, and resolveRun falls through to its no-match result (no unowned
+  // run exists in this fixture).
+  assert.deepStrictEqual(ctxLib.resolveRun(mineWt, {}, 'shared'), { dir: null, attribution: null });
+});
+
+test("#1099: a same-session run bound to the CALLER'S OWN worktree still resolves as 'session' (byte-identical, single-session case)", () => {
+  const main = gitRepo();
+  const mineWt = linkedWorktreeOf(main);
+  const mine = mkRun(main, '2026-07-01T090000-mine', { status: 'active', sessionId: 'shared', worktree: mineWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(mineWt, {}, 'shared'), { dir: mine, attribution: 'session' });
+});
+
+test('#1099: a same-session sibling run is skipped in favor of an older run actually bound to the caller\'s own worktree', () => {
+  const main = gitRepo();
+  const mineWt = linkedWorktreeOf(main);
+  const siblingWt = linkedWorktreeOf(main);
+
+  // Newest-first scan order would hit the sibling's run first under the old
+  // raw-equality behavior.
+  mkRun(main, '2026-07-02T090000-sibling', { status: 'active', sessionId: 'shared', worktree: siblingWt });
+  const mine = mkRun(main, '2026-07-01T090000-mine', { status: 'active', sessionId: 'shared', worktree: mineWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(mineWt, {}, 'shared'), { dir: mine, attribution: 'session' });
 });
 
 // ─── the two reported symptoms ─────────────────────────────────────────────

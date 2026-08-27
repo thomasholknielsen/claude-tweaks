@@ -422,9 +422,15 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
     if (!hit || !hit.state) continue;
     const status = hit.state.status;
     if (status !== 'active' && status !== 'interrupted') continue;
-    const owner = typeof hit.state.sessionId === 'string' && hit.state.sessionId ? hit.state.sessionId : null;
     const caller = ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id ? ctx.input.session_id : null;
-    if (owner && caller && owner !== caller) {
+    // #1099: classifyOwnership (#1098) replaces raw session-id equality —
+    // session ids are shared across every subagent of a session, so a
+    // sibling in its own worktree can share this caller's id while still
+    // being provably foreign via its worktree binding. Only a 'foreign'
+    // verdict takes this branch; 'mine' and 'indeterminate' both fall
+    // through to the same deny below, exactly as same-session/missing-identity
+    // did before.
+    if (ctxLib.classifyOwnership({ sessionId: caller, cwd: ctx.cwd }, hit.state) === 'foreign') {
       // Provably foreign-owned: allow + warn, event to the TARGET run's dir
       // (the wd-foreign-session precedent — enforcement-target, not
       // ownedRun). Collected, not returned — see the function header.
@@ -1170,7 +1176,12 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
     }
     const owner = typeof ctx.runState.sessionId === 'string' ? ctx.runState.sessionId : '';
     const caller = typeof ctx.input.session_id === 'string' ? ctx.input.session_id : '';
-    if (owner && caller && owner !== caller) {
+    // #1099: classifyOwnership (#1098) replaces raw session-id equality — see
+    // the teardown site's comment above (checkTeardownGate) for the full
+    // rationale. Only 'foreign' takes this allow branch; 'mine' and
+    // 'indeterminate' both fall through to the same wd-deny below, exactly as
+    // same-session/missing-identity did before.
+    if (ctxLib.classifyOwnership({ sessionId: caller, cwd: ctx.cwd }, ctx.runState) === 'foreign') {
       ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { expected: assigned, actual, owner, caller, command: command.slice(0, 200) });
       return {
         exit: 0,

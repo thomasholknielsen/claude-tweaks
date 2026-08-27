@@ -238,7 +238,18 @@ function resolveRun(cwd, env, sessionId) {
   let unowned = null;
   for (const { dir, state } of iterRunDirsWithState(cwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
-    if (owner === me) return { dir, attribution: 'session' };
+    if (owner === me) {
+      // #1099: session-id equality alone is not proof of ownership —
+      // CLAUDE_CODE_SESSION_ID is shared across every subagent of a session
+      // (#965), so a sibling agent bound to its OWN worktree can also match
+      // `owner === me` here. classifyOwnership's worktree-binding check is
+      // what actually separates them. Skip only a provably foreign
+      // (sibling-bound) run and keep scanning; 'mine' and 'indeterminate'
+      // both still return exactly as before — fail-open, byte-identical for
+      // every single-session scenario (no binding, or binding matches cwd).
+      if (classifyOwnership({ sessionId: me, cwd }, state) === 'foreign') continue;
+      return { dir, attribution: 'session' };
+    }
     // Newest-first, so the first unowned run is the one the old code returned.
     if (!owner && !unowned && !isUnadoptedMint(dir, state)) unowned = dir;
   }
