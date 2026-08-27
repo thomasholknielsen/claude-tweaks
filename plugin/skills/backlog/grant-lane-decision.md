@@ -75,9 +75,19 @@ refine`'s own Needs-decision lane, the only place this outcome is ever applied.
 
 ```bash
 eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_NEEDS_DECISION=backlog-needs-decision-${ISSUE}.md")"
-gh issue edit "$ISSUE" --add-label needs:decision
-gh issue comment "$ISSUE" --body-file "$BACKLOG_NEEDS_DECISION"
+if gh issue edit "$ISSUE" --add-label needs:decision; then
+  gh issue comment "$ISSUE" --body-file "$BACKLOG_NEEDS_DECISION" || echo "label applied but comment post failed for #$ISSUE — retry the comment write"
+else
+  echo "label add failed for #$ISSUE — retry from scratch, no comment attempted"
+fi
 ```
+
+Treat the label edit and the comment post as two independently-reportable steps, never a single
+unguarded pair — mirroring `apply-refine-labels.js`'s own edit/comment split (#1073). This matters
+most on `grant-mode.md`'s headless path (no human present): a comment-post failure after a
+successful label write must never be silently indistinguishable from full success, since a
+`needs:decision` label with no comment leaves a human with nothing to resolve while the record
+stays excluded from every headless worklist.
 
 `refine-mode.md`'s batched application (`refine-lanes.md`'s Needs-decision lane): write
 `{issue, addLabels: ["needs:decision"], commentFile}` per row to
