@@ -6,7 +6,7 @@ Reading an installed dependency's own source or type definitions (`node_modules/
 
 **Detect a pnpm workspace:** a `pnpm-lock.yaml` file at the project root, or a `.pnpm` directory under `node_modules/`.
 
-**Compute the entries to seed** (read-only — `Read` only, which Claude Code's best-effort matching extends to `Grep`/`Glob` over the same paths; never `Edit`/`Write`/`Bash`, so nothing here grants write or execute access under `node_modules`):
+**Compute the entries to seed** (read-only per above — never `Edit`/`Write`/`Bash`, so nothing here grants write or execute access under `node_modules`):
 
 | Condition | Entries |
 |---|---|
