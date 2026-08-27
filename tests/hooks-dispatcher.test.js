@@ -393,6 +393,32 @@ test('close-run WITH an explicit --run still closes a run recorded by another se
   assert.strictEqual(readRunState(run).status, 'clean', 'an explicitly-targeted --run intentionally overrides the cross-session refusal');
 });
 
+// Fixture for the two #1012 named regression tests below: four non-terminal
+// run dirs (A-D), each bound to its OWN live harness worktree, all four
+// recording the SAME sessionId — the #860/#758/#965 incident shape, in which
+// session id alone can never tell the siblings apart. `main` must already
+// have a commit (git worktree add needs a HEAD).
+function seedSharedSessionRuns(main) {
+  const runs = {};
+  const worktrees = {};
+  ['a', 'b', 'c', 'd'].forEach((name, i) => {
+    const key = name.toUpperCase();
+    worktrees[key] = harnessWorktreeOf(main, name);
+    runs[key] = path.join(main, '.claude-tweaks', 'pipelines', `2026-07-01T09000${i + 1}-record-${name}`);
+    fs.mkdirSync(runs[key], { recursive: true });
+    fs.writeFileSync(path.join(runs[key], 'run-state.json'), JSON.stringify({
+      status: 'active', worktree: worktrees[key], sessionId: 'shared-session',
+    }));
+  });
+  return { runs, worktrees };
+}
+
+// Every run's state, keyed the same way as `runs` — the "nothing else moved"
+// baseline both tests below compare against.
+function snapshotRuns(runs) {
+  return Object.fromEntries(Object.entries(runs).map(([key, dir]) => [key, readRunState(dir)]));
+}
+
 // #1012 named regression test — the exact incident shape (#860/#758, #965):
 // N siblings sharing CLAUDE_CODE_SESSION_ID, one omits/mistypes --run, the
 // old "newest non-terminal run" fallback (or the old session-id-only
@@ -404,39 +430,19 @@ test('close-run WITH an explicit --run still closes a run recorded by another se
 test('#1012: close-run --help touches no state, and bare close-run from a caller\'s own worktree closes only that caller\'s run — bystander run D is never touched (named regression, #860/#758/#965 incident shape)', () => {
   const main = gitRepo();
   execFileSync('git', ['-C', main, 'commit', '--allow-empty', '-m', 'init', '-q']);
-  const wtA = fs.realpathSync(harnessWorktreeOf(main, 'a'));
-  const wtB = fs.realpathSync(harnessWorktreeOf(main, 'b'));
-  const wtC = fs.realpathSync(harnessWorktreeOf(main, 'c'));
-  const wtD = fs.realpathSync(harnessWorktreeOf(main, 'd'));
-
-  const runs = {
-    A: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090001-record-a'),
-    B: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090002-record-b'),
-    C: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090003-record-c'),
-    D: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090004-record-d'),
-  };
-  const worktrees = {
-    A: wtA, B: wtB, C: wtC, D: wtD,
-  };
-  for (const key of Object.keys(runs)) {
-    fs.mkdirSync(runs[key], { recursive: true });
-    fs.writeFileSync(path.join(runs[key], 'run-state.json'), JSON.stringify({
-      status: 'active', worktree: worktrees[key], sessionId: 'shared-session',
-    }));
-  }
+  const { runs, worktrees } = seedSharedSessionRuns(main);
   const dSnapshotBefore = readRunState(runs.D);
 
   for (const key of ['A', 'B', 'C']) {
     const cwd = worktrees[key];
-    const snapshotBefore = { A: readRunState(runs.A), B: readRunState(runs.B), C: readRunState(runs.C), D: readRunState(runs.D) };
+    const snapshotBefore = snapshotRuns(runs);
 
     const help = runHook(['close-run', '--help'], { cwd, env: { CLAUDE_CODE_SESSION_ID: 'shared-session' } });
     assert.strictEqual(help.code, 0);
     assert.match(help.stdout, /unrecognized flag --help/, `${key}: --help must hit the usage path`);
-    assert.deepStrictEqual(readRunState(runs.A), snapshotBefore.A, `${key}: --help must not touch run A`);
-    assert.deepStrictEqual(readRunState(runs.B), snapshotBefore.B, `${key}: --help must not touch run B`);
-    assert.deepStrictEqual(readRunState(runs.C), snapshotBefore.C, `${key}: --help must not touch run C`);
-    assert.deepStrictEqual(readRunState(runs.D), snapshotBefore.D, `${key}: --help must not touch run D`);
+    for (const other of ['A', 'B', 'C', 'D']) {
+      assert.deepStrictEqual(readRunState(runs[other]), snapshotBefore[other], `${key}: --help must not touch run ${other}`);
+    }
 
     // D must never be touched by ANY iteration's close-run, whether or not
     // an earlier caller in this loop already closed its own run — checked
@@ -466,28 +472,11 @@ test('#1012: close-run --help touches no state, and bare close-run from a caller
 test('#1012: an unbound caller (no run bound to its own cwd) invoking bare close-run refuses — every existing run classifies foreign, zero survivors, no state changes', () => {
   const main = gitRepo();
   execFileSync('git', ['-C', main, 'commit', '--allow-empty', '-m', 'init', '-q']);
-  const wtA = fs.realpathSync(harnessWorktreeOf(main, 'a2'));
-  const wtB = fs.realpathSync(harnessWorktreeOf(main, 'b2'));
-  const wtC = fs.realpathSync(harnessWorktreeOf(main, 'c2'));
-  const wtD = fs.realpathSync(harnessWorktreeOf(main, 'd2'));
-  const wtUnbound = fs.realpathSync(harnessWorktreeOf(main, 'unbound'));
-
-  const runs = {
-    A: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090001-record-a2'),
-    B: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090002-record-b2'),
-    C: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090003-record-c2'),
-    D: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090004-record-d2'),
-  };
-  const worktrees = {
-    A: wtA, B: wtB, C: wtC, D: wtD,
-  };
-  for (const key of Object.keys(runs)) {
-    fs.mkdirSync(runs[key], { recursive: true });
-    fs.writeFileSync(path.join(runs[key], 'run-state.json'), JSON.stringify({
-      status: 'active', worktree: worktrees[key], sessionId: 'shared-session',
-    }));
-  }
-  const snapshotBefore = { A: readRunState(runs.A), B: readRunState(runs.B), C: readRunState(runs.C), D: readRunState(runs.D) };
+  const { runs } = seedSharedSessionRuns(main);
+  // The stray caller's own worktree — deliberately NOT the binding of any run
+  // seeded above, so step 2's reverse lookup has nothing to hit.
+  const wtUnbound = harnessWorktreeOf(main, 'unbound');
+  const snapshotBefore = snapshotRuns(runs);
 
   const result = runHook(['close-run'], { cwd: wtUnbound, env: { CLAUDE_CODE_SESSION_ID: 'shared-session' } });
   assert.strictEqual(result.code, 0);

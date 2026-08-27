@@ -108,6 +108,22 @@ const USAGE = Object.freeze({
   'teardown-run': 'teardown-run [--run <dir>] [--merged|--abandoned]',
 });
 
+// Mirrors reportWorktreeLocalFallback below: the rejection message text lives
+// here once rather than repeated verbatim at all five verbs' call sites, so a
+// change to its shape can't land at four of the five. Callers return 0
+// immediately after — nothing else may run once a flag was rejected.
+function reportUnknownFlag(verb, unknownFlag) {
+  process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE[verb]}\n`);
+}
+
+// The `{ sessionId, cwd }` shape classifyOwnership consumes. Shared by
+// resolveImplicitRunDir and isForeignRun below so the two can never disagree
+// on who the caller is — an absent env var must read as `null` (unknown),
+// never as the empty string.
+function callerIdentityOf(cwd, env) {
+  return { sessionId: (env && env.CLAUDE_CODE_SESSION_ID) || null, cwd };
+}
+
 // #1012: the unambiguous-only implicit-resolution algorithm that replaces the
 // old "newest non-terminal run" guess (`ctxLib.resolveRunDir`) for every
 // caller of resolveRunArg's no-`--run` path. Four steps, in order:
@@ -135,7 +151,7 @@ function resolveImplicitRunDir(cwd, env) {
   }
   const hit = ctxLib.findRunByWorktreePath(cwd, cwd);
   if (hit) return { runDir: hit.runDir, candidates: null };
-  const callerIdentity = { sessionId: (env && env.CLAUDE_CODE_SESSION_ID) || null, cwd };
+  const callerIdentity = callerIdentityOf(cwd, env);
   // #721 parity: an unadopted mint (bare mkdir, neither run-state.json nor
   // decisions.md) must stay invisible here exactly as it already is to
   // resolveRun's own fallback scan — classifyOwnership would read its null
@@ -162,8 +178,7 @@ function resolveImplicitRunDir(cwd, env) {
 // so this is a no-op (false) for that case, not dead code duplicated per verb.
 function isForeignRun(runDir, cwd, env) {
   const state = ctxLib.readRunState(runDir);
-  const callerIdentity = { sessionId: (env && env.CLAUDE_CODE_SESSION_ID) || null, cwd };
-  return ctxLib.classifyOwnership(callerIdentity, state) === 'foreign';
+  return ctxLib.classifyOwnership(callerIdentityOf(cwd, env), state) === 'foreign';
 }
 
 // #1012: renders the refusal message shape the record's Data/API Surface
@@ -181,7 +196,7 @@ function renderCandidatesRefusal(cmd, candidates) {
 }
 
 // Resolves an explicit `--run <path>` argument, validating it's a real
-// directory, or falls back to ctxLib.resolveRunDir when --run is absent.
+// directory, or falls back to resolveImplicitRunDir above when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
 // counts as a valid --run path (e.g. also rejecting a directory that exists
 // but isn't a real run dir, or resolving symlinks first) only needs to land
@@ -222,13 +237,13 @@ function resolveRunArg(args, cwd, env, opts = {}) {
   if (rawCandidate !== undefined && candidate === null) {
     return { runDir: null, invalidRunArg: '--run requires a value', rest, explicit: true };
   }
-  // An explicit --run must resolve to a real directory — falling back to
-  // resolveRunDir's "newest non-terminal run" scan on a bad path would
-  // silently record against the WRONG run, defeating the reason --run
-  // exists at all. Resolved once, against the `cwd` PARAMETER (not
-  // process.cwd()) — every current caller happens to pass process.cwd() as
-  // `cwd`, but the anchoring check below must honor the parameter it's
-  // actually given, not assume the two are always the same value.
+  // An explicit --run must resolve to a real directory — falling back to the
+  // implicit resolution scan on a bad path would silently record against the
+  // WRONG run, defeating the reason --run exists at all. Resolved once,
+  // against the `cwd` PARAMETER (not process.cwd()) — every current caller
+  // happens to pass process.cwd() as `cwd`, but the anchoring check below
+  // must honor the parameter it's actually given, not assume the two are
+  // always the same value.
   const resolved = candidate ? path.resolve(cwd, candidate) : null;
   const isRealDir = resolved ? isDirectory(resolved) : false;
   if (isRealDir) {
@@ -363,7 +378,7 @@ async function main(argv) {
       runDir, invalidRunArg, unknownFlag, rest, explicit, worktreeLocalFallback, candidates,
     } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['record-worktree'] });
     if (unknownFlag) {
-      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['record-worktree']}\n`);
+      reportUnknownFlag('record-worktree', unknownFlag);
       return 0;
     }
     const worktreeArg = rest[0];
@@ -474,7 +489,7 @@ async function main(argv) {
       runDir, invalidRunArg, unknownFlag, rest, explicit, worktreeLocalFallback, candidates,
     } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['record-pr'] });
     if (unknownFlag) {
-      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['record-pr']}\n`);
+      reportUnknownFlag('record-pr', unknownFlag);
       return 0;
     }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
@@ -513,7 +528,7 @@ async function main(argv) {
       runDir, invalidRunArg, unknownFlag, rest, explicit, worktreeLocalFallback, candidates,
     } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['spec-status'] });
     if (unknownFlag) {
-      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['spec-status']}\n`);
+      reportUnknownFlag('spec-status', unknownFlag);
       return 0;
     }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
@@ -554,7 +569,7 @@ async function main(argv) {
       // usage and touch no run state — the #965 incident (a typo'd --help
       // fell through to the old "newest non-terminal run" fallback and
       // overwrote a sibling's run-state.json three times).
-      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['close-run']}\n`);
+      reportUnknownFlag('close-run', unknownFlag);
       return 0;
     }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
@@ -596,8 +611,8 @@ async function main(argv) {
         process.stdout.write(`claude-tweaks: failed to close run ${path.basename(runDir)} — run-state.json could not be written\n`);
       }
     } else {
-      // No --run was given (or it resolved to nothing) and resolveRunDir's
-      // fallback also found no run dir — the only remaining case in this
+      // No --run was given (or it resolved to nothing) and the implicit
+      // resolution found no run dir at all — the only remaining case in this
       // chain. Without this branch, a call that can't resolve any run dir
       // printed nothing and exited 0, indistinguishable from success.
       process.stdout.write('claude-tweaks: no pipeline run dir found — run not closed\n');
@@ -609,7 +624,7 @@ async function main(argv) {
       runDir, invalidRunArg, unknownFlag, worktreeLocalFallback, candidates,
     } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['teardown-run'] });
     if (unknownFlag) {
-      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['teardown-run']}\n`);
+      reportUnknownFlag('teardown-run', unknownFlag);
       return 0;
     }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);

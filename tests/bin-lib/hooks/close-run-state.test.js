@@ -5,6 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { closeRunState, hasUnarchivedWork } = require('../../../plugin/bin/lib/hooks/close-run-state');
+// gitRepo()/harnessWorktreeOf() rather than hand-rolled execFileSync git calls:
+// both return a realpath'd path already, and both are bounded by the shared
+// fixture timeout that a raw execFileSync here would not have had.
+const { gitRepo, harnessWorktreeOf } = require('../../helpers/git-fixtures');
 
 function makeTmpRunDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'close-run-state-test-'));
@@ -76,19 +80,13 @@ test('closeRunState: refused-foreign case never reaches the notYetArchived check
 // run recorded as its binding. classifyOwnership must still prove 'foreign'
 // from the worktree mismatch alone.
 test('closeRunState: same sessionId but caller cwd in a different live worktree than the recorded binding still refuses (classifyOwnership upgrade, #1012/#965)', () => {
-  const { execFileSync } = require('child_process');
-  const main = fs.mkdtempSync(path.join(os.tmpdir(), 'close-run-state-wt-main-'));
-  execFileSync('git', ['-C', main, 'init', '-q']);
-  execFileSync('git', ['-C', main, 'commit', '--allow-empty', '-m', 'init', '-q']);
-  const boundWt = path.join(main, '.claude', 'worktrees', 'bound');
-  fs.mkdirSync(path.dirname(boundWt), { recursive: true });
-  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', boundWt, '-b', 'bound-branch']);
-  const callerWt = path.join(main, '.claude', 'worktrees', 'caller');
-  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', callerWt, '-b', 'caller-branch']);
+  const main = gitRepo();
+  const boundWt = harnessWorktreeOf(main, 'bound');
+  const callerWt = harnessWorktreeOf(main, 'caller');
   const dir = makeTmpRunDir();
   try {
-    fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ sessionId: 'shared-session', worktree: fs.realpathSync(boundWt) }));
-    const r = closeRunState(dir, { explicit: false, callerIdentity: { sessionId: 'shared-session', cwd: fs.realpathSync(callerWt) } });
+    fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ sessionId: 'shared-session', worktree: boundWt }));
+    const r = closeRunState(dir, { explicit: false, callerIdentity: { sessionId: 'shared-session', cwd: callerWt } });
     assert.strictEqual(r.status, 'refused-foreign', 'a matching sessionId must not be enough once the binding names a different live worktree');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
