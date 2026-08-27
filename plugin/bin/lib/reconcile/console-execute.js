@@ -7,6 +7,12 @@
 // gh-CLI-only, same constraint every other reconcile check states: a Node
 // subprocess cannot reach an agent session's MCP tools, so a gh-absent
 // environment reports that reason rather than attempting an MCP fallback.
+// #1294: also passes console.json's persisted `mergeCheckVerdict` straight
+// through on a `ready` result — the executing agent session's own
+// `consoleAutoResolve` wiring (`_shared/console-execution.md`) reads it from
+// there rather than re-deriving it, since a foreign session has no other way
+// to learn a `needs-human` verdict computed by an earlier session's
+// `assess-agent-autonomy merge-check` call.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -160,10 +166,19 @@ function decideConsoleExecute(consoleJson, comments, now) {
     return { id: item.id, kind: item.kind, summary: item.summary, stagedHash: item.stagedHash, approved: ticks[item.id] === true };
   });
 
-  return { action: 'ready', prNumber: consoleJson.prNumber, commentIds, items: resolvedItems };
+  // #1294: pass the persisted merge-check verdict through untouched — it comes from
+  // console.json (written by `_shared/console-on-pr.md`'s post procedure), never from the
+  // comment body, since a tick can't carry it. `null` when the record's group never had a
+  // merge-check verdict computed at render time (no `auto:merge`/`auto:merge-pending` in
+  // play that session) — absence means "unknown", not "cleared for auto-merge".
+  const mergeCheckVerdict = consoleJson.mergeCheckVerdict === 'needs-human' ? 'needs-human' : null;
+
+  return {
+    action: 'ready', prNumber: consoleJson.prNumber, commentIds, items: resolvedItems, mergeCheckVerdict,
+  };
 }
 
-// opts: { cwd? } -> { ready: [{ runDir, prNumber, commentIds, items }], skipped: [{ runDir, reason }] }
+// opts: { cwd? } -> { ready: [{ runDir, prNumber, commentIds, items, mergeCheckVerdict }], skipped: [{ runDir, reason }] }
 // Runs in two phases (#820, D5): a synchronous scan collecting every run dir
 // that needs a `gh pr view` fetch (fast fs reads + pure pre-checks), then
 // one gh-pool `runWithConcurrency` batch resolving all of those fetches at
@@ -193,7 +208,9 @@ async function consoleExecuteDetect(opts = {}) {
     if (!fetch.ok) { skipped.push({ runDir: c.dir, reason: fetch.reason }); return; }
     const decision = decideConsoleExecute(c.consoleJson, fetch.comments, now);
     if (decision.action === 'skip') { skipped.push({ runDir: c.dir, reason: decision.reason }); return; }
-    ready.push({ runDir: c.dir, prNumber: decision.prNumber, commentIds: decision.commentIds, items: decision.items });
+    ready.push({
+      runDir: c.dir, prNumber: decision.prNumber, commentIds: decision.commentIds, items: decision.items, mergeCheckVerdict: decision.mergeCheckVerdict,
+    });
   });
 
   return { ready, skipped };

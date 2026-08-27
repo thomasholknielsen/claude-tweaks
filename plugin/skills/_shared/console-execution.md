@@ -118,20 +118,34 @@ fire at render time — this wiring is what lets a *later* pass still auto-resol
 **Per item, not a blanket flag:** loop over every item and ask, individually, whether it is
 floor-clearing. Today, every item the console's own sections cover (batch, `Q#`, `M#`, `U#`) is
 floor-clearing whenever `consoleAutoResolve` is granted — `_shared/autonomy-ceiling.md` defines the
-capability as unlocking every section uniformly, with no narrower per-item test today. Writing it
-as a per-item loop rather than one blanket "resolve everything" call is deliberate and forward
-only: #347 (autonomy-tiered console resolution) is expected to replace today's always-true per-item
-check with a real floor predicate later — do not pre-implement that predicate here (Related, not
-merged scope, same as `_shared/console-on-pr.md`'s own note on #347).
+capability as unlocking every section uniformly, with **one narrower exception (#1294):** the item
+carrying `isMergeRow: true` (`_shared/console-on-pr.md`'s Item ID scheme — the Git-worktree/
+branch-finish Cleanup-actions row) is **not** floor-clearing when this run's `console.json` carries
+a persisted `mergeCheckVerdict: "needs-human"` (`_shared/console-on-pr.md`'s `console.json`
+section) — the same `assess-agent-autonomy merge-check` precedence rule
+`wrap-up/review-console.md`'s render-time Auto-resolution short-circuit already applies (#1179),
+mirrored here for the reconciler-side trigger point since a foreign session has no other way to
+learn that verdict. `mergeCheckVerdict` absent, or present but not `"needs-human"`: the merge row
+is floor-clearing exactly like every other item, unchanged from today. Every item this exception
+doesn't name — every batch/`Q#`/`M#`/`U#` item, and the merge row itself absent a persisted
+`needs-human` verdict — stays unconditionally floor-clearing. This single named exception is not
+the general per-item floor predicate #347 (autonomy-tiered console resolution) is expected to add
+later — it exists solely to close the specific correctness gap #1294 found; do not generalize it
+into a broader test or pre-implement #347's predicate here (Related, not merged scope, same as
+`_shared/console-on-pr.md`'s own note on #347).
 
 **Auto-resolution performs real comment edits.** It ticks the floor-clearing boxes on the PR
 comment (via `_shared/console-on-pr.md`'s post-or-update procedure) *before* executing — the same
 comment-edit history a human's own ticks would leave, flagged in the reply comment and in
 `decisions.md` as `AUTO`, never presented as if a human ticked it. The Resolve box is ticked only
-when every item in the console is floor-clearing; a console with a genuinely non-floor item (once
-one exists) gets its floor items ticked and executed, but Resolve stays unticked and the console
-stays pending for a human. Log one `AUTO {time} — Console execution: auto-resolved {item} on PR
-#{n}. Reversibility: {…}.` line per item, per `_shared/autonomy-ceiling.md`'s Logging convention.
+when every item in the console is floor-clearing; a console with a genuinely non-floor item —
+today, exactly the `isMergeRow: true` item under a persisted `needs-human` verdict, above — gets
+its floor items ticked and executed, but that one item and Resolve both stay unticked and the
+console stays pending for a human. Log one `AUTO {time} — Console execution: auto-resolved {item}
+on PR #{n}. Reversibility: {…}.` line per item actually resolved, per
+`_shared/autonomy-ceiling.md`'s Logging convention — and, when the merge row was withheld, one
+further line: `AUTO {time} — Console execution: withheld branch-finish/merge on PR #{n} — persisted
+mergeCheckVerdict: needs-human. Reversibility: n/a (declined to act).`
 
 ## Comment-tick trust boundary
 
