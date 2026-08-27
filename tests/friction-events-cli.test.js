@@ -147,3 +147,30 @@ test('the real readEvents helper parses events.jsonl, skips malformed lines, ret
   assert.equal(events[0]._runDir, dir);
   assert.deepEqual(readEvents(path.join(dir, 'does-not-exist'), 'primary'), []);
 });
+
+// #1337: a gate-denial event the test suite's own exercise of the deny logic
+// produced (tagged `test: true` by pre-tool-use.js's CT_HOOKS_TEST_MODE gate)
+// must not inflate the aggregate gate-denial count readEvents feeds into
+// friction-events.js's output — while a real, untagged gate-denial (or any
+// other event type, even one that happens to carry `test: true`) still comes
+// through unfiltered.
+test('#1337: readEvents drops a test-tagged gate-denial event but keeps a real one', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { readEvents } = require('../plugin/bin/friction-events');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-fe-events-'));
+  fs.writeFileSync(
+    path.join(dir, 'events.jsonl'),
+    [
+      '{"type":"gate-denial","ts":"t1","tool":"Write","test":true}',
+      '{"type":"gate-denial","ts":"t2","tool":"Edit"}',
+      '{"type":"wd-deny","ts":"t3","test":true}',
+    ].join('\n') + '\n',
+  );
+  const events = readEvents(dir, 'primary');
+  assert.equal(events.length, 2, 'the test-tagged gate-denial must be dropped, the other two kept');
+  assert.equal(events.filter((e) => e.type === 'gate-denial').length, 1);
+  assert.equal(events.find((e) => e.type === 'gate-denial').tool, 'Edit');
+  assert.equal(events.find((e) => e.type === 'wd-deny').test, true, 'filter is scoped to gate-denial, not event type generally');
+});

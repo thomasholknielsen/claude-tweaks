@@ -28,7 +28,13 @@ function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
       // process.env (e.g. when npm test itself runs inside a /flow-dispatched
       // shell). A caller that needs a run dir still passes it explicitly via
       // `env`, which wins because it spreads last.
-      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
+      // #1337: CT_HOOKS_TEST_MODE tells pre-tool-use.js's gate-denial write
+      // this denial came from the test suite's own exercise of the deny
+      // logic, not a real operator action — see that file's appendEvent call
+      // and friction-events.js's readEvents, which excludes tagged events
+      // from aggregation. A caller that needs to assert real (untagged)
+      // denial behavior overrides it via `env`.
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', CT_HOOKS_TEST_MODE: '1', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
@@ -470,6 +476,30 @@ test('a resolved deny appends a gate-denial event', () => {
   assert.strictEqual(events[0].type, 'gate-denial');
   assert.strictEqual(events[0].tool, 'Write');
   assert.strictEqual(events[0].path, target);
+  // #1337: runHook's default env carries CT_HOOKS_TEST_MODE=1, so this
+  // suite-produced denial is tagged — friction-events.js's readEvents
+  // excludes it from aggregation on that basis.
+  assert.strictEqual(events[0].test, true);
+});
+
+// #1337: a call site that overrides CT_HOOKS_TEST_MODE off (simulating a
+// real, non-test invocation of the hook) must NOT tag its gate-denial event —
+// the regression guard for "a real operator denial still logs and is still
+// returned" (issue's Acceptance Criteria).
+test('#1337: a gate-denial event is untagged when CT_HOOKS_TEST_MODE is not set', () => {
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'a.txt');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+    env: { CT_HOOKS_TEST_MODE: '' },
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].type, 'gate-denial');
+  assert.strictEqual('test' in events[0], false, 'a real denial must not carry the test-mode tag');
 });
 
 // #1270 regression: the #1130 fix (`PIPELINE_RUN_DIR: ''` in runHook's spread,
