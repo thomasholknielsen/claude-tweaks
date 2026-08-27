@@ -2,7 +2,7 @@ Fix Mode (Auto + Interactive) — invocation and reporting for `/claude-tweaks:t
 
 # Step 3: Fix Mode
 
-### Auto mode
+## Auto mode
 
 When a pipeline run directory exists, apply the `/claude-tweaks:test` row from the silences table in `_shared/auto-mode-contract.md`. Resolve `auto-fix-threshold` — `AUTO_FIX_THRESHOLD=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" auto-fix-threshold)` (run dir per `_shared/pipeline-run-dir.md`; the resolver serves the run's Manifesto answer, then `policy.yml`, then the schema default) and route per the `/claude-tweaks:test` row in `_shared/auto-mode-contract.md`. QA failures never auto-fix — they always stage.
 
@@ -10,7 +10,7 @@ When a pipeline run directory exists, apply the `/claude-tweaks:test` row from t
 
 **Stage flow:** write the proposed fix to `staged/test-fix-{n}.patch` per `_shared/staged-patch.md` — a `Target:` / `Invariant:` / `Finding:` / `Staged-at:` preamble followed by the diff, validated with `git apply --check` from the worktree before logging (a failing check is handled per that file's Staging-time gate and surfaced here) — and log `STAGED {time} — Step 3: {N} {type} failures staged for review. Stage path: staged/test-fix-{n}.patch.`. The test gate fails until the user resolves at the Review Console, which applies the diff or, when later phases moved the target, re-derives the edit from `Invariant:`.
 
-### Interactive mode
+## Interactive mode
 
 > **Prompt ordering:** Per CLAUDE.md's "never present more than one batch decision table per message" rule — if both lint/type and QA failures are present, present the lint/type prompt first, resolve, then present the QA prompt. Never combine them into a single message.
 
