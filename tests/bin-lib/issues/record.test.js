@@ -7,6 +7,7 @@ const {
   buildNativeDependencyQuery, hasOpenNativeBlocker, parseSubIssues, buildNativeSubIssuesQuery,
   buildNativeParentQuery,
   partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
+  buildLinkedPRQuery, partitionByOpenLinkedPR,
 } = require('../../../plugin/bin/lib/issues/record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -496,6 +497,69 @@ test('partitionByOpenNativeBlockers fails safe (never throws) when blockedBy.nod
   const { eligible, excluded } = partitionByOpenNativeBlockers(candidates, repoData);
   assert.deepStrictEqual(eligible.map((c) => c.number), [12]);
   assert.deepStrictEqual(excluded, []);
+});
+
+test('partitionByOpenLinkedPR excludes a candidate with an OPEN linked PR, naming the PR number', () => {
+  const candidates = [{ number: 257 }, { number: 15 }];
+  const repoData = {
+    i257: { number: 257, closedByPullRequestsReferences: { nodes: [{ number: 869, state: 'OPEN' }] } },
+    i15: { number: 15, closedByPullRequestsReferences: { nodes: [] } },
+  };
+  const { eligible, excludedByOpenPR } = partitionByOpenLinkedPR(candidates, repoData);
+  assert.deepStrictEqual(eligible.map((c) => c.number), [15]);
+  assert.deepStrictEqual(excludedByOpenPR, [{ number: 257, linkedPR: 869 }]);
+});
+
+test('partitionByOpenLinkedPR keeps a candidate whose linked PR is MERGED or CLOSED (not OPEN)', () => {
+  const candidates = [{ number: 12 }, { number: 13 }];
+  const repoData = {
+    i12: { number: 12, closedByPullRequestsReferences: { nodes: [{ number: 40, state: 'MERGED' }] } },
+    i13: { number: 13, closedByPullRequestsReferences: { nodes: [{ number: 41, state: 'CLOSED' }] } },
+  };
+  const { eligible, excludedByOpenPR } = partitionByOpenLinkedPR(candidates, repoData);
+  assert.deepStrictEqual(eligible.map((c) => c.number), [12, 13]);
+  assert.deepStrictEqual(excludedByOpenPR, []);
+});
+
+test('partitionByOpenLinkedPR keeps a candidate missing from repoData (query failed/degraded) eligible', () => {
+  const candidates = [{ number: 12 }];
+  const { eligible, excludedByOpenPR } = partitionByOpenLinkedPR(candidates, {});
+  assert.deepStrictEqual(eligible.map((c) => c.number), [12]);
+  assert.deepStrictEqual(excludedByOpenPR, []);
+});
+
+test('partitionByOpenLinkedPR fails safe (never throws) when closedByPullRequestsReferences.nodes is malformed', () => {
+  const candidates = [{ number: 12 }];
+  const repoData = { i12: { number: 12, closedByPullRequestsReferences: { nodes: 'not-an-array' } } };
+  assert.doesNotThrow(() => partitionByOpenLinkedPR(candidates, repoData));
+  const { eligible, excludedByOpenPR } = partitionByOpenLinkedPR(candidates, repoData);
+  assert.deepStrictEqual(eligible.map((c) => c.number), [12]);
+  assert.deepStrictEqual(excludedByOpenPR, []);
+});
+
+test('partitionByOpenLinkedPR keeps a candidate with no linked-PR data (never linked) eligible', () => {
+  const candidates = [{ number: 12 }];
+  const repoData = { i12: { number: 12 } };
+  const { eligible, excludedByOpenPR } = partitionByOpenLinkedPR(candidates, repoData);
+  assert.deepStrictEqual(eligible.map((c) => c.number), [12]);
+  assert.deepStrictEqual(excludedByOpenPR, []);
+});
+
+test('buildLinkedPRQuery aliases each number and requests closedByPullRequestsReferences state', () => {
+  const q = buildLinkedPRQuery([257, 15]);
+  assert.match(q, /i257: issue\(number:257\)/);
+  assert.match(q, /i15: issue\(number:15\)/);
+  assert.match(q, /closedByPullRequestsReferences\(first:10\)/);
+  assert.match(q, /state/);
+  assert.match(q, /repository\(owner:\$owner,name:\$repo\)/);
+});
+
+test('buildLinkedPRQuery returns null for an empty array', () => {
+  assert.strictEqual(buildLinkedPRQuery([]), null);
+});
+
+test('buildLinkedPRQuery returns null for non-array input', () => {
+  assert.strictEqual(buildLinkedPRQuery(undefined), null);
 });
 
 test('buildNativeDependencyQuery aliases each number and requests blockedBy state', () => {

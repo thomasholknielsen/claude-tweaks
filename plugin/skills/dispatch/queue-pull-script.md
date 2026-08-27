@@ -1,6 +1,6 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) via `record.js`'s `partitionByOpenBodyBlockers`/`partitionByOpenNativeBlockers` — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) via `record.js`'s `partitionByOpenBodyBlockers`/`partitionByOpenNativeBlockers` — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-linked-pr-excluded.json` (#1224) — every otherwise-eligible candidate that already has an open PR referencing it via a closing keyword or GitHub's native "Development" linkage, each entry naming the linked PR number (`{number, linkedPR}[]`) via `record.js`'s `partitionByOpenLinkedPR` — this check runs unconditionally, independent of `work-links`, since PR-linkage exclusion prevents wasted re-dispatch rather than encoding a dependency-tracking policy choice. SKILL.md Step 2's Blocked-exclusion report reads this file too, under the same non-silent convention.
 
 ```bash
 eval "$(node -e "
@@ -18,6 +18,12 @@ eval "$(node -e "
     DISPATCH_NATIVE_QUERY: 'dispatch-native-query.graphql',
     DISPATCH_NATIVE_DEPS_TMP: 'dispatch-native-deps.tmp.json',
     DISPATCH_NATIVE_DEPS_ERR: 'dispatch-native-deps.err',
+    DISPATCH_ELIGIBLE_POST_NATIVE: 'dispatch-eligible-post-native.json',
+    DISPATCH_LINKED_PR_QUERY: 'dispatch-linked-pr-query.graphql',
+    DISPATCH_LINKED_PR_DEPS: 'dispatch-linked-pr-deps.json',
+    DISPATCH_LINKED_PR_TMP: 'dispatch-linked-pr-deps.tmp.json',
+    DISPATCH_LINKED_PR_ERR: 'dispatch-linked-pr-deps.err',
+    DISPATCH_LINKED_PR_EXCLUDED: 'dispatch-linked-pr-excluded.json',
     DISPATCH_GROUPS: 'dispatch-groups.json',
     DISPATCH_BLOCKED_EXCLUDED: 'dispatch-blocked-excluded.json',
   };
@@ -90,12 +96,47 @@ fi
 node -e "
   const fs = require('fs');
   const { partitionByOpenNativeBlockers } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-  const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const eligible = require(process.argv[1]);
   const repoData = require(process.argv[2]).data.repository;
   const { eligible: finalEligible, excluded: excludedNative } = partitionByOpenNativeBlockers(eligible, repoData);
-  const items = finalEligible.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
-  const byId = new Map(finalEligible.map((i) => [i.number, i]));
+  const excludedBody = require(process.argv[3]);
+  fs.writeFileSync(process.argv[4], JSON.stringify([...excludedBody, ...excludedNative]));
+  fs.writeFileSync(process.argv[5], JSON.stringify(finalEligible));
+" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" "$DISPATCH_BLOCKED_EXCLUDED_BODY" "$DISPATCH_BLOCKED_EXCLUDED" "$DISPATCH_ELIGIBLE_POST_NATIVE"
+
+# Linked-PR exclusion (#1224) — runs unconditionally, independent of work-links:
+# a candidate already carrying an open PR that will close it is dropped before
+# grouping, so a record whose build is already complete and only awaiting a
+# human merge verdict is never re-selected for a fresh build.
+rm -f "$DISPATCH_LINKED_PR_QUERY"
+node -e "
+  const { buildLinkedPRQuery } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const eligible = require(process.argv[1]);
+  const query = buildLinkedPRQuery(eligible.map((i) => i.number));
+  if (query) require('fs').writeFileSync(process.argv[2], query);
+" "$DISPATCH_ELIGIBLE_POST_NATIVE" "$DISPATCH_LINKED_PR_QUERY"
+echo '{"data":{"repository":{}}}' > "$DISPATCH_LINKED_PR_DEPS"
+if [ -s "$DISPATCH_LINKED_PR_QUERY" ]; then
+  OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
+  if gh api graphql -f query="$(cat "$DISPATCH_LINKED_PR_QUERY")" \
+    -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
+    > "$DISPATCH_LINKED_PR_TMP" 2>"$DISPATCH_LINKED_PR_ERR"; then
+    mv "$DISPATCH_LINKED_PR_TMP" "$DISPATCH_LINKED_PR_DEPS"
+  else
+    echo "Warning: linked-PR query failed — falling back to no PR-linkage filtering this run: $(cat "$DISPATCH_LINKED_PR_ERR")" >&2
+  fi
+fi
+
+node -e "
+  const fs = require('fs');
+  const { partitionByOpenLinkedPR } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const finalEligible = require(process.argv[1]);
+  const repoData = require(process.argv[2]).data.repository;
+  const { eligible: prFiltered, excludedByOpenPR } = partitionByOpenLinkedPR(finalEligible, repoData);
+  fs.writeFileSync(process.argv[3], JSON.stringify(excludedByOpenPR));
+  const items = prFiltered.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
+  const byId = new Map(prFiltered.map((i) => [i.number, i]));
   for (const item of items) {
     if (item.keyFiles.length === 0 && expectsKeyFilesSection(byId.get(item.id))) {
       console.error('Warning: eligible record #' + item.id + ' has no ### Key Files subsection — overlap detection disabled for it.');
@@ -103,9 +144,7 @@ node -e "
   }
   const groups = groupByFileOverlap(items).map((ids) => ids.map((id) => byId.get(id)));
   console.log(JSON.stringify(groups));
-  const excludedBody = require(process.argv[3]);
-  fs.writeFileSync(process.argv[4], JSON.stringify([...excludedBody, ...excludedNative]));
-" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" "$DISPATCH_BLOCKED_EXCLUDED_BODY" "$DISPATCH_BLOCKED_EXCLUDED" > "$DISPATCH_GROUPS"
+" "$DISPATCH_ELIGIBLE_POST_NATIVE" "$DISPATCH_LINKED_PR_DEPS" "$DISPATCH_LINKED_PR_EXCLUDED" > "$DISPATCH_GROUPS"
 ```
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.

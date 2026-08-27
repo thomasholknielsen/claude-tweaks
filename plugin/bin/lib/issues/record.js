@@ -418,6 +418,25 @@ function buildNativeDependencyQuery(numbers) {
   return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
 }
 
+// candidate issue numbers -> one batched, aliased GraphQL query requesting each
+// candidate's closedByPullRequestsReferences connection (#1224) — the PRs that
+// will close the issue via a closing keyword (Closes/Fixes/Resolves #N) or
+// GitHub's native "Development" linkage. Runs unconditionally, independent of
+// work-links: native — a PR-linkage exclusion prevents wasted re-dispatch
+// rather than encoding a dependency-tracking policy choice (dispatch/SKILL.md's
+// queue definition). `includeClosedPrs` is left at its GraphQL default (false),
+// which returns OPEN and MERGED linking PRs but not closed-unmerged ones —
+// irrelevant either way, since partitionByOpenLinkedPR below filters on
+// state === 'OPEN' specifically. Same alias/null conventions as
+// buildNativeDependencyQuery above.
+function buildLinkedPRQuery(numbers) {
+  if (!Array.isArray(numbers) || numbers.length === 0) return null;
+  const fields = numbers
+    .map((n) => `i${n}: issue(number:${n}){ number closedByPullRequestsReferences(first:10){ nodes{ number state } } }`)
+    .join('\n      ');
+  return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
+}
+
 // candidate parent-issue numbers -> one batched, aliased GraphQL query requesting
 // each parent's native subIssues connection (work-links: native). first:100 is the
 // connection page size requested, not a claim about any platform-side cap on
@@ -509,6 +528,34 @@ function partitionByOpenNativeBlockers(candidates, repoData) {
   });
 }
 
+// candidates[] (each with .number), repoData: the buildLinkedPRQuery response's
+// repository{} object (i{number} aliases) -> { eligible, excludedByOpenPR } —
+// #1224's dispatch queue-pull exclusion: a candidate that already has an open
+// PR referencing it via a closing keyword or native "Development" linkage is
+// dropped, so a record whose build/test/review/wrap-up is already complete and
+// only awaiting a human merge verdict is never re-selected for a fresh build
+// (the #257/#869 repro this record documents). Same fails-safe posture as
+// partitionByOpenNativeBlockers: a candidate missing from repoData (the query
+// failed and degraded to `{}` — queue-pull-script.md's own fallback) has no
+// nodes to check and stays eligible; a malformed response (nodes present but
+// not an array) degrades to "no linked PR resolved", never throws. Unlike
+// partitionByOpenBlockers' shape, this records the linked PR's own number
+// (`linkedPR`, not `blockedBy`) since an open-PR exclusion names a PR, not
+// another issue.
+function partitionByOpenLinkedPR(candidates, repoData) {
+  const eligible = [];
+  const excludedByOpenPR = [];
+  for (const c of candidates) {
+    const node = repoData && repoData['i' + c.number];
+    const rawNodes = node && node.closedByPullRequestsReferences && node.closedByPullRequestsReferences.nodes;
+    const nodes = Array.isArray(rawNodes) ? rawNodes : [];
+    const openPR = nodes.find((n) => n && n.state === 'OPEN');
+    if (openPR) excludedByOpenPR.push({ number: c.number, linkedPR: openPR.number });
+    else eligible.push(c);
+  }
+  return { eligible, excludedByOpenPR };
+}
+
 // body -> array of {number, assumption} for every line-anchored
 // 'Blocked by #N: {text}' declaration, in order of appearance. A bare
 // 'Blocked by #N' line (no colon) contributes nothing here — parseDependencies
@@ -598,4 +645,5 @@ module.exports = {
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
   buildNativeSubIssuesQuery, buildNativeParentQuery, partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
+  buildLinkedPRQuery, partitionByOpenLinkedPR,
 };
