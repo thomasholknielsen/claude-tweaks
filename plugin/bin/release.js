@@ -48,10 +48,14 @@ function parseStatusArgs(args) {
   return opts;
 }
 
+function getRepoRoot() {
+  return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+}
+
 function status(args) {
   const opts = parseStatusArgs(args);
   if (!opts) { console.error(USAGE); return 2; }
-  const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  const repoRoot = getRepoRoot();
   const git = (a) => execFileSync('git', a, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   try {
     // Validate that the merge commit exists before proceeding. Plain `git rev-parse <sha>`
@@ -95,7 +99,7 @@ function main(argv) {
   const [part, summary] = positional;
   if (!['minor', 'patch'].includes(part) || !summary) { console.error(USAGE); return 2; }
 
-  const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  const repoRoot = getRepoRoot();
   const deps = {
     repoRoot,
     git: (a) => execFileSync('git', a, { cwd: repoRoot, encoding: 'utf8' }),
