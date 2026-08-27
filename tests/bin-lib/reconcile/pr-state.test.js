@@ -90,42 +90,61 @@ test('resolvePrState/resolvePrStateAsync: malformed gh output -> network-failure
 });
 
 test('resolvePrStateAsync: does not block the event loop (real concurrency, not execFileSync in disguise)', async () => {
-  // A wrapper that sleeps briefly before responding — if resolvePrStateAsync
-  // were secretly synchronous, N concurrent calls would take N * sleep; a
-  // real non-blocking execFile lets them overlap, so wall time stays close
-  // to one sleep regardless of N (#820 review — this is exactly the property
+  // If resolvePrStateAsync were secretly synchronous (execFileSync under an
+  // `async` wrapper), the three calls below could never run concurrently:
+  // JS is single-threaded, so the second/third call's spawn literally cannot
+  // start until the first call's blocking execFileSync returns — their
+  // spawned `gh` processes' lifetimes would never overlap. A real
+  // non-blocking execFile starts all three near-simultaneously, so their
+  // lifetimes DO overlap (#820 review — this is exactly the property
   // Phase 1.5's runWithConcurrency pooling in release-merged.js depends on).
   //
-  // The pass/fail boundary is measured against a freshly-taken sequential
-  // baseline in the same run rather than a fixed wall-clock margin, so the
-  // assertion self-calibrates to whatever load this machine is under right
-  // now instead of flaking under concurrent sibling sessions (#1127 — a
-  // fixed "< 400ms" margin observed ~474ms under load while still passing
-  // 7/7 in isolation). A genuine regression to blocking behavior still
-  // fails: concurrent and sequential would both take ~3x150ms, so the
-  // concurrent/sequential ratio would sit near 1 instead of well under it.
-  const wrapper = installGhWrapper('#!/bin/sh\nsleep 0.15\necho "[]"\n');
+  // #1127 then #1404: a fixed wall-clock margin ("< 400ms"), and later a
+  // concurrent-vs-sequential wall-clock RATIO ("< 0.9x"), both flaked under
+  // real sibling-session CPU load — any assertion built on *aggregate
+  // elapsed time* is exactly what shared-machine scheduler noise perturbs,
+  // regardless of where the margin is set. This version drops wall-clock
+  // comparison entirely and asserts a structural fact instead: each spawned
+  // `gh` process drops a marker file for its own lifetime and repeatedly
+  // snapshots how many marker files coexist. Genuine concurrency makes 2+
+  // files coexist no matter how fast or slow the machine is right now,
+  // because it's an existence check, not a duration; a blocking regression
+  // can never produce more than 1, for the single-threaded reason above.
+  const markerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-state-overlap-'));
+  const observationsPath = path.join(markerDir, 'observations');
+  const wrapperScript = [
+    '#!/bin/sh',
+    `MYFILE="${markerDir}/m.$$"`,
+    ': > "$MYFILE"',
+    'i=0',
+    'while [ $i -lt 6 ]; do',
+    `  ls "${markerDir}"/m.* 2>/dev/null | wc -l >> "${observationsPath}"`,
+    '  sleep 0.025',
+    '  i=$((i+1))',
+    'done',
+    'rm -f "$MYFILE"',
+    'echo "[]"',
+    '',
+  ].join('\n');
+  const wrapper = installGhWrapper(wrapperScript);
   try {
-    const concurrentStart = Date.now();
     await Promise.all([
       resolvePrStateAsync('/tmp', 'branch-a'),
       resolvePrStateAsync('/tmp', 'branch-b'),
       resolvePrStateAsync('/tmp', 'branch-c'),
     ]);
-    const concurrentElapsed = Date.now() - concurrentStart;
-
-    const sequentialStart = Date.now();
-    await resolvePrStateAsync('/tmp', 'branch-d');
-    await resolvePrStateAsync('/tmp', 'branch-e');
-    await resolvePrStateAsync('/tmp', 'branch-f');
-    const sequentialElapsed = Date.now() - sequentialStart;
-
+    const observations = fs.readFileSync(observationsPath, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((n) => parseInt(n, 10));
+    const maxConcurrent = Math.max(0, ...observations);
     assert.ok(
-      concurrentElapsed < sequentialElapsed * 0.9,
-      `expected concurrent (${concurrentElapsed}ms) under sequential (${sequentialElapsed}ms) — a blocking implementation would make these roughly equal (ratio ~1)`,
+      maxConcurrent >= 2,
+      `expected at least 2 spawned gh processes to coexist (real concurrency); observed max ${maxConcurrent} across ${observations.length} samples: [${observations.join(',')}]`,
     );
   } finally {
     wrapper.restore();
+    fs.rmSync(markerDir, { recursive: true, force: true });
   }
 });
 
