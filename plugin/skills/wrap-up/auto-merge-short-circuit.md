@@ -76,6 +76,49 @@ bearing on whether the record gets `demo:pending`; `_shared/work-record.md` stat
 `auto:merge`'d record still gets it on its now-closed issue, enabling retrospective sign-off, and
 this branch is the only place that can honor it.
 
+**Ledger deletion (`cleanup-procedures.md` item 2) — before the merge (#939).** This branch
+bypasses Phase 4's execution step, which is where item 2 (Open items ledger) normally runs —
+re-implement it here, the same way acceptance labeling above is re-implemented rather than
+skipped. Phase 3's ledger gate has already confirmed zero `open` rows by the time this branch is
+reached (`/review` passing is itself gated on that), so item 2's own stated precondition is
+satisfied by construction — no re-check needed here. Locate this run's ledger file in the
+worktree and, when one exists, delete it and commit that deletion **before** the merge call below
+so it lands inside the same merge (`local-merge`) or the same PR (`pr-first`) that closes the
+record — never as a trailing, separate commit the merge could omit. This runs regardless of
+`integration-model` and regardless of which branch below resolves `{worktree-path}` for its own
+merge/push calls — read it fresh here from `run-state.json`'s `worktree` field (the same source
+those later reads use, `record-worktree`-stamped per `build/worktree-setup.md` Step 4.5), since
+this step must run before the `pr-first` branch (which never otherwise needs a checkout) as well
+as before the `local-merge` branch's own later resolution:
+
+```bash
+WORKTREE_PATH=$(node -e "console.log(require('$RUN_DIR/run-state.json').worktree)")
+LEDGER_FILE=$(git -C "$WORKTREE_PATH" ls-files "docs/plans/*-record-{n}-ledger.md")
+if [ -n "$LEDGER_FILE" ]; then
+  git -C "$WORKTREE_PATH" rm "$LEDGER_FILE"
+  git -C "$WORKTREE_PATH" commit -m "Wrap-up: delete resolved open items ledger for #{n} — auto-merge short-circuit"
+fi
+```
+
+**`integration-model: pr-first` only — push this commit now**, its own Bash call: `gh pr merge`
+below merges the PR's remote head, not this worktree's local state, so a commit left unpushed
+here would simply be absent from the merge.
+
+```bash
+git -C "$WORKTREE_PATH" push origin {branch}
+```
+
+**`integration-model: local-merge`:** skip the push above — the merge call further down reads
+`{branch}` straight out of the worktree's local refs (`git merge --no-ff {branch}`), so this
+commit reaches it without ever touching `origin`.
+
+No ledger file for this run (a record whose build/test/review never appended an item) is not an
+error — skip silently, there is nothing to delete. A ledger file that still carries a non-`open`
+row needing more than deletion (there is none, by the Phase 3 precondition above) is out of scope
+for this step; it only ever deletes, per item 2's own "Delete via `/ledger`'s delete operation"
+text — it does not resolve or edit rows. Log to `decisions.md`:
+`AUTO {time} — Fast-lane auto-merge: deleted resolved ledger {path} for #{n} before merge. Reversibility: high (git revert restores the file).` — or, when no file existed, omit this line entirely rather than logging a no-op.
+
 **Dispatch-claim branch — check this before merging anything.** Read the claim blob at
 `claims/issue-${ISSUE}.json` on `claims-registry` (per `_shared/issue-claims.md`'s "The lock")
 and check whether its `runId` equals `basename($PIPELINE_RUN_DIR)`. A match means this record is
