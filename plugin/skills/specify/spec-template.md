@@ -166,16 +166,6 @@ When a spec's technical approach rests on an assumption about how an external sy
 
 Enumerating only the second list and skipping the first is the failure mode to design against: it reads as thorough (every input shape is covered) while silently leaving out an entire initiation path that never produces an event to shape-check in the first place — a gap no fixture built from the captured shapes can catch, because the missing case never got captured. Name each initiator path explicitly in the Task 0 deliverable's own text; do not let "covers all invocation shapes" stand in for it.
 
-### Third-Party CLI/API Behavior Task 0
-
-When the premise being checked is specifically how a **third-party CLI or API** behaves — not this project's own harness — name a blocking empirical Task 0 as a deliberate option rather than letting it get rediscovered per-record. Its three constituent parts, all required:
-
-- **Safe probe target** — a throwaway/disposable target the probe can act against without touching real state (a scratch repo, an unprotected test branch, a sandboxed resource) — never the project's own production data or an artifact anyone else depends on.
-- **Mandatory teardown** — the Task 0 deliverable itself includes tearing the probe target back down, unconditionally, whether the probe confirmed or reversed the assumed premise.
-- **Literal-capture rule** — record the actually-observed behavior verbatim (the exact output, timing, or status — not a paraphrase) in the spec's `## Gotchas` or `## Technical Approach`, so a later reader can check the captured fact rather than re-trust the original assumption.
-
-Example: #560's Task 0 probed `gh pr merge --auto`'s actual merge timing against a throwaway PR opened on a disposable base branch, tore that branch down unconditionally after capturing the result, and recorded the literal observed behavior — which reversed the plan's assumed premise (`gh pr merge --auto` does not wait for anything on an unprotected repo; it merges immediately) before any other deliverable's fixtures were written.
-
 A Task 0 deliverable's captured behavior — or any other flagged-but-unvalidated assumption in this
 spec's `## Gotchas` section, an inline `<!-- ambiguity: -->` marker, or an `## Open Questions` row —
 is not fully resolved just because implementation happened. `skills/review/code-mode-steps.md`
@@ -190,6 +180,16 @@ prose — include a deliverable that pins it with a conformance test (`skill-pro
 "documented convention this project wants enforced against every future addition" case), the same
 way a code path earns regression coverage. A plan that adds a Gate-table row with no test task is
 the same brief-compliance gap this section already exists to close, one layer further in.
+
+### Third-Party CLI/API Behavior Task 0
+
+When the premise being checked is specifically how a **third-party CLI or API** behaves — not this project's own harness — name a blocking empirical Task 0 as a deliberate option rather than letting it get rediscovered per-record. Its three constituent parts, all required:
+
+- **Safe probe target** — a throwaway/disposable target the probe can act against without touching real state (a scratch repo, an unprotected test branch, a sandboxed resource) — never the project's own production data or an artifact anyone else depends on.
+- **Mandatory teardown** — the Task 0 deliverable itself includes tearing the probe target back down, unconditionally, whether the probe confirmed or reversed the assumed premise.
+- **Literal-capture rule** — record the actually-observed behavior verbatim (the exact output, timing, or status — not a paraphrase) in the spec's `## Gotchas` or `## Technical Approach`, so a later reader can check the captured fact rather than re-trust the original assumption.
+
+Example: #560's Task 0 probed `gh pr merge --auto`'s actual merge timing against a throwaway PR opened on a disposable base branch, tore that branch down unconditionally after capturing the result, and recorded the literal observed behavior — which reversed the plan's assumed premise (`gh pr merge --auto` does not wait for anything on an unprotected repo; it merges immediately) before any other deliverable's fixtures were written.
 
 ## Gate-Authoring Deliverables
 
