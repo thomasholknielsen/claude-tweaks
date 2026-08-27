@@ -42,7 +42,12 @@ none exist), filtered to: `wd-deny`, `gate-denial` and `bookkeeping-stamp-deny` 
 `bin/lib/hooks/post-tool-use.js`). `contract-violation` specifically can under-report — the
 SubagentStop hook it depends on fires unreliably for Task dispatches
 (`_shared/subagent-output-contract.md`, claude-code#27755) — so the lens should not treat its
-*absence* as proof of a clean run.
+*absence* as proof of a clean run. It also **over**-reports in the other direction: the detector
+cannot tell which agent replied, so a dispatch declaring its own first-line contract and a
+third-party agent exempt from the Subagent Contract altogether both log identically (same file's
+"A logged `contract-violation` is evidence to read" note). Under the Membership rule below,
+neither is friction this run's operator experienced — attribute each entry to its dispatch before
+reporting it, and drop the ones that were never violations.
 
 **Ad-hoc-session fallback (#500).** An ad-hoc worktree dev session — implementing a change
 directly at the user's request, outside any `/claude-tweaks:build`/`/claude-tweaks:flow`
