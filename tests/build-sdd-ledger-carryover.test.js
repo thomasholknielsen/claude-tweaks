@@ -37,18 +37,23 @@ test('build/SKILL.md Common Step 2: names progress.md as the source and the dele
   );
 });
 
-test('build/SKILL.md Common Step 2: names both SDD markers verbatim', () => {
+test('build/SKILL.md Common Step 2: names both SDD markers verbatim, parked disambiguated from Finish\'s completion count', () => {
+  // `parked —` (with the trailing em dash) rather than bare `parked` — SDD's own Finish
+  // section emits `Task <N>: complete (commits <a>..<b>, <K> parked)`, which also contains
+  // the substring "parked" but is a completion record, not a finding. Matching the bare word
+  // would carry a spurious observation row into the ledger on every run with a parked count.
   assertClaimPinned(
-    /`minor \(deferred\)`.*`parked`/,
-    'must name both minor (deferred) and parked as the lines to carry forward',
+    /`minor \(deferred\)`.*`parked —`|`parked —`.*`minor \(deferred\)`/,
+    'must name both minor (deferred) and parked — (order-independent) as the lines to carry forward',
   );
-  assertClaimPinned(
-    /`parked`.*`minor \(deferred\)`|`minor \(deferred\)`.*`parked`/,
-    'must name both markers (order-independent check)',
+  assert.doesNotMatch(
+    buildSkill,
+    /matching `minor \(deferred\)` or `parked`[^ —]/,
+    'the parked marker must be disambiguated with a trailing em dash, not the bare word',
   );
 });
 
-test('build/SKILL.md Common Step 2: destination is the run ledger with phase build and a status per marker', () => {
+test('build/SKILL.md Common Step 2: destination is the run ledger with phase build and status observation', () => {
   assertClaimPinned(
     /docs\/plans\/\{run\}-ledger\.md/,
     'must name the run ledger file as the destination',
@@ -57,9 +62,23 @@ test('build/SKILL.md Common Step 2: destination is the run ledger with phase bui
     /phase `build`/,
     'must specify phase build for carried-forward lines',
   );
+  // Both markers map to status `observation` (not `deferred`) — ledger-format.md defines
+  // `deferred` as "staged as a work record proposal", which nothing here stages; a carried
+  // line with no staged proposal would silently defeat wrap-up's nothing-left-behind gate.
+  // `observation` is terminal, non-blocking, and carries no resolution-text requirement.
   assertClaimPinned(
-    /status `deferred`.*status `observation`|status `observation`.*status `deferred`/,
-    'must specify both deferred and observation as the possible carried-forward statuses',
+    /status `observation`/,
+    'must specify status observation for carried-forward lines',
+  );
+});
+
+test('build/SKILL.md Common Step 2: anchors the copy to something /build itself controls, not only SDD\'s own Finish step', () => {
+  // The same paragraph tells SDD to "stop the skill and return here" after the final review —
+  // an executor reading only the Finish-step anchor could plausibly never reach it. The
+  // "in any case before it returns control to /build" clause is the robustness backstop.
+  assertClaimPinned(
+    /before it returns control to `\/build`/,
+    'must anchor the copy to returning control to /build, not only to SDD\'s own Finish step',
   );
 });
 
