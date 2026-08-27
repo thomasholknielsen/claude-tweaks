@@ -76,6 +76,22 @@ test('gitInfo derives sha and dirty from the injected exec', () => {
   assert.deepStrictEqual(gitInfo(clean), { sha: 'abc123', dirty: false });
 });
 
+test('testCountRegression is omitted when null (#881, mirrors counts-never-guessed convention)', () => {
+  const report = composeReport({
+    checks: [PASSING], startedAt: 'x', durationMs: 1, git: { sha: null, dirty: null },
+  });
+  assert.ok(!('testCountRegression' in report));
+});
+
+test('testCountRegression is carried on the report when non-null (#881)', () => {
+  const regression = { previousTests: 10, currentTests: 8, droppedBy: 2 };
+  const report = composeReport({
+    checks: [PASSING], startedAt: 'x', durationMs: 1, git: { sha: null, dirty: null },
+    testCountRegression: regression,
+  });
+  assert.deepStrictEqual(report.testCountRegression, regression);
+});
+
 test('writeReportAtomic writes a temp file then renames it over the target (AC3)', () => {
   const calls = [];
   const fakeFs = {

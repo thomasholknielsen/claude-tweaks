@@ -39,17 +39,21 @@ function entryFor(check) {
   return entry;
 }
 
-function composeReport({ checks, startedAt, durationMs, git }) {
+function composeReport({ checks, startedAt, durationMs, git, testCountRegression = null }) {
   const byName = {};
   for (const check of checks) byName[check.name] = entryFor(check);
   const pass = checks
     .filter((c) => !c.skipped)
     .every((c) => c.exitCode === 0);
-  return {
+  const report = {
     sha: git.sha, dirty: git.dirty,
     startedAt, durationMs, pass,
     checks: byName,
   };
+  // Omitted when null (#881) — mirrors entryFor's own counts convention:
+  // never guessed/partial, absence over a fabricated non-regression.
+  if (testCountRegression !== null) report.testCountRegression = testCountRegression;
+  return report;
 }
 
 function writeReportAtomic(report, jsonPath, fsImpl = fs) {

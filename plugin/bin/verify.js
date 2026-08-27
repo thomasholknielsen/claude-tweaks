@@ -15,6 +15,7 @@ const { parseArgs, UsageError, USAGE } = require('./lib/verify/args');
 const { runChecks } = require('./lib/verify/run');
 const { sniffFamily, extractFailingRegion, parseCounts, summaryLine } = require('./lib/verify/extract');
 const { gitInfo, composeReport, writeReportAtomic } = require('./lib/verify/report');
+const { readStamp, writeStampAtomic, detectRegression, caveatLine } = require('./lib/verify/count-stamp');
 
 function enrich(result) {
   if (result.skipped) return result;
@@ -62,8 +63,25 @@ async function main() {
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
   const results = (await runChecks({ cmds: parsed.cmds, logDir })).map(enrich);
+  const git = gitInfo();
+
+  // Suite-count regression stamp (#881, IL-84): the "tests" check's own
+  // parsed count is compared against the previous run's persisted count.
+  // --count-stamp is caller-resolved (verification.md Step 2), mirroring
+  // --log-dir; omitting it disables persistence and comparison entirely.
+  const testsCheck = results.find((c) => c.name === 'tests' && !c.skipped);
+  const currentCount = testsCheck && testsCheck.counts && typeof testsCheck.counts.tests === 'number'
+    ? { tests: testsCheck.counts.tests, sha: git.sha, recordedAt: startedAt }
+    : null;
+  let testCountRegression = null;
+  if (parsed.countStamp) {
+    const previousCount = readStamp(parsed.countStamp);
+    testCountRegression = detectRegression(previousCount, currentCount);
+    if (currentCount !== null) writeStampAtomic(parsed.countStamp, currentCount);
+  }
+
   const report = composeReport({
-    checks: results, startedAt, durationMs: Date.now() - startMs, git: gitInfo(),
+    checks: results, startedAt, durationMs: Date.now() - startMs, git, testCountRegression,
   });
   writeReportAtomic(report, jsonPath);
 
@@ -78,6 +96,7 @@ async function main() {
       lines.push('', `### ${check.name} failing region (full log: ${check.logPath})`, check.failingRegion);
     }
   }
+  if (testCountRegression) lines.push('', caveatLine(testCountRegression));
   lines.push('', `report: ${jsonPath}`);
   process.stdout.write(`${lines.join('\n')}\n`);
   process.exitCode = report.pass ? 0 : 1;

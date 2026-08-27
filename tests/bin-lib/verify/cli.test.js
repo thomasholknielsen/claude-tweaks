@@ -113,6 +113,52 @@ test('a fail-fast skip appears in the report and in stdout as skipped (AC1 repor
   assert.ok(stdout.includes('skipped'));
 });
 
+// IL-84's exact shape end-to-end (#881): an enumerated-glob npm test config
+// silently excluded a whole test directory while still exiting 0 -- a drop
+// invisible to exit-code-only reporting. Reproduce it via two verify.js runs
+// sharing one --count-stamp: the first "sees" a wider glob (10 tests), the
+// second simulates the exclusion (7 tests) with the same exit code (0).
+test('a suite-count drop between two runs sharing --count-stamp fires the caveat (#881, IL-84 shape)', async () => {
+  const logDir1 = tmpDir();
+  const logDir2 = tmpDir();
+  const countStamp = path.join(tmpDir(), 'count.json');
+  const tapOutput = (n) => `node -e "console.log('# tests ${n}'); console.log('# pass ${n}'); console.log('# fail 0')"`;
+
+  const first = await runCli([
+    '--log-dir', logDir1, '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(10)}`]);
+  assert.strictEqual(first.code, 0);
+  assert.ok(!first.stdout.includes('CAVEAT'), 'first run has no baseline to regress against');
+  assert.ok(fs.existsSync(countStamp), 'first run must persist a baseline stamp');
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(countStamp, 'utf8')).tests, 10);
+
+  const second = await runCli([
+    '--log-dir', logDir2, '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(7)}`]);
+  assert.strictEqual(second.code, 0, 'the tests check itself still passes -- this is a caveat, not a gate');
+  assert.match(second.stdout, /^CAVEAT:.*from 10 to 7/ms);
+  const report2 = JSON.parse(fs.readFileSync(path.join(logDir2, 'report.json'), 'utf8'));
+  assert.deepStrictEqual(report2.testCountRegression, { previousTests: 10, currentTests: 7, droppedBy: 3 });
+  assert.strictEqual(report2.pass, true, 'a count drop must not flip the report to failing');
+  assert.strictEqual(JSON.parse(fs.readFileSync(countStamp, 'utf8')).tests, 7, 'stamp advances to the new count');
+});
+
+test('a steady or higher count between runs never fires the caveat', async () => {
+  const countStamp = path.join(tmpDir(), 'count.json');
+  const tapOutput = (n) => `node -e "console.log('# tests ${n}'); console.log('# pass ${n}'); console.log('# fail 0')"`;
+
+  await runCli(['--log-dir', tmpDir(), '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(10)}`]);
+  const same = await runCli(['--log-dir', tmpDir(), '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(10)}`]);
+  assert.ok(!same.stdout.includes('CAVEAT'));
+  const higher = await runCli(['--log-dir', tmpDir(), '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(15)}`]);
+  assert.ok(!higher.stdout.includes('CAVEAT'));
+});
+
+test('omitting --count-stamp disables persistence and comparison entirely', async () => {
+  const { code, stdout } = await runCli([
+    '--log-dir', tmpDir(), '--cmd', 'tests=node -e "console.log(String(1))"']);
+  assert.strictEqual(code, 0);
+  assert.ok(!stdout.includes('CAVEAT'));
+});
+
 test('--log-dir defaults to a fresh tmpdir and --json defaults inside it', async () => {
   const { code, stdout } = await runCli(['--cmd', 'tests=node -e "console.log(String(1))"']);
   assert.strictEqual(code, 0);
