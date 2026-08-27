@@ -463,6 +463,35 @@ test('hooks.json registers a PostToolUse matcher for AskUserQuestion (unfiltered
   assert.match(askEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
 });
 
+// #457: audit of every tool_name checked in post-tool-use.js's run() and its
+// dispatched handlers against hooks.json's PostToolUse matcher array — the
+// same defect class #452's AskUserQuestion gap and #307/#500's EnterWorktree
+// gap (pinned in tests/hooks-gate-coverage.test.js) both found. 'Write' and
+// 'Bash' are the two remaining tool_name values checked in post-tool-use.js
+// with no dedicated PostToolUse-matcher-presence pinning test of their own —
+// closing that gap here.
+test('hooks.json registers a PostToolUse matcher for Write (unfiltered, literal tool-name match)', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const writeEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Write');
+  assert.ok(writeEntry, 'expected a PostToolUse Write matcher entry');
+  assert.strictEqual(writeEntry.hooks.length, 1);
+  assert.strictEqual(writeEntry.hooks[0].type, 'command');
+  assert.ok(!('if' in writeEntry.hooks[0]), 'Write matcher must be a literal tool-name match, not pattern-filtered');
+  assert.match(writeEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
+});
+
+test('hooks.json registers a PostToolUse matcher for Bash (pattern-filtered via `if`)', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashEntry, 'expected a PostToolUse Bash matcher entry');
+  assert.ok(bashEntry.hooks.length > 0, 'expected at least one Bash `if`-filtered hook entry');
+  for (const hook of bashEntry.hooks) {
+    assert.strictEqual(hook.type, 'command');
+    assert.ok('if' in hook, 'PostToolUse Bash matcher hooks must be pattern-filtered via "if"');
+    assert.match(hook.command, /bin\/hooks\.js" post-tool-use$/);
+  }
+});
+
 test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_FLAGS entry git-command.js's gitTargets() resolves (finding regression)", () => {
   // git-command.js's gitTargets() is written and unit-tested to correctly
   // resolve a commit/push target through `-c`, `--exec-path`, and
