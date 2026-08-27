@@ -72,7 +72,7 @@ Each entry follows this shape:
 
 | Field | Required | Format |
 |---|---|---|
-| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`) |
+| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`), `FAILED` (a batch write attempt that errored — no "revert" or "no valid Defer-reason" semantics, so it's kept separate from `AUTO`/`REFUSED`; hand-composed by `backlog/refine-mode.md` and `apply-refine-labels.js` rather than gated through `append.js`'s `STATUSES`/`formatEntry`, a deliberate choice from #1072's review that extending that enum would touch multiple consumers; `decisions-classifier.js`'s `KIND_RE` and the wrap-up console's Empty-console fast path both recognize it on the read side) |
 | `HH:MM:SS` | yes | Local time of the decision |
 | Step or location | yes | Skill step name OR file:line if relevant |
 | Short action | yes | One sentence: what was decided |
