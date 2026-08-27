@@ -117,7 +117,10 @@ node -e "
 " "$DISPATCH_ELIGIBLE_POST_NATIVE" "$DISPATCH_LINKED_PR_QUERY"
 echo '{"data":{"repository":{}}}' > "$DISPATCH_LINKED_PR_DEPS"
 if [ -s "$DISPATCH_LINKED_PR_QUERY" ]; then
-  OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
+  # Reuse OWNER_REPO if the native-dependency block above already resolved it
+  # (review lens 3d, #1224) — avoids a second `gh repo view` round-trip when
+  # work-links: native is set and both eligible sets are non-empty.
+  [ -z "$OWNER_REPO" ] && OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
   if gh api graphql -f query="$(cat "$DISPATCH_LINKED_PR_QUERY")" \
     -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
     > "$DISPATCH_LINKED_PR_TMP" 2>"$DISPATCH_LINKED_PR_ERR"; then
@@ -149,4 +152,4 @@ node -e "
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
 
-**Queue-pull notes.** Read `queue-pull-notes.md` in this skill's directory when this repo sets `work-links: native` (the `gh api graphql` branch above), or when either pull returns exactly its `--limit` cap — it covers why the two bulk calls plus the bounded per-dependency fallback are shaped this way, what a truncated pull silently drops on each and which one has no per-record recovery, and the native query's fail-safe posture (including the `gh`-absent case). It changes nothing in the script above; skip it otherwise.
+**Queue-pull notes.** Read `queue-pull-notes.md` in this skill's directory when this repo sets `work-links: native` (the `gh api graphql` branch above), when either pull returns exactly its `--limit` cap, or (unconditionally — review lens 3e, #1224) to see the Open-PR-exclusion report's literal render template — it covers why the two bulk calls plus the bounded per-dependency fallback are shaped this way, what a truncated pull silently drops on each and which one has no per-record recovery, the native query's fail-safe posture (including the `gh`-absent case), and the unconditional linked-PR check's own fail-safe posture and report format. It changes nothing in the script above; skip it only when none of these apply.

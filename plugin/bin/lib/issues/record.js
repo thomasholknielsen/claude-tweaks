@@ -535,24 +535,25 @@ function partitionByOpenNativeBlockers(candidates, repoData) {
 // dropped, so a record whose build/test/review/wrap-up is already complete and
 // only awaiting a human merge verdict is never re-selected for a fresh build
 // (the #257/#869 repro this record documents). Same fails-safe posture as
-// partitionByOpenNativeBlockers: a candidate missing from repoData (the query
-// failed and degraded to `{}` — queue-pull-script.md's own fallback) has no
-// nodes to check and stays eligible; a malformed response (nodes present but
-// not an array) degrades to "no linked PR resolved", never throws. Unlike
-// partitionByOpenBlockers' shape, this records the linked PR's own number
-// (`linkedPR`, not `blockedBy`) since an open-PR exclusion names a PR, not
-// another issue.
+// partitionByOpenNativeBlockers, and now built on the same partitionByOpenBlockers
+// shared helper those siblings use (review lens 3e, #1224): a candidate missing
+// from repoData (the query failed and degraded to `{}` — queue-pull-script.md's
+// own fallback) has no nodes to check and stays eligible; a malformed response
+// (nodes present but not an array) degrades to "no linked PR resolved", never
+// throws. Unlike partitionByOpenBlockers' shape, this records the linked PR's
+// own number (`linkedPR`, not `blockedBy`) since an open-PR exclusion names a
+// PR, not another issue — so the shared helper's `excluded[].blockedBy` (an
+// array with the single open PR number, by construction of the callback below)
+// is remapped to `{number, linkedPR}` after partitioning.
 function partitionByOpenLinkedPR(candidates, repoData) {
-  const eligible = [];
-  const excludedByOpenPR = [];
-  for (const c of candidates) {
+  const { eligible, excluded } = partitionByOpenBlockers(candidates, (c) => {
     const node = repoData && repoData['i' + c.number];
     const rawNodes = node && node.closedByPullRequestsReferences && node.closedByPullRequestsReferences.nodes;
     const nodes = Array.isArray(rawNodes) ? rawNodes : [];
     const openPR = nodes.find((n) => n && n.state === 'OPEN');
-    if (openPR) excludedByOpenPR.push({ number: c.number, linkedPR: openPR.number });
-    else eligible.push(c);
-  }
+    return openPR ? [openPR.number] : [];
+  });
+  const excludedByOpenPR = excluded.map((e) => ({ number: e.number, linkedPR: e.blockedBy[0] }));
   return { eligible, excludedByOpenPR };
 }
 
