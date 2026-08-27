@@ -1,9 +1,15 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
 const {
-  decideRelease, releasedEntry, writeTombstone, releaseMerged,
+  decideRelease, releasedEntry, writeTombstone, releaseMerged, shouldSkipClaimRead,
 } = require('../../../plugin/bin/lib/reconcile/release-merged');
+const { readCache, writeCache } = require('../../../plugin/bin/lib/reconcile/cache');
+const { GRANT_LABELS } = require('../../../plugin/bin/lib/release-claim/release');
 
 // AC1: open PR always wins over issue-closed evidence
 test('decideRelease: live claim + open PR + closed issue -> skip pr-open', () => {
@@ -72,23 +78,16 @@ test('writeTombstone adapter delegates to bin/lib/release-claim/release.js write
 });
 
 test('shouldSkipClaimRead: matching cached sha skips the read', () => {
-  const { shouldSkipClaimRead } = require('../../../plugin/bin/lib/reconcile/release-merged');
   assert.equal(shouldSkipClaimRead({ name: 'issue-7.json', sha: 'abc' }, 'abc'), true);
 });
 test('shouldSkipClaimRead: different sha does not skip', () => {
-  const { shouldSkipClaimRead } = require('../../../plugin/bin/lib/reconcile/release-merged');
   assert.equal(shouldSkipClaimRead({ name: 'issue-7.json', sha: 'abc' }, 'different'), false);
 });
 test('shouldSkipClaimRead: no cached entry (undefined) does not skip — first sighting always reads', () => {
-  const { shouldSkipClaimRead } = require('../../../plugin/bin/lib/reconcile/release-merged');
   assert.equal(shouldSkipClaimRead({ name: 'issue-7.json', sha: 'abc' }, undefined), false);
 });
 
 test('releaseMerged: a tombstoned claim with an unchanged sha is never re-fetched on the next pass', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const path = require('path');
-  const { execFileSync } = require('child_process');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-cache-'));
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
@@ -125,11 +124,6 @@ test('releaseMerged: a tombstoned claim with an unchanged sha is never re-fetche
 //       would make shouldSkipClaimRead match the (unchanged) listing entry
 //       forever, permanently freezing a claim on evidence never read.
 test('releaseMerged: caches the blob sha actually classified, not the directory listing\'s sha (Task 7 TOCTOU)', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const path = require('path');
-  const { execFileSync } = require('child_process');
-  const { readCache } = require('../../../plugin/bin/lib/reconcile/cache');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-toctou-'));
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
@@ -170,10 +164,6 @@ test('releaseMerged: caches the blob sha actually classified, not the directory 
 // claim's PR/issue join can change pass-to-pass even when its content
 // hasn't, so it must never be cached/skipped, unlike the tombstone above.
 test('releaseMerged: a live claim with an unchanged sha is still re-fetched every pass', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const path = require('path');
-  const { execFileSync } = require('child_process');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-cache-live-'));
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
@@ -219,10 +209,6 @@ test('releaseMerged: a live claim with an unchanged sha is still re-fetched ever
 // decision proves the async prState resolution actually reaches
 // decideRelease, not just that the module loads.
 test('releaseMerged: Phase 1.5 resolves prState via the pool and reaches a merged-PR release decision', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const path = require('path');
-  const { execFileSync } = require('child_process');
   // realpathSync up front: on macOS, os.tmpdir() lives under a /var symlink
   // to /private/var, and `git worktree list --porcelain` always reports the
   // resolved form — resolving here once keeps every path built from `root`
@@ -285,11 +271,6 @@ test('releaseMerged: Phase 1.5 resolves prState via the pool and reaches a merge
 // uses, and the removal is logged as an AUTO decisions.md entry against the
 // candidate's own run dir.
 test('releaseMerged: a merged: release strips every GRANT_LABELS entry and logs the removal to decisions.md', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const path = require('path');
-  const { execFileSync } = require('child_process');
-  const { GRANT_LABELS } = require('../../../plugin/bin/lib/release-claim/release');
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-grants-')));
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
@@ -355,10 +336,6 @@ test('releaseMerged: a merged: release strips every GRANT_LABELS entry and logs 
 // wrap-up/cleanup-procedures-execution.md Section E step 6's existing rule.
 // Only `bot:in-progress` (removeInProgressLabel, pre-existing) is deleted.
 test('releaseMerged: an issue-closed release does not touch grant labels', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const path = require('path');
-  const { execFileSync } = require('child_process');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-issueclosed-'));
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
@@ -414,11 +391,6 @@ test('releaseMerged: an issue-closed release does not touch grant labels', async
 // must preserve that write, not silently revert it to the stale entry-time
 // snapshot (which here is `null`, since no cache file exists yet at entry).
 test('releaseMerged: does not revert a concurrent process\'s cache write made during its own async phases', async () => {
-  const fs = require('fs');
-  const os = require('os');
-  const path = require('path');
-  const { execFileSync } = require('child_process');
-  const { readCache, writeCache } = require('../../../plugin/bin/lib/reconcile/cache');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-release-cache-race-'));
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/w.git'], { cwd: root });
