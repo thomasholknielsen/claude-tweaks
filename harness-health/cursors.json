@@ -94,5 +94,9 @@
   "skill:headless-self-report": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1787634461010
+  },
+  "skill:skills": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1787874257066
   }
 }
