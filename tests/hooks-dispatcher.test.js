@@ -130,17 +130,20 @@ test('close-run does NOT warn about un-archived work/ when no work/ content exis
   assert.doesNotMatch(result.stdout, /still holds un-archived work\/ content/);
 });
 
-// #1124: record-worktree without --run (including a bare --help) used to
-// fall through to resolveRunDir's "newest non-terminal run" GUESS and could
-// silently clobber a DIFFERENT live session's run-state.json — reproduced 3x
-// independently on 2026-08-20, across three different dispatched subagents,
-// each time hitting a different live sibling run's run-state.json. This is
-// the regression test: two concurrent run directories, each already carrying
-// its own run-state.json (representing two genuinely live sibling sessions,
-// neither of which this invocation is scoped to), and an invocation omitting
-// --run (bare, or `--help`) must leave BOTH byte-unchanged and exit non-zero
-// — never guess which one to write into.
-test('record-worktree without --run (including --help) is a true no-op against two concurrent run directories, and exits non-zero', () => {
+// #1124: record-worktree without --run used to fall through to
+// resolveRunDir's "newest non-terminal run" GUESS and could silently clobber
+// a DIFFERENT live session's run-state.json — reproduced 3x independently on
+// 2026-08-20, across three different dispatched subagents, each time hitting
+// a different live sibling run's run-state.json. This is the regression
+// test: two concurrent run directories, each already carrying its own
+// run-state.json (representing two genuinely live sibling sessions, neither
+// of which this invocation is scoped to), and a bare invocation omitting
+// --run must leave BOTH byte-unchanged and exit non-zero — never guess which
+// one to write into. #1143 adds a dedicated, verb-agnostic --help/-h
+// intercept ahead of this whole branch (exit 0, usage text, no resolveRunArg
+// call at all) — a --help probe is exercised below too, but now as that
+// earlier, distinct no-op path rather than this "missing --run" refusal.
+test('record-worktree without --run is a true no-op against two concurrent run directories, and exits non-zero; --help is a separate, earlier no-op (#1143)', () => {
   const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
@@ -160,9 +163,14 @@ test('record-worktree without --run (including --help) is a true no-op against t
   assert.match(bare.stdout, /record-worktree requires --run/);
   assert.doesNotMatch(bare.stdout, /worktree recorded/);
 
+  // #1143: --help must never be treated as an implicit-resolution
+  // invocation — it's intercepted before resolveRunArg ever runs, so it
+  // gets its own dedicated no-op path (usage text, exit 0), not the
+  // "requires --run" refusal above (which stays non-zero on genuinely
+  // missing --run).
   const help = runHook(['record-worktree', '--help'], { cwd: project });
-  assert.notStrictEqual(help.code, 0, '--help must never be treated as an implicit-resolution invocation either');
-  assert.match(help.stdout, /record-worktree requires --run/);
+  assert.strictEqual(help.code, 0, '#1143: --help is a dedicated no-op path, distinct from the missing-args refusal');
+  assert.match(help.stdout, /usage: record-worktree --run <dir> <worktree-path>/);
   assert.doesNotMatch(help.stdout, /worktree recorded/);
 
   assert.deepStrictEqual(readRunState(staleDir), staleStateBefore, 'staleDir must be byte-unchanged');
@@ -191,25 +199,30 @@ test('record-worktree accepts --run before or after the worktree positional', ()
 });
 
 // #1124 review finding: the fix's OTHER guard — rejecting a flag-shaped
-// worktree positional (e.g. `--run <dir> --help`) — had no regression test,
-// even though it's the exact shape every observed pre-fix incident hit and
-// the code's own comment calls out. Discrimination check: reverting just the
+// worktree positional (e.g. `--run <dir> --bogus-flag`) — had no regression
+// test, even though it's the exact shape every observed pre-fix incident hit
+// (originally reproduced with a stray `--help`) and the code's own comment
+// calls out. Discrimination check: reverting just the
 // `worktreeArg.startsWith('-')` branch (hooks.js's "unrecognized argument"
 // guard) would let this test's run-state.json end up with a literal
-// `worktree: "--help"` value and exit 0 — this assertion set fails in that
-// case, not just on the guard's total absence.
-test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --help)', () => {
+// `worktree: "--bogus-flag"` value and exit 0 — this assertion set fails in
+// that case, not just on the guard's total absence. Uses a non-help flag
+// (rather than the original `--help`) because #1143 added a dedicated,
+// earlier `--help`/`-h` intercept that now short-circuits before this
+// branch is ever reached — see the `--help` case covered separately above
+// and in tests/hooks-help-guard.test.js.
+test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --bogus-flag)', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active' }));
   const before = readRunState(run);
 
-  const result = runHook(['record-worktree', '--run', run, '--help'], { cwd: project });
+  const result = runHook(['record-worktree', '--run', run, '--bogus-flag'], { cwd: project });
   assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
-  assert.match(result.stdout, /unrecognized argument --help/);
+  assert.match(result.stdout, /unrecognized argument --bogus-flag/);
   assert.doesNotMatch(result.stdout, /worktree recorded/);
-  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--help\\"" write');
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--bogus-flag\\"" write');
 });
 
 // #1124: --run is now required unconditionally — a call that omits it exits
