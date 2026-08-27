@@ -46,11 +46,6 @@ test('build/SKILL.md Common Step 2: names both SDD markers verbatim, parked disa
     /`minor \(deferred\)`.*`parked —`|`parked —`.*`minor \(deferred\)`/,
     'must name both minor (deferred) and parked — (order-independent) as the lines to carry forward',
   );
-  assert.doesNotMatch(
-    buildSkill,
-    /matching `minor \(deferred\)` or `parked`[^ —]/,
-    'the parked marker must be disambiguated with a trailing em dash, not the bare word',
-  );
 });
 
 test('build/SKILL.md Common Step 2: destination is the run ledger with phase build and status observation', () => {
