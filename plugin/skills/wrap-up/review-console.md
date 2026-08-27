@@ -119,7 +119,7 @@ the full Hard requirements, see `review-console-interactive.md`.
 
 ## Empty-console fast path
 
-If `decisions.md` holds no decision-bearing entries (`AUTO` / `STAGED` / `KEPT-PROMPT` / `REFUSED` — `SCANNED` audit lines are excluded, see below) AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes, memory updates, or upstream feedback proposals are pending, skip the console entirely. Write an empty `verify-expectations.json` (`{"version": 1, "memory": [], "upstream": []}`) in `$PIPELINE_RUN_DIR` if it does not already exist — nothing was resolved this run, so `memory-updates`/`upstream-feedback` should read "nothing recorded," not "file missing." Log "Review Console: nothing to review" and proceed to the phase-trace report.
+If `decisions.md` holds no decision-bearing entries (`AUTO` / `STAGED` / `KEPT-PROMPT` / `REFUSED` / `FAILED` — `SCANNED` audit lines are excluded, see below) AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes, memory updates, or upstream feedback proposals are pending, skip the console entirely. Write an empty `verify-expectations.json` (`{"version": 1, "memory": [], "upstream": []}`) in `$PIPELINE_RUN_DIR` if it does not already exist — nothing was resolved this run, so `memory-updates`/`upstream-feedback` should read "nothing recorded," not "file missing." Log "Review Console: nothing to review" and proceed to the phase-trace report.
 
 Two kinds of entry never count toward this test, alongside each other:
 

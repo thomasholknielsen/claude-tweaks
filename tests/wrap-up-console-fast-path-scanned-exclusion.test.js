@@ -102,7 +102,7 @@ test('AC3: the [adr-convention] post-Approve-all outcome is specified, not left 
 // condition is now satisfiable).
 // ---------------------------------------------------------------------------
 
-const DECISION_BEARING_STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'REFUSED'];
+const DECISION_BEARING_STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'REFUSED', 'FAILED'];
 
 function hasDecisionBearingEntry(decisionsMdContent) {
   return decisionsMdContent
@@ -130,6 +130,21 @@ test('fixture: a decisions.md with SCANNED plus a real AUTO finding still has a 
     '- AUTO 12:00:01 — claude-md-curation: applied CLAUDE.md finding #3. Reversibility: high (commit abc1234).',
   ].join('\n');
   assert.equal(hasDecisionBearingEntry(decisionsMd), true, 'a log carrying a real AUTO finding alongside SCANNED must still read as decision-bearing');
+});
+
+test('fixture: a decisions.md holding only a FAILED line has a decision-bearing entry (fast path does not fire)', () => {
+  const decisionsMd = [
+    '# Auto-Decision Log — pipeline 2026-08-27T070037-record-1407',
+    '',
+    '## /backlog',
+    '- FAILED 09:00:00 — apply-refine-labels: priority write failed on #42: HTTP 500.',
+  ].join('\n');
+  assert.equal(hasDecisionBearingEntry(decisionsMd), true, 'a log carrying only a FAILED line must read as decision-bearing');
+});
+
+test('review-console.md and multispec-review-console.md name FAILED in the decision-bearing list', () => {
+  assert.match(REVIEW_CONSOLE, /`AUTO` \/ `STAGED` \/ `KEPT-PROMPT` \/ `REFUSED` \/ `FAILED`/);
+  assert.match(MULTISPEC_CONSOLE, /`AUTO`\/`STAGED`\/`KEPT-PROMPT`\/`REFUSED`\/`FAILED`/);
 });
 
 test('fixture: combined with the bookkeeping-cleanup carve-out, a SCANNED-only + archival-only run is a reachable skip', () => {
