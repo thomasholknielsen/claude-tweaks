@@ -47,6 +47,20 @@ The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `c
 come from `require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-buckets.js')`
 (`bin/lib/issues/record-buckets.js`).
 
+**Worklist rule (Shapes 1, 2, 3, 4, 5, 7, 8).** Per `_shared/work-record.md`'s worklist rule — a
+headless unit skips any record another unit is already asking a human to decide — every
+record-scoped shape below excludes a record carrying a `needs:*`-prefixed label from its own
+findings, before applying that shape's own classification. `work-backend: github-issues`: exclude
+any record whose raw `labels` array (preserved alongside `facets` by the shared fetch above)
+contains a name matching `/^needs:/`. `work-backend: local-files`: exclude any record with
+`facets.needsDefinition === true` — the only `needs:*` concept this driver structurally carries;
+`needs:decision` is a `github-issues`-only label in this record's scope, with no local-files facet
+to check. Shapes 5.5 and 6 are exempt — 5.5 never mutates anything (it only surfaces a rename
+recommendation), and 6 is a stub pointing at Step 4.8. This is the first of the worklist rule's two
+checks; the narrower same-unit dedup check (skip a record already carrying `/tidy`'s own unresolved
+`needs-decision` comment for an identical proposal) is Phase 6's own scope, once `/tidy` writes
+that marker — out of scope here.
+
 ### Shape 1 — backlog record stale
 
 `isBacklog(record)` (`bin/lib/issues/record-buckets.js`) — no stage label (`github-issues`) or no `stage:` frontmatter (`local-files`); the default state, per `_shared/work-record.md`'s lifecycle spine. Classify by the staleness clock above:
@@ -201,6 +215,7 @@ node -e "
       id: p.id,
       title: p.title,
       path: p.path,
+      needsDefinition: p.facets.needsDefinition === true,
       parentLabels: p.facets.acceptance ? ['demo:' + p.facets.acceptance] : [],
       subIssues: subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', risk: r.facets.risk })),
     };
@@ -216,6 +231,7 @@ node -e "
     return hasUnscored ? undefined : TIERS[maxIndex];
   }
   gates
+    .filter((f) => !f.needsDefinition)
     .filter((f) => exceedsOversightFloor({ risk: maxRiskTier(f.subIssues) }, { riskFloor, sizeFloor: null }).exceeds)
     .filter((f) => parentGateState({ subIssues: f.subIssues, parentLabels: f.parentLabels }) === 'due')
     .forEach((f) => console.log(f.path + '\t[parent-gate] ' + f.id + ': ' + f.title + ' — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo ' + f.id));
@@ -289,6 +305,7 @@ node -e "
   const [riskFloor, sizeFloor] = process.argv.slice(1);
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   queryRecords('specs', { closed: true })
+    .filter((r) => r.facets.needsDefinition !== true)
     .filter((r) => {
       const closedAt = Date.parse(r.facets.closedAt);
       return Number.isNaN(closedAt) || closedAt >= cutoff;
