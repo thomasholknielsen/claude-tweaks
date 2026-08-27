@@ -52,7 +52,7 @@ function isOwnRun(entryName, state, runId, worktreeRootReal) {
 // `worktreePath` is empty, `scope`/`scope.worktrees` carries nothing
 // (no lock information available), or no locked entry matches.
 function findLockedWorktree(worktreePath, scope) {
-  if (!worktreePath || !scope || !Array.isArray(scope.worktrees) || scope.worktrees.length === 0) return null;
+  if (!worktreePath || !scope || !Array.isArray(scope.worktrees)) return null;
   const real = safeReal(worktreePath);
   if (!real) return null;
   return scope.worktrees.find((wt) => wt && wt.locked && safeReal(wt.path) === real) || null;
