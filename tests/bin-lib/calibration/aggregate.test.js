@@ -49,6 +49,23 @@ test('aggregate: ceiling signal suppressed under 10 console stops', () => {
   assert.strictEqual(result.suppressions.ceiling, true);
 });
 
+test('aggregate: failedCount counts FAILED lines across the window, starting at 0', () => {
+  const clean = aggregate({ tsv: { rows: [] }, runs: makeRuns(2), rowIds: [], windowN: 20 });
+  assert.strictEqual(clean.failedCount, 0);
+
+  const runs = makeRuns(2);
+  runs.push({
+    runId: '2026-08-05T000000-run',
+    decisionLines: [
+      '- FAILED 09:00:00 — apply-refine-labels: priority write failed on #42: HTTP 500.',
+      '- FAILED 09:00:05 — apply-refine-labels: grant write failed on #43: HTTP 500.',
+    ],
+    events: { counts: {} },
+  });
+  const withFailures = aggregate({ tsv: { rows: [] }, runs, rowIds: [], windowN: 20 });
+  assert.strictEqual(withFailures.failedCount, 2);
+});
+
 test('aggregate: window selects the last N runIds by name sort', () => {
   const runs = makeRuns(25);
   const result = aggregate({ tsv: { rows: [] }, runs, rowIds: [], windowN: 20 });
