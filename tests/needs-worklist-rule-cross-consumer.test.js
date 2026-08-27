@@ -11,11 +11,16 @@ const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
-// Fixed pre-change commit: "Materialize #1488 spec for build" — the commit immediately
-// before this plan's Task 1, so it predates Tasks 5, 6, and 11's needs:*-generalizations
-// alike. A fixed SHA (never HEAD) so this control can never become self-defeating the way
-// Task 11's first draft did — see progress.md's Task 11 entry.
-const BASE_SHA = '59dcf0971e40ce4636da72399b42ace1ff3fa76f';
+// Fixed pre-change commit: "Archive record-231 and record-1011's materialized specs
+// correctly" — the direct parent of #1488's squash-merge commit onto main, so it predates
+// Tasks 5, 6, and 11's needs:*-generalizations alike. A fixed SHA (never HEAD) so this
+// control can never become self-defeating the way Task 11's first draft did — see
+// progress.md's Task 11 entry. Re-pinned 2026-08-27 (#1538): the original anchor
+// (59dcf0971e) was a commit on #1488's own feature branch, so squash-merging that branch
+// (#1499) rewrote history and orphaned it from main's ancestry. This anchor lands directly
+// on main via a plain fast-forward merge, not a squashed branch tip, so it isn't subject to
+// the same class of rewrite.
+const BASE_SHA = 'd111b14742e935487e64a7afa7949cd24e71b8d8';
 
 const readAtBase = (rel) =>
   execFileSync('git', ['show', `${BASE_SHA}:${rel}`], { cwd: ROOT, encoding: 'utf8' });
