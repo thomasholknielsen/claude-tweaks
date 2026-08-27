@@ -106,6 +106,8 @@ Need: actual file path of the auth middleware, or confirmation it doesn't exist.
 
 SubagentStop hook (E3) logs replies missing the status line to the run dir's `events.jsonl` (best-effort — the event fires unreliably for Task dispatches, claude-code#27755).
 
+**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) tests one regex against the last assistant text it can reach and has no way to know *which* agent replied or what contract that dispatch declared, so at least two non-violating cases land in the log identically: a dispatch whose own template specifies a different first line (its header comment names this one), and a **third-party agent exempt from this contract entirely** (see Exemption below — an exempt agent "is not violating a format it was never given", yet its reply still trips the regex; `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch is the everyday instance). Triage each entry against the dispatch that produced it before treating it as a finding — and never re-prompt an exempt agent on the strength of one.
+
 ## Model Selection
 
 Match the profile to the work. A **work profile** names the kind of work; this table — the single canonical resolution — says what runs it:
