@@ -15,28 +15,17 @@
 
 const fs = require('fs');
 
+// Read-side only: the stamp is written by bin/verify.js via atomic-write.js.
 function readStamp(stampPath, fsImpl = fs) {
-  let raw;
-  try {
-    raw = fsImpl.readFileSync(stampPath, 'utf8');
-  } catch {
-    return null;
-  }
   let parsed;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(fsImpl.readFileSync(stampPath, 'utf8'));
   } catch {
     return null;
   }
   if (typeof parsed !== 'object' || parsed === null) return null;
   if (typeof parsed.tests !== 'number' || !Number.isFinite(parsed.tests)) return null;
   return parsed;
-}
-
-function writeStampAtomic(stampPath, stamp, fsImpl = fs) {
-  const tmpPath = `${stampPath}.tmp`;
-  fsImpl.writeFileSync(tmpPath, `${JSON.stringify(stamp, null, 2)}\n`);
-  fsImpl.renameSync(tmpPath, stampPath);
 }
 
 // previous/current are stamp-shaped objects ({tests, ...}) or null. Returns
@@ -64,4 +53,4 @@ function caveatLine(regression) {
     + 'treating this run as a clean pass.';
 }
 
-module.exports = { readStamp, writeStampAtomic, detectRegression, caveatLine };
+module.exports = { readStamp, detectRegression, caveatLine };

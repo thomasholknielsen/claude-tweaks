@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const path = require('path');
 
 const {
-  readStamp, writeStampAtomic, detectRegression, caveatLine,
+  readStamp, detectRegression, caveatLine,
 } = require(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'count-stamp.js'));
 
 function fakeFs(files) {
@@ -13,8 +13,6 @@ function fakeFs(files) {
       if (!(p in files)) { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; }
       return files[p];
     },
-    writeFileSync: (p, content) => { files[p] = content; },
-    renameSync: (from, to) => { files[to] = files[from]; delete files[from]; },
   };
 }
 
@@ -35,19 +33,6 @@ test('readStamp returns null when tests is missing or not a finite number', () =
 test('readStamp parses a well-formed stamp', () => {
   const fs = fakeFs({ '/c.json': '{"tests":10,"sha":"abc","recordedAt":"2026-08-27T00:00:00.000Z"}' });
   assert.deepStrictEqual(readStamp('/c.json', fs), { tests: 10, sha: 'abc', recordedAt: '2026-08-27T00:00:00.000Z' });
-});
-
-test('writeStampAtomic writes a temp file then renames it over the target', () => {
-  const calls = [];
-  const fs = {
-    writeFileSync: (p, content) => calls.push(['write', p, content]),
-    renameSync: (from, to) => calls.push(['rename', from, to]),
-  };
-  writeStampAtomic('/out/count.json', { tests: 5 }, fs);
-  assert.strictEqual(calls[0][0], 'write');
-  assert.strictEqual(calls[0][1], '/out/count.json.tmp');
-  assert.deepStrictEqual(JSON.parse(calls[0][2]), { tests: 5 });
-  assert.deepStrictEqual(calls[1], ['rename', '/out/count.json.tmp', '/out/count.json']);
 });
 
 test('detectRegression returns null when there is no previous baseline (bootstrap)', () => {

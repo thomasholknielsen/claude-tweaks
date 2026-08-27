@@ -152,6 +152,31 @@ test('a steady or higher count between runs never fires the caveat', async () =>
   assert.ok(!higher.stdout.includes('CAVEAT'));
 });
 
+test('a --count-stamp write failure never crashes the run or discards report.json (review fix: fail-toward-absence, write side)', async () => {
+  const logDir = tmpDir();
+  const blockerFile = path.join(tmpDir(), 'blocker'); // a FILE, not a directory
+  fs.writeFileSync(blockerFile, 'not a directory');
+  // A path component of the stamp is a file, not a directory -- mkdirSync's
+  // recursive create throws ENOTDIR, and (pre-fix) the stamp write's own
+  // writeFileSync would too. Both must be swallowed, never propagated to
+  // main()'s top-level catch, which would otherwise skip report.json
+  // entirely even though the "tests" check itself passed.
+  const countStamp = path.join(blockerFile, 'nested', 'count.json');
+  // Must be a TAP-shaped "tests" command (parseCounts-parseable), not a bare
+  // console.log — a non-parseable count leaves currentCount null, which
+  // skips the stamp write entirely and would make this test pass
+  // vacuously even against the unguarded pre-fix code (verified against
+  // 57ed3752d before landing this test).
+  const { code, stdout } = await runCli([
+    '--log-dir', logDir, '--count-stamp', countStamp,
+    '--cmd', 'tests=node -e "console.log(\'# tests 1\'); console.log(\'# pass 1\'); console.log(\'# fail 0\')"']);
+  assert.strictEqual(code, 0, 'a stamp-write failure must not fail an otherwise-passing run');
+  assert.ok(fs.existsSync(path.join(logDir, 'report.json')), 'report.json must still be written despite the stamp-write failure');
+  const report = JSON.parse(fs.readFileSync(path.join(logDir, 'report.json'), 'utf8'));
+  assert.strictEqual(report.pass, true);
+  assert.ok(stdout.includes('report:'), 'stdout must still print the normal report line, not just an uncaught-error message');
+});
+
 test('omitting --count-stamp disables persistence and comparison entirely', async () => {
   const { code, stdout } = await runCli([
     '--log-dir', tmpDir(), '--cmd', 'tests=node -e "console.log(String(1))"']);

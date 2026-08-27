@@ -14,8 +14,9 @@ const path = require('path');
 const { parseArgs, UsageError, USAGE } = require('./lib/verify/args');
 const { runChecks } = require('./lib/verify/run');
 const { sniffFamily, extractFailingRegion, parseCounts, summaryLine } = require('./lib/verify/extract');
-const { gitInfo, composeReport, writeReportAtomic } = require('./lib/verify/report');
-const { readStamp, writeStampAtomic, detectRegression, caveatLine } = require('./lib/verify/count-stamp');
+const { gitInfo, composeReport } = require('./lib/verify/report');
+const { readStamp, detectRegression, caveatLine } = require('./lib/verify/count-stamp');
+const { writeJsonAtomic } = require('./lib/verify/atomic-write');
 
 function enrich(result) {
   if (result.skipped) return result;
@@ -77,13 +78,25 @@ async function main() {
   if (parsed.countStamp) {
     const previousCount = readStamp(parsed.countStamp);
     testCountRegression = detectRegression(previousCount, currentCount);
-    if (currentCount !== null) writeStampAtomic(parsed.countStamp, currentCount);
+    if (currentCount !== null) {
+      // Fail-toward-absence on the write side too (readStamp already does
+      // this on read): a stamp-write failure (ENOSPC, EACCES, a
+      // --count-stamp path whose parent directory doesn't exist) must never
+      // crash the whole run and discard an otherwise-passing report — this
+      // is a caveat/surfacing mechanism, not a hard gate (count-stamp.js's
+      // own stated intent). report.json's own write below is deliberately
+      // unguarded: it IS the run's output, so a failure there must surface.
+      try {
+        fs.mkdirSync(path.dirname(parsed.countStamp), { recursive: true });
+        writeJsonAtomic(parsed.countStamp, currentCount);
+      } catch { /* best-effort persistence; next run simply has no baseline */ }
+    }
   }
 
   const report = composeReport({
     checks: results, startedAt, durationMs: Date.now() - startMs, git, testCountRegression,
   });
-  writeReportAtomic(report, jsonPath);
+  writeJsonAtomic(jsonPath, report);
 
   const lines = ['| Check | Status | Duration | Summary |', '|---|---|---|---|'];
   for (const check of results) {

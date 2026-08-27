@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 
-const { gitInfo, composeReport, writeReportAtomic } = require(path.join(
+const { gitInfo, composeReport } = require(path.join(
   __dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'report.js'));
 
 const PASSING = {
@@ -90,17 +90,4 @@ test('testCountRegression is carried on the report when non-null (#881)', () => 
     testCountRegression: regression,
   });
   assert.deepStrictEqual(report.testCountRegression, regression);
-});
-
-test('writeReportAtomic writes a temp file then renames it over the target (AC3)', () => {
-  const calls = [];
-  const fakeFs = {
-    writeFileSync: (p, content) => calls.push(['write', p, content]),
-    renameSync: (from, to) => calls.push(['rename', from, to]),
-  };
-  writeReportAtomic({ pass: true }, '/out/report.json', fakeFs);
-  assert.strictEqual(calls[0][0], 'write');
-  assert.strictEqual(calls[0][1], '/out/report.json.tmp');
-  assert.deepStrictEqual(JSON.parse(calls[0][2]), { pass: true });
-  assert.deepStrictEqual(calls[1], ['rename', '/out/report.json.tmp', '/out/report.json']);
 });
