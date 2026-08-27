@@ -84,6 +84,102 @@ function isInitializedRunDir(dir) {
     .some((marker) => fs.existsSync(path.join(dir, marker)));
 }
 
+// #1012: the declared `--*` flag set for each of the five mutating run-state
+// verbs, consumed by resolveRunArg's `knownFlags` option below. Source of
+// truth for the unknown-flag rejection — an undeclared flag (a typo, `--help`)
+// must never silently fall through to implicit resolution and act on the
+// wrong run (the #965 incident this whole record exists to close). Verbs not
+// listed here (archive-run, check-resume-freshness, check-staged-inventory,
+// sweep-shadow) don't opt into this gate — see the record's Non-Goals.
+const KNOWN_FLAGS = Object.freeze({
+  'close-run': Object.freeze(['--run']),
+  'record-worktree': Object.freeze(['--run']),
+  'record-pr': Object.freeze(['--run']),
+  'spec-status': Object.freeze(['--run', '--spec', '--status', '--phase', '--now']),
+  'teardown-run': Object.freeze(['--run', '--merged', '--abandoned']),
+});
+
+// One-line usage text per verb, printed by the unknown-flag rejection below.
+const USAGE = Object.freeze({
+  'close-run': 'close-run [--run <dir>]',
+  'record-worktree': 'record-worktree [--run <dir>] <worktree-path>',
+  'record-pr': 'record-pr [--run <dir>] <number> <url>',
+  'spec-status': 'spec-status --run <parent-dir> --spec <n> --status <pending|running|complete|failed|not-run> --phase <phase> [--now <iso>]',
+  'teardown-run': 'teardown-run [--run <dir>] [--merged|--abandoned]',
+});
+
+// #1012: the unambiguous-only implicit-resolution algorithm that replaces the
+// old "newest non-terminal run" guess (`ctxLib.resolveRunDir`) for every
+// caller of resolveRunArg's no-`--run` path. Four steps, in order:
+//   1. `PIPELINE_RUN_DIR` env — short-circuits on any real directory,
+//      UNFILTERED here (a foreign env-pointed run is caught by each verb's
+//      own write-time guard below, not at this resolution step — see
+//      `_shared/pipeline-run-dir.md`'s "no longer exempt" language).
+//   2. cwd-binding reverse lookup (`findRunByWorktreePath`) — a hit is
+//      provably the caller's own run (classifyOwnership can never call a
+//      binding match 'foreign'), even with N siblings live.
+//   3. Every non-terminal run, excluding any classifyOwnership can PROVE
+//      'foreign' — if exactly one survives, that's unambiguous.
+//   4. Otherwise refuse: `candidates` carries every non-terminal run
+//      (`{ dir, foreign }`), foreign ones annotated, for the caller to render
+//      via renderCandidatesRefusal below. `candidates: null` when there was
+//      nothing to resolve at all (existing "no pipeline run dir found"
+//      messaging stays as-is for that case, not this refusal).
+function resolveImplicitRunDir(cwd, env) {
+  if (env && env.PIPELINE_RUN_DIR) {
+    try {
+      if (fs.statSync(env.PIPELINE_RUN_DIR).isDirectory()) {
+        return { runDir: env.PIPELINE_RUN_DIR, candidates: null };
+      }
+    } catch { /* fall through */ }
+  }
+  const hit = ctxLib.findRunByWorktreePath(cwd, cwd);
+  if (hit) return { runDir: hit.runDir, candidates: null };
+  const callerIdentity = { sessionId: (env && env.CLAUDE_CODE_SESSION_ID) || null, cwd };
+  // #721 parity: an unadopted mint (bare mkdir, neither run-state.json nor
+  // decisions.md) must stay invisible here exactly as it already is to
+  // resolveRun's own fallback scan — classifyOwnership would read its null
+  // state as 'indeterminate' (not 'foreign'), which would let a stray mint
+  // count as a survivor/candidate. Excluded before either count, not merely
+  // scored as a non-survivor.
+  const all = ctxLib.listRunDirsWithState(cwd).filter(({ dir, state }) => !ctxLib.isUnadoptedMint(dir, state));
+  if (all.length === 0) return { runDir: null, candidates: null };
+  const annotated = all.map(({ dir, state }) => ({
+    dir,
+    foreign: ctxLib.classifyOwnership(callerIdentity, state) === 'foreign',
+  }));
+  const survivors = annotated.filter((c) => !c.foreign);
+  if (survivors.length === 1) return { runDir: survivors[0].dir, candidates: null };
+  return { runDir: null, candidates: annotated };
+}
+
+// #1012: shared write-time guard for the three verbs (record-worktree,
+// record-pr, spec-status) that had NO ownership check at all on the implicit
+// path before this record — closeRunState already gained the equivalent
+// check internally (used by close-run/teardown-run). Only meaningful for a
+// runDir resolved via resolveImplicitRunDir's step 1 (env) or step 2
+// (binding-hit) — step 3's survivors can never be foreign by construction,
+// so this is a no-op (false) for that case, not dead code duplicated per verb.
+function isForeignRun(runDir, cwd, env) {
+  const state = ctxLib.readRunState(runDir);
+  const callerIdentity = { sessionId: (env && env.CLAUDE_CODE_SESSION_ID) || null, cwd };
+  return ctxLib.classifyOwnership(callerIdentity, state) === 'foreign';
+}
+
+// #1012: renders the refusal message shape the record's Data/API Surface
+// pins verbatim — used both for resolveImplicitRunDir's own step-3/4 refusal
+// (2+ or 0 survivors) and for isForeignRun's single-candidate refusal (an
+// env/binding-resolved run that turns out foreign). Never the literal string
+// "multiple"/"foreign" — the two possible lead lines below are the full text.
+function renderCandidatesRefusal(cmd, candidates) {
+  const anySurvivor = candidates.some((c) => !c.foreign);
+  const lead = anySurvivor
+    ? 'claude-tweaks: multiple candidate runs — pass --run explicitly:'
+    : 'claude-tweaks: the only candidate run(s) are recorded by another session/worktree — pass --run explicitly to act on one:';
+  const lines = candidates.map((c) => `node "${pluginRoot()}/bin/hooks.js" ${cmd} --run "${c.dir}"${c.foreign ? ' (recorded by another session/worktree)' : ''}`);
+  return [lead, ...lines].join('\n');
+}
+
 // Resolves an explicit `--run <path>` argument, validating it's a real
 // directory, or falls back to ctxLib.resolveRunDir when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
@@ -93,10 +189,27 @@ function isInitializedRunDir(dir) {
 // when --run is found, its two-element span is spliced out of the returned
 // `rest` so a caller with its own positional args (record-worktree's
 // worktree path) can still find them regardless of flag placement.
-function resolveRunArg(args, cwd, env) {
+function resolveRunArg(args, cwd, env, opts = {}) {
+  const { knownFlags } = opts;
+  if (knownFlags) {
+    // #1012: any `--*` token not in the verb's declared set is rejected
+    // BEFORE anything else in this function runs — no env stat, no
+    // findRunByWorktreePath, no run-dir scan — so the caller's "prints usage,
+    // performs zero reads/writes of any run-state.json" contract holds by
+    // construction, not by remembering to short-circuit downstream.
+    const unknownFlag = args.find((a) => a.startsWith('--') && !knownFlags.includes(a));
+    if (unknownFlag) {
+      return {
+        runDir: null, invalidRunArg: null, unknownFlag, rest: args, explicit: false, candidates: null,
+      };
+    }
+  }
   const flagIdx = args.indexOf('--run');
   if (flagIdx === -1) {
-    return { runDir: ctxLib.resolveRunDir(cwd, env), invalidRunArg: null, rest: args, explicit: false };
+    const implicit = resolveImplicitRunDir(cwd, env);
+    return {
+      runDir: implicit.runDir, invalidRunArg: null, rest: args, explicit: false, candidates: implicit.candidates,
+    };
   }
   const rest = args.slice();
   const rawCandidate = rest[flagIdx + 1];
@@ -242,16 +355,28 @@ async function main(argv) {
   const cmd = argv[2];
   if (cmd === 'record-worktree') {
     // --run <path> pins the target run dir explicitly, mirroring close-run
-    // below — without it, this always fell through to resolveRunDir's
-    // "newest non-terminal run" fallback, which a stale never-closed run
-    // could win over the run genuinely making this call.
+    // below — without it, this now resolves via resolveImplicitRunDir's
+    // unambiguous-only scan (#1012) rather than the old "newest non-terminal
+    // run" guess, which a stale never-closed run could win over the run
+    // genuinely making this call.
     const {
-      runDir, invalidRunArg, rest, worktreeLocalFallback,
-    } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+      runDir, invalidRunArg, unknownFlag, rest, explicit, worktreeLocalFallback, candidates,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['record-worktree'] });
+    if (unknownFlag) {
+      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['record-worktree']}\n`);
+      return 0;
+    }
     const worktreeArg = rest[0];
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — worktree not recorded\n`);
+    } else if (runDir && !explicit && isForeignRun(runDir, process.cwd(), process.env)) {
+      // #1012: record-worktree previously had no ownership check at all on
+      // the implicit path — an env/binding-resolved run that turns out
+      // foreign (step 3's own scan already excludes a foreign survivor, so
+      // this only ever fires for steps 1-2) must refuse, not silently stomp
+      // a sibling's binding.
+      process.stdout.write(`${renderCandidatesRefusal('record-worktree', [{ dir: runDir, foreign: true }])} — worktree not recorded\n`);
     } else if (runDir && worktreeArg) {
       // Stamp the owning session so E1 can scope enforcement to it. Absent env
       // var: omit the key rather than write null — an env-less re-record must
@@ -264,6 +389,8 @@ async function main(argv) {
       } else {
         process.stdout.write(`claude-tweaks: failed to record worktree for ${path.basename(runDir)} — run-state.json could not be written\n`);
       }
+    } else if (!runDir && candidates) {
+      process.stdout.write(`${renderCandidatesRefusal('record-worktree', candidates)} — worktree not recorded\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — worktree not recorded\n');
     } else {
@@ -338,18 +465,28 @@ async function main(argv) {
   }
   if (cmd === 'record-pr') {
     // Mirrors record-worktree's shape: --run <path> pins the target run dir
-    // explicitly (falls back to resolveRunDir's newest-non-terminal-run scan
-    // when absent), positional args after it are the PR number and URL.
-    // run-state.json is written only through hooks.js verbs (CLAUDE.md's
+    // explicitly (falls back to resolveImplicitRunDir's unambiguous-only scan
+    // when absent, #1012), positional args after it are the PR number and
+    // URL. run-state.json is written only through hooks.js verbs (CLAUDE.md's
     // write-ownership rule) — this is the sanctioned verb for the pr-early
     // run lifecycle's { number, url } field (#409).
-    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const {
+      runDir, invalidRunArg, unknownFlag, rest, explicit, worktreeLocalFallback, candidates,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['record-pr'] });
+    if (unknownFlag) {
+      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['record-pr']}\n`);
+      return 0;
+    }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const numberArg = rest[0];
     const urlArg = rest[1];
     const number = Number(numberArg);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — PR not recorded\n`);
+    } else if (runDir && !explicit && isForeignRun(runDir, process.cwd(), process.env)) {
+      process.stdout.write(`${renderCandidatesRefusal('record-pr', [{ dir: runDir, foreign: true }])} — PR not recorded\n`);
+    } else if (!runDir && candidates) {
+      process.stdout.write(`${renderCandidatesRefusal('record-pr', candidates)} — PR not recorded\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — PR not recorded\n');
     } else if (!numberArg || !Number.isInteger(number) || number <= 0 || !urlArg) {
@@ -372,7 +509,13 @@ async function main(argv) {
     // the multi-spec PARENT run dir (where manifest.yml lives — see
     // multi-spec.md's "Run directory layout"), never a per-spec
     // PIPELINE_RUN_DIR subdirectory.
-    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const {
+      runDir, invalidRunArg, unknownFlag, rest, explicit, worktreeLocalFallback, candidates,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['spec-status'] });
+    if (unknownFlag) {
+      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['spec-status']}\n`);
+      return 0;
+    }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const specArg = flagVal(rest, '--spec');
     const statusArg = flagVal(rest, '--status');
@@ -380,6 +523,10 @@ async function main(argv) {
     const nowArg = flagVal(rest, '--now'); // test-only clock override; real callers omit it
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — spec status not recorded\n`);
+    } else if (runDir && !explicit && isForeignRun(runDir, process.cwd(), process.env)) {
+      process.stdout.write(`${renderCandidatesRefusal('spec-status', [{ dir: runDir, foreign: true }])} — spec status not recorded\n`);
+    } else if (!runDir && candidates) {
+      process.stdout.write(`${renderCandidatesRefusal('spec-status', candidates)} — spec status not recorded\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — spec status not recorded\n');
     } else if (!specArg || !statusArg || !phaseArg) {
@@ -399,12 +546,30 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'close-run') {
-    const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const {
+      runDir, invalidRunArg, unknownFlag, explicit, worktreeLocalFallback, candidates,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['close-run'] });
+    if (unknownFlag) {
+      // #1012: `close-run --help` (or any other undeclared flag) must print
+      // usage and touch no run state — the #965 incident (a typo'd --help
+      // fell through to the old "newest non-terminal run" fallback and
+      // overwrote a sibling's run-state.json three times).
+      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['close-run']}\n`);
+      return 0;
+    }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);
+    } else if (!runDir && candidates) {
+      // #1012: resolveRunArg's own unambiguous-only scan couldn't settle on
+      // exactly one candidate (2+ survivors, or every non-terminal run
+      // provably foreign) — distinct from closeRunState's own
+      // 'refused-foreign' below, which only fires once a SINGLE run has
+      // already been resolved (env/binding-hit) and THAT run turns out
+      // foreign.
+      process.stdout.write(`${renderCandidatesRefusal('close-run', candidates)} — run not closed\n`);
     } else if (runDir) {
-      const r = closeRunState(runDir, { explicit, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
+      const r = closeRunState(runDir, { explicit, callerIdentity: { sessionId: process.env.CLAUDE_CODE_SESSION_ID, cwd: process.cwd() } });
       if (r.status === 'refused-foreign') {
         process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session — refusing to close it without an explicit --run\n`);
         return 0;
@@ -440,13 +605,27 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'teardown-run') {
-    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const {
+      runDir, invalidRunArg, unknownFlag, worktreeLocalFallback, candidates,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { knownFlags: KNOWN_FLAGS['teardown-run'] });
+    if (unknownFlag) {
+      process.stdout.write(`claude-tweaks: unrecognized flag ${unknownFlag} — usage: ${USAGE['teardown-run']}\n`);
+      return 0;
+    }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const mode = argv.includes('--merged') ? 'merged' : (argv.includes('--abandoned') ? 'abandoned' : null);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not torn down\n`);
+    } else if (!runDir && candidates) {
+      // #1012: mirrors close-run's own candidates-refusal — teardown-run's
+      // OWN foreign-run refusal (a single resolved run that turns out
+      // foreign) still comes from closeRunState via teardownRun's Step 1,
+      // unchanged below; this is the resolveRunArg-level ambiguity refusal.
+      process.stdout.write(`${renderCandidatesRefusal('teardown-run', candidates)} — run not torn down\n`);
     } else if (runDir) {
-      const result = teardownRun(runDir, { mode, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
+      // #1012: cwd threaded through so teardownRun's Step 1 (closeRunState)
+      // can classify ownership by worktree binding, not just sessionId.
+      const result = teardownRun(runDir, { mode, sessionId: process.env.CLAUDE_CODE_SESSION_ID, cwd: process.cwd() });
       process.stdout.write(`claude-tweaks: teardown-run ${path.basename(runDir)}\n${result.lines.map((l) => `  ${l}`).join('\n')}\n`);
     } else {
       process.stdout.write('claude-tweaks: no pipeline run dir found — run not torn down\n');

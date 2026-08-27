@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { readRunState } = require('../plugin/bin/lib/hooks/context');
-const { linkedWorktreeOf } = require('./helpers/git-fixtures');
+const { linkedWorktreeOf, harnessWorktreeOf } = require('./helpers/git-fixtures');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
@@ -82,6 +82,54 @@ test('invariant: unknown event and missing event exit 0', () => {
   assert.strictEqual(runHook([], { input: '{}' }).code, 0);
 });
 
+// #1012 AC1: each of the five mutating verbs, given an undeclared `--*` flag,
+// prints usage and performs ZERO reads/writes of any run-state.json —
+// asserted by fixture-file content equality (mtime is filesystem-resolution
+// dependent and not a reliable byte-for-byte signal on every platform; a
+// content snapshot proves "untouched" at least as strongly and portably).
+test('#1012 AC1: an unrecognized flag on any of the five mutating verbs prints usage and touches no run-state.json (close-run --help, and a plain typo on every other verb)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active', worktree: '/tmp/wt', sessionId: 'owner' }));
+  const before = fs.readFileSync(path.join(run, 'run-state.json'), 'utf8');
+
+  const cases = [
+    ['close-run', '--help'],
+    ['record-worktree', '--bogus'],
+    ['record-pr', '--bogus'],
+    ['spec-status', '--bogus'],
+    ['teardown-run', '--bogus'],
+  ];
+  for (const [verb, flag] of cases) {
+    const result = runHook([verb, flag], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+    assert.strictEqual(result.code, 0, `${verb} ${flag} must exit 0`);
+    assert.match(result.stdout, new RegExp(`unrecognized flag ${flag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} — usage: ${verb}`), `${verb} ${flag} must print a usage line naming the flag`);
+    assert.strictEqual(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'), before, `${verb} ${flag} must not touch run-state.json`);
+  }
+});
+
+// #721 parity regression: resolveImplicitRunDir's step-3 scan must stay
+// blind to an unadopted mint (bare mkdir, neither run-state.json nor
+// decisions.md) exactly as resolveRun's own fallback already is — a mint
+// classifies 'indeterminate' (not 'foreign') under classifyOwnership, so
+// without an explicit exclusion it would count as a survivor/candidate and
+// could even be selected outright, resurrecting the #721 hazard this test
+// pins closed.
+test('#1012/#721: an unadopted mint (bare mkdir, no decisions.md/run-state.json) is invisible to the implicit-resolution scan — the one real adopted run resolves unambiguously', () => {
+  const project = gitRepo();
+  const mint = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19-mint');
+  fs.mkdirSync(mint, { recursive: true }); // bare mkdir — no decisions.md, no run-state.json
+  const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(ownDir, { recursive: true });
+  fs.writeFileSync(path.join(ownDir, 'decisions.md'), '');
+
+  const result = runHook(['record-worktree', '/tmp/wt-mint-test'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /worktree recorded for 2026-07-01T090000-spec-1/,
+    'the mint must not count as a second candidate — the one adopted run resolves unambiguously');
+  assert.strictEqual(fs.existsSync(path.join(mint, 'run-state.json')), false, 'the mint must never be written to');
+});
+
 test('record-worktree writes run-state, prints a confirmation line, and close-run marks clean', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
@@ -130,29 +178,39 @@ test('close-run does NOT warn about un-archived work/ when no work/ content exis
   assert.doesNotMatch(result.stdout, /still holds un-archived work\/ content/);
 });
 
-test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
+test('record-worktree --run pins the target run dir; without --run and two non-terminal candidates, it refuses rather than guessing (#1012 — supersedes the old "newest non-terminal run" fallback vulnerability)', () => {
   const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   // staleDir sorts newer than ownDir and is non-terminal (interrupted, never
-  // closed) — resolveRunDir's fallback (listRunDirs[0], newest non-terminal
-  // by name) would pick staleDir over ownDir with no --run override. This is
-  // exactly #19/#36's cross-contamination shape: a later, unrelated call
+  // closed) — the OLD resolveRunDir fallback (listRunDirs[0], newest
+  // non-terminal by name) picked staleDir over ownDir with no --run override:
+  // exactly #19/#36's cross-contamination shape, a later unrelated call
   // resolving to an older run's directory because it was never marked clean.
+  // #1012 replaces that guess with unambiguous-only resolution: with BOTH
+  // dirs present as non-terminal candidates and neither provably this
+  // caller's own (no worktree binding, no session id), resolveImplicitRunDir
+  // finds two survivors and refuses outright rather than picking either.
   fs.mkdirSync(staleDir, { recursive: true });
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'interrupted' }));
   fs.mkdirSync(ownDir, { recursive: true });
+  // #721/#1012: an unadopted mint (neither run-state.json nor decisions.md)
+  // is invisible to resolveImplicitRunDir's candidate scan by design — touch
+  // decisions.md so ownDir is a realistic adopted-but-unbound run (the shape
+  // every flow-initialized run already has by the time record-worktree runs),
+  // matching tmpProject()'s own fixture convention above.
+  fs.writeFileSync(path.join(ownDir, 'decisions.md'), '');
+  const staleStateBefore = readRunState(staleDir);
 
   const noFlag = runHook(['record-worktree', '/tmp/wt-fallback'], { cwd: project });
   assert.strictEqual(noFlag.code, 0);
-  assert.match(noFlag.stdout, /worktree recorded for 2026-07-15T090000-record-19/,
-    'sanity check: without --run, the fallback really does pick the newer stale run, not ownDir');
-  assert.strictEqual(fs.existsSync(path.join(ownDir, 'run-state.json')), false);
-  // The no-flag call above IS the vulnerability being demonstrated — it just
-  // corrupted staleDir's state exactly like #19/#36. Snapshot that corrupted
-  // state so the next assertion can prove the FIX (an explicitly-targeted
-  // --run call) doesn't compound it by touching staleDir a second time.
-  const staleStateAfterFallback = readRunState(staleDir);
+  assert.match(noFlag.stdout, /multiple candidate runs — pass --run explicitly:/);
+  assert.match(noFlag.stdout, /record-worktree --run "[^"]*2026-07-15T090000-record-19"/);
+  assert.match(noFlag.stdout, /record-worktree --run "[^"]*2026-07-01T090000-spec-1"/);
+  assert.strictEqual(fs.existsSync(path.join(ownDir, 'run-state.json')), false,
+    'the refused implicit call must not write ownDir');
+  assert.deepStrictEqual(readRunState(staleDir), staleStateBefore,
+    'the refused implicit call must not touch staleDir either — no guessing');
 
   const withFlag = runHook(['record-worktree', '--run', ownDir, '/tmp/wt-correct'], { cwd: project });
   assert.strictEqual(withFlag.code, 0);
@@ -160,8 +218,7 @@ test('record-worktree --run pins the target run dir, ignoring a newer stale non-
   const ownState = readRunState(ownDir);
   assert.strictEqual(ownState.worktree, path.resolve('/tmp/wt-correct'));
   assert.strictEqual(ownState.status, 'active');
-  const staleStateAfterExplicitCall = readRunState(staleDir);
-  assert.deepStrictEqual(staleStateAfterExplicitCall, staleStateAfterFallback,
+  assert.deepStrictEqual(readRunState(staleDir), staleStateBefore,
     'an explicitly-targeted --run call must not touch a different run dir at all');
 });
 
@@ -298,14 +355,21 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   // Previously, a cross-session mismatch reached via the implicit fallback
   // (no --run) was only ever NOTED via a printed message but still
   // unconditionally closed — silently disarming the OTHER session's E1/E2/E3
-  // enforcement with no way for it to know.
+  // enforcement with no way for it to know. #1012: with exactly one
+  // non-terminal candidate that classifyOwnership can PROVE foreign (distinct
+  // session ids, both present), resolveImplicitRunDir's step-3 scan itself
+  // finds zero survivors and refuses — the candidates-refusal shape (AC #2's
+  // "zero survivors" case), not closeRunState's own byte-pinned
+  // 'refused-foreign' message (that one is reserved for an env/binding-
+  // resolved single candidate that turns out foreign — see the explicit-run
+  // test below, still exercising that same closeRunState path).
   const foreignProject = tmpProject();
   const foreignRun = path.join(foreignProject, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   runHook(['record-worktree', '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const foreign = runHook(['close-run'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(foreign.code, 0);
-  assert.match(foreign.stdout, /recorded by another session/);
-  assert.match(foreign.stdout, /refusing to close/);
+  assert.match(foreign.stdout, /the only candidate run\(s\) are recorded by another session\/worktree — pass --run explicitly to act on one:/);
+  assert.match(foreign.stdout, /close-run --run "[^"]*2026-07-01T090000-spec-1" \(recorded by another session\/worktree\)/);
   const foreignState = readRunState(foreignRun);
   assert.strictEqual(foreignState.status, 'active', 'the foreign session\'s run must remain active, not be silently closed');
   assert.strictEqual(foreignState.worktree, path.resolve('/tmp/wt'), 'the foreign session\'s worktree assignment must survive');
@@ -327,6 +391,114 @@ test('close-run WITH an explicit --run still closes a run recorded by another se
   assert.match(result.stdout, /recorded by another session/);
   assert.doesNotMatch(result.stdout, /refusing to close/);
   assert.strictEqual(readRunState(run).status, 'clean', 'an explicitly-targeted --run intentionally overrides the cross-session refusal');
+});
+
+// #1012 named regression test — the exact incident shape (#860/#758, #965):
+// N siblings sharing CLAUDE_CODE_SESSION_ID, one omits/mistypes --run, the
+// old "newest non-terminal run" fallback (or the old session-id-only
+// foreignOwner check) silently overwrites the WRONG run's state. Four
+// non-terminal run dirs (A, B, C bound to their own live worktree; D bound to
+// a fourth live worktree with no test caller ever invoking from it — the
+// "agent absent" bystander), all four recording the SAME sessionId — the
+// exact condition that defeated the pre-#1012 raw session-id comparison.
+test('#1012: close-run --help touches no state, and bare close-run from a caller\'s own worktree closes only that caller\'s run — bystander run D is never touched (named regression, #860/#758/#965 incident shape)', () => {
+  const main = gitRepo();
+  execFileSync('git', ['-C', main, 'commit', '--allow-empty', '-m', 'init', '-q']);
+  const wtA = fs.realpathSync(harnessWorktreeOf(main, 'a'));
+  const wtB = fs.realpathSync(harnessWorktreeOf(main, 'b'));
+  const wtC = fs.realpathSync(harnessWorktreeOf(main, 'c'));
+  const wtD = fs.realpathSync(harnessWorktreeOf(main, 'd'));
+
+  const runs = {
+    A: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090001-record-a'),
+    B: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090002-record-b'),
+    C: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090003-record-c'),
+    D: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090004-record-d'),
+  };
+  const worktrees = {
+    A: wtA, B: wtB, C: wtC, D: wtD,
+  };
+  for (const key of Object.keys(runs)) {
+    fs.mkdirSync(runs[key], { recursive: true });
+    fs.writeFileSync(path.join(runs[key], 'run-state.json'), JSON.stringify({
+      status: 'active', worktree: worktrees[key], sessionId: 'shared-session',
+    }));
+  }
+  const dSnapshotBefore = readRunState(runs.D);
+
+  for (const key of ['A', 'B', 'C']) {
+    const cwd = worktrees[key];
+    const snapshotBefore = { A: readRunState(runs.A), B: readRunState(runs.B), C: readRunState(runs.C), D: readRunState(runs.D) };
+
+    const help = runHook(['close-run', '--help'], { cwd, env: { CLAUDE_CODE_SESSION_ID: 'shared-session' } });
+    assert.strictEqual(help.code, 0);
+    assert.match(help.stdout, /unrecognized flag --help/, `${key}: --help must hit the usage path`);
+    assert.deepStrictEqual(readRunState(runs.A), snapshotBefore.A, `${key}: --help must not touch run A`);
+    assert.deepStrictEqual(readRunState(runs.B), snapshotBefore.B, `${key}: --help must not touch run B`);
+    assert.deepStrictEqual(readRunState(runs.C), snapshotBefore.C, `${key}: --help must not touch run C`);
+    assert.deepStrictEqual(readRunState(runs.D), snapshotBefore.D, `${key}: --help must not touch run D`);
+
+    // D must never be touched by ANY iteration's close-run, whether or not
+    // an earlier caller in this loop already closed its own run — checked
+    // fresh after every bare close-run, not just once at the end, so a
+    // regression is pinned to the exact call that caused it.
+    const bare = runHook(['close-run'], { cwd, env: { CLAUDE_CODE_SESSION_ID: 'shared-session' } });
+    assert.strictEqual(bare.code, 0);
+    assert.strictEqual(readRunState(runs[key]).status, 'clean', `${key}: bare close-run must close its OWN cwd-bound run (step 2 hit)`);
+    assert.deepStrictEqual(readRunState(runs.D), dSnapshotBefore, `${key}'s close-run must not touch bystander run D`);
+  }
+  // Each caller closed only itself — A/B/C all end 'clean', D (never a
+  // caller's own cwd-bound run) ends untouched and still 'active'.
+  assert.strictEqual(readRunState(runs.A).status, 'clean');
+  assert.strictEqual(readRunState(runs.B).status, 'clean');
+  assert.strictEqual(readRunState(runs.C).status, 'clean');
+  assert.deepStrictEqual(readRunState(runs.D), dSnapshotBefore,
+    'run D (bystander, agent absent) must end byte-identical across every --help probe and every caller\'s own close-run');
+});
+
+// Unbound-caller variant (#1012): the #860/#758 incident shape exactly — the
+// stray caller has no run bound to its own cwd at all. Step 2 misses (no
+// binding hit), step 3 excludes A/B/C/D as foreign (same sessionId, but each
+// one's recorded binding names a DIFFERENT live worktree than this caller's
+// cwd) leaving zero survivors, so resolution refuses instead of guessing —
+// exercising step 4. Separate fixture from the sequential test above so nothing
+// here has already been closed when the exclusion check runs.
+test('#1012: an unbound caller (no run bound to its own cwd) invoking bare close-run refuses — every existing run classifies foreign, zero survivors, no state changes', () => {
+  const main = gitRepo();
+  execFileSync('git', ['-C', main, 'commit', '--allow-empty', '-m', 'init', '-q']);
+  const wtA = fs.realpathSync(harnessWorktreeOf(main, 'a2'));
+  const wtB = fs.realpathSync(harnessWorktreeOf(main, 'b2'));
+  const wtC = fs.realpathSync(harnessWorktreeOf(main, 'c2'));
+  const wtD = fs.realpathSync(harnessWorktreeOf(main, 'd2'));
+  const wtUnbound = fs.realpathSync(harnessWorktreeOf(main, 'unbound'));
+
+  const runs = {
+    A: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090001-record-a2'),
+    B: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090002-record-b2'),
+    C: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090003-record-c2'),
+    D: path.join(main, '.claude-tweaks', 'pipelines', '2026-07-01T090004-record-d2'),
+  };
+  const worktrees = {
+    A: wtA, B: wtB, C: wtC, D: wtD,
+  };
+  for (const key of Object.keys(runs)) {
+    fs.mkdirSync(runs[key], { recursive: true });
+    fs.writeFileSync(path.join(runs[key], 'run-state.json'), JSON.stringify({
+      status: 'active', worktree: worktrees[key], sessionId: 'shared-session',
+    }));
+  }
+  const snapshotBefore = { A: readRunState(runs.A), B: readRunState(runs.B), C: readRunState(runs.C), D: readRunState(runs.D) };
+
+  const result = runHook(['close-run'], { cwd: wtUnbound, env: { CLAUDE_CODE_SESSION_ID: 'shared-session' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /the only candidate run\(s\) are recorded by another session\/worktree — pass --run explicitly to act on one:/);
+  for (const key of ['A', 'B', 'C', 'D']) {
+    assert.ok(
+      result.stdout.includes(`close-run --run "${runs[key]}" (recorded by another session/worktree)`),
+      `refusal must list run ${key} as a foreign candidate: ${result.stdout}`,
+    );
+    assert.deepStrictEqual(readRunState(runs[key]), snapshotBefore[key], `run ${key} must be untouched by the refused unbound-caller call`);
+  }
 });
 
 test('e2e: foreign-session commit in the main checkout is allowed with a systemMessage, not denied', () => {
@@ -640,6 +812,36 @@ test('record-pr with a non-numeric or missing number/url prints a usage notice i
     assert.match(result.stdout, /usage: record-pr/);
     assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false);
   }
+});
+
+// #1012 deliverable 3: record-worktree, record-pr, and spec-status had NO
+// ownership check at all on the implicit path before this record — closeRunState
+// already had one (upgraded above). This exercises the write-time guard added
+// to all three: an env-resolved (PIPELINE_RUN_DIR) run that classifyOwnership
+// can prove foreign (distinct session ids, both present — no worktree fixture
+// needed for that classification arm) must refuse the write, not silently stomp it.
+test('#1012 deliverable 3: record-worktree/record-pr/spec-status refuse an implicit write when PIPELINE_RUN_DIR resolves to a foreign-session run', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active', worktree: '/tmp/wt-owner', sessionId: 'owner' }));
+  fs.writeFileSync(path.join(run, 'manifest.yml'), 'specs: []\n');
+  const before = fs.readFileSync(path.join(run, 'run-state.json'), 'utf8');
+  const env = { CLAUDE_CODE_SESSION_ID: 'bystander', PIPELINE_RUN_DIR: run };
+
+  const wt = runHook(['record-worktree', '/tmp/wt-bystander'], { cwd: project, env });
+  assert.strictEqual(wt.code, 0);
+  assert.match(wt.stdout, /the only candidate run\(s\) are recorded by another session\/worktree — pass --run explicitly to act on one:/);
+  assert.strictEqual(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'), before, 'record-worktree must not overwrite a foreign env-resolved run');
+
+  const pr = runHook(['record-pr', '42', 'https://github.com/o/r/pull/42'], { cwd: project, env });
+  assert.strictEqual(pr.code, 0);
+  assert.match(pr.stdout, /the only candidate run\(s\) are recorded by another session\/worktree — pass --run explicitly to act on one:/);
+  assert.strictEqual(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'), before, 'record-pr must not overwrite a foreign env-resolved run');
+
+  const status = runHook(['spec-status', '--spec', '1', '--status', 'running', '--phase', 'build'], { cwd: project, env });
+  assert.strictEqual(status.code, 0);
+  assert.match(status.stdout, /the only candidate run\(s\) are recorded by another session\/worktree — pass --run explicitly to act on one:/);
+  assert.strictEqual(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'), before, 'spec-status must not act on a foreign env-resolved run');
 });
 
 test('check-resume-freshness: reports OK when the run is not interrupted', () => {

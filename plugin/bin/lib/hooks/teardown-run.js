@@ -68,6 +68,13 @@ function branchOfWorktree(root, worktreePath) {
 function teardownRun(runDir, opts = {}) {
   const mode = opts.mode || null;
   const sessionId = opts.sessionId || null;
+  // #1012: cwd threaded through so closeRunState's classifyOwnership-based
+  // guard can prove a caller foreign by worktree binding, not just by
+  // sessionId inequality (defeated when siblings share CLAUDE_CODE_SESSION_ID).
+  // Optional — a caller that omits it (every existing test) degrades to the
+  // pre-#1012 sessionId-only comparison inside classifyOwnership's own
+  // fail-open cwd check, not a behavior change for those callers.
+  const cwd = opts.cwd || null;
   const ghApiDelete = (opts.deps && opts.deps.ghApiDelete) || defaultGhApiDelete;
   const root = path.resolve(runDir, '..', '..', '..'); // {root}/.claude-tweaks/pipelines/{run-id}
   const lines = [];
@@ -93,7 +100,7 @@ function teardownRun(runDir, opts = {}) {
   // hooks.js's standalone close-run verb) is deliberately left unread here — Step 2 immediately
   // below calls archiveRunDir itself, so by the time a caller could see this value the content
   // it describes is already being archived. Do not wire up the same warning here too.
-  const state = closeRunState(runDir, { explicit: false, sessionId });
+  const state = closeRunState(runDir, { explicit: false, callerIdentity: { sessionId, cwd } });
 
   if (state.status === 'refused-foreign') {
     return { lines: ['state: refused — run recorded by another session; teardown-run does not override this'] };

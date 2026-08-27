@@ -33,14 +33,23 @@ function hasUnarchivedWork(runDir) {
 // Returns one of:
 //   { status: 'refused-foreign' }
 //     — an implicit (`explicit: false`) run resolution landed on a run
-//       recorded by a different, still-active session; nothing was written.
+//       classifyOwnership can PROVE belongs to a different, still-active
+//       caller; nothing was written.
 //   { status: 'closed', foreignOwner, wrapupSeen, writeOk, notYetArchived }
 //     — the run-state write was attempted (and `writeOk` reports whether it
 //       succeeded); `foreignOwner`/`wrapupSeen`/`notYetArchived` let the
 //       caller render the same advisory lines close-run always has.
-function closeRunState(runDir, { explicit = false, sessionId = null } = {}) {
+//
+// `callerIdentity` (#1012) — `{ sessionId, cwd }`, replacing the bare
+// `sessionId` option: session-id equality alone is defeated by
+// CLAUDE_CODE_SESSION_ID being shared across every subagent of a session
+// (#965), so ownership now goes through `classifyOwnership`'s composite
+// session+worktree-binding check. Both callers (bin/hooks.js's `close-run`,
+// `teardown-run.js`'s Step 1) must thread `cwd` through — see each call
+// site's own comment.
+function closeRunState(runDir, { explicit = false, callerIdentity = null } = {}) {
   const prev = ctxLib.readRunState(runDir);
-  const foreignOwner = !!(prev && typeof prev.sessionId === 'string' && prev.sessionId && sessionId && prev.sessionId !== sessionId);
+  const foreignOwner = ctxLib.classifyOwnership(callerIdentity || {}, prev) === 'foreign';
   if (foreignOwner && !explicit) {
     // The implicit fallback ("newest non-terminal run") landed on a run
     // recorded by a DIFFERENT, still-active session — closing it here
