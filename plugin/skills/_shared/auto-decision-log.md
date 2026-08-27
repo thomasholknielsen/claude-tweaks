@@ -58,9 +58,9 @@ An aggregate line lists one `defer-reason` value per item, comma-separated in it
 
 ## Entry schema
 
-**`bin/log-decision.js --run-dir <dir> [--spec <n>] [--skill <name>] <STATUS> <message>`** is the
+**`bin/log-decision.js --run <dir> --status <STATUS> --text <message> [--spec <n>] [--section "/<skill>"]`** is the
 canonical appender for this schema — it timestamps and status-prefixes `message` (composed by the
-caller per the shape below) and inserts it under the given `--skill` heading (creating the section
+caller per the shape below) and inserts it under the given `--section` heading (creating the section
 if absent) or at end of file otherwise. Every consumer of this file writes through it instead of
 hand-appending a formatted line per call site — with one documented exception: `FAILED`, which is
 hand-composed by its two writers (see the `STATUS` row below).
@@ -122,6 +122,7 @@ The third example is a decision whose outcome was driven by the findings' own se
 | `REFUSED` | Console blocked a reason-less queue-write proposal at creation; kept staged (or flipped its ledger item back to `open`). | Shown under "Refused — no defer reason". No default; human edits the staged header or drops via Override → Skip. |
 | `KEPT-PROMPT` | Skill could not auto-resolve (floor failed or item is in "not silenced" list). Asked user inline. | Already resolved — informational entry only. |
 | `SCANNED` | Skill ran its independent scan/gap-detection and is reporting the scan's scope and outcome — emitted on every run of a scanning step, whether or not the scan found anything actionable. Not itself a decision — the decision, if any, is a separate AUTO/STAGED entry. | Shown in "Auto-applied" section as an informational line (no action to override). |
+| `FAILED` | A batch write attempt errored — the write was neither applied nor refused for a content reason, so nothing landed and nothing is staged. Hand-composed by its two writers (see the `STATUS` row above). | Shown in "Auto-applied" section as an informational failure line (no commit ref, nothing to revert). Decision-bearing for the Empty-console fast path — a log holding one never skips the console — but the remedy is the producing skill's own paste-ready retry, not an Override. |
 
 ## Append protocol
 
@@ -169,7 +170,7 @@ The Review Console reads the log file for the current pipeline run:
 
 1. Resolve `PIPELINE_RUN_DIR` env var, or find the most recent run matching the current spec
 2. Read `{run-dir}/decisions.md`
-3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED
+3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED / REFUSED / FAILED
 4. List staged artifacts from `{run-dir}/staged/`
 5. Present in the Review Console (see `/wrap-up`'s Phase 4)
 
