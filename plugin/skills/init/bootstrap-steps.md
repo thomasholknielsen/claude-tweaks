@@ -18,7 +18,7 @@ step.
 | 6 | `step-06-worktree-configuration.md` | `.worktrees/` setup and the `worktree-always` policy opt-in. |
 | 7 | `step-07-browser-integration.md` | `agent-browser` detection and install surfacing. |
 | 8 | `step-08-statusline-and-dependencies.md` | Node/git detection, statusline wrapper, `settings.json` migration matrix. |
-| 8.5 | `step-08-5-dependency-read-permissions.md` | Read-only `node_modules`/`node_modules/.pnpm/**` allowlist entry; idempotent drift-repair on re-run. |
+| 8.5 | `step-08-5-dependency-read-permissions.md` | Read-only `node_modules`/`node_modules/.pnpm/**` allowlist entry; idempotent, self-repairs on re-run when the plugin-version marker has advanced (or via `bootstrap` scope when it hasn't). |
 | 9 | `step-09-establish-github-remote.md` | `gh` install/auth, repo creation, `origin` linking. Interactive-only. |
 | 10 | `step-10-github-issue-form.md` | `agent-task.yml` issue form template offer. |
 | 11 | `step-11-impeccable-design-integration.md` | Impeccable setup prompt and the `design-integration` flag. |
