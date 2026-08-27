@@ -17,6 +17,7 @@ const path = require('node:path');
 const { makeFinding } = require('../finding');
 const { mainCheckoutRoot, safeReal } = require('../../hooks/worktree-detect');
 const { RUN_ID_RE } = require('../../hooks/context');
+const { defaultIsPidAlive, lockedEvidence } = require('./worktrees');
 
 // Realpath both sides of every path comparison: fixture/tmp paths and real
 // worktrees routinely sit behind symlinks (macOS /var -> /private/var), and
@@ -38,7 +39,30 @@ function isOwnRun(entryName, state, runId, worktreeRootReal) {
   return false;
 }
 
-function probePipelineRuns({ cwd, runId, worktreeRoot } = {}) {
+// Cross-checks a run's recorded `worktree` field against `scope.worktrees`
+// (git worktree list --porcelain, already parsed by ../scope.js) to find a
+// currently-locked entry — #1328: a `remedy: auto` archival must not fire
+// while a live sibling session still holds that run's worktree. Realpaths
+// both sides before comparing: `run-state.json`'s `worktree` is stamped via
+// `path.resolve(...)` (post-tool-use.js), not necessarily realpath-form,
+// and a fixture/tmp path (or a real worktree behind macOS's /var ->
+// /private/var symlink) can otherwise never match on a plain string
+// compare — the same hazard `isOwnRun` above already guards against.
+// Returns the matching locked `scope.worktrees` entry, or null when
+// `worktreePath` is empty, `scope`/`scope.worktrees` carries nothing
+// (no lock information available), or no locked entry matches.
+function findLockedWorktree(worktreePath, scope) {
+  if (!worktreePath || !scope || !Array.isArray(scope.worktrees) || scope.worktrees.length === 0) return null;
+  const real = safeReal(worktreePath);
+  if (!real) return null;
+  for (const wt of scope.worktrees) {
+    if (!wt || !wt.locked) continue;
+    if (safeReal(wt.path) === real) return wt;
+  }
+  return null;
+}
+
+function probePipelineRuns({ cwd, runId, worktreeRoot, scope } = {}) {
   const start = cwd || process.cwd();
   const root = mainCheckoutRoot(start) || start;
   const worktreeRootReal = worktreeRoot ? safeReal(worktreeRoot) : null;
@@ -70,6 +94,14 @@ function probePipelineRuns({ cwd, runId, worktreeRoot } = {}) {
       continue; // no readable run-state.json — nothing to classify as closed
     }
     if (!state || state.status !== 'clean') continue;
+    // #1328: a status: clean finding is only safe to auto-archive when its
+    // recorded worktree isn't still locked by a live sibling session —
+    // blindly archiving out from under one corrupts that session's state.
+    // Downgrade to the same remedy: 'record' vocabulary probeWorktrees
+    // already uses for a locked worktree, so residue-sweep.md's existing
+    // "locked worktree a live session still holds" -> blocked-external
+    // mapping applies here too, instead of an unsafe auto-archive.
+    const lockedWorktree = findLockedWorktree(state.worktree, scope);
     findings.push(makeFinding({
       kind: 'pipeline-run',
       // Attribution (#1118, superseding the #1011 audit that used to keep
@@ -86,8 +118,10 @@ function probePipelineRuns({ cwd, runId, worktreeRoot } = {}) {
       // structurally never sees a clean dir (see the header comment above).
       scope: isOwnRun(entry.name, state, runId, worktreeRootReal) ? 'blast-radius' : 'observed',
       subject: path.relative(root, dir),
-      remedy: 'auto',
-      evidence: 'run-state.json status: clean, not under .claude-tweaks/pipelines/archive/ — see wrap-up/cleanup-procedures.md Section B for the archival move',
+      remedy: lockedWorktree ? 'record' : 'auto',
+      evidence: lockedWorktree
+        ? `run-state.json status: clean, but recorded worktree is still locked — ${lockedEvidence(lockedWorktree, defaultIsPidAlive)}`
+        : 'run-state.json status: clean, not under .claude-tweaks/pipelines/archive/ — see wrap-up/cleanup-procedures.md Section B for the archival move',
     }));
   }
   return { ran: true, reason: null, findings };

@@ -139,6 +139,10 @@ function main() {
       // inside a pipeline run; standalone invocations have none) — #1118.
       runId: pipelineRunId,
       worktreeRoot: git(['rev-parse', '--show-toplevel']),
+      // #1328: lets the probe cross-check a status: clean finding's
+      // recorded worktree against the already-resolved locked-worktree
+      // list, instead of re-invoking git from inside the probe itself.
+      scope,
     }),
     probeArtifacts({ cwd, run: git }),
   ], opts.scope);
