@@ -148,12 +148,14 @@ test('resolvePrStateAsync: does not block the event loop (real concurrency, not 
   }
 });
 
+// Shared fixture for the recurring "MERGED #10 vs. newer OPEN #11" scenario
+// exercised (in various shapes) by several tests below.
+const PR_MERGED_10 = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const PR_OPEN_11 = { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
+
 test('preferOpen: an OPEN PR outranks a MERGED PR for destructive callers, whichever is newer', async () => {
   // #664 / #570 review scenario: branch reused after its first PR merged.
-  const openNewer = [
-    { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
-    { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' },
-  ];
+  const openNewer = [PR_MERGED_10, PR_OPEN_11];
   const openOlder = [
     { number: 12, state: 'OPEN', mergedAt: null, updatedAt: '2026-01-01T00:00:00Z' },
     { number: 13, state: 'MERGED', mergedAt: '2026-02-01T00:00:00Z', updatedAt: '2026-02-01T00:00:00Z' },
@@ -169,10 +171,7 @@ test('preferOpen: an OPEN PR outranks a MERGED PR for destructive callers, which
 });
 
 test('read-mostly consumers (no opts): MERGED still wins over a newer OPEN PR — explicit regression proof for reap/archive/release', async () => {
-  const prs = [
-    { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
-    { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' },
-  ];
+  const prs = [PR_MERGED_10, PR_OPEN_11];
   const wrapper = installGhWrapper(prs);
   try {
     assert.equal(resolvePrState('/tmp', 'some-branch').number, 10);
@@ -208,10 +207,8 @@ function graphqlResponse(entries) {
 }
 
 test('resolvePrStatesBulk: complete map, tie-break parity with resolvePrState (preferOpen both ways)', () => {
-  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-  const open = { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
   const calls = [];
-  const runner = (args) => { calls.push(args); return graphqlResponse([{ prs: [merged, open] }, { prs: [merged] }, null]); };
+  const runner = (args) => { calls.push(args); return graphqlResponse([{ prs: [PR_MERGED_10, PR_OPEN_11] }, { prs: [PR_MERGED_10] }, null]); };
   const r = resolvePrStatesBulk('/tmp', ['reused', 'merged-only', 'gone'], { preferOpen: true, runner, repoSlug: 'o/r' });
   assert.equal(calls.length, 1);
   assert.ok(calls[0].includes('-f') && calls[0].includes('owner=o') && calls[0].includes('name=r'), 'owner/name must travel via -f (never -F: #610 type-coercion)');
@@ -225,9 +222,7 @@ test('resolvePrStatesBulk: complete map, tie-break parity with resolvePrState (p
 });
 
 test('resolvePrStatesBulk: default tie-break (no preferOpen) matches resolvePrState — MERGED wins over newer OPEN', () => {
-  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-  const open = { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
-  const runner = () => graphqlResponse([{ prs: [merged, open] }]);
+  const runner = () => graphqlResponse([{ prs: [PR_MERGED_10, PR_OPEN_11] }]);
   const r = resolvePrStatesBulk('/tmp', ['reused'], { runner, repoSlug: 'o/r' });
   assert.equal(r.get('reused').number, 10);
 });
@@ -263,15 +258,13 @@ test('resolvePrStatesBulk: degraded responses classify network-failure; missing 
 // call fails closed ('network-failure') when any alias reports it, the same posture already
 // used for a missing alias key.
 test('resolvePrStatesBulk: a branch whose associatedPullRequests page is truncated (hasNextPage) fails the whole call closed', () => {
-  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-  const runner = () => graphqlResponse([{ prs: [merged], hasNextPage: true }]);
+  const runner = () => graphqlResponse([{ prs: [PR_MERGED_10], hasNextPage: true }]);
   const r = resolvePrStatesBulk('/tmp', ['many-prs'], { runner, repoSlug: 'o/r' });
   assert.equal(r, 'network-failure');
 });
 
 test('resolvePrStatesBulk: hasNextPage:false (the normal case) still resolves the map — the guard does not misfire', () => {
-  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-  const runner = () => graphqlResponse([{ prs: [merged], hasNextPage: false }]);
+  const runner = () => graphqlResponse([{ prs: [PR_MERGED_10], hasNextPage: false }]);
   const r = resolvePrStatesBulk('/tmp', ['few-prs'], { runner, repoSlug: 'o/r' });
   assert.equal(r.get('few-prs').number, 10);
 });
