@@ -1,4 +1,5 @@
-const test = require('node:test');
+'use strict';
+const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
@@ -28,7 +29,10 @@ test('auto-decision-log.md warns against an unsignaled partial named list', () =
 });
 
 test('auto-decision-log.md cites the #994 incident that motivated this rule', () => {
-  assert.match(AUTO_DECISION_LOG, /#994/);
+  const completenessIdx = AUTO_DECISION_LOG.indexOf('## Failure-cause completeness');
+  const leverIdx = AUTO_DECISION_LOG.indexOf('## Lever attribution');
+  const completenessSection = AUTO_DECISION_LOG.substring(completenessIdx, leverIdx);
+  assert.match(completenessSection, /#994/);
 });
 
 test('the completeness rule appears between Entry schema and Lever attribution', () => {
