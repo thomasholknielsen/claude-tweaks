@@ -94,5 +94,9 @@
   "plugin/bin/lib/calibration": {
     "lastSweptMs": 1787800160470,
     "lastHash": "db4bafae90436543b1df3a0986ea80112996a913"
+  },
+  "plugin/bin/lib/claim-targets": {
+    "lastSweptMs": 1787886504260,
+    "lastHash": "13a6fcdda81635da397b0f310fefba59629fc2d2"
   }
 }
