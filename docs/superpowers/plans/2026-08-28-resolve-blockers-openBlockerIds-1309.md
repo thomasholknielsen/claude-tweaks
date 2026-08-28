@@ -33,7 +33,7 @@
 - Consumes: nothing new — reuses `nodes` (the already-computed `(node.blockedBy && node.blockedBy.nodes) || []` array) already in scope inside `fetchNativeDependencies`'s per-number loop.
 - Produces: `fetchNativeDependencies(...)` Map values become `{blockedBy: number[], openBlocker: boolean, openBlockerIds: number[]}` — `openBlockerIds` is every `blockedBy` node whose `state === 'OPEN'`, in the same order `nodes` returns them. `bin/resolve-blockers.js`'s CLI JSON output gains the same field per requested number, since it returns the Map value unmodified.
 
-- [ ] **Step 1: Update the two pinned-shape tests in `tests/bin-lib/preflight-records/preflight-records.test.js` to expect `openBlockerIds`**
+- [x] **Step 1: Update the two pinned-shape tests in `tests/bin-lib/preflight-records/preflight-records.test.js` to expect `openBlockerIds`**
 
 Change (around line 68-69):
 
@@ -61,12 +61,12 @@ to:
   assert.deepEqual(deps.get(720), { blockedBy: [700], openBlocker: false, openBlockerIds: [] });
 ```
 
-- [ ] **Step 2: Run the test file to verify it now fails (red) against current code**
+- [x] **Step 2: Run the test file to verify it now fails (red) against current code**
 
 Run: `node --test tests/bin-lib/preflight-records/preflight-records.test.js`
 Expected: FAIL — the two tests touched in Step 1 fail because `deps.get(720)`/`deps.get(721)` don't yet carry `openBlockerIds` (current code returns only `{blockedBy, openBlocker}`, and `assert.deepEqual` rejects a missing expected property).
 
-- [ ] **Step 3: Update the three pinned-shape assertions in `tests/resolve-blockers-cli.test.js`**
+- [x] **Step 3: Update the three pinned-shape assertions in `tests/resolve-blockers-cli.test.js`**
 
 Change (around line 157):
 
@@ -112,12 +112,12 @@ to:
 
 Also update the file's own top-of-file comment (line 7 — "Covers argument parsing and the number-keyed {blockedBy, openBlocker} output shape") to "Covers argument parsing and the number-keyed {blockedBy, openBlocker, openBlockerIds} output shape".
 
-- [ ] **Step 4: Run `tests/resolve-blockers-cli.test.js` to verify it now fails (red) against current code**
+- [x] **Step 4: Run `tests/resolve-blockers-cli.test.js` to verify it now fails (red) against current code**
 
 Run: `node --test tests/resolve-blockers-cli.test.js`
 Expected: FAIL — the three tests touched in Step 3 fail for the same missing-field reason as Step 2.
 
-- [ ] **Step 5: Implement the `openBlockerIds` field in `fetchNativeDependencies`**
+- [x] **Step 5: Implement the `openBlockerIds` field in `fetchNativeDependencies`**
 
 In `plugin/bin/lib/issues/native-dependencies.js`, change the loop body (currently):
 
@@ -154,12 +154,12 @@ Update the file's two shape-describing comments to match:
 - Header comment (lines 4-5): `// {blockedBy: number[], openBlocker: boolean} shape every caller expects.` becomes `// {blockedBy: number[], openBlocker: boolean, openBlockerIds: number[]} shape every caller expects.`
 - Function doc comment (line 16): `// { numbers, owner, repo, runner } -> Map<number, {blockedBy: number[], openBlocker: boolean}>.` becomes `// { numbers, owner, repo, runner } -> Map<number, {blockedBy: number[], openBlocker: boolean, openBlockerIds: number[]}>.`
 
-- [ ] **Step 6: Run both test files to verify they now pass (green)**
+- [x] **Step 6: Run both test files to verify they now pass (green)**
 
 Run: `node --test tests/bin-lib/preflight-records/preflight-records.test.js tests/resolve-blockers-cli.test.js`
 Expected: PASS — every test in both files, including the ones touched above.
 
-- [ ] **Step 7: Update the doc-only comments in `preflight-records.js`, `resolve-blockers.js`, and `docs/plugin-structure.md`**
+- [x] **Step 7: Update the doc-only comments in `preflight-records.js`, `resolve-blockers.js`, and `docs/plugin-structure.md`**
 
 In `plugin/bin/lib/preflight-records/preflight-records.js`, change (line 54):
 
@@ -201,7 +201,7 @@ to:
 parses the response into `{blockedBy: number[], openBlocker: boolean, openBlockerIds: number[]}` per number,
 ```
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add plugin/bin/lib/issues/native-dependencies.js plugin/bin/lib/preflight-records/preflight-records.js plugin/bin/resolve-blockers.js docs/plugin-structure.md tests/bin-lib/preflight-records/preflight-records.test.js tests/resolve-blockers-cli.test.js
@@ -222,12 +222,12 @@ refs #1309"
 - Consumes: `bin/resolve-blockers.js`'s CLI output from Task 1 — `{"<n>": {"blockedBy": [...], "openBlocker": bool, "openBlockerIds": [...]}}` (a plain JSON object keyed by requested number, one key per requested candidate).
 - Produces: `$DISPATCH_GROUPS` (unchanged shape — `groupByFileOverlap` output) and `$DISPATCH_BLOCKED_EXCLUDED` (unchanged shape — `[{number, blockedBy: [ids]}]`, still populated from native exclusions the same way, just computed from `openBlockerIds` directly instead of via `partitionByOpenNativeBlockers`).
 
-- [ ] **Step 1: Pre-check — confirm the current hand-rolled block is exactly what this task replaces**
+- [x] **Step 1: Pre-check — confirm the current hand-rolled block is exactly what this task replaces**
 
 Run: `grep -n "gh api graphql\|DISPATCH_NATIVE_QUERY\|partitionByOpenNativeBlockers" plugin/skills/dispatch/queue-pull-script.md`
 Expected: matches on lines 70-108 (the block this task rewrites) — confirms no other occurrence exists in the file that this task would miss.
 
-- [ ] **Step 2: Remove `DISPATCH_NATIVE_QUERY` from the files map (it becomes unused)**
+- [x] **Step 2: Remove `DISPATCH_NATIVE_QUERY` from the files map (it becomes unused)**
 
 In `plugin/skills/dispatch/queue-pull-script.md`, in the `files` object near the top of the script, delete this line:
 
@@ -235,7 +235,7 @@ In `plugin/skills/dispatch/queue-pull-script.md`, in the `files` object near the
     DISPATCH_NATIVE_QUERY: 'dispatch-native-query.graphql',
 ```
 
-- [ ] **Step 3: Replace the native-mode block and the default fallback**
+- [x] **Step 3: Replace the native-mode block and the default fallback**
 
 Replace (currently lines 70-89):
 
@@ -281,7 +281,7 @@ fi
 
 `bin/resolve-blockers.js` resolves owner/repo itself from the `origin` remote (same as every other caller — `wrap-up/unblocked-records.md` passes no `--repo` either), so the prior `gh repo view --json owner,name` call is dropped entirely, not just the `gh api graphql` line.
 
-- [ ] **Step 4: Replace the final partition/groups block to consume `openBlockerIds` directly**
+- [x] **Step 4: Replace the final partition/groups block to consume `openBlockerIds` directly**
 
 Replace (currently lines 90-108):
 
@@ -339,7 +339,7 @@ node -e "
 
 This is the same OPEN-state filter `partitionByOpenNativeBlockers` applied (`nodes.filter(state === 'OPEN')`), just read from `openBlockerIds` (already computed by `bin/resolve-blockers.js` via Task 1) instead of re-deriving it from a raw GraphQL `repository` object — `partitionByOpenNativeBlockers` itself is untouched and still used elsewhere (record.js's own tests, and any other native-mode caller that still has a raw GraphQL response to partition).
 
-- [ ] **Step 5: Update the file's summary paragraph and the Queue-pull notes pointer sentence**
+- [x] **Step 5: Update the file's summary paragraph and the Queue-pull notes pointer sentence**
 
 In `plugin/skills/dispatch/queue-pull-script.md` line 2, change:
 
@@ -365,7 +365,7 @@ to:
 **Queue-pull notes.** Read `queue-pull-notes.md` in this skill's directory when this repo sets `work-links: native` (the `bin/resolve-blockers.js` branch above), or when either pull returns exactly its `--limit` cap
 ```
 
-- [ ] **Step 6: Update `queue-pull-notes.md`'s two stale references**
+- [x] **Step 6: Update `queue-pull-notes.md`'s two stale references**
 
 In `plugin/skills/dispatch/queue-pull-notes.md` line 3, change:
 
@@ -391,17 +391,17 @@ to:
 **`work-links: native` support.** Under `work-links: native`, one call to `bin/resolve-blockers.js` (the single-invocation CLI wrapping `bin/lib/issues/native-dependencies.js`'s `fetchNativeDependencies` — the same underlying function `/claude-tweaks:dispatch` Step 2 and `flow/materialize.md` use for this mode, and `wrap-up/unblocked-records.md`'s equivalent native-mode check) resolves every eligible candidate's native `blockedBy` state in a single batched, aliased GraphQL request under the hood, keyed by number. The script then drops any candidate whose `openBlockerIds` array is non-empty — the identical OPEN-state predicate `hasOpenNativeBlocker`/`partitionByOpenNativeBlockers` (`bin/lib/issues/record.js`) apply, just read off the CLI's already-computed field instead of re-deriving it from a raw GraphQL response — naming the blocker id(s) for `SKILL.md` Step 2's Blocked-exclusion report, the same outcome `partitionByOpenBodyBlockers`/`parseDependencies` already produces for an open `Blocked by #N` body-text line under `work-links: body-text`. The two modes are mutually exclusive per record, mirroring `flow/materialize.md`'s existing `blocked-by` driver/work-links branching — a project mid-migration with stale body-text lines under `native` is out of scope. The call fails safe: on any error (network, auth, `gh` absent, or a schema mismatch — e.g. a GitHub Enterprise host exposing only `issueDependenciesSummary`, not `blockedBy`) the script logs a warning and falls back to no native filtering for that run rather than crashing Step 2's queue-build entirely — a missed native-dependency check degrades to the pre-`work-links: native` behavior, not a hard failure of headless dispatch.
 ```
 
-- [ ] **Step 7: Grep-verify no hand-rolled `gh api graphql -f query=` instruction remains in the native branch**
+- [x] **Step 7: Grep-verify no hand-rolled `gh api graphql -f query=` instruction remains in the native branch**
 
 Run: `grep -n "gh api graphql" plugin/skills/dispatch/queue-pull-script.md`
 Expected: no output (exit 1 / no matches) — confirms the Acceptance Criteria's "no hand-rolled `gh api graphql -f query=...` instruction" is satisfied.
 
-- [ ] **Step 8: Run the full test suite**
+- [x] **Step 8: Run the full test suite**
 
 Run: `npm test`
 Expected: PASS — every suite, including `tests/resolve-blockers-cli.test.js`, `tests/bin-lib/preflight-records/`, and any prose-conformance test over `plugin/skills/dispatch/queue-pull-script.md`/`queue-pull-notes.md` (e.g. a byte-pinned snippet test, if one exists for this file).
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add plugin/skills/dispatch/queue-pull-script.md plugin/skills/dispatch/queue-pull-notes.md
