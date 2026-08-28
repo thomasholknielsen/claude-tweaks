@@ -175,7 +175,13 @@ main-checkout candidate and was adopted even though the anchored copy existed at
 nested/archived path). An `archive/{id}` shadow is also checked against a *live*, non-archived
 copy of the same run-id under the main checkout — a run can be live under one id while a
 worktree-local session independently archived its own local copy under the same id, and checking
-only the archived path would miss that (`#1183` fix-wave). A bare `mkdir` of a worktree-local pipelines path (the [IL-96]/[IL-127]
+only the archived path would miss that (`#1183` fix-wave). The mirror direction holds too: a
+*live*-shape shadow (no `archive/` prefix) is checked against an **archived** copy of the same
+run-id under the main checkout — a run can be archived at the main checkout while a worktree-local
+session independently kept or re-created a live copy under the same id, and checking only the
+live-to-live path would miss that (`#1299`). Both twin-checks are ORed into the same condition (d):
+a shadow is refused when *any* of the three main-checkout candidates — same pipelines-relative
+path, live twin, archived twin — exists. A bare `mkdir` of a worktree-local pipelines path (the [IL-96]/[IL-127]
 shadow shape `checkPipelineShadowGuard` exists to prevent, above) fails condition (c) and is
 rejected exactly as before — an ordinary run with no worktree-local run dir at all can never
 spuriously match this fallback, satisfying the "blocked vs. absent" distinction the record's

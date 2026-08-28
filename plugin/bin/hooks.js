@@ -163,7 +163,9 @@ function resolveRunArg(args, cwd, env) {
       //       archive/{id} shadow specifically, no LIVE (non-archived) run
       //       dir exists under that same id either, since a run can be live
       //       under one id while a worktree-local session independently
-      //       archived its own local copy under the same id (#1183 fix-wave).
+      //       archived its own local copy under the same id (#1183 fix-wave);
+      //       the mirror also holds for a LIVE-shape shadow: no ARCHIVED run
+      //       dir exists under that same id at the main checkout either (#1299).
       // #1183: (d) used to join only path.basename(resolved), so a nested
       // multi-spec shadow (pipelines/{parent}/spec-N) or an archived shadow
       // (pipelines/archive/{id}) computed the wrong main-checkout candidate
@@ -203,10 +205,22 @@ function resolveRunArg(args, cwd, env) {
       const mainLiveCandidate = (inPipelines && isArchiveShape && runIdSegment)
         ? path.join(mainRoot, '.claude-tweaks', 'pipelines', runIdSegment)
         : null;
+      // #1299: the mirror direction — a LIVE-shape shadow (relParts[0] !==
+      // 'archive') must also be checked against an ARCHIVED copy of the same
+      // run-id under the main checkout. A run can be archived under one id at
+      // the main checkout while a worktree-local session independently kept
+      // (or re-created) a live copy under the same id; checking only the
+      // live/live path (mainCandidate) would miss that, mirroring the exact
+      // gap #1183 closed for the opposite (archive-shape) direction above.
+      const mainArchivedCandidate = (inPipelines && !isArchiveShape && runIdSegment)
+        ? path.join(mainRoot, '.claude-tweaks', 'pipelines', 'archive', runIdSegment)
+        : null;
       // isDirectory already fails closed (try/catch) on a null path, so no
-      // separate truthiness guard is needed for mainLiveCandidate — mirrors
-      // how mainCandidate above is passed through unguarded.
-      const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate);
+      // separate truthiness guard is needed for mainLiveCandidate/
+      // mainArchivedCandidate — mirrors how mainCandidate above is passed
+      // through unguarded.
+      const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate)
+        || isDirectory(mainArchivedCandidate);
       // `inPipelines` is provably implied by `runIdShaped` here (relParts, and so
       // runIdSegment, is only ever populated when inPipelines is true) — kept explicit
       // anyway as a self-documenting invariant a future edit to relParts/runIdSegment's
