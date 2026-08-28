@@ -387,7 +387,17 @@ const GIT_WRITE_ACTIONS = new Set(['commit', 'push', 'mv', 'update-ref', 'rm', '
 // scripts commonly use to validate a patch before applying it for real — the
 // same read/write precision `hasInPlaceFlag` already applies to sed/perl.
 const APPLY_READONLY_FLAGS = new Set(['--check', '--stat', '--numstat', '--summary']);
+// (#976 review) `--apply` is git's own documented override for every flag in
+// APPLY_READONLY_FLAGS above — "git apply --check --apply x.patch" really
+// applies the patch despite --check's presence. A bare `.some()` over
+// APPLY_READONLY_FLAGS ignored `--apply` entirely, so that combination
+// resolved as read-only and bypassed the gate (fail-open). Presence of
+// `--apply` anywhere in the args is treated as disqualifying the read-only
+// classification outright — conservative/fail-closed, and independent of
+// getopt-style last-flag-wins ordering nuances this module has no reason to
+// model.
 function isReadOnlyApply(rest) {
+  if (rest.includes('--apply')) return false;
   return rest.some((a) => APPLY_READONLY_FLAGS.has(a));
 }
 

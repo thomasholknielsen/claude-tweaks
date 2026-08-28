@@ -239,6 +239,15 @@ test('gitTargets recognizes the #976 git-plumbing write verbs, in both the parse
   assert.deepStrictEqual(gitTargets('git apply --stat a.patch', '/repo'), [],
     'git apply --stat is read-only — must resolve no target');
 
+  // (#976 review) `--apply` is git's own documented override for every flag
+  // above — "git apply --check --apply x.patch" really applies the patch
+  // despite --check's presence. Must resolve as a write (fail closed), not
+  // silently classify as read-only (fail open).
+  assert.notDeepStrictEqual(gitTargets('git apply --check --apply a.patch', '/repo'), [],
+    'git apply --check --apply overrides --check back to real application — must resolve a write target');
+  assert.deepStrictEqual(gitTargets('git apply --check --apply a.patch', '/repo'), [{ action: 'apply', dir: '/repo' }],
+    'git apply --check --apply must classify as an apply write target');
+
   // GATE_COVERAGE.gitActions must include every new verb, or the
   // worktree-always gate's own action filter (pre-tool-use.js's
   // checkWorktreeRequired) silently drops these targets even though
@@ -260,6 +269,39 @@ test('gitTargets recognizes the #976 git-plumbing write verbs, in both the parse
       assert.ok(ifs.includes(`Bash(git ${verb} *)`),
         `${group}'s Bash group is missing an "if": "Bash(git ${verb} *)" predicate — gitTargets recognizes 'git ${verb}' but the hook would never spawn for it`);
     }
+  }
+});
+
+// (#976 review) findGitLead's `env git ...` recognition (#590) is generic, not
+// verb-specific — gitTargets already classifies `env git mv/rm/apply/
+// update-ref/update-index/commit-tree ...` as writes, the same shape the
+// existing 'env-git if predicate' test above pins for commit/push. But
+// hooks.json only ever grew `Bash(env git commit *)`/`Bash(env git push *)` —
+// no `Bash(env git {verb} *)` predicate exists for any of the six #976
+// plumbing verbs, in either PreToolUse or PostToolUse. The bare `env git
+// {verb} ...` shape (no env-level flag before `git`) therefore matches no
+// predicate at all: not `Bash(git {verb} *)` (leads with `env`, not `git`),
+// not `Bash(env -*)` (no dash after `env`) — the hook process never spawns,
+// so the parser classification above is dead code for this shape (#70/#590's
+// matcher/parser asymmetry, left open for these six verbs).
+test('every #976 plumbing verb also has an env-git `if` predicate, in both PreToolUse and PostToolUse (#976 review)', () => {
+  const PLUMBING_VERBS = ['mv', 'update-ref', 'rm', 'apply', 'update-index', 'commit-tree'];
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+
+  for (const group of ['PreToolUse', 'PostToolUse']) {
+    const bashGroup = hooks.hooks[group].find((e) => e.matcher === 'Bash');
+    assert.ok(bashGroup, `${group} must carry a Bash matcher group`);
+    const ifs = bashGroup.hooks.map((h) => h.if).filter(Boolean);
+    for (const verb of PLUMBING_VERBS) {
+      assert.ok(ifs.includes(`Bash(env git ${verb} *)`),
+        `${group}'s Bash group is missing an "if": "Bash(env git ${verb} *)" predicate — gitTargets recognizes 'env git ${verb}' but the hook would never spawn for it`);
+    }
+  }
+
+  // Parser side: the shapes these predicates would exist for really do resolve.
+  for (const verb of PLUMBING_VERBS) {
+    assert.deepStrictEqual(gitTargets(`env git ${verb} a b`, '/repo'), [{ action: verb, dir: '/repo' }],
+      `gitTargets must classify 'env git ${verb}' as a write target`);
   }
 });
 
