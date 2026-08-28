@@ -96,6 +96,19 @@ test('resume-confirmation.md documents claim-targets.md as a second caller (#958
   assert.match(content, /#958/);
 });
 
+test('settle-and-merge.md Claim-contest special case also covers the Claim in-flight stop, with a distinct failing-check-name (review finding, #958)', () => {
+  const content = read('plugin/skills/dispatch/settle-and-merge.md');
+  const sectionStart = content.indexOf('**Claim-contest special case');
+  assert.ok(sectionStart !== -1, 'Claim-contest special case section should exist');
+  const sectionEnd = content.indexOf('\n1. The CLI in step 2', sectionStart);
+  assert.ok(sectionEnd !== -1, 'special-case section should end before the numbered steps');
+  const section = content.slice(sectionStart, sectionEnd);
+  assert.match(section, /Claim in-flight/);
+  assert.match(section, /flow-step-2\.8-claim-in-flight/);
+  // both failing-check-names must be distinct and both present
+  assert.match(section, /flow-step-2\.8-claim-contest/);
+});
+
 test('mcp-transport.md no longer carries claim-write sections', () => {
   const content = read('plugin/skills/dispatch/mcp-transport.md');
   assert.doesNotMatch(content, /## Step 4 — claiming a group/);
