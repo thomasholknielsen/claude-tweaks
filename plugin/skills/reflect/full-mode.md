@@ -68,10 +68,13 @@ manufactured. A formal `/claude-tweaks:build`/`/claude-tweaks:flow` run is unaff
 real dev session left untouched for that long before wrap-up finally runs would otherwise lose its
 whole friction record with no error, reopening exactly the blind spot this section exists to close.
 `isOrphanedMint` exempts any `-adhoc-standalone`-suffixed dir from that mtime sweep entirely
-(`isAdHocStandaloneMint`): its real lifecycle answer is the ordinary merged-PR archival path
-`archiveMerged` already runs for every other run dir (it carries a real `worktree` in its
-`run-state.json`, unlike a genuine orphaned mint, which has none), not a blind age heuristic built
-for a different case.
+(`isAdHocStandaloneMint`) rather than racing it against a blind age heuristic built for a
+different case. It carries a real `worktree` in its `run-state.json`, unlike a genuine orphaned
+mint, which has none — but the ordinary merged-PR archival path `archiveMerged` runs for every
+other run dir requires both a still-registered worktree at sweep time and a `console.json`
+written into that exact directory, and nothing in this codebase writes one there. **The exemption
+is currently permanent, with no eventual-cleanup path for a genuinely-abandoned ad-hoc dir —
+tracked as a known gap in #1604.**
 
 **This block is the single machine-checked statement of the vocabulary above** (`tests/reflect-friction-lens-vocab.test.js` pins it against the real `appendEvent(...)` call sites in `bin/lib/hooks/*.js` — a drift here is a test failure, not a silent doc rot, per `#452`'s post-mortem):
 
