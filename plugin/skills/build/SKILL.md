@@ -190,7 +190,7 @@ Execution depends on the chosen execution strategy (see Build Options).
 
 > **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-output-contract.md` for the full pattern.
 
-**subagent** (default): read `dispatch.md` in this skill's directory and follow its full dispatch procedure — tier resolution, `tier=` token handling, AC-forwarding, and review-model pinning. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`.
+**subagent** (default): read `dispatch.md` in this skill's directory and follow its full dispatch procedure — profile resolution, `tier=` alias handling, AC-forwarding, and review-model pinning. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`.
 
 **batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.
 
