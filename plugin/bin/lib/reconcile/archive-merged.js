@@ -27,6 +27,27 @@ const { repoSlugOf } = require('./release-merged');
 // a genuinely abandoned mint is swept the next day.
 const ORPHAN_MINT_TTL_MS = 24 * 60 * 60 * 1000;
 
+// fs.existsSync collapses two different situations into the same `false`:
+// "confirmed absent" (stat failed with ENOENT) and "inconclusive — stat
+// failed for some other reason" (EMFILE/ENFILE under fd pressure, a
+// transient EACCES, etc. — verified directly against this Node version:
+// blocking a directory's traversal with chmod 000 makes fs.existsSync on a
+// path that genuinely exists on disk report `false`, same as a real
+// absence). On a machine running many concurrent worktree/agent sessions —
+// each spawning its own burst of git subprocesses — that second case is
+// reachable, and existsSync gives isOrphanedMint no way to tell it apart
+// from "isn't there." Only a confirmed ENOENT should count as absent;
+// anything else must fail safe toward "not orphaned", matching the mtime
+// read below, which already treats any stat failure that way.
+function definitelyAbsent(p) {
+  try {
+    fs.statSync(p);
+    return false;
+  } catch (err) {
+    return err.code === 'ENOENT';
+  }
+}
+
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
 // is what writes it) and older than the grace window. Pure — no I/O beyond
 // the stats already needed to answer the question.
@@ -41,9 +62,9 @@ const ORPHAN_MINT_TTL_MS = 24 * 60 * 60 * 1000;
 // against the non-empty destination the earlier archival pass left behind
 // — the actual live cause behind #1290's reported 'move-failed' streak.
 function isOrphanedMint(dir, now = Date.now()) {
-  if (fs.existsSync(path.join(dir, 'config.yml'))) return false;
+  if (!definitelyAbsent(path.join(dir, 'config.yml'))) return false;
   const archiveDir = path.join(path.dirname(dir), 'archive', path.basename(dir));
-  if (fs.existsSync(archiveDir)) return false;
+  if (!definitelyAbsent(archiveDir)) return false;
   let mtimeMs;
   try {
     mtimeMs = fs.statSync(dir).mtimeMs;

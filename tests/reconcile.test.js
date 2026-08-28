@@ -546,6 +546,32 @@ test('isOrphanedMint: false when an archive twin already exists, even with no co
   assert.strictEqual(isOrphanedMint(dir), false);
 });
 
+// #1290 (flake investigation): fs.existsSync collapses "confirmed absent"
+// and "stat() failed for some other reason" (EMFILE/ENFILE under fd
+// pressure from many concurrent git subprocesses on a busy multi-agent
+// machine, a transient EACCES, ...) into the same `false`. Simulate the
+// "other reason" case directly by blocking traversal into the archive twin's
+// parent — stat(archiveDir) then fails with EACCES, not ENOENT — and assert
+// isOrphanedMint still fails safe (not orphaned) instead of misreading the
+// inconclusive stat as "twin doesn't exist" and returning the destructive
+// `true`.
+test('isOrphanedMint: false when the archive-twin stat is inconclusive (not a confirmed ENOENT)', () => {
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const runId = '2026-08-09T122833-spec-271-267';
+  const dir = mintEmptyRunDir(root, runId, { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
+  const archiveParent = path.join(root, '.claude-tweaks', 'pipelines', 'archive');
+  const archiveDir = path.join(archiveParent, runId);
+  fs.mkdirSync(path.join(archiveDir, 'spec-267', 'work'), { recursive: true });
+  fs.writeFileSync(path.join(archiveDir, 'spec-267', 'work', '267-spec.md'), '# spec\n');
+  fs.chmodSync(archiveParent, 0o000);
+  try {
+    assert.strictEqual(isOrphanedMint(dir), false);
+  } finally {
+    fs.chmodSync(archiveParent, 0o755);
+  }
+});
+
 test('archiveMerged: a run dir with an archive twin and no resolvable branch is skipped, not collided into the twin', () => {
   const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();
