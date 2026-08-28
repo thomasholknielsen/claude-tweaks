@@ -567,6 +567,9 @@ test('archiveMerged: a run dir with an archive twin and no resolvable branch is 
     '# spec\n',
     'the existing archive twin content must be undisturbed',
   );
+  const skippedEntry = result.skipped.find((s) => s.runDir === dir);
+  assert.ok(skippedEntry, 'expected a skipped entry for this dir');
+  assert.equal(skippedEntry.reason, 'no-branch', 'skipped for lack of a resolvable worktree/branch — never for move-failed (the pre-fix collision)');
 });
 
 test('archiveMerged: an orphaned mint older than the TTL is archived on the next sweep, not left in place', () => {
