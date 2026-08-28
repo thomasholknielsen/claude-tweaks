@@ -82,7 +82,8 @@ async function run(ctx) {
         'claude-tweaks: unfinished pipeline run(s) detected under .claude-tweaks/pipelines/:\n' +
           lines.join('\n') +
           `\nReview {run}/decisions.md and staged/ to resume, or close a finished run with: node "${pluginRoot}/bin/hooks.js" close-run --run <dir>` +
-          '\nRelay this list once, in your first reply to the user, one line per run naming its close-run command — do not proceed silently without mentioning it.',
+          '\nRelay this list once, in your first reply to the user, one line per run naming its close-run command — do not proceed silently without mentioning it.' +
+          '\nSay with it that only the session owning a run should close it: a listed run may be live in a sibling session right now, and closing it ends that run enforcement and event logging mid-flight.',
       );
     }
   } catch { /* best-effort */ }
