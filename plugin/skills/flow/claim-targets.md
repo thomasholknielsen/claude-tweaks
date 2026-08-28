@@ -183,14 +183,28 @@ target, exactly as before this CLI existed.
   invocation (`dispatch/settle-and-merge.md`'s Claim-contest special case already self-reports and
   stops for this exact stop shape — nobody headless is present to answer a resume confirmation);
   the card above is the terminal output for that form. Otherwise, parse the PR number from the
-  trailing path segment of `link` and `gh pr view {number} --json body`, reading the body for the
-  `claude-tweaks-run: {run-id}` marker (`_shared/pr-early-run-lifecycle.md`'s dual-marker scheme —
-  the plain-text form, since this read has no preference for the HTML-comment one). No marker
-  found, `gh` unavailable, or the resolved `$RUN_ROOT/.claude-tweaks/pipelines/{run-id}` directory
-  absent (a foreign PR, or one whose run dir was already reaped) — the card above is the terminal
-  output; there is nothing to route into. A resolved run-id: follow
-  `dispatch/resume-confirmation.md`'s full "Confirm before resuming" procedure now, passing this
-  run's own `{target}` and the resolved directory as `{run-dir}`. That file's own freshness probe
+  trailing path segment of `link` (already validated same-repo-PR-URL-shaped by
+  `tombstoneInFlightPr` before this branch is ever reached) and `gh pr view {number} --json body`,
+  reading the body for both the `claude-tweaks-run: {run-id}` marker
+  (`_shared/pr-early-run-lifecycle.md`'s dual-marker scheme — the plain-text form, since this read
+  has no preference for the HTML-comment one) and, on the same read, that file's `### Resume`
+  section — the exact command line `` `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}"
+  {next-step}` `` composed once at PR-open time (that file's Step 3), carrying the found run's
+  *actual* record composition — single- or multi-spec (`flow/multi-spec.md`'s "Multi-spec runs
+  share one PR"). **Validate `{run-id}` before using it for anything**: a PR body is editable by
+  anyone with write access to it, so this value is exactly as untrusted as `link`, and gets the
+  same reject-rather-than-sanitize treatment `tombstoneInFlightPr` already applies there — require
+  it to match `^\d{4}-\d{2}-\d{2}T\d{6}-[a-z0-9][a-z0-9-]*$` (the canonical run-id shape,
+  `_shared/pipeline-run-dir.md`'s ISO-timestamp + spec-slug convention) with no `/` or `..`
+  anywhere in it; a value that doesn't match is treated identically to no marker found. No marker
+  found, the marker fails that validation, `gh` unavailable, the `### Resume` line is missing or
+  doesn't parse, or the resolved `$RUN_ROOT/.claude-tweaks/pipelines/{run-id}` directory absent (a
+  foreign PR, or one whose run dir was already reaped) — the card above is the terminal output;
+  there is nothing safe to route into. Otherwise: follow `dispatch/resume-confirmation.md`'s full
+  "Confirm before resuming" procedure now, passing the parsed `### Resume` line's own `{target}`
+  (the found run's actual record composition — never substitute this claim loop's own single
+  stopped target for it; the two coincide only in the common single-record case) and the
+  validated `{run-id}`'s resolved directory as `{run-dir}`. That file's own freshness probe
   (`check-resume-freshness`) is what tells a genuinely still-running build (`BLOCKED` — report the
   line verbatim and stay stopped, exactly as an unresolved run-id would) apart from one that only
   looks in-flight because its tombstone hasn't caught up yet (`OK` — its own `AskUserQuestion`
