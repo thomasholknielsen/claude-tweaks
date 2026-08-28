@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "record-1210",
-  "sessionId": "ab4a7346-7d0b-46f0-9bfe-d0229e699d1b",
-  "claimedAt": "2026-08-28T09:46:14.049Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "self-correcting mis-stamped runId before build (record-1210 was wrong basename, correct is 2026-08-28T094458-record-1210)",
+  "releasedAt": "2026-08-28T09:47:13.080Z"
 }
