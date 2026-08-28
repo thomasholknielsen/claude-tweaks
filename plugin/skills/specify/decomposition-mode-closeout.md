@@ -85,6 +85,9 @@ Present a summary. The `Collapse outcome` line below renders in every decomposit
 ### Artifacts Removed
 - Design doc: `docs/superpowers/specs/{filename}` (absorbed into the records this run produced)
 
+### Teardown (optional — render only when the check below finds the branch net-empty)
+{one paste-ready line, see below}
+
 ### Diagram suggestions (optional — render only when Step 2.5d emitted any)
 - {one or two `**Diagram suggestion:** …` blocks emitted by Step 2.5d}
 ```
@@ -115,3 +118,5 @@ git log --oneline -1   # verify it landed when a commit was made (see _shared/gi
 ```
 
 By the time Next Actions renders, any commit from this step has already happened.
+
+**Net-empty teardown line (#613).** Once the commit above lands (or confirms nothing to stage), check whether this run's own design-doc deletion left the current branch net-empty vs. its own fork point — the canonical shape when a scratch worktree/branch existed only to carry the design doc through decomposition, invisible to `/tidy`'s merged-only worktree scan (`tidy/scan-procedures.md`'s net-empty override, `tidy/step-6-auto.md`'s Delete row). Resolve `{base}` per `_shared/integration-branch.md`, then `git diff --quiet "$(git merge-base {base} HEAD)" HEAD`. Exit 0 (no diff) → render the Teardown section above with one paste-ready line: `git branch -D {branch}` when this run ran directly on the checkout, or `git worktree remove {worktree-path} && git branch -D {branch}` when it ran inside a linked worktree (detect via `worktree-detect.js`'s `isLinkedWorktree`, `_shared/integration-branch.md` rank 5's snippet). Never run this line — Step 9 only prints it. Non-zero (real content) → omit the Teardown section entirely.
