@@ -44,13 +44,41 @@ skill`) silently keep a real cluster below the ≥3 threshold forever.
 basename), else the invoking skill's name. The entry itself is the durable audit trail — a
 no-run-dir routing is never unlogged.
 
+**`Defer-reason:` for producers that never run the deferral gate.** The four health sweeps
+(`code-health`, `docs-health`, `harness-health`, `journey-health`) route findings about *other*
+code they audited, not residue of a fix-now attempt on their own diff — `_shared/deferral-gate.md`
+never applies to them (per #1262's Current State: "These do NOT cite the deferral gate"). Neither
+that file's closed `Defer-reason:` vocabulary nor `bin/lib/issues/record.js`'s `DEFER_REASONS` was
+built to describe this producer class, and extending that closed set for it would also change
+`clearsFloor`'s (`bin/lib/issues/autonomy.js`) unrelated autonomy-grant floor — a much larger
+change than this gap needs, since a digest entry is a comment append, never a `recordPayload` call.
+Instead: a finding from one of these four producers, or any future producer that files directly
+without running the deferral gate, stamps the fixed literal value `Defer-reason: proactive-sweep`
+in this entry format's field — a contract-level exception documented here, not a `DEFER_REASONS`
+member, never validated against that vocabulary and never evaluated by `clearsFloor`.
+
+## Dedup
+
+Before composing this run's routing (the comment or file-append below), read the container's
+currently **active** entries — no trailing marker (`→ {id}` / `→ expired`) — the same read
+`tidy/digest-sweep.md`'s cluster promotion already performs across every comment
+(`work-backend: github-issues`) or the whole file (`work-backend: local-files`). Drop any of this
+run's below-floor findings whose `{area}` plus its one-line finding and `{file refs}`, each
+whitespace-collapsed and lowercased, already matches an active entry's same triple — do not append
+a duplicate line for a finding the container already holds. The existing entry's `{provenance}`
+stays exactly as originally filed; a re-encounter never rewrites it and never restarts that entry's
+90-day expiry clock. Because a re-encountered finding never gets a second line, `tidy/digest-sweep.md`'s
+cluster-promotion count (which counts entry *lines*) can never count the same real-world finding
+toward its ≥3 threshold more than once.
+
 ## Container
 
 **`work-backend: github-issues`:** one pinned rolling issue labeled `digest`. Before routing, list
 open `digest`-labeled issues (`gh issue list --label digest --state open`); create one only when
 none exists, bootstrapping the label first (`_shared/label-bootstrap.md`). Route by posting one
-comment per run, aggregating that run's below-floor items — one comment URL per run, never one
-comment per item. All writes go through `_shared/github-write-transport.md`. Routing appends are
+comment per run, aggregating that run's below-floor items that survive the Dedup fold above — one
+comment URL per run, never one comment per item. All writes go through
+`_shared/github-write-transport.md`. Routing appends are
 append-only; the one sanctioned exception is the `/tidy` digest sweep's promotion/expiry marker
 edits (`tidy/digest-sweep.md`). A creation race that leaves two open `digest` issues is repaired
 by that same sweep: merge the newer issue's comments into the older, then close the newer.
@@ -67,8 +95,21 @@ closing the container out from under every entry it holds. Only the digest sweep
 replacement in the same move.
 
 **`work-backend: local-files`:** `specs/digest.md`, entries appended in place (single-writer
-backend, no rollover needed). Promotion marks the entry line with a trailing `→ {id}`. Expiry
-moves entry lines to an `## Archived {YYYY-MM-DD}` section at the bottom of the same file.
+backend, no rollover needed) after the same Dedup fold above (read the whole file instead of every
+comment). Promotion marks the entry line with a trailing `→ {id}`. Expiry moves entry lines to an
+`## Archived {YYYY-MM-DD}` section at the bottom of the same file.
+
+## Summary surfacing
+
+Every adopter's own summary/report output surfaces this run's routing to this digest, distinctly
+from the unrelated per-origin cap-digest mechanism (`_shared/health-filing-digest.md`): when this
+run routed at least one finding here, the adopter states the count and this run's digest comment
+URL (`work-backend: github-issues`) or that `specs/digest.md` was appended
+(`work-backend: local-files`); a zero-routing run states the count as `0` rather than omitting the
+line, so digest activity is never silently inferred. The four health sweeps additionally carry this
+as a `materiality-digest: K` field on their existing `filed: N, digested: M, cap: {CAP}` throttle
+line (`_shared/health-filing-digest.md`'s SUMMARIZE step) — `M` (cap-digest) and `K`
+(materiality-digest) are two different mechanisms and must never be folded into one number.
 
 ## Audit line
 

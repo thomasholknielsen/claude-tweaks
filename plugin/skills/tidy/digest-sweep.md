@@ -43,6 +43,10 @@ Individual entries — including solitary ones that never cluster — remain man
 re-filable at any time; the ≥3 threshold gates only this sweep's own automatic *proposals*, never a
 human's ability to act on a single entry directly.
 
+A re-encountered finding never produces a second line to begin with (`_shared/materiality-floor.md`'s
+Dedup fold, applied by every adopter at routing time) — this count therefore never double-counts one
+real-world finding toward the ≥3 threshold.
+
 ### Expiry
 
 Un-promoted entry lines older than 90 days (parsed from each entry's `{provenance}` — a run-id's

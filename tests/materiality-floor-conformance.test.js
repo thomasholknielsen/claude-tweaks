@@ -17,6 +17,7 @@ const GATE = read('plugin/skills/_shared/deferral-gate.md');
 const SWEEP = read('plugin/skills/tidy/digest-sweep.md');
 const TIDY_SKILL = read('plugin/skills/tidy/SKILL.md');
 const TIDY_RECORDS = read('plugin/skills/tidy/step-1-records.md');
+const RECORD_JS = read('plugin/bin/lib/issues/record.js');
 
 test('materiality-floor.md states the floor definition (all three low axes, fail-toward-filing)', () => {
   assert.ok(/size:low/i.test(FLOOR));
@@ -180,6 +181,92 @@ test('multi-branch adopter files cite materiality-floor.md at each of their fili
     assert.ok(
       count >= 2,
       `${rel} should cite _shared/materiality-floor.md at every one of its filing branches (found ${count})`,
+    );
+  }
+});
+
+// --- #1279: Defer-reason vocabulary for direct-filing producers (health sweeps) ---
+
+test('materiality-floor.md defines a contract-level Defer-reason exception for direct-filing producers', () => {
+  assert.ok(FLOOR.includes('## Entry format'));
+  assert.match(FLOOR, /Defer-reason: proactive-sweep/);
+  assert.match(
+    FLOOR,
+    /not a `DEFER_REASONS`\s+member/,
+    'the exception must be explicit that this value is a contract exception, not a DEFER_REASONS member',
+  );
+});
+
+test('proactive-sweep is deliberately NOT a DEFER_REASONS member (the contract-exception path, not a vocabulary extension)', () => {
+  const defersBlock = RECORD_JS.slice(RECORD_JS.indexOf('DEFER_REASONS = Object.freeze(['), RECORD_JS.indexOf(']);'));
+  assert.ok(!defersBlock.includes('proactive-sweep'), 'proactive-sweep must stay out of the closed DEFER_REASONS set — see materiality-floor.md\'s rationale');
+});
+
+test('the four health sweeps stamp Defer-reason: proactive-sweep on digest-routed entries', () => {
+  const HEALTH_FILES = [
+    'plugin/skills/code-health/filing.md',
+    'plugin/skills/docs-health/SKILL.md',
+    'plugin/skills/harness-health/filing.md',
+    'plugin/skills/journey-health/SKILL.md',
+  ];
+  for (const rel of HEALTH_FILES) {
+    assert.match(
+      read(rel),
+      /Defer-reason: proactive-sweep/,
+      `${rel} should stamp Defer-reason: proactive-sweep on entries it routes to the materiality digest`,
+    );
+  }
+});
+
+// --- #1279: dedup for materiality digest entries ---
+
+test('materiality-floor.md defines a Dedup fold, applied before routing, that preserves an existing entry\'s provenance', () => {
+  assert.ok(FLOOR.includes('## Dedup'));
+  const dedupIdx = FLOOR.indexOf('## Dedup');
+  const containerIdx = FLOOR.indexOf('## Container');
+  assert.ok(dedupIdx !== -1 && containerIdx > dedupIdx, 'Dedup section must precede Container');
+  const section = FLOOR.slice(dedupIdx, containerIdx);
+  assert.ok(/do not append\s+a duplicate line/.test(section), 'the fold must state it prevents a duplicate line, not just a duplicate judgment');
+  assert.ok(section.includes('never restarts that entry\'s'), 'the fold must state the existing entry\'s provenance/expiry clock is preserved, not reset');
+});
+
+test('materiality-floor.md\'s Container routing sentence is gated on surviving the Dedup fold', () => {
+  assert.match(FLOOR, /that survive the Dedup fold/);
+});
+
+test('digest-sweep.md states the dedup invariant: a re-encountered finding never gets a second line', () => {
+  assert.match(SWEEP, /never produces a second line/);
+  assert.ok(SWEEP.includes('_shared/materiality-floor.md'));
+});
+
+// --- #1279: digest activity surfaced in adopters' own summaries ---
+
+test('materiality-floor.md defines Summary surfacing, distinct from the cap-digest mechanism', () => {
+  assert.ok(FLOOR.includes('## Summary surfacing'));
+  const idx = FLOOR.indexOf('## Summary surfacing');
+  const section = FLOOR.slice(idx, FLOOR.indexOf('## Audit line'));
+  assert.match(section, /materiality-digest: K/);
+  assert.match(section, /must never be folded into one number/);
+});
+
+test('the four health sweeps\' throttle line reports a materiality-digest count distinct from the cap-digest count', () => {
+  const HEALTH_FILES = [
+    'plugin/skills/code-health/SKILL.md',
+    'plugin/skills/docs-health/SKILL.md',
+    'plugin/skills/harness-health/SKILL.md',
+    'plugin/skills/journey-health/SKILL.md',
+  ];
+  for (const rel of HEALTH_FILES) {
+    const content = read(rel);
+    assert.match(
+      content,
+      /filed: N, digested: M, cap: \{CAP\}, materiality-digest: K/,
+      `${rel}'s throttle line should carry a distinct materiality-digest: K field`,
+    );
+    assert.match(
+      content,
+      /name the digest comment URL when `K` is greater than `0`/,
+      `${rel} should surface the digest comment URL when materiality-digest routing occurred this run`,
     );
   }
 });
