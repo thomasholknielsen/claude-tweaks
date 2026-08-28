@@ -80,6 +80,15 @@ Each entry follows this shape:
 | Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED and REFUSED entries: N/A — nothing to revert) |
 | Commit ref / stage path | when reversible | `commit abc1234` or `stage path: staged/...` |
 
+## Failure-cause completeness (test-gate entries)
+
+A test-gate entry (any entry reporting a check-suite outcome — `/test`'s verification report, `/review` Step 1.5's standalone gate, or a multi-spec pre-flight sweep) that states a failure count and names specific failure causes must account for **every** failure in that count, not a subset that reads as complete. Two shapes satisfy this:
+
+- **Full enumeration** — name every failure (by test file, category, or root cause) until the named list's count matches the stated total.
+- **Explicit partial signal** — when full enumeration is impractical, state the count and point to the full log instead of a partial named list: `{N} failures — see full log at {path}`.
+
+Never write a partial named list (e.g. "8 fail: {6 named categories}") with no signal that 2 are omitted — a reader has no way to distinguish a complete enumeration from a partial one. This bit `/wrap-up` on #994: a first `/flow` call's Step-4 test-gate entry named 6 of 8 failure categories, silently omitting 2; the gap surfaced only because a second, independent pass re-derived from raw output rather than trusting the entry.
+
 ## Lever attribution (optional trailing field)
 
 A decision that consulted a policy/config lever may name it at the end of its entry:
