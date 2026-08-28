@@ -7,6 +7,16 @@ When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the 
 
 **A recurring staged item is a missing routing rule.** The Approve bucket should be empty in steady state: when the same class of finding stages run after run, the fix is a routing row — or a reconcile check — that disposes of it mechanically, not a faster approval habit. The durable exception is outward-facing GitHub writes, which the skill-side auto-mode contract forbids at every tier (`_shared/auto-mode-contract.md`); mechanical dispositions of outward state therefore ride on reconcile's background convergence (the reconcile-converged rows below), never on a tidy tier.
 
+**An Auto-apply row must be safe for every finding its class can produce.** A row disposes of a
+whole class mechanically — the tier is applied as written, never re-judged per item — so a class
+whose classification rests on parsing or inference rather than a flat field read must resolve its
+unclassifiable-input case *upstream*, in the scan procedure that emits the finding, not here.
+State the fallback there (exclude the item, or emit it as a separate Stage-tier recommendation);
+on the `local-files` side especially there is no staging review downstream to catch a
+misclassification before the edit lands. The `Expiry summary` (`local-files`) row is the worked
+example: its unparseable-`{provenance}` exclusion lives in `digest-sweep.md`'s Expiry procedure,
+which is why the row itself can stay a one-line tier assignment.
+
 **`local-merge` caveat (stated once, referenced by the reconcile-converged rows):** reconcile's checks run under `integration-model: pr-first` only (resolved per `_shared/integration-model.md`; `bin/lib/reconcile/index.js`'s guard). Under `local-merge`, nothing below converges — except `reap`, which falls back to `worktree-reap.js`'s long-standing ancestry check — every other such finding keeps today's staging behavior, unchanged.
 
 For each finding, route by recommendation type:
