@@ -176,11 +176,27 @@ target, exactly as before this CLI existed.
   Next: resolve or merge that PR before dispatching a fresh build.
   ```
 
-  No `AskUserQuestion` — same as the contest card, the pipeline cannot proceed with a target
-  already mid-build. **Known gap:** this renders as a stop, matching the contest card's blocking
-  behavior, but does not yet route into Step 6's resume/merge-decision machinery for an open-PR
-  run (the "settle the existing build" framing the issue that added this check described) — that
-  hook-in is unimplemented.
+  No `AskUserQuestion` from this card itself — same as the contest card, this file never asks.
+
+  **Route into the existing build's resume/merge-decision machinery (#958), when a human can act
+  on it.** Skip this routing entirely when `DISPATCH_HEADLESS=1` was set on this Task call's
+  invocation (`dispatch/settle-and-merge.md`'s Claim-contest special case already self-reports and
+  stops for this exact stop shape — nobody headless is present to answer a resume confirmation);
+  the card above is the terminal output for that form. Otherwise, parse the PR number from the
+  trailing path segment of `link` and `gh pr view {number} --json body`, reading the body for the
+  `claude-tweaks-run: {run-id}` marker (`_shared/pr-early-run-lifecycle.md`'s dual-marker scheme —
+  the plain-text form, since this read has no preference for the HTML-comment one). No marker
+  found, `gh` unavailable, or the resolved `$RUN_ROOT/.claude-tweaks/pipelines/{run-id}` directory
+  absent (a foreign PR, or one whose run dir was already reaped) — the card above is the terminal
+  output; there is nothing to route into. A resolved run-id: follow
+  `dispatch/resume-confirmation.md`'s full "Confirm before resuming" procedure now, passing this
+  run's own `{target}` and the resolved directory as `{run-dir}`. That file's own freshness probe
+  (`check-resume-freshness`) is what tells a genuinely still-running build (`BLOCKED` — report the
+  line verbatim and stay stopped, exactly as an unresolved run-id would) apart from one that only
+  looks in-flight because its tombstone hasn't caught up yet (`OK` — its own `AskUserQuestion`
+  offers Resume); this call site makes no freshness judgment of its own, and asks nothing directly
+  — either the headless skip above or `resume-confirmation.md`'s own gate owns every user-facing
+  decision here.
 - **4** — transient `gh` failure, same fail-fast/all-or-abort shape as exit 3: stdout carries
   `{transient: [{issue, error}], released, releaseFailed}`, release already attempted. Render the
   transient-failure card below.
