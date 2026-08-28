@@ -87,7 +87,7 @@ node -e "
   const excludedNative = [];
   for (const c of eligible) {
     const dep = nativeDeps[c.number];
-    const openIds = dep && Array.isArray(dep.openBlockerIds) ? dep.openBlockerIds : [];
+    const openIds = (dep && Array.isArray(dep.openBlockerIds)) ? dep.openBlockerIds : [];
     if (openIds.length > 0) excludedNative.push({ number: c.number, blockedBy: openIds });
     else finalEligible.push(c);
   }

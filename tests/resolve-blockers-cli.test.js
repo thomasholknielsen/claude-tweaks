@@ -5,10 +5,9 @@
 // this CLI's whole point is a `gh api graphql` call that must never be live
 // in a test — a fake runner in deps.runner stands in for it). Covers
 // argument parsing and the number-keyed {blockedBy, openBlocker, openBlockerIds}
-// output shape; the
-// GraphQL query-building logic itself (buildNativeDependencyQuery) already
-// has coverage in tests/bin-lib/issues/record.test.js and is not
-// re-verified here.
+// output shape; the GraphQL query-building logic itself
+// (buildNativeDependencyQuery) already has coverage in
+// tests/bin-lib/issues/record.test.js and is not re-verified here.
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
