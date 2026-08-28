@@ -117,7 +117,7 @@ The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
 
 **Plan header artifact:** Every plan written by `/superpowers:writing-plans` starts with a "For agentic workers" block that advertises `subagent-driven-development` (recommended) or `executing-plans` as the next step. **Ignore it.** `/build` controls execution strategy — the header is boilerplate from writing-plans's general-purpose handoff. Do not treat it as guidance for this build. (Same rule applies in Design Step 3 below.)
 
-**Plan-authoring checks:** before finalizing the plan, run every check in `plan-authoring-checks.md` in this skill's directory — return-shape widening, blocking-verification downgrades, deictic-reference re-resolution, verbatim-command run-once verification, degrade-clause convention citation, copied-config re-derivation, and renumbering completeness. (Same checks apply in Design Step 3 below.)
+**Plan-authoring checks:** before finalizing the plan, run every check in `plan-authoring-checks.md` in this skill's directory — return-shape widening, blocking-verification downgrades, deictic-reference re-resolution, verbatim-command run-once verification, degrade-clause convention citation, copied-config re-derivation, renumbering completeness, and gate-over-producers tracing. (Same checks apply in Design Step 3 below.)
 
 **Size-headroom check:** when a plan task appends to a `skills/_shared/*.md` or `SKILL.md` file already within ~10% of the 40 KB ceiling, measure `wc -c` against the ceiling on the merge base and name the split up front in the plan, rather than discovering the overflow at test time. (Same check applies in Design Step 3 below.)
 
