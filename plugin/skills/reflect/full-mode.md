@@ -61,8 +61,10 @@ manufactured. A formal `/claude-tweaks:build`/`/claude-tweaks:flow` run is unaff
 `PIPELINE_RUN_DIR` is set (or `record-worktree` stamps ownership) before `EnterWorktree` fires, so
 `stampAdHocRunDir` sees an already-owned run and never mints a second, competing one.
 
-**Lifecycle: surviving the orphan-mint sweep (#1117).** An ad-hoc dir never gets a `config.yml`
-(only `/flow`'s Manifesto writes one), which is also the signal the background reconcile sweep
+**Lifecycle: surviving the orphan-mint sweep (#1117).** An ad-hoc dir never gets a `config.yml` in
+practice either (`/flow`'s Manifesto is what writes one; `bin/set-config.js`'s `setConfigLever`
+also creates the file in whatever run dir its `--run` names, but no caller ever points it at an
+ad-hoc dir), which is also the signal the background reconcile sweep
 (`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint`) uses to detect an abandoned
 `/flow`/`/dispatch` pre-Manifesto mint and silently archive it after 24h of no mtime activity — a
 real dev session left untouched for that long before wrap-up finally runs would otherwise lose its
