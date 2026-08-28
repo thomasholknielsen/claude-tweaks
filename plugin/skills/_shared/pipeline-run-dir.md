@@ -105,10 +105,12 @@ writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <valu
 ceremony escape hatch's downgrade path, refs #1376) the same way — none of the three are
 subject to this tool-level pinning, and all work identically from a worktree session or the
 main checkout. Reach for `bin/set-config.js` rather than a hand-rolled `sed -i` on `config.yml`
-even from a Bash call: a `sed -i` target built from a shell variable (`"$RUN_DIR/config.yml"`)
-is denied fail-closed by the gate's own path-exemption check, since the gate matches the literal
-command text and never expands the variable first — `policy-schema-coverage.md`'s "A
-shell-variable path is unresolvable by construction" note has the full mechanism.
+even from a Bash call: a `sed -i` target built from a shell variable set in an earlier command
+(`"$RUN_DIR/config.yml"`) is unresolvable to the gate's own path-exemption check, since the gate
+matches the literal command text and only substitutes a variable it sees assigned in that same
+command — and unresolvable means the write is silently allowed unguarded, not denied —
+`policy-schema-coverage.md`'s "A shell-variable path is unresolvable by construction, and
+unresolvable means unguarded, not denied" note has the full mechanism.
 
 A second, unconditional PreToolUse guard (`bin/lib/hooks/pre-tool-use.js`'s
 `checkPipelineShadowGuard`, not gated on `worktree-always`) denies the opposite direction: an
