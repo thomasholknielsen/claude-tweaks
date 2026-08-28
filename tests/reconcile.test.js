@@ -526,6 +526,49 @@ test('isOrphanedMint: true when empty (no config.yml) and older than the TTL', (
   assert.strictEqual(isOrphanedMint(dir), true);
 });
 
+// #1290: an already-partially-archived, long-idle multi-spec run (its
+// top-level work/ already `git mv`'d into an archive twin and committed,
+// only gitignored bookkeeping — events.jsonl/run-state.json/staged/ —
+// left behind) has no top-level config.yml, same as a bare dispatch mint.
+// Without an archive-twin check, isOrphanedMint misclassified this shape
+// as orphaned, and archiveOrphanedMint's whole-directory rename then threw
+// ENOTEMPTY against the non-empty destination — the actual live cause of
+// #1290's reported 'move-failed' streak (confirmed via direct
+// fs.renameSync reproduction against the real stuck path).
+test('isOrphanedMint: false when an archive twin already exists, even with no config.yml and past the TTL', () => {
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const runId = '2026-08-09T122833-spec-271-267';
+  const dir = mintEmptyRunDir(root, runId, { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  fs.mkdirSync(path.join(archiveDir, 'spec-267', 'work'), { recursive: true });
+  fs.writeFileSync(path.join(archiveDir, 'spec-267', 'work', '267-spec.md'), '# spec\n');
+  assert.strictEqual(isOrphanedMint(dir), false);
+});
+
+test('archiveMerged: a run dir with an archive twin and no resolvable branch is skipped, not collided into the twin', () => {
+  const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const runId = '2026-08-09T122833-spec-271-267';
+  const dir = mintEmptyRunDir(root, runId, { ageMs: ORPHAN_MINT_TTL_MS + 60000 });
+  fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({
+    worktree: '/nonexistent/worktree/path', status: 'interrupted',
+  }));
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  fs.mkdirSync(path.join(archiveDir, 'spec-267', 'work'), { recursive: true });
+  fs.writeFileSync(path.join(archiveDir, 'spec-267', 'work', '267-spec.md'), '# spec\n');
+
+  const result = archiveMerged({ cwd: root });
+
+  assert.ok(!result.archived.includes(dir), 'not archived — no worktree left to resolve a branch/PR from');
+  assert.ok(fs.existsSync(dir), 'the stuck run dir must be left in place, not partially collided into its twin');
+  assert.strictEqual(
+    fs.readFileSync(path.join(archiveDir, 'spec-267', 'work', '267-spec.md'), 'utf8'),
+    '# spec\n',
+    'the existing archive twin content must be undisturbed',
+  );
+});
+
 test('archiveMerged: an orphaned mint older than the TTL is archived on the next sweep, not left in place', () => {
   const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
   const root = bareRepoRoot();

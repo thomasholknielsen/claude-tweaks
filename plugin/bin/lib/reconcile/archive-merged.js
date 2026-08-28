@@ -29,9 +29,21 @@ const ORPHAN_MINT_TTL_MS = 24 * 60 * 60 * 1000;
 
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
 // is what writes it) and older than the grace window. Pure — no I/O beyond
-// the two stats already needed to answer the question.
+// the stats already needed to answer the question.
+//
+// #1290: an existing archive twin is proof of adoption even without a
+// top-level config.yml — archiveRunDir creates archiveDir the moment it has
+// real (work/ or spec-N) content to move, which a bare dispatch mint never
+// has. Skipping that check here misrouted an already-partially-archived,
+// long-idle run (its worktree/branch since reaped, so the normal
+// merged-PR path can no longer resolve it either) into
+// archiveOrphanedMint's whole-directory rename, which throws ENOTEMPTY
+// against the non-empty destination the earlier archival pass left behind
+// — the actual live cause behind #1290's reported 'move-failed' streak.
 function isOrphanedMint(dir, now = Date.now()) {
   if (fs.existsSync(path.join(dir, 'config.yml'))) return false;
+  const archiveDir = path.join(path.dirname(dir), 'archive', path.basename(dir));
+  if (fs.existsSync(archiveDir)) return false;
   let mtimeMs;
   try {
     mtimeMs = fs.statSync(dir).mtimeMs;
