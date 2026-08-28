@@ -25,7 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const { mainCheckoutRoot, safeReal } = require('../hooks/worktree-detect');
 
-const STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED'];
+const STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED', 'SKIP'];
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 

@@ -72,12 +72,12 @@ Each entry follows this shape:
 
 | Field | Required | Format |
 |---|---|---|
-| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`) |
+| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`), `SKIP` (a documented conditional action was skipped or degraded — no staged artifact; see the Degrade-trace rule below) |
 | `HH:MM:SS` | yes | Local time of the decision |
 | Step or location | yes | Skill step name OR file:line if relevant |
 | Short action | yes | One sentence: what was decided |
 | Detail line | optional | Wraps to second line if needed; explain rationale |
-| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED and REFUSED entries: N/A — nothing to revert) |
+| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED, REFUSED, and SKIP entries: N/A — nothing to revert) |
 | Commit ref / stage path | when reversible | `commit abc1234` or `stage path: staged/...` |
 
 ## Lever attribution (optional trailing field)
@@ -121,6 +121,40 @@ The third example is a decision whose outcome was driven by the findings' own se
 | `REFUSED` | Console blocked a reason-less queue-write proposal at creation; kept staged (or flipped its ledger item back to `open`). | Shown under "Refused — no defer reason". No default; human edits the staged header or drops via Override → Skip. |
 | `KEPT-PROMPT` | Skill could not auto-resolve (floor failed or item is in "not silenced" list). Asked user inline. | Already resolved — informational entry only. |
 | `SCANNED` | Skill ran its independent scan/gap-detection and is reporting the scan's scope and outcome — emitted on every run of a scanning step, whether or not the scan found anything actionable. Not itself a decision — the decision, if any, is a separate AUTO/STAGED entry. | Shown in "Auto-applied" section as an informational line (no action to override). |
+| `SKIP` | A documented conditional action (a skill step whose text states a skip/no-op/degrade condition) was skipped or degraded during this run attempt — no staged artifact. Not itself a decision — see the Degrade-trace rule below. | Shown alongside `SCANNED` as an informational trace line (no action to override). |
+
+## Degrade-trace rule (SKIP)
+
+Applies whenever a documented conditional action is actually skipped or degraded during a run attempt. Two things it is **not**:
+
+- **Not a normal run.** A step that executes as documented writes nothing — a clean pass is silent, exactly like `worktree-setup.md`'s post-creation catch-up (which logs only when the merge advanced the branch). Never log "ran fine."
+- **Not `STAGED`'s territory.** `STAGED` and `SKIP` are disjoint by the presence of a staged artifact: a deferral that produces a proposal in `staged/` for the Review Console is `STAGED`, never `SKIP`, regardless of how the deferral is described in prose. `SKIP` covers only actions not performed with **no** staged artifact — a full skip or a degrade to a lesser fallback.
+
+**Entry shape** — a specialization of the Entry schema above, where `{step or location}` carries the outcome-kind tag:
+
+```
+- SKIP {HH:MM:SS} — {step-name} ({skipped|degraded}): {condition that fired} → {fallback taken}. Reversibility: n/a.
+```
+
+`skipped` = the step did not run at all; `degraded` = the step ran, but to a lesser fallback than its documented default. Worked example — the pr-first draft-PR bootstrap's `local-merge` no-op (`integration-model` — `_shared/integration-model.md`), the #778 incident class this rule exists to make traceable instead of silent:
+
+```
+- SKIP 09:14:02 — Spec Step 1 draft-PR bootstrap (skipped): condition: integration-model=local-merge → fallback: no-op, no draft PR opened. Reversibility: n/a.
+```
+
+One line per documented conditional action per run attempt — append-only, same as every other status: a resumed or retried attempt that re-evaluates the same condition appends its own line, never a dedupe check.
+
+Write via the canonical appender (`--section`/`--spec` as usual):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status SKIP \
+  --section "/{skill-name}" --step "{step-name} ({skipped|degraded})" \
+  --text "condition: {condition that fired} → fallback: {fallback taken}" --reversibility n/a
+```
+
+**No-run-dir carrier.** A standalone run with no `$PIPELINE_RUN_DIR` has no `decisions.md` to append to — list the skip inline in the handoff instead (`build/handoff-template.md`'s inline-skip listing) rather than dropping it silently.
+
+**Self-adoption obligation.** This rule is not scoped to the conditional steps it is initially adopted in (`/build`'s Common Steps 1.7/4.5/5.5/6.5, Spec Steps 1/2.5, and Common Step 7's phase-exit push) — any *new* documented conditional action added to any skill after this rule lands adopts a SKIP-write instruction at introduction, not as a later follow-up.
 
 ## Append protocol
 
