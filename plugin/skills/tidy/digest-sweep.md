@@ -57,7 +57,10 @@ Un-promoted entry lines older than 90 days (parsed from each entry's `{provenanc
 ISO timestamp, or the comment/edit timestamp when provenance names a skill instead of a run) roll
 into one closing summary comment naming every expired entry; those lines then move out of the
 active set — the `Expiry summary` action (`step-6-auto.md`: Stage at every tier on `github-issues`,
-Auto-apply at moderate+ on `local-files`, a tracked-file edit). On `github-issues`, the summary
+Auto-apply at moderate+ on `local-files`, a tracked-file edit). An entry whose `{provenance}` cannot
+be parsed to either date form is left un-promoted and excluded from this sweep's expiry set — never
+guessed at — since the `local-files` Auto-apply path has no staging review to catch a misclassified
+age before the file edit lands. On `github-issues`, the summary
 comment is the durable record (the entries themselves stay in the closed comment's history —
 nothing is deleted); append `→ expired` to each rolled-in entry **line**, the same per-line marker
 mechanism Cluster promotion uses above, so a later sweep's "no trailing marker" read excludes it
