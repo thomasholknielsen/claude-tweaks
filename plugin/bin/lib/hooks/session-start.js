@@ -73,10 +73,16 @@ async function run(ctx) {
         } catch { /* integrity check is advisory — never break the scan */ }
         return base;
       });
+      // #803: the banner previously had no designated consumer — a session could
+      // receive it and never triage or relay it. This trailing sentence is that
+      // consumer: an explicit, model-facing instruction (same pattern as the
+      // worktree-always banner below) to relay the list once, in the session's
+      // first reply, rather than leaving detection with no assigned follow-through.
       parts.push(
         'claude-tweaks: unfinished pipeline run(s) detected under .claude-tweaks/pipelines/:\n' +
           lines.join('\n') +
-          `\nReview {run}/decisions.md and staged/ to resume, or close a finished run with: node "${pluginRoot}/bin/hooks.js" close-run --run <dir>`,
+          `\nReview {run}/decisions.md and staged/ to resume, or close a finished run with: node "${pluginRoot}/bin/hooks.js" close-run --run <dir>` +
+          '\nRelay this list once, in your first reply to the user, one line per run naming its close-run command — do not proceed silently without mentioning it.',
       );
     }
   } catch { /* best-effort */ }
