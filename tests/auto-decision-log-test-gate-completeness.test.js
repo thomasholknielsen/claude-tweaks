@@ -16,6 +16,11 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 
 const AUTO_DECISION_LOG = read('plugin', 'skills', '_shared', 'auto-decision-log.md');
 
+const ENTRY_SCHEMA_IDX = AUTO_DECISION_LOG.indexOf('## Entry schema');
+const COMPLETENESS_IDX = AUTO_DECISION_LOG.indexOf('## Failure-cause completeness');
+const LEVER_IDX = AUTO_DECISION_LOG.indexOf('## Lever attribution');
+const COMPLETENESS_SECTION = AUTO_DECISION_LOG.substring(COMPLETENESS_IDX, LEVER_IDX);
+
 test('auto-decision-log.md requires test-gate failure-cause enumeration completeness', () => {
   assert.match(AUTO_DECISION_LOG, /Failure-cause completeness/);
 });
@@ -29,17 +34,11 @@ test('auto-decision-log.md warns against an unsignaled partial named list', () =
 });
 
 test('auto-decision-log.md cites the #994 incident that motivated this rule', () => {
-  const completenessIdx = AUTO_DECISION_LOG.indexOf('## Failure-cause completeness');
-  const leverIdx = AUTO_DECISION_LOG.indexOf('## Lever attribution');
-  const completenessSection = AUTO_DECISION_LOG.substring(completenessIdx, leverIdx);
-  assert.match(completenessSection, /#994/);
+  assert.match(COMPLETENESS_SECTION, /#994/);
 });
 
 test('the completeness rule appears between Entry schema and Lever attribution', () => {
-  const entrySchemaIdx = AUTO_DECISION_LOG.indexOf('## Entry schema');
-  const completenessIdx = AUTO_DECISION_LOG.indexOf('## Failure-cause completeness');
-  const leverIdx = AUTO_DECISION_LOG.indexOf('## Lever attribution');
-  assert.ok(entrySchemaIdx > -1 && completenessIdx > -1 && leverIdx > -1, 'all three sections must exist');
-  assert.ok(entrySchemaIdx < completenessIdx, 'completeness rule must follow Entry schema');
-  assert.ok(completenessIdx < leverIdx, 'completeness rule must precede Lever attribution');
+  assert.ok(ENTRY_SCHEMA_IDX > -1 && COMPLETENESS_IDX > -1 && LEVER_IDX > -1, 'all three sections must exist');
+  assert.ok(ENTRY_SCHEMA_IDX < COMPLETENESS_IDX, 'completeness rule must follow Entry schema');
+  assert.ok(COMPLETENESS_IDX < LEVER_IDX, 'completeness rule must precede Lever attribution');
 });
