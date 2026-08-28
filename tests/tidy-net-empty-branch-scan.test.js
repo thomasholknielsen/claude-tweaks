@@ -46,8 +46,13 @@ test('step-6-auto.md: the net-empty check is fully specified — command, applic
   assert.match(section, /_shared\/integration-branch\.md/);
   // Names the canonical /specify residue shape this exists to catch.
   assert.match(section, /design doc committed, then deleted after decomposition, netting zero/);
-  // Collection shape feeding into the Delete row's routing.
-  assert.match(section, /\[git\] \{branch\} — Remove\/delete \(net-empty\)/);
+  // Collection shape feeding into the Delete row's routing — matches
+  // scan-procedures.md's own Recommendation-column string for this outcome,
+  // so the scan-phase and auto-execution reports never diverge (#613 review).
+  assert.match(section, /\[git\] \{branch\} — net-empty — delete via -D/);
+  // The merge-base/diff-error failure mode falls through to manual review,
+  // never to auto-delete (#613 review).
+  assert.match(section, /falls through to the existing "unmerged"\/manual-review path/);
   // -D, not -d, and why it's safe.
   assert.match(section, /use `-D`/);
   // Precedence: PR-state OPEN, dirty-worktree, and locked-worktree all still win.
