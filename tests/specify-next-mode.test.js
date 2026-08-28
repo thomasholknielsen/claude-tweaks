@@ -10,7 +10,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { extractArgumentHint } = require('./argument-hint-input.test.js');
+const { extractArgumentHint } = require('../plugin/bin/lib/skill-audit/argument-hint');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
