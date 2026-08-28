@@ -1,7 +1,7 @@
 {
+  "released": true,
   "runId": "2026-08-28T102712-record-1214",
-  "sessionId": "4399c53d-8e2f-5118-b24c-8c3bfe25d2ba",
-  "claimedAt": "2026-08-28T10:31:28.579Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "reason": "in-flight: open PR #1473 discovered post-claim (pre-existing build, no prior claim blob)",
+  "releasedAt": "2026-08-28T10:37:03.766Z",
+  "link": "https://github.com/thomasholknielsen/claude-tweaks/pull/1473"
 }
