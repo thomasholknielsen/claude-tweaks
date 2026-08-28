@@ -10,7 +10,17 @@
 const fs = require('fs');
 const ctxLib = require('./context');
 
-const STATUS_RE = /^(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\b/;
+// #750: superpowers:subagent-driven-development's implementer-prompt.md
+// template asks the dispatched agent to reply with "- **Status:** DONE |
+// DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT" (a bold, colon-space-prefixed
+// bullet) rather than claude-tweaks' own bare-word first line — a real
+// SDD-dispatched agent following its OWN template correctly false-positived
+// on every dispatch. The optional `-\s+` and `\*\*Status:\*\*\s+` prefixes
+// widen the match to that exact literal shape (bullet dash, then the bold
+// "Status:" label, then one of the four contract words) — nothing looser:
+// any other bold label, or the four words appearing later in a sentence,
+// still falls through to the violation path below.
+const STATUS_RE = /^(?:-\s+)?(?:\*\*Status:\*\*\s+)?(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\b/;
 
 function lastAssistantText(transcriptPath) {
   let raw;

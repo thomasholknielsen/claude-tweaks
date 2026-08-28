@@ -187,3 +187,51 @@ test('subagent-stop with unreadable transcript or no run dir is a silent no-op',
   assert.deepStrictEqual(substop.run({ input: { agent_transcript_path: '/nope.jsonl' }, runDir: run, runState: null, cwd: '/x' }), {});
   assert.deepStrictEqual(substop.run({ input: {} , runDir: null, runState: null, cwd: '/x' }), {});
 });
+
+// #750: superpowers:subagent-driven-development's implementer-prompt.md
+// template asks for "- **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED |
+// NEEDS_CONTEXT" — a bold, colon-prefixed bullet line, not claude-tweaks'
+// own bare-word contract. An SDD-dispatched implementer correctly following
+// ITS OWN template must not be flagged as violating a DIFFERENT contract.
+test('subagent-stop accepts the bolded "**Status:** DONE" line from superpowers SDD\'s implementer template (#750)', () => {
+  const run = mkRun();
+  const out = substop.run({ input: { agent_transcript_path: transcript('**Status:** DONE\nCommits: abc123 fix thing') }, runDir: run, runState: null, cwd: '/x' });
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
+});
+
+test('subagent-stop accepts the bolded "- **Status:** DONE" bulleted form exactly as the SDD template renders it (#750)', () => {
+  const run = mkRun();
+  const out = substop.run({ input: { agent_transcript_path: transcript('- **Status:** DONE\n- Commits: abc123 fix thing') }, runDir: run, runState: null, cwd: '/x' });
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
+});
+
+test('subagent-stop accepts the bolded status line for all four contract words (#750)', () => {
+  for (const word of ['DONE', 'DONE_WITH_CONCERNS', 'NEEDS_CONTEXT', 'BLOCKED']) {
+    const run = mkRun();
+    const out = substop.run({ input: { agent_transcript_path: transcript(`**Status:** ${word}\nmore detail`) }, runDir: run, runState: null, cwd: '/x' });
+    assert.deepStrictEqual(out, {}, `expected ${word} to be accepted`);
+    assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')), `expected no event for ${word}`);
+  }
+});
+
+// AC3 regression guard: the widened pattern must not swallow a genuine
+// violation — a reviewer narrating before its verdict (bold or not) is
+// still neither a bare-word nor a "**Status:**"-prefixed first line, and
+// must still be flagged.
+test('subagent-stop still flags a reviewer narrating before its verdict as a contract violation, bold prefix widening notwithstanding (#750 AC3)', () => {
+  const run = mkRun();
+  const out = substop.run({ input: { agent_transcript_path: transcript('Let me check the diff first before giving a verdict.\n**Status:** DONE') }, runDir: run, runState: null, cwd: '/x' });
+  assert.match(out.json.systemMessage, /status line/i);
+  assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
+});
+
+// A bold label that is NOT "Status:" (e.g. a differently-shaped report) must
+// not be accepted just because it superficially resembles the SDD prefix.
+test('subagent-stop still flags a bolded non-"Status:" label as a contract violation (#750 AC3)', () => {
+  const run = mkRun();
+  const out = substop.run({ input: { agent_transcript_path: transcript('**Result:** DONE\nAll good.') }, runDir: run, runState: null, cwd: '/x' });
+  assert.match(out.json.systemMessage, /status line/i);
+  assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
+});
