@@ -575,6 +575,53 @@ test('#1337: a gate-denial event is untagged when CT_HOOKS_TEST_MODE is not set'
   assert.strictEqual('test' in events[0], false, 'a real denial must not carry the test-mode tag');
 });
 
+// #750 deliverable 1: hooks.json registers checkWorktreeRequired's pre-tool-use
+// dispatch under MANY separate "if": "Bash(<shape> *)" entries on the SAME
+// Bash matcher (git commit/push/-C/-c/--exec-path/--namespace, cp, mv,
+// mkdir, tee, sed, perl, install, ln, truncate, dd, git worktree, ...) — the
+// harness independently evaluates each "if" against a real compound Bash
+// command and can spawn `pre-tool-use.js` once per matching entry for what
+// is, from the operator's perspective, ONE tool call. This reproduces that
+// shape directly (looping every registered "if" pattern's underlying command
+// shape against the SAME compound command, exactly as N separate harness
+// dispatches would) in a project with NO worktree-always policy — i.e. a
+// command that genuinely executes successfully, no actual denial anywhere.
+// checkWorktreeRequired's own fast-reject (`wtDetect.findPolicyFile` finds
+// nothing) means every one of those N invocations returns `{}` before ever
+// reaching the gate-denial write — so the burst reported in #750 cannot be
+// per-segment/per-matching-hook duplicate logging of a non-denial: this
+// invariant already holds structurally. (The reported burst's actual cause —
+// a genuinely-denied SIBLING session's events landing in the WRONG run's
+// events.jsonl via fallback attribution — is a `resolveRun` cross-worktree
+// misattribution bug tracked separately: #721 fixed the narrower
+// unadopted-mint case, and the broader cross-worktree case is #1402/PR #1577,
+// already built+tested+reviewed and awaiting merge as of this writing — not
+// re-implemented here to avoid duplicating that in-flight fix.)
+test('#750: a compound Bash command with no policy violation never logs a gate-denial event, no matter how many registered "if" hook entries would independently fire on it', () => {
+  const project = gitRepo(); // no writeWorktreeAlwaysPolicy(project) -- nothing to enforce
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
+  const compoundCommand = [
+    'git commit -m "x"', 'git push', 'git -C . status', 'git -c user.name=t status',
+    'cp a b', 'mv a b', 'mkdir -p scratch', 'tee out.txt', 'sed -i "" -e s/a/b/ f',
+    'perl -e 1', 'install -m 644 a b', 'ln -s a b', 'truncate -s 0 f', 'dd if=a of=b',
+    'git worktree list',
+  ].join(' && ');
+  const hooksConfig = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashEntry = hooksConfig.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashEntry.hooks.length > 10, 'expected many registered "if" entries under the Bash matcher (the mechanism under test)');
+  for (const { if: ifPattern } of bashEntry.hooks) {
+    const result = runHook(['pre-tool-use'], {
+      input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: compoundCommand } }),
+      cwd: project,
+    });
+    assert.strictEqual(result.code, 0, `invocation simulating "if": "${ifPattern}" should not error`);
+    assert.doesNotMatch(result.stdout, /"permissionDecision":"deny"/, `invocation simulating "if": "${ifPattern}" must not deny — no policy is set`);
+  }
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')), 'no gate-denial (or any) event should ever have been written across all simulated invocations');
+});
+
 // #1395: the gitignored-target exemption's own allow breadcrumb — unlike
 // the two pre-existing path exemptions (pipeline bookkeeping, policy.yml),
 // which leave no event at all, this one records a `gate-exempt-gitignored`
