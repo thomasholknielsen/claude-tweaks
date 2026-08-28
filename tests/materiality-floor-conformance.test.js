@@ -109,6 +109,13 @@ test('tidy/SKILL.md stays within its context-cost ceiling', () => {
   assert.ok(bytes <= 40960, `tidy/SKILL.md is ${bytes} bytes, over the 40960 ceiling`);
 });
 
+const HEALTH_FILING_FILES = [
+  'plugin/skills/code-health/filing.md',
+  'plugin/skills/docs-health/SKILL.md',
+  'plugin/skills/harness-health/filing.md',
+  'plugin/skills/journey-health/SKILL.md',
+];
+
 const ADOPTERS = [
   'plugin/skills/review/step3-routing.md',
   'plugin/skills/wrap-up/residue-sweep.md',
@@ -116,10 +123,7 @@ const ADOPTERS = [
   'plugin/skills/reflect/full-mode.md',
   'plugin/skills/reflect/hindsight-mode.md',
   'plugin/skills/visual-review/browser-review.md',
-  'plugin/skills/code-health/filing.md',
-  'plugin/skills/docs-health/SKILL.md',
-  'plugin/skills/harness-health/filing.md',
-  'plugin/skills/journey-health/SKILL.md',
+  ...HEALTH_FILING_FILES,
 ];
 
 for (const rel of ADOPTERS) {
@@ -141,13 +145,7 @@ test('no adopter file restates the floor\'s three-axis definition', () => {
 });
 
 test('the four health sweeps state materiality-floor-before-cap-digest ordering', () => {
-  const HEALTH_FILES = [
-    'plugin/skills/code-health/filing.md',
-    'plugin/skills/docs-health/SKILL.md',
-    'plugin/skills/harness-health/filing.md',
-    'plugin/skills/journey-health/SKILL.md',
-  ];
-  for (const rel of HEALTH_FILES) {
+  for (const rel of HEALTH_FILING_FILES) {
     assert.match(
       read(rel),
       /[Bb]efore the (drain-rate cap check|cap check)/,
@@ -203,13 +201,7 @@ test('proactive-sweep is deliberately NOT a DEFER_REASONS member (the contract-e
 });
 
 test('the four health sweeps stamp Defer-reason: proactive-sweep on digest-routed entries', () => {
-  const HEALTH_FILES = [
-    'plugin/skills/code-health/filing.md',
-    'plugin/skills/docs-health/SKILL.md',
-    'plugin/skills/harness-health/filing.md',
-    'plugin/skills/journey-health/SKILL.md',
-  ];
-  for (const rel of HEALTH_FILES) {
+  for (const rel of HEALTH_FILING_FILES) {
     assert.match(
       read(rel),
       /Defer-reason: proactive-sweep/,
