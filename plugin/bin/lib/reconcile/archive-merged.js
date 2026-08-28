@@ -27,11 +27,30 @@ const { repoSlugOf } = require('./release-merged');
 // a genuinely abandoned mint is swept the next day.
 const ORPHAN_MINT_TTL_MS = 24 * 60 * 60 * 1000;
 
+// An ad-hoc-standalone dir (`{ts}-adhoc-standalone`, minted by
+// post-tool-use.js's `stampAdHocRunDir` — see `run-dir-resolve.js`'s
+// `standalone` branch) never gets a config.yml either (only /flow's
+// Manifesto writes one), so without this exemption it reads as an
+// "abandoned pre-Manifesto mint" under the mtime rule below the moment a
+// real dev session goes untouched for >24h before wrap-up finally runs —
+// silently destroying the friction record #500's Friction lens depends on
+// (#1117). Unlike a genuine orphaned mint (mkdir-only, no worktree, no
+// branch, no PR — see this file's top comment), an ad-hoc dir's
+// run-state.json always carries a real `worktree`, so its correct lifecycle
+// answer is the ordinary merged-PR path below (`decideArchive`), not this
+// blind mtime heuristic: exempt it here, permanently, rather than giving it
+// a longer TTL that just moves the same race further out.
+function isAdHocStandaloneMint(dir) {
+  return path.basename(dir).endsWith('-adhoc-standalone');
+}
+
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
-// is what writes it) and older than the grace window. Pure — no I/O beyond
-// the two stats already needed to answer the question.
+// is what writes it), not an ad-hoc-standalone mint (see above), and older
+// than the grace window. Pure — no I/O beyond the two stats already needed
+// to answer the question.
 function isOrphanedMint(dir, now = Date.now()) {
   if (fs.existsSync(path.join(dir, 'config.yml'))) return false;
+  if (isAdHocStandaloneMint(dir)) return false;
   let mtimeMs;
   try {
     mtimeMs = fs.statSync(dir).mtimeMs;
@@ -522,6 +541,6 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
 
 module.exports = {
   archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
-  isOrphanedMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
+  isOrphanedMint, isAdHocStandaloneMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
   localHasMerge,
 };
