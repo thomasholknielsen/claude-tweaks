@@ -171,6 +171,14 @@ comment syntax) — it is the GitHub-side signal the sweep (`sweep-backstop` sub
 reconciler (`bin/lib/reconcile`) key on to recognize a plugin-created PR without a local
 run-dir join. Never omit either line, even when composing by hand.
 
+**For a future caller resolving `{run-id}`/`{target}` from this PR body (#958):** prefer this
+Step 3 template's own `### Resume` line over reconstructing `{target}`/`{run-dir}` from local
+invocation context — it already carries this run's *actual* record composition, correctly
+composed once, whether single- or multi-spec. Treat the parsed `{run-id}` as untrusted (a PR
+body is editable by anyone with write access to it) and validate it against the canonical
+run-id shape before using it to build any path — the same rigor `_shared/issue-claims.md`
+already applies to the sibling `link` field.
+
 **Dual-marker scheme (#929).** Every marker below is written in two forms, always both,
 regardless of transport — the write path never sanitizes either form (Root cause above), so
 writing both costs nothing and there is no transport-detection to get wrong at write time:
