@@ -71,7 +71,7 @@ const realDeps = {
 
 function decisionText(issue, r, reason, link) {
   if (r.outcome === 'failed') return `release of #${issue} FAILED (${reason}): ${r.error}`;
-  if (r.outcome === 'unreadable') return `skipped release of issue #${issue}: claim blob is corrupt/unreadable — cannot determine ownership (not a competing claim; repair or force-release required, see _shared/issue-claims.md)`;
+  if (r.outcome === 'unreadable') return `skipped release of issue #${issue}: claim blob is corrupt/unreadable — cannot determine ownership (not a competing claim; repair or force-release required, see _shared/issue-claims.md's "Repairing an unreadable claim blob" section)`;
   if (r.outcome === 'skipped-not-owner') return `skipped release of issue #${issue}: claim held by run ${r.holder}`;
   const detail = r.outcome === 'already-released' ? ' — already released or swept' : '';
   let text = `released claim on #${issue} (${reason})${link ? `; link ${link}` : ''}${detail}`;
