@@ -140,6 +140,48 @@ test('subagent-stop treats a tool-call-only LAST assistant turn as nothing to gr
   assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
 });
 
+function textPlusToolUseLastTurnTranscript() {
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e3-textplustool-')), 'agent.jsonl');
+  const lines = [
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'go' }] } }),
+    // The TRUE last assistant turn: narration text ALONGSIDE a tool call in
+    // the same message — not a completed reply, since the turn continues
+    // after the tool result comes back. Reproduces #1329's reported
+    // "Waiting for the batch-A task review to complete." pattern.
+    JSON.stringify({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Waiting for the batch-A task review to complete.' },
+          { type: 'tool_use', id: 'x', name: 'Monitor', input: {} },
+        ],
+      },
+    }),
+  ];
+  fs.writeFileSync(f, lines.join('\n') + '\n');
+  return f;
+}
+
+test('subagent-stop treats narration alongside a tool call in the LAST turn as nothing to grade (#1329)', () => {
+  const run = mkRun();
+  const t = textPlusToolUseLastTurnTranscript();
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  // The text is genuine mid-task narration that precedes a tool call, not a
+  // completed reply — previously this was extracted and graded as if it
+  // were the final status-line reply, wrongly flagging it as a violation.
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
+});
+
+test('subagent-stop still flags genuine prose-only LAST turn with no tool call as a contract violation (#1329 regression guard)', () => {
+  const run = mkRun();
+  const t = multiTurnTranscript(['DONE\nfirst pass looked fine.', 'Waiting for the batch-B review notification.']);
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  assert.match(out.json.systemMessage, /status line/i);
+  assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
+});
+
 test('subagent-stop with unreadable transcript or no run dir is a silent no-op', () => {
   const run = mkRun();
   assert.deepStrictEqual(substop.run({ input: { agent_transcript_path: '/nope.jsonl' }, runDir: run, runState: null, cwd: '/x' }), {});

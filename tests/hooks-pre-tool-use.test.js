@@ -184,6 +184,32 @@ test('two live runs: commit in the OLDER run\'s own worktree is allowed even whe
   assert.match(events, new RegExp(esc(olderWt)));
 });
 
+test('three concurrent live runs: a commit in THIS run\'s own assigned worktree never logs wd-ambiguous, even with multiple unrelated sibling worktrees registered as live candidates (#1329)', () => {
+  const project = tmpProject();
+  const main = gitRepoWithCommit();
+  const ownWt = linkedWorktreeOf(main);
+  const siblingWtA = linkedWorktreeOf(main);
+  const siblingWtB = linkedWorktreeOf(main);
+  // Two unrelated concurrent sibling runs registered BEFORE the resolved
+  // run, and the resolved run's own worktree is a real, resolvable exact
+  // match for the target — the exact-match short-circuit (actual ===
+  // assigned) must win over the otherWorktrees ambiguous-match branch for
+  // every target in this command, regardless of how many other live
+  // worktrees exist to potentially (mis)match against.
+  mkRunAt(project, '2026-07-01T090000-spec-1', siblingWtA);
+  mkRunAt(project, '2026-07-02T090000-spec-2', siblingWtB);
+  const own = mkRunAt(project, '2026-07-03T090000-spec-3', ownWt);
+
+  const out = pre.run({
+    input: bashInput(`git -C ${ownWt} commit -m "x"`, project),
+    runDir: own.run,
+    runState: own.state,
+    cwd: project,
+  });
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(own.run, 'events.jsonl')), 'no wd-ambiguous (or any) event should be logged for a genuine exact match');
+});
+
 test('two live runs: commit in a THIRD repo matching neither worktree is still denied, reason mentions both worktrees', () => {
   const project = tmpProject();
   // thirdRepo = the shared main checkout itself: a THIRD checkout of the SAME
