@@ -51,6 +51,14 @@ test('stale runs are reported in additionalContext, capped at 3, newest first', 
   assert.ok(ctx.indexOf('spec-3') < ctx.indexOf('spec-2'), 'newest-first: spec-3 before spec-2');
 });
 
+test('#803: the banner names a designated consumer — relay the list once in the first reply', async () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /Relay this list once, in your first reply to the user/);
+});
+
 test('#410: a stale run carrying a recorded pr URL includes it in the reported line; one without does not', async () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'active', pr: { number: 42, url: 'https://github.com/o/r/pull/42' } });
