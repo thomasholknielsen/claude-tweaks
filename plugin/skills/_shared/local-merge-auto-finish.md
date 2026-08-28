@@ -101,6 +101,16 @@ it literally into the next call; never carry it in a shell variable across calls
      echo "Main checkout is on '$CURRENT', not '{base-branch}' — a concurrent session switched it. Abort, do not merge." >&2
      exit 1
    fi
+   ```
+
+   **On abort** (the branch check above failed): nothing has been merged — this is not a distinct
+   third outcome, it is the same unmergeable state the Park branch below handles. Log it via the
+   Park branch's `log-decision.js` call, with `{conflict|failed verification}` replaced by
+   `"main checkout switched to '$CURRENT' underfoot"`, and report `pending-review` to the caller —
+   never a bare non-zero exit with no logged outcome, per this file's own invariant that every run
+   ends in an explicit, logged outcome.
+
+   ```bash
    git merge --no-ff {feature-branch} -m "[auto-finish] {one-line summary}
 
    Fixes #{issue}"
@@ -137,7 +147,16 @@ it literally into the next call; never carry it in a shell variable across calls
    git -C "{worktree-path}" push origin {base-branch}
    ```
 
-7. **Log the merged outcome:**
+   **On push failure** (non-zero exit — a rejected fast-forward, network failure, or permission
+   error): the merge already landed locally in the main checkout, but nothing reached `origin` — do
+   NOT report `merged`, since the caller's downstream steps (worktree removal, issue-claim release)
+   assume the merge is durable, and a local-only merge is not. Log this outcome via the Park
+   branch's `log-decision.js` call below, with `{conflict|failed verification}` replaced by
+   `"push failed — local merge commit {sha} exists but is unpushed"`, and report `pending-review` to
+   the caller. Do not retry the push automatically and do not undo the local merge — a human
+   resuming this run needs the merge commit to still be there to push it themselves.
+
+7. **Log the merged outcome** (push succeeded):
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$RUN_DIR" --status AUTO \
@@ -159,11 +178,18 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$RUN_DIR" --status AUTO 
   --reversibility high
 ```
 
-Report outcome `pending-review` to the caller. The worktree, feature branch, and issue claim all
-stay exactly as they were — a human resolves it the ordinary way (check out the branch, resolve or
-investigate, re-run finish). Never `git merge --abort` twice, never retry automatically, never widen
-scope to attempt a fix — this is the one decision `_shared/auto-mode-contract.md`'s "does NOT
-silence" table reserves for a human: never attempt conflict resolution under auto.
+Report outcome `pending-review` to the caller. The worktree's *files* — the feature branch and its
+commits — are untouched: a human can check out the branch, resolve or investigate, and re-run
+finish exactly as if nothing had happened to the code. But the run's own bookkeeping is **not**
+unchanged: step 2's `close-run` already fired, unconditionally, before the merge attempt — it lifts
+the pipeline-run assignment that protects this worktree from teardown (`bin/lib/hooks/pre-tool-use.js`'s
+teardown gate), so the worktree is reap-eligible from this point on, regardless of whether the merge
+that followed succeeded or parked. A human resuming a parked run should treat the worktree as
+time-sensitive: resolve it promptly, or re-run `record-worktree`/`close-run`'s counterpart to
+re-establish the assignment before leaving it for later. Never `git merge --abort` twice, never
+retry automatically, never widen scope to attempt a fix — this is the one decision
+`_shared/auto-mode-contract.md`'s "does NOT silence" table reserves for a human: never attempt
+conflict resolution under auto.
 
 ## Interactive mode is unaffected
 
