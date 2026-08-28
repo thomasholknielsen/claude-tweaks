@@ -25,11 +25,11 @@ prompt, never a reason to fork the template.
 | Collapse decision | Step 2.6's verdict — kept-parent / 2-unit independent collapse / 1-unit collapse, plus the parent's own draft body when kept | Step 3 branches its whole create sequence on this; Step 9's summary and origin-closure logic both read it |
 | Dependency graph | Step 1's Overlap Analysis resolutions (`Blocked by #N` from companion/extend/replace decisions) plus Step 2's Implicit Dependency Detection groups (file-overlap flags) | Step 4 (Link and order) wires every relationship this pass produces |
 | Step 2.5 answers (frontend specs only — omit entirely for backend/infra) | `design-intent:`, `ui-stack:`, and the resolved `shape` from Step 2.5 | Step 3 writes these onto each sub-issue's metadata lines |
+| Accepted scaffold path (frontend specs only — omit unless Step 2.5b-ii's variant exploration ran and a direction was accepted) | Step 2.5b-ii's `visual_reference` output (`design-pre-steps.md` item 5) | Step 3 prefixes `Visual-reference: {scaffold path}` on every generated sub-issue covering that surface — `record-creation.md`'s Body section |
 | Diagram suggestions (omit if Step 2.5d emitted none) | Step 2.5d's output — at most two recommendations | Step 9's summary renders them under `### Diagram suggestions` |
 | Design doc — path and, if it will be deleted before the subagent could read it, its full content | Resolve-the-input | Step 4 absorbs remaining Decision Rationale / Assumptions / Cross-Spec Promises from it; Step 7 deletes it (or marks it, under `phase-N`) |
 | `phase-N` (omit if this run is not phase-scoped) | The invocation's own argument | Step 7's delete-vs-mark table branches on whether this run targeted one phase of a multi-phase doc |
 | `--surface` override (omit if not given) | The invocation's own argument | Step 3 applies it to every produced record |
-| `--chained` flag state (omit if not given) | The invocation's own argument | Affects Step 9's `## Next Actions` framing |
 | `$ORIGIN_RECORD_NUM` (omit unless this run was reached via the `needs:definition` redirect) | `specify/SKILL.md`'s Resolve-the-input case 1 | Step 3's origin-set carve-out and Step 9's origin-closure branch both key off this |
 | `$PIPELINE_RUN_DIR`, `work-backend` | Run context | Every write call in Steps 3-9 is driver-conditional and, in `auto` mode, logs to this run's `decisions.md` |
 
@@ -51,6 +51,8 @@ Dependency Detection groups}
 Design doc: {path, or full content when it will be deleted before you could read it}
 [Design pre-step answers — frontend specs only: design-intent: {value}, ui-stack: {value},
 shape: {value}]
+[Accepted scaffold path — frontend specs only, omit unless Step 2.5b-ii accepted a variant:
+Visual-reference: {scaffold path}]
 [Diagram suggestions — omit if none: {Step 2.5d's output}]
 [phase-N: {value} — omit if this run is not phase-scoped]
 [--surface: {value} — omit if not given]

@@ -23,7 +23,7 @@ test('mechanical-handoff.md exists in the specify skill directory', () => {
 
 test('mechanical-handoff.md names every required input explicitly (AC2)', () => {
   const text = read(HANDOFF);
-  assert.match(text, /[Ww]ork.unit list/, 'names the resolved work-unit list (Step 2 output)');
+  assert.match(text, /[Ww]ork[\s-]unit list/, 'names the resolved work-unit list (Step 2 output)');
   assert.match(text, /[Cc]ollapse decision/, 'names Step 2.6\'s collapse verdict');
   assert.match(text, /[Dd]ependency graph/, 'names the dependency graph (explicit + implicit)');
   assert.match(text, /Step 2\.5/, 'names Step 2.5\'s design pre-step answers');
@@ -43,15 +43,27 @@ test('mechanical-handoff.md follows the Subagent Contract', () => {
 test('mechanical-handoff.md instructs the subagent to read only decomposition-mode-closeout.md, not decomposition-mode.md', () => {
   const text = read(HANDOFF);
   assert.match(text, /decomposition-mode-closeout\.md/);
+  assert.match(text, /Do not read `decomposition-mode\.md`/, 'explicitly tells the subagent not to read decomposition-mode.md');
 });
 
 test('mechanical-handoff.md is genuinely reusable — states it applies across overlap, ambiguity, and phase-scoped decompositions', () => {
   const text = read(HANDOFF);
   assert.match(text, /overlap/i);
+  assert.match(text, /ambiguity/i);
   assert.match(text, /phase-scoped|phase-N/);
 });
 
 test('decomposition-mode.md and decomposition-mode-closeout.md both cite mechanical-handoff.md', () => {
   assert.match(read(DECOMPOSITION_MODE), /mechanical-handoff\.md/);
   assert.match(read(DECOMPOSITION_CLOSEOUT), /mechanical-handoff\.md/);
+});
+
+test('mechanical-handoff.md names the accepted scaffold path (Visual-reference:) as a required input (#832 review)', () => {
+  const text = read(HANDOFF);
+  assert.match(text, /Visual-reference/, 'names the accepted scaffold path Step 3 needs to write onto frontend sub-issues');
+});
+
+test('mechanical-handoff.md does not list --chained as a required input — the flag is shaping-mode-only and never reaches decomposition mode (#832 review)', () => {
+  const text = read(HANDOFF);
+  assert.doesNotMatch(text, /--chained/, 'decomposition mode never receives --chained (SKILL.md: shaping mode only)');
 });
