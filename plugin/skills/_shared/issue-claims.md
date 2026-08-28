@@ -150,7 +150,9 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   5. **`state: 'live'`** — contested. Do not attempt any write.
   6. **`state: 'unreadable'`** — fails closed to *live* (`classifyClaimBlob` reports
      `reclaimable: false`) — treat identically to step 5. `/tidy`'s sweep surfaces it for human
-     judgment, per the standing "a claim you cannot read is not yours to break" posture.
+     judgment, per the standing "a claim you cannot read is not yours to break" posture. To
+     repair or force-release a blob stuck in this state, see "Repairing an unreadable claim
+     blob" below.
 
   The only `sha` either write above ever uses is the target **file's** current blob sha, from
   step 1's fresh read.
@@ -171,6 +173,40 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/claims?ref=${CLAIMS_BRANCH}" -q '.[].name'`
   - **MCP:** the equivalent read-tree/list-directory tool call against `claims/` on
     `CLAIMS_BRANCH`.
+
+### Repairing an unreadable claim blob
+
+`classifyClaimBlob` fails closed to `'unreadable'` for a blob whose content isn't valid claim
+JSON — both the acquire path (step 6 above) and `release-claim.js`'s exit `5` refuse to touch it,
+since content they cannot parse might still encode someone's live claim. This is a **human or
+`/tidy`-invoked override**, not a new classify outcome: performing it does not change what
+`classifyClaimBlob` reports for the same content on a future read — it changes the *content*, by
+overwriting it.
+
+Repair reuses step 4's re-claim mechanics exactly — a conditional-overwrite `PUT`/
+`create_or_update_file` with `sha` set — with one difference: step 4 gets its `sha` from a blob it
+just classified as `'tombstone'`/`'stale'`; here the blob's *content* is unreadable, but its **blob
+sha is ordinary response metadata from the read**, independent of whether the content parses, so
+it is always available even when `classifyClaimBlob` cannot make sense of what the sha points at.
+
+1. Read the blob at `claims/issue-<number>.json` on `CLAIMS_BRANCH` (step 1 above) and capture its
+   current blob **sha** from the read response. This step never depends on the content parsing.
+2. Confirm the content is genuinely unreadable rather than merely mis-extracted: run it through
+   step 2's classify call and confirm the outcome really is `'unreadable'` — a wrapper-object
+   extraction mistake (the false-`'unreadable'` case step 2's own note describes) is not this
+   case and should be fixed at the read, not repaired here.
+3. Write the replacement content **conditionally**, with `sha` = the sha captured in step 1 (the
+   same `PUT`/`create_or_update_file` call shape as step 3/4 above, `sha` included):
+   - **Force-release without re-claiming:** write `releasePayload`-shaped tombstone content — the
+     same content shape the Release bullet above writes.
+   - **Repair-and-claim in one step:** write `claimPayload`-shaped content — the same content
+     shape steps 3/4 above write.
+   A rejection here means the sha changed since step 1's read — someone else already broke or
+   overwrote the blob first; re-read and reassess rather than retrying blind.
+4. Log the override (who, when, why) somewhere durable (a `/tidy` run's own record, or a comment
+   on the issue). Every other write in this file is a routine claim/release; this one silently
+   destroys content that — despite failing to parse — may have carried a real holder's identity,
+   so it is the one write here that should never go unlogged.
 
 ### Group claiming
 
