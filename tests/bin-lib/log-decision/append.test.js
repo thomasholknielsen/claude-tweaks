@@ -8,7 +8,7 @@ const { formatEntry, resolveTarget, appendEntry, STATUSES } = require('../../../
 
 // The schema line _shared/auto-decision-log.md documents — a test-side parser, so
 // every entry the module emits is proven readable by the documented shape.
-const SCHEMA = /^- (AUTO|STAGED|KEPT-PROMPT|SCANNED) (\d{2}:\d{2}:\d{2}) — (.+?): (.+)\. Reversibility: (high|med|low|n\/a)(?:[^\[]*)?( \[lever: .+\])?$/;
+const SCHEMA = /^- (AUTO|STAGED|KEPT-PROMPT|SCANNED|SKIP) (\d{2}:\d{2}:\d{2}) — (.+?): (.+)\. Reversibility: (high|med|low|n\/a)(?:[^\[]*)?( \[lever: .+\])?$/;
 
 const NOW = new Date(2026, 7, 16, 14, 32, 14).getTime(); // local 14:32:14
 
@@ -27,7 +27,22 @@ test('formatEntry: spec-only location, default reversibility n/a, lever last', (
 test('formatEntry: no step/spec falls back to log-decision; rejects unknown status', () => {
   assert.match(formatEntry({ status: 'SCANNED', now: NOW, text: 'swept 3 files' }), /— log-decision: swept 3 files\. Reversibility: n\/a\.$/);
   assert.throws(() => formatEntry({ status: 'MAYBE', now: NOW, text: 'x' }), /status/);
-  assert.deepEqual(STATUSES, ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED']);
+  assert.deepEqual(STATUSES, ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED', 'SKIP']);
+});
+
+test('formatEntry: SKIP line matches the documented degrade-trace grammar', () => {
+  const line = formatEntry({
+    status: 'SKIP',
+    now: NOW,
+    step: 'Common Step 6.5 (skipped)',
+    text: 'condition: no docs/REGISTRY.md → fallback: no doc-sync check',
+    reversibility: 'n/a',
+  });
+  assert.equal(
+    line,
+    '- SKIP 14:32:14 — Common Step 6.5 (skipped): condition: no docs/REGISTRY.md → fallback: no doc-sync check. Reversibility: n/a.',
+  );
+  assert.match(line, SCHEMA);
 });
 
 test('resolveTarget: run dir under mainRoot ok; under either linked-worktree domain not-anchored; no .git above fails closed; missing dir', () => {

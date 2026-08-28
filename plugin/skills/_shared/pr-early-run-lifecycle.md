@@ -380,3 +380,16 @@ warning and the merge proceeds; a stale title/checklist is cosmetic, never a mer
 None of these ever block the pipeline — a pr-first project whose GitHub connectivity is degraded
 for one run behaves exactly like a `local-merge` run for that run, with the degradation logged
 rather than silent.
+
+**`local-merge` row specifically (`build/SKILL.md` Spec Step 1's documented conditional action):**
+this is the one row above with no existing log line of its own — every connectivity-degrade row
+already writes its own `AUTO … FAILED` line (see the citations above) and keeps doing so unchanged.
+Write one `SKIP` entry per `_shared/auto-decision-log.md`'s degrade-trace rule:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status SKIP \
+  --section "/build" --step "Spec Step 1 draft-PR bootstrap (skipped)" \
+  --text "condition: integration-model=local-merge → fallback: no draft PR opened" --reversibility n/a
+```
+
+Standalone `/build` (no run dir): list the skip in the Step 7 handoff instead (`build/handoff-template.md`'s inline-skip listing).

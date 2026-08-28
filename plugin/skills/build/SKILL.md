@@ -67,7 +67,7 @@ Spec/record mode? ──yes──→ [Spec Steps 1, 2, 2.5 (Manual Steps classif
 
 ### Spec Step 1: Resolve, Materialize, and Assess
 
-Materialize the record into a spec-shaped build file via `skills/flow/materialize.md`: resolve the record, run the materialization hard gate (an unshaped body stops the build with "run `/claude-tweaks:specify #{n}` first"), compose the pinned header, and write + commit `{run-dir}/work/{n}-spec.md`. **Ordering — worktree first:** in `worktree` mode, run Common Step 1 to create the worktree from current HEAD, then perform this resolve/materialize/commit as the branch's first commit inside it, before proceeding to Spec Step 2. In `current-branch` mode there is no worktree, so write and commit on the current branch directly. Do not materialize on the pre-worktree branch and then branch from it — that order is denied outright under `worktree-always: true` and buys nothing under any other policy. See materialize.md's "When this runs" for the rationale; this step does not restate it. When a parent `/claude-tweaks:flow` already materialized the file for this run (`$PIPELINE_RUN_DIR` set and `{run-dir}/work/{n}-spec.md` already exists), read it in place instead of re-fetching or re-composing — see materialize.md's "When this runs." **Immediately after the materialize commit, in `worktree` mode only:** run `build/worktree-setup.md` Step 6 — opens the run's draft PR under `integration-model: pr-first` (`_shared/integration-model.md`, procedure in `_shared/pr-early-run-lifecycle.md`); a no-op under `local-merge`. **Non-skippable, regardless of what Spec Step 2's implementation assessment turns out to find:** Common Step 1's worktree-assignment stamping (`worktree-setup.md` Step 4.5, `record-worktree`) and this Step 6 draft-PR call both run before any judgment about whether further code changes are needed — never treat "the acceptance criteria already look satisfied" as license to jump past either. A record found already-satisfied still needs its own PR and its own worktree stamp: the reconciler's automatic worktree-reap and run-dir archival (`bin/hooks.js reconcile`) key off that stamp, and skipping it silently strands the run's cleanup on whoever dispatched it (`docs/incident-log.md`'s `[IL-131]`). This is now also caught mechanically, not just by this prose: `docs/hooks.md`'s bookkeeping-stamps gate denies the next covered write once a materialize commit has landed without both stamps present. Once materialized (and the draft PR opened, when applicable), read the file in full and proceed to Spec Step 2; the shape gate already replaces the prerequisite check this step used to run.
+Materialize the record into a spec-shaped build file via `skills/flow/materialize.md`: resolve the record, run the materialization hard gate (an unshaped body stops the build with "run `/claude-tweaks:specify #{n}` first"), compose the pinned header, and write + commit `{run-dir}/work/{n}-spec.md`. **Ordering — worktree first:** in `worktree` mode, run Common Step 1 to create the worktree from current HEAD, then perform this resolve/materialize/commit as the branch's first commit inside it, before proceeding to Spec Step 2. In `current-branch` mode there is no worktree, so write and commit on the current branch directly. Do not materialize on the pre-worktree branch and then branch from it — that order is denied outright under `worktree-always: true` and buys nothing under any other policy. See materialize.md's "When this runs" for the rationale; this step does not restate it. When a parent `/claude-tweaks:flow` already materialized the file for this run (`$PIPELINE_RUN_DIR` set and `{run-dir}/work/{n}-spec.md` already exists), read it in place instead of re-fetching or re-composing — see materialize.md's "When this runs." **Immediately after the materialize commit, in `worktree` mode only:** run `build/worktree-setup.md` Step 6 — opens the run's draft PR under `integration-model: pr-first` (`_shared/integration-model.md`, procedure in `_shared/pr-early-run-lifecycle.md`); a no-op under `local-merge`. **On skip** (local-merge), write a `SKIP` entry — see `_shared/pr-early-run-lifecycle.md`'s Skip / degrade behavior section for the exact command. **Non-skippable, regardless of what Spec Step 2's implementation assessment turns out to find:** Common Step 1's worktree-assignment stamping (`worktree-setup.md` Step 4.5, `record-worktree`) and this Step 6 draft-PR call both run before any judgment about whether further code changes are needed — never treat "the acceptance criteria already look satisfied" as license to jump past either. A record found already-satisfied still needs its own PR and its own worktree stamp: the reconciler's automatic worktree-reap and run-dir archival (`bin/hooks.js reconcile`) key off that stamp, and skipping it silently strands the run's cleanup on whoever dispatched it (`docs/incident-log.md`'s `[IL-131]`). This is now also caught mechanically, not just by this prose: `docs/hooks.md`'s bookkeeping-stamps gate denies the next covered write once a materialize commit has landed without both stamps present. Once materialized (and the draft PR opened, when applicable), read the file in full and proceed to Spec Step 2; the shape gate already replaces the prerequisite check this step used to run.
 
 ### Spec Step 2: Check for Existing Plan
 
@@ -102,6 +102,8 @@ For each item, probe in this order:
 If the ledger doesn't exist, create it using the ledger skill's create operation.
 
 **Anti-pattern:** Seeding the entire Manual Steps section verbatim into `ops` without probing. The spec writer cannot know which CLIs are installed on the executing machine — that classification must happen here, at execution time, where probes can actually run.
+
+**No Manual Steps section (skip):** write one `SKIP` entry per the degrade-trace rule (`_shared/auto-decision-log.md`) — condition: no Manual Steps section → fallback: nothing probed. Standalone: list in the handoff instead.
 
 ### Spec Step 3: Create the Plan
 
@@ -182,7 +184,7 @@ For the full procedure (Check A failure handling, Check B scope-keyword sweep co
 
 ### Common Step 1.7: Design Pre-Build (frontend specs + terminal)
 
-For a surface routed to pre-build — `surface` ∈ `web | mobile | desktop | terminal`, read from the materialized header's `surface:` field (lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, the terminal-track always-load set, and where loaded references go, see `design-prebuild.md` in this skill's directory.
+For a surface routed to pre-build — `surface` ∈ `web | mobile | desktop | terminal`, read from the materialized header's `surface:` field (lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, the terminal-track always-load set, and where loaded references go, see `design-prebuild.md` in this skill's directory. **On skip**, write a `SKIP` entry per `_shared/auto-decision-log.md`'s degrade-trace rule; standalone: list in the Step 7 handoff.
 
 ### Common Step 2: Execute the Plan
 
@@ -250,7 +252,7 @@ Compare what was actually built to what the spec or design doc said. For the ful
 
 Architecture-alignment learnings that outlive this project route via `skills/_shared/learning-routing.md` rather than defaulting to a ledger entry.
 
-**Skip this step if:** design mode with no formal spec, the plan was trivial (< 3 tasks, single-file changes), or `config.yml`'s `ceremony-profile` is `fast-lane` — see `architecture-alignment.md`'s own Skip section for the full rationale (why fast-lane skip is deliberate, not an oversight, and what the safety net is).
+**Skip this step if:** design mode with no formal spec, the plan was trivial (< 3 tasks, single-file changes), or `config.yml`'s `ceremony-profile` is `fast-lane` — see `architecture-alignment.md`'s own Skip section for the full rationale (why fast-lane skip is deliberate, not an oversight, and what the safety net is). **On skip** (one of the three conditions fires — never for a normal run finding zero deviations), write a `SKIP` entry per the degrade-trace rule; standalone: list in the handoff.
 
 When a mismatch is an architectural deviation at module level — a boundary in the wrong place, an interface nearly as complex as what it wraps — route it to `/claude-tweaks:deepen` for a dedicated module-depth pass rather than to Common Step 3's `/claude-tweaks:simplify`, whose scope is line-level cleanup.
 
@@ -266,7 +268,7 @@ If anything fails, fix it and commit the fix. **When a failure is a behavioral b
 
 After verification passes, check for operational tasks that are easy to forget — deployment and environment concerns that slip through code review (schema/migration files, env access patterns, IaC, CI/CD, container configs).
 
-If your build's diff matches schema/env/IaC/CI/platform-config files, read `operational-checklist.md` in this skill's directory for the full Category A/B trigger lists, check tables, probe-then-classify procedure, and ledger format. Otherwise skip this step entirely.
+If your build's diff matches schema/env/IaC/CI/platform-config files, read `operational-checklist.md` in this skill's directory for the full Category A/B trigger lists, check tables, probe-then-classify procedure, and ledger format. Otherwise skip this step entirely. **On skip**, write a `SKIP` entry per the degrade-trace rule (condition: no schema/env/IaC/CI/platform-config files in diff); standalone: list in the handoff.
 
 > **Parallel execution:** Use parallel tool calls — all checks are independent Grep/Glob operations.
 
@@ -282,13 +284,13 @@ This is not optional and does not require user input — if you built a feature 
 
 ### Common Step 6.5: Documentation Sync
 
-If `docs/REGISTRY.md` exists, read `docs-sync.md` in this skill's directory for the full procedure (read registry, match changed files against registered patterns, update inline or defer to wrap-up per doc type). If `docs/REGISTRY.md` does not exist, skip this step entirely.
+If `docs/REGISTRY.md` exists, read `docs-sync.md` in this skill's directory for the full procedure (read registry, match changed files against registered patterns, update inline or defer to wrap-up per doc type). If `docs/REGISTRY.md` does not exist, skip this step entirely. **On skip**, write a `SKIP` entry per the degrade-trace rule (condition: no `docs/REGISTRY.md`); standalone: list in the handoff.
 
 ### Common Step 7: Handoff
 
 After successful build, read `handoff-template.md` in this skill's directory and render the handoff using that template. The template covers verification status, what was built, simplification summary, journeys, documentation changes, blocked items, manual steps, and the Actions Performed table.
 
-**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode.
+**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode. **On skip**, write a `SKIP` entry — see `_shared/git-discipline.md`'s Phase-exit push section for the exact command.
 
 ## Git Strategy
 
