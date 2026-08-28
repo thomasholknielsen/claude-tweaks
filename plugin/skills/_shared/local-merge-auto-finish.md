@@ -76,14 +76,21 @@ it literally into the next call; never carry it in a shell variable across calls
    node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"
    ```
 
+   This call is fail-open by design (same as `auto-merge-short-circuit.md`'s identical call) — it
+   never blocks the procedure below regardless of its own outcome.
+
 3. **Read the worktree path and feature branch** — from `run-state.json`'s own `worktree` field
    (`record-worktree` stamped it there), never `$RUN_DIR` itself (`$RUN_DIR` sits inside the main
    checkout per `_shared/pipeline-run-dir.md`'s anchoring rule):
 
    ```bash
-   node -e "console.log(require('$RUN_DIR/run-state.json').worktree)"   # -> {worktree-path}
+   node -e "const w=require('$RUN_DIR/run-state.json').worktree; if(!w){console.error('claude-tweaks: run-state.json has no worktree field — cannot resolve the worktree to merge'); process.exit(1);} console.log(w)"   # -> {worktree-path}
    git -C "{worktree-path}" branch --show-current                       # -> {feature-branch}
    ```
+
+   A missing or empty `worktree` field is a defect in the run's own bookkeeping, not a mergeable
+   state — abort here (do not fall through to a `git -C "undefined"` command) and treat it the same
+   as the Park branch below: nothing has been merged yet, so `pending-review` is the correct outcome.
 
 4. **Merge, from the main checkout.** Verify the main checkout is actually on the resolved base
    branch first — a concurrent session may have switched it underfoot (`[IL-05]`):
@@ -104,11 +111,14 @@ it literally into the next call; never carry it in a shell variable across calls
    That carrier commit already guarantees closure regardless, so this is redundant-but-safe, never
    harmful.
 
-   **On a conflict** (`git merge` exits non-zero with conflict markers, or reports `CONFLICT`): run
-   `git merge --abort` immediately. This is the one point in this procedure that must never attempt
-   resolution — `_shared/auto-mode-contract.md`'s "does NOT silence" table states plainly:
-   "Resolution of merge conflicts in worktree finishing | Conflict resolution requires intent the
-   model cannot infer." Go to the **Park** branch below.
+   **On any failure** (`git merge` exits non-zero, for any reason — conflict markers, a `CONFLICT`
+   report, a dirty working tree ("local changes would be overwritten"), unrelated histories, or any
+   other failure this procedure doesn't specifically recognize): if a `MERGE_HEAD` exists (a real
+   conflict was entered), run `git merge --abort` to return to the pre-merge state; otherwise the
+   merge never started and the checkout is already unchanged. Either way, this is the one point in
+   this procedure that must never attempt resolution — `_shared/auto-mode-contract.md`'s "does NOT
+   silence" table states plainly: "Resolution of merge conflicts in worktree finishing | Conflict
+   resolution requires intent the model cannot infer." Go to the **Park** branch below.
 
 5. **Verify on the merged result** — run the project's verification command
    (`skills/test/verification.md`'s shared procedure) against the now-merged base branch.
