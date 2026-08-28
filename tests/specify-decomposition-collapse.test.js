@@ -171,10 +171,13 @@ test('Step 2.6 Collapse Decision appears between Implicit Dependency Detection a
 // --- the conditional "parent-first" sentences (Tasks 2-3's core deliverable) ---
 
 test('both files state parent-first ordering conditionally on the collapse decision', () => {
-  const dm = read(DECOMPOSITION_MODE);
+  // Step 3 ("Create the records") moved from decomposition-mode.md to
+  // decomposition-mode-closeout.md as part of #832's interactive/mechanical
+  // split — this sentence is Step 3's own opening line, so it moved with it.
+  const dc = read(DECOMPOSITION_CLOSEOUT);
   const rc = read(RECORD_CREATION);
-  assert.match(dm, /When Step 2\.6 kept the parent, records are created \*\*parent-first\*\*/);
-  assert.match(dm, /Under collapse \(Step 2\.6\), there is no parent — every produced record is created independently/);
+  assert.match(dc, /When Step 2\.6 kept the parent, records are created \*\*parent-first\*\*/);
+  assert.match(dc, /Under collapse \(Step 2\.6\), there is no parent — every produced record is created independently/);
   assert.match(rc, /When `decomposition-mode\.md`'s Step 2\.6 kept the parent, records are created \*\*parent-first\*\*/);
   assert.match(rc, /Under collapse, there is no parent — every produced record is created independently/);
 });
