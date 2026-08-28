@@ -104,7 +104,11 @@ appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged fi
 writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <value>` — the
 ceremony escape hatch's downgrade path, refs #1376) the same way — none of the three are
 subject to this tool-level pinning, and all work identically from a worktree session or the
-main checkout.
+main checkout. Reach for `bin/set-config.js` rather than a hand-rolled `sed -i` on `config.yml`
+even from a Bash call: a `sed -i` target built from a shell variable (`"$RUN_DIR/config.yml"`)
+is denied fail-closed by the gate's own path-exemption check, since the gate matches the literal
+command text and never expands the variable first — `policy-schema-coverage.md`'s "A
+shell-variable path is unresolvable by construction" note has the full mechanism.
 
 A second, unconditional PreToolUse guard (`bin/lib/hooks/pre-tool-use.js`'s
 `checkPipelineShadowGuard`, not gated on `worktree-always`) denies the opposite direction: an
