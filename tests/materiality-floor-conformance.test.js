@@ -148,6 +148,7 @@ test('digest-sweep.md\'s real outputs each name an Action Vocabulary entry, no o
 test('tidy/SKILL.md cites digest-sweep.md instead of restating its procedures', () => {
   assert.ok(TIDY_SKILL.includes('digest-sweep.md'));
   assert.ok(!TIDY_SKILL.includes('90 days'));
+  assert.ok(!TIDY_SKILL.includes('100 comments'));
 });
 
 test('tidy/SKILL.md stays within its context-cost ceiling', () => {

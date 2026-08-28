@@ -78,7 +78,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 **The digest sweep is likewise a separate file.** Its rules live in `digest-sweep.md`, not in
 `scan-procedures.md`. Read `digest-sweep.md` and inline it **whole** into the relevant agent's
 prompt whenever this sweep is in scope — see that file's own header for the no-op condition and
-the three procedures (bootstrap-race repair, cluster promotion, expiry).
+the four procedures (bootstrap-race repair, cluster promotion, expiry, container rollover).
 
 | Step | Data source | Output prefix |
 |------|-------------|--------------|
@@ -124,7 +124,7 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 | **Merge-close duplicate digest** | Bootstrap-race repair (Step 5.6) — a creation race left 2+ open digest containers | `github-issues` only — merge the newer's comments into the older (creation order), close the newer with a pointer comment — `digest-sweep.md` | N/A — GitHub state |
 | **Propose digest cluster** | Cluster promotion (Step 5.6) — 3+ un-promoted digest entries share an `{area}` | Stage a spec-shaped proposal to `{run-dir}/staged/digest-promotion-{n}.md`; on approval, file the record and append `→ {id}` to each promoted entry line — `digest-sweep.md` | No — entries stay, marked promoted |
 | **Expiry summary** | Aged un-promoted digest entries (Step 5.6 — age threshold in `digest-sweep.md`) | `github-issues`: post one closing summary comment, append `→ expired` per rolled-in line. `local-files`: move lines to `## Archived {date}` in `specs/digest.md` — `digest-sweep.md` | Entries leave the active set either way |
-| **Rollover digest container** | Digest issue hit 100 comments (Step 5.6, `github-issues` only) | Close with a summary comment, bootstrap a fresh issue, move the `digest` label + pin — `digest-sweep.md` | N/A — GitHub state |
+| **Rollover digest container** | Digest container hit its comment cap (Step 5.6, `github-issues` only — threshold in `digest-sweep.md`) | Close with a summary comment, bootstrap a fresh issue, move the `digest` label + pin — `digest-sweep.md` | N/A — GitHub state |
 
 `Capture`, `Close (GitHub)`, and `Resolve thread` are unaffected by `work-backend` — they behave identically on both drivers. `Open parent gate` is the exception among these last four: it runs on both drivers but writes differently on each, so it is resolved through the Backend probe above rather than executed inline.
 

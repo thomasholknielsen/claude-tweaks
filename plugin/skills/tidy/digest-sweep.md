@@ -1,8 +1,8 @@
 # Tidy — Digest Sweep
 
 The digest sweep's procedures, extracted into their own lazy-load unit so `SKILL.md` keeps only a
-short trigger paragraph pointing here (`SKILL.md`'s 40,960-byte ceiling leaves well under a
-kilobyte of headroom — this sweep's prose does not fit inline).
+short trigger paragraph pointing here (`SKILL.md` sits close enough to its 40,960-byte ceiling
+that this sweep's prose does not fit inline — measure with `wc -c` before adding to it).
 
 The dispatcher reads this file **whole** and inlines it into the relevant agent's prompt when this
 sweep is in scope (an unscoped run, or `--scope=backlog`/`--scope=github` per the driver the
@@ -15,7 +15,7 @@ here or in the `_shared/` fragments this file names for the dispatcher to inline
 
 No-ops silently when no open `digest`-labeled issue exists (`work-backend: github-issues`) or
 `specs/digest.md` doesn't exist (`work-backend: local-files`) — nothing has routed yet (#1262 has
-not landed, or no below-floor finding has fired since it did). Three procedures run in order
+not landed, or no below-floor finding has fired since it did). Four procedures run in order
 against whatever container exists, per `_shared/materiality-floor.md`'s Container section. Every
 output below routes through `SKILL.md`'s Action Vocabulary (`Merge-close duplicate digest`,
 `Propose digest cluster`, `Expiry summary`, `Rollover digest container`) and `step-6-auto.md`'s
@@ -67,6 +67,8 @@ mechanism Cluster promotion uses above, so a later sweep's "no trailing marker" 
 and never re-summarizes the same entry twice. On `local-files`, no marker is needed — the entry
 lines physically move to an `## Archived {YYYY-MM-DD}` section at the bottom of `specs/digest.md`,
 which the active-set read already excludes by location.
+
+### Container rollover
 
 When the digest issue reaches 100 comments (`github-issues` only — a file has no analogous limit),
 close it with a summary comment, then bootstrap a fresh digest issue: the `digest` label and the
