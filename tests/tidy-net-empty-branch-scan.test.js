@@ -17,6 +17,10 @@ const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const SCAN_PROCEDURES = read('plugin', 'skills', 'tidy', 'scan-procedures.md');
 const STEP6 = read('plugin', 'skills', 'tidy', 'step-6-auto.md');
+const NET_EMPTY_SECTION = STEP6.slice(
+  STEP6.indexOf('**Net-empty branches (#613).**'),
+  STEP6.indexOf('**Log entries:**')
+);
 
 test('scan-procedures.md: the -d/-D outcome table gains a net-empty row, checked before the "unmerged" catch-all', () => {
   assert.match(SCAN_PROCEDURES, /net-empty vs\. fork point \(#613\)/);
@@ -36,29 +40,28 @@ test('scan-procedures.md: the outcome-table heading reflects five outcomes, not 
 });
 
 test('step-6-auto.md: the net-empty check is fully specified — command, applicability, and what it never overrides', () => {
-  const section = STEP6.slice(STEP6.indexOf('**Net-empty branches (#613).**'), STEP6.indexOf('**Log entries:**'));
-  assert.ok(section.length > 0, 'Net-empty branches (#613) section must exist before Log entries');
+  assert.ok(NET_EMPTY_SECTION.length > 0, 'Net-empty branches (#613) section must exist before Log entries');
   // Applies to both the Build-branches table and shared-probe candidates.
-  assert.match(section, /Build-branches table and every shared-probe worktree\/branch candidate alike/);
+  assert.match(NET_EMPTY_SECTION, /Build-branches table and every shared-probe worktree\/branch candidate alike/);
   // The actual check command — merge-base against the branch's own fork
   // point, never against {base}'s current tip.
-  assert.match(section, /git -C "\{REPO_ROOT\}" diff --quiet "\$\(git -C "\{REPO_ROOT\}" merge-base \{base\} \{branch\}\)" \{branch\}/);
-  assert.match(section, /_shared\/integration-branch\.md/);
+  assert.match(NET_EMPTY_SECTION, /git -C "\{REPO_ROOT\}" diff --quiet "\$\(git -C "\{REPO_ROOT\}" merge-base \{base\} \{branch\}\)" \{branch\}/);
+  assert.match(NET_EMPTY_SECTION, /_shared\/integration-branch\.md/);
   // Names the canonical /specify residue shape this exists to catch.
-  assert.match(section, /design doc committed, then deleted after decomposition, netting zero/);
+  assert.match(NET_EMPTY_SECTION, /design doc committed, then deleted after decomposition, netting zero/);
   // Collection shape feeding into the Delete row's routing — matches
   // scan-procedures.md's own Recommendation-column string for this outcome,
   // so the scan-phase and auto-execution reports never diverge (#613 review).
-  assert.match(section, /\[git\] \{branch\} — net-empty — delete via -D/);
+  assert.match(NET_EMPTY_SECTION, /\[git\] \{branch\} — net-empty — delete via -D/);
   // The merge-base/diff-error failure mode falls through to manual review,
   // never to auto-delete (#613 review).
-  assert.match(section, /falls through to the existing "unmerged"\/manual-review path/);
+  assert.match(NET_EMPTY_SECTION, /falls through to the existing "unmerged"\/manual-review path/);
   // -D, not -d, and why it's safe.
-  assert.match(section, /use `-D`/);
+  assert.match(NET_EMPTY_SECTION, /use `-D`/);
   // Precedence: PR-state OPEN, dirty-worktree, and locked-worktree all still win.
-  assert.match(section, /PR-state `OPEN` row/);
-  assert.match(section, /dirty-worktree override/);
-  assert.match(section, /locked worktree/);
+  assert.match(NET_EMPTY_SECTION, /PR-state `OPEN` row/);
+  assert.match(NET_EMPTY_SECTION, /dirty-worktree override/);
+  assert.match(NET_EMPTY_SECTION, /locked worktree/);
 });
 
 test('step-6-auto.md: the Delete row now covers net-empty worktrees/branches alongside merged ones', () => {
@@ -69,6 +72,5 @@ test('step-6-auto.md: the Delete row now covers net-empty worktrees/branches alo
 });
 
 test('the net-empty override never claims to override a PR-state OPEN, dirty, or locked-worktree finding', () => {
-  const section = STEP6.slice(STEP6.indexOf('**Net-empty branches (#613).**'), STEP6.indexOf('**Log entries:**'));
-  assert.match(section, /never applies over a PR-state `OPEN` row, a dirty-worktree override.*or a locked worktree/);
+  assert.match(NET_EMPTY_SECTION, /never applies over a PR-state `OPEN` row, a dirty-worktree override.*or a locked worktree/);
 });
