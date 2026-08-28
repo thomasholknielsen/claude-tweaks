@@ -48,6 +48,16 @@ function definitelyAbsent(p) {
   }
 }
 
+// #1290: a bare `err` -> `{ code, message }` never gets discarded past this
+// point — every move-failed catch site below threads its result through
+// this so `decisions.md`/the escalated issue body carries the real OS-level
+// cause (EACCES/EBUSY/ENOTEMPTY/…) instead of the bare 'move-failed' string
+// that made #1290 itself undiagnosable without manual reproduction.
+function formatErr(err) {
+  if (!err) return 'unknown error';
+  return err.code ? `${err.code}: ${err.message}` : String(err.message || err);
+}
+
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
 // is what writes it) and older than the grace window. Pure — no I/O beyond
 // the stats already needed to answer the question.
@@ -84,8 +94,8 @@ function archiveOrphanedMint(root, dir) {
   try {
     fs.mkdirSync(path.dirname(archiveDir), { recursive: true });
     fs.renameSync(dir, archiveDir);
-  } catch {
-    return { ok: false, reason: 'move-failed' };
+  } catch (err) {
+    return { ok: false, reason: 'move-failed', detail: formatErr(err) };
   }
   return { ok: true };
 }
@@ -361,9 +371,13 @@ function archiveRunDir(root, runDir) {
       const dest = path.join(archiveDir, name);
       try {
         fs.renameSync(src, dest);
-      } catch {
+      } catch (err) {
         const fullyReverted = revertPlainMoves(movedThisPass);
-        return { ok: false, reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert' };
+        return {
+          ok: false,
+          reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert',
+          detail: formatErr(err),
+        };
       }
       movedThisPass.push([src, dest]);
       movedEntries.push(name);
@@ -396,8 +410,8 @@ function archiveRunDir(root, runDir) {
       // (it may already exist from the workMoves batch above).
       try {
         fs.mkdirSync(specArchiveDir, { recursive: true });
-      } catch {
-        return { ok: false, reason: 'move-failed' };
+      } catch (err) {
+        return { ok: false, reason: 'move-failed', detail: formatErr(err) };
       }
     }
     const specMovedThisPass = [];
@@ -407,9 +421,13 @@ function archiveRunDir(root, runDir) {
       const dest = path.join(specArchiveDir, name);
       try {
         fs.renameSync(src, dest);
-      } catch {
+      } catch (err) {
         const fullyReverted = revertPlainMoves(specMovedThisPass);
-        return { ok: false, reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert' };
+        return {
+          ok: false,
+          reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert',
+          detail: formatErr(err),
+        };
       }
       specMovedThisPass.push([src, dest]);
       movedEntries.push(path.join(specName, name));
@@ -496,12 +514,16 @@ function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateRe
     return;
   }
   if (result.reason !== 'move-failed') return;
-  const streak = recordResidueFailure(root, 'move-failed', dir);
+  // #1290: `result.detail` (formatErr's captured code+message) flows into
+  // both the cache entry (so a later `listResidueFailures` read/report sees
+  // it) and the escalated issue body (residueBody's `lastError` line) — the
+  // gap #1290 itself was filed to close.
+  const streak = recordResidueFailure(root, 'move-failed', dir, { lastError: result.detail });
   if (!streak.shouldEscalate) return;
   try {
     escalate({
       repo: repoSlug, reason: 'move-failed', targetPath: dir,
-      count: streak.count, firstFailedAt: streak.firstFailedAt,
+      count: streak.count, firstFailedAt: streak.firstFailedAt, lastError: result.detail,
     });
   } catch { /* best-effort — never let escalation turn an archive skip into a thrown error */ }
 }

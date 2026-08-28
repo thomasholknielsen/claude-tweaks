@@ -11,6 +11,7 @@ const os = require('os');
 const path = require('path');
 const {
   archiveRunDir, listSpecDirs, decideArchive, readConsoleState, isOrphanedMint, trackArchiveResult,
+  archiveOrphanedMint,
 } = require('../../../plugin/bin/lib/reconcile/archive-merged');
 const { RESIDUE_ESCALATE_THRESHOLD, listResidueFailures } = require('../../../plugin/bin/lib/reconcile/cache');
 
@@ -407,6 +408,11 @@ test('archiveRunDir: a later gitignored top-level entry fails to move — the ea
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.reason, 'move-failed');
   assert.equal(entryRenameCount, 3, 'first entry moved, second entry failed, first entry reverted');
+  // #1290: the thrown error's own message must survive into the result,
+  // not be discarded by a bare `catch {}` — this is what makes a future
+  // move-failed occurrence diagnosable from decisions.md/the escalated
+  // issue body without a manual reproduction.
+  assert.match(result.detail, /simulated failure: fs\.renameSync \(2nd entry\)/);
 
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
   assert.equal(fs.existsSync(path.join(archiveDir, 'config.yml')), false);
@@ -444,6 +450,8 @@ test('archiveRunDir: a later gitignored spec-N entry fails to move — the earli
   const result = archiveRunDir(root, runDir);
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.reason, 'move-failed');
+  // #1290: same capture requirement for the per-spec-dir loop.
+  assert.match(result.detail, /simulated failure: fs\.renameSync \(spec entry\)/);
 
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
   assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1402', 'a.md')), false);
@@ -638,6 +646,27 @@ test('archive-merged module still exports its pre-existing surface', () => {
   assert.equal(typeof isOrphanedMint, 'function');
 });
 
+// #1290: archiveOrphanedMint's own catch had the same bare-`catch` gap as
+// archiveRunDir's two loops — same fix, same requirement.
+test('archiveOrphanedMint: a renameSync failure surfaces the OS error code/message in result.detail', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-mint-'));
+  const runId = '2026-08-01T090000-record-500';
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(dir, { recursive: true });
+
+  t.mock.method(fs, 'renameSync', () => {
+    const err = new Error('simulated: directory not empty');
+    err.code = 'ENOTEMPTY';
+    throw err;
+  });
+
+  const result = archiveOrphanedMint(root, dir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'move-failed');
+  assert.match(result.detail, /ENOTEMPTY/);
+  assert.match(result.detail, /simulated: directory not empty/);
+});
+
 // #644 Deliverable 2 — trackArchiveResult is archiveMerged's one choke
 // point for the move-failed consecutive-failure counter and escalation.
 test('trackArchiveResult: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls', () => {
@@ -656,6 +685,31 @@ test('trackArchiveResult: escalates exactly once at the threshold via an injecte
 
   trackArchiveResult(root, 'o/r', dir, { ok: false, reason: 'move-failed' }, { escalate });
   assert.equal(calls.length, 1, 'must not re-escalate on a later still-failing call');
+});
+
+// #1290 AC — the captured OS error must reach both the persisted streak
+// entry (so a later `listResidueFailures` read/report sees it) and the
+// escalated issue body (escalate-residue.js's `lastError` line), not just
+// the in-process result.
+test('trackArchiveResult: result.detail threads through as lastError into the cache entry and the escalate call', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-track-detail-'));
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-stuck-detail');
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    trackArchiveResult(
+      root, 'o/r', dir,
+      { ok: false, reason: 'move-failed', detail: 'ENOTEMPTY: directory not empty' },
+      { escalate },
+    );
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].lastError, 'ENOTEMPTY: directory not empty');
+
+  const entry = listResidueFailures(root).find((r) => r.path === dir);
+  assert.ok(entry, 'expected a tracked residue entry for this dir');
+  assert.equal(entry.lastError, 'ENOTEMPTY: directory not empty');
 });
 
 test('trackArchiveResult: only tracks move-failed — a different failure reason never enters the counter', () => {
