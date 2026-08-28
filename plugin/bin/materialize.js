@@ -15,7 +15,13 @@
 // determinable git repository root; #959 — a --run-dir resolving INSIDE the
 // current linked worktree is anchored-equivalent and accepted, since this
 // CLI only ever writes to that worktree's own work/{n}-spec.md), an
-// unresolved record, or when `gh` is absent.
+// unresolved record, or when `gh` is absent. #1210: when cwd is itself
+// inside a linked worktree and --run-dir resolves to the main checkout
+// instead (the standard $PIPELINE_RUN_DIR shape every other --run/--run-dir
+// consumer expects, passed unmodified from inside a worktree), the write
+// target is silently rewritten to the worktree-local equivalent — same
+// run-id, same relative structure — rather than trusting the caller, with an
+// informational (non-fatal) stderr note naming both roots.
 'use strict';
 
 const fs = require('fs');
@@ -109,6 +115,16 @@ const realDeps = {
   // answer this itself: it requires the nearest `.git` to be a DIRECTORY,
   // which a linked worktree's `.git` FILE pointer never is by construction.
   isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
+  // #1210: cwd's OWN worktree membership — distinct from isInsideLinkedWorktree
+  // above, which classifies the resolved --run-dir, not cwd. Returns the
+  // linked worktree's own root (repoInfo's --show-toplevel of cwd, which for
+  // a linked worktree is that worktree's root, never the main checkout) when
+  // cwd sits inside one, or null when cwd is the main checkout itself (or
+  // worktree membership can't be determined).
+  cwdWorktreeRoot: (cwd) => {
+    const info = wtDetect.repoInfo(cwd);
+    return info.isLinkedWorktree ? info.repoRoot : null;
+  },
   mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
   writeFile: (file, content) => fs.writeFileSync(file, content),
   stdout: (s) => process.stdout.write(s),
@@ -141,9 +157,31 @@ function run(argv, deps = realDeps) {
     // #959: a --run-dir resolving inside a linked worktree is not a shadow —
     // it's the documented route for this CLI's own write (work/{n}-spec.md),
     // which only ever lands under here. See isInsideLinkedWorktree above.
-    if (!deps.isAnchored(resolvedRunDir, mainRoot) && !deps.isInsideLinkedWorktree(resolvedRunDir)) {
+    const anchoredToMain = deps.isAnchored(resolvedRunDir, mainRoot);
+    if (!anchoredToMain && !deps.isInsideLinkedWorktree(resolvedRunDir)) {
       deps.stderr(`materialize.js: ${wtDetect.unanchoredRunDirShadowMessage(opts.runDir, mainRoot)}\n`);
       return 2;
+    }
+    // #1210: anchoredToMain alone doesn't distinguish "no worktree involved,
+    // a main-checkout --run-dir is correct" from "cwd is itself inside a
+    // linked worktree, and a main-checkout-anchored --run-dir is exactly the
+    // mismatch materialize.md's own prose warns against" — the caller
+    // followed the ordinary $PIPELINE_RUN_DIR convention (main-checkout-
+    // anchored, the shape every other --run/--run-dir consumer expects) from
+    // inside a worktree, which the worktree-first ordering requires to write
+    // on the feature branch instead. Detect that combination and rewrite the
+    // write target to the worktree-local equivalent (same run-id, same
+    // relative structure) rather than silently writing to the main checkout.
+    if (anchoredToMain) {
+      const cwdWorktreeRoot = deps.cwdWorktreeRoot(cwd);
+      if (cwdWorktreeRoot) {
+        const rewritten = path.join(cwdWorktreeRoot, path.relative(mainRoot, resolvedRunDir));
+        deps.stderr(
+          `materialize.js: --run-dir ${opts.runDir} resolves to the main checkout (${mainRoot}) but cwd is `
+          + `inside worktree ${cwdWorktreeRoot} — writing to the worktree-local equivalent (${rewritten}) instead.\n`,
+        );
+        opts.runDir = rewritten;
+      }
     }
   }
   if (opts.ceremony && opts.ceremony !== 'fast-lane' && opts.ceremony !== 'standard') { deps.stderr('--ceremony must be fast-lane or standard\n' + USAGE); return 2; }
