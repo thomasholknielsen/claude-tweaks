@@ -21,9 +21,9 @@
 // passed (#1174).
 // Output: one JSON line, an object keyed by each requested number (as a
 // string, JSON's own key convention) to its {"blockedBy":[...],
-// "openBlocker":bool,"openBlockerIds":[...]} — the same per-record shape fetchNativeDependencies'
-// Map values already carry (and preflight-records.js's buildRecords `dep`
-// entries expose), not a new shape invented for this entry point. A
+// "openBlocker":bool,"openBlockerIds":[...]} — the same per-record shape
+// fetchNativeDependencies' Map values already carry (and preflight-records.js's
+// buildRecords `dep` entries expose), not a new shape invented here. A
 // single-number invocation still returns a one-key object — no special-cased
 // flat shape — so every caller reads results the same way regardless of
 // how many numbers it asked for. Exit 0 on success; 1 on a malformed
@@ -51,8 +51,7 @@ const isPos = (n) => Number.isInteger(n) && n > 0;
 // error rather than naming which segment failed, matching this CLI's
 // existing single-number error wording.
 function parseNumbers(raw) {
-  const parts = raw.split(',');
-  const numbers = parts.map((p) => Number(p));
+  const numbers = raw.split(',').map((p) => Number(p));
   if (numbers.some((n) => !isPos(n))) return null;
   return numbers;
 }
