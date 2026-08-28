@@ -17,7 +17,7 @@ const GATE = read('plugin/skills/_shared/deferral-gate.md');
 const SWEEP = read('plugin/skills/tidy/digest-sweep.md');
 const TIDY_SKILL = read('plugin/skills/tidy/SKILL.md');
 const TIDY_RECORDS = read('plugin/skills/tidy/step-1-records.md');
-const RECORD_JS = read('plugin/bin/lib/issues/record.js');
+const { DEFER_REASONS } = require('../plugin/bin/lib/issues/record.js');
 
 test('materiality-floor.md states the floor definition (all three low axes, fail-toward-filing)', () => {
   assert.ok(/size:low/i.test(FLOOR));
@@ -196,8 +196,7 @@ test('materiality-floor.md defines a contract-level Defer-reason exception for d
 });
 
 test('proactive-sweep is deliberately NOT a DEFER_REASONS member (the contract-exception path, not a vocabulary extension)', () => {
-  const defersBlock = RECORD_JS.slice(RECORD_JS.indexOf('DEFER_REASONS = Object.freeze(['), RECORD_JS.indexOf(']);'));
-  assert.ok(!defersBlock.includes('proactive-sweep'), 'proactive-sweep must stay out of the closed DEFER_REASONS set — see materiality-floor.md\'s rationale');
+  assert.ok(!DEFER_REASONS.includes('proactive-sweep'), 'proactive-sweep must stay out of the closed DEFER_REASONS set — see materiality-floor.md\'s rationale');
 });
 
 test('the four health sweeps stamp Defer-reason: proactive-sweep on digest-routed entries', () => {

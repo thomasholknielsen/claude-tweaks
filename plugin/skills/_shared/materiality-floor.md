@@ -71,6 +71,13 @@ stays exactly as originally filed; a re-encounter never rewrites it and never re
 cluster-promotion count (which counts entry *lines*) can never count the same real-world finding
 toward its ≥3 threshold more than once.
 
+**Known limitation — exact match, not fuzzy.** This fold compares normalized text, not a stable
+fingerprint: an LLM-regenerated finding whose one-line phrasing drifts from a prior firing's
+wording will not match and will append a second line for the same real-world finding. The
+pre-existing per-origin cap digest's `expandDigestFingerprints`
+(`_shared/health-filing-digest.md`) dedupes on a machine-written stable marker instead, and is the
+stronger model to fold this mechanism into if free-text drift proves a problem in practice.
+
 ## Container
 
 **`work-backend: github-issues`:** one pinned rolling issue labeled `digest`. Before routing, list

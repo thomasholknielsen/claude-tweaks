@@ -468,7 +468,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `_shared/github-rate-limit.md` | `scan-procedures.md`'s claim-listing pre-check cites this contract to recognize and classify a rate-limit failure before applying its existing skip-the-sweep-step outcome. |
 | `_shared/reverify-before-write.md` | `step-6-auto.md`'s `[parent-gate]` row cites this contract for its own pre-write reverify — re-reads the gate's live `due` status immediately before opening it, rather than trusting the scan's snapshot from before the batch-approval wait. |
 | `_shared/materiality-floor.md` | `tidy/digest-sweep.md` (Step 5.6) is the contract's lifecycle manager — bootstrap-race repair, cluster promotion, expiry — independent of which adopters (see the per-skill sections above) are actively routing to it. |
-| `_shared/deferral-gate.md` | `_shared/materiality-floor.md` applies strictly after this gate — an item reaching the digest already carries a valid `Defer-reason:` from here; the floor never decides whether to fix. |
+| `_shared/deferral-gate.md` | `_shared/materiality-floor.md` applies strictly after this gate for producers that run it — an item reaching the digest carries either a valid `Defer-reason:` from here, or (the four health sweeps, which never run this gate) the contract's own fixed `proactive-sweep` exception; the floor never decides whether to fix. |
 
 ## visual-review
 
