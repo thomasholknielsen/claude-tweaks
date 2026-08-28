@@ -10,7 +10,7 @@ One shared procedure, referenced by both `/claude-tweaks:flow` and `/claude-twea
 
 ## Resolution
 
-Input is one or more record references: `#N` (single) or `#A,#B,...` (comma-joined, no spaces — mirrors the existing multi-spec-number convention). Resolve each record independently, the same way regardless of how many are in the batch.
+Input is one or more record references: `#N` (single) or `#A,#B,...` (comma-joined). Grammar — notation, tokenization, and element classification (batch / mixed-list hard error / empty-element naming) — is `_shared/record-batch-input.md`'s contract. A classification failure (a mixed list or an empty element) is reported in one message, naming every offender per that contract, and stops this invocation before any resolution attempt — the same all-or-nothing posture as the Record-not-found rule below (specify shares this choice; `_shared/record-batch-input.md`'s Out-of-scope section notes `/dispatch`/`/demo` instead report-and-continue). Resolve each record independently, the same way regardless of how many are in the batch.
 
 > **Parallel execution:** Use parallel tool calls aggressively — resolving N record references (the `gh issue view` / local-store reads below) are independent per-record fetches and should run concurrently, the same way `multi-spec.md`'s "Frontmatter pre-flight" batches its own reads.
 

@@ -51,14 +51,16 @@ Not for: discovering what's outstanding across the backlog (`/claude-tweaks:help
 `$ARGUMENTS` — *(none)* resolves this session's own unrecorded work via session-recall (Step 1);
 `#N` resolves that single record's Verification Brief, falling back — when no `demo:pending`
 label exists on it — first to the record's closing commit in git history, then to session-recall
-scoped to that `#N` (Step 1); `#N[,#M...]` — a comma-separated list of record refs, no spaces
-(a space after a comma is tolerated and trimmed) — is an explicit human-supplied batch: each ref
+scoped to that `#N` (Step 1); `#N[,#M...]` — grammar (notation, tokenization) is `_shared/record-batch-input.md`'s contract —
+is an explicit human-supplied batch: each ref
 runs the `#N` path in list order,
 Step 1 → Step 2 → Step 3 to completion before the next ref begins, so a batch aborted part-way
 has already applied every verdict given so far and lost nothing.
 Per-item failure isolation: a ref that resolves to nothing — no such record, wrong repo, a
-malformed or empty token from a stray comma — is reported and skipped, and the remaining
-refs still run; the batch never aborts on one bad element. One verdict question per item —
+malformed or empty token from a stray comma (`_shared/record-batch-input.md`'s classification
+failures) — is reported and skipped, and the remaining
+refs still run; the batch never aborts on one bad element — demo's own execution semantics,
+that contract's Out-of-scope section. One verdict question per item —
 never a combined verdict, never cross-item merging, never a Task fan-out.
 A batch is the human's own list — never a sweep: `/demo` still never scans the backlog for what
 to include, and the no-argument session-recall path cannot be combined with refs. Never sweeps

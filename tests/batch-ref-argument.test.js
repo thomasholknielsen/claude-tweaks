@@ -6,6 +6,14 @@
 // drops the sequential / refs-only / never-a-sweep rules — or the batch form
 // itself — fails loudly instead of silently returning both skills to
 // single-ref (which would also silently lengthen /tidy's Yours paste blocks).
+//
+// Extended by #762: the comma-list grammar (notation, tokenization, element
+// classification) moved out of each consumer's own restatement into
+// `plugin/skills/_shared/record-batch-input.md`, cited by all four consumers
+// (flow, dispatch, specify, demo) instead of restated. These additions pin
+// the citation in each of the four, the unified `#N[,#M...]` notation
+// (fixing flow's `<#n>[,#m,#o]` drift), and the absence of the retired
+// restated-grammar text.
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -25,13 +33,16 @@ test('specify argument-hint accepts a comma-separated record-ref list', () => {
   assert.ok(hint.startsWith('<next|#N[,#M...]|#A-#B|record-id[,id...]|'), `specify hint must open with the headless next form followed by the batch grammar, got: ${hint}`);
 });
 
-test('specify Input states the batch is shaping-mode-only, refs-only, sequential, and stops on any unresolvable element', () => {
+test('specify Input cites the shared batch grammar and keeps its own stop-all/refs-only rules', () => {
   const src = readFlat('plugin/skills/specify/SKILL.md');
   assert.ok(src.includes('a loop never a fan-out (no Task dispatch, one record at a time)'), 'sequential-per-element (loop, not fan-out) rule missing from specify Input');
   assert.ok(src.includes('decomposition and topic resolution stay single-input'), 'refs-only rule missing from specify Input');
-  assert.ok(src.includes('a mixed list is a hard input error, rejected with a one-line message naming the offending element'), 'mixed-list hard-error rule missing from specify Input');
-  assert.ok(src.includes('ordinary free text, resolved through cases 3-5 exactly as for any other input'), 'no-refs free-text fallback missing from specify Input');
   assert.ok(src.includes('stops the whole invocation before any record is shaped'), 'stop-all unresolvable-element rule missing from specify Input');
+  assert.ok(src.includes('_shared/record-batch-input.md'), 'specify Input must cite the shared batch-grammar contract');
+  // Retired: the mixed-list/empty-element classification definitions now live
+  // solely in the shared contract — specify must not restate them.
+  assert.ok(!src.includes('a mixed list is a hard input error, rejected with a one-line message naming the offending element'), 'specify must not restate the shared mixed-list classification definition');
+  assert.ok(!src.includes('is named as exactly that, "empty element after'), 'specify must not restate the shared empty-element naming definition');
 });
 
 test('specify Next Actions has a multiple-records-shaped row recommending a comma-joined flow', () => {
@@ -56,9 +67,59 @@ test('demo argument-hint accepts a comma-separated record-ref list', () => {
   assert.strictEqual(hint, '[#N[,#M...]]');
 });
 
-test('demo Input states per-item completion before the next ref and never-a-sweep', () => {
+test('demo Input cites the shared batch grammar and keeps its own per-item skip-and-continue semantics', () => {
   const src = readFlat('plugin/skills/demo/SKILL.md');
   assert.ok(src.includes('Step 1 → Step 2 → Step 3 to completion before the next ref begins'), 'per-item completion rule missing from demo Input');
   assert.ok(src.includes("A batch is the human's own list — never a sweep"), 'never-a-sweep restatement missing from demo Input');
   assert.ok(src.includes('Per-item failure isolation: a ref that resolves to nothing'), 'per-item failure isolation missing from demo Input');
+  assert.ok(src.includes('_shared/record-batch-input.md'), 'demo Input must cite the shared batch-grammar contract');
+});
+
+// --- #762: flow's notation drift fix + shared-grammar citation ---
+
+test('flow argument-hint and Syntax use the unified #N[,#M...] notation, not the drifted <#n>[,#m,#o]', () => {
+  const hint = extractArgumentHint(read('plugin/skills/flow/SKILL.md'));
+  assert.ok(hint.startsWith('#N[,#M...] '), `flow hint must open with the unified batch notation, got: ${hint}`);
+  const src = readFlat('plugin/skills/flow/SKILL.md');
+  assert.ok(!src.includes('<#n>[,#m,#o]'), 'flow SKILL.md must not retain the drifted <#n>[,#m,#o] notation');
+  assert.ok(!src.includes('#<n>[,#<m>...]'), 'flow SKILL.md must not retain the drifted #<n>[,#<m>...] Arguments-table notation');
+  assert.ok(src.includes('/claude-tweaks:flow #N[,#M...] ['), 'flow Syntax code block must use the unified notation');
+});
+
+test('flow Input (SKILL.md + materialize.md) cites the shared batch grammar', () => {
+  const skillSrc = readFlat('plugin/skills/flow/SKILL.md');
+  assert.ok(skillSrc.includes('_shared/record-batch-input.md'), 'flow SKILL.md Arguments table must cite the shared batch-grammar contract');
+  const materializeSrc = readFlat('plugin/skills/flow/materialize.md');
+  assert.ok(materializeSrc.includes('_shared/record-batch-input.md'), 'flow materialize.md Resolution must cite the shared batch-grammar contract');
+});
+
+// --- #762: dispatch gains defined (not silently-dropped) mixed-list/empty-element behavior ---
+
+test('dispatch Input cites the shared batch grammar for its explicit-list form', () => {
+  const src = readFlat('plugin/skills/dispatch/SKILL.md');
+  assert.ok(src.includes('_shared/record-batch-input.md'), 'dispatch Input must cite the shared batch-grammar contract');
+  assert.ok(src.includes('{ numbers, invalid }'), 'dispatch Input must describe parseExplicitIssueList\'s classification-aware return shape');
+  assert.ok(src.includes('never aborting over one bad element'), 'dispatch Input must state its own report-and-continue execution semantics for a classification failure');
+});
+
+test('dispatch argument-hint already uses the unified #N[,#M...] notation', () => {
+  const hint = extractArgumentHint(read('plugin/skills/dispatch/SKILL.md'));
+  assert.ok(hint.startsWith('[next|#N[,#M...]]'), `dispatch hint must open with the unified batch notation, got: ${hint}`);
+});
+
+test('parseExplicitIssueList (bin/lib/issues/grouping.js) classifies mixed lists and empty elements instead of silently dropping them', () => {
+  const { parseExplicitIssueList } = require('../plugin/bin/lib/issues/grouping');
+  const mixed = parseExplicitIssueList('#123,notanumber,#130');
+  assert.deepStrictEqual(mixed.numbers, [123, 130]);
+  assert.deepStrictEqual(mixed.invalid, [{ token: 'notanumber', reason: "'notanumber' is not a record reference" }]);
+  const empty = parseExplicitIssueList('#41,');
+  assert.deepStrictEqual(empty.invalid, [{ token: '', reason: 'empty element after #41' }]);
+});
+
+// --- #762: reference-card.md must mirror the unified notation ---
+
+test('reference-card.md flow row uses the unified #N[,#M...] notation, not the drifted <#n>[,#m,#o]', () => {
+  const src = read('plugin/skills/help/reference-card.md');
+  assert.ok(!src.includes('<#n>[,#m,#o]'), 'reference-card.md must not retain the drifted flow notation');
+  assert.ok(src.includes('#N[,#M...] [worktree'), 'reference-card.md flow row must mirror the unified notation');
 });
