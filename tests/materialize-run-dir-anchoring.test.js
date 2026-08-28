@@ -59,6 +59,10 @@ function fakeDeps(overrides = {}) {
       const info = wtDetect.repoInfo(cwd);
       return info.isLinkedWorktree ? info.repoRoot : null;
     },
+    runDirWorktreeRoot: (resolvedPath) => {
+      const info = wtDetect.repoInfo(resolvedPath);
+      return info.isLinkedWorktree ? info.repoRoot : null;
+    },
     mkdirp: () => { throw new Error('mkdirp should never be called when --run-dir is rejected'); },
     writeFile: () => { throw new Error('writeFile should never be called when --run-dir is rejected'); },
     stdout: () => {},
@@ -199,6 +203,10 @@ test('#1210 end-to-end: cwd inside a linked worktree + --run-dir anchored to the
       const info = wtDetect.repoInfo(cwd);
       return info.isLinkedWorktree ? info.repoRoot : null;
     },
+    runDirWorktreeRoot: (resolvedPath) => {
+      const info = wtDetect.repoInfo(resolvedPath);
+      return info.isLinkedWorktree ? info.repoRoot : null;
+    },
     mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
     writeFile: (file, content) => fs.writeFileSync(file, content),
     stdout: (s) => stdout.push(s),
@@ -214,6 +222,70 @@ test('#1210 end-to-end: cwd inside a linked worktree + --run-dir anchored to the
   assert.ok(fs.existsSync(envelope.file), 'the reported file path must actually exist on disk');
   const mainShadowFile = path.join(main, '.claude-tweaks', 'pipelines', 'x', 'work', '1-spec.md');
   assert.ok(!fs.existsSync(mainShadowFile), 'must never have written the spec file into the main checkout');
+});
+
+// #1210 follow-up (review finding): #959's "accept whenever --run-dir
+// resolves inside ANY linked worktree" never compared WHICH worktree — a
+// --run-dir resolving inside a DIFFERENT linked worktree than cwd's own
+// passed the #959 check unconditionally and, before this fix, the #1210
+// rewrite block never fired either (it only handled anchoredToMain). That
+// combination silently wrote the spec file into an unrelated worktree's
+// tree from a process running in a different one — the same class of
+// stray write #1210 fixed for the main-checkout case, just lateral.
+// Reproduced with two independent linkedWorktreeOf(main) fixtures (never
+// cwd's own).
+test('#1210 follow-up accept+rewrite: cwd inside worktree A + --run-dir resolves inside a DIFFERENT worktree B rewrites to A, never writes into B', () => {
+  const main = gitRepo();
+  const wtA = linkedWorktreeOf(main);
+  const wtB = linkedWorktreeOf(main);
+  const abs = path.join(wtB, '.claude-tweaks', 'pipelines', 'x');
+  const stdout = [];
+  const stderr = [];
+  const deps = {
+    ghAvailable: () => true,
+    ghView: () => JSON.stringify({
+      number: 1,
+      title: 'Test record',
+      body: [
+        'Surface: backend', '', '## Current State', 'text', '',
+        '## Deliverables', '- [ ] thing', '',
+        '## Acceptance Criteria', '1. it works',
+      ].join('\n'),
+      labels: [{ name: 'ceremony:standard' }],
+      url: 'https://example.invalid/1',
+    }),
+    remoteUrl: () => { throw new Error('remoteUrl should never be called when --repo is passed explicitly'); },
+    gitRevListCount: () => { throw new Error('should not be called — no Verified-as-of stamp on this record'); },
+    gitCommitDate: () => { throw new Error('should not be called — no Verified-as-of stamp on this record'); },
+    cwd: () => process.cwd(),
+    mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
+    isAnchored: (resolvedPath, root) => wtDetect.isAnchoredUnderRoot(resolvedPath, root),
+    isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
+    cwdWorktreeRoot: (cwd) => {
+      const info = wtDetect.repoInfo(cwd);
+      return info.isLinkedWorktree ? info.repoRoot : null;
+    },
+    runDirWorktreeRoot: (resolvedPath) => {
+      const info = wtDetect.repoInfo(resolvedPath);
+      return info.isLinkedWorktree ? info.repoRoot : null;
+    },
+    mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
+    writeFile: (file, content) => fs.writeFileSync(file, content),
+    stdout: (s) => stdout.push(s),
+    stderr: (s) => stderr.push(s),
+  };
+  const code = withCwd(wtA, () => run(['1', '--run-dir', abs, '--repo', 'owner/repo'], deps));
+  assert.strictEqual(code, 0, stderr.join(''));
+  assert.match(stderr.join(''), /resolves inside a different worktree/i);
+  assert.match(stderr.join(''), /worktree-local equivalent/i);
+  const envelope = JSON.parse(stdout.join(''));
+  assert.ok(
+    envelope.file.startsWith(wtA + path.sep),
+    `expected the written file to be under cwd's own worktree (${wtA}), got ${envelope.file}`,
+  );
+  assert.ok(fs.existsSync(envelope.file), 'the reported file path must actually exist on disk');
+  const wtBShadowFile = path.join(wtB, '.claude-tweaks', 'pipelines', 'x', 'work', '1-spec.md');
+  assert.ok(!fs.existsSync(wtBShadowFile), 'must never have written the spec file into the unrelated worktree B');
 });
 
 test('reject: --run-dir has no git repo ancestor at all — distinct message, not the worktree-shadow wording', () => {
