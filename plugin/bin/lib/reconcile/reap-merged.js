@@ -144,7 +144,10 @@ function reapMerged({ cwd, dryRun = false } = {}) {
     if (rm.failure) {
       skipped.push({ path: real, reason: 'removal-failed', prNumber: prState.number });
       logReapEvent(owningRunDir, 'worktree-reap-skipped', { reason: 'removal-failed', prNumber: prState.number });
-      trackReapResidue(root, repoSlug, real, { failed: true, lastError: rm.failure });
+      // #1341 — carry git's real stderr as lastError, falling back to the
+      // bare category only when git produced no stderr at all (e.g. an
+      // indeterminate timeout/spawn failure with nothing to say).
+      trackReapResidue(root, repoSlug, real, { failed: true, lastError: rm.stderr || rm.failure });
       continue;
     }
     // A path that just succeeded has no more residue to track (#644) — clear

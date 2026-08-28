@@ -27,6 +27,35 @@ test('runGit: a non-git directory is git-error — git ANSWERED, in the negative
     'git exiting non-zero is a real answer — a caller may act on it');
 });
 
+// #1341 — runGit used to discard stderr entirely (`stdio: [..., 'ignore']`),
+// so a residue-escalation issue's "Last error" line could only ever read the
+// bare category name (`git-error`), never git's actual message. This pins
+// the fix: real stderr text comes back, and the four FAILURE.* category
+// values a caller switches on are untouched by adding it.
+test('runGit: a failing invocation returns git\'s real stderr text alongside the existing failure category', () => {
+  const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'ct-ge-stderr-'));
+  const { stdout, failure, stderr } = runGit(['rev-parse', '--show-toplevel'], dir);
+  assert.strictEqual(stdout, null);
+  assert.strictEqual(failure, FAILURE.GIT_ERROR);
+  assert.ok(typeof stderr === 'string' && stderr.length > 0, 'stderr must be a non-empty captured string');
+  assert.match(stderr, /not a git repository/,
+    'stderr must carry git\'s actual message, not just a coarse category');
+});
+
+test('runGit: adding stderr capture leaves the four FAILURE.* category values unchanged', () => {
+  assert.deepStrictEqual(
+    { TIMEOUT: FAILURE.TIMEOUT, SPAWN: FAILURE.SPAWN, NO_GIT: FAILURE.NO_GIT, GIT_ERROR: FAILURE.GIT_ERROR },
+    { TIMEOUT: 'timeout', SPAWN: 'spawn', NO_GIT: 'no-git', GIT_ERROR: 'git-error' },
+  );
+});
+
+test('runGit: success returns a null stderr, matching the null-on-failure stdout convention', () => {
+  const dir = gitRepo();
+  const { failure, stderr } = runGit(['rev-parse', '--show-toplevel'], dir);
+  assert.strictEqual(failure, null);
+  assert.strictEqual(stderr, null);
+});
+
 test('runGit: a blown budget is timeout, and timeout is indeterminate (#134)', () => {
   const dir = gitRepo();
   // 1ms cannot complete any real git invocation, so this deterministically
