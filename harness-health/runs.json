@@ -1,12 +1,5 @@
 [
   {
-    "runId": "2026-08-17T05:14:52.394Z",
-    "runAt": "2026-08-17T05:14:52.852Z",
-    "fingerprints": [
-      "harnesshealth-c40a7f2f"
-    ]
-  },
-  {
     "runId": "2026-08-17T05:26:24.332Z",
     "runAt": "2026-08-17T05:26:25.213Z",
     "fingerprints": [
@@ -494,5 +487,10 @@
     "fingerprints": [
       "harnesshealth-fb2e206c"
     ]
+  },
+  {
+    "runId": "2026-08-28T06:12:12.332Z",
+    "runAt": "2026-08-28T06:12:12.834Z",
+    "fingerprints": []
   }
 ]
