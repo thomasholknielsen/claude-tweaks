@@ -16,14 +16,15 @@
 // rejects only a --run-dir that is neither (e.g. a foreign checkout, or
 // nowhere near any git repo).
 //
-// #1210: "anchored under the main checkout" alone doesn't distinguish "no
-// worktree involved, this is correct" from "cwd is itself inside a linked
-// worktree, and a main-checkout-anchored --run-dir is the exact silent
-// stray-write mismatch materialize.md's own worktree-first-ordering prose
-// warns against." When cwd is inside a linked worktree AND --run-dir
-// resolves to the main checkout instead of that worktree, the write target
-// is now rewritten to the worktree-local equivalent (never a rejection —
-// AC #1's "either...or") — see the #1210-tagged cases below.
+// #1210: neither check above asks whether the --run-dir points at cwd's OWN
+// worktree — "anchored under the main checkout" doesn't distinguish "no
+// worktree involved, this is correct" from the silent stray-write mismatch
+// materialize.md's own worktree-first-ordering prose warns against, and
+// "inside a linked worktree" never compared WHICH one. When cwd is inside a
+// linked worktree AND --run-dir resolves elsewhere (the main checkout, or a
+// different worktree), the write target is now rewritten to cwd's own
+// worktree-local equivalent (never a rejection — AC #1's "either...or") —
+// see the #1210-tagged cases below.
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -38,6 +39,14 @@ function withCwd(dir, fn) {
   const prev = process.cwd();
   process.chdir(dir);
   try { return fn(); } finally { process.chdir(prev); }
+}
+
+// A path's own linked-worktree root, or null when it is the main checkout (or
+// membership can't be determined) — the real thing, mirroring realDeps'
+// cwdWorktreeRoot/runDirWorktreeRoot, which share this one shape.
+function worktreeRootOf(somePath) {
+  const info = wtDetect.repoInfo(somePath);
+  return info.isLinkedWorktree ? info.repoRoot : null;
 }
 
 function fakeDeps(overrides = {}) {
@@ -55,19 +64,57 @@ function fakeDeps(overrides = {}) {
     mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
     isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
     isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
-    cwdWorktreeRoot: (cwd) => {
-      const info = wtDetect.repoInfo(cwd);
-      return info.isLinkedWorktree ? info.repoRoot : null;
-    },
-    runDirWorktreeRoot: (resolvedPath) => {
-      const info = wtDetect.repoInfo(resolvedPath);
-      return info.isLinkedWorktree ? info.repoRoot : null;
-    },
+    cwdWorktreeRoot: (cwd) => worktreeRootOf(cwd),
+    runDirWorktreeRoot: (resolvedPath) => worktreeRootOf(resolvedPath),
     mkdirp: () => { throw new Error('mkdirp should never be called when --run-dir is rejected'); },
     writeFile: () => { throw new Error('writeFile should never be called when --run-dir is rejected'); },
     stdout: () => {},
     stderr: (s) => { calls.stderr.push(s); },
     ...overrides,
+  };
+}
+
+const SHAPED_BODY = [
+  'Surface: backend',
+  '',
+  '## Current State',
+  'Some current state text.',
+  '',
+  '## Deliverables',
+  '- [ ] do a thing',
+  '',
+  '## Acceptance Criteria',
+  '1. It works',
+].join('\n');
+
+// The #1210 end-to-end cases below drive the rewrite through a real
+// mkdirp/writeFile — so unlike fakeDeps (whose fs/gh members are
+// "must never be called" tripwires) these deps actually resolve a record and
+// write the file. Everything but the collected stdout/stderr is identical
+// across those cases; only cwd and the --run-dir under test differ.
+function writingDeps(stdout, stderr) {
+  return {
+    ghAvailable: () => true,
+    ghView: () => JSON.stringify({
+      number: 1,
+      title: 'Test record',
+      body: SHAPED_BODY,
+      labels: [{ name: 'ceremony:standard' }],
+      url: 'https://example.invalid/1',
+    }),
+    remoteUrl: () => { throw new Error('remoteUrl should never be called when --repo is passed explicitly'); },
+    gitRevListCount: () => { throw new Error('should not be called — no Verified-as-of stamp on this record'); },
+    gitCommitDate: () => { throw new Error('should not be called — no Verified-as-of stamp on this record'); },
+    cwd: () => process.cwd(),
+    mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
+    isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
+    isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
+    cwdWorktreeRoot: (cwd) => worktreeRootOf(cwd),
+    runDirWorktreeRoot: (resolvedPath) => worktreeRootOf(resolvedPath),
+    mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
+    writeFile: (file, content) => fs.writeFileSync(file, content),
+    stdout: (s) => stdout.push(s),
+    stderr: (s) => stderr.push(s),
   };
 }
 
@@ -172,46 +219,7 @@ test('#1210 end-to-end: cwd inside a linked worktree + --run-dir anchored to the
   const abs = path.join(main, '.claude-tweaks', 'pipelines', 'x');
   const stdout = [];
   const stderr = [];
-  const deps = {
-    ghAvailable: () => true,
-    ghView: () => JSON.stringify({
-      number: 1,
-      title: 'Test record',
-      body: [
-        'Surface: backend',
-        '',
-        '## Current State',
-        'Some current state text.',
-        '',
-        '## Deliverables',
-        '- [ ] do a thing',
-        '',
-        '## Acceptance Criteria',
-        '1. It works',
-      ].join('\n'),
-      labels: [{ name: 'ceremony:standard' }],
-      url: 'https://example.invalid/1',
-    }),
-    remoteUrl: () => { throw new Error('remoteUrl should never be called when --repo is passed explicitly'); },
-    gitRevListCount: () => { throw new Error('should not be called — no Verified-as-of stamp on this record'); },
-    gitCommitDate: () => { throw new Error('should not be called — no Verified-as-of stamp on this record'); },
-    cwd: () => process.cwd(),
-    mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
-    isAnchored: (resolvedPath, root) => wtDetect.isAnchoredUnderRoot(resolvedPath, root),
-    isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
-    cwdWorktreeRoot: (cwd) => {
-      const info = wtDetect.repoInfo(cwd);
-      return info.isLinkedWorktree ? info.repoRoot : null;
-    },
-    runDirWorktreeRoot: (resolvedPath) => {
-      const info = wtDetect.repoInfo(resolvedPath);
-      return info.isLinkedWorktree ? info.repoRoot : null;
-    },
-    mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
-    writeFile: (file, content) => fs.writeFileSync(file, content),
-    stdout: (s) => stdout.push(s),
-    stderr: (s) => stderr.push(s),
-  };
+  const deps = writingDeps(stdout, stderr);
   const code = withCwd(wt, () => run(['1', '--run-dir', abs, '--repo', 'owner/repo'], deps));
   assert.strictEqual(code, 0, stderr.join(''));
   const envelope = JSON.parse(stdout.join(''));
@@ -241,39 +249,7 @@ test('#1210 follow-up accept+rewrite: cwd inside worktree A + --run-dir resolves
   const abs = path.join(wtB, '.claude-tweaks', 'pipelines', 'x');
   const stdout = [];
   const stderr = [];
-  const deps = {
-    ghAvailable: () => true,
-    ghView: () => JSON.stringify({
-      number: 1,
-      title: 'Test record',
-      body: [
-        'Surface: backend', '', '## Current State', 'text', '',
-        '## Deliverables', '- [ ] thing', '',
-        '## Acceptance Criteria', '1. it works',
-      ].join('\n'),
-      labels: [{ name: 'ceremony:standard' }],
-      url: 'https://example.invalid/1',
-    }),
-    remoteUrl: () => { throw new Error('remoteUrl should never be called when --repo is passed explicitly'); },
-    gitRevListCount: () => { throw new Error('should not be called — no Verified-as-of stamp on this record'); },
-    gitCommitDate: () => { throw new Error('should not be called — no Verified-as-of stamp on this record'); },
-    cwd: () => process.cwd(),
-    mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
-    isAnchored: (resolvedPath, root) => wtDetect.isAnchoredUnderRoot(resolvedPath, root),
-    isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
-    cwdWorktreeRoot: (cwd) => {
-      const info = wtDetect.repoInfo(cwd);
-      return info.isLinkedWorktree ? info.repoRoot : null;
-    },
-    runDirWorktreeRoot: (resolvedPath) => {
-      const info = wtDetect.repoInfo(resolvedPath);
-      return info.isLinkedWorktree ? info.repoRoot : null;
-    },
-    mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
-    writeFile: (file, content) => fs.writeFileSync(file, content),
-    stdout: (s) => stdout.push(s),
-    stderr: (s) => stderr.push(s),
-  };
+  const deps = writingDeps(stdout, stderr);
   const code = withCwd(wtA, () => run(['1', '--run-dir', abs, '--repo', 'owner/repo'], deps));
   assert.strictEqual(code, 0, stderr.join(''));
   assert.match(stderr.join(''), /resolves inside a different worktree/i);

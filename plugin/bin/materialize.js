@@ -16,12 +16,12 @@
 // current linked worktree is anchored-equivalent and accepted, since this
 // CLI only ever writes to that worktree's own work/{n}-spec.md), an
 // unresolved record, or when `gh` is absent. #1210: when cwd is itself
-// inside a linked worktree and --run-dir resolves to the main checkout
-// instead (the standard $PIPELINE_RUN_DIR shape every other --run/--run-dir
-// consumer expects, passed unmodified from inside a worktree), the write
-// target is silently rewritten to the worktree-local equivalent — same
-// run-id, same relative structure — rather than trusting the caller, with an
-// informational (non-fatal) stderr note naming both roots.
+// inside a linked worktree but --run-dir resolves somewhere else — the main
+// checkout (the standard $PIPELINE_RUN_DIR shape every other --run/--run-dir
+// consumer expects, passed unmodified from inside a worktree) or a DIFFERENT
+// linked worktree — the write target is rewritten to cwd's own worktree-local
+// equivalent (same run-id, same relative structure) rather than trusting the
+// caller, with an informational (non-fatal) stderr note naming both roots.
 'use strict';
 
 const fs = require('fs');
@@ -125,15 +125,12 @@ const realDeps = {
     const info = wtDetect.repoInfo(cwd);
     return info.isLinkedWorktree ? info.repoRoot : null;
   },
-  // #1210 follow-up (review finding): the resolved --run-dir's OWN worktree
-  // root when it sits inside a linked worktree — distinct from
-  // cwdWorktreeRoot above, which classifies cwd, not the run-dir. Lets the
-  // #1210 guard below tell "run-dir points at cwd's own worktree" (no
-  // rewrite needed) apart from "run-dir points at a DIFFERENT worktree
-  // entirely" (same silent-stray-write shape as the main-checkout case,
-  // just lateral). Returns null when the run-dir doesn't resolve inside any
-  // linked worktree (main-checkout-anchored) or worktree membership can't
-  // be determined.
+  // #1210 follow-up (review finding): the run-dir counterpart of
+  // cwdWorktreeRoot above — the resolved --run-dir's own worktree root. Lets
+  // the guard below tell "run-dir points at cwd's own worktree" (correct, no
+  // rewrite) apart from "run-dir points at a DIFFERENT worktree entirely"
+  // (the same silent stray write as the main-checkout case, just lateral).
+  // Returns null on the same terms as cwdWorktreeRoot.
   runDirWorktreeRoot: (resolvedPath) => {
     const info = wtDetect.repoInfo(resolvedPath);
     return info.isLinkedWorktree ? info.repoRoot : null;
@@ -183,26 +180,21 @@ function run(argv, deps = realDeps) {
       deps.stderr(`materialize.js: ${wtDetect.unanchoredRunDirShadowMessage(opts.runDir, mainRoot)}\n`);
       return 2;
     }
-    // #1210 (+ follow-up, same review pass): anchoredToMain/insideLinkedWorktree
-    // alone don't distinguish "the resolved --run-dir already points at
-    // cwd's own worktree, correct" from "the resolved --run-dir is anchored
-    // somewhere else entirely — the main checkout, or a DIFFERENT linked
-    // worktree — while cwd itself sits inside its own linked worktree,"
-    // which is exactly the mismatch materialize.md's own worktree-first-
-    // ordering prose warns against. The caller followed the ordinary
-    // $PIPELINE_RUN_DIR convention (main-checkout-anchored, the shape every
-    // other --run/--run-dir consumer expects) — or, in the cross-worktree
-    // case, was handed a stale/foreign run dir belonging to a different
-    // worktree session entirely — from inside a worktree, which the
-    // worktree-first ordering requires to write on the feature branch
-    // instead. Detect either mismatch and rewrite the write target to cwd's
-    // own worktree-local equivalent (same run-id, same relative structure)
-    // rather than silently writing outside cwd's own worktree.
+    // #1210 (+ follow-up, same review pass): both checks above pass without
+    // ever asking whether the run-dir points at cwd's OWN worktree. When cwd
+    // sits inside a linked worktree and the run-dir resolves anywhere else —
+    // the main checkout (a caller passing the ordinary $PIPELINE_RUN_DIR
+    // shape unmodified from inside a worktree) or a different worktree (a
+    // stale/foreign run dir from another worktree session) — writing there is
+    // exactly the silent stray write materialize.md's own worktree-first-
+    // ordering prose warns against; that ordering requires the write to land
+    // on the feature branch instead. Rewrite the target to cwd's own
+    // worktree-local equivalent (same run-id, same relative structure).
     const cwdWorktreeRoot = deps.cwdWorktreeRoot(cwd);
     if (cwdWorktreeRoot) {
-      const sourceRoot = anchoredToMain
-        ? mainRoot
-        : (insideLinkedWorktree ? deps.runDirWorktreeRoot(resolvedRunDir) : null);
+      // Past the guard above, !anchoredToMain implies insideLinkedWorktree,
+      // so the run-dir is anchored under exactly one of these two roots.
+      const sourceRoot = anchoredToMain ? mainRoot : deps.runDirWorktreeRoot(resolvedRunDir);
       if (sourceRoot && sourceRoot !== cwdWorktreeRoot) {
         const rewritten = path.join(cwdWorktreeRoot, path.relative(sourceRoot, resolvedRunDir));
         const whereItResolves = anchoredToMain
