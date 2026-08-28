@@ -37,7 +37,7 @@ files:
 
 ### 5. A wide sweep condenses instead of flooding the chat
 - **Action:** A full sweep whose report would exceed 40 lines (a dozen-plus Yours records across several groups is enough — every single-ref record costs a row plus a paste line) writes the whole report to `{run-dir}/report.md` and sends a ~20-line condensed report: Approve in full, Yours as group heads with counts (plus batch lines), Applied and Clean collapsed to counts, and a `Full report:` footer.
-- **Expect:** Nothing is lost — every row and every paste block is in `report.md`; the condensed report is what the hard gate checks for, and Next Actions still derives from the groups. Below 40 lines no `report.md` is written and the report arrives whole.
+- **Expect:** Nothing is lost — every row and every paste block is in `report.md`; the condensed report is what the hard gate checks for, and Next Actions still derives from the groups. At 40 lines or fewer no `report.md` is written and the report arrives whole.
 
 ## Example render
 
