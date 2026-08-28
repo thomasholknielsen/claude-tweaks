@@ -139,7 +139,7 @@ otherwise indistinguishable from "needs -D" and would get the wrong remedy.
 |---|---|
 | `{branch}` is checked out in another worktree | **`checked out in {worktree-path} — remove worktree first, then re-run`**. `-D` would refuse for the same reason `-d` did; this is not a merge-state question |
 | `-d` succeeds | Deleted — no further action |
-| `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
+| `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is not autonomous for this outcome — surface for manual approval, never auto-escalate |
 | `-d` refuses, no configured base, net-empty vs. fork point (#613) | **`net-empty — delete via -D`** |
 | `-d` refuses, no configured base, not net-empty | **`unmerged — manual review required`** — the only unmerged case |
 
