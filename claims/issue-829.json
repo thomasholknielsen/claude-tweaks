@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-28T024552-record-829",
-  "sessionId": "ab4a7346-7d0b-46f0-9bfe-d0229e699d1b",
-  "claimedAt": "2026-08-28T02:48:25.525Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: stale-premise",
+  "releasedAt": "2026-08-28T02:49:39.932Z"
 }
