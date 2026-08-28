@@ -97,7 +97,11 @@ function toPosix(p) {
 // is the drift this whole binding exists to prevent.
 const GATE_COVERAGE = Object.freeze({
   tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
-  gitActions: Object.freeze(['commit', 'push']),
+  // #976 (IL-141): widened beyond commit/push to the evidence-driven
+  // git-plumbing verb set git-command.js's gitTargets() now classifies —
+  // see that function's own GIT_WRITE_ACTIONS comment for what's covered
+  // and, deliberately, what still isn't.
+  gitActions: Object.freeze(['commit', 'push', 'mv', 'update-ref', 'rm', 'apply', 'update-index', 'commit-tree']),
   bashWriteShapes: WRITE_SHAPES,
   // These have their own prose-binding block — skills/_shared/policy-schema-coverage.md's
   // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins

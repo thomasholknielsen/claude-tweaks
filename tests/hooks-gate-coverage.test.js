@@ -208,6 +208,61 @@ test('the `Bash(env -*)` predicate covers env-with-flags git shapes, in both Pre
   assert.deepStrictEqual(gitTargets('env -u FOO git push', '/repo'), [{ action: 'push', dir: '/repo' }]);
 });
 
+// #976 (IL-141): gitTargets() used to classify only `commit`/`push`, so every
+// git-plumbing verb bypassed E1/worktree-always/the pipeline-shadow guard
+// entirely — the concrete case docs/incident-log.md's IL-141 records landed a
+// commit via `hash-object`/`update-index`/`commit-tree`/`checkout` with none of
+// it visible to this gate. This pins the evidence-driven subset now covered:
+// the two verbs #976's own Acceptance Criteria names (`mv`, `update-ref`) plus
+// `rm`, `apply`, `update-index`, `commit-tree` from its Technical Approach and
+// IL-141's own bypass sequence. `checkout`/`stash`/`reset`/`merge`/`pull`/
+// `fetch` etc. stay deliberately uncovered — see policy-schema-coverage.md's
+// "Not covered — deliberately, and measured" note; widening those is a
+// separate, evidence-driven call, not a default extrapolation from this fix.
+test('gitTargets recognizes the #976 git-plumbing write verbs, in both the parser and hooks.json (#976, IL-141)', () => {
+  const PLUMBING_VERBS = ['mv', 'update-ref', 'rm', 'apply', 'update-index', 'commit-tree'];
+
+  // Parser side: each plumbing verb resolves a target the same shape commit/push do.
+  for (const verb of PLUMBING_VERBS) {
+    assert.deepStrictEqual(
+      gitTargets(`git ${verb} a b`, '/repo'),
+      [{ action: verb, dir: '/repo' }],
+      `gitTargets must classify 'git ${verb}' as a write target`,
+    );
+  }
+
+  // `git apply --check`/`--stat`/`--numstat`/`--summary` are read-only (dry-run
+  // / info) invocations — must NOT resolve as a write, the same read/write
+  // precision sed/perl's in-place-flag detection already applies.
+  assert.deepStrictEqual(gitTargets('git apply --check a.patch', '/repo'), [],
+    'git apply --check is a dry run, not a write — must resolve no target');
+  assert.deepStrictEqual(gitTargets('git apply --stat a.patch', '/repo'), [],
+    'git apply --stat is read-only — must resolve no target');
+
+  // GATE_COVERAGE.gitActions must include every new verb, or the
+  // worktree-always gate's own action filter (pre-tool-use.js's
+  // checkWorktreeRequired) silently drops these targets even though
+  // gitTargets resolved them.
+  for (const verb of PLUMBING_VERBS) {
+    assert.ok(GATE_COVERAGE.gitActions.includes(verb),
+      `GATE_COVERAGE.gitActions must include '${verb}'`);
+  }
+
+  // hooks.json side: a bare `git {verb} ...` predicate must exist in both
+  // PreToolUse and PostToolUse's Bash groups, or the hook process never
+  // spawns for this shape and the parser branch above is dead code (#70).
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  for (const group of ['PreToolUse', 'PostToolUse']) {
+    const bashGroup = hooks.hooks[group].find((e) => e.matcher === 'Bash');
+    assert.ok(bashGroup, `${group} must carry a Bash matcher group`);
+    const ifs = bashGroup.hooks.map((h) => h.if).filter(Boolean);
+    for (const verb of PLUMBING_VERBS) {
+      assert.ok(ifs.includes(`Bash(git ${verb} *)`),
+        `${group}'s Bash group is missing an "if": "Bash(git ${verb} *)" predicate — gitTargets recognizes 'git ${verb}' but the hook would never spawn for it`);
+    }
+  }
+});
+
 // #500's stampAdHocRunDir and #307's staleness backstop both hard-gate on
 // tool_name === 'EnterWorktree' in post-tool-use.js — a PostToolUse group
 // without an EnterWorktree matcher makes both dead at the registration seam

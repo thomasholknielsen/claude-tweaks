@@ -48,7 +48,13 @@
           { "type": "command", "if": "Bash(ln *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(truncate *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(dd *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
-          { "type": "command", "if": "Bash(git worktree *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" }
+          { "type": "command", "if": "Bash(git worktree *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git mv *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git update-ref *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git rm *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git apply *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git update-index *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git commit-tree *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" }
         ]
       },
       {
@@ -92,7 +98,13 @@
           { "type": "command", "if": "Bash(env git -c *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
           { "type": "command", "if": "Bash(env git --exec-path=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
           { "type": "command", "if": "Bash(env git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
-          { "type": "command", "if": "Bash(env -*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
+          { "type": "command", "if": "Bash(env -*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git mv *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git update-ref *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git rm *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git apply *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git update-index *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git commit-tree *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
         ]
       },
       {

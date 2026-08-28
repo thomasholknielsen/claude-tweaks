@@ -362,6 +362,35 @@ function findGitLead(t, dir) {
   return { index: -1, dir, unprovable };
 }
 
+// #976 (IL-141): `commit`/`push` were the only git subcommands gitTargets ever
+// classified as a write, so every OTHER git-plumbing verb bypassed E1,
+// worktree-always, and the pipeline-shadow guard entirely — the exact
+// mechanism docs/incident-log.md's IL-141 records (a spec materialized via
+// `hash-object`/`update-index`/`commit-tree`/`checkout`, none of it visible to
+// any gate). This set is deliberately evidence-driven, not "every git
+// subcommand": the two verbs #976's Acceptance Criteria names (`mv`,
+// `update-ref`) plus `rm`/`apply`/`update-index`/`commit-tree` from its
+// Technical Approach and IL-141's own bypass sequence. `checkout`/`stash`/
+// `reset`/`merge`/`pull`/`fetch` and the rest stay uncovered — widening those
+// is its own evidence-driven call (see policy-schema-coverage.md's "Not
+// covered — deliberately, and measured" note), not a default extrapolation
+// from this fix. `hash-object` is excluded too: read-only unless `-w` is
+// passed, and even with `-w` it only writes a loose object nothing yet
+// references — no ref or index entry moves until `update-index`/`commit-tree`
+// (both covered) runs, so classifying it here would flag commands with no
+// tracked-state effect.
+const GIT_WRITE_ACTIONS = new Set(['commit', 'push', 'mv', 'update-ref', 'rm', 'apply', 'update-index', 'commit-tree']);
+
+// `git apply --check`/`--stat`/`--numstat`/`--summary` are dry-run / info-only
+// invocations — they never touch the working tree or index. Without this
+// exclusion every `apply` would be flagged, including the read-only variants
+// scripts commonly use to validate a patch before applying it for real — the
+// same read/write precision `hasInPlaceFlag` already applies to sed/perl.
+const APPLY_READONLY_FLAGS = new Set(['--check', '--stat', '--numstat', '--summary']);
+function isReadOnlyApply(rest) {
+  return rest.some((a) => APPLY_READONLY_FLAGS.has(a));
+}
+
 function gitTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
@@ -371,7 +400,9 @@ function gitTargets(command, cwd) {
     if (lead.unprovable || unprovable) return;
     if (dir === null) return; // cwd UNKNOWN and no provable -C — no target
     const sub = t[i];
-    if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir });
+    if (!GIT_WRITE_ACTIONS.has(sub)) return;
+    if (sub === 'apply' && isReadOnlyApply(t.slice(i + 1))) return;
+    targets.push({ action: sub, dir });
   });
   return targets;
 }
