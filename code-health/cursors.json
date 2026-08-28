@@ -98,5 +98,9 @@
   "plugin/bin/lib/claim-targets": {
     "lastSweptMs": 1787886504260,
     "lastHash": "13a6fcdda81635da397b0f310fefba59629fc2d2"
+  },
+  "plugin/bin/lib/code-health": {
+    "lastSweptMs": 1787886948754,
+    "lastHash": "0c8947fbe661c88307a1e167d3f77a4f4d824aa8"
   }
 }
