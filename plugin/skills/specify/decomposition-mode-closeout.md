@@ -1,11 +1,25 @@
-# Specify — Decomposition Mode, Steps 5-9 (red-team through completion)
+# Specify — Decomposition Mode, Steps 3-9 (record creation through completion)
 
-Continues `decomposition-mode.md` in this same directory — that file's Steps 1-4 create the
-parent and sub-issue records and wire their relationships; this file picks up from there: the
-multi-persona red-team pass, self-review, deletion of the consumed design doc, and the Step 9
-summary/commit. Step numbering matches `decomposition-mode.md`'s own numbering exactly (Steps
-1-9 together, unchanged across the split — #611), so a cross-reference naming a step by number
-still resolves regardless of which of the two files it lands in.
+Continues `decomposition-mode.md` in this same directory — that file's interactive Steps 1, 2,
+2.6, 2.5, and 2.5d resolve the decomposition shape, the collapse decision, and (for frontend
+specs) design intent. This file picks up from there: record creation, linking, the multi-persona
+red-team pass, self-review, deletion of the consumed design doc, and the Step 9 summary/commit —
+every step from here on is mechanical, safe for a subagent dispatched via `mechanical-handoff.md`'s
+canonical dispatch prompt to run unattended having read only this file. Step numbering matches
+`decomposition-mode.md`'s own numbering exactly (Steps 1-9 together, unchanged across the split —
+originally #611's Step 4/5 boundary, moved to the interactive/mechanical boundary at #832), so a
+cross-reference naming a step by number still resolves regardless of which of the two files it
+lands in.
+
+---
+
+## Step 3: Create the records
+
+When Step 2.6 kept the parent, records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Under collapse (Step 2.6), there is no parent — every produced record is created independently, using deterministic fingerprints for idempotent resume across partial or concurrent runs exactly as today. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the full procedure: the Idempotency (resume path) map, Parent record creation (skipped under collapse), and Sub-issue creation — including the origin-set carve-out where a 1-unit collapse's "create" is an in-place write onto the origin record (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
+
+## Step 4: Link and order
+
+Every record this run is going to create now has a number (a parent's, under a kept parent; every unit's own, under collapse). This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it. Read `record-creation.md` in this skill's directory for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
 
 ---
 
