@@ -46,6 +46,18 @@ async function reconcile(opts = {}) {
   const cwd = opts.cwd || process.cwd();
   const result = { mirror: null, redTip: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [] };
 
+  // Declined-learning store prune (#1399) — local, gitignored bookkeeping unrelated to git/
+  // GitHub reachability, so it runs unconditionally on every reconcile pass regardless of
+  // `checks`, the integration model, or whether this even resolves to a repo — the store's own
+  // path is process.cwd()-relative (no root param on this module today, matching every existing
+  // caller: /feedback and /reflect never pass one either), so this deliberately does not thread
+  // `root` through. Best-effort: a prune failure never blocks the rest of the pass.
+  try {
+    require('../declined-learning/store').pruneDeclines();
+  } catch {
+    /* best-effort — never break reconcile over declined-learning maintenance */
+  }
+
   const root = mainCheckoutRoot(cwd);
   if (!root) {
     result.skipped.push({ check: 'all', reason: 'no-repo' });
