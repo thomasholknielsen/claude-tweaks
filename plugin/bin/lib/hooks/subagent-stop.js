@@ -34,6 +34,15 @@ function lastAssistantText(transcriptPath) {
     // unrelated content instead of correctly recognizing "the real last
     // turn had nothing to grade" — matching this file's own best-effort
     // posture (unreadable/ungradable -> no-op, not a violation).
+    //
+    // A message that ALSO carries a tool_use block is not a completed reply
+    // either, even when it carries narration text alongside the tool call
+    // (e.g. "Waiting for the other task to finish." immediately before
+    // calling Monitor/SendMessage) — the turn continues after the tool
+    // result comes back, so this narration precedes the eventual final
+    // reply rather than being it. Grading it here is the same category of
+    // misfire as the tool-call-only case above: nothing to grade yet (#1329).
+    if (msg.content.some((c) => c && c.type === 'tool_use')) return null;
     const texts = msg.content.filter((c) => c && c.type === 'text' && typeof c.text === 'string');
     return texts.length ? texts[texts.length - 1].text : null;
   }
