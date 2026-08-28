@@ -551,6 +551,61 @@ test('archiveMerged: an orphaned mint within the TTL is left in place, not archi
   assert.ok(fs.existsSync(dir), 'a fresh mint should not be swept before the grace window elapses');
 });
 
+// --- #1117: -adhoc-standalone mints (post-tool-use.js's stampAdHocRunDir)
+// are exempt from the blind isOrphanedMint mtime sweep — see
+// archive-merged.js's isAdHocStandaloneMint.
+
+test('isOrphanedMint: false for an adhoc-standalone mint, regardless of age (#1117)', () => {
+  const { isOrphanedMint, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const root = bareRepoRoot();
+  const dir = mintEmptyRunDir(root, '2026-08-01T000000-adhoc-standalone', { ageMs: ORPHAN_MINT_TTL_MS * 3 });
+  assert.strictEqual(isOrphanedMint(dir), false);
+});
+
+test('isAdHocStandaloneMint: matches only the -adhoc-standalone suffix (#1117)', () => {
+  const { isAdHocStandaloneMint } = require('../plugin/bin/lib/reconcile/archive-merged');
+  assert.strictEqual(isAdHocStandaloneMint('/x/2026-08-01T000000-adhoc-standalone'), true);
+  assert.strictEqual(isAdHocStandaloneMint('/x/2026-08-01T000000-record-999'), false);
+  assert.strictEqual(isAdHocStandaloneMint('/x/2026-08-01T000000-adhoc-standalone-extra'), false);
+});
+
+test('archiveMerged: an adhoc-standalone mint past the orphan TTL is left in place, not archived (#1117)', () => {
+  const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { writeRunState } = require('../plugin/bin/lib/hooks/context');
+  const root = bareRepoRoot();
+  const runId = '2026-08-01T120000-adhoc-standalone';
+  const dir = mintEmptyRunDir(root, runId, { ageMs: ORPHAN_MINT_TTL_MS * 3 });
+  // A real ad-hoc dir's run-state.json always carries a `worktree` (stampAdHocRunDir) —
+  // an arbitrary non-registered path here, so archiveMerged's merged-PR branch skips on
+  // 'no-branch' without shelling out to `gh`, deliberately distinct from a genuine
+  // orphaned mint (which has no run-state.json at all).
+  writeRunState(dir, { worktree: path.join(root, 'nonexistent-worktree'), status: 'active', sessionId: 'sess-1' });
+
+  const result = archiveMerged({ cwd: root });
+
+  assert.ok(fs.existsSync(dir), 'adhoc-standalone mint should NOT be archived by the mtime orphan sweep');
+  assert.ok(!result.archived.includes(dir));
+  assert.ok(result.skipped.some((s) => s.runDir === dir && s.reason === 'no-branch'));
+});
+
+test('findRunsByWorktreePath still finds an adhoc-standalone dir after a reconcile sweep has run against it (#1117)', () => {
+  const { archiveMerged, ORPHAN_MINT_TTL_MS } = require('../plugin/bin/lib/reconcile/archive-merged');
+  const { writeRunState, findRunsByWorktreePath } = require('../plugin/bin/lib/hooks/context');
+  const root = bareRepoRoot();
+  const runId = '2026-08-01T130000-adhoc-standalone';
+  const dir = mintEmptyRunDir(root, runId, { ageMs: ORPHAN_MINT_TTL_MS * 3 });
+  const worktreePath = path.join(root, 'nonexistent-worktree');
+  writeRunState(dir, { worktree: worktreePath, status: 'active', sessionId: 'sess-1' });
+
+  archiveMerged({ cwd: root });
+
+  const found = findRunsByWorktreePath(root, worktreePath, null);
+  assert.ok(
+    found.some((r) => r.runDir === dir),
+    "the Friction lens's read path (bin/friction-events.js -> findRunsByWorktreePath) must still find the adhoc dir's events after the sweep",
+  );
+});
+
 // --- isWorktreeLocked: reused verbatim from worktree-reap.js (not a copy) ---
 
 test('isWorktreeLocked: a plain unlocked linked worktree is not locked', () => {

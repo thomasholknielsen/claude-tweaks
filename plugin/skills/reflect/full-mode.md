@@ -61,6 +61,18 @@ manufactured. A formal `/claude-tweaks:build`/`/claude-tweaks:flow` run is unaff
 `PIPELINE_RUN_DIR` is set (or `record-worktree` stamps ownership) before `EnterWorktree` fires, so
 `stampAdHocRunDir` sees an already-owned run and never mints a second, competing one.
 
+**Lifecycle: surviving the orphan-mint sweep (#1117).** An ad-hoc dir never gets a `config.yml`
+(only `/flow`'s Manifesto writes one), which is also the signal the background reconcile sweep
+(`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint`) uses to detect an abandoned
+`/flow`/`/dispatch` pre-Manifesto mint and silently archive it after 24h of no mtime activity — a
+real dev session left untouched for that long before wrap-up finally runs would otherwise lose its
+whole friction record with no error, reopening exactly the blind spot this section exists to close.
+`isOrphanedMint` exempts any `-adhoc-standalone`-suffixed dir from that mtime sweep entirely
+(`isAdHocStandaloneMint`): its real lifecycle answer is the ordinary merged-PR archival path
+`archiveMerged` already runs for every other run dir (it carries a real `worktree` in its
+`run-state.json`, unlike a genuine orphaned mint, which has none), not a blind age heuristic built
+for a different case.
+
 **This block is the single machine-checked statement of the vocabulary above** (`tests/reflect-friction-lens-vocab.test.js` pins it against the real `appendEvent(...)` call sites in `bin/lib/hooks/*.js` — a drift here is a test failure, not a silent doc rot, per `#452`'s post-mortem):
 
 <!-- friction-lens-vocab:begin -->
