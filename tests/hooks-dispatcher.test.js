@@ -575,6 +575,48 @@ test('#1337: a gate-denial event is untagged when CT_HOOKS_TEST_MODE is not set'
   assert.strictEqual('test' in events[0], false, 'a real denial must not carry the test-mode tag');
 });
 
+// #1395: the gitignored-target exemption's own allow breadcrumb — unlike
+// the two pre-existing path exemptions (pipeline bookkeeping, policy.yml),
+// which leave no event at all, this one records a `gate-exempt-gitignored`
+// event so an operator can audit which writes it let through. (The issue
+// also asked for a standalone "untracked, not gitignored" branch — deliberately
+// not implemented; see isUntrackedOrIgnored's header comment in
+// pre-tool-use.js for the concrete regression evidence that made it unsafe.)
+test('an allowed gitignored write appends a gate-exempt-gitignored event', () => {
+  const { project, run } = policyRepoWithRun();
+  fs.writeFileSync(path.join(project, '.gitignore'), '*.env\n');
+  const target = path.join(project, 'deploy.env');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /"permissionDecision":"deny"/, 'a gitignored write target must be allowed');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1, 'expected exactly one breadcrumb event');
+  assert.strictEqual(events[0].type, 'gate-exempt-gitignored');
+  assert.strictEqual(events[0].tool, 'Write');
+  assert.strictEqual(events[0].path, target);
+});
+
+// Regression guard for the reverted branch above: an EXISTING, never-`git
+// add`ed file that is NOT gitignored must stay denied — proving the
+// exemption really is gitignored-only, not untracked-status-only.
+test('an existing, never-added file that is NOT gitignored stays denied (no gate-exempt-gitignored event)', () => {
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'scratch.txt');
+  fs.writeFileSync(target, 'pre-existing, never git-added, not ignored');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: `cp source.txt ${target}` } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/, 'an untracked-but-not-ignored write target must stay denied');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].type, 'gate-denial', 'must be the ordinary deny breadcrumb, not a gitignored-exemption allow');
+});
+
 // #1270 regression: the #1130 fix (`PIPELINE_RUN_DIR: ''` in runHook's spread,
 // proven above at 'record-pr does not resolve against an ambient
 // PIPELINE_RUN_DIR...') guards run-state.json field writes. This is the sibling

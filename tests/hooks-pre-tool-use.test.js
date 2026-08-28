@@ -761,3 +761,131 @@ test('worktree-required: an unexpanded glob still resolves against the cwd and i
   const out = pre.run({ input: bashInput("sed -i 's/x/y/' *.js", repo), runDir: null, runState: null, cwd: repo });
   assert.strictEqual(decisionOf(out), 'deny', 'a glob rooted in the main checkout writes to the main checkout');
 });
+
+// --- gitignored-target exemption (#1395) ---
+//
+// A gitignored runtime config (a .env docker compose reads from the main
+// checkout) is not the project work this gate exists to isolate. Covers both
+// file-tool (Edit/Write) and Bash write-shape (cp/sed -i/tee) targets, per
+// the issue's "keyed on exemptible, not fileTool" instruction.
+//
+// The issue also asked for a second, standalone "untracked, but NOT
+// gitignored" branch (via `git ls-files --error-unmatch`). That branch was
+// built during triage, then DELIBERATELY REVERTED — see isUntrackedOrIgnored's
+// header comment in pre-tool-use.js for the full rationale — after it broke
+// three existing security tests in tests/hooks-policy-exemption.test.js by
+// blanket-exempting any existing-but-uncommitted file, including
+// `.claude-tweaks/policy.yml` itself before its first commit (defeating both
+// its Bash-write-shape gating and its symlink-swap identity defense) and
+// ordinary real project content (CLAUDE.md) that simply had not been `git
+// add`ed yet. Git has no signal that distinguishes those from a genuine
+// deploy/scratch artifact. The tests below cover the gitignored branch that
+// WAS implemented, plus regression guards proving the reverted branch stays
+// reverted.
+
+test('worktree-required: a gitignored write target is exempt (Edit/Write and cp/sed -i/tee)', () => {
+  const repo = policedRepo();
+  fs.writeFileSync(path.join(repo, '.gitignore'), '*.env\n');
+  const target = path.join(repo, 'deploy.env');
+
+  assert.deepStrictEqual(
+    pre.run({ input: { tool_name: 'Write', tool_input: { file_path: target } }, runDir: null, runState: null, cwd: repo }),
+    {}, 'Write to a gitignored path must be exempt',
+  );
+  assert.deepStrictEqual(
+    pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: target } }, runDir: null, runState: null, cwd: repo }),
+    {}, 'Edit of a gitignored path must be exempt',
+  );
+  assert.deepStrictEqual(
+    pre.run({ input: bashInput(`cp source.txt ${target}`, repo), runDir: null, runState: null, cwd: repo }),
+    {}, 'cp writing a gitignored destination must be exempt',
+  );
+  assert.deepStrictEqual(
+    pre.run({ input: bashInput(`sed -i 's/x/y/' ${target}`, repo), runDir: null, runState: null, cwd: repo }),
+    {}, 'sed -i against a gitignored path must be exempt',
+  );
+  assert.deepStrictEqual(
+    pre.run({ input: bashInput(`echo hi | tee ${target}`, repo), runDir: null, runState: null, cwd: repo }),
+    {}, 'tee writing a gitignored path must be exempt',
+  );
+});
+
+test('worktree-required: an EXISTING untracked-but-NOT-gitignored write target is still denied (reverted-branch regression guard, #1395)', () => {
+  // An existing, never-`git add`ed scratch file that is NOT covered by any
+  // .gitignore pattern must stay denied — proving the exemption really is
+  // gitignored-only. See the block comment above for the full history: a
+  // standalone untracked branch was built, then reverted, because it could
+  // not be told apart from real uncommitted project content.
+  const repo = policedRepo();
+  const target = path.join(repo, 'scratch.txt');
+  fs.writeFileSync(target, 'pre-existing, never git-added, not ignored');
+  const out = pre.run({ input: bashInput(`cp source.txt ${target}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(out), 'deny', 'untracked status alone must never exempt a write — only a gitignore match does');
+});
+
+test('worktree-required: a NOT-YET-EXISTING file write is still denied', () => {
+  const repo = policedRepo();
+  const target = path.join(repo, 'brand', 'new-file.js');
+  const out = pre.run({ input: { tool_name: 'Write', tool_input: { file_path: target } }, runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(out), 'deny', 'a not-yet-existing, non-ignored file must stay denied');
+});
+
+test('worktree-required: a tracked, non-ignored path is STILL denied exactly as today — the exemption never widens for real repo-tracked writes', () => {
+  const repo = policedRepo();
+  const target = path.join(repo, 'tracked.js');
+  fs.writeFileSync(target, 'x');
+  execFileSync('git', ['-C', repo, 'add', 'tracked.js']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 't', '-q']);
+
+  const editOut = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: target } }, runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(editOut), 'deny');
+  const sedOut = pre.run({ input: bashInput(`sed -i 's/x/y/' ${target}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(sedOut), 'deny');
+});
+
+test('worktree-required: cp realfile.js .env — a tracked source alongside a gitignored destination resolves on the DESTINATION only (#1395 gotcha)', () => {
+  const repo = policedRepo();
+  fs.writeFileSync(path.join(repo, '.gitignore'), '.env\n');
+  const source = path.join(repo, 'realfile.js');
+  fs.writeFileSync(source, 'x');
+  execFileSync('git', ['-C', repo, 'add', 'realfile.js']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 't', '-q']);
+  const dest = path.join(repo, '.env');
+  const out = pre.run({ input: bashInput(`cp ${source} ${dest}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.deepStrictEqual(out, {}, 'cp only ever tracks the destination — a tracked source must not defeat the gitignored destination\'s exemption');
+});
+
+test('worktree-required: gitignored-target exemption is allowed inside a worktree too (no regression for the compliant case)', () => {
+  const repo = policedRepo();
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({ input: bashInput(`cp source.txt ${path.join(wt, 'a.js')}`, wt), runDir: null, runState: null, cwd: wt });
+  assert.deepStrictEqual(out, {}, 'inside a worktree, everything is already allowed regardless of this exemption');
+});
+
+test('isUntrackedOrIgnored fails closed on anything it cannot prove, and is gitignored-only (#1395)', () => {
+  const repo = gitRepoWithCommit();
+  fs.writeFileSync(path.join(repo, '.gitignore'), 'ignored.txt\n');
+  const ignored = path.join(repo, 'ignored.txt');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, ignored), true, 'the positive (gitignored) case must actually match');
+
+  const existingUntrackedNotIgnored = path.join(repo, 'scratch.txt');
+  fs.writeFileSync(existingUntrackedNotIgnored, 'x');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, existingUntrackedNotIgnored), false,
+    'untracked alone (not gitignored) is never exempt — the reverted branch stays reverted');
+
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, 'ignored.txt'), false, 'relative path is unprovable');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, ''), false, 'empty path');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, null), false, 'null path');
+  assert.strictEqual(pre.isUntrackedOrIgnored(null, ignored), false, 'null repoRoot');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, path.join(repo, 'never', 'created.txt')), false,
+    'a not-yet-existing, non-ignored path is never exempt');
+  // A path resolving outside repoRoot is a real git failure (exit 128, with
+  // stderr) for check-ignore — indeterminate, not a clean negative, so it
+  // must fail closed rather than being read as "not ignored".
+  const outsideRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-outside-'));
+  fs.writeFileSync(path.join(outsideRepo, 'x.txt'), 'x');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, path.join(outsideRepo, 'x.txt')), false,
+    'a path outside repoRoot is a git fatal error, not a clean negative — fails closed');
+});
