@@ -25,6 +25,12 @@ function mkRun(worktree, sessionId) {
 // Multi-run helpers: several run dirs living under the SAME project, so
 // listRunDirs(ctx.cwd) can see siblings — mirrors two parallel /flow
 // terminals sharing one main checkout.
+//
+// #1242: audited for the same real-repo-bleed gap hooks-dispatcher.test.js's tmpProject()
+// closed via #790's `git init`. Not needed here — this file never spawns bin/hooks.js as a
+// subprocess (its `execFileSync` calls are plain `git` commands for fixtures); every
+// `pre.run()` call passes `runDir`/`runState`/`cwd` explicitly, so there is no cwd-based
+// fallback resolution here to isolate from the real repo's `.claude-tweaks/pipelines/` state.
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1proj-'));
   fs.mkdirSync(path.join(dir, '.claude-tweaks', 'pipelines'), { recursive: true });

@@ -9,6 +9,14 @@ const path = require('path');
 const sessionStart = require('../plugin/bin/lib/hooks/session-start');
 const deps = require('../plugin/bin/lib/deps');
 
+// #1242: audited for the same real-repo-bleed gap hooks-dispatcher.test.js's tmpProject()
+// closed via #790's `git init`. Not needed here — this file never spawns bin/hooks.js as a
+// subprocess at all (its `execFileSync` calls are plain `git` commands to build fixtures, plus
+// one `cp.execFileSync` mock to inspect args session-start.js itself would pass). Every
+// `sessionStart.run()`/`freshSessionStart.run()` call passes `cwd: project` (or an equivalent
+// fixture path) explicitly in-process; session-start's stale-run report resolves run dirs via
+// `iterRunDirsWithState(cwd)`, whose `mainCheckoutRoot(start) || start` anchoring resolves to
+// that explicit `cwd` argument, not the test runner's own process.cwd().
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-'));
   fs.mkdirSync(path.join(dir, '.claude-tweaks', 'pipelines'), { recursive: true });

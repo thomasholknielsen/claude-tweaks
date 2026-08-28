@@ -8,6 +8,13 @@ const path = require('path');
 const { spawn } = require('child_process');
 const ctx = require('../plugin/bin/lib/hooks/context');
 
+// #1242: audited for the same real-repo-bleed gap hooks-dispatcher.test.js's tmpProject()
+// closed via #790's `git init`. Not needed here — this file never spawns bin/hooks.js as a
+// subprocess (no execFileSync/spawn of HOOKS), it calls ctx.resolveRunDir/resolveRun directly
+// in-process with `dir` passed explicitly as the `cwd` argument. iterRunDirsWithState's
+// `mainCheckoutRoot(start) || start` anchoring therefore always resolves to `dir` itself (found
+// as a real checkout root, or falling back to the parameter unchanged) — never process.cwd() of
+// the test runner, and never any ancestor of `dir` in the real repo's tree, git-inited or not.
 function tmpProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-hooks-'));
   fs.mkdirSync(path.join(dir, '.claude-tweaks', 'pipelines'), { recursive: true });
