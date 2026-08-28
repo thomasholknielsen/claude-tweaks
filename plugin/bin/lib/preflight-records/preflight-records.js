@@ -51,7 +51,7 @@ function fetchIssues({ numbers, runner = defaultRunner } = {}) {
 }
 
 // fetchNativeDependencies({ numbers, owner, repo, runner }) -> Map<number,
-// {blockedBy: number[], openBlocker: boolean}>. Executes the batched,
+// {blockedBy: number[], openBlocker: boolean, openBlockerIds: number[]}>. Executes the batched,
 // aliased GraphQL call (bin/lib/issues/record.js's buildNativeDependencyQuery)
 // and parses the response — moved to bin/lib/issues/native-dependencies.js
 // (#538) so this CLI's call site and bin/resolve-blockers.js's single-record

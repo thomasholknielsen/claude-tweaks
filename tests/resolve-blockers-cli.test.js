@@ -4,8 +4,8 @@
 // tests/resolve-policy-cli.test.js's spawnSync-a-real-process style, since
 // this CLI's whole point is a `gh api graphql` call that must never be live
 // in a test — a fake runner in deps.runner stands in for it). Covers
-// argument parsing and the number-keyed {blockedBy, openBlocker} output
-// shape; the
+// argument parsing and the number-keyed {blockedBy, openBlocker, openBlockerIds}
+// output shape; the
 // GraphQL query-building logic itself (buildNativeDependencyQuery) already
 // has coverage in tests/bin-lib/issues/record.test.js and is not
 // re-verified here.
@@ -154,7 +154,7 @@ test('success: one runner call, a number-keyed JSON line on stdout, exit 0', () 
   assert.equal(deps.calls.runner.length, 1, 'exactly one gh api graphql call');
   assert.equal(deps.calls.stderr.length, 0, 'success path writes nothing to stderr');
   assert.equal(deps.calls.stdout.length, 1, 'exactly one stdout write');
-  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), { 720: { blockedBy: [700], openBlocker: true } });
+  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), { 720: { blockedBy: [700], openBlocker: true, openBlockerIds: [700] } });
 });
 
 test('success: owner/repo parsed from the origin remote when --repo is absent', () => {
@@ -172,7 +172,7 @@ test('success: no open blockers reports openBlocker false, blockedBy []', () => 
   });
   const code = run(['720'], deps);
   assert.equal(code, 0);
-  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), { 720: { blockedBy: [], openBlocker: false } });
+  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), { 720: { blockedBy: [], openBlocker: false, openBlockerIds: [] } });
 });
 
 test('success: a comma list of numbers resolves in ONE runner call, one key per requested number', () => {
@@ -192,8 +192,8 @@ test('success: a comma list of numbers resolves in ONE runner call, one key per 
   assert.equal(code, 0);
   assert.equal(deps.calls.runner.length, 1, 'one aliased call covers the whole list, never one call per number');
   assert.deepEqual(JSON.parse(deps.calls.stdout[0]), {
-    720: { blockedBy: [700], openBlocker: true },
-    730: { blockedBy: [], openBlocker: false },
+    720: { blockedBy: [700], openBlocker: true, openBlockerIds: [700] },
+    730: { blockedBy: [], openBlocker: false, openBlockerIds: [] },
   });
 });
 
