@@ -96,4 +96,29 @@ caller trusts a stale read.
 `skills/dispatch/SKILL.md`, `skills/backlog/overview-mode.md`,
 `skills/backlog/refine-mode.md`, `skills/backlog/refine-lanes.md`,
 `skills/backlog/grant-mode.md`, `skills/backlog/attention-mode.md`,
-`skills/backlog/trust-signal.md`, `skills/assess-agent-autonomy/grant-check.md`.
+`skills/backlog/trust-signal.md`, `skills/assess-agent-autonomy/grant-check.md`,
+`skills/_shared/trust-table.md` — whose Fetch section resolves seven paths at once via the
+CLI wrapper and hands their literal values downstream as `{tmp-*}` placeholders (see that
+file's Fetch section); `skills/backlog/trust-signal.md` re-resolves two of the same
+filenames (`trust-table-records.json`, `trust-table-git-log.txt`) independently, since
+`sessionTmpPath` is deterministic per session id + filename and a shell variable from
+`trust-table.md`'s own resolution call cannot survive into `trust-signal.md`'s separate
+Bash call.
+
+**Extended (#923) to the remaining `skills/**` sweep:** `skills/specify/next-mode.md`,
+`skills/capture/SKILL.md`, `skills/help/status-scan.md`, `skills/tidy/step-1-records.md`,
+`skills/init/bootstrap/step-14-cloud-routine-parity.md` (and the `scripts/claude-cloud-setup.sh`
+it generates — that standalone bootstrap script reimplements the mechanism inline rather than
+requiring `${CLAUDE_PLUGIN_ROOT}`, since its whole job is installing the plugin onto a sandbox
+that doesn't have it yet), `skills/code-health/SKILL.md`, `skills/code-health/filing.md`,
+`skills/code-health/focus-mode.md`, `skills/docs-health/SKILL.md`,
+`skills/harness-health/SKILL.md`, `skills/harness-health/filing.md`,
+`skills/harness-health/judge-procedure.md` (whose per-target findings files and narrative-density
+scratch file combine the session root with the existing `{target.id}` suffix — the
+record-suffixed-caller case above), `skills/journey-health/SKILL.md`,
+`skills/wrap-up/SKILL.md`, `skills/wrap-up/unblocked-records.md`,
+`skills/wrap-up/docs-health-integration.md`, `skills/wrap-up/leftover-routing.md`,
+`skills/wrap-up/verification-brief-parent-gate.md`, `skills/_shared/label-bootstrap.md`,
+`skills/_shared/github-pr-scan.md`, `skills/_shared/github-pr-scan-acceptance.md` (re-measured
+with `wc -c` after every edit to stay under its 40 KB per-invocation ceiling — see that file's own
+header note), and `skills/_shared/harness-health-analysis.md`.

@@ -12,11 +12,12 @@ default_schedule:
   description: "weekday off-peak anchor, UTC, slotted between the finder routines and dispatch — confirm against your local timezone at creation time"
 notes: >
   Headless machine-grant unit: each firing sweeps the `ready` queue and applies
-  `auto:build` (+ `auto:merge` when its own checks clear) to every candidate whose gate
-  chain fully clears — see `skills/backlog/grant-mode.md`'s Step 0-4. This is the one
-  machine-origination path for `auto:build`/`auto:merge` — everything else in the fleet
-  (this routine included) only downgrades or strips a grant it reads, never originates
-  one, except this mode itself, which is gated behind the `unattended` ceiling plus its
+  `auto:build` (+ auto:merge-pending when its own checks clear, maturing later to
+  auto:merge) to every candidate whose gate chain fully clears — see
+  `skills/backlog/grant-mode.md`'s Step 0-4. This is the one machine-origination path for
+  `auto:build`/`auto:merge` — everything else in the fleet (this routine included) only
+  downgrades or strips a grant it reads, never originates one, except this mode itself,
+  which is gated behind the `unattended` ceiling plus its
   own `grant-origination-enabled` opt-in (both must be set in `.claude-tweaks/policy.yml`
   or the whole firing is a no-op — grant-mode.md Step 0). A firing with the ceiling gate
   unsatisfied, or with no eligible candidates in the `ready` queue, is a cheap no-op

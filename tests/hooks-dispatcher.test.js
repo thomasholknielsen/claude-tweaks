@@ -11,10 +11,30 @@ const { linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
-function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
+// #1130: never let an omitted cwd fall through to the spawned subprocess's
+// own process.cwd() — that is the test runner's real working directory, and
+// when npm test runs from a real checkout, hooks that walk
+// .claude-tweaks/pipelines/ from there write fixture events into REAL run
+// dirs (the #657 pollution incident). Calls that don't care about cwd get an
+// isolated, non-git sandbox instead.
+const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-sandbox-'));
+
+function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
-      input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
+      // #1130: `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var
+      // so a call that doesn't explicitly pass one can't resolve against
+      // whatever real run happens to be ambient in this test runner's own
+      // process.env (e.g. when npm test itself runs inside a /flow-dispatched
+      // shell). A caller that needs a run dir still passes it explicitly via
+      // `env`, which wins because it spreads last.
+      // #1337: CT_HOOKS_TEST_MODE tells pre-tool-use.js's gate-denial write
+      // this denial came from the test suite's own exercise of the deny
+      // logic, not a real operator action — see that file's appendEvent call
+      // and friction-events.js's readEvents, which excludes tagged events
+      // from aggregation. A caller that needs to assert real (untagged)
+      // denial behavior overrides it via `env`.
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', CT_HOOKS_TEST_MODE: '1', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
@@ -44,6 +64,11 @@ function gitRepo() {
   return fs.realpathSync(dir);
 }
 
+function writeWorktreeAlwaysPolicy(project) {
+  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+}
+
 test('invariant: every event exits 0 on garbage stdin, no stdout noise', () => {
   for (const ev of ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop']) {
     const r = runHook([ev], { input: '%%%not json%%%' });
@@ -60,7 +85,7 @@ test('invariant: unknown event and missing event exit 0', () => {
 test('record-worktree writes run-state, prints a confirmation line, and close-run marks clean', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  const recorded = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+  const recorded = runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
   assert.strictEqual(recorded.code, 0);
   assert.match(recorded.stdout, /claude-tweaks: worktree recorded for 2026-07-01T090000-spec-1/);
   let state = readRunState(run);
@@ -85,38 +110,74 @@ test('close-run on a run dir with no pre-existing run-state.json creates one and
   assert.strictEqual(readRunState(run).status, 'clean');
 });
 
-test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
+test('close-run warns when the run dir still holds un-archived work/ content (#1103)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(path.join(run, 'work'), { recursive: true });
+  fs.writeFileSync(path.join(run, 'work', '1-spec.md'), '# 1\n');
+  const result = runHook(['close-run', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /still holds un-archived work\/ content/,
+    'expected close-run to note the pending archival as a routine informational reminder (#1103)');
+  assert.match(result.stdout, /archive-run --run/);
+});
+
+test('close-run does NOT warn about un-archived work/ when no work/ content exists', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['close-run', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /still holds un-archived work\/ content/);
+});
+
+// #1124: record-worktree without --run (including a bare --help) used to
+// fall through to resolveRunDir's "newest non-terminal run" GUESS and could
+// silently clobber a DIFFERENT live session's run-state.json — reproduced 3x
+// independently on 2026-08-20, across three different dispatched subagents,
+// each time hitting a different live sibling run's run-state.json. This is
+// the regression test: two concurrent run directories, each already carrying
+// its own run-state.json (representing two genuinely live sibling sessions,
+// neither of which this invocation is scoped to), and an invocation omitting
+// --run (bare, or `--help`) must leave BOTH byte-unchanged and exit non-zero
+// — never guess which one to write into.
+test('record-worktree without --run (including --help) is a true no-op against two concurrent run directories, and exits non-zero', () => {
   const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  // staleDir sorts newer than ownDir and is non-terminal (interrupted, never
-  // closed) — resolveRunDir's fallback (listRunDirs[0], newest non-terminal
-  // by name) would pick staleDir over ownDir with no --run override. This is
-  // exactly #19/#36's cross-contamination shape: a later, unrelated call
-  // resolving to an older run's directory because it was never marked clean.
+  // Both run dirs are already-adopted, non-terminal, live sibling runs —
+  // exactly the shape resolveRunDir's fallback (listRunDirs[0], newest
+  // non-terminal by name) used to guess between with no --run override, and
+  // exactly #19/#36's cross-contamination shape this record closes off.
   fs.mkdirSync(staleDir, { recursive: true });
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'interrupted' }));
   fs.mkdirSync(ownDir, { recursive: true });
+  fs.writeFileSync(path.join(ownDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const staleStateBefore = readRunState(staleDir);
+  const ownStateBefore = readRunState(ownDir);
 
-  const noFlag = runHook(['record-worktree', '/tmp/wt-fallback'], { cwd: project });
-  assert.strictEqual(noFlag.code, 0);
-  assert.match(noFlag.stdout, /worktree recorded for 2026-07-15T090000-record-19/,
-    'sanity check: without --run, the fallback really does pick the newer stale run, not ownDir');
-  assert.strictEqual(fs.existsSync(path.join(ownDir, 'run-state.json')), false);
-  // The no-flag call above IS the vulnerability being demonstrated — it just
-  // corrupted staleDir's state exactly like #19/#36. Snapshot that corrupted
-  // state so the next assertion can prove the FIX (an explicitly-targeted
-  // --run call) doesn't compound it by touching staleDir a second time.
-  const staleStateAfterFallback = readRunState(staleDir);
+  const bare = runHook(['record-worktree', '/tmp/wt-fallback'], { cwd: project });
+  assert.notStrictEqual(bare.code, 0, 'record-worktree without --run must exit non-zero, not silently guess a target run');
+  assert.match(bare.stdout, /record-worktree requires --run/);
+  assert.doesNotMatch(bare.stdout, /worktree recorded/);
 
+  const help = runHook(['record-worktree', '--help'], { cwd: project });
+  assert.notStrictEqual(help.code, 0, '--help must never be treated as an implicit-resolution invocation either');
+  assert.match(help.stdout, /record-worktree requires --run/);
+  assert.doesNotMatch(help.stdout, /worktree recorded/);
+
+  assert.deepStrictEqual(readRunState(staleDir), staleStateBefore, 'staleDir must be byte-unchanged');
+  assert.deepStrictEqual(readRunState(ownDir), ownStateBefore, 'ownDir must be byte-unchanged');
+
+  // The FIX still works correctly when the caller names its own run
+  // explicitly — proves this isn't a blanket regression, only the implicit
+  // guess is closed off.
   const withFlag = runHook(['record-worktree', '--run', ownDir, '/tmp/wt-correct'], { cwd: project });
   assert.strictEqual(withFlag.code, 0);
   assert.match(withFlag.stdout, /worktree recorded for 2026-07-01T090000-spec-1/);
   const ownState = readRunState(ownDir);
   assert.strictEqual(ownState.worktree, path.resolve('/tmp/wt-correct'));
   assert.strictEqual(ownState.status, 'active');
-  const staleStateAfterExplicitCall = readRunState(staleDir);
-  assert.deepStrictEqual(staleStateAfterExplicitCall, staleStateAfterFallback,
+  assert.deepStrictEqual(readRunState(staleDir), staleStateBefore,
     'an explicitly-targeted --run call must not touch a different run dir at all');
 });
 
@@ -129,11 +190,37 @@ test('record-worktree accepts --run before or after the worktree positional', ()
   assert.strictEqual(state.worktree, path.resolve('/tmp/wt-2'));
 });
 
-test('record-worktree without a run dir exits 0 and prints a not-recorded notice', () => {
+// #1124 review finding: the fix's OTHER guard — rejecting a flag-shaped
+// worktree positional (e.g. `--run <dir> --help`) — had no regression test,
+// even though it's the exact shape every observed pre-fix incident hit and
+// the code's own comment calls out. Discrimination check: reverting just the
+// `worktreeArg.startsWith('-')` branch (hooks.js's "unrecognized argument"
+// guard) would let this test's run-state.json end up with a literal
+// `worktree: "--help"` value and exit 0 — this assertion set fails in that
+// case, not just on the guard's total absence.
+test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --help)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const before = readRunState(run);
+
+  const result = runHook(['record-worktree', '--run', run, '--help'], { cwd: project });
+  assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
+  assert.match(result.stdout, /unrecognized argument --help/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--help\\"" write');
+});
+
+// #1124: --run is now required unconditionally — a call that omits it exits
+// non-zero with "requires --run" regardless of whether any run dir exists to
+// guess at, so this no-run-dir-at-all case hits the same guard as every other
+// omitted---run invocation, not a distinct "nothing found" message.
+test('record-worktree without --run and with no resolvable run dir anywhere still refuses (not "no pipeline run dir found")', () => {
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
   const result = runHook(['record-worktree', '/tmp/wt'], { cwd: bare });
-  assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /claude-tweaks: no pipeline run dir found — worktree not recorded/);
+  assert.notStrictEqual(result.code, 0);
+  assert.match(result.stdout, /record-worktree requires --run/);
 });
 
 test('record-worktree with a non-existent --run path fails loudly instead of falling back or claiming success', () => {
@@ -167,7 +254,7 @@ test('record-worktree reports a distinct failure when the run-state write itself
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.chmodSync(run, 0o500); // read+execute only — fs.writeFileSync inside it must throw
   try {
-    const result = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+    const result = runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
     assert.strictEqual(result.code, 0);
     assert.match(result.stdout, /failed to record worktree/);
     assert.doesNotMatch(result.stdout, /worktree recorded for/);
@@ -179,7 +266,7 @@ test('record-worktree reports a distinct failure when the run-state write itself
 test('close-run with a non-existent --run path fails loudly instead of falling back', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
   const bogus = path.join(project, 'does-not-exist');
   const result = runHook(['close-run', '--run', bogus], { cwd: project });
   assert.strictEqual(result.code, 0);
@@ -195,7 +282,7 @@ test('close-run --run with no following value fails loudly instead of falling ba
   // value were silently ignored: record a worktree so it's active and
   // non-terminal — exactly what resolveRunDir's "newest non-terminal run"
   // scan picks up (see the #19/#36 cross-contamination shape above).
-  assert.strictEqual(runHook(['record-worktree', '/tmp/wt-1'], { cwd: project }).code, 0);
+  assert.strictEqual(runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project }).code, 0);
   assert.strictEqual(readRunState(run).status, 'active');
 
   const result = runHook(['close-run', '--run'], { cwd: project });
@@ -211,7 +298,7 @@ test('close-run --run with no following value fails loudly instead of falling ba
 test('record-worktree with a resolvable run dir but no worktree argument prints a not-recorded notice instead of silent success', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  const result = runHook(['record-worktree'], { cwd: project });
+  const result = runHook(['record-worktree', '--run', run], { cwd: project });
   assert.strictEqual(result.code, 0);
   assert.ok(result.stdout.trim().length > 0, 'expected a diagnostic message, not silent success');
   assert.doesNotMatch(result.stdout, /worktree recorded/);
@@ -233,10 +320,10 @@ test('close-run with no resolvable run dir and no --run given prints a not-close
 test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and preserves it on env-less re-record', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'sess-owner' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'sess-owner' } });
   let state = readRunState(run);
   assert.strictEqual(state.sessionId, 'sess-owner');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
   state = readRunState(run);
   assert.strictEqual(state.sessionId, 'sess-owner', 'env-less re-record must not clobber the stamp');
 });
@@ -244,7 +331,7 @@ test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and 
 test('record-worktree without CLAUDE_CODE_SESSION_ID records no owner', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-2'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-2'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
   const state = readRunState(run);
   assert.ok(!('sessionId' in state), 'no env var -> no sessionId field');
 });
@@ -256,7 +343,7 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   // enforcement with no way for it to know.
   const foreignProject = tmpProject();
   const foreignRun = path.join(foreignProject, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  runHook(['record-worktree', '--run', foreignRun, '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const foreign = runHook(['close-run'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(foreign.code, 0);
   assert.match(foreign.stdout, /recorded by another session/);
@@ -266,7 +353,8 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   assert.strictEqual(foreignState.worktree, path.resolve('/tmp/wt'), 'the foreign session\'s worktree assignment must survive');
 
   const ownProject = tmpProject();
-  runHook(['record-worktree', '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const ownRun = path.join(ownProject, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', ownRun, '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const own = runHook(['close-run'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   assert.strictEqual(own.code, 0);
   assert.match(own.stdout, /no recorded wrap-up/,
@@ -276,7 +364,7 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
 test('close-run WITH an explicit --run still closes a run recorded by another session — the refusal only applies to the implicit fallback', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const result = runHook(['close-run', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /recorded by another session/);
@@ -293,7 +381,8 @@ test('e2e: foreign-session commit in the main checkout is allowed with a systemM
   // foreign repo and short-circuit to a bare allow with no systemMessage.
   execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
   const worktree = linkedWorktreeOf(project);
-  runHook(['record-worktree', worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', run, worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
 
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: project, session_id: 'bystander' }),
@@ -311,7 +400,7 @@ test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the o
   const worktree = gitRepo();
   const otherRepo = gitRepo();
 
-  assert.strictEqual(runHook(['record-worktree', worktree], { cwd: project }).code, 0);
+  assert.strictEqual(runHook(['record-worktree', '--run', run, worktree], { cwd: project }).code, 0);
   assert.strictEqual(runHook(['close-run'], { cwd: project }).code, 0);
 
   const result = runHook(['pre-tool-use'], {
@@ -374,6 +463,35 @@ test('hooks.json registers a PostToolUse matcher for AskUserQuestion (unfiltered
   assert.match(askEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
 });
 
+// #457: audit of every tool_name checked in post-tool-use.js's run() and its
+// dispatched handlers against hooks.json's PostToolUse matcher array — the
+// same defect class #452's AskUserQuestion gap and #307/#500's EnterWorktree
+// gap (pinned in tests/hooks-gate-coverage.test.js) both found. 'Write' and
+// 'Bash' are the two remaining tool_name values checked in post-tool-use.js
+// with no dedicated PostToolUse-matcher-presence pinning test of their own —
+// closing that gap here.
+test('hooks.json registers a PostToolUse matcher for Write (unfiltered, literal tool-name match)', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const writeEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Write');
+  assert.ok(writeEntry, 'expected a PostToolUse Write matcher entry');
+  assert.strictEqual(writeEntry.hooks.length, 1);
+  assert.strictEqual(writeEntry.hooks[0].type, 'command');
+  assert.ok(!('if' in writeEntry.hooks[0]), 'Write matcher must be a literal tool-name match, not pattern-filtered');
+  assert.match(writeEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
+});
+
+test('hooks.json registers a PostToolUse matcher for Bash (pattern-filtered via `if`)', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashEntry, 'expected a PostToolUse Bash matcher entry');
+  assert.ok(bashEntry.hooks.length > 0, 'expected at least one Bash `if`-filtered hook entry');
+  for (const hook of bashEntry.hooks) {
+    assert.strictEqual(hook.type, 'command');
+    assert.ok('if' in hook, 'PostToolUse Bash matcher hooks must be pattern-filtered via "if"');
+    assert.match(hook.command, /bin\/hooks\.js" post-tool-use$/);
+  }
+});
+
 test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_FLAGS entry git-command.js's gitTargets() resolves (finding regression)", () => {
   // git-command.js's gitTargets() is written and unit-tested to correctly
   // resolve a commit/push target through `-c`, `--exec-path`, and
@@ -397,8 +515,7 @@ test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_F
 
 test('e2e: pre-tool-use CLI denies an Edit when worktree-always policy is set in the main checkout', () => {
   const project = gitRepo();
-  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+  writeWorktreeAlwaysPolicy(project);
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: path.join(project, 'a.txt') } }),
     cwd: project,
@@ -409,8 +526,7 @@ test('e2e: pre-tool-use CLI denies an Edit when worktree-always policy is set in
 
 function policyRepoWithRun() {
   const project = gitRepo();
-  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+  writeWorktreeAlwaysPolicy(project);
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   // #721: touch decisions.md so this run dir is adopted and reachable by
@@ -433,12 +549,78 @@ test('a resolved deny appends a gate-denial event', () => {
   assert.strictEqual(events[0].type, 'gate-denial');
   assert.strictEqual(events[0].tool, 'Write');
   assert.strictEqual(events[0].path, target);
+  // #1337: runHook's default env carries CT_HOOKS_TEST_MODE=1, so this
+  // suite-produced denial is tagged — friction-events.js's readEvents
+  // excludes it from aggregation on that basis.
+  assert.strictEqual(events[0].test, true);
+});
+
+// #1337: a call site that overrides CT_HOOKS_TEST_MODE off (simulating a
+// real, non-test invocation of the hook) must NOT tag its gate-denial event —
+// the regression guard for "a real operator denial still logs and is still
+// returned" (issue's Acceptance Criteria).
+test('#1337: a gate-denial event is untagged when CT_HOOKS_TEST_MODE is not set', () => {
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'a.txt');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+    env: { CT_HOOKS_TEST_MODE: '' },
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].type, 'gate-denial');
+  assert.strictEqual('test' in events[0], false, 'a real denial must not carry the test-mode tag');
+});
+
+// #1270 regression: the #1130 fix (`PIPELINE_RUN_DIR: ''` in runHook's spread,
+// proven above at 'record-pr does not resolve against an ambient
+// PIPELINE_RUN_DIR...') guards run-state.json field writes. This is the sibling
+// proof for events.jsonl specifically — the artifact #1270's own Current State
+// named (`gate-denial`/`wd-foreign-session`/`close-without-wrapup` entries
+// landing in a REAL run's events.jsonl). Ambient PIPELINE_RUN_DIR is set on
+// THIS test runner's own process.env — exactly the shape a /flow-dispatched
+// shell running `npm test` carries — pointed at a decoy "real" run dir
+// entirely separate from the fixture project below, so if runHook's guard
+// ever regressed, the gate-denial event triggered here would land in the
+// decoy instead of (or in addition to) the correctly cwd-resolved run.
+test('#1270: a gate-denial event never lands in an ambient PIPELINE_RUN_DIR the call site never passed', () => {
+  const decoyRepo = gitRepo();
+  const decoyRun = path.join(decoyRepo, '.claude-tweaks', 'pipelines', '2026-08-02T090000-record-9');
+  fs.mkdirSync(decoyRun, { recursive: true });
+  fs.writeFileSync(path.join(decoyRun, 'decisions.md'), '');
+  const decoyEventsPath = path.join(decoyRun, 'events.jsonl');
+
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'a.txt');
+
+  const savedAmbient = process.env.PIPELINE_RUN_DIR;
+  process.env.PIPELINE_RUN_DIR = decoyRun;
+  let result;
+  try {
+    result = runHook(['pre-tool-use'], {
+      input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+      cwd: project,
+    });
+  } finally {
+    if (savedAmbient === undefined) delete process.env.PIPELINE_RUN_DIR;
+    else process.env.PIPELINE_RUN_DIR = savedAmbient;
+  }
+
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/);
+  assert.strictEqual(fs.existsSync(decoyEventsPath), false,
+    'ambient PIPELINE_RUN_DIR must receive no events.jsonl entries from a call site that never passed it');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1, 'the real (cwd-resolved) run dir must still receive its own event');
+  assert.strictEqual(events[0].type, 'gate-denial');
 });
 
 test('a deny with no resolved run dir writes nothing and still denies', () => {
   const project = gitRepo();
-  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+  writeWorktreeAlwaysPolicy(project);
   // Deliberately no .claude-tweaks/pipelines/ run dir at all, so
   // ctxLib.resolveRun finds nothing and ownedRun.dir is null — the
   // documented, accepted gap: ad-hoc work with no run dir records nothing.
@@ -560,4 +742,133 @@ test('check-resume-freshness: no resolvable --run path reports the not-found lin
   const result = runHook(['check-resume-freshness', '--run', path.join(project, 'nope')], { cwd: project });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /--run path rejected/);
+});
+
+test('check-staged-inventory: reports OK when decisions.md has no STAGED entries', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-3');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), 'AUTO 14:32:14 — Step 1.5: scope-creep applied. Reversibility: high.');
+  const result = runHook(['check-staged-inventory', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /staged inventory OK for 2026-08-01T000000-record-3 \(0 STAGED entries\)/);
+});
+
+test('check-staged-inventory: reports OK when every STAGED entry has a backing file', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-4');
+  fs.mkdirSync(path.join(run, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(run, 'staged', 'review-1.patch'), 'diff');
+  fs.writeFileSync(path.join(run, 'decisions.md'), 'STAGED 14:41:15 — Step 3 Routing: finding. Stage path: staged/review-1.patch.');
+  const result = runHook(['check-staged-inventory', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /staged inventory OK for 2026-08-01T000000-record-4 \(1 STAGED entries\)/);
+});
+
+test('check-staged-inventory: reports MISMATCH naming the missing path when a STAGED entry has no backing file', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-5');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), 'STAGED 08:22:19 — Step 3 lens dispatch: deferred finding. Stage path: staged/review-defer-1.md.');
+  const result = runHook(['check-staged-inventory', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /staged inventory MISMATCH for 2026-08-01T000000-record-5 — 1 of 1 STAGED entries missing from staged\/: staged\/review-defer-1\.md/);
+});
+
+test('check-staged-inventory: no resolvable --run path reports the not-found line', () => {
+  const project = tmpProject();
+  const result = runHook(['check-staged-inventory', '--run', path.join(project, 'nope')], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /--run path rejected/);
+});
+
+// #1130: a runHook call that omits cwd BOTH in execFileSync's options and in
+// the JSON payload used to fall through to the spawned subprocess's own
+// process.cwd() — the test runner's real working directory. When that
+// directory sits inside a real checkout, iterRunDirsWithState walked the
+// REAL .claude-tweaks/pipelines/ and appendEvent wrote fixture literals into
+// a real run's events.jsonl (the #657 incident's pollution mechanism). The
+// hardened helper defaults to an isolated sandbox dir instead, so the decoy
+// "real" run dir below must stay byte-untouched.
+//
+// Note (verified during Step 3): the brief's original Bash/`git commit`
+// payload never reaches appendEvent, pre- or post-fix — E1's wd-deny path
+// requires `safeReal(ctx.runState.worktree)` to resolve, and the decoy
+// `/tmp/wt-decoy` doesn't exist on disk, so runInner returns early before
+// ever writing. Per Step 3's fallback instruction, this uses a Write-tool
+// payload targeting a path inside the decoy repo instead (mirroring 'a
+// resolved deny appends a gate-denial event' above) — checkWorktreeRequired's
+// gate-denial write depends on `ownedRun`, which IS resolved from `ctx.cwd`
+// (via resolveRun's iterRunDirsWithState(cwd) scan), so this payload
+// discriminates pre/post-fix correctly: pre-fix, cwd falls through to the
+// decoy repo and ownedRun resolves to the decoy run; post-fix, cwd is the
+// isolated sandbox, which has no `.claude-tweaks/pipelines/` at all, so
+// ownedRun.dir is null and appendEvent no-ops.
+test('a hook spawned with no cwd anywhere cannot write into a real run dir reachable from the test runner process.cwd()', () => {
+  const decoyRepo = gitRepo();
+  writeWorktreeAlwaysPolicy(decoyRepo);
+  const decoyRun = path.join(decoyRepo, '.claude-tweaks', 'pipelines', '2026-08-01T090000-record-9');
+  fs.mkdirSync(decoyRun, { recursive: true });
+  fs.writeFileSync(path.join(decoyRun, 'run-state.json'), JSON.stringify({ status: 'active', worktree: '/tmp/wt-decoy', sessionId: 'decoy-owner' }));
+  const eventsPath = path.join(decoyRun, 'events.jsonl');
+
+  const realCwd = process.cwd();
+  process.chdir(decoyRepo);
+  try {
+    // Write-shaped payload with NO cwd field, NO options.cwd, NO
+    // PIPELINE_RUN_DIR, NO session_id: pre-fix, this resolves cwd to
+    // process.cwd() (= decoyRepo) and can append a gate-denial event to the
+    // decoy run via ownedRun's unfiltered fallback resolution.
+    runHook(['pre-tool-use'], {
+      input: JSON.stringify({
+        tool_name: 'Write',
+        tool_input: { file_path: path.join(decoyRepo, 'a.txt') },
+      }),
+    });
+  } finally {
+    process.chdir(realCwd);
+  }
+
+  assert.strictEqual(fs.existsSync(eventsPath), false,
+    'decoy run dir must receive no events from a cwd-omitting hook spawn');
+  const state = JSON.parse(fs.readFileSync(path.join(decoyRun, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.status, 'active', 'decoy run-state.json must be untouched');
+});
+
+// #1130 (env leak): resolveRun checks env.PIPELINE_RUN_DIR BEFORE any cwd
+// scan (plugin/bin/lib/hooks/context.js's resolveRun). Every /flow-dispatched
+// shell carries an ambient PIPELINE_RUN_DIR pointed at that run's own
+// directory. runHook's `{ ...process.env, ...env }` spread forwards that
+// ambient value to every spawned hooks.js call whose own `env` option doesn't
+// override it — so a call site that never mentions PIPELINE_RUN_DIR at all
+// still resolves against whatever real run dir happens to be ambient in the
+// TEST RUNNER's own process.env when `npm test` itself runs inside a
+// /flow-dispatched shell. Reproduced live by the reviewer: record-pr fixture
+// calls wrote `pr:{number:7,url:"..."}` into a stand-in foreign run dir this
+// way. The guard (`PIPELINE_RUN_DIR: ''` between the process.env spread and
+// the caller's env) neutralizes the ambient value so only an explicit
+// call-site `env.PIPELINE_RUN_DIR` can select a run dir.
+test('record-pr does not resolve against an ambient PIPELINE_RUN_DIR the call site never passed', () => {
+  const decoyRepo = gitRepo();
+  const decoyRun = path.join(decoyRepo, '.claude-tweaks', 'pipelines', '2026-08-02T090000-record-9');
+  fs.mkdirSync(decoyRun, { recursive: true });
+  fs.writeFileSync(path.join(decoyRun, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  // Simulate a /flow-dispatched shell: PIPELINE_RUN_DIR ambient in the test
+  // runner's OWN process.env, pointed at the decoy run — NOT passed via this
+  // call's `env` option.
+  const savedAmbient = process.env.PIPELINE_RUN_DIR;
+  process.env.PIPELINE_RUN_DIR = decoyRun;
+  let result;
+  try {
+    result = runHook(['record-pr', '7', 'https://github.com/o/r/pull/7']);
+  } finally {
+    if (savedAmbient === undefined) delete process.env.PIPELINE_RUN_DIR;
+    else process.env.PIPELINE_RUN_DIR = savedAmbient;
+  }
+
+  assert.match(result.stdout, /no pipeline run dir found/,
+    'a call site that never passed PIPELINE_RUN_DIR must not resolve one from the test runner\'s ambient env');
+  const state = JSON.parse(fs.readFileSync(path.join(decoyRun, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.pr, undefined, 'decoy run-state.json must gain no pr field from the ambient env leak');
 });

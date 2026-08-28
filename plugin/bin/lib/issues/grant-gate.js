@@ -66,12 +66,19 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
     return deny('grant-origination-opt-in', 'ceiling is unattended, but grant-origination-enabled is not set — machine-originated grants need their own explicit opt-in');
   }
 
-  // Gate 1c: needs:definition — cheapest possible per-record disqualifier (no
+  // Gate 1c: needs:* — cheapest possible per-record disqualifier (no
   // trustVerdicts row lookup, independent of origin), so it runs first among the
   // per-record checks, before any trust-row computation is spent on a record
-  // this gate would refuse anyway.
+  // this gate would refuse anyway. Generalized (#1488) to match the worklist rule
+  // in `_shared/work-record.md` (see '### Worklist rule'). needs:definition keeps
+  // its own named failedKey for backward compatibility with existing callers; any
+  // other needs:* label denies under the generic 'needs-label' key.
   if (facets.needsDefinition === true) {
     return deny('needs-definition', 'record carries needs:definition — an open choice has not been decided yet; run /claude-tweaks:specify to route through brainstorming first');
+  }
+  const needsLabel = names.find((n) => n.startsWith('needs:'));
+  if (needsLabel) {
+    return deny('needs-label', `record carries ${needsLabel} — a headless unit is waiting on a human decision; see the record's newest unresolved decision comment`);
   }
 
   // Gate 2: record class trust reads 'clean'.
@@ -146,6 +153,10 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   // call needs was already independently verified by gates 1-3 above, so this
   // call is confirmatory, not a new judgment.
   const permitted = permittedGrants({ ceiling, row, grantOriginationEnabled: pol.grantOriginationEnabled });
+  // NOTE (#309): this boolean means "this class of record earns merge trust" —
+  // it does NOT decide which label carries it. The caller (backlog/grant-mode.md
+  // Step 4) applies `auto:merge-pending`, never `auto:merge` directly; the
+  // promotion happens later, at dispatch's Auto-merge gate.
   let autoMerge = permitted.grants.bornAuthorized.granted === true;
 
   // Global merge-lane circuit breaker (#311) — a second, independent,

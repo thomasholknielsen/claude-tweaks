@@ -13,11 +13,30 @@ record contract defines what the labels mean.
 
 ## The lock
 
-**`bin/claims.js claim|release <n,n,...> --run-id <id>`** (`bin/lib/issues/claim-engine.js`) is
-the gh-CLI-transport implementation of every read-classify-write step below, plus the group-claim-
-all-or-abort semantics `flow/claim-targets.md`'s Step 2.8 needs — the command every `gh`-present
-consumer of this section runs instead of hand-scripting the loop per pipeline run. The MCP
-transport (`gh` absent) still runs the algorithm as written below, over the MCP tools.
+**`bin/claim-targets.js --run-id <id> --targets <n,n,...>`** (claim side, `bin/lib/claim-targets/claim-targets.js`
++ `bin/lib/issues/claim-store.js`) and **`bin/release-claim.js <issue> --run <run-dir> --reason <reason>`**
+(release side, `bin/lib/release-claim/release.js`) are the two CLI surfaces every real consumer of
+this section runs instead of hand-scripting the loop per pipeline run — `flow/claim-targets.md`'s
+Step 2.8 for claiming, `wrap-up/cleanup-procedures.md` Section E for releasing. Both are thin
+wrappers over the one write-path module, `claim-store.js`: it tries a **git compare-and-swap**
+first — fetch the `claims-registry` tip, commit the blob on it, push with
+`--force-with-lease=refs/heads/claims-registry:<expected-tip>` (a rejected push is contested —
+same handling as a live claim, not a retry) — falling back to the contents-API PUT below only when
+git-CAS fails for a transport reason (no git push credential — an MCP-only sandbox, for instance)
+or a secondary rate limit (classified as its own distinct outcome, never folded into "contested").
+**A rejected push is not contested on the rejection alone:** that lease is on the whole
+`claims-registry` branch tip, not on this issue's file, so a commit claiming an unrelated issue
+rejects it too. `claim-store.js` re-reads the claim before deciding — content changed since the
+read this write was based on = contested as above; content unchanged = unrelated branch activity,
+so the write retries on the fresh tip, bounded at 3 attempts, and a rejection still spurious on
+the last one reports as transient, never as a contest. The same re-read guards the contents-API
+fallback: it may only write when the fresh content still matches what the write decision was
+based on, so a claim that landed while git-CAS was failing is never silently overwritten.
+The release side re-reads on the same principle before concluding "already released" (the
+**Release** bullet below). The gh-CLI/MCP contents-API steps below are unaffected: their `sha` is
+the target file's own blob sha, so a rejection there really is per-file and stays contested.
+The MCP transport (`gh` absent) runs the contents-API algorithm as written below, over the MCP
+tools — git-CAS requires a git push credential the MCP-only case doesn't have.
 
 **One keyspace, one classifier, both transports.** `claims/issue-<number>.json`, a blob on the
 `claims-registry` branch, is the *only* lock — checked and written identically whether this run
@@ -62,18 +81,57 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   as "contested" would reject every re-claim forever after its first release.
 
   1. Read the claim file at the payload's `claimPath` on `CLAIMS_BRANCH`, capturing both its
-     content (or absence) and its current **blob sha** when it exists.
-     - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/${CLAIM_PATH}?ref=${CLAIMS_BRANCH}" -q '{content: (.content | @base64d), sha: .sha}'`
-       (404 = file does not exist, a normal outcome, not an error).
+     content (or absence) and its current **blob sha** when it exists. A 404 (file does not
+     exist) is a normal outcome, not an error — it means "never claimed." Emit the literal
+     sentinel `__ABSENT__` on a 404 so step 2 can classify it the same way whether the read
+     came from a live claim or a never-claimed issue:
+     - **gh CLI:**
+       ```bash
+       if RAW=$(gh api "repos/{owner}/{repo}/contents/${CLAIM_PATH}?ref=${CLAIMS_BRANCH}" \
+           -q '{content: (.content | @base64d), sha: .sha}' 2>/tmp/claim-read-err-${ISSUE}.txt); then
+         echo "$RAW" > /tmp/claim-wrapper-${ISSUE}.json
+         CONTENT_PATH_OR_ABSENT_SENTINEL="/tmp/claim-wrapper-${ISSUE}.json"
+       elif grep -q 'HTTP 404\|Not Found' /tmp/claim-read-err-${ISSUE}.txt; then
+         CONTENT_PATH_OR_ABSENT_SENTINEL="__ABSENT__"
+       else
+         # any other non-zero exit (network, auth, rate limit) — not a normal
+         # absent-file outcome; handle per the Failure posture table below,
+         # do not treat as absent.
+         cat /tmp/claim-read-err-${ISSUE}.txt >&2
+         exit 1
+       fi
+       ```
+       The command's output (when it succeeds) is the **wrapper object**
+       `{content: "<decoded blob text>", sha: "<blob sha>"}` — step 2 below needs only the
+       `.content` field's *value*, not this wrapper, so extract it before classifying (see step 2).
      - **MCP:** the equivalent "get file contents" tool call against `claimPath` on
-       `CLAIMS_BRANCH`; not-found is a normal outcome.
-  2. Classify what step 1 read (or its absence) with `classifyClaimBlob`:
+       `CLAIMS_BRANCH`; a not-found response is the same normal outcome — set
+       `CONTENT_PATH_OR_ABSENT_SENTINEL="__ABSENT__"` in that case, otherwise write the tool's
+       returned content to a file and use that path.
+  2. **Extract the content before classifying.** When step 1 produced a real file (not the
+     `__ABSENT__` sentinel), that file holds the **wrapper object** `{content, sha}` from the
+     `gh api` call's `-q` filter — step 2's classifier needs the **`.content` field's value**
+     (the decoded claim-blob text itself), never the wrapper object. Extract it first:
+     ```bash
+     if [ "$CONTENT_PATH_OR_ABSENT_SENTINEL" = "__ABSENT__" ]; then
+       CLASSIFY_INPUT="__ABSENT__"
+     else
+       jq -r '.content' "$CONTENT_PATH_OR_ABSENT_SENTINEL" > /tmp/claim-content-${ISSUE}.txt
+       CLASSIFY_INPUT="/tmp/claim-content-${ISSUE}.txt"
+     fi
+     ```
+     Then classify:
      ```bash
      node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
        const content = process.argv[1] === '__ABSENT__' ? null : require('fs').readFileSync(process.argv[1],'utf8');
        console.log(JSON.stringify(c.classifyClaimBlob(content, Date.now())))" \
-       "${CONTENT_PATH_OR_ABSENT_SENTINEL}"
+       "${CLASSIFY_INPUT}"
      ```
+     A literal follower who skips the extraction and passes the wrapper-object file straight to
+     this script hands `classifyClaimBlob` a JSON object with no `claimedAt`/`released` keys —
+     it classifies `'unreadable'` (fails closed to *not reclaimable*, same as `'live'`), a false
+     contest on a claim that may not exist or may be safely reclaimable. The extraction step
+     above is what prevents this.
   3. **`state: 'absent'`** — no prior claim. Write **create-only** (no `sha`): the payload's
      `fileContent` at `claimPath` on `CLAIMS_BRANCH`.
      - **gh CLI:** `gh api --method PUT "repos/{owner}/{repo}/contents/${CLAIM_PATH}" -f "message=Claim issue #${ISSUE}" -f "content=$(base64 <<<"$FILE_CONTENT")" -f "branch=${CLAIMS_BRANCH}"`
@@ -189,7 +247,9 @@ is atomic regardless of whether the label add/remove succeeds.
 
 **Authoritative: read the blob, classify with `classifyClaimBlob`** — "The lock" step 1-2 above.
 This is the single source of truth for whether an issue is claimed, by whom, and whether the
-claim is breakable.
+claim is breakable. As in "The lock" step 2 above, the path passed below is the already-extracted
+claim-blob content (or `__ABSENT__`) — never the raw `{content, sha}` wrapper object a fresh
+`gh api` read produces; run "The lock" step 2's extraction first if reading fresh here.
 
 ```bash
 node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
@@ -197,7 +257,7 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   const classified = c.classifyClaimBlob(content, Date.now());
   const identity = content ? JSON.parse(content) : null;
   console.log(JSON.stringify({ ...classified, claim: classified.state === 'live' || classified.state === 'stale' ? identity : null }))" \
-  "${CONTENT_PATH_OR_ABSENT_SENTINEL}"
+  "${CLASSIFY_INPUT}"
 ```
 
 `state: 'absent'` — never claimed (a tombstone still reads `'tombstone'`, not `'absent'`, so
@@ -263,19 +323,18 @@ exists — it lands in the release marker and human line.
 **In-flight detection at claim time (#315).** A `pr-opened:` tombstone's `link` field points at
 the PR that build produced — before reclaiming such a tombstone, a claim-time reader may check
 `gh pr view <link> --json state --jq .state`; a still-`OPEN` result means a build for this issue
-already exists and reclaiming would race it. `bin/lib/issues/claim-engine.js`'s `claimOne` runs
-this check (`tombstoneInFlightPr`), returning `outcome: 'in-flight'` instead of proceeding to a
-fresh claim; any other reason, a missing `link`, or a failed/closed/merged check falls through to
-the reclaim behavior below unchanged (fail open). `link` is untrusted (any session with
-registry-branch write access can set it), so `tombstoneInFlightPr` validates it — a well-formed
+already exists and reclaiming would race it. `bin/lib/issues/claim-store.js`'s `tombstoneInFlightPr`
+runs this check (moved there from the retired `claim-engine.js`, #787), returning `{ link }` instead
+of proceeding to a fresh claim; any other reason, a missing `link`, or a failed/closed/merged check
+falls through to the reclaim behavior below unchanged (fail open). `link` is untrusted (any session
+with registry-branch write access can set it), so `tombstoneInFlightPr` validates it — a well-formed
 `https://github.com/{owner}/{repo}/pull/{number}` URL for the SAME owner/repo as the issue being
 claimed — before ever calling `gh pr view`; anything else (wrong repo, malformed, non-string) is
 treated the same as a missing `link` and never reaches `gh` at all.
 `bin/lib/claim-targets/claim-targets.js` — the group-claim loop `/claude-tweaks:flow` Step 2.8 and
-`/claude-tweaks:dispatch` actually call, a separate implementation from `claim-engine.js` — runs
-the same `tombstoneInFlightPr` check inline and reports the stopped target via
-`inFlight`/`reason: 'in-flight'` instead of `outcome` (`flow/claim-targets.md`'s "Branch on exit
-code").
+`/claude-tweaks:dispatch` actually call — imports this same `tombstoneInFlightPr` from
+`claim-store.js` and reports the stopped target via `inFlight`/`reason: 'in-flight'` instead of
+`outcome` (`flow/claim-targets.md`'s "Branch on exit code").
 
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release overwrites the blob with a

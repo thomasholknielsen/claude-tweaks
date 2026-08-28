@@ -26,10 +26,12 @@ When `--dry-run` was passed (see `SKILL.md`'s Phase 1 Flags subsection), run eve
 
 When this run's spec has a materialized header (`record:` field present in
 `${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND EITHER the issue's **live**
-labels carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:`
-field is a snapshot for audit only) OR `manifesto-authorized-merge.md`'s applicability check
-passes (the `merge-authorization` lever, #715), read `auto-merge-short-circuit.md` in this
-skill's directory and follow it in full — the single-record version of
+labels carry `auto:merge` or `auto:merge-pending` (re-fetch via `gh issue view --json labels` —
+the header's `grants:` field is a snapshot for audit only; a pending label still routes here so
+`auto-merge-short-circuit.md`'s own maturation check can run — see #309) OR
+`manifesto-authorized-merge.md`'s applicability check passes (the `merge-authorization` lever,
+#715), read `auto-merge-short-circuit.md` in this skill's directory and follow it in
+full — the single-record version of
 `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate," whether or not
 `/claude-tweaks:dispatch` was involved. That file routes on `_shared/integration-model.md`'s
 `pr-first`/`local-merge` split. Otherwise skip it entirely; do not read the file.
@@ -60,6 +62,7 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. Res
 2. `staged/` directory — patches and proposals awaiting decisions
 3. `config.yml` — the Manifesto answers (for context)
 4. `events.jsonl` — hook-recorded typed events; surface `wd-deny`, `wd-push-mismatch`, `contract-violation`, and `gate-denial` events
+5. **Staged inventory reconciliation** — run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" check-staged-inventory --run "{run-dir}"` (`_shared/run-resume-freshness.md`'s companion check, #1269). When it reports `MISMATCH`, surface it as a visible warning line in the rendered console output (never a silent log entry) — a `STAGED` entry in `decisions.md` whose named `staged/` file does not exist means that proposal needs to be manually re-derived from `decisions.md`'s prose before it can be applied at this console.
 
 ## Ledger narrowing auto-file (runs before rendering)
 
@@ -79,7 +82,7 @@ Resolve the ceiling once — `CEILING=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-
 
 When granted, render the console as an **informational report**, not a prompt: every section below still appears (Auto-applied through Cleanup actions, `Q#`/`M#`/`U#`, Refused rows), each row stamped `AUTO-RESOLVED` — nothing dropped. Then resolve every item per its stated default, **zero** `AskUserQuestion` calls:
 
-- Every batch-section item (Auto-applied through Cleanup actions) resolves as if "Approve all" had been chosen. **The merge half of that decision defaults to merge** (`integration-model: pr-first`'s "Approve all + merge" variant, never "leave PR open") — `unattended` authorizes full completion, not a park; `local-merge` proceeds to branch-finish the same way.
+- Every batch-section item (Auto-applied through Cleanup actions) resolves as if "Approve all" had been chosen. **The merge half of that decision defaults to merge** (`integration-model: pr-first`'s "Approve all + merge" variant, never "leave PR open") — `unattended` authorizes full completion, not a park; `local-merge` proceeds to branch-finish the same way. **Needs-human carve-out (merge-check precedence):** when an `assess-agent-autonomy` `merge-check` verdict of `needs-human` exists for this run (any member's verdict, for a bundle — `dispatch/settle-and-merge.md`'s Auto-merge gate, Layer 2), the merge half instead resolves to **leave the PR open** (`pending-review`), never merge — `consoleAutoResolve`'s default-merge never overrides the more specific gate's routing to a human. Every non-merge item still auto-resolves exactly as this section states.
 - Every `Q#`/`M#` item resolves to `Apply` — its pre-checked default in `_shared/batched-item-drill.md`. Refused rows are never auto-resolved (`refused-proposals.md`).
 - Every `U#` item resolves to **filed**, not its usual unchecked/declined default. `consoleAutoResolve` means "apply the Approve-all default to everything," not "apply the Override-drill defaults" — and Thomas's explicit direction (#347's Decision Rationale) is that upstream feedback auto-files at `unattended` exactly like `M#`/`Q#`. This is the one point where `unattended`'s resolution diverges from what "Approve all" resolves at every other tier, where `U#` stays unchecked/declined by default (see `review-console-interactive.md`'s Hard requirements).
 

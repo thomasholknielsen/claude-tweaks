@@ -218,6 +218,36 @@ function validatePayload(payload) {
   checkForbiddenVocabulary(payload);
 }
 
+// Shared by recordResult/amendResult: look up payload.rowId in the current
+// worklist and throw the "unknown rowId" error, named per the calling verb,
+// when it isn't there. Each caller still runs its own closed/already-recorded
+// (or never-recorded) checks afterward — those diverge between the two and
+// stay inline at the call site.
+function lookupRow(state, rowId, verb) {
+  const rows = worklistRows(state.worklist);
+  const row = rows.find((r) => r.id === rowId);
+  if (!row) {
+    throw new Error(`${verb}: unknown rowId '${rowId}' (not in the worklist)`);
+  }
+  return row;
+}
+
+// Shared by recordResult/amendResult: the IL-01 field-picking step (module
+// header) — pick named fields off the payload into a fresh object alongside
+// 'target' (always sourced from the worklist row, never the payload). Never
+// `{ ...payload }`.
+function pickStoredFields(row, payload) {
+  return {
+    rowId: payload.rowId,
+    target: row.target,
+    result: payload.result,
+    detail: payload.detail,
+    findings: Array.isArray(payload.findings) ? payload.findings : [],
+    read: Array.isArray(payload.read) ? payload.read : [],
+    gapDetection: payload.gapDetection,
+  };
+}
+
 // A row's disposition (from REGISTRY, via the worklist row) governs whether
 // findings may be auto-applied. 'stage' and 'stage-only' rows — e.g.
 // claude-md, memory, upstream — exist precisely because their findings must
@@ -268,12 +298,8 @@ function recordResult({ runDir, payload, now, dryRun, telemetryPath }) {
   validatePayload(payload);
 
   const state = readEngineState(runDir);
-  const rows = worklistRows(state.worklist);
-  const row = rows.find((r) => r.id === payload.rowId);
+  const row = lookupRow(state, payload.rowId, 'recordResult');
 
-  if (!row) {
-    throw new Error(`recordResult: unknown rowId '${payload.rowId}' (not in the worklist)`);
-  }
   if (row.gate === 'closed') {
     throw new Error(`recordResult: row '${payload.rowId}' is closed and cannot be recorded (${row.gateReason})`);
   }
@@ -283,21 +309,8 @@ function recordResult({ runDir, payload, now, dryRun, telemetryPath }) {
 
   validateDispositionForRow(payload, row);
 
-  const findings = Array.isArray(payload.findings) ? payload.findings : [];
-  const read = Array.isArray(payload.read) ? payload.read : [];
-
-  // IL-01: pick named fields into a fresh object alongside derived fields.
-  // Never `{ ...payload }` — a payload cannot smuggle extra keys or override
-  // 'target', which is always sourced from the worklist row (REGISTRY).
-  const stored = {
-    rowId: payload.rowId,
-    target: row.target,
-    result: payload.result,
-    detail: payload.detail,
-    findings,
-    read,
-    gapDetection: payload.gapDetection,
-  };
+  const stored = pickStoredFields(row, payload);
+  const { findings, read } = stored;
 
   const time = isoTime(now);
   const line = buildScannedLine({
@@ -330,12 +343,8 @@ function amendResult({ runDir, payload, now, telemetryPath }) {
   validatePayload(payload);
 
   const state = readEngineState(runDir);
-  const rows = worklistRows(state.worklist);
-  const row = rows.find((r) => r.id === payload.rowId);
+  const row = lookupRow(state, payload.rowId, 'amendResult');
 
-  if (!row) {
-    throw new Error(`amendResult: unknown rowId '${payload.rowId}' (not in the worklist)`);
-  }
   if (row.gate === 'closed') {
     throw new Error(`amendResult: row '${payload.rowId}' is closed and cannot be amended (${row.gateReason})`);
   }
@@ -345,19 +354,9 @@ function amendResult({ runDir, payload, now, telemetryPath }) {
 
   validateDispositionForRow(payload, row);
 
-  const findings = Array.isArray(payload.findings) ? payload.findings : [];
-  const read = Array.isArray(payload.read) ? payload.read : [];
-
-  // IL-01: same fresh-object discipline as recordResult — never `{ ...payload }`.
-  const stored = {
-    rowId: payload.rowId,
-    target: row.target,
-    result: payload.result,
-    detail: payload.detail,
-    findings,
-    read,
-    gapDetection: payload.gapDetection,
-  };
+  // Same IL-01 discipline as recordResult: pick named fields, never spread.
+  const stored = pickStoredFields(row, payload);
+  const { findings, read } = stored;
 
   const time = isoTime(now);
   const line = buildAmendedLine({

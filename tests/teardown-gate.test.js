@@ -23,7 +23,15 @@ function sh(cwd, ...args) {
 // `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var so
 // resolveRun's env-attribution branch never wins over the fixture's own
 // fallback scan.
-function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
+// #1130: never let an omitted cwd fall through to the spawned subprocess's
+// own process.cwd() — that is the test runner's real working directory, and
+// when npm test runs from a real checkout, hooks that walk
+// .claude-tweaks/pipelines/ from there write fixture events into REAL run
+// dirs (the #657 pollution incident). Calls that don't care about cwd get an
+// isolated, non-git sandbox instead.
+const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-teardown-sandbox-'));
+
+function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
       input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
@@ -356,8 +364,8 @@ test('MINOR 6: a run recording the main checkout as its worktree does not deny a
 test('AC5: a foreign-owned run warns instead of denying, and logs wd-foreign-teardown', () => {
   const root = fixtureRoot();
   const wt = addWorktree(root);
-  makeRun(root); // empty run dir (no run-state.json yet) for record-worktree to claim
-  const recorded = runHook(['record-worktree', wt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root); // empty run dir (no run-state.json yet) for record-worktree to claim
+  const recorded = runHook(['record-worktree', '--run', emptyRun, wt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   assert.match(recorded.stdout, /worktree recorded/);
   const runDir = findRunByWorktreePath(root, wt).runDir;
@@ -393,8 +401,8 @@ test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktr
   const root = fixtureRoot();
   withPolicy(root, 'worktree-always: true\n');
   const foreignWt = addWorktree(root);
-  makeRun(root); // empty run dir for record-worktree to claim
-  const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root); // empty run dir for record-worktree to claim
+  const recorded = runHook(['record-worktree', '--run', emptyRun, foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   const payload = JSON.stringify({
     tool_name: 'Bash',
@@ -418,8 +426,8 @@ test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktr
 test('IMPORTANT 3: a lone foreign-owned `git worktree remove` (no compound command) still allows and warns', () => {
   const root = fixtureRoot();
   const foreignWt = addWorktree(root);
-  makeRun(root);
-  const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root);
+  const recorded = runHook(['record-worktree', '--run', emptyRun, foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   const payload = JSON.stringify({
     tool_name: 'Bash', tool_input: { command: `git worktree remove ${foreignWt}` }, cwd: root, session_id: 'bystander-2',

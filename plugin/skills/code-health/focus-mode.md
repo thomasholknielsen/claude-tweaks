@@ -43,15 +43,16 @@ node -e "const {getCriterion}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health
 
 ## F0 — Gather open issues (SKILL.md Step 2, unchanged)
 
-Before anything below, run **SKILL.md Step 2 (GATHER OPEN ISSUES) exactly as written**, populating `ISSUES_FILE` (`/tmp/code-health-open.json`) — the `gh issue list` query, the `extractFingerprint` parse, the `_shared/health-issue-index.md` transport rules, and the digest-mode fold all apply verbatim. Focus mode replaces Steps 1, 3, and 4; it never replaces Step 2.
+Before anything below, run **SKILL.md Step 2 (GATHER OPEN ISSUES) exactly as written**, populating `ISSUES_FILE` (this run's session-scoped `code-health-open.json`, `_shared/session-tmp-root.md`) — the `gh issue list` query, the `extractFingerprint` parse, the `_shared/health-issue-index.md` transport rules, and the digest-mode fold all apply verbatim. Focus mode replaces Steps 1, 3, and 4; it never replaces Step 2.
 
 This is a sequencing requirement, not a formality. `ISSUES_FILE` is the only input to Step 8's `validate-findings --issues "$ISSUES_FILE"` dedup against GitHub. Leave it unset and dedup falls back to the local cache alone — which a Routine's fresh container recreates empty on every firing, so a focus routine re-files the same issues every single run.
 
 ## F1 — Run the generator
 
-`$FOCUS` and `$ROOT` are passed as `process.argv` arguments after `--`, never spliced into the JS source itself — a `--root` value containing a single quote (a realistic path like `O'Brien's-repo`) would otherwise break out of a string literal:
+`$FOCUS` and `$ROOT` are passed as `process.argv` arguments after `--`, never spliced into the JS source itself — a `--root` value containing a single quote (a realistic path like `O'Brien's-repo`) would otherwise break out of a string literal. Resolve this run's session-scoped destination first (`_shared/session-tmp-root.md`):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_FOCUS_SCAN=code-health-focus-scan.json)"
 node -e "
 const { FOCUS_GENERATORS } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/focus-generators.js');
 const focus = process.argv[1];
@@ -62,12 +63,12 @@ if (!gen) {
   process.exit(1);
 }
 console.log(JSON.stringify(gen(root)));
-" -- "$FOCUS" "${ROOT:-$PWD}" > /tmp/code-health-focus-scan.json
+" -- "$FOCUS" "${ROOT:-$PWD}" > "$CODE_HEALTH_FOCUS_SCAN"
 ```
 
 The `if (!gen)` guard makes the documented "an unrecognized `focus=` value fails loud, naming the known values" contract self-enforcing here, rather than depending on the "Known values" lookup above having actually been run first — if `$FOCUS` is somehow still unrecognized when F1 fires, this reports the same known-values list and exits non-zero instead of throwing a raw `TypeError` out of `gen(...)`.
 
-Read `/tmp/code-health-focus-scan.json`. It is `{ candidates, scannedFiles, skippedFiles, discoveryFailed, discoveryReason? }` — always the rich shape, never the bare `candidatesDeadCode(rootDir, opts) → [...]` array (that narrower signature exists too, for direct unit testing, but this wiring always goes through the registry's richer generator function so scan coverage is always reportable, per the zero-candidates contract below). `scannedFiles` is a count of every tracked source file the scan considered; `skippedFiles` is an array of `{ file, reason }` naming the subset it then skipped, so `scannedFiles - skippedFiles.length` is what was actually examined. `discoveryFailed` is `true` only when file discovery itself errored (see F2); `discoveryReason` is present only then. Each candidate is `{ file, kind, evidence }` plus a `symbol` on the `unreferenced-export` kind.
+Read `$CODE_HEALTH_FOCUS_SCAN`. It is `{ candidates, scannedFiles, skippedFiles, discoveryFailed, discoveryReason? }` — always the rich shape, never the bare `candidatesDeadCode(rootDir, opts) → [...]` array (that narrower signature exists too, for direct unit testing, but this wiring always goes through the registry's richer generator function so scan coverage is always reportable, per the zero-candidates contract below). `scannedFiles` is a count of every tracked source file the scan considered; `skippedFiles` is an array of `{ file, reason }` naming the subset it then skipped, so `scannedFiles - skippedFiles.length` is what was actually examined. `discoveryFailed` is `true` only when file discovery itself errored (see F2); `discoveryReason` is present only then. Each candidate is `{ file, kind, evidence }` plus a `symbol` on the `unreferenced-export` kind.
 
 ## F2 — Zero candidates is a clean no-op, not an error
 
@@ -93,10 +94,11 @@ Both counts are reported the same way on a **non-empty** firing too — they are
 
 ## F3 — Read candidate files
 
-Stamp the freshness marker first, exactly as SKILL.md Step 3 does for the generalist path — Step 7.5 is unmodified under focus mode and reads this marker, and a missing marker makes its `find -newer` check silently pass every finding:
+Stamp the freshness marker first, exactly as SKILL.md Step 3 does for the generalist path — Step 7.5 is unmodified under focus mode and reads this marker, and a missing marker makes its `find -newer` check silently pass every finding. Resolve the session-scoped marker path the same way (`_shared/session-tmp-root.md`):
 
 ```bash
-touch /tmp/code-health-read-marker
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CODE_HEALTH_READ_MARKER=code-health-read-marker)"
+touch "$CODE_HEALTH_READ_MARKER"
 ```
 
 Then, for every distinct `file` named across `candidates`, read it in full under SKILL.md Step 3's existing 60 KB read-budget discipline — the byte-tracking, the bounded-read fallback past budget, and the "never silently skip, report deferred" rule all apply unchanged.

@@ -1,8 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { probeWorktrees, extractPid } = require('../../../plugin/bin/lib/residue/probes/worktrees');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { probeWorktrees, extractPid, defaultIsDirty } = require('../../../plugin/bin/lib/residue/probes/worktrees');
 const { probeBranches } = require('../../../plugin/bin/lib/residue/probes/branches');
 const { filterResultsByScope } = require('../../../plugin/bin/lib/residue/scope-filter');
+const { validateFinding } = require('../../../plugin/bin/lib/residue/finding');
 
 function stubRunner(responses) {
   return (args) => (Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null);
@@ -208,73 +213,40 @@ test('multiple merged branches from unrelated runs produce zero blast-radius fin
   );
 });
 
-// #663: `probeBranches` used to read `--merged` against whatever stale
-// `refs/remotes/origin/*` entries the local checkout already had, with no
-// fetch/prune first. A branch merged and already deleted upstream (auto-
-// deleted on merge, or cleaned up by a sibling tidy pass) still showed up as
-// "merged, not deleted" — a fix-now attempt against it then 422s.
-test('a prune runs before the merged-branch read, and a since-pruned branch produces no finding', () => {
+// #1172: `probeBranches` used to run `git remote prune <remote>` unconditionally
+// before every merged-branch read — a ref-mutating, up-to-15s network call on
+// every invocation, including a report-only `residue.js --json` run and a
+// `--scope blast-radius` run whose branch findings (all scope:'observed') are
+// guaranteed to be filtered out afterward. The actual deletion of a
+// proven-merged remote branch runs through reconcile's own `remote-prune`
+// check (`bin/lib/reconcile/prune-remote.js`), which fetches and prunes
+// origin itself immediately before it deletes — this probe's findings are
+// read-only report output and never trigger a delete on their own, so the
+// prune bought nothing here.
+test('probeBranches never issues a `git remote prune` call — deletion (and its own prune) lives in reconcile/prune-remote.js', () => {
   const run = recordingRunner({
-    'remote prune origin': 'Pruning origin\n * [pruned] origin/worktree-old',
-    // Reflects what git itself returns AFTER a real prune removed the stale
-    // tracking ref — the branch this run is regression-testing is simply
-    // absent from the merged list once pruned.
-    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
   });
   const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
-  assert.deepStrictEqual(findings, [], 'the stale ref was pruned before the merged read, so it never appears');
-  assert.deepStrictEqual(run.calls, [
-    'remote prune origin',
-    'branch -r --format=%(refname:short) --merged origin/main',
-  ], 'prune must run before the merged-branch read, on the same injected run seam');
+  assert.deepStrictEqual(run.calls, ['branch -r --format=%(refname:short) --merged origin/main'], 'no remote-mutating call, ever');
+  assert.ok(findings.some((f) => f.subject === 'origin/worktree-old'), 'the merged-branch read itself is unaffected');
 });
 
-// #663 follow-up (review finding): the prune call is the first command on
-// this probe's run seam to contact a remote at all, so it needs an explicit
-// timeout — an unbounded `execFileSync` could hang the whole probe on a
-// slow/black-holed remote. The local-only merged-branch read has no such
-// risk and must stay unbounded.
-test('the prune call carries an explicit timeout; the local merged-branch read does not', () => {
-  const run = recordingRunner({
-    'remote prune origin': '',
-    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
-  });
-  probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
-  assert.deepStrictEqual(run.calls, [
-    'remote prune origin',
-    'branch -r --format=%(refname:short) --merged origin/main',
-  ]);
-  assert.strictEqual(run.optsByCall[0] && run.optsByCall[0].timeout, 15000, 'prune call must pass an explicit timeout');
-  assert.strictEqual(run.optsByCall[1], undefined, 'the local-only merged-branch read must not carry a timeout option');
-});
-
-test('a prune failure degrades to the unpruned read rather than aborting the probe', () => {
-  // No 'remote prune origin' entry in the map -> stubRunner returns null,
-  // simulating a network failure / offline prune.
+test('a merged branch\'s evidence carries no degrade/unpruned-read tag — the read is unconditionally local-only now', () => {
   const run = stubRunner({
     'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
   });
-  const { ran, findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
-  assert.strictEqual(ran, true, 'a prune failure degrades, it does not abort the probe');
+  const { findings } = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
   const stale = findings.find((f) => f.subject === 'origin/worktree-old');
-  assert.ok(stale, 'still returns the finding it would have returned unpruned');
-  assert.match(stale.evidence, /unpruned-read/, 'tagged so a consumer (fix-now) knows deletion may 422');
+  assert.doesNotMatch(stale.evidence, /unpruned-read|prune/, 'no prune-related tag survives in evidence');
 });
 
-test('the degrade tag lives in evidence only — it never mints a duplicate finding id', () => {
-  const prunedRun = stubRunner({
-    'remote prune origin': '',
-    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
+test('the local merged-branch read carries no timeout option — it never contacts a remote', () => {
+  const run = recordingRunner({
+    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main',
   });
-  const degradedRun = stubRunner({
-    'branch -r --format=%(refname:short) --merged origin/main': 'origin/main\norigin/worktree-old',
-  });
-  const pruned = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run: prunedRun });
-  const degraded = probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run: degradedRun });
-  const prunedFinding = pruned.findings.find((f) => f.subject === 'origin/worktree-old');
-  const degradedFinding = degraded.findings.find((f) => f.subject === 'origin/worktree-old');
-  assert.strictEqual(prunedFinding.id, degradedFinding.id, 'same finding whether pruned or degraded — id excludes evidence');
-  assert.notStrictEqual(prunedFinding.evidence, degradedFinding.evidence, 'evidence text differs to carry the degrade tag');
+  probeBranches({ scope: SCOPE, integrationBranch: 'origin/main', run });
+  assert.strictEqual(run.optsByCall[0], undefined, 'the only call this probe makes is local-only and needs no explicit timeout');
 });
 
 // #225: a locked worktree's evidence must distinguish a live session from an
@@ -330,4 +302,74 @@ test('a liveness check that throws fails toward "could not be confirmed" rather 
   const live = findings.find((f) => f.subject === '/repo/.claude/worktrees/live');
   assert.match(live.evidence, /could not be confirmed/);
   assert.strictEqual(live.remedy, 'record');
+});
+
+// #1424: a dirty (uncommitted or untracked changes present) unlocked
+// worktree must never classify as `remedy: 'auto'` — committed-history merge
+// state says nothing about working-tree state, and a plain `git worktree
+// remove` without `--force` is the only thing standing between that
+// classification and real data loss (see #1424's Current State for the live
+// incident this fixes).
+test('a dirty unlocked worktree routes to record, not auto', () => {
+  const isDirty = (p) => p === '/repo/.claude/worktrees/done';
+  const { findings } = probeWorktrees({ scope: SCOPE, isDirty });
+  const dirty = findings.find((f) => f.subject === '/repo/.claude/worktrees/done');
+  assert.strictEqual(dirty.remedy, 'record', 'uncommitted work must never be routed to the auto-delete batch');
+  assert.match(dirty.evidence, /dirty: true/);
+  assert.deepStrictEqual(validateFinding(dirty), []);
+});
+
+test('a confirmed-clean unlocked worktree still auto-remediates, with dirty: false in evidence', () => {
+  const isDirty = () => false;
+  const { findings } = probeWorktrees({ scope: SCOPE, isDirty });
+  const clean = findings.find((f) => f.subject === '/repo/.claude/worktrees/done');
+  assert.strictEqual(clean.remedy, 'auto');
+  assert.match(clean.evidence, /dirty: false/);
+});
+
+test('an unreadable dirty check (git status failed) does not force record — unconfirmed is not confirmed-dirty', () => {
+  const isDirty = () => null;
+  const { findings } = probeWorktrees({ scope: SCOPE, isDirty });
+  const unknown = findings.find((f) => f.subject === '/repo/.claude/worktrees/done');
+  assert.strictEqual(unknown.remedy, 'auto', 'today\'s behavior (locked-only gate) must survive an unrelated read failure');
+  assert.match(unknown.evidence, /dirty: unknown/);
+});
+
+test('the default (no isDirty override) never crashes and preserves today\'s locked-only remedy against a nonexistent path', () => {
+  // Every existing test in this file calls probeWorktrees({ scope: SCOPE })
+  // with no isDirty override — the real defaultIsDirty then shells out
+  // against fixture paths like '/repo/.claude/worktrees/done', which do not
+  // exist on the test machine. That must read as "could not confirm" (null),
+  // not crash, and must not flip remedy away from 'auto' — pinning this is
+  // what keeps every pre-existing remedy assertion in this file valid.
+  const { findings } = probeWorktrees({ scope: SCOPE });
+  const done = findings.find((f) => f.subject === '/repo/.claude/worktrees/done');
+  assert.strictEqual(done.remedy, 'auto');
+  assert.match(done.evidence, /dirty: unknown/);
+});
+
+// Fixture-based: exercises the real `defaultIsDirty` (actual `git status
+// --porcelain`) against real worktrees on disk, per #1424's Deliverables.
+function tmpGitRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'residue-worktree-dirty-'));
+  execFileSync('git', ['init', '-q', dir]);
+  execFileSync('git', ['-C', dir, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', dir, 'config', 'user.name', 'Test']);
+  execFileSync('git', ['-C', dir, 'commit', '-q', '--allow-empty', '-m', 'init']);
+  return dir;
+}
+
+test('defaultIsDirty: a fixture worktree with an uncommitted file reads dirty: true', () => {
+  const dir = tmpGitRepo();
+  fs.writeFileSync(path.join(dir, 'untracked.txt'), 'x');
+  assert.strictEqual(defaultIsDirty(dir), true);
+});
+
+test('defaultIsDirty: a clean fixture worktree reads dirty: false', () => {
+  const dir = tmpGitRepo();
+  assert.strictEqual(defaultIsDirty(dir), false);
+});
+
+test('defaultIsDirty: a nonexistent path reads null (could not confirm), not false', () => {
+  assert.strictEqual(defaultIsDirty('/does/not/exist/anywhere'), null);
 });

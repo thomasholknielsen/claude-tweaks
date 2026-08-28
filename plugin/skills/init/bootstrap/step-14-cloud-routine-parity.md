@@ -106,13 +106,35 @@ done
 # (claude-tweaks #129: a Routine ran a build predating a shipped fix for days, reporting the
 # pre-fix behavior as though it were current). Resolve each plugin's version from the
 # directory a session would actually load, compare it against the catalog, and repair drift.
-claude plugin list --json > /tmp/cc-installed.json 2>/dev/null || echo '[]' > /tmp/cc-installed.json
-claude plugin marketplace list --json > /tmp/cc-marketplaces.json 2>/dev/null || echo '[]' > /tmp/cc-marketplaces.json
+# Session-scoped destination, reimplemented inline rather than delegating to
+# bin/lib/session-tmp.js (_shared/session-tmp-root.md's mechanism) — this generated script's
+# whole job is bootstrapping claude-tweaks onto a sandbox that doesn't have it yet, so it can
+# never assume ${CLAUDE_PLUGIN_ROOT} resolves to an installed payload at the point this line
+# runs. The collision this convention exists to prevent doesn't apply here either way: each
+# cloud sandbox this script provisions is its own isolated container with its own /tmp, so
+# there is no concurrent-session race to close — this mirrors the mechanism (and its degrade
+# rule) defensively, in case the script is ever re-run inside a live session that does export
+# CLAUDE_CODE_SESSION_ID, rather than because a collision has ever been observed here.
+CC_TMP_DIR="${TMPDIR:-/tmp}"
+if [ -n "$CLAUDE_CODE_SESSION_ID" ]; then
+  CC_TMP_DIR="$CC_TMP_DIR/ct-session-$CLAUDE_CODE_SESSION_ID"
+  mkdir -p "$CC_TMP_DIR"
+fi
+CC_INSTALLED="$CC_TMP_DIR/cc-installed.json"
+CC_MARKETPLACES="$CC_TMP_DIR/cc-marketplaces.json"
+claude plugin list --json > "$CC_INSTALLED" 2>/dev/null || echo '[]' > "$CC_INSTALLED"
+claude plugin marketplace list --json > "$CC_MARKETPLACES" 2>/dev/null || echo '[]' > "$CC_MARKETPLACES"
 
 for spec in $PLUGIN_SPECS; do
   VERDICT=$(node -e '
     const fs = require("fs");
     const spec = process.argv[1];
+    // The two session-scoped snapshot paths reach the script as process.argv args rather
+    // than spliced into this single-quoted JS source (_shared/session-tmp-root.md) — a
+    // path containing a quote character would otherwise break out of the string literal,
+    // the same reason code-health/focus-mode.mds F1 block passes its own values that way.
+    const installedPath = process.argv[2];
+    const marketplacesPath = process.argv[3];
     const [pluginName, marketplaceName] = spec.split("@");
     const read = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } };
 
@@ -120,11 +142,11 @@ for spec in $PLUGIN_SPECS; do
     // `version` is metadata recorded beside that directory rather than read out of it, and
     // `installed_plugins.json`s `gitCommitSha` is not refreshed by `claude plugin update`
     // at all — neither can be trusted to describe the files actually on disk.
-    const entry = (read("/tmp/cc-installed.json") || []).find((p) => p.id === spec);
+    const entry = (read(installedPath) || []).find((p) => p.id === spec);
     const manifest = entry && read(entry.installPath + "/.claude-plugin/plugin.json");
     const installed = (manifest && manifest.version) || "none";
 
-    const mkt = (read("/tmp/cc-marketplaces.json") || []).find((m) => m.name === marketplaceName);
+    const mkt = (read(marketplacesPath) || []).find((m) => m.name === marketplaceName);
     const catalog = mkt && read(mkt.installLocation + "/.claude-plugin/marketplace.json");
     const declared = catalog && (catalog.plugins || []).find((p) => p.name === pluginName);
     // Not every marketplace declares a per-plugin version (claude-plugins-official does not).
@@ -156,7 +178,7 @@ for spec in $PLUGIN_SPECS; do
 
     const drift = installed === "none" || (expected !== "unversioned" && installed !== expected);
     console.log([installed, expected, drift ? "DRIFT" : "ok", (entry && entry.installPath) || "-"].join("\t"));
-  ' "$spec" || true)
+  ' "$spec" "$CC_INSTALLED" "$CC_MARKETPLACES" || true)
   # `|| true` inside the substitution, because this loop is diagnostic-and-repair, not a
   # prerequisite: under `set -e` an unreadable manifest would otherwise abort the script
   # here and take the agent-browser/Chrome install below down with it.

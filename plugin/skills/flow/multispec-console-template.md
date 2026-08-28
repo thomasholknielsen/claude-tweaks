@@ -83,7 +83,7 @@ A `[{genre}-convention]` row renders inside its hosting section (Configuration u
 
 #### Reference repairs (from each spec's Broken references curation row)
 
-Render this section whenever any spec's broken-reference sweep found a surviving reference, in either of two states — **applied** (already happened in that spec's own `Initiative-Fix:` commit) or **staged** (an ordinary approval row). Omit the section entirely when every spec's sweep found nothing.
+Render this section whenever any spec's broken-reference sweep found a surviving reference, in either of two states — **applied** (already happened, committed by the controller's serial-commit pass, `curation-engine.md` section 4, with the `Initiative-Fix:` trailer) or **staged** (an ordinary approval row). Omit the section entirely when every spec's sweep found nothing.
 
 | # | Spec | State | Target | Repair | Broken by | Why |
 |---|---|---|---|---|---|---|

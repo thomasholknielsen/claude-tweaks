@@ -76,7 +76,7 @@ Run the computation in `_shared/journey-coverage-check.md` across all journeys a
 
 Append these findings to the same array from Step 2 (Steps 2 and 3 can both produce findings in the same firing; Step 2 is skipped entirely when Step 1 returned `target: null`).
 
-Write the combined Steps 2-3 findings array to `/tmp/journey-health-findings-light.json`. If neither step produced any findings, write `[]`.
+Write the combined Steps 2-3 findings array to `$JH_F_LIGHT` (session-scoped `jh-findings-light.json`, resolved via `session-tmp-resolve.js` per `_shared/session-tmp-root.md` — cited, not restated). If neither step produced any findings, write `[]`.
 
 **Step 3.5 — DEEP TIER (only when `--deep` was passed).**
 
@@ -115,34 +115,36 @@ Otherwise:
    - If genuinely ambiguous, emit the drift-leaning finding with `confidence: "med"`, `severity: "med"`, and say so explicitly in `reason` — never silently pick one.
 4. **Clean up.** If `SERVER_STARTED` is `true`, stop the ephemeral server now (`lsof -ti tcp:{port} | xargs kill`) — this is a standalone invocation with no `/wrap-up` to do it later, per `_shared/dev-url-detection.md`'s "Standalone" cleanup rule. (`SERVER_STARTED` is never `true` when sub-step 0 satisfied or resolved the deep tier via QA evidence, since sub-step 1 never ran on that path — this cleanup correctly no-ops.)
 
-Write Step 3.5's findings to `/tmp/journey-health-findings-deep.json` whenever the **Otherwise:** block above ran — including an empty array `[]` (the QA-evidence-satisfied path and a clean live-verification pass both produce no findings, but the file must still be written so the deep-tier call below runs and the cursor advances). Skip creating this file entirely only when Step 3.5 didn't run at all (`--deep` wasn't passed), resolved `target: null`, or hit the **Skip condition** (missing declared file) — none of those three cases reach the **Otherwise:** block, and none of them should advance the deep-tier cursor.
+Write Step 3.5's findings to `$JH_F_DEEP` (session-scoped `jh-findings-deep.json`, session-tmp-root.md) whenever the **Otherwise:** block above ran — including an empty array `[]` (the QA-evidence-satisfied path and a clean live-verification pass both produce no findings, but the file must still be written so the deep-tier call below runs and the cursor advances). Skip creating this file entirely only when Step 3.5 didn't run at all (`--deep` wasn't passed), resolved `target: null`, or hit the **Skip condition** (missing declared file) — none of those three cases reach the **Otherwise:** block, and none of them should advance the deep-tier cursor.
 
 **Step 3.6 — VERIFY GATE: sanity-check surviving findings before dedup.**
 
-Before fingerprinting and dedup, re-examine every finding in `/tmp/journey-health-findings-light.json` and (when Step 3.5 ran) `/tmp/journey-health-findings-deep.json` and ask: is it real (does the journey file, coverage scan, or live-check evidence actually show this, or was it misread)? Is it actionable (a concrete `recommendation`, not vague)? Would running the recommended follow-up skill actually resolve it without further investigation? Is `severity` justified by the `reason` cited? Drop any finding that fails. This is the canonical shape in `_shared/health-verify-gate.md` (the same adversarial-verify discipline `/code-health` and `/docs-health` apply inline, and `/harness-health` applies via its embedded copy) — check that file when either changes to keep this skill's copy in sync with its siblings; do not skip it under time pressure, and do not skip it just because a finding came from a mechanical check (file-existence, coverage) rather than open-ended judgment; a mechanical check can still misfire (a path resolved against the wrong cwd, a story matched against the wrong journey).
+Before fingerprinting and dedup, re-examine every finding in `$JH_F_LIGHT` and (when Step 3.5 ran) `$JH_F_DEEP` (re-resolve both, session-tmp-root.md) and ask: is it real (does the journey file, coverage scan, or live-check evidence actually show this, or was it misread)? Is it actionable (a concrete `recommendation`, not vague)? Would running the recommended follow-up skill actually resolve it without further investigation? Is `severity` justified by the `reason` cited? Drop any finding that fails. This is the canonical shape in `_shared/health-verify-gate.md` (the same adversarial-verify discipline `/code-health` and `/docs-health` apply inline, and `/harness-health` applies via its embedded copy) — check that file when either changes to keep this skill's copy in sync with its siblings; do not skip it under time pressure, and do not skip it just because a finding came from a mechanical check (file-existence, coverage) rather than open-ended judgment; a mechanical check can still misfire (a path resolved against the wrong cwd, a story matched against the wrong journey).
 
-**Step 4 — GATHER OPEN ISSUES for dedup.**
+**Step 4 — GATHER OPEN ISSUES for dedup.** Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`):
 
 ```bash
-gh issue list --label by:journey-health --state all --json number,state,labels,body --limit 500 > /tmp/journey-health-issues-raw.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" JH_ISSUES_RAW=jh-issues-raw.json JH_ISSUES=jh-issues.json)"
+gh issue list --label by:journey-health --state all --json number,state,labels,body --limit 500 > "$JH_ISSUES_RAW"
 ```
 
-Parse each issue body for its fingerprint marker. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: journeyhealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- journey-health-fingerprint: journeyhealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `/tmp/journey-health-issues.json`.
+Parse each issue body for its fingerprint marker. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: journeyhealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- journey-health-fingerprint: journeyhealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `$JH_ISSUES`.
 
-**Transport and outcomes:** read `_shared/health-issue-index.md` and apply it, with `{SKILL}` = `journey-health` and `{ISSUES_FILE}` = `/tmp/journey-health-issues.json`. In short: `gh` absent means rebuild this index via the MCP `list_issues` tool, not skip the step; only a genuine "neither transport can reach GitHub" sets `ISSUES_FILE=""`, and that case gets reported rather than passing silently. A repo with no `by:journey-health` issues yet is a legitimately *empty* index (`[]`), not an unavailable one — keep the two distinct.
+**Transport and outcomes:** read `_shared/health-issue-index.md` and apply it, with `{SKILL}` = `journey-health` and `{ISSUES_FILE}` = `$JH_ISSUES`. In short: `gh` absent means rebuild this index via the MCP `list_issues` tool, not skip the step; only a genuine "neither transport can reach GitHub" sets `ISSUES_FILE=""`, and that case gets reported rather than passing silently. A repo with no `by:journey-health` issues yet is a legitimately *empty* index (`[]`), not an unavailable one — keep the two distinct.
 
 A matched issue carrying the `wontfix` label is a standing suppression decision: Step 5's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row). It also persists that fingerprint to the durable `declined` slice on the `health-state` branch, so the suppression survives a later firing that cannot rebuild this index at all — the local `cache.json` is no help there, since a scheduled Routine's fresh container starts with an empty one.
 
-**Digest-mode fold.** Before writing `/tmp/journey-health-issues.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `journey-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 5 rather than being re-judged or re-digested.
+**Digest-mode fold.** Before writing `$JH_ISSUES`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `journey-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 5 rather than being re-judged or re-digested.
 
 **Step 5 — VALIDATE, FINGERPRINT, DEDUP.**
 
 Findings from Steps 2-3 (light tier) and Step 3.5 (deep tier) use different `--tier`/`--target` cursor keys and must never share one `validate-findings` call — each tier's own target needs its own cursor recorded independently (same discipline `/code-health`'s multi-slice `--budget` runs use: one call per distinct target).
 
-Always run the light-tier call, even when its findings file is `[]`:
+Always run the light-tier call, even when its findings file is `[]`. Resolve this run's session-scoped paths first (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit an earlier fence's shell variables):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journey-health-findings-light.json \
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" JH_F_LIGHT=jh-findings-light.json JH_P_LIGHT=jh-payloads-light.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings "$JH_F_LIGHT" \
   --root "${ROOT:-$PWD}" --tier light \
   --run-id "${RUN_ID}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
@@ -150,20 +152,21 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
   ${COVERAGE_SCAN_RAN:+--coverage-scan} \
   ${MIN_CONFIDENCE:+--min-confidence "$MIN_CONFIDENCE"} \
   ${DRY_RUN:+--dry-run} \
-  > /tmp/journey-health-payloads-light.json
+  > "$JH_P_LIGHT"
 ```
 
-Run the deep-tier call whenever `/tmp/journey-health-findings-deep.json` exists (i.e., whenever Step 3.5 reached the **Otherwise:** block, even if the file is `[]`) — this is required for `recordAudit` to fire and the deep cursor to advance on every path through that block (QA-evidence-satisfied, QA-evidence-regression, or live-verification):
+Run the deep-tier call whenever this run's session-scoped `jh-findings-deep.json` exists (i.e., whenever Step 3.5 reached the **Otherwise:** block, even if the file is `[]`) — this is required for `recordAudit` to fire and the deep cursor to advance on every path through that block (QA-evidence-satisfied, QA-evidence-regression, or live-verification). Re-resolve this fence's session-scoped paths too:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journey-health-findings-deep.json \
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" JH_F_DEEP=jh-findings-deep.json JH_P_DEEP=jh-payloads-deep.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings "$JH_F_DEEP" \
   --root "${ROOT:-$PWD}" --tier deep \
   --run-id "${RUN_ID}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
   --target "$DEEP_TARGET_ID" \
   ${MIN_CONFIDENCE:+--min-confidence "$MIN_CONFIDENCE"} \
   ${DRY_RUN:+--dry-run} \
-  > /tmp/journey-health-payloads-deep.json
+  > "$JH_P_DEEP"
 ```
 
 `LIGHT_TARGET_ID`/`DEEP_TARGET_ID` are the respective `target.id` values from Step 1 and Step 3.5 (omit `LIGHT_TARGET_ID` if Step 1 returned `target: null` and only the coverage scan ran; `DEEP_TARGET_ID` is required whenever the deep-tier call runs at all, since Step 3.5 always resolves a concrete journey before producing findings). Both commands validate, fingerprint, dedup, and record their own tier's cursor unless `--dry-run`, and both emit gh-ready payloads on stdout.
@@ -180,21 +183,25 @@ Every journey-health record files onto the unified work record (`skills/_shared/
 
 Size is always `size:medium` — a journey-health finding carries no scope/size signal (no files-changed count, no lines-changed estimate) the way a code-health or harness-health finding's own evidence does, so there is no deterministic basis to fold into a `low`/`high` split; `medium` is the flat, honest default for every finding this skill files. Type follows the finding's `category`: `regression-suspected` files as `bug` (the journey/story text is accurate — the implementation broke); `drift` and `coverage` file as `task` (documentation or coverage maintenance, not a defect). Every filed finding is **born-`ready`** — journey-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation (per the intro, records are not a separate lane). `toIssuePayload` (`bin/lib/journey-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the category-derived diagnostic label (`journey-health:drift` / `journey-health:coverage` / `journey-health:regression-suspected`) after the canonical labels — the emitted label set is exactly `by:journey-health` + `risk:<tier>` + `size:medium` + `ready` + the diagnostic label, matching the table above.
 
+**Materiality floor, before the cap digest.** Before the drain-rate cap check below, apply `_shared/materiality-floor.md`'s floor test to any survivor whose Step 5 decision is `'file'`: a finding that fails to clear the materiality floor routes to the materiality floor's own shared digest container instead — never to `journey-health`'s per-origin `{PREFIX}:digest` cap issue described below, a separate mechanism. Only a survivor that clears the materiality floor proceeds to the cap check. **In practice no journey-health finding is below floor today:** this skill's size axis is flat (`size:medium` for every finding, per the paragraph above) while the floor requires a low size, so every survivor clears it and files as an ordinary issue. The citation is here so the ordering is already correct if that axis ever gains a low tier — not because this skill currently produces digest entries.
+
 **Drain-rate cap and digest mode.** Before filing any survivor whose Step 5 decision is `'file'`, apply the `health-open-cap` throttle per `_shared/health-filing-digest.md`'s FILE-step shape (`{PREFIX}` = `journey-health`) — at or above the cap, the finding is appended to `journey-health`'s digest issue instead of filed as a new singleton. A `'reopen'` decision (regression) always bypasses the cap.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `journey-health.js`, `{PREFIX}` = `journey-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt:
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `journey-health.js`, `{PREFIX}` = `journey-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt. Resolve this run's session-scoped temp path first (`_shared/session-tmp-root.md`):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue drain --root "${ROOT:-$PWD}" > /tmp/journey-health-retry-payloads.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" JH_RETRY_PAYLOADS=jh-retry-payloads.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue drain --root "${ROOT:-$PWD}" > "$JH_RETRY_PAYLOADS"
 ```
 
-For each payload in `/tmp/journey-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/journey-health-retry-results.json`, then:
+For each payload in `$JH_RETRY_PAYLOADS`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to this run's session-scoped `jh-retry-results.json`, then re-resolve both session-scoped paths this fence needs (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue update /tmp/journey-health-retry-results.json --root "${ROOT:-$PWD}" > /tmp/journey-health-escalated.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" JH_RETRY_RESULTS=jh-retry-results.json JH_ESCALATED=jh-escalated.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue update "$JH_RETRY_RESULTS" --root "${ROOT:-$PWD}" > "$JH_ESCALATED"
 ```
 
-If `/tmp/journey-health-escalated.json` is non-empty, file (or update) a `journey-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
+If `$JH_ESCALATED` is non-empty, file (or update) a `journey-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
 Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Canonical pairs copied verbatim from `_shared/label-bootstrap.md`'s `LABELS_JSON`, plus journey-health's own diagnostic labels:
 
@@ -213,7 +220,7 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["journey-health:filing-failed",        "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
 ```
 
-Each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json` carries structured fields, not just the GitHub issue text — `id`, `journey`, `category`, `section`, `severity`, `confidence` are all present directly on the payload object (not just embedded in `payload.body`'s markdown), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore.
+Each payload in `$JH_P_LIGHT` and (when Step 3.5 ran) `$JH_P_DEEP` (Step 5's session-scoped output, `_shared/session-tmp-root.md`) carries structured fields, not just the GitHub issue text — `id`, `journey`, `category`, `section`, `severity`, `confidence` are all present directly on the payload object (not just embedded in `payload.body`'s markdown), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore.
 
 **Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
 

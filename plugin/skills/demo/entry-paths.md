@@ -148,15 +148,28 @@ same shape as the no-arguments path, sourced like this:
   before — concrete commands, file paths, or behavior the commit's own message or path list
   evidences — presented as a `cli` plan when those steps name a runnable command, else a `diff`
   plan (Entry point: `{sha}^..{sha}`). That changed-path list is a real `git` result here, so the
-  "recall can't produce a path list" omission case does not arise.
+  "recall can't produce a path list" omission case does not arise. **Parent-linked records:** also
+  run the Full verification pointer sub-procedure below, and append its block to the composed plan
+  when it resolves one.
 
 Go to Step 2 with it.
 
 **Not found** — fall back to session-recall for this specific `#N`: does this conversation have
 memory of building and/or verifying it? If yes, compose a Verification Brief exactly as the
-no-arguments path does above, scoped to this one record, and go straight to Step 2. If this
-session has no memory of it either, report plainly: "`#N` has no Verification Brief, no closing
-commit in git history, and no memory in this session — nothing to show." and stop.
+no-arguments path does above, scoped to this one record — also running the Full verification
+pointer sub-procedure below and appending its block when it resolves one — and go straight to
+Step 2. If this session has no memory of it either, report plainly: "`#N` has no Verification
+Brief, no closing commit in git history, and no memory in this session — nothing to show." and
+stop.
+
+**When the no-arguments path's omission rule fires here** (recall yields no confident path list)
+**but** the Full verification pointer sub-procedure below resolves a block, do not drop the block
+along with the rest of the plan: render an `### Observation plan` section carrying only the `Full
+verification:` block — no Surface, Entry point, Prepare, or Inspect. The omission rule exists to
+stop this path from inventing evidence for a Surface/Entry point/Prepare/Inspect the session
+doesn't actually have; the Full verification pointer isn't invented in that sense — it comes from
+live parent/sibling API state read at demo time, not from recall, so the reason to omit it never
+applies to this block specifically.
 
 **`work-backend: local-files`:** `readRecord(filePath)` for the single record
 (`bin/lib/issues/local-store.js`); the Verification Brief is the record's own `## Verification
@@ -164,3 +177,48 @@ Brief` body section. Same `demo:pending` → closing-commit → session-recall f
 above, keyed on `facets.acceptance === 'pending'` instead of the label. The closing-commit step is
 identical — it reads git, not the backend, so a local record closed by a `Fixes #N` commit
 reconstructs the same way.
+
+### Full verification pointer (parent-linked records)
+
+Cited by both the closing-commit reconstruction's Observation plan step and the `#N`-scoped
+session-recall fallback, both above — stated once, run from either.
+
+1. **Resolve the parent** — the same resolution `review/cross-spec-promise-check.md` uses:
+   `work-backend: local-files` → `facets.parent`; `github-issues` + `work-links: body-text` →
+   this record's own `Parent: #N` body line; `github-issues` + `work-links: native` → one
+   `buildNativeParentQuery([n])` call (`bin/lib/issues/record.js`), run via
+   `gh api graphql -f owner="{owner}" -f repo="{repo}" -f query="$(node -e "…buildNativeParentQuery([n])…")"`
+   — `-f` for `owner`/`repo` here, not `-F`: both are `String!` GraphQL variables. `-F` is for
+   substituting gh's literal `{owner}`/`{repo}` placeholder syntax inside a field *value* — a
+   different mechanism a GraphQL variable never uses (`gh-api-module-pattern` skill). **No parent
+   resolvable** — omit the block entirely; nothing renders.
+2. **Enumerate siblings and their state**, from the parent side — reusing
+   `wrap-up/verification-brief-parent-gate.md`'s "Enumerate the parent's sub-issues"
+   enumeration: `native` — `gh api "repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues"`, whose
+   response already carries every sibling's `number`, `title`, and `state`, so no per-sibling
+   fetch is needed here (normalize its lowercase `open`/`closed` to `OPEN`/`CLOSED` —
+   `_shared/github-pr-scan-acceptance.md`); `body-text` — one `gh issue view {n} --json
+   state,title` per `parseSubIssues` number; `local-files` — the `queryRecords` result already
+   carries `facets.closed` and the title. This enumeration is the parent's **full** sub-issue
+   list, the record in hand included — do not filter it down yet. Also fetch the parent's labels
+   (`gh issue view $PARENT_NUM --json labels`, or the parent record's `facets.acceptance`).
+
+   Two different lists are then in play, built from this same enumeration for two different
+   purposes: `Pending:` (Step 3 below) is built with the record in hand **excluded** — it never
+   lists itself as pending. `parentGateState({subIssues, parentLabels})`
+   (`bin/lib/issues/acceptance.js`) must instead be called with the **full** list, record in hand
+   **included**: it returns `'due'` only when every sub-issue in the list it's given is `CLOSED`,
+   so calling it with the record-in-hand excluded would wrongly report `due` whenever every
+   *other* sibling has closed but the record in hand is itself still open — a real case (a
+   session-recall entry may run on one still-open record). Bounded by decomposition size —
+   `/specify`'s sizing keeps a parent to a handful of sub-issues, so nothing here paginates or
+   fans out.
+3. **Compose the block** per `_shared/observation-plan.md`'s schema and grammar rules.
+4. **Extend `### Confirmed`** with one sentence — end-to-end behavior was not observable at this
+   slice; see the plan's Full verification block — in whichever composer produced this brief:
+   the reconstruction's opening reconstruction sentence above, or the no-arguments path's
+   `### Confirmed` bullet above, which the `#N`-scoped session-recall fallback reuses.
+
+**Fail open, visibly.** Any `gh` failure in steps 1-2 above omits the block and states so in
+one plain line above the verdict, naming which lookup failed — never a silent omission. `/demo`
+has no run directory and no `decisions.md`, so this one line is the only trace.

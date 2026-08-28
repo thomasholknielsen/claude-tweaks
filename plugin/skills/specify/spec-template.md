@@ -4,18 +4,21 @@ The record body must be detailed enough for `/superpowers:writing-plans` to prod
 
 This template covers the record's **body** only — the GitHub issue body, or the `local-files` twin's body text (`bin/lib/issues/local-store.js`). Title and Type are separate record fields, never body content — see `## Facets` at the end of this file for what lives outside the body.
 
-Every record body opens with a short metadata block — plain body-metadata lines, never YAML frontmatter. `Surface:`, `Design-intent:`, and `Design-seed:` are lifted verbatim into the materialized header by `/flow`/`/build` at build time (spec 20's contract). `Visual-reference:` (when present) stays a body-metadata line only — `/claude-tweaks:build`'s `design-prebuild.md` reads it directly from the record body, not from the materialized header (not `/claude-tweaks:design-wrapper`'s `pre-build` mode, which never references this field). Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — pick the single dominant surface per sub-issue, since a unit that is genuinely both frontend and backend at once is a decomposition smell.
+Every record body opens with a short metadata block — plain body-metadata lines, never YAML frontmatter. `Surface:`, `Design-intent:`, `Ui-stack:`, and `Design-seed:` are lifted verbatim into the materialized header by `/flow`/`/build` at build time (spec 20's contract). `Visual-reference:` (when present) stays a body-metadata line only — `/claude-tweaks:build`'s `design-prebuild.md` reads it directly from the record body, not from the materialized header (not `/claude-tweaks:design-wrapper`'s `pre-build` mode, which never references this field). Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — pick the single dominant surface per sub-issue, since a unit that is genuinely both frontend and backend at once is a decomposition smell.
 
-**`mobile` means a native app surface** — SwiftUI, UIKit, Compose, React Native, Flutter — not a web page viewed on a phone. A responsive web layout is `web`; use `mobile` only when the code being changed is native app code. The distinction is load-bearing rather than descriptive: `/claude-tweaks:design-wrapper` routes `mobile` to Impeccable's native track and skips the two web-only surfaces (the bundled HTML detector behind `test` mode, and `live` mode) rather than running them and reporting a pass they could not have failed. Declaring `mobile` on a responsive web feature therefore turns the design CLI gate off for it. `desktop` takes the web path on a stated assumption — see the track-resolution table in `skills/design-wrapper/SKILL.md`, which is the single source of truth for how each value routes. `terminal` is a CLI/TUI surface — help text, output formatting, prompts, exit codes; it is declared only, never sniffed (no file extension implies it), and it takes the design pipeline's terminal track (`skills/design-wrapper/terminal-routing.md`). `Parent:` is decomposition-mode-only, present on a sub-issue's body only under `work-backend: github-issues` + `work-links: body-text` — the one combination with no other way to record a sub-issue's own parent (`work-links: native`'s sub-issue relationship is queryable from either side; `work-backend: local-files` carries `facets.parent`). `/claude-tweaks:review`'s Step 1.6 (`skills/review/SKILL.md`) reads it to resolve a sub-issue's parent when checking for a `## Cross-Spec Promises` section (`_shared/work-record.md`).
+**`mobile` means a native app surface** — SwiftUI, UIKit, Compose, React Native, Flutter — not a web page viewed on a phone. A responsive web layout is `web`; use `mobile` only when the code being changed is native app code. The distinction is load-bearing rather than descriptive: `/claude-tweaks:design-wrapper` routes `mobile` to Impeccable's native track and skips the two web-only surfaces (the bundled HTML detector behind `test` mode, and `live` mode) rather than running them and reporting a pass they could not have failed. Declaring `mobile` on a responsive web feature therefore turns the design CLI gate off for it. `desktop` takes the web path on a stated assumption — see the track-resolution table in `skills/design-wrapper/SKILL.md`, which is the single source of truth for how each value routes. `terminal` is a CLI/TUI surface — help text, output formatting, prompts, exit codes; it is declared only, never sniffed (no file extension implies it), and it takes the design pipeline's terminal track (`skills/design-wrapper/terminal-routing.md`). `Parent:` is decomposition-mode-only, present on a sub-issue's body only under `work-backend: github-issues` + `work-links: body-text` **and only when that decomposition kept a parent** (`/specify`'s Step 2.6 collapse decision produces parentless records — `specify/decomposition-mode.md`) — the one combination with no other way to record a sub-issue's own parent (`work-links: native`'s sub-issue relationship is queryable from either side; `work-backend: local-files` carries `facets.parent`). `/claude-tweaks:review`'s Step 1.6 (`skills/review/SKILL.md`) reads it to resolve a sub-issue's parent when checking for a `## Cross-Spec Promises` section (`_shared/work-record.md`).
 
 `Design-seed:` is the one metadata line **`/specify` never writes**. The template declares it so the line is a recognized body-metadata field rather than stray prose when it does appear; the *value* can only be written after the build, because it comes from the direction contract Impeccable puts in the built artifact and `/specify` runs before any code exists. `/claude-tweaks:design-wrapper`'s `review` mode writes it post-build, per `_shared/design-contract.md`. Do not copy `Design-intent:`'s pattern here and go looking for a value at shaping time — there is nothing to read yet. The field is **never required**: a `ready` sub-issue without one is normal and stays valid, exactly as with `Surface:`, and no structural check may start demanding it. Most records will never carry one, since most work is not a new design surface.
+
+`Ui-stack:` names the UI component library / styling approach a frontend build should use — e.g. `shadcn/ui + Tailwind`, or an explicit `none — no preference, defer to reference codebase` when the record's author genuinely has no opinion. `/claude-tweaks:specify`'s Step 2.5c2 (`design-pre-steps.md`, immediately after the Design-intent question) writes it, following the same auto-mode/`ui-stack` policy-key precedence Step 2.5c already uses for `Design-intent:`. Omitted for backend/infra/terminal records — the same frontend-only gate that already governs `Design-intent:`.
 
 ```markdown
 Surface: {web | mobile | desktop | backend | infra | terminal}
 Design-intent: {bold | quiet | minimal | delightful | onboarding | none}
+Ui-stack: {free-form component-library/styling-approach string (e.g. "shadcn/ui + Tailwind"), or an explicit no-preference answer — omitted for backend/infra/terminal, same as Design-intent:}
 Design-seed: {the seed key from the built artifact's Impeccable direction contract, copied verbatim — NOT written by /specify; see below}
 Visual-reference: {path to an accepted shape-time scaffold file — omitted when /specify's Step 2.5b-ii variant-exploration step was skipped, declined, or not offered (non-frontend records)}
-Parent: {#N — decomposition-mode sub-issues under work-links: body-text only; omitted otherwise (native links, work-backend: local-files, and Shaping mode)}
+Parent: {#N — decomposition-mode sub-issues under work-links: body-text only, and only when Step 2.6 kept a parent; omitted otherwise (a collapsed decomposition, native links, work-backend: local-files, and Shaping mode)}
 
 ## Overview
 
@@ -52,6 +55,8 @@ Parent: {#N — decomposition-mode sub-issues under work-links: body-text only; 
 - [ ] {Concrete deliverable 2}
 - [ ] ...
 
+When a Deliverable adds a new Manifesto policy lever — a new `auto`-mode behavior surfaced through the Pipeline Config Manifesto and configurable via `.claude-tweaks/policy.yml` — cite `_shared/auto-mode-contract.md`'s "Adding a new policy lever" checklist by reference (name the file and heading) rather than restating its five touch points or naming only one of them. A lever's addition touches more files than its own logic; the checklist exists because a past lever-adding spec named only one file and three of the checklist's five items were missed until whole-branch review.
+
 ## Acceptance Criteria
 
 1. {Specific, testable criterion that `/superpowers:writing-plans` can convert to a TDD step}
@@ -70,6 +75,8 @@ Parent: {#N — decomposition-mode sub-issues under work-links: body-text only; 
 
 - `{path}` — {what changes or new file purpose}
 - `{path}` — {what changes}
+
+Each bullet names a concrete file path, never a bare directory (`tests/`, `plugin/skills/`): `groupByFileOverlap` (`bin/lib/issues/grouping.js`) excludes every entry ending in `/` from file-overlap bridging outright, so a directory entry contributes nothing to the cross-spec conflict detection `/claude-tweaks:flow`, `/claude-tweaks:dispatch`, and `/claude-tweaks:help` run over this section — and, unlike an absent section, it raises no warning.
 
 When this work **renames** a contract surface — a report section heading, a check name, an exported symbol, or any other name other files reference by literal text — grep the repo for the surface's exact old literal text. List every consumer file the grep finds here — each one that binds to the name and must be updated, including files this work does not otherwise touch. Skip historical mentions: archived run specs, other records' bodies, the incident log. A file that only *reads* the old name never appears in the diff you're imagining, so it's easy to omit without this step. Example: spec #518 renamed `/claude-tweaks:tidy`'s report sections and listed only the files it would write (`skills/tidy/SKILL.md`, `skills/tidy/step-6-auto.md`, `skills/tidy/step-6-interactive.md`). It omitted `skills/tidy/scan-procedures.md`, whose Collection routing table bound each scan tag to a report section by that section's literal old name — the rename shipped with the routing table still pointing at the retired names, caught only in whole-branch review (`docs/incident-log.md` `[IL-132]`).
 
@@ -159,6 +166,31 @@ When a spec's technical approach rests on an assumption about how an external sy
 
 Enumerating only the second list and skipping the first is the failure mode to design against: it reads as thorough (every input shape is covered) while silently leaving out an entire initiation path that never produces an event to shape-check in the first place — a gap no fixture built from the captured shapes can catch, because the missing case never got captured. Name each initiator path explicitly in the Task 0 deliverable's own text; do not let "covers all invocation shapes" stand in for it.
 
+A Task 0 deliverable's captured behavior — or any other flagged-but-unvalidated assumption in this
+spec's `## Gotchas` section, an inline `<!-- ambiguity: -->` marker, or an `## Open Questions` row —
+is not fully resolved just because implementation happened. `skills/review/code-mode-steps.md`
+Step 1's **Risk-Marker Verification** sub-check independently re-checks every such marker against
+the artifact's real external validator/schema/tool at whole-branch review time, and routes an
+unresolved one to `BLOCKED` — the review-side half of the same rule this section states from the
+spec-authoring side.
+
+**Plan-authoring corollary.** When a deliverable itself adds new *binding* skill prose to a
+review/build gate — a Gate-table row, a forced-disposition instruction, not merely descriptive
+prose — include a deliverable that pins it with a conformance test (`skill-prose-conformance-tests`'
+"documented convention this project wants enforced against every future addition" case), the same
+way a code path earns regression coverage. A plan that adds a Gate-table row with no test task is
+the same brief-compliance gap this section already exists to close, one layer further in.
+
+### Third-Party CLI/API Behavior Task 0
+
+When the premise being checked is specifically how a **third-party CLI or API** behaves — not this project's own harness — name a blocking empirical Task 0 as a deliberate option rather than letting it get rediscovered per-record. Its three constituent parts, all required:
+
+- **Safe probe target** — a throwaway/disposable target the probe can act against without touching real state (a scratch repo, an unprotected test branch, a sandboxed resource) — never the project's own production data or an artifact anyone else depends on.
+- **Mandatory teardown** — the Task 0 deliverable itself includes tearing the probe target back down, unconditionally, whether the probe confirmed or reversed the assumed premise.
+- **Literal-capture rule** — record the actually-observed behavior verbatim (the exact output, timing, or status — not a paraphrase) in the spec's `## Gotchas` or `## Technical Approach`, so a later reader can check the captured fact rather than re-trust the original assumption.
+
+Example: #560's Task 0 probed `gh pr merge --auto`'s actual merge timing against a throwaway PR opened on a disposable base branch, tore that branch down unconditionally after capturing the result, and recorded the literal observed behavior — which reversed the plan's assumed premise (`gh pr merge --auto` does not wait for anything on an unprotected repo; it merges immediately) before any other deliverable's fixtures were written.
+
 ## Gate-Authoring Deliverables
 
 When a spec's plan adds a new gate — a PreToolUse/PostToolUse hook check, a permission rule, or a teardown/cleanup guard — write a plan-time deliverable that traces the gate's proposed condition against two enumerations before implementation begins, not after:
@@ -196,6 +228,7 @@ Type, stage/scoring labels, and parent/dependency links are **record facets** �
 | Parent marker (`isParentIssue`) — decomposition parent; carries the acceptance gate for its sub-issues | `parent-issue` label (a retired name is still read on the read side only — see `_shared/work-record.md`'s Label taxonomy) | `is-parent-issue: true` frontmatter line |
 | Parent link | Sub-issue relationship (`work-links: native`) or a parent task-list entry (`- [ ] #{subIssueNum}`) + the sub-issue's own `Parent: #N` body line (`work-links: body-text`) | `parent:` frontmatter line |
 | Dependency links | Blocked-by dependency API (`work-links: native`) or `Blocked by #N` body lines (`work-links: body-text`) | `blocked-by: [...]` frontmatter line |
+| Related cross-link — non-dependency sibling reference; written by `/capture`'s body template and by `/specify`'s independent-2-unit collapse (`record-creation.md` Step 4), maintained by `/backlog refine` | `**Related:** #N` body line (both `work-links` values) | `**Related:** {id}` body line (no frontmatter facet) |
 
 The `local-files` frontmatter keys above are exactly `local-store.js`'s documented set (`bin/lib/issues/local-store.js`) — don't invent new keys here.
 

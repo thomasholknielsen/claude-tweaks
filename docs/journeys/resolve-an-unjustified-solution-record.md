@@ -9,7 +9,7 @@ files:
 **Persona:** A claude-tweaks maintainer working the backlog funnel who has a record flagged `solution:unjustified` — `/specify`'s framing-check judged that the record names a solution its own Current State never traded off — and who holds the context to settle it (they know whether the evidence exists, or whether the risk is acceptable).
 **Goal:** See each flagged assumption next to whatever in-repo evidence exists for it, then make the one-line call — supply the evidence, accept the risk, or leave the flag — without re-shaping the record or re-reading the whole repo by hand.
 **Entry point:** The Needs-you lane of `/claude-tweaks:backlog overview` (or `/claude-tweaks:backlog refine`'s Needs-you section, or `/help`'s Needs Attention row), which composes the launcher line `/claude-tweaks:challenge #{N}` with a `#`-comment naming the pending evidence call.
-**Success state:** The label is gone (or deliberately kept), the decision is durable on the record itself — evidence bullets or an acceptance trace under `## Gotchas`, plus a comment under `github-issues` — and the maintainer knows re-shaping would re-derive the verdict from the body, so nothing they just decided is silently undone.
+**Success state:** The label is gone (or deliberately kept), the decision is durable on the record itself — evidence bullets or an acceptance trace under `## Gotchas`, plus a comment under `github-issues` — and the maintainer knows what a later re-shape will do with that decision: accepting the risk still re-derives the same verdict from the body (nothing about that path is silently undone), while supplying `supported` evidence can now durably clear the flag even across a re-shape (#772).
 
 ## Steps
 
@@ -38,10 +38,11 @@ files:
 - **URL:** the mode's `## Next Actions` block
 - **Action:** Read the handoff before pasting `/claude-tweaks:specify #{N}`.
 - **Should feel:** Honestly informed — the handoff states its own limits instead of promising a confirmation it can't deliver.
-- **Should understand:** `framing-check` re-derives its verdict from the body's problem statement — not from `## Gotchas`, not from comments — so re-shaping an unchanged framing re-applies the label even after an accept. Re-run `/claude-tweaks:specify` only when the framing itself changed.
-- **Red flags:** A handoff line claiming re-shaping "confirms the clean state"; a maintainer surprised by the label returning after an accept-then-reshape.
+- **Should understand:** `framing-check` now reads `## Gotchas` evidence bullets, not only the body's problem statement (#772) — but only one door at Step 3 feeds it usable signal. After **accept the risk**, re-shaping an unchanged framing still re-applies the label: an acceptance bullet carries no evidence signal. After **supply evidence**, a `supported`-classified assumption (cited `file:line`) can now clear the label on re-shape even with an unchanged framing; a `contradicted` or `no evidence found` classification changes nothing, same as before. Re-run `/claude-tweaks:specify` expecting the outcome that matches which door was chosen and what the evidence search actually found.
+- **Red flags:** A handoff line claiming re-shaping "confirms the clean state" outright, with no dependence on which door was chosen; a maintainer surprised by the label returning after an accept-then-reshape (still expected); a maintainer surprised the label *doesn't* return after a supply-evidence-then-reshape where every assumption classified `supported` (also expected now — that's the fix, not a bug).
 
 ## Origin
 
 - Created during build of #726 (bare-`#N` evidence-or-accept-risk mode)
+- Updated during build of #772 (framing-check weighs supplied `## Gotchas` evidence when re-judging)
 - Related specs: #677 (shipped the retired `--lens=1 #N` launcher proxy this replaces)

@@ -43,7 +43,7 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
 | Step | What |
 |------|------|
-| 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below; a spec-shaped `$BODY` takes the Shaped-body branch (files scored + `ready`, skips the cap and the chain); under the born-ready condition, chains `/claude-tweaks:specify #{n} --chained` immediately after the record exists — see Backend Selection. |
+| 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below; a spec-shaped `$BODY` takes the Shaped-body branch (files scored + `ready`, skips the cap and the chain); under the born-ready condition, chains `/claude-tweaks:specify #{n} --chained` immediately after the record exists — see Backend Selection. **Pre-empted by the headless bar** (`routing.md`'s Headless bar): an agent-driven filing that qualifies to absorb never reaches this step at all — it absorbs into the candidate directly and files nothing. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
 | 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: local-files` captures always have something to commit — the new record file, or, under route `absorb:N`, the edited/deleted target record file. `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record — its `absorb:N` route edits the target issue via `gh` CLI only (see Route execution below), so no local file is touched. |
 
@@ -57,7 +57,7 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 `$TITLE`/`$BODY`/`$TYPE` below are the same fields Entry Format and Adding an Entry (further down) have always asked for: `$BODY` is the `**Related:**`/`Context:`/`Scope:` block assembled per Entry Format; `$TYPE` is the guessed-then-confirmed Type from Adding an Entry.
 
-Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh **stub** capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with two exceptions below: the ceiling-gated chained shaping, and the Shaped-body branch's scored, born-`ready` filing (its own section below).
+Apply `by:capture`, the Type expression, and `needs:definition` (only when `$NEEDS_DEFINITION` is `true` — see Judging Definition below) and nothing else — that is the whole of this skill's permission-matrix row in `_shared/work-record.md`. Never stamp a scoring, `parked`, `auto:*`, or `bot:*` label on a fresh **stub** capture; a new record carries no stage label at all (the stage vocabulary is backlog / parked / ready, and `/claude-tweaks:tidy` and `/claude-tweaks:specify` are what move a record along it) — with three exceptions below: the ceiling-gated chained shaping, the Shaped-body branch's scored, born-`ready` filing (its own section below), and absorb's raise-only `size:` on the target record.
 
 **One exception, off by default.** Under `autonomy: trusted` or higher, and only when the
 `producer:capture` class carries a `clean` trust verdict, a fresh capture is chained straight into
@@ -97,38 +97,51 @@ path, #268, reads `<!-- trust-negative-evidence: ... -->` back from here; the no
 spreads `...i` so it reaches `trustRows` unchanged), and the snapshot's union field set already
 carries it:
 
+Resolve this fence's session-scoped destination path first (`_shared/session-tmp-root.md`):
+
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CAPTURE_TRUST_RECORDS=capture-trust-records.json)"
 {Session-scoped record snapshot's read-fresh-or-fetch block, with {tmp-records-file} =
- /tmp/capture-trust-records.json}
+ $CAPTURE_TRUST_RECORDS}
 ```
 
 Resolve the integration branch per `_shared/integration-branch.md`'s resolution ladder, substituting
 its value for `{integration-branch}` below. The git-log dump follows the same session-scoped
 freshness rule as the record snapshot (`_shared/record-queue-fetch.md`'s Session-scoped record
 snapshot section) — reuse `/tmp/ct-gitlog-{session-id}.txt`
-(`record-snapshot.js`'s `gitLogPath($CLAUDE_CODE_SESSION_ID)`) when fresh, else regenerate it:
+(`record-snapshot.js`'s `gitLogPath($CLAUDE_CODE_SESSION_ID)`) when fresh, else regenerate it.
+The destination this fence writes to is this run's own session-scoped path, re-resolved here
+(`_shared/session-tmp-root.md`) — distinct from the `$GITLOG` cache-freshness path above, which
+is a session-wide snapshot rather than this skill's own working copy:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CAPTURE_TRUST_GIT_LOG=capture-trust-git-log.txt)"
 GITLOG=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').gitLogPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
 if [ -n "$GITLOG" ] && node -e "
   const { isFresh } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js');
   process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
 " "$GITLOG" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)"; then
-  cp "$GITLOG" /tmp/capture-trust-git-log.txt
+  cp "$GITLOG" "$CAPTURE_TRUST_GIT_LOG"
 else
-  git log "{integration-branch}" --format='%H%x1f%B%x1e' > /tmp/capture-trust-git-log.txt
-  [ -n "$GITLOG" ] && cp /tmp/capture-trust-git-log.txt "$GITLOG"
+  git log "{integration-branch}" --format='%H%x1f%B%x1e' > "$CAPTURE_TRUST_GIT_LOG"
+  [ -n "$GITLOG" ] && cp "$CAPTURE_TRUST_GIT_LOG" "$GITLOG"
 fi
 ```
 
+Re-resolve both session-scoped paths this fence needs (a fresh bash invocation does not inherit
+either prior fence's shell variables, `_shared/session-tmp-root.md`):
+
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" \
+  CAPTURE_TRUST_RECORDS=capture-trust-records.json \
+  CAPTURE_TRUST_GIT_LOG=capture-trust-git-log.txt)"
 node -e "
   const fs = require('fs');
   const root = '${CLAUDE_PLUGIN_ROOT}';
   const { trustRows, parseGitLog } = require(root + '/bin/lib/issues/trust.js');
   const { resolveCeiling, permittedGrants } = require(root + '/bin/lib/issues/autonomy.js');
-  const issues = require('/tmp/capture-trust-records.json').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
-  const gitLog = parseGitLog(fs.readFileSync('/tmp/capture-trust-git-log.txt', 'utf8'));
+  const issues = require('$CAPTURE_TRUST_RECORDS').map((i) => ({ ...i, labels: i.labels.map((l) => l.name) }));
+  const gitLog = parseGitLog(fs.readFileSync('$CAPTURE_TRUST_GIT_LOG', 'utf8'));
   const policy = { 'trust-revert-window-days': process.argv[1] };
   // This skill's own class. A fresh capture carries by:capture and no risk
   // score, and riskBand() bands an unscored record 'elevated' — so that is the
@@ -173,14 +186,12 @@ toward the grant.
    lives in `_shared/label-bootstrap.md`'s `LABELS_JSON` (`["needs:definition", "Undecided idea —
    must go through /specify's brainstorm redirect before reaching ready"]`).
 
-2. Build the payload via `recordPayload` and create the issue. Both temp files below key off `$CLAUDE_CODE_SESSION_ID` (the same session identity `_shared/issue-claims.md` stamps on a claim) rather than a fixed name — a concurrent `/capture` invocation against the same checkout gets its own path, never this session's:
+2. Build the payload and write the body file via `bin/compose-record.js` (#686/#800's CLI precedent — replaces the hand-rolled compose-then-extract `node -e` pair). The temp payload path keys off `$CLAUDE_CODE_SESSION_ID` (the same session identity `_shared/issue-claims.md` stamps on a claim) rather than a fixed name — a concurrent `/capture` invocation against the same checkout gets its own path, never this session's:
 
    ```bash
-   node -e "const {recordPayload}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-     const p=recordPayload({title:process.argv[1], body:process.argv[2], type:process.argv[3], origin:'capture'});
-     require('fs').writeFileSync('/tmp/capture-' + (process.env.CLAUDE_CODE_SESSION_ID||'') + '-payload.json', JSON.stringify(p))" "$TITLE" "$BODY" "$TYPE"
+   node -e "require('fs').writeFileSync('/tmp/capture-' + (process.env.CLAUDE_CODE_SESSION_ID||'') + '-payload.json', JSON.stringify({title:process.argv[1], body:process.argv[2], type:process.argv[3], origin:'capture'}))" "$TITLE" "$BODY" "$TYPE"
 
-   node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/capture-' + (process.env.CLAUDE_CODE_SESSION_ID||'') + '-payload.json','utf8')).body)" > "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md"
+   node "${CLAUDE_PLUGIN_ROOT}/bin/compose-record.js" "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-payload.json" --out "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md"
    ```
 
    **Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `$TYPE` via GitHub's native Issue Type; `work-types: labels` adds the matching `type:$TYPE` label instead (the pairs live in `record.js`'s `TYPE_LABELS`):
@@ -247,7 +258,7 @@ Add `needsDefinition: true` to the `facets` object literal above, parallel to `t
 
 ## Shaped-body branch
 
-**Detection is by what is supplied, never by who invoked.** Split `$BODY` on line-anchored `## ` headings. The body is **shaped** when it contains `## Current State`, `## Deliverables`, and exactly one of `## Acceptance Criteria` / `## Open Question`, each followed by non-empty content, and none of the three placeholder markers `_shared/work-record.md`'s Spec-shaped body section names appears anywhere. Anything before the first heading becomes `header` (e.g. a `Trigger:` line the caller supplied) — EXCEPT an `Origin:` line and a `Defer-reason:` line, each lifted out of `header` into `provenance` (`origin` / `deferReason`) so the composer renders each exactly once; when both a body-carried `Origin:` line and `--origin=` are supplied, the body's line wins and the flag is ignored with a one-line note. A body that has the headings but fails the check falls through to the stub branch below with one line saying why. The deferral check below runs regardless of which branch is taken — it keys on content and `--source`, not on shape, so an unshaped `--source` filing without a valid reason also stops. A human who pastes a shaped body takes this branch too; a human typing a short idea still gets the stub and today's behavior.
+**Detection is by what is supplied, never by who invoked.** Split `$BODY` on line-anchored `## ` headings. The body is **shaped** when it contains `## Current State`, `## Deliverables`, and exactly one of `## Acceptance Criteria` / `## Open Question`, each followed by non-empty content, and no placeholder marker from `_shared/work-record.md` appears outside the exempt `## Original request` section (#1240). Anything before the first heading becomes `header` (e.g. a `Trigger:` line the caller supplied) — EXCEPT an `Origin:` line and a `Defer-reason:` line, each lifted out of `header` into `provenance` (`origin` / `deferReason`) so the composer renders each exactly once; when both a body-carried `Origin:` line and `--origin=` are supplied, the body's line wins and the flag is ignored with a one-line note. A body that has the headings but fails the check falls through to the stub branch with one line saying why. The deferral check runs regardless of branch — it keys on content and `--source`, not on shape, so an unshaped `--source` filing without a valid reason also stops. A human who pastes a shaped body takes this branch too; a human typing a short idea still gets the stub and today's behavior.
 
 On match, skip Entry Format's stub assembly and its character-budget cap, and run this precedence:
 
@@ -327,66 +338,7 @@ without the rationale clause: `(Type: {t}, Definition: needed)` / `(Type: {t}, D
 
 ## Immediate Routing
 
-After adding the record, route the item per the `--route` arg or by asking.
-
-### Routing via `--route` arg (front-loaded)
-
-`/claude-tweaks:capture` accepts `--route={brainstorm|keep|absorb:N}` to skip the post-capture prompt:
-
-| `--route` value | Action |
-|---|---|
-| `brainstorm` | Open `/superpowers:brainstorming` with the new backlog record as input |
-| `keep` | Record stays in backlog state — explicitly, no label asserts this; no further routing |
-| `absorb:42` | Absorb the record into record `#42`; close the new record as not-planned |
-
-Legacy route values `inbox` and `merge:N` are accepted as aliases for `keep` and `absorb:N`.
-
-When `--route` is provided, log:
-```
-AUTO {time} — Routing: applied --route={value} for backlog record "{title}".
-```
-No further prompt. Proceed directly to the routed skill or commit.
-
-### Routing prompt (when `--route` not provided)
-
-In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-contract.md`: if `--route` was passed, honor it; otherwise default to `keep` (the most conservative route — the record stays in backlog state for periodic review at `/tidy`, no further write that wouldn't have happened anyway). Log:
-```
-AUTO {time} — Routing: defaulted to keep (no --route provided). Reversibility: high (record stays in backlog state; user can re-route via /tidy at any time).
-```
-
-In interactive mode (or when explicitly opted in), present "Added: '{title}' (Type: {t}, Definition: {needed|clear})" (rationale clause per Judging Definition above, when applicable) and call `AskUserQuestion`:
-
-- `question`: `"What should happen with this?"`, `header`: `"Route idea"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Brainstorm directly"`, `description`: `"Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify"`
-- Option 2 — `label`: `"Keep as backlog record"`, `description`: `"Not ready yet, will be reviewed during /claude-tweaks:tidy"`
-- Option 3 (conditional) — `label`: `"Absorb into record {N}"`, `description`: `"This belongs in an existing record"`
-
-The call has 3 options only when Option 3 is visible; otherwise build it with the first 2 options only — never include Option 3 with a placeholder value.
-
-> **Option 3 visibility:** Search for a candidate match on the topic keywords from the new backlog record, per the active driver from Backend Selection. `local-files` — search `specs/` for a record matching the keywords. `github-issues` — search open issues: `gh issue list --search "{keywords}" --state open --json number,title --limit 5`. Only show option 3 when either search returns a candidate. Without a candidate match, option 3 is omitted entirely — manual disambiguation against an unspecified record number is worse than no option at all.
-
-### Route execution, by backend
-
-| Route | `local-files` | `github-issues` |
-|---|---|---|
-| `brainstorm` | Opens the child skill with the record's text as input | Opens the child skill with the issue title + body as input (reference `#{issue-number}`) |
-| `keep` | No further action — the record stays as-is at `specs/{id}-{slug}.md`, no `stage:` frontmatter | No further action — the issue is already open, `by:capture`-labeled, with no stage label. That **is** the backlog state; there is nothing to add. |
-| `absorb:N` | Integrate into record N's body (its Deliverables/AC/Technical Approach sections when shaped, otherwise its raw body), delete the absorbed record's file | Integrate into record `#N`'s body the same way, then comment `Absorbed into #N.`, then `gh issue close {n} --reason "not planned"` — mirrors `/claude-tweaks:tidy`'s Absorb action |
-
-**Unknown or invalid `N`** — when `--route=absorb:N` names a record that doesn't resolve (nonexistent, already closed/absorbed, or a number that doesn't exist under the active backend's numbering), stop before writing or closing anything and report the invalid `N` to the user instead of guessing a fallback route — the same rule `/claude-tweaks:tidy` applies to an unknown scope name. Do not silently fall back to `keep`.
-
-This ensures every captured idea has an explicit next step — either immediate action or a conscious decision to keep it in backlog state.
-
-**Good entries:**
-
-- "Voice command to add item to shopping list" — context explains the need
-- "Recipe nutrition facts display" — scope hints at UI + data needs
-
-**Bad entries:**
-
-- Just "nutrition" — too vague to act on later
-- Full spec with 20 tasks — that's a spec, not a backlog record
-- Notes about an existing spec ("spec 50 needs review") — put that on the spec itself
+After adding the record, route the item per the `--route` arg or by asking — except when the headless bar pre-empts filing entirely: an agent-driven filing that qualifies to absorb never reaches Workflow Step 1's own filing at all, since the bar is judged before the record is created. Read `routing.md` in this skill's directory for the full procedure — the `--route` arg fast path, the routing prompt (headless structural bar, two-criteria high-similarity definition, absorb-visibility search, local-files driver mapping), route execution per backend, absorb mechanics (size re-judge, priority handling, the 55,000-char threshold, the `## Absorbed:` heading format), and the good/bad entry examples.
 
 ## Review Workflow
 
@@ -412,9 +364,9 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Capturing an idea that already has a spec | Duplicates intent across two files — annotate the spec so it stays the source of truth |
+| Capturing an idea that already has a spec | Duplicates intent across two files — absorb into it so it stays the source of truth |
 | A *human brain-dump* growing past the character budget to dodge the cap | Half-formed thinking that needs length needs `/superpowers:brainstorming`, not a longer stub. A supplied spec-shaped body is different — that is the Shaped-body branch's intended input, filed born-ready |
 | Never reviewing the backlog | Without periodic `/claude-tweaks:tidy` triage the backlog becomes a graveyard and ideas lose context |
 | Adding implementation details to a backlog record | A record captures *what* and *why* — *how* is brainstorming + spec territory and shifts faster than the idea |
 | Skipping `/superpowers:brainstorming` and jumping straight to specs | Specs encode unchallenged premises without the assumptions and constraints brainstorming surfaces |
-| Putting notes about existing specs into a new backlog record | Notes drift from the spec they describe — annotate the spec file so the note moves with the work |
+| Putting notes about existing specs into a new backlog record | Notes drift from the spec they describe — absorb into it so the note moves with the work |

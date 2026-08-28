@@ -85,10 +85,13 @@ function readWatched(root, opts) {
   return store(opts).readStateWithMeta(root).values.watched;
 }
 
-// mutatorFn: (currentWatched) -> nextWatched. Phase C (grant-mode.md) is the
-// only write path that ADDS an entry (seeded with { grantedAt }); Step 0.5
-// is the only path that updates an existing entry's lastKnownState or prunes
-// a resolved-good one — both go through this same function.
+// mutatorFn: (currentWatched) -> nextWatched. As of #309, the two maturation
+// sites ADD an entry (seeded with { grantedAt }, at the moment a pending grant
+// matures): dispatch's Auto-merge gate (settle-and-merge.md's Phase 2) and
+// wrap-up's singleton short-circuit (auto-merge-short-circuit.md's
+// Authorization step) — grant-mode.md's own Step 4 no longer seeds it directly.
+// Step 0.5 is the only path that updates an existing entry's lastKnownState or
+// prunes a resolved-good one — all go through this same function.
 function writeWatched(root, mutatorFn, opts) {
   return store(opts).writeState(root, (current) => ({ ...current, watched: mutatorFn(current.watched) }));
 }
@@ -166,6 +169,13 @@ function classifyWatchedRecord(entry, gitLog, now, windowDays) {
   }
 
   const closedAtMs = typeof rec.closedAt === 'string' ? Date.parse(rec.closedAt) : NaN;
+  // An unparseable/missing closedAt deliberately resolves ageDays to 0 rather
+  // than an "unknown age" branch (contrast grant-maturation.js's
+  // evaluateMaturation, which early-returns 'unknown-age' before ever
+  // dividing) — both are fail-safe in the same direction, just shaped
+  // differently for what each caller does next: age 0 here means "never
+  // ages out on bad data," so the record stays watched (`update`/`CLOSED`
+  // below) rather than being silently pruned from tracking.
   const ageDays = Number.isFinite(closedAtMs) ? (now - closedAtMs) / MS_PER_DAY : 0;
   if (ageDays >= windowDays) {
     return { action: 'prune' };

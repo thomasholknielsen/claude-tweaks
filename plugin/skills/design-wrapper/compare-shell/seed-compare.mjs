@@ -20,6 +20,10 @@
 //     sharedMarkup?: path,              // identity scope only
 //     variants: [{ id, name, files: [path...], degraded?, reason? }],
 //     outcome?: { winner, date }        // required in durable mode
+//     tweaks?: [{ token, value }]       // durable mode only — baked into
+//                                       // outcome.tweaks; see
+//                                       // plugin/skills/_shared/visual-decision.md's
+//                                       // tweak event
 //   }
 // All paths are relative to the manifest's own directory.
 'use strict';
@@ -99,16 +103,38 @@ function validateManifest(manifest, mode, manifestDir) {
     if (!seen.has(manifest.outcome.winner)) {
       throw new SeedError(`outcome.winner "${manifest.outcome.winner}" not found among variants[].id`);
     }
+    // manifest.tweaks is durable-mode only (see the header comment) — live
+    // mode never bakes it into DATA at all, so validating it there would
+    // refuse manifests over a field that's silently dropped anyway.
+    if (manifest.tweaks !== undefined) {
+      if (!Array.isArray(manifest.tweaks)) {
+        throw new SeedError('manifest.tweaks must be an array of { token, value } entries');
+      }
+      for (const tweak of manifest.tweaks) {
+        if (typeof tweak !== 'object' || tweak === null || typeof tweak.token !== 'string' || typeof tweak.value !== 'string') {
+          throw new SeedError(`manifest.tweaks entry ${JSON.stringify(tweak)} must have string token and value fields`);
+        }
+      }
+    }
   }
 }
 
 // Inserts skinCss inline before the shared markup's </head> — or, absent a
 // </head>, prepends it — so identity-scope durable srcdoc documents carry
 // the shared markup plus exactly that variant's own skin, never a sibling's.
+// #1435: the replacement is passed as a function, not a plain string —
+// skinCssText is arbitrary variant-authored content, and String.replace's
+// string-replacement grammar treats a raw `$`-prefixed sequence in a literal
+// replacement argument as a splice directive ($` = "everything before the
+// match") rather than literal text, corrupting the assembled document if the
+// CSS ever contains one. A function replacer's return value is inserted
+// verbatim, sidestepping that grammar entirely (mirrors __VARIANT_DATA__'s
+// existing function-replacer fix for #1229, applied here to the other
+// string-replace call site in this same file).
 function assembleIdentityDoc(sharedMarkupText, skinCssText) {
   const styleBlock = `<style>${skinCssText}</style>`;
   if (sharedMarkupText.includes('</head>')) {
-    return sharedMarkupText.replace('</head>', `${styleBlock}</head>`);
+    return sharedMarkupText.replace('</head>', () => `${styleBlock}</head>`);
   }
   return styleBlock + sharedMarkupText;
 }
@@ -197,6 +223,7 @@ function seed({ manifestPath, mode, outPath }) {
       seedKey: manifest.seedKey,
       rerollCount: manifest.rerollCount || 0,
       steerHistory: manifest.steerHistory || [],
+      tweaks: manifest.tweaks || [],
     };
   }
 

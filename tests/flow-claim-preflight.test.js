@@ -87,16 +87,59 @@ test('claim-targets.md claim read cites issue-claims.md steps 1-2 — no raw bas
   assert.match(content, /@base64d/);
 });
 
-test('every base64 -d claim read under skills/ cites issue-claims.md or handles empty content (#720)', () => {
+test('every base64 -d claim read under skills/ handles the absent-file case, not just cites issue-claims.md (#720, #780)', () => {
   const offenders = [];
   for (const file of mdFilesUnder(path.join(REPO_ROOT, 'plugin', 'skills'))) {
     const text = fs.readFileSync(file, 'utf8');
     if (!/ref=claims-registry/.test(text) || !/base64 -d/.test(text)) continue;
-    const cites = /_shared\/issue-claims\.md/.test(text);
-    const absentBranch = /\|\| null/.test(text);
-    if (!cites && !absentBranch) offenders.push(path.relative(REPO_ROOT, file));
+    // A citation to issue-claims.md is no longer sufficient on its own (#780) — the read
+    // itself must show it handles the absent/404 case, via the __ABSENT__ sentinel or an
+    // equivalent explicit `|| null` / not-found branch.
+    const absentBranch = /__ABSENT__|\|\| null|404/.test(text);
+    if (!absentBranch) offenders.push(path.relative(REPO_ROOT, file));
   }
   assert.deepStrictEqual(offenders, []);
+});
+
+test('issue-claims.md step 1 spells out the 404->__ABSENT__ exit-status branch as a shell snippet (#780)', () => {
+  const content = read('plugin/skills/_shared/issue-claims.md');
+  const step1Start = content.indexOf('1. Read the claim file at the payload');
+  assert.ok(step1Start !== -1, 'step 1 heading should exist');
+  const step2Start = content.indexOf('2. **Extract the content before classifying', step1Start);
+  assert.ok(step2Start !== -1, 'step 2 heading should exist after step 1');
+  const step1 = content.slice(step1Start, step2Start);
+  assert.match(step1, /```bash/);
+  assert.match(step1, /404/);
+  assert.match(step1, /__ABSENT__/);
+});
+
+test('issue-claims.md step 2 extracts .content before classifying — never passes the wrapper object (#780)', () => {
+  const content = read('plugin/skills/_shared/issue-claims.md');
+  const step2Start = content.indexOf('2. **Extract the content before classifying');
+  assert.ok(step2Start !== -1, 'step 2 heading should exist');
+  const step3Start = content.indexOf("3. **`state:", step2Start);
+  assert.ok(step3Start !== -1, 'step 3 heading should exist after step 2');
+  const step2 = content.slice(step2Start, step3Start);
+  assert.match(step2, /field's value/i);
+  assert.match(step2, /never the wrapper object/i);
+  assert.match(step2, /jq -r '\.content'|jq -r \.content/);
+});
+
+test('issue-claims.md "Reading claim state" section does not restate the old wrapper-object bug (#780)', () => {
+  const content = read('plugin/skills/_shared/issue-claims.md');
+  const sectionStart = content.indexOf('## Reading claim state');
+  assert.ok(sectionStart !== -1, 'Reading claim state section should exist');
+  const sectionEnd = content.indexOf('## TTL and staleness');
+  assert.ok(sectionEnd !== -1, 'TTL and staleness section should exist after it');
+  const section = content.slice(sectionStart, sectionEnd);
+  assert.match(section, /"The lock" step 1-2 above/);
+  assert.match(section, /already-extracted/);
+});
+
+test('scan-procedures.md claim read no longer pipes to bare base64 -d with no absent branch (#780)', () => {
+  const content = read('plugin/skills/tidy/scan-procedures.md');
+  assert.doesNotMatch(content, /-q '\.content' \| base64 -d/);
+  assert.match(content, /__ABSENT__/);
 });
 
 test('contest card renders holder liveness — three verdict variants, each with a next step (#722)', () => {

@@ -6,6 +6,7 @@ const { execFileSync } = require('child_process');
 const { runRelease } = require('./lib/release/run.js');
 const { releaseStatus, formatStatusLine, formatBackfillSection, isBadRefValue, CHANGELOG } = require('./lib/release/status.js');
 const { appendShippedVersion } = require('./lib/shipped-record.js');
+const { MARKETPLACE_REPO } = require('./lib/release/mirror.js');
 
 const USAGE = `Usage: node plugin/bin/release.js <minor|patch> "<summary>" [--dry-run] [--allow-unnamed <n>[,<m>...]]
        node plugin/bin/release.js status --merge <sha> --records <n>[,<m>...] [--ref <ref>] [--json] [--backfill]
@@ -47,10 +48,14 @@ function parseStatusArgs(args) {
   return opts;
 }
 
+function getRepoRoot() {
+  return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+}
+
 function status(args) {
   const opts = parseStatusArgs(args);
   if (!opts) { console.error(USAGE); return 2; }
-  const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  const repoRoot = getRepoRoot();
   const git = (a) => execFileSync('git', a, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   try {
     // Validate that the merge commit exists before proceeding. Plain `git rev-parse <sha>`
@@ -94,7 +99,7 @@ function main(argv) {
   const [part, summary] = positional;
   if (!['minor', 'patch'].includes(part) || !summary) { console.error(USAGE); return 2; }
 
-  const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  const repoRoot = getRepoRoot();
   const deps = {
     repoRoot,
     git: (a) => execFileSync('git', a, { cwd: repoRoot, encoding: 'utf8' }),
@@ -114,6 +119,13 @@ function main(argv) {
   try {
     const out = runRelease(deps, { part, summary, date, dryRun, allowUnnamed, log: (m) => console.log(m) });
     console.log(dryRun ? `[dry-run] v${out.version} — no changes written` : `released v${out.version}`);
+    if (!dryRun) {
+      const marketplaceName = MARKETPLACE_REPO.split('/')[1];
+      console.log('');
+      console.log('Install/update this release from the CLI:');
+      console.log(`  claude plugin marketplace add ${MARKETPLACE_REPO}`);
+      console.log(`  claude plugin install claude-tweaks@${marketplaceName}`);
+    }
     return 0;
   } catch (err) {
     console.error(String(err.message || err));
@@ -121,4 +133,4 @@ function main(argv) {
   }
 }
 
-process.exit(main(process.argv));
+process.exitCode = main(process.argv);

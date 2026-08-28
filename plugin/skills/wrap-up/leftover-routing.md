@@ -16,24 +16,39 @@ Finish qualifying sections silently, commit, then present only the residue.
 
 Phase 1 guarantees a run directory (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet); read `leftover-default` from its `config.yml` when one is present, and fall back to the Manifesto default (`defer`) on a standalone run, which has none. Each residue section becomes a staged **work-record proposal** — never created directly. `_shared/auto-mode-card.md` lists work-record creation among what `auto` does NOT silence: every record filed on the user's tracker needs explicit approval — at `supervised`/`trusted`, folded into the Review Console's batch "Approve all"; at `unattended`, auto-resolved with zero `AskUserQuestion` calls under `consoleAutoResolve` — so the record queue stays the user's, not the model's.
 
+**Materiality floor, before composing.** Apply `_shared/materiality-floor.md`'s floor test to each
+section that reached this staging step: a section that fails to clear the materiality floor, with a
+`Defer-reason:` (from the fix-exhaust gate above) other than `tangential`, routes to the digest
+container instead — log the contract's `AUTO` line when a run directory resolves, and skip the
+compose/build/stage steps below for that section. A section whose `Defer-reason:` is `tangential`,
+or that clears the materiality floor, proceeds to the ordinary staging steps below unchanged.
+This is not an exception to the never-created-directly rule above: a digest entry is an append to a
+shared container, not a work record (`_shared/materiality-floor.md`'s "The digest issue is a
+container, not a work record"), so nothing is filed on the user's record queue and that contract is
+explicit that there is no Review Console row per entry.
+
 1. **Compose the body** via `specShapedBody` (`bin/lib/issues/record.js`): `header` = `'Trigger: {condition}'` when a concrete trigger exists (a date, a watched path, another spec landing — the `parked` case), else `''`; `currentState` = what exists now (the section's finished part, files touched); `deliverables` = what is left, as checkbox items; `acceptanceCriteria` = how a builder verifies it is done (a test name, a grep, an observable behavior); `provenance: { origin: 'wrap-up leftover from #{n}' — `{n}` = `${CLOSED_NUM}`, Phase 1's own record determination (the `#`-prefixed argument, a branch/commit reference, or a materialized header's `record:` field when one exists — see "Identify the work context" in `SKILL.md`), so a standalone `/wrap-up #N` run still emits this line even with no materialized header, deferReason }` — the reason from the fix-exhaust gate above, passed HERE, never via `recordPayload`'s own `deferReason` (which would insert the line above the `Trigger:` header); `filedBy: 'wrap-up leftover routing'`; `footer: '_Filed by \`wrap-up leftover routing\` via specShapedBody._'`. When Acceptance Criteria cannot be honestly written — the section's own text names an open choice or missing evidence ("needs a design decision", "Decide:", insufficient evidence to state done) — use `openQuestion: '<the open choice, or "insufficient evidence: {what is missing}">'` instead of `acceptanceCriteria`; the text must say which of the two cases it is, because the human resolving it needs to know. `Defer-reason:` is present in every landing state, including `needs:definition` — it names why the item was not fixed, independent of whether it is decidable.
 
 2. **Build the payload** via `recordPayload` (`bin/lib/issues/record.js`) — no `origin` param (a wrap-up leftover carries no `by:*` label; `_shared/work-record.md`'s origin axis records this case as the body's `Origin:` line). Landing states, per `_shared/work-record.md`'s born-shaped `/wrap-up` row: **born-ready** — `risk`/`size` judged per that file's Scoring axis from the section's own content, `ready: true`; **parked** (a real `Trigger:` in the header) — scored, `parked: true`, `ready: false` (`recordPayload` rejects both together); **needs-you** (the `openQuestion` body) — `needs:definition` in `Labels:`, no `ready`, no scoring. Also pass the same value as `recordPayload`'s `deferReason` — the composed body already carries the line, so this inserts nothing; it buys the mismatch throw (`record.js`'s match-or-throw), catching a staged header that diverges from the body:
 
+   Resolve this run's session-scoped temp paths first, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated):
+
    ```bash
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" WRAP_UP_LEFTOVER_ARGS=wrap-up-leftover-args.json WRAP_UP_LEFTOVER_PAYLOAD=wrap-up-leftover-payload.json)"
    node -e "const {recordPayload,specShapedBody}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
      const args=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));
      const body=specShapedBody(args.compose);
      const p=recordPayload({ ...args.payload, body, deferReason: args.compose.provenance.deferReason });
-     require('fs').writeFileSync('/tmp/wrap-up-leftover-payload.json', JSON.stringify(p))" /tmp/wrap-up-leftover-args.json
+     require('fs').writeFileSync(process.argv[2], JSON.stringify(p))" "$WRAP_UP_LEFTOVER_ARGS" "$WRAP_UP_LEFTOVER_PAYLOAD"
    ```
 
-   `/tmp/wrap-up-leftover-args.json` carries `{ compose: {header, currentState, deliverables, acceptanceCriteria|openQuestion, filedBy, provenance, footer}, payload: {title, type, risk?, size?, ready?, parked?} }` — `type`: `task` by default, `bug` for a defect, `feature` for a distinct new capability. The `needs:definition` label is appended at the staging step below (it is a label with no `recordPayload` parameter).
+   `$WRAP_UP_LEFTOVER_ARGS` carries `{ compose: {header, currentState, deliverables, acceptanceCriteria|openQuestion, filedBy, provenance, footer}, payload: {title, type, risk?, size?, ready?, parked?} }` — `type`: `task` by default, `bug` for a defect, `feature` for a distinct new capability. The `needs:definition` label is appended at the staging step below (it is a label with no `recordPayload` parameter).
 
-3. **Stage it** — render the payload to `{run-dir}/staged/leftover-{slug}.md` (`{slug}` — kebab-case derived from the section title), now through a CLI rather than a direct `writeFileSync` against the run dir — the same anchoring guarantee `bin/log-decision.js` already gives `decisions.md` writes, now extended to this staged file:
+3. **Stage it** — render the payload to `{run-dir}/staged/leftover-{slug}.md` (`{slug}` — kebab-case derived from the section title), now through a CLI rather than a direct `writeFileSync` against the run dir — the same anchoring guarantee `bin/log-decision.js` already gives `decisions.md` writes, now extended to this staged file. Re-resolve this fence's session-scoped path (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
    ```bash
-   node -e "const p=require('/tmp/wrap-up-leftover-payload.json');
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" WRAP_UP_LEFTOVER_PAYLOAD=wrap-up-leftover-payload.json)"
+   node -e "const p=require('$WRAP_UP_LEFTOVER_PAYLOAD');
      require('fs').writeFileSync(process.argv[1],
        'Title: ' + p.title + '\nType: ' + p.type + '\nLabels: ' + ((p.labels.concat(process.argv[3]==='true'?['needs:definition']:[]).join(', ')) || 'none') + '\nDefer-reason: ' + process.argv[2] + '\n\n' + p.body)" \
      "/tmp/wrap-up-leftover-${CLAUDE_CODE_SESSION_ID}-${SLUG}.md" "$DEFER_REASON" "$NEEDS_DEFINITION"

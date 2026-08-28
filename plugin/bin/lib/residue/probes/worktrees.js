@@ -22,6 +22,7 @@
 'use strict';
 
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { makeFinding } = require('../finding');
 
 const REAPER_DOMAIN = path.join('.claude', 'worktrees');
@@ -51,7 +52,9 @@ function defaultIsPidAlive(pid) {
 
 // Renders the locked-worktree evidence string, distinguishing a live
 // session from a stale/abandoned lock (or one whose pid can't be confirmed
-// either way) rather than reporting every lock identically.
+// either way) rather than reporting every lock identically. Exported so
+// ./pipeline-runs.js's own locked-worktree cross-check (#1328) can reuse
+// the exact same wording/shape instead of re-deriving it.
 function lockedEvidence(wt, isPidAlive) {
   const branch = wt.branch || 'unknown';
   const pid = extractPid(wt.lockReason);
@@ -70,7 +73,29 @@ function lockedEvidence(wt, isPidAlive) {
   return `git worktree list --porcelain: locked, branch ${branch}, pid ${pid} (liveness could not be confirmed)`;
 }
 
-function probeWorktrees({ scope, isPidAlive = defaultIsPidAlive } = {}) {
+// Real dirty check: `git status --porcelain` against the worktree's own
+// path. Non-empty output means uncommitted or untracked files are present.
+// A read failure (path gone, permission error, some other transient git
+// error) returns `null` — "could not confirm" — never `false`: collapsing
+// an unreadable check into "clean" is exactly the silent-unsafe-default
+// shape this probe exists to avoid (#1424's own root cause was a check
+// that was never run at all; a check that fails open on error would just
+// relocate the same hazard rather than closing it).
+// 10s, matching bin/lib/hooks/git-exec.js's measured ceiling for a git query
+// under real multi-worktree contention (#134) — a hang here would otherwise
+// block the whole residue sweep indefinitely.
+const IS_DIRTY_TIMEOUT_MS = 10000;
+
+function defaultIsDirty(worktreePath) {
+  try {
+    const out = execFileSync('git', ['-C', worktreePath, 'status', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: IS_DIRTY_TIMEOUT_MS });
+    return out.trim().length > 0;
+  } catch {
+    return null;
+  }
+}
+
+function probeWorktrees({ scope, isPidAlive = defaultIsPidAlive, isDirty = defaultIsDirty } = {}) {
   if (!scope || !scope.ran) {
     return { ran: false, reason: (scope && scope.reason) || 'scope unresolved', findings: [] };
   }
@@ -92,6 +117,24 @@ function probeWorktrees({ scope, isPidAlive = defaultIsPidAlive } = {}) {
     // a worktree this probe could ever be running inside of (#227).
     if (scope.headBranch && wt.branch === scope.headBranch) continue;
     const reaped = wt.path.includes(REAPER_DOMAIN);
+    // Only decides remedy for the unlocked branch — a locked worktree is
+    // already `remedy: 'record'` regardless of dirty state. `dirty === true`
+    // is the one confirmed-bad case this check can report; `null` ("could
+    // not confirm") deliberately does NOT flip remedy to `record` — that
+    // would read an unrelated git-status failure as proof of uncommitted
+    // work, which it isn't. Only a confirmed-clean or confirmed-dirty read
+    // changes behavior from today's locked-only gate.
+    const dirty = wt.locked ? null : isDirty(wt.path);
+    // A live lock means a session is using it; that is a human's call —
+    // still true regardless of whether the pid backing that lock turns
+    // out to be live or stale. `dedup.decide` (never wired — see #225's
+    // Gotchas) is the mechanism that would suppress a recurring
+    // known-invariant row; this probe only makes the row informative.
+    // A confirmed-dirty unlocked worktree is the other human's-call case
+    // (#1424): committed-history merge state says nothing about
+    // uncommitted work sitting in the tree, so `dirty: true` routes to
+    // `record` exactly like a lock does, never `auto`.
+    const remedy = wt.locked || dirty === true ? 'record' : 'auto';
     findings.push(makeFinding({
       kind: 'worktree',
       // Every worktree that reaches here is, by construction, NOT the one
@@ -101,18 +144,13 @@ function probeWorktrees({ scope, isPidAlive = defaultIsPidAlive } = {}) {
       // radius, so it is never `blast-radius`.
       scope: 'observed',
       subject: wt.path,
-      // A live lock means a session is using it; that is a human's call —
-      // still true regardless of whether the pid backing that lock turns
-      // out to be live or stale. `dedup.decide` (never wired — see #225's
-      // Gotchas) is the mechanism that would suppress a recurring
-      // known-invariant row; this probe only makes the row informative.
-      remedy: wt.locked ? 'record' : 'auto',
+      remedy,
       evidence: wt.locked
         ? lockedEvidence(wt, isPidAlive)
-        : `git worktree list --porcelain: unlocked, branch ${wt.branch || 'unknown'}, ${reaped ? 'in reaper domain' : 'outside reaper domain (no reaper collects it)'}`,
+        : `git worktree list --porcelain: unlocked, branch ${wt.branch || 'unknown'}, dirty: ${dirty === null ? 'unknown (git status check failed)' : dirty}, ${reaped ? 'in reaper domain' : 'outside reaper domain (no reaper collects it)'}`,
     }));
   }
   return { ran: true, reason: null, findings };
 }
 
-module.exports = { probeWorktrees, REAPER_DOMAIN, extractPid, defaultIsPidAlive };
+module.exports = { probeWorktrees, REAPER_DOMAIN, extractPid, defaultIsPidAlive, defaultIsDirty, lockedEvidence };

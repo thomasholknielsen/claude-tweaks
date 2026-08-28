@@ -5,13 +5,15 @@
 // files (attention-mode.md, trust-signal.md) discovered by reference during
 // the build, no longer hardcode an unscoped /tmp/{skill}-*.{json,md,txt}
 // path -- every one resolves through bin/lib/session-tmp.js's
-// sessionTmpPath, citing _shared/session-tmp-root.md.
+// sessionTmpPath, citing _shared/session-tmp-root.md. _shared/trust-table.md
+// itself (#1386's follow-up migration) is also pinned here now, alongside the
+// backlog/trust-signal.md consumer that reads its intermediate files.
 //
-// AC1's grep is repo-wide (`skills/`); this test scopes to the files this
-// record actually migrated -- the broader sweep across code-health,
-// docs-health, harness-health, journey-health, tidy, wrap-up, capture,
-// help, init, and the _shared/ scan-procedure files remains open, filed as
-// its own follow-up record (see the ledger for this run).
+// AC1's grep is repo-wide (`skills/`); this test scopes to the files each
+// migration record actually touched. #923 closed the follow-up named above
+// -- the four health-sweep skills, wrap-up/*, tidy/capture/help/init, and
+// the remaining shared _shared/ scan-procedure files -- so their migrated
+// files are pinned here too, alongside #266's original set.
 
 'use strict';
 const test = require('node:test');
@@ -36,6 +38,30 @@ const MIGRATED_FILES = [
   'backlog/attention-mode.md',
   'backlog/trust-signal.md',
   'assess-agent-autonomy/grant-check.md',
+  '_shared/trust-table.md',
+  // #923's remaining skills/** sweep:
+  '_shared/github-pr-scan-acceptance.md',
+  '_shared/github-pr-scan.md',
+  '_shared/harness-health-analysis.md',
+  '_shared/label-bootstrap.md',
+  'capture/SKILL.md',
+  'code-health/SKILL.md',
+  'code-health/filing.md',
+  'code-health/focus-mode.md',
+  'docs-health/SKILL.md',
+  'harness-health/SKILL.md',
+  'harness-health/filing.md',
+  'harness-health/judge-procedure.md',
+  'help/status-scan.md',
+  'init/bootstrap/step-14-cloud-routine-parity.md',
+  'journey-health/SKILL.md',
+  'specify/next-mode.md',
+  'tidy/step-1-records.md',
+  'wrap-up/SKILL.md',
+  'wrap-up/docs-health-integration.md',
+  'wrap-up/leftover-routing.md',
+  'wrap-up/unblocked-records.md',
+  'wrap-up/verification-brief-parent-gate.md',
 ];
 
 // Matches a literal, unscoped /tmp/{prefix}-*.{ext} path -- the shape this
@@ -52,25 +78,21 @@ test('every migrated file cites _shared/session-tmp-root.md', () => {
   }
 });
 
-// backlog/trust-signal.md still references two /tmp/trust-table-*.{json,txt} paths that
-// _shared/trust-table.md's Fetch section itself owns and writes (shared across many
-// consumers beyond backlog: /tidy, /visualize, /capture, ...) -- a deliberate scope
-// boundary for this record, not an oversight. Migrating trust-table.md is its own,
-// larger follow-up (filed in the ledger for this run) since it touches every one of
-// those consumers, not just backlog.
-const DEFERRED_SHARED_INFRA = new Set([
-  '/tmp/trust-table-records.json',
-  '/tmp/trust-table-git-log.txt',
-]);
+// backlog/trust-signal.md previously referenced two /tmp/trust-table-*.{json,txt} paths
+// that _shared/trust-table.md's Fetch section itself owns and writes (shared across many
+// consumers beyond backlog: /tidy, /visualize, /capture, ...). That follow-up (#1386) has
+// since migrated trust-table.md's own Fetch section, and trust-signal.md along with it, so
+// no exception is needed here any more -- both files resolve every intermediate path
+// through the session scratchpad.
 
-test('no migrated file retains a literal unscoped /tmp/{prefix}-*.{ext} path (deferred shared-infra paths excepted)', () => {
+test('no migrated file retains a literal unscoped /tmp/{prefix}-*.{ext} path', () => {
   const offenders = [];
   for (const rel of MIGRATED_FILES) {
     const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     const m = text.match(LITERAL_TMP_RE);
-    if (m && !DEFERRED_SHARED_INFRA.has(m[0])) offenders.push(`${rel}: ${m[0]}`);
+    if (m) offenders.push(`${rel}: ${m[0]}`);
   }
-  assert.deepEqual(offenders, [], 'migrated files must carry zero literal unscoped /tmp paths besides the deferred shared-infra exception');
+  assert.deepEqual(offenders, [], 'migrated files must carry zero literal unscoped /tmp paths');
 });
 
 test('_shared/session-tmp-root.md documents the degrade rule and the record-suffix composition rule', () => {

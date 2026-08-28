@@ -8,7 +8,7 @@ Stages split by cost. Stages 1, 4.5, 4.6, 4.7, and 4.8 each do real `gh` work ov
 
 > **Parallel execution:** Dispatch Stages 1, 4.5, 4.6, 4.7, and 4.8 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
 >
-> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input (scope + path + literal output template, no conversation), status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), then Template A for Stages 1/4.5/4.6/4.7; Stage 4.8 defines its own format (below) per that contract's "Not every consumer uses A/B/C" clause.
+> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input (scope + path + literal output template, no conversation), status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), then Template A for Stages 1/4.5/4.6/4.7; Stage 4.8 defines its own format (below) per that contract's "Not every consumer uses A/B/C" clause. Dispatch shape: single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) applies.
 >
 > **Model profile:** [Use: Fast] — each stage scan is a mechanical `gh`/facet-parse over a single data source (the open work-record queue, current PR via gh, the trust-table fetch). No synthesis at the per-stage level; the orchestrator assembles the dashboard. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" fast` (contract § Model Selection).
 >
@@ -48,18 +48,19 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. Its `version` field is 
 
 Replaces the former INBOX scan, Deferred-Work scan, Specs-Ready-to-Build scan, and Specs-In-Progress scan — all four read `specs/backlog/*.md` frontmatter or the old spec index and `specs/*.md` files directly. The record store is the current landscape now; there is no separate index file or backlog directory to read (`_shared/work-record.md`). One list call + one facet parse computes every count below.
 
-Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands (including the Session-scoped record snapshot section, so this fetch shares one `gh issue list --state all` pull per session with `/backlog`/`/capture`/`/specify`/`/tidy`/`/visualize` instead of paying for its own), and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/help-records.json`, `{tmp-faceted-file}` = `/tmp/help-records-faceted.json` — `body` rides along on the shared snapshot's union field set (no `{EXTRA_FIELDS}` to request anymore) because this same fetch also feeds Conflict detection below, instead of opening a second round-trip just for that.
+Resolve this stage's session-scoped temp paths once, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated), via `eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_RECORDS=help-records.json HELP_RECORDS_FACETED=help-records-faceted.json)"` — a Task agent that cannot see `$CLAUDE_CODE_SESSION_ID` degrades to the unscoped path per that file's Degrade rule; nothing breaks either way. Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands (including the Session-scoped record snapshot section, so this fetch shares one `gh issue list --state all` pull per session with `/backlog`/`/capture`/`/specify`/`/tidy`/`/visualize` instead of paying for its own), and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `$HELP_RECORDS`, `{tmp-faceted-file}` = `$HELP_RECORDS_FACETED` — `body` rides along on the shared snapshot's union field set (no `{EXTRA_FIELDS}` to request anymore) because this same fetch also feeds Conflict detection below, instead of opening a second round-trip just for that.
 
 **Fail-open behavior** (`work-backend: github-issues` only): if the `gh issue list` fetch fails — `gh` unavailable, unauthenticated, or the repo has no GitHub remote — Stage 1 fails open, the same posture as Stages 4.5/4.6/4.7 below: emit a single info row (`Work-record scan skipped — {reason}`) instead of BLOCKED. All six counts and the Conflict-detection sub-section are treated as unavailable for this run, and the dashboard's Work Records and Ready-to-Build sections are omitted (same omission convention already used for an empty pipeline) rather than rendering zeros. `work-backend: local-files` has no equivalent failure mode — its fetch reads the local record store directly, not `gh`.
 
-Both drivers land in the same faceted-record shape (`{ ..., facets }`) at `/tmp/help-records-faceted.json`. The six-bucket classification below is `/help`'s own consumer-specific logic, described once here and run identically against either driver's output:
+Both drivers land in the same faceted-record shape (`{ ..., facets }`) at this stage's session-scoped `$HELP_RECORDS_FACETED` path. The six-bucket classification below is `/help`'s own consumer-specific logic, described once here and run identically against either driver's output. Re-resolve the path first (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the fetch fence's shell variable):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_RECORDS_FACETED=help-records-faceted.json)"
 WEEKS="${RECORD_STALENESS_WEEKS:-4}"
 export STALENESS_WEEKS="$WEEKS"
 node -e "
   const { isBacklog, isParked, isBotBlocked, isBotInProgress, classifyStaleness } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-buckets.js');
-  const records = require('/tmp/help-records-faceted.json');
+  const records = require('$HELP_RECORDS_FACETED');
   const now = Date.now();
   const thresholdMs = Number(process.env.STALENESS_WEEKS) * 7 * 24 * 60 * 60 * 1000;
   const blocked = records.filter((r) => isBotBlocked(r));
@@ -89,13 +90,14 @@ node -e "
 
 **Definition flag:** flag every `backlog`-bucket record carrying `needs:definition` — under `work-backend: github-issues` the label, under `work-backend: local-files` `facets.needsDefinition === true` (already present on the fetched record above — no extra call either way) — stamped by `/claude-tweaks:capture` or `/claude-tweaks:feedback` at filing time when the record names an open choice with no tradeoff made yet. Flag matches in the Needs Attention table with the concrete next step: `run /claude-tweaks:specify {ref} to route through brainstorming`.
 
-**Sampling flag** (`work-backend: github-issues` only — no local-files equivalent exists, the same omission `_shared/trust-table.md` states for its own `demo:*` reads). `bin/lib/issues/trust.js`'s `MIN_VERDICTS` counts merged-and-unreverted outcomes toward promotion (#267), so a trust class can promote purely on operational survival signal without ever collecting a real `/demo` verdict. This flag is the sampling floor that keeps forcing some of that evidence in (#310): among every closed record still carrying `demo:pending` (the acceptance-labeling step applies it to every `auto:merge`'d record regardless of who granted it — `wrap-up/auto-merge-short-circuit.md`), flag the ones whose position in the full machine-granted-merge history — ordered by `closedAt`, machine-origin detected by `fleet-counters.js`'s `isMachineGrant` audit-comment marker, never the `auto:merge` label alone (a human can grant that label too) — lands on a `grant-sampling-every` boundary. Computed from the same `/tmp/help-records-faceted.json` snapshot Stage 1 already fetched (`--state all`, so closed records are already present) — no extra `gh` call:
+**Sampling flag** (`work-backend: github-issues` only — no local-files equivalent exists, the same omission `_shared/trust-table.md` states for its own `demo:*` reads). `bin/lib/issues/trust.js`'s `MIN_VERDICTS` counts merged-and-unreverted outcomes toward promotion (#267), so a trust class can promote purely on operational survival signal without ever collecting a real `/demo` verdict. This flag is the sampling floor that keeps forcing some of that evidence in (#310): among every closed record still carrying `demo:pending` (the acceptance-labeling step applies it to every `auto:merge`'d record regardless of who granted it — `wrap-up/auto-merge-short-circuit.md`), flag the ones whose position in the full machine-granted-merge history — ordered by `closedAt`, machine-origin detected by `fleet-counters.js`'s `isMachineGrant` audit-comment marker, never the `auto:merge` label alone (a human can grant that label too) — lands on a `grant-sampling-every` boundary. Computed from the same session-scoped `$HELP_RECORDS_FACETED` snapshot Stage 1 already fetched (`--state all`, so closed records are already present) — no extra `gh` call. Re-resolve the path first (`_shared/session-tmp-root.md`):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_RECORDS_FACETED=help-records-faceted.json)"
 export GRANT_SAMPLING_EVERY="$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values grant-sampling-every)"
 node -e "
   const { sampledForDemo } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grant-sampling.js');
-  const records = require('/tmp/help-records-faceted.json');
+  const records = require('$HELP_RECORDS_FACETED');
   const merges = records
     // stateReason !== 'NOT_PLANNED' excludes a granted-but-declined record
     // (closed without ever merging) from the machine-granted-merge count —
@@ -118,10 +120,12 @@ Each result flags in the Needs Attention table: `{ref} — sampling floor: the {
 entirely for that driver). One additional bounded call, shared across every record in the
 `ready`/`authorized`/`building` buckets rather than one call per record — the
 never-`gh issue list --search` rule (`_shared/github-write-transport.md`'s eventually-consistent
-search index anti-pattern) applies here too, so this is a plain list, filtered client-side:
+search index anti-pattern) applies here too, so this is a plain list, filtered client-side.
+Resolve this fence's session-scoped destination first (`_shared/session-tmp-root.md`):
 
 ```bash
-gh pr list --repo {owner}/{repo} --state all --limit 100 --json number,url,state,isDraft,body,updatedAt > /tmp/help-prs.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_PRS=help-prs.json)"
+gh pr list --repo {owner}/{repo} --state all --limit 100 --json number,url,state,isDraft,body,updatedAt > "$HELP_PRS"
 ```
 
 Filter to PRs whose body starts with `<!-- claude-tweaks-run:` (`_shared/pr-early-run-lifecycle.md`'s
@@ -153,33 +157,36 @@ most-recently-`updatedAt` match only.
 
 Feeds from open **in-flight** records — any record with `facets.stage === 'ready'` (covers the ready, authorized, building, and blocked sub-states alike: the `ready` label persists for a record's entire life once shaped, and is never removed by `/claude-tweaks:dispatch`, `/claude-tweaks:build`, `/claude-tweaks:flow`, or `/claude-tweaks:wrap-up` — `_shared/work-record.md`'s permission matrix). Backlog and parked records are never spec-shaped, so they carry no `### Key Files` subsection and would contribute nothing to the map — same reasoning `/claude-tweaks:specify`'s Step 1 File Reference Map documents — so skip them.
 
-`work-backend: github-issues`: filter Stage 1's already-fetched `/tmp/help-records-faceted.json` to `facets.stage === 'ready'` — its `body` field (fetched in Stage 1's `gh issue list` call above) is already populated, so no second `gh issue list --state open` call is needed:
+`work-backend: github-issues`: filter Stage 1's already-fetched `$HELP_RECORDS_FACETED` (session-scoped, `_shared/session-tmp-root.md` — re-resolved below) to `facets.stage === 'ready'` — its `body` field (fetched in Stage 1's `gh issue list` call above) is already populated, so no second `gh issue list --state open` call is needed:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_RECORDS_FACETED=help-records-faceted.json HELP_INFLIGHT_BODIES=help-inflight-bodies.json)"
 node -e "
-  const records = require('/tmp/help-records-faceted.json');
+  const records = require('$HELP_RECORDS_FACETED');
   const inFlight = records.filter((r) => r.facets.stage === 'ready');
   console.log(JSON.stringify(inFlight));
-" > /tmp/help-inflight-bodies.json
+" > "$HELP_INFLIGHT_BODIES"
 ```
 
 `work-backend: local-files`:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_INFLIGHT_BODIES=help-inflight-bodies.json)"
 node -e "
   const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   console.log(JSON.stringify(queryRecords('specs', { stage: 'ready' })));
-" > /tmp/help-inflight-bodies.json
+" > "$HELP_INFLIGHT_BODIES"
 ```
 
-Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every returned body — the same extraction `/claude-tweaks:specify` Step 1 performs — to build `/tmp/help-records-key-files.json` as `[{id, keyFiles}]` (`id` is the issue number, or the local record id). Never let the raw record bodies re-enter the model's context for this step — call the existing extractor and redirect its output:
+Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every returned body — the same extraction `/claude-tweaks:specify` Step 1 performs — to build this stage's session-scoped `help-records-key-files.json` as `[{id, keyFiles}]` (`id` is the issue number, or the local record id). Never let the raw record bodies re-enter the model's context for this step — call the existing extractor and redirect its output:
 
-`work-backend: github-issues` (`extractKeyFiles` reads each record's raw `body`/`labels`, so origin-header records — code-health, harness-health, etc. — extract correctly alongside `/specify`-shaped ones):
+`work-backend: github-issues` (`extractKeyFiles` reads each record's raw `body`/`labels`, so origin-header records — code-health, harness-health, etc. — extract correctly alongside `/specify`-shaped ones). Re-resolve both session-scoped paths first (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_INFLIGHT_BODIES=help-inflight-bodies.json HELP_RECORDS_KEY_FILES=help-records-key-files.json)"
 node -e "
   const { extractKeyFiles, expectsKeyFilesSection } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
-  const inFlight = require('/tmp/help-inflight-bodies.json');
+  const inFlight = require('$HELP_INFLIGHT_BODIES');
   const items = inFlight.map((r) => ({ id: r.number, keyFiles: extractKeyFiles(r) }));
   for (const [i, item] of items.entries()) {
     if (item.keyFiles.length === 0 && expectsKeyFilesSection(inFlight[i])) {
@@ -187,15 +194,16 @@ node -e "
     }
   }
   console.log(JSON.stringify(items));
-" > /tmp/help-records-key-files.json
+" > "$HELP_RECORDS_KEY_FILES"
 ```
 
 `work-backend: local-files` (no `by:*` origin labels to key off — extract straight from `### Key Files`):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_INFLIGHT_BODIES=help-inflight-bodies.json HELP_RECORDS_KEY_FILES=help-records-key-files.json)"
 node -e "
   const { extractKeyFilesSection } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
-  const inFlight = require('/tmp/help-inflight-bodies.json');
+  const inFlight = require('$HELP_INFLIGHT_BODIES');
   const items = inFlight.map((r) => ({ id: r.id, keyFiles: extractKeyFilesSection(r.body) }));
   for (const [i, item] of items.entries()) {
     if (item.keyFiles.length === 0) {
@@ -203,15 +211,16 @@ node -e "
     }
   }
   console.log(JSON.stringify(items));
-" > /tmp/help-records-key-files.json
+" > "$HELP_RECORDS_KEY_FILES"
 ```
 
-Then call the shared grouping primitive:
+Then call the shared grouping primitive, re-resolving this stage's session-scoped path once more (`_shared/session-tmp-root.md`):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_RECORDS_KEY_FILES=help-records-key-files.json)"
 node -e "
   const { groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
-  const items = require('/tmp/help-records-key-files.json');
+  const items = require('$HELP_RECORDS_KEY_FILES');
   const conflicts = groupByFileOverlap(items).filter((g) => g.length > 1);
   console.log(JSON.stringify(conflicts));
 "
@@ -223,10 +232,13 @@ A record appearing in any group of size > 1 shares files with another open in-fl
 
 **Ranking `ready` + `authorized` records for the render below.** For each candidate — Stage 1's `ready` and `authorized` buckets combined — compute the two inputs `ranking.js`'s `rankNextToBuild` needs but doesn't compute itself: `keyFiles` (extract the `### Key Files` subsection from the body, the same extraction Conflict detection above performs) and `hasPlan` (`true` if `docs/superpowers/plans/` contains a file whose name references the record's id/slug — a filename-pattern check, not a content read). `body` is already present from Stage 1's fetch.
 
+Resolve this fence's session-scoped working file first (`_shared/session-tmp-root.md`) — the same path this run's own candidate-composition step (immediately above) wrote `[{id, facets, body, keyFiles, hasPlan}]` to:
+
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HELP_READY_AUTH_CANDIDATES=help-ready-authorized-candidates.json)"
 node -e "
   const { rankNextToBuild } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
-  const candidates = require('/tmp/help-ready-authorized-candidates.json'); // [{id, facets, body, keyFiles, hasPlan}]
+  const candidates = require('$HELP_READY_AUTH_CANDIDATES'); // [{id, facets, body, keyFiles, hasPlan}]
   console.log(JSON.stringify(rankNextToBuild(candidates)));
 "
 ```

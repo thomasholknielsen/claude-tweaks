@@ -22,7 +22,7 @@ node -e "
 ```
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_UNSYNCED=backlog-overview-unsynced.json ST_BACKLOG_OVERVIEW_UNSYNCED_DATED=backlog-overview-unsynced-dated.json ST_BACKLOG_OVERVIEW_FACETED=backlog-overview-faceted.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_UNSYNCED=backlog-overview-unsynced.json ST_BACKLOG_OVERVIEW_UNSYNCED_DATED=backlog-overview-unsynced-dated.json ST_BACKLOG_OVERVIEW_FACETED=backlog-overview-faceted.json ST_BACKLOG_OVERVIEW_FACETED_MERGED=backlog-overview-faceted-merged.json)"
 node -e "
   const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const records = require('$ST_BACKLOG_OVERVIEW_UNSYNCED');
@@ -33,10 +33,11 @@ node -e "
   const github = require('$ST_BACKLOG_OVERVIEW_FACETED');
   const unsynced = require('$ST_BACKLOG_OVERVIEW_UNSYNCED_DATED');
   console.log(JSON.stringify(mergeUnsyncedRecords(github, unsynced)));
-" > "$ST_BACKLOG_OVERVIEW_FACETED"
+" > "$ST_BACKLOG_OVERVIEW_FACETED_MERGED"
+mv "$ST_BACKLOG_OVERVIEW_FACETED_MERGED" "$ST_BACKLOG_OVERVIEW_FACETED"
 ```
 
-This last script reads `session-scoped backlog-overview-faceted.json`'s github-only content and overwrites the same path with the fully merged (github + unsynced) set — Step 2 below reads `session-scoped backlog-overview-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode's Apply step (writing `priority:*` via `writeRecord` when a record has no `$ISSUE`).
+This last script reads `session-scoped backlog-overview-faceted.json`'s github-only content, writes the fully merged (github + unsynced) set to a **distinct** path, then moves that path over the original once the `node -e` process has exited — never read-and-redirect-write the same path in one shell command, since `>` truncates its target before the reading process even opens it. Step 2 below reads `session-scoped backlog-overview-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode's Apply step (writing `priority:*` via `writeRecord` when a record has no `$ISSUE`).
 
 ## Step 1.5: Trust table (read-only)
 
@@ -122,24 +123,22 @@ captured ▶ prioritized ▶ specified ▶ granted ▶ dispatchable ▶ in fligh
 # captured {n} — prioritize them
 /claude-tweaks:backlog refine
 
-# prioritized {n} — specify them (#N is a placeholder — substitute the real record number)
-/claude-tweaks:specify #N
+# prioritized {n} — specify them; see the Specify next block below for the real ids
 
 # specified {n} — grant them, or dispatch here with the human gate
 /claude-tweaks:backlog grant
 
 # granted {n} — no pointer; blockers surface at /claude-tweaks:dispatch's own execution time
 
-# dispatchable {n} — dispatch the queue, or flow one record (#N is a placeholder)
+# dispatchable {n} — dispatch the queue
 /claude-tweaks:dispatch
-/claude-tweaks:flow #N
 
 # in flight {n} — no pointer; informational, claims honored
 
 └─ needs you: {n}   (human-owed — the one lane no agent can drain)
 ```
 
-Every category line above stands alone as a `#`-comment — no command text on it. A category with a pointer command (captured, prioritized, specified, dispatchable) puts that command on its own following line, with nothing else on the line, so copying just that row yields a runnable command. A category with no pointer (granted, in flight) renders its comment line alone, with no command line beneath it.
+Every category line above stands alone as a `#`-comment — no command text on it. A category with a pointer command (captured, specified, dispatchable) puts that command on its own following line, with nothing else on the line, so copying just that row yields a runnable command. A category with no pointer (prioritized, granted, in flight) renders its comment line alone, with no command line beneath it — `prioritized`'s own real, pasteable ids render in Step 4's Shape block instead of a substitutable placeholder here.
 
 ### Machine-grant outlook (config-aware stage annotations)
 
@@ -162,18 +161,19 @@ column. The header replaces the summary counts too — do not re-add a prose cou
 it; the header *is* the counts. The branch line below the header is a lane annotation, not a
 seventh stage column.
 
-Then at most **three annotation lines total**:
+Then at most **two annotation lines total**:
 
 - The trust consequence line from Step 1.5, when any applicable cell verdict requires it (all
   non-clean cells collapsed into that single semicolon-separated line — the per-cell phrasing never
   multiplies lines). Nothing when clean.
 - `parked {N} · not-planned {M} → /claude-tweaks:tidy owns these` — rendered from
   `.funnel.parked.length` / `.funnel.notPlanned.length`, only when either count is non-zero.
-- `parents {N} → close-out via /claude-tweaks:wrap-up's verification brief or /claude-tweaks:demo, not /claude-tweaks:specify` —
-  rendered from `.funnel.parents.length`, only when non-zero. A decomposition parent is never
-  `ready` and is not agent-sized work (`_shared/work-record.md`'s Decomposition rules); the
-  close-out path it points at is `wrap-up/verification-brief.md` (backstopped by
-  `/claude-tweaks:tidy`'s `Open parent gate` action) or `/claude-tweaks:demo`'s parent-close branch.
+
+A decomposition parent is never `ready` and is not agent-sized work (`_shared/work-record.md`'s
+Decomposition rules); `.funnel.parents` no longer gets an annotation line here — its count and a
+paste-ready batch render in Step 4's Sign-off stage instead, pointing at
+`/claude-tweaks:demo` (backstopped by `wrap-up/verification-brief.md`'s Parent-Gate Procedure and
+`/claude-tweaks:tidy`'s `Open parent gate` action).
 
 Every record appears exactly once across the header's populations (`funnelBuckets` is mutually
 exclusive by construction) — never re-list a record in a second stage or an extra summary — the
@@ -224,12 +224,13 @@ Render the top result (and up to 2 runners-up) as a short "Recommended next" cal
 
 Bare mode only — lens runs end at their own table (Step 2) and never reach this step.
 
-Two stages, each one paste-ready command block instead of one terminal per record or chain:
-**Shape** (`/claude-tweaks:specify #a,#b,...` chunks over the `prioritized` bucket) and
-**Dispatch** (one bare `/claude-tweaks:dispatch` line). Neither stage computes a dependency graph
-any more — `docs/skill-graph.md`'s `## backlog` → `/dispatch` row is the canonical statement of
-what moved to that skill and why; not restated here. **Score** (`/claude-tweaks:backlog refine`)
-and **Grant** (`/claude-tweaks:backlog grant`) keep their existing one-command pointers from the
+Three stages, each one paste-ready command block instead of one terminal per record or chain:
+**Shape** (`/claude-tweaks:specify #a,#b,...` chunks over the `prioritized` bucket),
+**Dispatch** (one bare `/claude-tweaks:dispatch` line), and **Sign-off**
+(`/claude-tweaks:demo #a,#b,...` chunks over the `parents` bucket). Neither of the first two stages
+computes a dependency graph any more — `docs/skill-graph.md`'s `## backlog` → `/dispatch` row is
+the canonical statement of what moved to that skill and why; not restated here. **Score**
+(`/claude-tweaks:backlog refine`) and **Grant** (`/claude-tweaks:backlog grant`) keep their existing one-command pointers from the
 Prioritize/Specify template lines above, unchanged.
 
 ### Shape stage — specify the prioritized bucket in chunks
@@ -313,6 +314,58 @@ where that logic lives now):
 ```
 
 When the union is empty, render nothing for this stage — not even the header line.
+
+### Sign-off stage — parents in a paste-ready batch
+
+**Input:** `funnelBuckets`'s `parents` bucket (`.funnel.parents`, the same session-scoped views
+file the Shape and Dispatch stages read).
+
+**Exclusion:** `unsynced: true` records (`facets.unsynced === true`) — same reasoning as the Shape
+stage's own `unsynced` exclusion: those ids are local-namespace, never a pasteable GitHub `#N` ref.
+No `needs:definition` exclusion here — unlike `/claude-tweaks:specify`'s comma-list batch, which
+hard-fails its entire batch on one such element, `/claude-tweaks:demo`'s batch reports and skips a
+malformed or unresolvable element and keeps running the rest (`demo/SKILL.md`'s `## Input`), so
+there is no equivalent whole-batch hazard to guard against here.
+
+**Ordering:** same convention as the Shape stage — priority (high first), then age (oldest first),
+ties by id.
+
+**Chunking:** sliced into chunks of 10, ALL chunks emitted — no cap on chunk count, same rationale
+as the Shape stage.
+
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_OVERVIEW_VIEWS=backlog-overview-views.json ST_BACKLOG_OVERVIEW_SIGNOFF=backlog-overview-signoff.json)"
+node -e "
+  const { priorityBandOf } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/ranking.js');
+  const parents = require('$ST_BACKLOG_OVERVIEW_VIEWS').funnel.parents;
+  const unsynced = parents.filter((r) => r.facets.unsynced === true);
+  const eligible = parents
+    .filter((r) => r.facets.unsynced !== true)
+    .sort((a, b) => priorityBandOf(a) - priorityBandOf(b) || new Date(a.createdAt) - new Date(b.createdAt) || (a.number ?? a.id) - (b.number ?? b.id));
+  const chunks = [];
+  for (let i = 0; i < eligible.length; i += 10) chunks.push(eligible.slice(i, i + 10).map((r) => r.number ?? r.id));
+  console.log(JSON.stringify({ eligibleCount: eligible.length, unsyncedCount: unsynced.length, chunks }));
+" > "$ST_BACKLOG_OVERVIEW_SIGNOFF"
+```
+
+**Render:** one paste block when `.funnel.parents` is non-empty (the same "one fenced paste block
+per funnel stage that has members" rule the other two stages follow) — a header count line, then
+one `/claude-tweaks:demo #a,#b,...` command per chunk, all chunks:
+
+```
+── Sign-off ──
+# {eligibleCount} decomposition parents — {unsyncedCount} excluded: unsynced — close out via /claude-tweaks:demo (or /claude-tweaks:wrap-up's verification brief), never /claude-tweaks:specify
+/claude-tweaks:demo #a,#b,#c,#d,#e,#f,#g,#h,#i,#j
+/claude-tweaks:demo #k,#l,#m,...
+```
+
+The ` — {unsyncedCount} excluded: unsynced` clause renders only when non-zero; drop it entirely
+when zero. When `eligibleCount` is 0 (every parent was excluded), the block still renders its
+header line — the count ledger the no-silent-caps rule requires — with no `/claude-tweaks:demo`
+line beneath it. Same `#`-sigil / bare-id rendering split by `work-backend` as the Shape stage.
+
+This stage stays outside the `Next:` line's precedence ladder (below) — the `parents` bucket was
+never part of it before this rewrite either, since a decomposition parent is never buildable work.
 
 ### Retired from Step 4
 

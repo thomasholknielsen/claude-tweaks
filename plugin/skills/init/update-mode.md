@@ -265,6 +265,29 @@ declining leaves it exactly as it was.
 On any outcome except "Skip entirely," record the result in Phase 9's Actions Performed table as an
 `Operational` row.
 
+#### Source-excluded key drift (#839)
+
+A third check in the same Config Home Drift section, distinct from both above: a key that IS
+recognized and carries a VALID value in `.claude-tweaks/policy.yml`, but whose `POLICY_KEYS` entry
+carries `policySourceExcluded: true` — `policy.yml` is a structurally ineffective source for it
+(today, only `merge-authorization`; see `_shared/policy-schema.md`'s row). The value silently never
+takes effect, which looks identical to a working setting until read closely — the same silent-gap
+shape `migratableKeys`/`renamedKeys` fix for their own failure modes.
+
+```bash
+node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd()).sourceExcludedKeys))"
+```
+
+An empty array means nothing to do — omit this check, same convention as the checks above.
+Otherwise each `{key, value}` entry counts toward Phase 1u.6's Total drift count, the same
+self-classifying convention `migratableKeys`/`renamedKeys` already use. Present one line per entry:
+`` `{key}: {value}` in policy.yml never takes effect — not a valid source for this lever (see
+`_shared/policy-schema.md`). `` Warn-tier, informational only, like `renamedKeys`' retirement case
+above — there is no safe auto-fix to offer (the only "fix" is deleting the line; the lever's real
+setter, when one exists, is documented per-key elsewhere), so present the finding and let the user
+act manually. Never blocks; declining leaves the line untouched. On any manual removal the user
+reports back, record it in Phase 9's Actions Performed table as an `Operational` row.
+
 ### Policy Configuration Review
 
 A general "does your `policy.yml` look right?" pass, distinct from Config Home Drift and Renamed

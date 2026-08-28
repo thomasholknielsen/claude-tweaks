@@ -88,8 +88,9 @@ Resolve the sub-issue's parent the same way `/claude-tweaks:review` Step 1.6 doe
 from this sub-issue's own side; `work-backend: github-issues` + `work-links: body-text` — the
 `Parent: #N` line in this sub-issue's own body.
 
-**No parent resolvable** (a record human-filed or `/capture`d directly, not produced by a
-`/specify` decomposition) — skip this section entirely: fall through to Steps 1-4 in
+**No parent resolvable** (a record human-filed or `/capture`d directly, or one produced by a
+`/specify` decomposition whose Step 2.6 collapse decision created no parent —
+`specify/decomposition-mode.md`) — skip this section entirely: fall through to Steps 1-4 in
 `verification-brief.md` and apply `demo:pending` to this record itself, exactly as today.
 
 ## Enumerate the parent's sub-issues
@@ -110,12 +111,15 @@ WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-li
 # work-links: native
 gh api "repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues" --jq '.[].number'
 
-# work-links: body-text — parse the parent's own task list
-gh issue view $PARENT_NUM --json body -q .body > /tmp/wrapup-parent-body.md
+# work-links: body-text — parse the parent's own task list. Resolve this run's
+# session-scoped temp path first (_shared/session-tmp-root.md, cited throughout
+# this file rather than restated).
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" WRAPUP_PARENT_BODY=wrapup-parent-body.md)"
+gh issue view $PARENT_NUM --json body -q .body > "$WRAPUP_PARENT_BODY"
 node -e "
   const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
-  console.log(JSON.stringify(parseSubIssues(fs.readFileSync('/tmp/wrapup-parent-body.md','utf8'))));
+  console.log(JSON.stringify(parseSubIssues(fs.readFileSync('$WRAPUP_PARENT_BODY','utf8'))));
 "
 ```
 
@@ -318,11 +322,12 @@ gh issue edit $PARENT_NUM --add-label demo:pending
 That completes the gate — the rest of this subsection is already done for that parent. Never
 blindly re-post.
 
-Otherwise write the rendered template composed above (**Compose the parent brief**) to
-`/tmp/parent-verification-brief.md`, then:
+Otherwise write the rendered template composed above (**Compose the parent brief**) to this run's
+session-scoped `parent-verification-brief.md` (`_shared/session-tmp-root.md`), then:
 
 ```bash
-gh issue comment $PARENT_NUM --body-file /tmp/parent-verification-brief.md
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PARENT_VERIFICATION_BRIEF=parent-verification-brief.md)"
+gh issue comment $PARENT_NUM --body-file "$PARENT_VERIFICATION_BRIEF"
 gh issue edit $PARENT_NUM --add-label demo:pending
 ```
 

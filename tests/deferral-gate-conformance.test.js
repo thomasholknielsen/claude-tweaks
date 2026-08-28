@@ -69,6 +69,10 @@ for (const anchor of BAD_REASON_ANCHORS) {
   });
 }
 
+test('deferral-gate.md\'s bundling exception cites materiality-floor.md by literal path', () => {
+  assert.ok(GATE.includes('_shared/materiality-floor.md'));
+});
+
 test('deferral-gate.md names its consumers, the hard gate, re-verification, and where the reason lives', () => {
   for (const consumer of [
     'skills/review/step3-routing.md', 'skills/reflect/full-mode.md', 'skills/reflect/hindsight-mode.md',
@@ -202,13 +206,14 @@ test('auto-decision-log.md defines the REFUSED entry kind', () => {
 
 test('work-record.md carries the born-shaped rows for /wrap-up, /reflect, /review', () => {
   const wr = read('plugin/skills/_shared/work-record.md');
+  const matrix = read('plugin/skills/_shared/work-record-permission-matrix.md');
   for (const actor of ['/wrap-up', '/reflect', '/review']) {
-    const row = wr.split('\n').find((l) => l.startsWith(`| **\`${actor}\`**`));
+    const row = matrix.split('\n').find((l) => l.startsWith(`| **\`${actor}\`**`));
     assert.ok(row, `${actor} row`);
     assert.ok(row.includes('ready'), `${actor} Adds ready`);
     assert.ok(row.includes('specShapedBody'), `${actor} conditions on specShapedBody`);
   }
-  assert.ok(!wr.includes('is the only actor this covers'));
+  assert.ok(!matrix.includes('is the only actor this covers'));
   const bornReady = wr.slice(wr.indexOf('## Born-ready rule'));
   assert.ok(bornReady.includes('side-effect'));
 });
