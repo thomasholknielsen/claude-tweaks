@@ -170,8 +170,9 @@ test('nonexistent --run dir: stderr warns decisions.md not written, exit still p
 
 // --- 6. Wiring test ---
 
-test('realDeps wires the real git-CAS runner and the real repairClaim module function', () => {
+test('realDeps wires the real git-CAS runner, the real gh runner, and the real repairClaim module function', () => {
   assert.equal(realDeps.gitRunner, claimsGitCas.defaultRunner, 'gitRunner is claims-git-cas.js\'s defaultRunner export');
+  assert.equal(realDeps.runner, repairLib.defaultRunner, 'runner is repair.js\'s defaultRunner export (a dropped runner would silently fall back to repairClaim\'s own default parameter)');
   assert.equal(realDeps.repair, repairLib.repairClaim, 'repair is repair.js\'s repairClaim export');
 });
 

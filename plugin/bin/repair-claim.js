@@ -23,7 +23,7 @@
 
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { repairClaim } = require('./lib/repair-claim/repair');
+const { repairClaim, defaultRunner: repairDefaultRunner } = require('./lib/repair-claim/repair');
 const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/append');
 const { defaultRunner: gitDefaultRunner } = require('./lib/issues/claims-git-cas');
 const { parseRepo } = require('./lib/repo-resolve');
@@ -61,6 +61,7 @@ function parseArgs(argv) {
 
 const realDeps = {
   repair: repairClaim,
+  runner: repairDefaultRunner,
   gitRunner: gitDefaultRunner,
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
