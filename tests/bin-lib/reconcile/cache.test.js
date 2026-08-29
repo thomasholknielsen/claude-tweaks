@@ -7,6 +7,7 @@ const path = require('path');
 const {
   readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS,
   RESIDUE_ESCALATE_THRESHOLD, recordResidueFailure, recordResidueSuccess, listResidueFailures,
+  trackResidue,
 } = require('../../../plugin/bin/lib/reconcile/cache');
 
 function tmpRoot() {
@@ -113,4 +114,64 @@ test('recordResidueFailure: independent counters for the same path under differe
   recordResidueFailure(root, 'removal-failed', '/x/shared', { now: 1 });
   const entries = listResidueFailures(root);
   assert.equal(entries.length, 2);
+});
+
+// #1233 — trackResidue is the shared success/fail branch-into-cache-helpers
+// helper both reap-merged.js's trackReapResidue and archive-merged.js's
+// trackArchiveResult now call instead of duplicating it. Covers escalate-on-
+// threshold behavior for both reason strings the two call sites use.
+test('trackResidue: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls (removal-failed)', () => {
+  const root = tmpRoot();
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    trackResidue(root, 'o/r', 'removal-failed', '/x/wt', { failed: true, lastError: 'x' }, { escalate });
+  }
+  assert.equal(calls.length, 1, `expected exactly one escalation call, got ${calls.length}`);
+  assert.equal(calls[0].reason, 'removal-failed');
+  assert.equal(calls[0].targetPath, '/x/wt');
+  assert.equal(calls[0].count, RESIDUE_ESCALATE_THRESHOLD);
+
+  trackResidue(root, 'o/r', 'removal-failed', '/x/wt', { failed: true, lastError: 'x' }, { escalate });
+  assert.equal(calls.length, 1, 'must not re-escalate on a later still-failing call');
+});
+
+test('trackResidue: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls (move-failed)', () => {
+  const root = tmpRoot();
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-stuck');
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    trackResidue(root, 'o/r', 'move-failed', dir, { failed: true, lastError: undefined }, { escalate });
+  }
+  assert.equal(calls.length, 1, `expected exactly one escalation call, got ${calls.length}`);
+  assert.equal(calls[0].reason, 'move-failed');
+  assert.equal(calls[0].targetPath, dir);
+  assert.equal(calls[0].count, RESIDUE_ESCALATE_THRESHOLD);
+
+  trackResidue(root, 'o/r', 'move-failed', dir, { failed: true, lastError: undefined }, { escalate });
+  assert.equal(calls.length, 1, 'must not re-escalate on a later still-failing call');
+});
+
+test('trackResidue: a success clears a prior failure streak and never escalates', () => {
+  const root = tmpRoot();
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+
+  trackResidue(root, 'o/r', 'removal-failed', '/x/wt-success', { failed: true, lastError: 'x' }, { escalate });
+  assert.equal(listResidueFailures(root).length, 1);
+
+  trackResidue(root, 'o/r', 'removal-failed', '/x/wt-success', { failed: false }, { escalate });
+  assert.deepEqual(listResidueFailures(root), []);
+  assert.equal(calls.length, 0, 'a success must never escalate');
+});
+
+test('trackResidue: never throws when escalate itself throws (best-effort)', () => {
+  const root = tmpRoot();
+  const escalate = () => { throw new Error('gh not found'); };
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    assert.doesNotThrow(() => trackResidue(root, 'o/r', 'removal-failed', '/x/wt-throws', { failed: true, lastError: 'x' }, { escalate }));
+  }
 });

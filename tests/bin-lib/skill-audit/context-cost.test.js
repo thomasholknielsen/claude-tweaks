@@ -113,18 +113,14 @@ test('no lazy-loaded sub-file exceeds the ceiling either', () => {
 // decomposition-mode.md (~25.6 KB) with headroom for incidental growth.
 const SPECIFY_SUBFILE_CEILING_BYTES = 28 * 1024;
 
-// record-creation.md was already over this ceiling (29.5 KB) when #611 was
-// filed and has grown since (currently ~37.5 KB) — splitting it is real,
-// separate work, out of #611's own scope (which only split
-// decomposition-mode.md), filed as its own follow-up (see the ledger for
-// this run). New growth on this file, or any other /specify sub-file
-// crossing the ceiling, still fails below.
-const SPECIFY_SUBFILE_LEGACY_EXCEPTIONS = new Set([
-  'specify/record-creation.md',
-  // shaping-mode.md crossed the ceiling via growth on main after #611's split landed;
-  // its own split is filed as #1346 alongside record-creation.md's.
-  'specify/shaping-mode.md',
-]);
+// record-creation.md, shaping-mode.md, and next-mode.md all exceeded this ceiling —
+// filed as #1346, out of #611's own scope (which only split decomposition-mode.md).
+// #1346 split all three (record-creation.md -> record-creation.md + record-creation-subissues.md
+// + record-creation-linking.md; shaping-mode.md -> shaping-mode.md + shaping-mode-stamping.md;
+// next-mode.md -> next-mode.md + next-mode-shape.md), landing every resulting sub-file under
+// the ceiling — the exception set is empty again. New growth on any /specify sub-file
+// crossing the ceiling still fails below.
+const SPECIFY_SUBFILE_LEGACY_EXCEPTIONS = new Set([]);
 
 test('no /specify lazy-loaded sub-file exceeds the ~20-28 KB single-read ceiling (legacy exceptions aside)', () => {
   const specifySubFiles = measureSubFiles(REPO).filter((e) => e.skill === 'specify');

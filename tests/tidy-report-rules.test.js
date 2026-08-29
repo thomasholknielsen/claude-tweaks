@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 // #685: tidy report rendering — width discipline, fenced column layout,
-// command-grouped Yours, conformance scan, digest. Prose-as-implementation:
+// command-grouped Yours, conformance scan, condense. Prose-as-implementation:
 // pin the report contract's literal text so a later edit that drops a rule
 // fails here, plus one mechanical check that the grouping rule's "batchable
 // today" claim matches the live argument-hints it is keyed on.
@@ -71,7 +71,7 @@ test('grouping rule\'s batchable-today claim matches the live argument-hints', (
   assert.match(hint('demo'), multi);
 });
 
-// --- Task 2: Report rules width discipline, digest, conformance scan ---
+// --- Task 2: Report rules width discipline, condense, conformance scan ---
 
 test('step-6-auto.md: Report rules carry the width cap, title truncation, one-fact-per-line, and the shorthand ban', () => {
   const rules = section(STEP6, '### Report rules', '#### Conformance scan');
@@ -83,7 +83,7 @@ test('step-6-auto.md: Report rules carry the width cap, title truncation, one-fa
   assert.match(rules, /bans drawn table borders, not alignment/);
 });
 
-test('step-6-auto.md: Report rules state the 40-line digest rule and the report.md path', () => {
+test('step-6-auto.md: Report rules state the 40-line condense rule and the report.md path', () => {
   const rules = section(STEP6, '### Report rules', '#### Conformance scan');
   assert.match(rules, /\*\*40 lines\*\*/);
   assert.match(rules, /\{run-dir\}\/report\.md/);
@@ -97,7 +97,7 @@ test('step-6-auto.md: a conformance scan sits between Report rules and the Hard 
   assert.ok(rulesAt > 0 && scanAt > rulesAt && gateAt > scanAt, 'order must be Report rules → Conformance scan → Hard gate');
   const scan = STEP6.slice(scanAt, gateAt);
   assert.match(scan, /\| Rule \| Check \| Remedy on failure \|/);
-  const ruleOrder = ['Width', 'Titles', 'Aligned', 'One record per row', 'No shorthand', 'Command alone', 'Every Yours row covered', 'Batch only where allowed', 'Fenced, no box art', 'Group order', 'Clean shape', 'Footer once', 'Digest'];
+  const ruleOrder = ['Width', 'Titles', 'Aligned', 'One record per row', 'No shorthand', 'Command alone', 'Every Yours row covered', 'Batch only where allowed', 'Fenced, no box art', 'Group order', 'Clean shape', 'Footer once', 'Condense'];
   const indexes = [];
   for (const rule of ruleOrder) {
     const re = new RegExp(`^\\| ${rule} \\|`, 'm');
@@ -110,9 +110,9 @@ test('step-6-auto.md: a conformance scan sits between Report rules and the Hard 
   assert.match(scan, /never shipped as-is/);
 });
 
-test('step-6-auto.md: the Hard gate accepts the digest in place of the whole report when the digest rule fired', () => {
+test('step-6-auto.md: the Hard gate accepts the condensed report in place of the whole report when the condense rule fired', () => {
   const gate = section(STEP6, '#### Hard gate (report before question)');
-  assert.match(gate, /when the digest rule fired, the digest/);
+  assert.match(gate, /when the condense rule fired, the condensed report/);
 });
 
 // --- Task 3: interactive mirror ---
@@ -126,7 +126,7 @@ test('step-6-interactive.md: template mirrors the fenced shape and still cites s
   assert.match(INTERACTIVE, /\*\*Clean:\*\*\n```text/);
   assert.match(INTERACTIVE, /stated once there — not restated here/);
   assert.match(INTERACTIVE, /Yours grouping/);
-  assert.match(INTERACTIVE, /when the digest rule fired, the digest/);
+  assert.match(INTERACTIVE, /when the condense rule fired, the condensed report/);
   assert.doesNotMatch(INTERACTIVE, /\*\*Clean:\*\* \{comma list/);
 });
 
@@ -147,12 +147,12 @@ test('tidy/SKILL.md: Next Actions derives one option per Yours group and stays u
 
 const JOURNEY = read('docs', 'journeys', 'tidy-standalone-auto-report.md');
 
-test('journey doc: Step 3 expects fenced aligned columns, grouped Yours, no shorthand; Step 5 covers the digest', () => {
+test('journey doc: Step 3 expects fenced aligned columns, grouped Yours, no shorthand; Step 5 covers the condense rule', () => {
   assert.match(JOURNEY, /skills\/tidy\/step-6-interactive\.md/);
   assert.match(JOURNEY, /aligned columns inside ```text fences/);
   assert.match(JOURNEY, /grouped by the command the human runs/);
   assert.match(JOURNEY, /no `\(likewise …\)` shorthand/);
-  assert.match(JOURNEY, /### 5\. A wide sweep digests/);
+  assert.match(JOURNEY, /### 5\. A wide sweep condenses/);
   assert.match(JOURNEY, /\{run-dir\}\/report\.md/);
   assert.match(JOURNEY, /## Example render/);
   // The example render itself must obey the width rule it demonstrates.

@@ -30,8 +30,8 @@
 const { execFileSync } = require('child_process');
 const { CLAIMS_BRANCH } = require('./claims');
 const { readClaimBlobGit, writeClaimBlobGit } = require('./claims-git-cas');
+const { GH_TIMEOUT_MS, escapeRegExp } = require('../shared-primitives');
 
-const GH_TIMEOUT_MS = 5000;
 // How many times `writeClaimBlob` re-leases and re-pushes a git-CAS write
 // whose rejection a fresh read proves spurious (#787 final-review finding I1 —
 // see that function). Bounded: an unbounded retry against a busy
@@ -354,13 +354,6 @@ function writeClaimBlob(deps, repoSlug, issueNumber, {
     return { ok: false, conflict: true, failure: null };
   }
   return { ok: r.failure === null, failure: r.failure };
-}
-
-// Escapes a literal string for embedding inside a `new RegExp(...)` pattern —
-// `owner`/`repo` come from this claim's own caller (trusted), but are still
-// escaped defensively since GitHub does allow `.` in either.
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function isSameRepoPrUrl(link, owner, repo) {

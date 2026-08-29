@@ -91,7 +91,8 @@ caller trusts a stale read.
 ## Consumers
 
 `skills/specify/decomposition-mode.md`, `skills/specify/record-creation.md`,
-`skills/specify/shaping-mode.md`, `skills/dispatch/queue-pull-script.md`,
+`skills/specify/record-creation-subissues.md`, `skills/specify/shaping-mode-stamping.md`
+(#1346's split of `record-creation.md`/`shaping-mode.md`), `skills/dispatch/queue-pull-script.md`,
 `skills/_shared/headless-self-report.md`, `skills/dispatch/settle-and-merge.md`,
 `skills/dispatch/SKILL.md`, `skills/backlog/overview-mode.md`,
 `skills/backlog/refine-mode.md`, `skills/backlog/refine-lanes.md`,
