@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // bin/materialize.js — record-to-build-time-file materialization in one command.
-//   node bin/materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--help]
+//   node bin/materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--record-json <path>] [--help]
 // Implements skills/flow/materialize.md's Resolution + Materialization hard
 // gate + header composition + write, for `work-backend: github-issues`
 // records — the CLI both `/flow` and `/build` invoke instead of hand-
@@ -22,6 +22,14 @@
 // linked worktree — the write target is rewritten to cwd's own worktree-local
 // equivalent (same run-id, same relative structure) rather than trusting the
 // caller, with an informational (non-fatal) stderr note naming both roots.
+// #1459: --record-json <path> lets a gh-absent caller (one with MCP
+// issue_read access instead) supply an already-fetched record — same JSON
+// shape `gh issue view <n> --json number,title,body,labels,url` returns —
+// in place of this CLI shelling out to `gh` itself. When passed,
+// deps.ghAvailable()/deps.ghView() are never consulted; everything
+// downstream (shapeGate, drift, liftMetadata, composeHeader, composeFile)
+// is unchanged, since it already operates on the parsed `record` object
+// regardless of how it arrived.
 'use strict';
 
 const fs = require('fs');
@@ -34,7 +42,7 @@ const { shapeGate, liftMetadata, composeHeader, composeFile } = require('./lib/i
 const wtDetect = require('./lib/hooks/worktree-detect');
 const { parseRepo } = require('./lib/repo-resolve');
 
-const USAGE = 'usage: materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--help]\n';
+const USAGE = 'usage: materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--record-json <path>] [--help]\n';
 
 const isPos = (n) => Number.isInteger(n) && n > 0;
 
@@ -72,7 +80,9 @@ function computeDrift(sha, deps) {
 }
 
 function parseArgs(argv) {
-  const opts = { n: null, runDir: null, repo: null, ceremony: null, multiRecordSlug: null, help: false };
+  const opts = {
+    n: null, runDir: null, repo: null, ceremony: null, multiRecordSlug: null, recordJson: null, help: false,
+  };
   if (argv[0] === '--help' || argv[0] === '-h') { opts.help = true; return opts; }
   if (argv[0] === undefined || argv[0].startsWith('--')) return { error: 'missing <n> argument' };
   opts.n = Number(argv[0]);
@@ -91,6 +101,7 @@ function parseArgs(argv) {
     else if (a === '--repo') opts.repo = next();
     else if (a === '--ceremony') opts.ceremony = next();
     else if (a === '--multi-record-slug') opts.multiRecordSlug = next();
+    else if (a === '--record-json') opts.recordJson = next();
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
@@ -137,6 +148,10 @@ const realDeps = {
   },
   mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
   writeFile: (file, content) => fs.writeFileSync(file, content),
+  // #1459: the --record-json read. A plain UTF-8 file read, seamed through
+  // deps like every other filesystem/process touch in this file so tests
+  // never hit the real filesystem for it either.
+  readFile: (file) => fs.readFileSync(file, 'utf8'),
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
 };
@@ -209,20 +224,36 @@ function run(argv, deps = realDeps) {
     }
   }
   if (opts.ceremony && opts.ceremony !== 'fast-lane' && opts.ceremony !== 'standard') { deps.stderr('--ceremony must be fast-lane or standard\n' + USAGE); return 2; }
-  if (!deps.ghAvailable()) { deps.stderr('materialize.js: `gh` is required (work-backend: github-issues)\n'); return 2; }
-
-  let remote = null;
-  if (!opts.repo) { try { remote = deps.remoteUrl(); } catch { remote = null; } }
-  const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(remote);
-  if (!repoSpec) { deps.stderr('materialize.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
-  const { owner, repo } = repoSpec;
 
   let record;
-  try {
-    record = JSON.parse(deps.ghView(owner, repo, opts.n));
-  } catch (err) {
-    deps.stderr(`materialize.js: Record #${opts.n} could not be resolved (\`gh issue view ${opts.n}\` failed — check the issue exists in this repo). ${err && err.message ? err.message : ''}\n`);
-    return 2;
+  if (opts.recordJson) {
+    // #1459: the gh-absent path — deps.ghAvailable()/deps.ghView() are never
+    // consulted here, and no owner/repo resolution is needed since nothing
+    // downstream of this branch calls gh.
+    try {
+      record = JSON.parse(deps.readFile(opts.recordJson));
+    } catch (err) {
+      deps.stderr(`materialize.js: Record #${opts.n} could not be resolved (--record-json ${opts.recordJson} could not be read or parsed). ${err && err.message ? err.message : ''}\n`);
+      return 2;
+    }
+  } else {
+    if (!deps.ghAvailable()) {
+      deps.stderr('materialize.js: `gh` is required (work-backend: github-issues) — or pass --record-json <path> to supply an already-fetched record\n');
+      return 2;
+    }
+
+    let remote = null;
+    if (!opts.repo) { try { remote = deps.remoteUrl(); } catch { remote = null; } }
+    const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(remote);
+    if (!repoSpec) { deps.stderr('materialize.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
+    const { owner, repo } = repoSpec;
+
+    try {
+      record = JSON.parse(deps.ghView(owner, repo, opts.n));
+    } catch (err) {
+      deps.stderr(`materialize.js: Record #${opts.n} could not be resolved (\`gh issue view ${opts.n}\` failed — check the issue exists in this repo). ${err && err.message ? err.message : ''}\n`);
+      return 2;
+    }
   }
 
   const gate = shapeGate(record.body);
