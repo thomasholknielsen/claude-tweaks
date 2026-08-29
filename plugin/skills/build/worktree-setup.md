@@ -102,8 +102,8 @@ re-derived regexes.
      abandoned prior attempt pushed this deterministic name and was never cleaned up, and
      `EnterWorktree` would not itself catch it (no local branch conflicts, so creation succeeds;
      the collision would otherwise surface only later, as a rejected phase-exit push). Gather
-     context, best-effort — a failed or empty lookup surfaces as PR status unknown in the card
-     below, distinct from a confirmed no-open-PR result:
+     context, best-effort — a failed lookup surfaces as PR status unknown in the card below,
+     distinct from a confirmed no-open-PR result:
      ```bash
      gh pr list --repo {owner}/{repo} --head "{name}" --state all --json number,url,state,isDraft
      ```
@@ -122,8 +122,8 @@ re-derived regexes.
      run's branch to avoid the collision.
      ```
      **Interactive mode:** call `AskUserQuestion` with these three options, recommending (1) when
-     an open PR was confirmed found (resuming existing work beats discarding it), (2) when no open
-     PR was confirmed found, and no default recommendation when the lookup itself failed (PR status
+     an open PR was confirmed present (resuming existing work beats discarding it), (2) when it
+     was confirmed absent, and no default recommendation when the lookup itself failed (PR status
      unknown) — deleting a branch on an unconfirmed absence risks discarding someone else's live
      work; let the human decide with that uncertainty stated plainly. **Auto
      mode:** this is not a lever `_shared/auto-mode-contract.md` lists as silenceable — Step 2.8's
