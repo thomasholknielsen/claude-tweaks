@@ -106,8 +106,47 @@ test('attention-mode.md: breaker banner (fail-open + launcher) and tidy row (anc
     'expected the tidy row\'s glob resolution to cite IL-127 / the Anchoring section',
   );
   assert.ok(
-    source.includes('run /claude-tweaks:tidy --approve'),
-    'expected the tidy --approve launcher on the tidy row',
+    source.includes('run **/claude-tweaks:tidy** (the run'),
+    'expected the softened bare-tidy launcher (no --approve, which does not exist yet) on the tidy row',
+  );
+  assert.doesNotMatch(
+    source,
+    /--approve/,
+    'A4: /claude-tweaks:tidy --approve does not exist yet -- no --approve string may remain in attention-mode.md',
+  );
+});
+
+test('attention-mode.md: AC5 empty-state widening and the dedupe Anti-Patterns row', () => {
+  const source = read(SKILL_DIR, 'attention-mode.md');
+
+  assert.ok(
+    source.includes(
+      'Nothing needs attention — no open record carries a\nneeds:* marker, solution:unjustified, an ungranted shaped:headless spec, or bot:blocked.',
+    ),
+    'expected the widened empty-state string naming needs:*/solution:unjustified/shaped:headless/bot:blocked',
+  );
+
+  assert.ok(
+    source.includes(
+      '| A separate row per matched type for a record carrying two or more of the classifications | Dedupe by issue number and render one row with a concatenated Type/Recommended action, however many types matched |',
+    ),
+    'expected the dedupe Anti-Patterns row to survive byte-for-byte',
+  );
+});
+
+test('attention-mode.md: A5 shaped:headless launcher points at the sweep\'s Grant lane, not refine #{n}', () => {
+  const source = read(SKILL_DIR, 'attention-mode.md');
+
+  assert.ok(
+    source.includes(
+      '| #{n} | shaped:headless (no grant) | {createdAt, relative} | run /claude-tweaks:backlog refine to grant via the sweep\'s Grant lane (spec was headlessly shaped — no human has reviewed it) |',
+    ),
+    'expected the shaped:headless row to point at bare refine\'s Grant lane, not refine #{n}',
+  );
+  assert.doesNotMatch(
+    source,
+    /shaped:headless \(no grant\)[^|]*\|[^|]*\|[^|]*\| run \/claude-tweaks:backlog refine #\{n\} to grant/,
+    'the pre-#1489 refine #{n}-to-grant wording for shaped:headless must be gone from the table row',
   );
 });
 

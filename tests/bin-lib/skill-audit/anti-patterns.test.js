@@ -573,5 +573,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   row added inside the `## Anti-Patterns` section (the other `+`/`-` lines
   //   in that diff are argument-hint, Input-table, and Configuration-table
   //   rows, outside this parser's section scope) and no row evicted.
-  assert.strictEqual(total, 384);
+  //
+  //   384 -> 385, #1489 added backlog/SKILL.md's "A scheduled Routine firing
+  //   `refine #N` or `refine --reset-breaker`" row. Verified:
+  //   `git show d18e0c871 -- 'plugin/skills/*/SKILL.md' | grep -E '^[-+]\|'`
+  //   returns exactly this one `+` line and no `-` lines. The #1489 fix-wave's
+  //   own edits (backlog/SKILL.md's Preflight/description prose,
+  //   attention-mode.md, refine-record.md) touched no Anti-Patterns table —
+  //   confirmed by `git diff <fix-wave-base>..HEAD -- plugin/skills/backlog/
+  //   {SKILL,attention-mode,refine-record}.md | grep -E '^[-+]\|'` showing no
+  //   hits inside any `## Anti-Patterns` section. Measured by RUNNING the
+  //   parser on the working tree (actual 385), not by adding 1 to 384 — the
+  //   arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
+  assert.strictEqual(total, 385);
 });
