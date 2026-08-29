@@ -144,4 +144,4 @@ function checkRunIntegrity(runDir, opts = {}) {
   }
 }
 
-module.exports = { checkRunIntegrity, NON_TERMINAL };
+module.exports = { checkRunIntegrity, repoRootOf, NON_TERMINAL };

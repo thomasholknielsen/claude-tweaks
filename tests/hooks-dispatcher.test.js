@@ -28,7 +28,13 @@ function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
       // process.env (e.g. when npm test itself runs inside a /flow-dispatched
       // shell). A caller that needs a run dir still passes it explicitly via
       // `env`, which wins because it spreads last.
-      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
+      // #1337: CT_HOOKS_TEST_MODE tells pre-tool-use.js's gate-denial write
+      // this denial came from the test suite's own exercise of the deny
+      // logic, not a real operator action — see that file's appendEvent call
+      // and friction-events.js's readEvents, which excludes tagged events
+      // from aggregation. A caller that needs to assert real (untagged)
+      // denial behavior overrides it via `env`.
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', CT_HOOKS_TEST_MODE: '1', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
@@ -79,7 +85,7 @@ test('invariant: unknown event and missing event exit 0', () => {
 test('record-worktree writes run-state, prints a confirmation line, and close-run marks clean', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  const recorded = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+  const recorded = runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
   assert.strictEqual(recorded.code, 0);
   assert.match(recorded.stdout, /claude-tweaks: worktree recorded for 2026-07-01T090000-spec-1/);
   let state = readRunState(run);
@@ -124,38 +130,62 @@ test('close-run does NOT warn about un-archived work/ when no work/ content exis
   assert.doesNotMatch(result.stdout, /still holds un-archived work\/ content/);
 });
 
-test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
+// #1124: record-worktree without --run used to fall through to
+// resolveRunDir's "newest non-terminal run" GUESS and could silently clobber
+// a DIFFERENT live session's run-state.json — reproduced 3x independently on
+// 2026-08-20, across three different dispatched subagents, each time hitting
+// a different live sibling run's run-state.json. This is the regression
+// test: two concurrent run directories, each already carrying its own
+// run-state.json (representing two genuinely live sibling sessions, neither
+// of which this invocation is scoped to), and a bare invocation omitting
+// --run must leave BOTH byte-unchanged and exit non-zero — never guess which
+// one to write into. #1143 adds a dedicated, verb-agnostic --help/-h
+// intercept ahead of this whole branch (exit 0, usage text, no resolveRunArg
+// call at all) — a --help probe is exercised below too, but now as that
+// earlier, distinct no-op path rather than this "missing --run" refusal.
+test('record-worktree without --run is a true no-op against two concurrent run directories, and exits non-zero; --help is a separate, earlier no-op (#1143)', () => {
   const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  // staleDir sorts newer than ownDir and is non-terminal (interrupted, never
-  // closed) — resolveRunDir's fallback (listRunDirs[0], newest non-terminal
-  // by name) would pick staleDir over ownDir with no --run override. This is
-  // exactly #19/#36's cross-contamination shape: a later, unrelated call
-  // resolving to an older run's directory because it was never marked clean.
+  // Both run dirs are already-adopted, non-terminal, live sibling runs —
+  // exactly the shape resolveRunDir's fallback (listRunDirs[0], newest
+  // non-terminal by name) used to guess between with no --run override, and
+  // exactly #19/#36's cross-contamination shape this record closes off.
   fs.mkdirSync(staleDir, { recursive: true });
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'interrupted' }));
   fs.mkdirSync(ownDir, { recursive: true });
+  fs.writeFileSync(path.join(ownDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const staleStateBefore = readRunState(staleDir);
+  const ownStateBefore = readRunState(ownDir);
 
-  const noFlag = runHook(['record-worktree', '/tmp/wt-fallback'], { cwd: project });
-  assert.strictEqual(noFlag.code, 0);
-  assert.match(noFlag.stdout, /worktree recorded for 2026-07-15T090000-record-19/,
-    'sanity check: without --run, the fallback really does pick the newer stale run, not ownDir');
-  assert.strictEqual(fs.existsSync(path.join(ownDir, 'run-state.json')), false);
-  // The no-flag call above IS the vulnerability being demonstrated — it just
-  // corrupted staleDir's state exactly like #19/#36. Snapshot that corrupted
-  // state so the next assertion can prove the FIX (an explicitly-targeted
-  // --run call) doesn't compound it by touching staleDir a second time.
-  const staleStateAfterFallback = readRunState(staleDir);
+  const bare = runHook(['record-worktree', '/tmp/wt-fallback'], { cwd: project });
+  assert.notStrictEqual(bare.code, 0, 'record-worktree without --run must exit non-zero, not silently guess a target run');
+  assert.match(bare.stdout, /record-worktree requires --run/);
+  assert.doesNotMatch(bare.stdout, /worktree recorded/);
 
+  // #1143: --help must never be treated as an implicit-resolution
+  // invocation — it's intercepted before resolveRunArg ever runs, so it
+  // gets its own dedicated no-op path (usage text, exit 0), not the
+  // "requires --run" refusal above (which stays non-zero on genuinely
+  // missing --run).
+  const help = runHook(['record-worktree', '--help'], { cwd: project });
+  assert.strictEqual(help.code, 0, '#1143: --help is a dedicated no-op path, distinct from the missing-args refusal');
+  assert.match(help.stdout, /usage: record-worktree --run <dir> <worktree-path>/);
+  assert.doesNotMatch(help.stdout, /worktree recorded/);
+
+  assert.deepStrictEqual(readRunState(staleDir), staleStateBefore, 'staleDir must be byte-unchanged');
+  assert.deepStrictEqual(readRunState(ownDir), ownStateBefore, 'ownDir must be byte-unchanged');
+
+  // The FIX still works correctly when the caller names its own run
+  // explicitly — proves this isn't a blanket regression, only the implicit
+  // guess is closed off.
   const withFlag = runHook(['record-worktree', '--run', ownDir, '/tmp/wt-correct'], { cwd: project });
   assert.strictEqual(withFlag.code, 0);
   assert.match(withFlag.stdout, /worktree recorded for 2026-07-01T090000-spec-1/);
   const ownState = readRunState(ownDir);
   assert.strictEqual(ownState.worktree, path.resolve('/tmp/wt-correct'));
   assert.strictEqual(ownState.status, 'active');
-  const staleStateAfterExplicitCall = readRunState(staleDir);
-  assert.deepStrictEqual(staleStateAfterExplicitCall, staleStateAfterFallback,
+  assert.deepStrictEqual(readRunState(staleDir), staleStateBefore,
     'an explicitly-targeted --run call must not touch a different run dir at all');
 });
 
@@ -168,11 +198,42 @@ test('record-worktree accepts --run before or after the worktree positional', ()
   assert.strictEqual(state.worktree, path.resolve('/tmp/wt-2'));
 });
 
-test('record-worktree without a run dir exits 0 and prints a not-recorded notice', () => {
+// #1124 review finding: the fix's OTHER guard — rejecting a flag-shaped
+// worktree positional (e.g. `--run <dir> --bogus-flag`) — had no regression
+// test, even though it's the exact shape every observed pre-fix incident hit
+// (originally reproduced with a stray `--help`) and the code's own comment
+// calls out. Discrimination check: reverting just the
+// `worktreeArg.startsWith('-')` branch (hooks.js's "unrecognized argument"
+// guard) would let this test's run-state.json end up with a literal
+// `worktree: "--bogus-flag"` value and exit 0 — this assertion set fails in
+// that case, not just on the guard's total absence. Uses a non-help flag
+// (rather than the original `--help`) because #1143 added a dedicated,
+// earlier `--help`/`-h` intercept that now short-circuits before this
+// branch is ever reached — see the `--help` case covered separately above
+// and in tests/hooks-help-guard.test.js.
+test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --bogus-flag)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const before = readRunState(run);
+
+  const result = runHook(['record-worktree', '--run', run, '--bogus-flag'], { cwd: project });
+  assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
+  assert.match(result.stdout, /unrecognized argument --bogus-flag/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--bogus-flag\\"" write');
+});
+
+// #1124: --run is now required unconditionally — a call that omits it exits
+// non-zero with "requires --run" regardless of whether any run dir exists to
+// guess at, so this no-run-dir-at-all case hits the same guard as every other
+// omitted---run invocation, not a distinct "nothing found" message.
+test('record-worktree without --run and with no resolvable run dir anywhere still refuses (not "no pipeline run dir found")', () => {
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
   const result = runHook(['record-worktree', '/tmp/wt'], { cwd: bare });
-  assert.strictEqual(result.code, 0);
-  assert.match(result.stdout, /claude-tweaks: no pipeline run dir found — worktree not recorded/);
+  assert.notStrictEqual(result.code, 0);
+  assert.match(result.stdout, /record-worktree requires --run/);
 });
 
 test('record-worktree with a non-existent --run path fails loudly instead of falling back or claiming success', () => {
@@ -206,7 +267,7 @@ test('record-worktree reports a distinct failure when the run-state write itself
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.chmodSync(run, 0o500); // read+execute only — fs.writeFileSync inside it must throw
   try {
-    const result = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+    const result = runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
     assert.strictEqual(result.code, 0);
     assert.match(result.stdout, /failed to record worktree/);
     assert.doesNotMatch(result.stdout, /worktree recorded for/);
@@ -218,7 +279,7 @@ test('record-worktree reports a distinct failure when the run-state write itself
 test('close-run with a non-existent --run path fails loudly instead of falling back', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project });
   const bogus = path.join(project, 'does-not-exist');
   const result = runHook(['close-run', '--run', bogus], { cwd: project });
   assert.strictEqual(result.code, 0);
@@ -234,7 +295,7 @@ test('close-run --run with no following value fails loudly instead of falling ba
   // value were silently ignored: record a worktree so it's active and
   // non-terminal — exactly what resolveRunDir's "newest non-terminal run"
   // scan picks up (see the #19/#36 cross-contamination shape above).
-  assert.strictEqual(runHook(['record-worktree', '/tmp/wt-1'], { cwd: project }).code, 0);
+  assert.strictEqual(runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project }).code, 0);
   assert.strictEqual(readRunState(run).status, 'active');
 
   const result = runHook(['close-run', '--run'], { cwd: project });
@@ -250,7 +311,7 @@ test('close-run --run with no following value fails loudly instead of falling ba
 test('record-worktree with a resolvable run dir but no worktree argument prints a not-recorded notice instead of silent success', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  const result = runHook(['record-worktree'], { cwd: project });
+  const result = runHook(['record-worktree', '--run', run], { cwd: project });
   assert.strictEqual(result.code, 0);
   assert.ok(result.stdout.trim().length > 0, 'expected a diagnostic message, not silent success');
   assert.doesNotMatch(result.stdout, /worktree recorded/);
@@ -272,10 +333,10 @@ test('close-run with no resolvable run dir and no --run given prints a not-close
 test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and preserves it on env-less re-record', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'sess-owner' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'sess-owner' } });
   let state = readRunState(run);
   assert.strictEqual(state.sessionId, 'sess-owner');
-  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
   state = readRunState(run);
   assert.strictEqual(state.sessionId, 'sess-owner', 'env-less re-record must not clobber the stamp');
 });
@@ -283,7 +344,7 @@ test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and 
 test('record-worktree without CLAUDE_CODE_SESSION_ID records no owner', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt-2'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt-2'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
   const state = readRunState(run);
   assert.ok(!('sessionId' in state), 'no env var -> no sessionId field');
 });
@@ -295,7 +356,7 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   // enforcement with no way for it to know.
   const foreignProject = tmpProject();
   const foreignRun = path.join(foreignProject, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  runHook(['record-worktree', '--run', foreignRun, '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const foreign = runHook(['close-run'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(foreign.code, 0);
   assert.match(foreign.stdout, /recorded by another session/);
@@ -305,7 +366,8 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   assert.strictEqual(foreignState.worktree, path.resolve('/tmp/wt'), 'the foreign session\'s worktree assignment must survive');
 
   const ownProject = tmpProject();
-  runHook(['record-worktree', '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const ownRun = path.join(ownProject, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', ownRun, '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const own = runHook(['close-run'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   assert.strictEqual(own.code, 0);
   assert.match(own.stdout, /no recorded wrap-up/,
@@ -315,7 +377,7 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
 test('close-run WITH an explicit --run still closes a run recorded by another session — the refusal only applies to the implicit fallback', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  runHook(['record-worktree', '/tmp/wt'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  runHook(['record-worktree', '--run', run, '/tmp/wt'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const result = runHook(['close-run', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /recorded by another session/);
@@ -332,7 +394,8 @@ test('e2e: foreign-session commit in the main checkout is allowed with a systemM
   // foreign repo and short-circuit to a bare allow with no systemMessage.
   execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
   const worktree = linkedWorktreeOf(project);
-  runHook(['record-worktree', worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', run, worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
 
   const result = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: project, session_id: 'bystander' }),
@@ -350,7 +413,7 @@ test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the o
   const worktree = gitRepo();
   const otherRepo = gitRepo();
 
-  assert.strictEqual(runHook(['record-worktree', worktree], { cwd: project }).code, 0);
+  assert.strictEqual(runHook(['record-worktree', '--run', run, worktree], { cwd: project }).code, 0);
   assert.strictEqual(runHook(['close-run'], { cwd: project }).code, 0);
 
   const result = runHook(['pre-tool-use'], {
@@ -413,6 +476,35 @@ test('hooks.json registers a PostToolUse matcher for AskUserQuestion (unfiltered
   assert.match(askEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
 });
 
+// #457: audit of every tool_name checked in post-tool-use.js's run() and its
+// dispatched handlers against hooks.json's PostToolUse matcher array — the
+// same defect class #452's AskUserQuestion gap and #307/#500's EnterWorktree
+// gap (pinned in tests/hooks-gate-coverage.test.js) both found. 'Write' and
+// 'Bash' are the two remaining tool_name values checked in post-tool-use.js
+// with no dedicated PostToolUse-matcher-presence pinning test of their own —
+// closing that gap here.
+test('hooks.json registers a PostToolUse matcher for Write (unfiltered, literal tool-name match)', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const writeEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Write');
+  assert.ok(writeEntry, 'expected a PostToolUse Write matcher entry');
+  assert.strictEqual(writeEntry.hooks.length, 1);
+  assert.strictEqual(writeEntry.hooks[0].type, 'command');
+  assert.ok(!('if' in writeEntry.hooks[0]), 'Write matcher must be a literal tool-name match, not pattern-filtered');
+  assert.match(writeEntry.hooks[0].command, /bin\/hooks\.js" post-tool-use$/);
+});
+
+test('hooks.json registers a PostToolUse matcher for Bash (pattern-filtered via `if`)', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashEntry = config.hooks.PostToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashEntry, 'expected a PostToolUse Bash matcher entry');
+  assert.ok(bashEntry.hooks.length > 0, 'expected at least one Bash `if`-filtered hook entry');
+  for (const hook of bashEntry.hooks) {
+    assert.strictEqual(hook.type, 'command');
+    assert.ok('if' in hook, 'PostToolUse Bash matcher hooks must be pattern-filtered via "if"');
+    assert.match(hook.command, /bin\/hooks\.js" post-tool-use$/);
+  }
+});
+
 test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_FLAGS entry git-command.js's gitTargets() resolves (finding regression)", () => {
   // git-command.js's gitTargets() is written and unit-tested to correctly
   // resolve a commit/push target through `-c`, `--exec-path`, and
@@ -470,6 +562,119 @@ test('a resolved deny appends a gate-denial event', () => {
   assert.strictEqual(events[0].type, 'gate-denial');
   assert.strictEqual(events[0].tool, 'Write');
   assert.strictEqual(events[0].path, target);
+  // #1337: runHook's default env carries CT_HOOKS_TEST_MODE=1, so this
+  // suite-produced denial is tagged — friction-events.js's readEvents
+  // excludes it from aggregation on that basis.
+  assert.strictEqual(events[0].test, true);
+});
+
+// #1337: a call site that overrides CT_HOOKS_TEST_MODE off (simulating a
+// real, non-test invocation of the hook) must NOT tag its gate-denial event —
+// the regression guard for "a real operator denial still logs and is still
+// returned" (issue's Acceptance Criteria).
+test('#1337: a gate-denial event is untagged when CT_HOOKS_TEST_MODE is not set', () => {
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'a.txt');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+    env: { CT_HOOKS_TEST_MODE: '' },
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].type, 'gate-denial');
+  assert.strictEqual('test' in events[0], false, 'a real denial must not carry the test-mode tag');
+});
+
+// #750 deliverable 1: hooks.json registers checkWorktreeRequired's pre-tool-use
+// dispatch under MANY separate "if": "Bash(<shape> *)" entries on the SAME
+// Bash matcher (git commit/push/-C/-c/--exec-path/--namespace, cp, mv,
+// mkdir, tee, sed, perl, install, ln, truncate, dd, git worktree, ...) — the
+// harness independently evaluates each "if" against a real compound Bash
+// command and can spawn `pre-tool-use.js` once per matching entry for what
+// is, from the operator's perspective, ONE tool call. This reproduces that
+// shape directly (looping every registered "if" pattern's underlying command
+// shape against the SAME compound command, exactly as N separate harness
+// dispatches would) in a project with NO worktree-always policy — i.e. a
+// command that genuinely executes successfully, no actual denial anywhere.
+// checkWorktreeRequired's own fast-reject (`wtDetect.findPolicyFile` finds
+// nothing) means every one of those N invocations returns `{}` before ever
+// reaching the gate-denial write — so the burst reported in #750 cannot be
+// per-segment/per-matching-hook duplicate logging of a non-denial: this
+// invariant already holds structurally. (The reported burst's actual cause —
+// a genuinely-denied SIBLING session's events landing in the WRONG run's
+// events.jsonl via fallback attribution — is a `resolveRun` cross-worktree
+// misattribution bug tracked separately: #721 fixed the narrower
+// unadopted-mint case, and the broader cross-worktree case is #1402/PR #1577,
+// already built+tested+reviewed and awaiting merge as of this writing — not
+// re-implemented here to avoid duplicating that in-flight fix.)
+test('#750: a compound Bash command with no policy violation never logs a gate-denial event, no matter how many registered "if" hook entries would independently fire on it', () => {
+  const project = gitRepo(); // no writeWorktreeAlwaysPolicy(project) -- nothing to enforce
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
+  const compoundCommand = [
+    'git commit -m "x"', 'git push', 'git -C . status', 'git -c user.name=t status',
+    'cp a b', 'mv a b', 'mkdir -p scratch', 'tee out.txt', 'sed -i "" -e s/a/b/ f',
+    'perl -e 1', 'install -m 644 a b', 'ln -s a b', 'truncate -s 0 f', 'dd if=a of=b',
+    'git worktree list',
+  ].join(' && ');
+  const hooksConfig = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashEntry = hooksConfig.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashEntry.hooks.length > 10, 'expected many registered "if" entries under the Bash matcher (the mechanism under test)');
+  for (const { if: ifPattern } of bashEntry.hooks) {
+    const result = runHook(['pre-tool-use'], {
+      input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: compoundCommand } }),
+      cwd: project,
+    });
+    assert.strictEqual(result.code, 0, `invocation simulating "if": "${ifPattern}" should not error`);
+    assert.doesNotMatch(result.stdout, /"permissionDecision":"deny"/, `invocation simulating "if": "${ifPattern}" must not deny — no policy is set`);
+  }
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')), 'no gate-denial (or any) event should ever have been written across all simulated invocations');
+});
+
+// #1395: the gitignored-target exemption's own allow breadcrumb — unlike
+// the two pre-existing path exemptions (pipeline bookkeeping, policy.yml),
+// which leave no event at all, this one records a `gate-exempt-gitignored`
+// event so an operator can audit which writes it let through. (The issue
+// also asked for a standalone "untracked, not gitignored" branch — deliberately
+// not implemented; see isUntrackedOrIgnored's header comment in
+// pre-tool-use.js for the concrete regression evidence that made it unsafe.)
+test('an allowed gitignored write appends a gate-exempt-gitignored event', () => {
+  const { project, run } = policyRepoWithRun();
+  fs.writeFileSync(path.join(project, '.gitignore'), '*.env\n');
+  const target = path.join(project, 'deploy.env');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /"permissionDecision":"deny"/, 'a gitignored write target must be allowed');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1, 'expected exactly one breadcrumb event');
+  assert.strictEqual(events[0].type, 'gate-exempt-gitignored');
+  assert.strictEqual(events[0].tool, 'Write');
+  assert.strictEqual(events[0].path, target);
+});
+
+// Regression guard for the reverted branch above: an EXISTING, never-`git
+// add`ed file that is NOT gitignored must stay denied — proving the
+// exemption really is gitignored-only, not untracked-status-only.
+test('an existing, never-added file that is NOT gitignored stays denied (no gate-exempt-gitignored event)', () => {
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'scratch.txt');
+  fs.writeFileSync(target, 'pre-existing, never git-added, not ignored');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: `cp source.txt ${target}` } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/, 'an untracked-but-not-ignored write target must stay denied');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].type, 'gate-denial', 'must be the ordinary deny breadcrumb, not a gitignored-exemption allow');
 });
 
 // #1270 regression: the #1130 fix (`PIPELINE_RUN_DIR: ''` in runHook's spread,

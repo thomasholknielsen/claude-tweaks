@@ -104,8 +104,8 @@ test('reflect SKILL.md documents the reflect-specific filedRecords payload (rout
 // "previously declined: none" segment — the payload carried no dismissedSubjects/
 // dismissedFingerprints field at all. This mirrors session-evaluation.md's fix for feedback.)
 
-test('reflect SKILL.md documents dismissedSubjects sourced from listDeclined({ source: \'wrap-up\' })', () => {
-  assert.match(SKILL, /listDeclined\(\{ source: 'wrap-up' \}\)` mapped to each entry's `subject` text/);
+test('reflect SKILL.md documents dismissedSubjects sourced from listDeclined({ source: \'reflect\' })', () => {
+  assert.match(SKILL, /listDeclined\(\{ source: 'reflect' \}\)` mapped to each entry's `subject` text/);
 });
 
 test('reflect SKILL.md documents dismissedSubjects is computed live, never read off the returned watermark object', () => {
@@ -251,9 +251,9 @@ test('wrap-up SKILL.md stays under the 40KB sub-file ceiling', () => {
 // --- 14. #1033: full-mode.md's Subject scan for a near-miss (agent-judgment fallback when the
 // exact-hash Prior-decline lookup finds nothing — AC2's "wording differs but subject is the same") ---
 
-test('full-mode.md documents the Subject scan for a near-miss, sourced from listDeclined({ source: \'wrap-up\' })', () => {
+test('full-mode.md documents the Subject scan for a near-miss, sourced from listDeclined({ source: \'reflect\' })', () => {
   assert.match(FULL_MODE, /\*\*Subject scan for a near-miss \(#1033\)\.\*\*/);
-  assert.match(FULL_MODE, /listDeclined\(\{ source: 'wrap-up' \}\)` and read each\nreturned entry's `subject` text/);
+  assert.match(FULL_MODE, /listDeclined\(\{ source: 'reflect' \}\)` and read each\nreturned entry's `subject` text/);
 });
 
 test('full-mode.md frames the subject scan as agent judgment, not a mechanical match', () => {
@@ -269,5 +269,5 @@ test('full-mode.md clears the matched listDeclined entry\'s own fingerprint on a
 });
 
 test('full-mode.md\'s Don\'t-capture resolution passes subject: description to recordDecline', () => {
-  assert.match(FULL_MODE, /recordDecline\(fingerprint, \{ reason, source: 'wrap-up', subject: description \}\)/);
+  assert.match(FULL_MODE, /recordDecline\(fingerprint, \{ reason, source: 'reflect', subject: description \}\)/);
 });

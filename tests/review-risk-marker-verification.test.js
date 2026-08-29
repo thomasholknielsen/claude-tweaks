@@ -109,3 +109,21 @@ test("spec-template.md's Empirical Premise-Check Deliverables cross-references S
   assertPinnedInSpecTemplate(/code-mode-steps\.md/, 'cites the real current file, not a stale SKILL.md path');
   assertPinnedInSpecTemplate(/routes an\s+unresolved one to `BLOCKED`/, 'states the BLOCKED consequence from the spec-authoring side too');
 });
+
+// #606: two Deliverables-authoring guidance additions surfaced by a single flow run — a
+// lever-adding record's Deliverables should cite the lever-addition checklist by reference
+// rather than restating or omitting it, and a Deliverable encoding third-party CLI/API
+// behavior should get a named blocking-empirical-Task-0 option instead of the shape being
+// rediscovered per-record.
+
+test("spec-template.md's Deliverables section cites the lever-addition checklist by reference for lever-adding records", () => {
+  assert.match(SPEC_TEMPLATE, /Adding a new policy lever/, 'names the checklist heading');
+  assert.match(SPEC_TEMPLATE, /auto-mode-contract\.md/, "cites the checklist's home file");
+});
+
+test('spec-template.md names the third-party CLI/API behavior Task 0 as a deliberate option, with its three constituent parts', () => {
+  assert.match(SPEC_TEMPLATE, /third-party CLI\/API/i, 'names the third-party CLI/API behavior case');
+  assert.match(SPEC_TEMPLATE, /safe probe target/i, 'names the safe-probe-target part');
+  assert.match(SPEC_TEMPLATE, /mandatory teardown/i, 'names the mandatory-teardown part');
+  assert.match(SPEC_TEMPLATE, /literal-capture rule/i, 'names the literal-capture-rule part');
+});

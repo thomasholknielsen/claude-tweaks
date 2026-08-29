@@ -311,6 +311,64 @@ test('archiveRunDir: commit fails AND the revert reset also fails — file is no
   );
 });
 
+// #1214 AC 2: the three commit-failure tests above only ever exercised a
+// single top-level work/ pair — #652's own regression suite never proved the
+// revert generalizes to a multi-pair (multi-spec parent run dir) batch,
+// where every `git mv` in workMoves has already succeeded by the time the
+// one covering `git commit` fails. archiveRunDir's commit-failure branch
+// calls `revertWorkMoves(root, workMoves)` (the full array, not a
+// succeeded-so-far prefix — unlike the git-mv-failed branch, since a commit
+// only runs after every pair's mv already succeeded), so this pins that both
+// spec-{N}/work/ pairs revert, not just one.
+test('archiveRunDir: git mv succeeds for both spec work/ pairs but git commit fails — reverts BOTH pairs, not just one', () => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-1211-1212';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1211/work/1211-spec.md`, '# spec 1211\n');
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1212/work/1212-spec.md`, '# spec 1212\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  installFailingPreCommitHook(root);
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'commit-failed');
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  const tracked = trackedFiles(root);
+
+  for (const n of [1211, 1212]) {
+    // Old path restored on disk for every pair, not just the first.
+    assert.equal(
+      fs.existsSync(path.join(runDir, `spec-${n}`, 'work', `${n}-spec.md`)),
+      true,
+      `spec-${n}/work must be restored to its original path`,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(runDir, `spec-${n}`, 'work', `${n}-spec.md`), 'utf8'),
+      `# spec ${n}\n`,
+    );
+    // Archive path must not exist for either pair — the rename was fully
+    // undone, not left half-done on the second pair.
+    assert.equal(fs.existsSync(path.join(archiveDir, `spec-${n}`, 'work')), false);
+    // Old path restored in the index for every pair.
+    assert.ok(
+      tracked.includes(`.claude-tweaks/pipelines/${runId}/spec-${n}/work/${n}-spec.md`),
+      `spec-${n}/work/${n}-spec.md must remain tracked at its original path`,
+    );
+  }
+
+  // No leftover staged/modified tracked entries from the aborted batch.
+  const statusOut = git(root, 'status', '--porcelain', '--', '.claude-tweaks/pipelines');
+  const trackedStatusLines = statusOut
+    .split('\n')
+    .filter((line) => line && !line.startsWith('??'));
+  assert.equal(
+    trackedStatusLines.join('\n'),
+    '',
+    `expected no staged/modified tracked entries, got:\n${statusOut}`,
+  );
+});
+
 // Task 1 (#1103): a git-mv failure partway through a multi-pair workMoves
 // loop (multi-spec parent run dir, two spec-{N}/work/ pairs) must not leave
 // the first, already-succeeded pair stranded mid-move — it must be reverted

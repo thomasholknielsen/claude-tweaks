@@ -52,6 +52,13 @@ function parseArgs(argv) {
 // with provenance. Missing file -> []; a malformed line is skipped rather
 // than aborting the whole read (matches appendEvent's own best-effort
 // posture — one bad line must never hide every good one).
+//
+// #1337: a gate-denial event written by the test suite's own exercise of
+// pre-tool-use.js's deny logic (CT_HOOKS_TEST_MODE — see that file's
+// appendEvent call) carries `test: true`. Those are dropped here rather than
+// at the write site, so the underlying test that asserts the event IS
+// written still sees it — only this aggregation-facing read excludes it,
+// keeping a real operator denial (never tagged) unaffected.
 function readEvents(runDir, source) {
   let raw;
   try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return []; }
@@ -60,7 +67,9 @@ function readEvents(runDir, source) {
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line);
-      if (parsed && typeof parsed === 'object') out.push({ ...parsed, _source: source, _runDir: runDir });
+      if (!parsed || typeof parsed !== 'object') continue;
+      if (parsed.type === 'gate-denial' && parsed.test === true) continue;
+      out.push({ ...parsed, _source: source, _runDir: runDir });
     } catch { /* skip malformed line, keep reading */ }
   }
   return out;

@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 // #685: tidy report rendering — width discipline, fenced column layout,
-// command-grouped Yours, conformance scan, digest. Prose-as-implementation:
+// command-grouped Yours, conformance scan, condense. Prose-as-implementation:
 // pin the report contract's literal text so a later edit that drops a rule
 // fails here, plus one mechanical check that the grouping rule's "batchable
 // today" claim matches the live argument-hints it is keyed on.
@@ -71,7 +71,7 @@ test('grouping rule\'s batchable-today claim matches the live argument-hints', (
   assert.match(hint('demo'), multi);
 });
 
-// --- Task 2: Report rules width discipline, digest, conformance scan ---
+// --- Task 2: Report rules width discipline, condense, conformance scan ---
 
 test('step-6-auto.md: Report rules carry the width cap, title truncation, one-fact-per-line, and the shorthand ban', () => {
   const rules = section(STEP6, '### Report rules', '#### Conformance scan');
@@ -83,7 +83,7 @@ test('step-6-auto.md: Report rules carry the width cap, title truncation, one-fa
   assert.match(rules, /bans drawn table borders, not alignment/);
 });
 
-test('step-6-auto.md: Report rules state the 40-line digest rule and the report.md path', () => {
+test('step-6-auto.md: Report rules state the 40-line condense rule and the report.md path', () => {
   const rules = section(STEP6, '### Report rules', '#### Conformance scan');
   assert.match(rules, /\*\*40 lines\*\*/);
   assert.match(rules, /\{run-dir\}\/report\.md/);
@@ -97,7 +97,7 @@ test('step-6-auto.md: a conformance scan sits between Report rules and the Hard 
   assert.ok(rulesAt > 0 && scanAt > rulesAt && gateAt > scanAt, 'order must be Report rules → Conformance scan → Hard gate');
   const scan = STEP6.slice(scanAt, gateAt);
   assert.match(scan, /\| Rule \| Check \| Remedy on failure \|/);
-  const ruleOrder = ['Width', 'Titles', 'Aligned', 'One record per row', 'No shorthand', 'Command alone', 'Every Yours row covered', 'Batch only where allowed', 'Fenced, no box art', 'Group order', 'Clean shape', 'Footer once', 'Digest'];
+  const ruleOrder = ['Width', 'Titles', 'Aligned', 'One record per row', 'No shorthand', 'Command alone', 'Every Yours row covered', 'Batch only where allowed', 'Fenced, no box art', 'Group order', 'Clean shape', 'Footer once', 'Condense'];
   const indexes = [];
   for (const rule of ruleOrder) {
     const re = new RegExp(`^\\| ${rule} \\|`, 'm');
@@ -110,9 +110,9 @@ test('step-6-auto.md: a conformance scan sits between Report rules and the Hard 
   assert.match(scan, /never shipped as-is/);
 });
 
-test('step-6-auto.md: the Hard gate accepts the digest in place of the whole report when the digest rule fired', () => {
+test('step-6-auto.md: the Hard gate accepts the condensed report in place of the whole report when the condense rule fired', () => {
   const gate = section(STEP6, '#### Hard gate (report before question)');
-  assert.match(gate, /when the digest rule fired, the digest/);
+  assert.match(gate, /when the condense rule fired, the condensed report/);
 });
 
 // --- Task 3: interactive mirror ---
@@ -126,7 +126,7 @@ test('step-6-interactive.md: template mirrors the fenced shape and still cites s
   assert.match(INTERACTIVE, /\*\*Clean:\*\*\n```text/);
   assert.match(INTERACTIVE, /stated once there — not restated here/);
   assert.match(INTERACTIVE, /Yours grouping/);
-  assert.match(INTERACTIVE, /when the digest rule fired, the digest/);
+  assert.match(INTERACTIVE, /when the condense rule fired, the condensed report/);
   assert.doesNotMatch(INTERACTIVE, /\*\*Clean:\*\* \{comma list/);
 });
 
@@ -147,12 +147,12 @@ test('tidy/SKILL.md: Next Actions derives one option per Yours group and stays u
 
 const JOURNEY = read('docs', 'journeys', 'tidy-standalone-auto-report.md');
 
-test('journey doc: Step 3 expects fenced aligned columns, grouped Yours, no shorthand; Step 5 covers the digest', () => {
+test('journey doc: Step 3 expects fenced aligned columns, grouped Yours, no shorthand; Step 5 covers the condense rule', () => {
   assert.match(JOURNEY, /skills\/tidy\/step-6-interactive\.md/);
   assert.match(JOURNEY, /aligned columns inside ```text fences/);
   assert.match(JOURNEY, /grouped by the command the human runs/);
   assert.match(JOURNEY, /no `\(likewise …\)` shorthand/);
-  assert.match(JOURNEY, /### 5\. A wide sweep digests/);
+  assert.match(JOURNEY, /### 5\. A wide sweep condenses/);
   assert.match(JOURNEY, /\{run-dir\}\/report\.md/);
   assert.match(JOURNEY, /## Example render/);
   // The example render itself must obey the width rule it demonstrates.
@@ -171,28 +171,28 @@ test('step-6-auto.md: Why-not-auto sourcing states the two canonical reasons and
   assert.match(why, /sourced from this file's own routing table above, never re-derived per render/);
 });
 
-test('step-6-auto.md: Report rules Digest bullet requires a shared why-not-auto clause per Yours group', () => {
+test('step-6-auto.md: Report rules Condense bullet requires a shared why-not-auto clause per Yours group', () => {
   const rules = section(STEP6, '### Report rules', '#### Conformance scan');
   assert.match(rules, /each followed by one shared why-not-auto clause for the group/);
 });
 
-test('step-6-auto.md: conformance scan gained Why stated + Digest why rows, and digest scope now covers Every Yours row covered', () => {
+test('step-6-auto.md: conformance scan gained Why stated + Condense why rows, and condensed scope now covers Every Yours row covered', () => {
   const scanAt = STEP6.indexOf('#### Conformance scan (before the hard gate)');
   const gateAt = STEP6.indexOf('#### Hard gate (report before question)');
   assert.ok(scanAt > 0 && gateAt > scanAt);
   const scan = STEP6.slice(scanAt, gateAt);
   assert.match(scan, /^\| Why stated \|/m, 'conformance scan lacks a "Why stated" row');
-  assert.match(scan, /^\| Digest why \|/m, 'conformance scan lacks a "Digest why" row');
+  assert.match(scan, /^\| Condense why \|/m, 'conformance scan lacks a "Condense why" row');
   const everyIdx = scan.search(/^\| Every Yours row covered \|/m);
   const whyIdx = scan.search(/^\| Why stated \|/m);
-  const digestIdx = scan.search(/^\| Digest \|/m);
-  const digestWhyIdx = scan.search(/^\| Digest why \|/m);
+  const condenseIdx = scan.search(/^\| Condense \|/m);
+  const condenseWhyIdx = scan.search(/^\| Condense why \|/m);
   assert.ok(everyIdx > 0 && whyIdx > everyIdx, '"Why stated" should follow "Every Yours row covered"');
-  assert.ok(digestIdx > 0 && digestWhyIdx > digestIdx, '"Digest why" should follow "Digest"');
+  assert.ok(condenseIdx > 0 && condenseWhyIdx > condenseIdx, '"Condense why" should follow "Condense"');
   assert.match(
     scan,
-    /Against a digest,[\s\S]*Every Yours row covered[\s\S]*fails this row exactly the way an omitted Approve section already fails the Hard gate/,
-    'digest scope note must extend Every Yours row covered coverage to the digest, not just the full report'
+    /Against a condensed report,[\s\S]*Every Yours row covered[\s\S]*fails this row exactly the way an omitted Approve section already fails the Hard gate/,
+    'condensed scope note must extend Every Yours row covered coverage to the condensed report, not just the full report'
   );
 });
 

@@ -71,7 +71,12 @@ test('policy-schema-coverage.md\'s coverage block lists exactly the gate\'s exem
   // hand-typed expectation would keep passing even after the exemption's
   // shape changed underneath it, which is exactly the drift this whole
   // suite exists to catch.
-  const expected = [...GATE_COVERAGE.exemptions.paths, GATE_COVERAGE.exemptions.commit, GATE_COVERAGE.exemptions.push];
+  const expected = [
+    ...GATE_COVERAGE.exemptions.paths,
+    GATE_COVERAGE.exemptions.commit,
+    GATE_COVERAGE.exemptions.push,
+    GATE_COVERAGE.exemptions.target,
+  ];
   assert.deepStrictEqual(tokensFor(coverageBlock(), 'Exemptions'), expected,
     'GATE_COVERAGE.exemptions and the canonical prose have diverged — update the coverage block in skills/_shared/policy-schema-coverage.md');
 });

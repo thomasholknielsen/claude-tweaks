@@ -125,8 +125,21 @@ function removeLabel({ owner, repo, issueNumber, label, runner = defaultRunner }
 // held by another run) — the two are not mechanically distinguishable
 // otherwise, and a corrupt blob can never self-resolve the way a live
 // holder's claim eventually expires.
+// `removeInProgress` defaults `true` (#1631): every documented caller of this
+// module's one consumer, `bin/release-claim.js`, unconditionally passes
+// `--remove-in-progress` on every release outcome (success or failure) — the
+// audit behind this default found zero legitimate case for a release to leave
+// `bot:in-progress` in place, since a released claim means the run is no
+// longer working the issue either way. Requiring every call site to opt in
+// made a caller that composed its own ad hoc release command (deviating from
+// the documented literal invocation, e.g. an inline dispatch shortcut) fail
+// silently — `labelsRemoved`/`labelsFailed` both empty, no error, nothing to
+// notice. `removeGrants` stays opt-in (default `false`): unlike
+// `bot:in-progress`, grant retention on an `abandoned:` release is
+// intentional (the grant is the standing retry request) — see
+// `_shared/issue-claims.md`'s "Grant revocation" section.
 function releaseClaim({
-  owner, repo, issueNumber, runId, reason, link, removeGrants = false, removeInProgress = false, runner = defaultRunner, gitRunner, now = Date.now(),
+  owner, repo, issueNumber, runId, reason, link, removeGrants = false, removeInProgress = true, runner = defaultRunner, gitRunner, now = Date.now(),
 }) {
   const result = { outcome: 'failed', calls: [], commentPosted: false, labelsRemoved: [], labelsFailed: [], note: null };
   let blob;

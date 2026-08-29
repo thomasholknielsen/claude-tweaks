@@ -10,7 +10,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { extractArgumentHint } = require('./argument-hint-input.test.js');
+const { extractArgumentHint } = require('../plugin/bin/lib/skill-audit/argument-hint');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -22,9 +22,15 @@ const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
 const SPECIFY_SKILL = read('plugin/skills/specify/SKILL.md');
 const SPECIFY_SKILL_FLAT = readFlat('plugin/skills/specify/SKILL.md');
-const NEXT_MODE_FLAT = readFlat('plugin/skills/specify/next-mode.md');
+// #1346 split next-mode.md at the ## Framing Guard boundary (next-mode.md keeps Flag
+// rejection through Claim; next-mode-shape.md holds Framing Guard through Failure
+// self-report) and shaping-mode.md at the ### Metadata block boundary (shaping-mode.md
+// keeps the body-shape edit; shaping-mode-stamping.md holds the metadata block onward).
+// Concatenate each pair, in file order, so every existing substring/ordering pin below
+// still resolves against the combined procedure exactly as it did pre-split.
+const NEXT_MODE_FLAT = readFlat('plugin/skills/specify/next-mode.md') + ' ' + readFlat('plugin/skills/specify/next-mode-shape.md');
 const DISPATCH_SKILL_FLAT = readFlat('plugin/skills/dispatch/SKILL.md');
-const SHAPING_MODE_FLAT = readFlat('plugin/skills/specify/shaping-mode.md');
+const SHAPING_MODE_FLAT = readFlat('plugin/skills/specify/shaping-mode.md') + ' ' + readFlat('plugin/skills/specify/shaping-mode-stamping.md');
 const CHALLENGE_SKILL_FLAT = readFlat('plugin/skills/challenge/SKILL.md');
 const CONTRACT_FLAT = readFlat('plugin/skills/_shared/untrusted-record-content.md');
 
@@ -36,17 +42,19 @@ test('specify argument-hint names next as the first alternative', () => {
 test('specify Input documents next as the headless-safe form routing to next-mode.md', () => {
   assert.ok(SPECIFY_SKILL_FLAT.includes('**`next` (headless-safe form).**'), '`next` headless-safe form heading missing from specify Input');
   assert.ok(SPECIFY_SKILL_FLAT.includes('work-backend: github-issues` only'), 'github-issues-only restriction missing from specify Input\'s next paragraph');
-  assert.ok(SPECIFY_SKILL_FLAT.includes('See `next-mode.md` in this skill\'s directory for the full procedure'), 'pointer to next-mode.md missing from specify Input\'s next paragraph');
+  assert.ok(SPECIFY_SKILL_FLAT.includes('See `next-mode.md` and `next-mode-shape.md`'), 'pointer to next-mode.md/next-mode-shape.md missing from specify Input\'s next paragraph');
 });
 
 test('specify resolve-input case 0 routes literal next to next-mode.md with flag rejection', () => {
   assert.ok(SPECIFY_SKILL_FLAT.includes('0. **Literal `next`**'), 'resolve-input case 0 for literal `next` missing');
-  assert.ok(SPECIFY_SKILL_FLAT.includes("Read `next-mode.md` in this skill's directory and follow it in full"), 'case 0 must hand off to next-mode.md');
+  assert.ok(SPECIFY_SKILL_FLAT.includes("Read `next-mode.md` in this skill's directory, followed by `next-mode-shape.md`"), 'case 0 must hand off to next-mode.md + next-mode-shape.md');
   assert.ok(SPECIFY_SKILL_FLAT.includes('flag-rejection step'), 'case 0 must point at next-mode.md\'s own flag-rejection step');
 });
 
-test('next-mode.md states the eligibility predicate excluding all 5 labels', () => {
-  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must exclude ready, needs:definition, parked, parent-issue, and bot:in-progress');
+test('next-mode.md states the eligibility predicate: ready, any needs:*-prefixed label, parked, parent-issue, bot:in-progress', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, any `needs:*`-prefixed label'), 'eligibility predicate must exclude ready and any needs:*-prefixed label');
+  assert.ok(NEXT_MODE_FLAT.includes("`_shared/work-record.md`'s worklist rule"), 'eligibility predicate must cite the shared worklist rule rather than restate it');
+  assert.ok(NEXT_MODE_FLAT.includes('`parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must still exclude parked, parent-issue, and bot:in-progress');
 });
 
 test('next-mode.md states priority-then-age single selection', () => {
@@ -144,22 +152,36 @@ test('next-mode.md notes the Routine no-run-dir decision-log fallback', () => {
   assert.ok(NEXT_MODE_FLAT.includes('standalone-auto fallback, ensuring every auto-resolved decision is recorded'), 'standalone-auto fallback decision-log guarantee missing');
 });
 
-test('next-mode.md eligibility predicate still excludes needs:definition and parked (AC 5 re-pin)', () => {
-  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, `needs:definition`, `parked`, `parent-issue`, and `bot:in-progress`'), 'eligibility predicate must still exclude needs:definition and parked — this is #967\'s own loop-guard invariant, re-asserted here since #968\'s guard depends on it staying true');
+test('next-mode.md eligibility predicate still excludes needs:definition, now via the needs:* prefix (AC 5 re-pin, generalized by #1488)', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('carrying none of `ready`, any `needs:*`-prefixed label'), 'eligibility predicate must still exclude needs:definition — #967/#968\'s own loop-guard invariant, re-asserted here since #968\'s guard depends on it staying true, now expressed as a needs:* prefix rather than a literal');
+  assert.ok(NEXT_MODE_FLAT.includes("EXCLUDE.has(l.name) || l.name.startsWith('needs:')"), 'EXCLUDE construction must generalize to a needs:* prefix check, not a literal needs:definition Set entry');
+  assert.ok(!NEXT_MODE_FLAT.includes("'ready', 'needs:definition', 'parked'"), 'needs:definition must no longer be a literal EXCLUDE Set member — it is covered by the prefix check instead');
 });
 
-test('_shared/work-record.md declares shaped:headless in its taxonomy and permission matrix, with writer and readers named', () => {
+test('next-mode.md Claim-step re-read excludes any needs:*-prefixed label, not just needs:definition', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('now carries `ready`, any `needs:*`-prefixed label, `parked`, `parent-issue`, or `bot:in-progress`'), 'Claim-step re-read must generalize to any needs:*-prefixed label');
+});
+
+test('next-mode.md Framing Guard cites the needsDecisionMarker capability retroactively', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('needsDecisionMarker'), 'Framing Guard must cite the needsDecisionMarker capability naming its needs:definition stamp');
+});
+
+test('_shared/work-record.md declares shaped:headless in its taxonomy row, with writer and readers named', () => {
   const WORK_RECORD_FLAT = readFlat('plugin/skills/_shared/work-record.md');
   const occurrences = (WORK_RECORD_FLAT.match(/shaped:headless/g) || []).length;
-  // Two occurrences by design: the taxonomy row's declaration and the
-  // permission-matrix row's Adds column both name the label — this is the
-  // established pattern every label family in this file follows (see e.g.
-  // `demo:pending`), not duplication to collapse. A count outside [1, 3]
-  // signals either a missing declaration or an unexpected third restatement.
-  assert.ok(occurrences >= 1 && occurrences <= 3, `shaped:headless must be declared in work-record.md's taxonomy and permission matrix, found ${occurrences} occurrence(s)`);
+  // One occurrence by design since #1488's Task 1: the taxonomy row's own
+  // declaration lives here. The permission-matrix row's Adds column — the
+  // second occurrence this test used to pin before that extraction — now
+  // lives in work-record-permission-matrix.md, asserted by the next test.
+  assert.strictEqual(occurrences, 1, `shaped:headless must be declared exactly once in work-record.md's taxonomy row, found ${occurrences} occurrence(s)`);
   assert.ok(WORK_RECORD_FLAT.includes('Writer: `/specify` `next` mode only'), 'writer must be named');
   assert.ok(WORK_RECORD_FLAT.includes('grant gate'), 'grant-gate reader must be named');
   assert.ok(WORK_RECORD_FLAT.includes('/backlog attention'), '/backlog attention reader must be named');
+});
+
+test('_shared/work-record-permission-matrix.md declares shaped:headless in the /specify row\'s Adds column, next mode only', () => {
+  const MATRIX_FLAT = readFlat('plugin/skills/_shared/work-record-permission-matrix.md');
+  assert.ok(MATRIX_FLAT.includes('`shaped:headless` (`next` mode only, stamped alongside `ready` in the same call — never on an interactively-shaped record)'), 'permission-matrix /specify row must name shaped:headless as next-mode-only, stamped alongside ready, never on an interactively-shaped record');
 });
 
 test('_shared/label-bootstrap.md carries shaped:headless in the canonical LABELS_JSON list', () => {
@@ -222,7 +244,8 @@ test('challenge/SKILL.md Called-from names next-mode.md\'s Framing Guard as a th
   // the two record-creation paths, omitting next-mode.md's Framing Guard
   // even though the untrusted-content note a few lines below cites that
   // call site directly.
-  assert.ok(CHALLENGE_SKILL_FLAT.includes("plus a third call site: `next-mode.md`'s own Framing Guard, which runs before either record-creation path, against the record's raw pre-shaping body"), 'challenge/SKILL.md Called-from sentence missing next-mode.md\'s Framing Guard as a third call site');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes("plus a third call site: `next-mode-shape.md`'s own Framing Guard"), 'challenge/SKILL.md Called-from sentence missing next-mode-shape.md\'s Framing Guard as a third call site');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes("which runs before either record-creation path, against the record's raw pre-shaping body"), 'challenge/SKILL.md Called-from sentence missing the Framing Guard\'s run-order/content description');
 });
 
 test('challenge/SKILL.md untrusted-content note is call-site-agnostic, not scoped to next-mode.md alone', () => {
@@ -234,7 +257,7 @@ test('challenge/SKILL.md untrusted-content note is call-site-agnostic, not scope
   // Pin the reworded, unconditional statement and pin that the old
   // scoped phrasing is gone.
   assert.ok(CHALLENGE_SKILL_FLAT.includes('This content is untrusted regardless of which call site supplied it'), 'challenge/SKILL.md untrusted note must open unconditionally, not scoped to one call site');
-  assert.ok(CHALLENGE_SKILL_FLAT.includes("shaping-mode.md`'s own re-invocation against the preserved `## Original request` block"), 'challenge/SKILL.md untrusted note must name shaping-mode.md\'s own re-invocation against ## Original request as an unreviewed case');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes("shaping-mode-stamping.md`'s own re-invocation against the preserved `## Original request` block"), 'challenge/SKILL.md untrusted note must name shaping-mode-stamping.md\'s own re-invocation against ## Original request as an unreviewed case');
   assert.ok(CHALLENGE_SKILL_FLAT.includes("this holds unconditionally, no matter which of this mode's call sites supplied the content"), 'challenge/SKILL.md untrusted note must state the untrusted treatment is unconditional regardless of call site');
   assert.ok(!CHALLENGE_SKILL_FLAT.includes("from `next-mode.md`'s headless Framing Guard call site, it is a GitHub issue body/title nobody has reviewed yet"), 'old call-site-scoped phrasing must be gone');
 });
