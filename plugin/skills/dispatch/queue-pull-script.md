@@ -107,9 +107,10 @@ node -e "
   // Size guard (#1228): flagged, never removed from DISPATCH_GROUPS -- bare
   // and #N/#N,#M still resolve an oversized group normally (a human present,
   // explicitly naming/picking it, is itself the required surfacing). Only
-  // the headless `next` ranking script (Step 3) reads this file to exclude
-  // an oversized group from its own candidate pool, since nobody is present
-  // there to see a table row or answer a prompt.
+  // the drain's ranking script (Step 3 — bare, or its deprecated `next`
+  // alias) reads this file to exclude an oversized group from its own
+  // candidate pool, since nobody is present there to see a table row or
+  // answer a prompt.
   const groupSizeGuard = parseInt(process.argv[6], 10);
   const { oversized, threshold } = partitionGroupsBySizeGuard(groups, { groupSizeGuard });
   fs.writeFileSync(process.argv[5], JSON.stringify(oversized.map((g) => ({ records: g.map((i) => i.number), size: g.length, threshold }))));
