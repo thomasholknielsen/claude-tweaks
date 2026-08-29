@@ -195,7 +195,7 @@ Identity section.
 
 Each group's two `Task()` prompts are defined in `task-prompt.md` in this skill's directory — read it and inline each call's content verbatim into its own `Task()` tool call (per `_shared/subagent-output-contract.md`'s input discipline: minimal input, literal output template inlined, no conversation history). Do not paraphrase or summarize either template; the exact wording is load-bearing for the four-value status line and output format contracts downstream skills parse.
 
-**Before either call, resolve the context pack (#1542)** — `task-prompt.md`'s own "Context pack" section, once per group: this session's own `{plugin-root}` (its already-resolved `$CLAUDE_PLUGIN_ROOT`, substituted as a literal — never left as an env-var reference the dispatched agent's own shell cannot expand), the resolved `autonomy`/`integration-model`/`merge-verification`/`risk-floor`/`size-floor` policy values, and the canonical CLI invocation table. Substitute the result into both templates' `{context-pack}` placeholder — this eliminates the `--help` probing, filesystem `find` searches, and claims-registry trial-and-error a dispatched call has otherwise had to rediscover on its own.
+**Before either call, resolve `task-prompt.md`'s own "Context pack" section (#1542)** once per group, and substitute it into both templates' `{context-pack}` placeholder — read that section for what it resolves and why.
 
 ### Step 6: Settle — on pipeline failure, and the Auto-merge gate
 

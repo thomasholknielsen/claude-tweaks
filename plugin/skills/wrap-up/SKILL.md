@@ -113,13 +113,7 @@ Carry that verdict as a run-scoped fact for the rest of the run, alongside the r
 
 ### Diff-derived ceremony default (headless firings only, #1545)
 
-Skip entirely when `DISPATCH_HEADLESS=1` was not set on this run's invocation (`dispatch/task-prompt.md`'s marker — a human-present firing already saw and could adjust the Manifesto's `ceremony-profile` lever, so this derivation only ever applies where nobody was there to catch a mismatch) or when no `config.yml` exists (standalone wrap-up). Otherwise, and only when `config.yml`'s `ceremony-profile` currently reads `standard` — this lever's value is always exactly the header-fold default in a headless (`auto`-mode, no Manifesto stop) firing, never a human override (`flow/manifesto.md`'s Ceremony profile computation), so there is nothing here to clobber:
-
-1. Compute this run's diff facts via `node "${CLAUDE_PLUGIN_ROOT}/bin/lib/dispatch/ceremony-derive.js"`'s `computeDiffFacts` over `git diff --numstat` against the run's own merge-base (the same facts shape `blast-radius-cli.js`'s `computeBlastRadius` already derives for the merge-check verdict — reuse `classifyDiffFiles`/`blastRadiusSummary`, don't re-derive).
-2. When the diff touches zero production/implementation files — any mix of test and/or docs files only (`deriveCeremonyProfile`'s `lowSurface` classification; a test file plus a small amount of production code stays disqualified, per this issue's own Gotcha) — downgrade **the ceremony requirement**, i.e. set `config.yml`'s `ceremony-profile` to `fast-lane` via the sanctioned writer: `node "${CLAUDE_PLUGIN_ROOT}/bin/set-config.js" --run "$PIPELINE_RUN_DIR" --key ceremony-profile --value fast-lane`.
-3. Log: `AUTO {time} — Ceremony profile derived from diff: low-surface ({file-count} file(s), 0 production files) — header-fold default (standard) replaced with fast-lane.`
-
-This never *upgrades* toward `standard` on its own — the diff-derived default only ever narrows a `standard` default down to `fast-lane` for a diff this small; the Ceremony escape hatch below remains the only path back up to `standard`, and runs strictly after this step, so a review/reflect safety finding on THIS run still overrides whatever this derivation just set. A diff that is neither test-only nor docs-only leaves `config.yml` untouched — the header-fold's `standard` default stands.
+Read `ceremony-derivation.md` in this skill's directory and follow it, before the Reflect step below reads `config.yml`'s `ceremony-profile` — it can narrow a headless firing's `standard` default down to `fast-lane` when the diff itself is low-surface, so Reflect's own mode selection just below sees the derived value.
 
 ### Reflect (formerly Step 3)
 
