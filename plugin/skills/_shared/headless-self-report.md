@@ -5,7 +5,11 @@ fires with nobody present to read a stop message. For `/claude-tweaks:dispatch`,
 the headless drain: a bare drain firing when Routine-fired, and its deprecated `next` alias.
 Dispatch's explicit `#N`/`#N,#M,...` forms always run with a human present per the Input table in
 `dispatch/SKILL.md`, report the failing check directly, and never reach this file. For
-`/claude-tweaks:specify`, scope remains the `next` form only, per that skill's own Input table.
+`/claude-tweaks:specify`, that scope is the headless drain: bare invocation (which always
+drains immediately, human present or not — there is no separate interactive confirmation
+path) and its deprecated `next` alias, per that skill's own Input table. Specify's explicit
+`#N`/`#N,#M,...`/`#A-#B`/design-doc-path/topic forms always run with a human present, report
+the failing check directly, and never reach this file.
 
 **Consumers:** `/claude-tweaks:dispatch` Preflight (`{caller}` = `dispatch`), `/claude-tweaks:specify` `next-mode.md` Preflight (`{caller}` = `specify`).
 
@@ -92,6 +96,6 @@ Resolved build: claude-tweaks v{version} @ {resolved CLAUDE_PLUGIN_ROOT}
 
 This is deliberately not gated on the marker: the marker asks "has this check already been reported," and the answer stays yes across every firing, which is what left #129's own self-report issue silent through three later firings on a stale sandbox. The build line asks a different question — "has *this* build already been seen failing this check" — and it is the one whose answer changes when a sandbox is finally repaired, or when it silently rolls back. One comment per distinct build keeps that a timeline rather than a repeat-notification.
 
-No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. Self-filing scope follows the caller: for `dispatch`, it covers the headless drain (bare when Routine-fired, including the `next` alias) — the explicit `#N`/`#N,#M,...` forms always run with a human present (per the Input table in `dispatch/SKILL.md`) and just report and stop. For `specify`, self-filing remains `next`-only, per that skill's own Input table.
+No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. Self-filing scope follows the caller: for `dispatch`, it covers the headless drain (bare when Routine-fired, including the `next` alias) — the explicit `#N`/`#N,#M,...` forms always run with a human present (per the Input table in `dispatch/SKILL.md`) and just report and stop. For `specify`, self-filing covers bare invocation (drain mode, human present or not) including its deprecated `next` alias — the explicit `#N`/`#N,#M,...`/`#A-#B`/design-doc-path/topic forms always run with a human present (per that skill's own Input table) and just report and stop.
 
 **MCP path** (`gh` unavailable; CRUD mapping per `_shared/github-write-transport.md`): this block's `gh` calls also have a documented MCP path — the list-then-filter lookup (`gh issue list --label by:{caller} ...`) uses the confirmed "list issues by label" mapping (`list_issues`, filtered by label/state — never `search_issues`, same eventually-consistent-index caveat as elsewhere in this file), issue creation (`gh issue create`, both the `work-types: native` and `work-types: labels` variants) uses `issue_write` (create mode), and the duplicate-closing `gh issue close` uses `issue_write` (update mode, state change) — same as every other create/close call site in dispatch's `SKILL.md` and `mcp-transport.md`. The Resolved build once-per-build record uses two more of that file's confirmed mappings: reading the canonical issue's existing comments is `issue_read` (get_comments mode), and posting the one new comment is `add_issue_comment`. This path matters more on MCP than on `gh`, not less — a `gh`-absent sandbox is exactly the shape that was pinned to a stale build in #129.

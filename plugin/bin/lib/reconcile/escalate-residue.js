@@ -20,8 +20,9 @@
 // mechanical always-low default fails independently (`ready` requires a
 // spec-shaped body, which reconcile's terse auto-report is not). Enrichment
 // belongs to the downstream path that demonstrably picks these issues up: a
-// plain open issue IS a backlog-stage record, the scheduled `/specify next`
-// routine shapes it headlessly, and `/backlog` grants route it to an
+// plain open issue IS a backlog-stage record, the scheduled bare `/specify`
+// drain (its deprecated `next` alias, historically) shapes it headlessly,
+// and `/backlog` grants route it to an
 // autonomous build. No `by:reconcile` origin value, no scoring heuristic —
 // closed #1216 is the recorded decision.
 'use strict';
