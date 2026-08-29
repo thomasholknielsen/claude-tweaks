@@ -234,13 +234,17 @@ function isForeignWorktreeCandidate(cwd, sessionId, state) {
   return classifyOwnership({ sessionId, cwd }, state) === 'foreign';
 }
 // Shared by both resolveRun fallback arms below: a candidate is never
-// eligible to be guessed into if it's an unadopted mint (#721) or provably
-// worktree-foreign (#1410) — both checks apply regardless of whether the
-// caller's own session id is known.
-function isSkippableFallbackCandidate(cwd, sessionId, dir, state) {
-  return isUnadoptedMint(dir, state) || isForeignWorktreeCandidate(cwd, sessionId, state);
+// eligible to be guessed into if it's an unadopted mint (#721). It is also
+// skipped as provably worktree-foreign (#1410) UNLESS `includeWorktreeForeign`
+// is set — the opt-out close-run's own fallback resolution passes (see the
+// resolveRun doc comment below), so the mint check still applies regardless
+// of the caller's own session id, but the worktree-binding axis does not.
+function isSkippableFallbackCandidate(cwd, sessionId, dir, state, includeWorktreeForeign) {
+  if (isUnadoptedMint(dir, state)) return true;
+  if (includeWorktreeForeign) return false;
+  return isForeignWorktreeCandidate(cwd, sessionId, state);
 }
-function resolveRun(cwd, env, sessionId) {
+function resolveRun(cwd, env, sessionId, opts = {}) {
   if (env && env.PIPELINE_RUN_DIR) {
     try {
       if (fs.statSync(env.PIPELINE_RUN_DIR).isDirectory()) {
@@ -249,6 +253,17 @@ function resolveRun(cwd, env, sessionId) {
     } catch { /* fall through */ }
   }
   const me = typeof sessionId === 'string' && sessionId ? sessionId : null;
+  // includeWorktreeForeign (whole-branch review finding, pre-v6.110.0):
+  // close-run's implicit (no --run) fallback resolution passes this so it can
+  // still find and report on a run bound to a different, still-live worktree
+  // — closeRunState's own sessionId comparison is the actual safety net that
+  // decides whether it's safe to act on what's found, so filtering the
+  // worktree axis out here only hides the run from that check entirely,
+  // regressing close-run's "belongs to another session" report into a false
+  // "no run found." Every other caller (in particular post-tool-use.js's
+  // event-attribution fallback, which is what #1410 was written for) omits
+  // this and keeps the worktree filter.
+  const includeWorktreeForeign = opts.includeWorktreeForeign === true;
   // Resolve once, up front, so the worktree-binding check below always sees
   // the same cwd the candidate scan itself uses — iterRunDirsWithState falls
   // back to process.cwd() internally on a falsy cwd, but isForeignWorktreeCandidate
@@ -261,9 +276,10 @@ function resolveRun(cwd, env, sessionId) {
     // owner we cannot compare against would just be the old guess with fewer
     // candidates, and `record-worktree`/`close-run` deliberately resolve runs
     // they do NOT own so they can report that fact (see bin/hooks.js). The
-    // worktree-binding check above is a different axis and still applies.
+    // worktree-binding check above is a different axis and applies here too,
+    // unless the caller opted out via includeWorktreeForeign.
     for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
-      if (isSkippableFallbackCandidate(resolvedCwd, me, dir, state)) continue;
+      if (isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) continue;
       return { dir, attribution: 'fallback' };
     }
     return { dir: null, attribution: null };
@@ -274,13 +290,13 @@ function resolveRun(cwd, env, sessionId) {
     if (owner === me) return { dir, attribution: 'session' };
     // Newest-first, so the first unowned, worktree-compatible run is the one
     // the old code returned unconditionally.
-    if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state)) unowned = dir;
+    if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) unowned = dir;
   }
   return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
 }
 
-function resolveRunDir(cwd, env, sessionId) {
-  return resolveRun(cwd, env, sessionId).dir;
+function resolveRunDir(cwd, env, sessionId, opts) {
+  return resolveRun(cwd, env, sessionId, opts).dir;
 }
 
 // Ownership classification (#1098): composite identity — session id AND

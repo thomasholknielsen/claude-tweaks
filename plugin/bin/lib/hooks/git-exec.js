@@ -148,9 +148,13 @@ async function runGitAsync(args, cwd, opts = {}) {
     const { stdout } = await promisify(cp.execFile)('git', ['-C', cwd, ...args], {
       encoding: 'utf8', timeout, windowsHide: true,
     });
-    return { stdout: stdout.trim(), failure: null };
+    return { stdout: stdout.trim(), failure: null, stderr: null };
   } catch (err) {
-    return { stdout: null, failure: classify(err) };
+    // Same fallback as runGit's catch branch above: execFile's promisified
+    // rejection carries `stderr` as a string when it ran at all (a timeout
+    // kill or spawn failure may never have produced any).
+    const stderr = typeof err.stderr === 'string' ? err.stderr.trim() : '';
+    return { stdout: null, failure: classify(err), stderr };
   }
 }
 

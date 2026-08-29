@@ -113,16 +113,22 @@ test('isIndeterminate: success (null failure) is not indeterminate', () => {
 
 test('runGitAsync: success returns trimmed stdout and a null failure', async () => {
   const dir = gitRepo();
-  const { stdout, failure } = await runGitAsync(['rev-parse', '--show-toplevel'], dir);
+  const { stdout, failure, stderr } = await runGitAsync(['rev-parse', '--show-toplevel'], dir);
   assert.strictEqual(failure, null);
   assert.strictEqual(stdout, fs.realpathSync(dir));
+  assert.strictEqual(stderr, null, 'runGitAsync must match runGit\'s success shape: stderr is null, not omitted');
 });
 
 test('runGitAsync: a non-git directory is git-error — git ANSWERED, in the negative', async () => {
   const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'ct-ge-async-nongit-'));
-  const { stdout, failure } = await runGitAsync(['rev-parse', '--show-toplevel'], dir);
+  const { stdout, failure, stderr } = await runGitAsync(['rev-parse', '--show-toplevel'], dir);
   assert.strictEqual(stdout, null);
   assert.strictEqual(failure, FAILURE.GIT_ERROR);
+  // whole-branch review finding (pre-v6.110.0): runGitAsync previously
+  // omitted `stderr` entirely despite the header comment's "identical return
+  // shape" claim — a caller destructuring it (the pattern runGit's own
+  // callers already use) got `undefined` instead of git's real error text.
+  assert.strictEqual(typeof stderr, 'string', 'runGitAsync must surface stderr as a string, matching runGit\'s failure shape');
 });
 
 test('runGitAsync: a blown budget is timeout, and timeout is indeterminate (#134)', async () => {
@@ -170,7 +176,10 @@ test('runGitAsync: always returns an object, never null, on every path', async (
   ])) {
     assert.strictEqual(typeof result, 'object');
     assert.ok(result !== null);
-    assert.ok('stdout' in result && 'failure' in result);
+    // 'stderr' is asserted alongside the other two (whole-branch review
+    // finding, pre-v6.110.0) so a future field drift between runGit and its
+    // async twin fails here, not just in the two shape-specific tests above.
+    assert.ok('stdout' in result && 'failure' in result && 'stderr' in result);
   }
 });
 

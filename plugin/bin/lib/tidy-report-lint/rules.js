@@ -24,11 +24,13 @@
 // hint at render time" instruction does — see BATCHABLE_SKILLS below.
 //
 // Surface-scoping (#1625): step-6-auto.md's Conformance scan intro documents
-// a 7-rule/6-rule split for when the condense rule has fired and the report
-// is checked as two separate texts (condensed chat render + `report.md`).
-// Each RULES entry below carries a `surface` tag ('condensed' | 'full')
-// pinning it to that documented split; `lintReport`'s `surface` option
-// filters on it. See the RULES declaration below for the exact partition.
+// a 7-rule/5-rule split for when the condense rule has fired and the report
+// is checked as two separate texts (condensed chat render + `report.md`),
+// plus one rule ("Every Yours row covered") the same intro names as applying
+// on top of either surface. Each RULES entry below carries a `surface` tag
+// ('condensed' | 'full' | 'both') pinning it to that documented split;
+// `lintReport`'s `surface` option filters on it, always including 'both'.
+// See the RULES declaration below for the exact partition.
 
 const MAX_LINE = 100;
 const MAX_TITLE = 50;
@@ -365,12 +367,16 @@ function checkCondense(text) {
 // and the report is split across two texts (the condensed chat text and
 // `report.md`). 'condensed' = the 7 rows the intro names explicitly
 // ("Width, Titles, No shorthand, Command alone, Batch only where allowed,
-// Aligned and Condense"); 'full' = the 6 section-shape rows it names as
-// checked "against the full report in report.md" (One record per row, Every
-// Yours row covered, Fenced, Group order, Clean shape, Footer once). This is
-// a strict partition of all 13 rows — every rule carries exactly one tag.
-// When no condense split is in play (a single, un-split report), all 13
-// still run together; see lintReport's `surface` option below.
+// Aligned and Condense"); 'full' = the 5 remaining section-shape rows it
+// names as checked "against the full report in report.md" (One record per
+// row, Fenced, Group order, Clean shape, Footer once). 'both' is the one
+// named exception the same intro calls out explicitly: "the surface-tagged
+// rows below apply — and so does Every Yours row covered" — a condensed
+// report that drops its Yours section fails this row exactly as a dropped
+// Yours section in the full report would, so it runs against whichever text
+// is being checked rather than sitting in either partition alone. When no
+// condense split is in play (a single, un-split report), all 13 rules still
+// run together; see lintReport's `surface` option below.
 //
 // Order matches step-6-auto.md's Conformance scan table, top to bottom.
 const RULES = [
@@ -380,7 +386,7 @@ const RULES = [
   { name: 'One record per row', check: checkOneRecordPerRow, surface: 'full' },
   { name: 'No shorthand', check: checkNoShorthand, surface: 'condensed' },
   { name: 'Command alone', check: checkCommandAlone, surface: 'condensed' },
-  { name: 'Every Yours row covered', check: checkEveryYoursRowCovered, surface: 'full' },
+  { name: 'Every Yours row covered', check: checkEveryYoursRowCovered, surface: 'both' },
   { name: 'Batch only where allowed', check: checkBatchOnlyWhereAllowed, surface: 'condensed' },
   { name: 'Fenced, no box art', check: checkFencedNoBoxArt, surface: 'full' },
   { name: 'Group order', check: checkGroupOrder, surface: 'full' },
@@ -393,15 +399,16 @@ const SURFACES = new Set(['condensed', 'full']);
 
 // `options.surface`, when given, restricts the scan to the rule subset
 // step-6-auto.md's Conformance scan intro documents for that surface
-// ('condensed' or 'full' — see the RULES comment above). Omitted (the
-// default), every rule runs — the un-split, single-report case where the
-// condense rule never fired and the whole report is one text.
+// ('condensed' or 'full' — see the RULES comment above), plus any rule
+// tagged 'both'. Omitted (the default), every rule runs — the un-split,
+// single-report case where the condense rule never fired and the whole
+// report is one text.
 function lintReport(text, options = {}) {
   const { surface } = options;
   if (surface !== undefined && !SURFACES.has(surface)) {
     throw new Error(`lintReport: surface must be "condensed" or "full" (got ${JSON.stringify(surface)})`);
   }
-  const rules = surface === undefined ? RULES : RULES.filter((r) => r.surface === surface);
+  const rules = surface === undefined ? RULES : RULES.filter((r) => r.surface === surface || r.surface === 'both');
   const issues = [];
   for (const rule of rules) {
     const issue = rule.check(text);

@@ -123,11 +123,17 @@ function isInitializedRunDir(dir) {
 // once. `args` is the command's own argument list (cmd already stripped);
 // when --run is found, its two-element span is spliced out of the returned
 // `rest` so a caller with its own positional args (record-worktree's
-// worktree path) can still find them regardless of flag placement.
-function resolveRunArg(args, cwd, env) {
+// worktree path) can still find them regardless of flag placement. `resolveOpts`
+// forwards unchanged to the implicit-fallback ctxLib.resolveRunDir call only
+// (an explicit --run below never consults it) — close-run passes
+// { includeWorktreeForeign: true } so its fallback can still find and report
+// a run bound to a different, still-live worktree (whole-branch review
+// finding, pre-v6.110.0); every other caller omits it and keeps #1410's
+// worktree-safe fallback.
+function resolveRunArg(args, cwd, env, resolveOpts) {
   const flagIdx = args.indexOf('--run');
   if (flagIdx === -1) {
-    return { runDir: ctxLib.resolveRunDir(cwd, env), invalidRunArg: null, rest: args, explicit: false };
+    return { runDir: ctxLib.resolveRunDir(cwd, env, undefined, resolveOpts), invalidRunArg: null, rest: args, explicit: false };
   }
   const rest = args.slice();
   const rawCandidate = rest[flagIdx + 1];
@@ -484,7 +490,9 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'close-run') {
-    const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(
+      argv.slice(3), process.cwd(), process.env, { includeWorktreeForeign: true },
+    );
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);

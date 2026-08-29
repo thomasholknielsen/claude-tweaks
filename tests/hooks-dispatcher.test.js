@@ -385,6 +385,27 @@ test('close-run WITH an explicit --run still closes a run recorded by another se
   assert.strictEqual(readRunState(run).status, 'clean', 'an explicitly-targeted --run intentionally overrides the cross-session refusal');
 });
 
+test("close-run without --run still detects and refuses a run bound to a different, still-live worktree — not just a different session (whole-branch review finding, pre-v6.110.0)", () => {
+  // #1410's worktree-foreign filter (added to resolveRun's shared fallback
+  // helper for post-tool-use.js's event attribution) also silently applied to
+  // close-run's implicit fallback, which needs the opposite behavior: it must
+  // still FIND a worktree-foreign run so closeRunState's own sessionId check
+  // can report it, rather than resolveRunDir hiding it and close-run printing
+  // "no pipeline run dir found" as if nothing were there at all.
+  const project = tmpProject();
+  execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
+  const otherWt = linkedWorktreeOf(project);
+  const callerWt = linkedWorktreeOf(project);
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', run, otherWt], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+
+  const result = runHook(['close-run'], { cwd: callerWt, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /recorded by another session/);
+  assert.match(result.stdout, /refusing to close/);
+  assert.strictEqual(readRunState(run).status, 'active', "the foreign worktree's run must remain active — found and refused, not silently invisible");
+});
+
 test('e2e: foreign-session commit in the main checkout is allowed with a systemMessage, not denied', () => {
   const project = tmpProject(); // already a git repo (tmpProject inits one) — the "main checkout" this test's title refers to
   // #861: `worktree` must be a REAL linked worktree of `project` (not an

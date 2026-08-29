@@ -52,28 +52,37 @@ test('ghHealthCheckAsync: calls `gh api rate_limit`, not a repo-scoped endpoint'
 });
 
 test('ghHealthCheckAsync: does not block the event loop (real concurrency, not execFileSync in disguise)', async () => {
-  // Same technique as pr-state.test.js's resolvePrStateAsync concurrency
-  // proof: a runner that sleeps briefly, then compare N-concurrent wall time
-  // against N-sequential. A blocking implementation would make the ratio
-  // ~1; real concurrency keeps it well under.
-  const sleepyRunner = () => new Promise((resolve) => setTimeout(() => resolve('5000\n'), 60));
+  // #1127 then #1404 (pr-state.test.js's own sibling fix, cited there): a
+  // fixed wall-clock margin, and later a concurrent-vs-sequential wall-clock
+  // RATIO, both flaked under real sibling-session CPU load — any assertion
+  // built on *aggregate elapsed time* is exactly what shared-machine
+  // scheduler noise perturbs, regardless of where the margin is set (whole-
+  // branch review finding, pre-v6.110.0: this test had reintroduced that
+  // exact pattern after pr-state.test.js abandoned it). This drops wall-clock
+  // comparison for a structural fact instead: each injected runner call
+  // increments an active-count while its promise is pending and decrements
+  // on settle. Genuine concurrency makes 2+ calls coexist no matter how fast
+  // or slow the machine is right now, because it's a count, not a duration;
+  // if ghHealthCheckAsync's `await runner(...)` secretly serialized the three
+  // Promise.all'd calls, the count could never exceed 1.
+  let active = 0;
+  let maxActive = 0;
+  const sleepyRunner = () => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        active -= 1;
+        resolve('5000\n');
+      }, 30);
+    });
+  };
 
-  const concurrentStart = Date.now();
   await Promise.all([
     ghHealthCheckAsync({ runner: sleepyRunner }),
     ghHealthCheckAsync({ runner: sleepyRunner }),
     ghHealthCheckAsync({ runner: sleepyRunner }),
   ]);
-  const concurrentElapsed = Date.now() - concurrentStart;
 
-  const sequentialStart = Date.now();
-  await ghHealthCheckAsync({ runner: sleepyRunner });
-  await ghHealthCheckAsync({ runner: sleepyRunner });
-  await ghHealthCheckAsync({ runner: sleepyRunner });
-  const sequentialElapsed = Date.now() - sequentialStart;
-
-  assert.ok(
-    concurrentElapsed < sequentialElapsed * 0.9,
-    `expected concurrent (${concurrentElapsed}ms) under sequential (${sequentialElapsed}ms) — a blocking implementation would make these roughly equal (ratio ~1)`,
-  );
+  assert.ok(maxActive >= 2, `expected at least 2 concurrent runner invocations (real concurrency); observed max ${maxActive}`);
 });

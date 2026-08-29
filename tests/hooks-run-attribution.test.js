@@ -277,3 +277,26 @@ test('a foreign-owned run is still never resolved for another session, worktree 
 
   assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: null, attribution: null });
 });
+
+// close-run's own regression (whole-branch review finding, pre-v6.110.0): its
+// implicit (no --run) fallback shares resolveRun's unknown-session arm with
+// post-tool-use.js's event attribution, but needs the OPPOSITE answer for a
+// worktree-foreign candidate — it must still find that run so closeRunState's
+// own sessionId check can report "belongs to another session," rather than
+// silently reporting "no run found" the way the bare #1410 filter above does.
+// includeWorktreeForeign is the opt-out close-run's resolveRunArg call passes;
+// every other caller (including the tests above) omits it and keeps the
+// worktree-safe fallback.
+test('includeWorktreeForeign lets an unknown-session fallback still find a candidate bound to a different live worktree (close-run\'s need)', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const foreign = mkRun(main, '2026-07-01T090000-foreign', { status: 'active', worktree: otherWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, null), { dir: null, attribution: null }, 'sanity: the default (no opt-out) still filters it, per the test above');
+  assert.deepStrictEqual(
+    ctxLib.resolveRun(callerWt, {}, null, { includeWorktreeForeign: true }),
+    { dir: foreign, attribution: 'fallback' },
+  );
+  assert.strictEqual(ctxLib.resolveRunDir(callerWt, {}, null, { includeWorktreeForeign: true }), foreign);
+});
