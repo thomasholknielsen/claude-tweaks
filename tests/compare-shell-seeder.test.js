@@ -219,6 +219,23 @@ test('unit: assembleIdentityDoc inlines skin CSS before </head>', async () => {
   assert.match(doc, /<style>body\{color:red\}<\/style><\/head>/);
 });
 
+test('#1435: assembleIdentityDoc — skin CSS containing $`, $&, $$ survives intact (function replacer, not string replacer)', async () => {
+  // Regression for the String.replace self-splicing bug (same shape as
+  // #1229's __VARIANT_DATA__ fix, applied here to the other string-replace
+  // call site in this file): a raw `$`-prefixed sequence in a *string*
+  // replacement argument is a splice directive, not literal text
+  // ('abc'.replace('b', '$`') === 'aac'). Before the fix, this hostile CSS
+  // would splice the preceding shared-markup text back into the document in
+  // place of the CSS itself.
+  const mod = await import(require('node:url').pathToFileURL(SEEDER).href);
+  const shared = '<html><head><title>SENTINEL_SHARED_MARKUP</title></head><body>x</body></html>';
+  const hostileCss = 'body{content:"$`$&$$"}';
+  const doc = mod.assembleIdentityDoc(shared, hostileCss);
+  assert.match(doc, /<style>body\{content:"\$`\$&\$\$"\}<\/style><\/head>/, 'a string replacer would corrupt the $-pattern sequences inside the CSS');
+  const sharedTextCount = (doc.match(/SENTINEL_SHARED_MARKUP/g) || []).length;
+  assert.equal(sharedTextCount, 1, 'the preceding shared markup must not be spliced in a second time');
+});
+
 test('unit: escapeForInlineScript neutralizes </script regardless of case', async () => {
   const mod = await import(require('node:url').pathToFileURL(SEEDER).href);
   const escaped = mod.escapeForInlineScript('before </SCRIPT> after </script src="x">');

@@ -74,6 +74,41 @@ test('settle-and-merge.md documents the claim-contest special case', () => {
   assert.match(content, /DISPATCH_HEADLESS/);
 });
 
+test('claim-targets.md in-flight card routes into resume-confirmation.md, gated on DISPATCH_HEADLESS (#958)', () => {
+  const content = read('plugin/skills/flow/claim-targets.md');
+  const cardStart = content.indexOf('## Flow: Claim in-flight');
+  assert.ok(cardStart !== -1, 'in-flight card region should exist');
+  const sectionEnd = content.indexOf('\n- **4** —', cardStart);
+  assert.ok(sectionEnd !== -1, 'in-flight section should end before the exit-4 bullet');
+  const section = content.slice(cardStart, sectionEnd);
+  // The stale "Known gap ... unimplemented" framing must be gone, replaced by an actual route.
+  assert.doesNotMatch(section, /Known gap/);
+  assert.doesNotMatch(section, /hook-in is unimplemented/);
+  assert.match(section, /DISPATCH_HEADLESS/);
+  assert.match(section, /dispatch\/resume-confirmation\.md/);
+  assert.match(section, /claude-tweaks-run: \{run-id\}/);
+  assert.match(section, /check-resume-freshness/);
+});
+
+test('resume-confirmation.md documents claim-targets.md as a second caller (#958)', () => {
+  const content = read('plugin/skills/dispatch/resume-confirmation.md');
+  assert.match(content, /flow\/claim-targets\.md/);
+  assert.match(content, /#958/);
+});
+
+test('settle-and-merge.md Claim-contest special case also covers the Claim in-flight stop, with a distinct failing-check-name (review finding, #958)', () => {
+  const content = read('plugin/skills/dispatch/settle-and-merge.md');
+  const sectionStart = content.indexOf('**Claim-contest special case');
+  assert.ok(sectionStart !== -1, 'Claim-contest special case section should exist');
+  const sectionEnd = content.indexOf('\n1. The CLI in step 2', sectionStart);
+  assert.ok(sectionEnd !== -1, 'special-case section should end before the numbered steps');
+  const section = content.slice(sectionStart, sectionEnd);
+  assert.match(section, /Claim in-flight/);
+  assert.match(section, /flow-step-2\.8-claim-in-flight/);
+  // both failing-check-names must be distinct and both present
+  assert.match(section, /flow-step-2\.8-claim-contest/);
+});
+
 test('mcp-transport.md no longer carries claim-write sections', () => {
   const content = read('plugin/skills/dispatch/mcp-transport.md');
   assert.doesNotMatch(content, /## Step 4 — claiming a group/);
@@ -87,16 +122,59 @@ test('claim-targets.md claim read cites issue-claims.md steps 1-2 — no raw bas
   assert.match(content, /@base64d/);
 });
 
-test('every base64 -d claim read under skills/ cites issue-claims.md or handles empty content (#720)', () => {
+test('every base64 -d claim read under skills/ handles the absent-file case, not just cites issue-claims.md (#720, #780)', () => {
   const offenders = [];
   for (const file of mdFilesUnder(path.join(REPO_ROOT, 'plugin', 'skills'))) {
     const text = fs.readFileSync(file, 'utf8');
     if (!/ref=claims-registry/.test(text) || !/base64 -d/.test(text)) continue;
-    const cites = /_shared\/issue-claims\.md/.test(text);
-    const absentBranch = /\|\| null/.test(text);
-    if (!cites && !absentBranch) offenders.push(path.relative(REPO_ROOT, file));
+    // A citation to issue-claims.md is no longer sufficient on its own (#780) — the read
+    // itself must show it handles the absent/404 case, via the __ABSENT__ sentinel or an
+    // equivalent explicit `|| null` / not-found branch.
+    const absentBranch = /__ABSENT__|\|\| null|404/.test(text);
+    if (!absentBranch) offenders.push(path.relative(REPO_ROOT, file));
   }
   assert.deepStrictEqual(offenders, []);
+});
+
+test('issue-claims.md step 1 spells out the 404->__ABSENT__ exit-status branch as a shell snippet (#780)', () => {
+  const content = read('plugin/skills/_shared/issue-claims.md');
+  const step1Start = content.indexOf('1. Read the claim file at the payload');
+  assert.ok(step1Start !== -1, 'step 1 heading should exist');
+  const step2Start = content.indexOf('2. **Extract the content before classifying', step1Start);
+  assert.ok(step2Start !== -1, 'step 2 heading should exist after step 1');
+  const step1 = content.slice(step1Start, step2Start);
+  assert.match(step1, /```bash/);
+  assert.match(step1, /404/);
+  assert.match(step1, /__ABSENT__/);
+});
+
+test('issue-claims.md step 2 extracts .content before classifying — never passes the wrapper object (#780)', () => {
+  const content = read('plugin/skills/_shared/issue-claims.md');
+  const step2Start = content.indexOf('2. **Extract the content before classifying');
+  assert.ok(step2Start !== -1, 'step 2 heading should exist');
+  const step3Start = content.indexOf("3. **`state:", step2Start);
+  assert.ok(step3Start !== -1, 'step 3 heading should exist after step 2');
+  const step2 = content.slice(step2Start, step3Start);
+  assert.match(step2, /field's value/i);
+  assert.match(step2, /never the wrapper object/i);
+  assert.match(step2, /jq -r '\.content'|jq -r \.content/);
+});
+
+test('issue-claims.md "Reading claim state" section does not restate the old wrapper-object bug (#780)', () => {
+  const content = read('plugin/skills/_shared/issue-claims.md');
+  const sectionStart = content.indexOf('## Reading claim state');
+  assert.ok(sectionStart !== -1, 'Reading claim state section should exist');
+  const sectionEnd = content.indexOf('## TTL and staleness');
+  assert.ok(sectionEnd !== -1, 'TTL and staleness section should exist after it');
+  const section = content.slice(sectionStart, sectionEnd);
+  assert.match(section, /"The lock" step 1-2 above/);
+  assert.match(section, /already-extracted/);
+});
+
+test('scan-procedures.md claim read no longer pipes to bare base64 -d with no absent branch (#780)', () => {
+  const content = read('plugin/skills/tidy/scan-procedures.md');
+  assert.doesNotMatch(content, /-q '\.content' \| base64 -d/);
+  assert.match(content, /__ABSENT__/);
 });
 
 test('contest card renders holder liveness — three verdict variants, each with a next step (#722)', () => {

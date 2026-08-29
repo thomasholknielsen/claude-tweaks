@@ -10,7 +10,17 @@
 const fs = require('fs');
 const ctxLib = require('./context');
 
-const STATUS_RE = /^(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\b/;
+// #750: superpowers:subagent-driven-development's implementer-prompt.md
+// template asks the dispatched agent to reply with "- **Status:** DONE |
+// DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT" (a bold, colon-space-prefixed
+// bullet) rather than claude-tweaks' own bare-word first line — a real
+// SDD-dispatched agent following its OWN template correctly false-positived
+// on every dispatch. The optional `-\s+` and `\*\*Status:\*\*\s+` prefixes
+// widen the match to that exact literal shape (bullet dash, then the bold
+// "Status:" label, then one of the four contract words) — nothing looser:
+// any other bold label, or the four words appearing later in a sentence,
+// still falls through to the violation path below.
+const STATUS_RE = /^(?:-\s+)?(?:\*\*Status:\*\*\s+)?(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\b/;
 
 function lastAssistantText(transcriptPath) {
   let raw;
@@ -34,6 +44,15 @@ function lastAssistantText(transcriptPath) {
     // unrelated content instead of correctly recognizing "the real last
     // turn had nothing to grade" — matching this file's own best-effort
     // posture (unreadable/ungradable -> no-op, not a violation).
+    //
+    // A message that ALSO carries a tool_use block is not a completed reply
+    // either, even when it carries narration text alongside the tool call
+    // (e.g. "Waiting for the other task to finish." immediately before
+    // calling Monitor/SendMessage) — the turn continues after the tool
+    // result comes back, so this narration precedes the eventual final
+    // reply rather than being it. Grading it here is the same category of
+    // misfire as the tool-call-only case above: nothing to grade yet (#1329).
+    if (msg.content.some((c) => c && c.type === 'tool_use')) return null;
     const texts = msg.content.filter((c) => c && c.type === 'text' && typeof c.text === 'string');
     return texts.length ? texts[texts.length - 1].text : null;
   }

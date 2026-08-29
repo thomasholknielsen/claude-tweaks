@@ -86,7 +86,7 @@ function logAuto(deps, runDir, text) {
 }
 
 // #1072: FAILED is not one of append.js's STATUSES (AUTO/STAGED/
-// KEPT-PROMPT/SCANNED/REFUSED) — refine-mode.md Step 5's own
+// KEPT-PROMPT/SCANNED/REFUSED/SKIP) — refine-mode.md Step 5's own
 // `FAILED {time} — …` template predates that enum and was never gated by
 // it, so this line is composed by hand (reusing append.js's own `hms` for a
 // consistent timestamp) rather than through formatEntry, which would reject

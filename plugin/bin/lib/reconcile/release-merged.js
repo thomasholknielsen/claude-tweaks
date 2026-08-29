@@ -16,13 +16,13 @@ const { readRunState } = require('../hooks/context');
 const { classifyClaimBlob, releasePayload } = require('../issues/claims');
 const claimStore = require('../issues/claim-store');
 const { resolvePrStateAsync } = require('./pr-state');
-const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
+const { writeTombstone: writeTombstoneShared, GRANT_LABELS } = require('../release-claim/release');
+const { resolveTarget, appendEntry, formatEntry } = require('../log-decision/append');
 const { readCache, writeCache } = require('./cache');
 const { runWithConcurrency } = require('./gh-pool');
+const { GH_TIMEOUT_MS } = require('../shared-primitives');
 
 const execFileAsync = promisify(execFile);
-
-const GH_TIMEOUT_MS = 5000;
 
 // One claim's classified state + the branch's PR state (+ optionally the
 // issue's own state) -> what to do. Pure — no I/O — so the whole decision
@@ -192,6 +192,37 @@ function removeInProgressLabel(repoSlug, issueNumber, api = ghApi) {
   return r.failure === null;
 }
 
+// Best-effort, same posture as removeInProgressLabel above — a failed removal never
+// blocks or reverts the release. Strips every GRANT_LABELS entry (imported from
+// release-claim/release.js — the same canonical list bin/release-claim.js's own
+// --remove-grants path uses, never redefined here) via the DELETE-API shape, one
+// call per label, through this module's own injectable `api` seam so tests never
+// shell to a real `gh` binary (#1378).
+function removeGrantLabels(repoSlug, issueNumber, api = ghApi) {
+  for (const label of GRANT_LABELS) {
+    api(['--method', 'DELETE', `repos/${repoSlug}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`]);
+  }
+}
+
+// Best-effort bookkeeping only — a decisions.md write failure never blocks or
+// reverts the label removal or the release itself. A merged claim's run dir is
+// commonly already archived by this same reconcile pass (the mirror fast-forward
+// step runs earlier), so a resolveTarget miss (missing/not-anchored) is expected,
+// not a failure to surface (#1378).
+function logGrantRemoval(runDir, root, reason) {
+  let target;
+  try { target = resolveTarget({ runDir, cwd: root }); } catch { return; }
+  if (!target.ok) return;
+  const entry = formatEntry({
+    status: 'AUTO',
+    now: Date.now(),
+    step: 'reconcile',
+    text: `stripped auto:build/auto:merge grants on convergent release (${reason})`,
+    reversibility: 'high',
+  });
+  try { appendEntry({ runDir, entry }); } catch { /* best-effort, never gates the release */ }
+}
+
 // opts: { cwd?, ghApi? } — `ghApi` is an injectable override for this
 // module's own gh-api calls (listing, per-claim reads, issue-state, label
 // removal), mirroring claim-store.js's seam, so tests never shell to the
@@ -316,7 +347,7 @@ async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
     // authoritative for its conditional write, and the same distinction
     // the `!isActive` cache-write above draws for exactly the same reason.
     candidates.push({
-      issueNumber, runId, name: entry.name, sha: claim.sha, classifiedState: classified.state, prState: null, joinFailure, branch,
+      issueNumber, runId, name: entry.name, sha: claim.sha, classifiedState: classified.state, prState: null, joinFailure, branch, runDir,
     });
   }
 
@@ -369,6 +400,10 @@ async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
     const ok = writeTombstone(repoSlug, c.name, c.sha, payload.tombstoneContent, reason);
     if (!ok) { skipped.push({ issueNumber: c.issueNumber, runId: c.runId, reason: 'release-write-failed' }); continue; }
     removeInProgressLabel(repoSlug, c.issueNumber, api); // best-effort, never gates the release
+    if (reason.startsWith('merged:')) {
+      removeGrantLabels(repoSlug, c.issueNumber, api); // best-effort, never gates the release
+      logGrantRemoval(c.runDir, root, reason);
+    }
     released.push(releasedEntry(c.issueNumber, c.runId, c.prState));
   }
 

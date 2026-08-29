@@ -25,7 +25,7 @@ files:
 - **URL:** the same stop message, when the parent carries `ready`/scoring from an earlier incorrect shaping
 - **Action:** Read the strip report in the guard's output.
 - **Should feel:** Repair, not ceremony — the wrong state (`ready`, `risk:*`, `size:*`, `ceremony:*`, `solution:unjustified`) is gone in the same breath, and the output says exactly which labels were removed.
-- **Should understand:** "Silent" means unprompted, never unreported: the strip is always named in the output and logged as an `AUTO` entry when a pipeline run directory resolves. `type:*` and `priority:*` survive — they are legitimate on parents — and `auto:*`/`bot:*` are never touched (other skills' territory; the carve-out is recorded in `_shared/work-record.md`'s permission matrix).
+- **Should understand:** "Silent" means unprompted, never unreported: the strip is always named in the output and logged as an `AUTO` entry when a pipeline run directory resolves. `type:*` and `priority:*` survive — they are legitimate on parents — and `auto:*`/`bot:*` are never touched (other skills' territory; the carve-out is recorded in `_shared/work-record.md`'s permission matrix, extracted to `_shared/work-record-permission-matrix.md` as of #1488 — `work-record.md` still resolves the same content via its own one-paragraph pointer).
 - **Red flags:** A confirmation prompt for the strip; a strip that ran but went unmentioned; `type:feature` or a `priority:*` label removed.
 
 ### 3. Hit an unlabeled legacy parent — repair or escape

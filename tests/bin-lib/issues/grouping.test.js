@@ -657,25 +657,50 @@ test('a code-health record with no extractable file: expectsKeyFilesSection fals
 });
 
 // ── parseExplicitIssueList ───────────────────────────────────────────────────
+// Classification per `_shared/record-batch-input.md`'s grammar (#762): returns
+// `{ numbers, invalid }` rather than a bare array or a throw, so dispatch's own
+// Step 3 can report every offender in one message and still proceed with the
+// valid elements — dispatch's own report-and-continue execution semantics,
+// distinct from specify's/flow's abort-all.
 
 test('parses a single bare number with a leading #', () => {
-  assert.deepStrictEqual(parseExplicitIssueList('#123'), [123]);
+  assert.deepStrictEqual(parseExplicitIssueList('#123'), { numbers: [123], invalid: [] });
 });
 
 test('parses a comma-joined list, trimming whitespace around entries', () => {
-  assert.deepStrictEqual(parseExplicitIssueList('#123, #124,#130'), [123, 124, 130]);
+  assert.deepStrictEqual(parseExplicitIssueList('#123, #124,#130'), { numbers: [123, 124, 130], invalid: [] });
 });
 
 test('accepts entries without a leading #', () => {
-  assert.deepStrictEqual(parseExplicitIssueList('123,124'), [123, 124]);
+  assert.deepStrictEqual(parseExplicitIssueList('123,124'), { numbers: [123, 124], invalid: [] });
 });
 
-test('filters out non-numeric entries rather than throwing', () => {
-  assert.deepStrictEqual(parseExplicitIssueList('#123,notanumber,#130'), [123, 130]);
+test('classifies a non-numeric entry as invalid rather than silently dropping it', () => {
+  const result = parseExplicitIssueList('#123,notanumber,#130');
+  assert.deepStrictEqual(result.numbers, [123, 130]);
+  assert.deepStrictEqual(result.invalid, [{ token: 'notanumber', reason: "'notanumber' is not a record reference" }]);
 });
 
-test('empty string returns an empty array', () => {
-  assert.deepStrictEqual(parseExplicitIssueList(''), []);
+test('names an empty element after the preceding valid element (trailing comma)', () => {
+  const result = parseExplicitIssueList('#41,');
+  assert.deepStrictEqual(result.numbers, [41]);
+  assert.deepStrictEqual(result.invalid, [{ token: '', reason: 'empty element after #41' }]);
+});
+
+test('names an empty element from two commas in a row', () => {
+  const result = parseExplicitIssueList('#41,,#42');
+  assert.deepStrictEqual(result.numbers, [41, 42]);
+  assert.deepStrictEqual(result.invalid, [{ token: '', reason: 'empty element after #41' }]);
+});
+
+test('names a leading empty element with no preceding element', () => {
+  const result = parseExplicitIssueList(',#41');
+  assert.deepStrictEqual(result.numbers, [41]);
+  assert.deepStrictEqual(result.invalid, [{ token: '', reason: 'empty element' }]);
+});
+
+test('empty string returns empty numbers and invalid arrays', () => {
+  assert.deepStrictEqual(parseExplicitIssueList(''), { numbers: [], invalid: [] });
 });
 
 // ── selectGroupsForExplicitList ──────────────────────────────────────────────

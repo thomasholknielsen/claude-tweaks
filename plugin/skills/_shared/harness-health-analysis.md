@@ -119,9 +119,15 @@ Before forming any finding, run these mechanical checks and treat their output a
    # a `sed` range + trailing `sed '$d'`: when the target section is the LAST one in the file
    # (no following `## ` heading to end the range on), a range print runs to EOF and an
    # unconditional `$d` then deletes the genuine last content line instead of a heading.
-   awk '/^## {section heading}$/{p=1; print; next} /^## /{ if (p) exit } p' "<target-path>" > /tmp/harness-health-section.txt
-   grep -c '^- ' /tmp/harness-health-section.txt
-   wc -w /tmp/harness-health-section.txt
+   # Session-scoped destination (_shared/session-tmp-root.md) — degrades to the unscoped
+   # path when no $CLAUDE_CODE_SESSION_ID is visible, harmlessly.
+   HARNESS_HEALTH_SECTION=$(node -e "
+     const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
+     console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, 'harness-health-section.txt') || require('path').join(require('os').tmpdir(), 'harness-health-section.txt'))
+   ")
+   awk '/^## {section heading}$/{p=1; print; next} /^## /{ if (p) exit } p' "<target-path>" > "$HARNESS_HEALTH_SECTION"
+   grep -c '^- ' "$HARNESS_HEALTH_SECTION"
+   wc -w "$HARNESS_HEALTH_SECTION"
    ```
    Divide word count by bullet count for a rough average, computing both counts over the same extracted content. Above roughly 40 words/bullet is evidence — not a verdict — that specific bullets have drifted from a terse constraint into an incident narrative. Feed this as an anchor into dimension 8's existing best-practice judgment rather than treating it as a standalone finding; tune the threshold from real findings over time.
 8. **Bare skill-invocation reference check** (skills only, new). Grep the target skill's actionable instruction text — `## Step N` bodies and `## Next Actions` blocks — for a bare `/{other-skill-name}` referencing another skill in the same project, without a `claude-tweaks:`-style fully-qualified prefix:

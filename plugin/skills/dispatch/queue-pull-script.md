@@ -1,6 +1,6 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) via `record.js`'s `partitionByOpenBodyBlockers`/`partitionByOpenNativeBlockers` — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (bare and `#N`/`#N,#M,...` still resolve them normally — a human present, explicitly picking or naming one, is itself the required surfacing); only the headless `next` ranking script (SKILL.md Step 3) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (bare and `#N`/`#N,#M,...` still resolve them normally — a human present, explicitly picking or naming one, is itself the required surfacing); only the headless `next` ranking script (SKILL.md Step 3) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent.
 
 ```bash
 eval "$(node -e "
@@ -15,7 +15,6 @@ eval "$(node -e "
     DISPATCH_ELIGIBLE: 'dispatch-eligible.json',
     DISPATCH_BLOCKED_EXCLUDED_BODY: 'dispatch-blocked-excluded-body.json',
     DISPATCH_NATIVE_DEPS: 'dispatch-native-deps.json',
-    DISPATCH_NATIVE_QUERY: 'dispatch-native-query.graphql',
     DISPATCH_NATIVE_DEPS_TMP: 'dispatch-native-deps.tmp.json',
     DISPATCH_NATIVE_DEPS_ERR: 'dispatch-native-deps.err',
     DISPATCH_GROUPS: 'dispatch-groups.json',
@@ -68,19 +67,11 @@ node -e "
   fs.writeFileSync(process.argv[4], JSON.stringify(eligible));
   fs.writeFileSync(process.argv[5], JSON.stringify(excluded));
 " "$DISPATCH_ELIGIBLE_PRE_DEP" "$DISPATCH_OPEN_NUMBERS" "$DISPATCH_VERIFIED_OPEN_DEPS" "$DISPATCH_ELIGIBLE" "$DISPATCH_BLOCKED_EXCLUDED_BODY"
-echo '{"data":{"repository":{}}}' > "$DISPATCH_NATIVE_DEPS"
+echo '{}' > "$DISPATCH_NATIVE_DEPS"
 if [ "$WORK_LINKS" = "native" ]; then
-  rm -f "$DISPATCH_NATIVE_QUERY"
-  node -e "
-    const { buildNativeDependencyQuery } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
-    const eligible = require(process.argv[1]);
-    const query = buildNativeDependencyQuery(eligible.map((i) => i.number));
-    if (query) require('fs').writeFileSync(process.argv[2], query);
-  " "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_QUERY"
-  if [ -s "$DISPATCH_NATIVE_QUERY" ]; then
-    OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
-    if gh api graphql -f query="$(cat "$DISPATCH_NATIVE_QUERY")" \
-      -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
+  NATIVE_NUMS=$(node -e "console.log(require(process.argv[1]).map((i) => i.number).join(','))" "$DISPATCH_ELIGIBLE")
+  if [ -n "$NATIVE_NUMS" ]; then
+    if node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-blockers.js" "$NATIVE_NUMS" \
       > "$DISPATCH_NATIVE_DEPS_TMP" 2>"$DISPATCH_NATIVE_DEPS_ERR"; then
       mv "$DISPATCH_NATIVE_DEPS_TMP" "$DISPATCH_NATIVE_DEPS"
     else
@@ -90,11 +81,17 @@ if [ "$WORK_LINKS" = "native" ]; then
 fi
 node -e "
   const fs = require('fs');
-  const { partitionByOpenNativeBlockers } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap, partitionGroupsBySizeGuard } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const eligible = require(process.argv[1]);
-  const repoData = require(process.argv[2]).data.repository;
-  const { eligible: finalEligible, excluded: excludedNative } = partitionByOpenNativeBlockers(eligible, repoData);
+  const nativeDeps = require(process.argv[2]);
+  const finalEligible = [];
+  const excludedNative = [];
+  for (const c of eligible) {
+    const dep = nativeDeps[c.number];
+    const openIds = (dep && Array.isArray(dep.openBlockerIds)) ? dep.openBlockerIds : [];
+    if (openIds.length > 0) excludedNative.push({ number: c.number, blockedBy: openIds });
+    else finalEligible.push(c);
+  }
   const items = finalEligible.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
   const byId = new Map(finalEligible.map((i) => [i.number, i]));
   for (const item of items) {
@@ -119,4 +116,4 @@ node -e "
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
 
-**Queue-pull notes.** Read `queue-pull-notes.md` in this skill's directory when this repo sets `work-links: native` (the `gh api graphql` branch above), or when either pull returns exactly its `--limit` cap — it covers why the two bulk calls plus the bounded per-dependency fallback are shaped this way, what a truncated pull silently drops on each and which one has no per-record recovery, and the native query's fail-safe posture (including the `gh`-absent case). It changes nothing in the script above; skip it otherwise.
+**Queue-pull notes.** Read `queue-pull-notes.md` in this skill's directory when this repo sets `work-links: native` (the `bin/resolve-blockers.js` branch above), or when either pull returns exactly its `--limit` cap — it covers why the two bulk calls plus the bounded per-dependency fallback are shaped this way, what a truncated pull silently drops on each and which one has no per-record recovery, and the native query's fail-safe posture (including the `gh`-absent case). It changes nothing in the script above; skip it otherwise.

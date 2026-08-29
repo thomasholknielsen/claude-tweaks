@@ -100,36 +100,38 @@ That file is the single source of truth for this procedure — the parallel disp
 
 `confidence` drives Step 6's interactive-gate Recommended-column pre-fill (`high`/`med` → File issue; `low` → Capture).
 
-Write the array to `/tmp/docs-health-findings.json`.
+Write the array to this run's session-scoped `docs-health-findings.json` (`_shared/session-tmp-root.md`; resolve via `eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" DOCS_HEALTH_FINDINGS=docs-health-findings.json)"` in whichever fence writes it).
 
 **Step 3.5 — VERIFY GATE: sanity-check surviving findings before dedup.**
 
 Before fingerprinting and dedup, re-examine each finding and ask: is it real (does the doc actually say this, or was it misread)? Is it actionable (a concrete `oldString`/`newString`, not vague)? Would a human editor be able to apply the fix without further investigation? Is `misleads` justified by which reader would actually encounter this doc's failure mode? Drop any finding that fails. This gate also doubles as the last checkpoint before declaring a `no findings` result for this doc: if the doc contains any literal shell command block the reader is instructed to run, confirm it was actually executed per point 6 of `judge-procedure.md` — not just cross-referenced via grep/find/git log, and not just recalled from a prior pass — before finalizing `no findings`; a `no findings` conclusion reached without running an example command the doc contains does not pass this gate. This is the canonical shape in `_shared/health-verify-gate.md` (the same adversarial-verify discipline `/code-health` and `/journey-health` apply inline, and `/harness-health` applies via its embedded copy) — check that file when either changes to keep this skill's copy in sync with its siblings; do not skip it under time pressure.
 
-**Step 4 — GATHER OPEN ISSUES for dedup.**
+**Step 4 — GATHER OPEN ISSUES for dedup.** Resolve this run's session-scoped temp paths first, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated):
 
 ```bash
-gh issue list --label by:docs-health --state all --json number,state,labels,body --limit 500 > /tmp/docs-health-issues-raw.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" DOCS_HEALTH_ISSUES_RAW=docs-health-issues-raw.json DOCS_HEALTH_ISSUES=docs-health-issues.json)"
+gh issue list --label by:docs-health --state all --json number,state,labels,body --limit 500 > "$DOCS_HEALTH_ISSUES_RAW"
 ```
 
-Parse each issue body for its fingerprint marker via `extractFingerprint` (`bin/lib/issues/record.js`): the `<!-- work-fingerprint: docshealth-XXXXXXXX -->` marker. Build an array of `{ number, state, labels, fingerprint }` objects and write to `/tmp/docs-health-issues.json`.
+Parse each issue body for its fingerprint marker via `extractFingerprint` (`bin/lib/issues/record.js`): the `<!-- work-fingerprint: docshealth-XXXXXXXX -->` marker. Build an array of `{ number, state, labels, fingerprint }` objects and write to `$DOCS_HEALTH_ISSUES`.
 
-**Transport and outcomes:** read `_shared/health-issue-index.md` and apply it, with `{SKILL}` = `docs-health` and `{ISSUES_FILE}` = `/tmp/docs-health-issues.json`. In short: `gh` absent means rebuild this index via the MCP `list_issues` tool, not skip the step; only a genuine "neither transport can reach GitHub" sets `ISSUES_FILE=""`, and that case gets reported rather than passing silently. A repo with no `by:docs-health` issues yet is a legitimately *empty* index (`[]`), not an unavailable one — keep the two distinct.
+**Transport and outcomes:** read `_shared/health-issue-index.md` and apply it, with `{SKILL}` = `docs-health` and `{ISSUES_FILE}` = `$DOCS_HEALTH_ISSUES`. In short: `gh` absent means rebuild this index via the MCP `list_issues` tool, not skip the step; only a genuine "neither transport can reach GitHub" sets `ISSUES_FILE=""`, and that case gets reported rather than passing silently. A repo with no `by:docs-health` issues yet is a legitimately *empty* index (`[]`), not an unavailable one — keep the two distinct.
 
 A matched issue carrying the `wontfix` label is a standing suppression decision: Step 5's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row). It also persists that fingerprint to the durable `declined` slice on the `health-state` branch, so the suppression survives a later firing that cannot rebuild this index at all — the local `cache.json` is no help there, since a scheduled Routine's fresh container starts with an empty one.
 
-**Digest-mode fold.** Before writing `/tmp/docs-health-issues.json`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `docs-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 5 rather than being re-judged or re-digested.
+**Digest-mode fold.** Before writing `$DOCS_HEALTH_ISSUES`, fold in any open digest issue's embedded checklist fingerprints per `_shared/health-filing-digest.md`'s GATHER-OPEN-ISSUES-step shape (`{PREFIX}` = `docs-health`) — this is what lets a previously-digested finding dedupe as a normal open-issue match in Step 5 rather than being re-judged or re-digested.
 
-**Step 5 — VALIDATE, FINGERPRINT, DEDUP.**
+**Step 5 — VALIDATE, FINGERPRINT, DEDUP.** Re-resolve this run's session-scoped paths first (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variables):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" validate-findings /tmp/docs-health-findings.json \
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" DOCS_HEALTH_FINDINGS=docs-health-findings.json DOCS_HEALTH_PAYLOADS=docs-health-payloads.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" validate-findings "$DOCS_HEALTH_FINDINGS" \
   --root "${ROOT:-$PWD}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
   ${TARGET_ID:+--target "$TARGET_ID"} \
   ${MIN_CONFIDENCE:+--min-confidence "$MIN_CONFIDENCE"} \
   ${DRY_RUN:+--dry-run} \
-  > /tmp/docs-health-payloads.json
+  > "$DOCS_HEALTH_PAYLOADS"
 ```
 
 `TARGET_ID` is that target's `.id` from Step 1 — always pass it for a real (non-dry-run) run: the CLI hard-gates on `--target` being present whenever `--dry-run` is not passed (docs-health has no gap-scan-equivalent fallback for cursor advancement, unlike harness-health/journey-health), and exits 2 if it's omitted. Omit only in `--dry-run` mode when previewing without a specific target. The command validates each finding, fingerprints via `assetType + target + section + normalizedDescription`, dedups against open `by:docs-health` issues and the local cache, records the audit cursor for `doc:${TARGET_ID}` unless `--dry-run`, holds any finding below `--min-confidence` in the durable `remembered` cache instead of filing it, and emits gh-ready payloads on stdout.
@@ -149,19 +151,21 @@ Every filed finding is **born-`ready`** — docs-health findings are agent-sized
 
 **Drain-rate cap and digest mode.** Before filing any survivor whose Step 5 decision is `'file'`, apply the `health-open-cap` throttle per `_shared/health-filing-digest.md`'s FILE-step shape (`{PREFIX}` = `docs-health`) — at or above the cap, the finding is appended to `docs-health`'s digest issue instead of filed as a new singleton. A `'reopen'` decision (regression) always bypasses the cap.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt:
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt. Resolve this run's session-scoped temp path first (`_shared/session-tmp-root.md`):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue drain --root . > /tmp/docs-health-retry-payloads.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" DOCS_HEALTH_RETRY_PAYLOADS=docs-health-retry-payloads.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue drain --root . > "$DOCS_HEALTH_RETRY_PAYLOADS"
 ```
 
-For each payload in `/tmp/docs-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/docs-health-retry-results.json`, then:
+For each payload in `$DOCS_HEALTH_RETRY_PAYLOADS`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to this run's session-scoped `docs-health-retry-results.json`, then re-resolve both session-scoped paths this fence needs (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue update /tmp/docs-health-retry-results.json --root . > /tmp/docs-health-escalated.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" DOCS_HEALTH_RETRY_RESULTS=docs-health-retry-results.json DOCS_HEALTH_ESCALATED=docs-health-escalated.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue update "$DOCS_HEALTH_RETRY_RESULTS" --root . > "$DOCS_HEALTH_ESCALATED"
 ```
 
-If `/tmp/docs-health-escalated.json` is non-empty, file (or update) a `docs-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
+If `$DOCS_HEALTH_ESCALATED` is non-empty, file (or update) a `docs-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
 **Subject check before filing.** Apply the "Subject check (health sweeps)" section of `skills/_shared/learning-routing.md` — a finding about a claude-tweaks skill is a D5 learning routed to `/claude-tweaks:feedback`, not a project issue.
 
@@ -190,7 +194,7 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["docs-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
 ```
 
-Each payload in `/tmp/docs-health-payloads.json` carries structured fields directly (`id`, `target`, `assetType`, `category`, `misleads`, `section`, `classification`, `confidence`, `reversibility`), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — the batch table below reads `category`/`misleads`/`classification`/`confidence`, and the dismiss path reads `id`. The finding's `oldString`/`newString` patch text is deliberately **not** duplicated as top-level fields: `payload.body` already carries both verbatim in its fenced Current/Proposed blocks, and that markdown is what ships to GitHub. Read the patch out of `body` if you need it.
+Each payload in `$DOCS_HEALTH_PAYLOADS` carries structured fields directly (`id`, `target`, `assetType`, `category`, `misleads`, `section`, `classification`, `confidence`, `reversibility`), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — the batch table below reads `category`/`misleads`/`classification`/`confidence`, and the dismiss path reads `id`. The finding's `oldString`/`newString` patch text is deliberately **not** duplicated as top-level fields: `payload.body` already carries both verbatim in its fenced Current/Proposed blocks, and that markdown is what ships to GitHub. Read the patch out of `body` if you need it.
 
 **Interactive mode only — the ask-before-file gate.** Before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), read `_shared/health-filing-gate.md` and follow its two-tier decision, using its per-consumer batch table's `docs-health` row for the table columns and the Recommended pre-fill rule.
 

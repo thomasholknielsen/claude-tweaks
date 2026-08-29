@@ -20,15 +20,16 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 One query per driver feeds every finding shape below — the record store itself is the current landscape; there is no separate directory or index file to read (`_shared/work-record.md`). This single step replaces the old file-scan (former Step 1), spec-directory scan (former Step 2), and the backlog-issue portion of Step 4.8's `repo-wide` scan — all three read from the same record taxonomy now, so they collapse into one query + one facet parse.
 
-Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands (including the Session-scoped record snapshot section, so this fetch shares one `gh issue list --state all` pull per session with `/backlog`/`/capture`/`/specify`/`/help`/`/visualize` instead of paying for its own), and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/tidy-records.json`, `{tmp-faceted-file}` = `/tmp/tidy-records-faceted.json` — the legacy-taxonomy shape below (**Shape 5.5**) needs the raw `labels` array, not just the parsed `facets`, and the shared fetch's script already preserves both (its spread keeps `labels` alongside the derived `facets`).
+Resolve this step's session-scoped temp paths once, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated): `eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" TIDY_RECORDS=tidy-records.json TIDY_RECORDS_FACETED=tidy-records-faceted.json TIDY_UNSYNCED=tidy-unsynced.json)"`. Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands (including the Session-scoped record snapshot section, so this fetch shares one `gh issue list --state all` pull per session with `/backlog`/`/capture`/`/specify`/`/help`/`/visualize` instead of paying for its own), and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `$TIDY_RECORDS`, `{tmp-faceted-file}` = `$TIDY_RECORDS_FACETED` — the legacy-taxonomy shape below (**Shape 5.5**) needs the raw `labels` array, not just the parsed `facets`, and the shared fetch's script already preserves both (its spread keeps `labels` alongside the derived `facets`).
 
 Also pull any local fallback records left behind by a failed GitHub write — these feed the Sync shape below:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" TIDY_UNSYNCED=tidy-unsynced.json)"
 node -e "
   const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   console.log(JSON.stringify(queryRecords('specs', { unsynced: true })));
-" > /tmp/tidy-unsynced.json
+" > "$TIDY_UNSYNCED"
 ```
 
 Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. The shapes below are not all driver-universal, in both directions. Three never fire under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (Shape 5.5 — its frontmatter schema never held the retired label vocabulary in the first place; that vocabulary is GitHub-label-only). Conversely, the two acceptance backstops — Shape 7 (parent gate due) and Shape 8 (closed record with no disposition) — fire **only** under this driver; their `github-issues` counterparts are Step 4.8's `parent-gate` and `acceptance-gap` scopes, which read GitHub issues. Both also run their own `queryRecords` pass rather than reading the fetch above, since both look at closed records and that fetch returns open ones.
@@ -45,6 +46,20 @@ rows read different data sources and are not governed by `record-staleness-weeks
 The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `classifyStaleness`
 come from `require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-buckets.js')`
 (`bin/lib/issues/record-buckets.js`).
+
+**Worklist rule (Shapes 1, 2, 3, 4, 5, 7, 8).** Per `_shared/work-record.md`'s worklist rule — a
+headless unit skips any record another unit is already asking a human to decide — every
+record-scoped shape below excludes a record carrying a `needs:*`-prefixed label from its own
+findings, before applying that shape's own classification. `work-backend: github-issues`: exclude
+any record whose raw `labels` array (preserved alongside `facets` by the shared fetch above)
+contains a name matching `/^needs:/`. `work-backend: local-files`: exclude any record with
+`facets.needsDefinition === true` — the only `needs:*` concept this driver structurally carries;
+`needs:decision` is a `github-issues`-only label in this record's scope, with no local-files facet
+to check. Shapes 5.5 and 6 are exempt — 5.5 never mutates anything (it only surfaces a rename
+recommendation), and 6 is a stub pointing at Step 4.8. This is the first of the worklist rule's two
+checks; the narrower same-unit dedup check (skip a record already carrying `/tidy`'s own unresolved
+`needs-decision` comment for an identical proposal) is Phase 6's own scope, once `/tidy` writes
+that marker — out of scope here.
 
 ### Shape 1 — backlog record stale
 
@@ -85,7 +100,7 @@ The prose-only row's live-evidence guard exists because a trigger can state its 
 
 ### Shape 3 — unsynced local record
 
-`work-backend: github-issues` only. Every record `/tmp/tidy-unsynced.json` returned (`facets.unsynced === true`) is a local fallback from a failed GitHub write — `/claude-tweaks:capture`'s or `/claude-tweaks:specify`'s failure path (`_shared/work-record.md`). This is F9 from the program promise register: it covers `specs/{id}-{slug}.md` records with `unsynced: true` facets, exactly the artifact `/capture` and `/specify` already promise `/tidy` reconciles.
+`work-backend: github-issues` only. Every record this step's session-scoped `$TIDY_UNSYNCED` returned (`facets.unsynced === true`) is a local fallback from a failed GitHub write — `/claude-tweaks:capture`'s or `/claude-tweaks:specify`'s failure path (`_shared/work-record.md`). This is F9 from the program promise register: it covers `specs/{id}-{slug}.md` records with `unsynced: true` facets, exactly the artifact `/capture` and `/specify` already promise `/tidy` reconciles.
 
 → Collect each as: `[unsynced] {title} — local-only, not yet mirrored to GitHub — Sync to GitHub`
 
@@ -200,6 +215,7 @@ node -e "
       id: p.id,
       title: p.title,
       path: p.path,
+      needsDefinition: p.facets.needsDefinition === true,
       parentLabels: p.facets.acceptance ? ['demo:' + p.facets.acceptance] : [],
       subIssues: subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', risk: r.facets.risk })),
     };
@@ -215,6 +231,7 @@ node -e "
     return hasUnscored ? undefined : TIERS[maxIndex];
   }
   gates
+    .filter((f) => !f.needsDefinition)
     .filter((f) => exceedsOversightFloor({ risk: maxRiskTier(f.subIssues) }, { riskFloor, sizeFloor: null }).exceeds)
     .filter((f) => parentGateState({ subIssues: f.subIssues, parentLabels: f.parentLabels }) === 'due')
     .forEach((f) => console.log(f.path + '\t[parent-gate] ' + f.id + ': ' + f.title + ' — parent complete, no acceptance disposition — Open parent gate, then /claude-tweaks:demo ' + f.id));
@@ -288,6 +305,7 @@ node -e "
   const [riskFloor, sizeFloor] = process.argv.slice(1);
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   queryRecords('specs', { closed: true })
+    .filter((r) => r.facets.needsDefinition !== true)
     .filter((r) => {
       const closedAt = Date.parse(r.facets.closedAt);
       return Number.isNaN(closedAt) || closedAt >= cutoff;
