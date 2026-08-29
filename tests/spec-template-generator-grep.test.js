@@ -34,6 +34,8 @@ When this work **renames** a contract surface — a report section heading, a ch
 ### Package Dependencies
 `;
 
+const PRE_CHANGE_SHAPING_MODE_TAIL = 'every consumer file the rename-grep in `spec-template.md`\'s `### Key Files` guidance turns up. One bullet per path,';
+
 function assertPinned(haystack, pattern, msg) {
   assert.match(haystack, pattern, msg);
   assert.doesNotMatch(PRE_CHANGE_KEY_FILES_TAIL, pattern, 'pattern must NOT match the pre-change excerpt (proves it can go red)');
@@ -55,12 +57,14 @@ test('the byte-pinned snippet is present and extractable by structural anchor', 
 
 test('shaping-mode.md cites the generated-file grep alongside the rename-grep', () => {
   assert.match(shapingMode, /generator module the generated-file grep/, 'shaping-mode citation clause missing');
-  assert.doesNotMatch(PRE_CHANGE_KEY_FILES_TAIL, /generator module the generated-file grep/, 'citation pattern must not match the pre-change excerpt');
+  assert.doesNotMatch(PRE_CHANGE_SHAPING_MODE_TAIL, /generator module the generated-file grep/, 'citation pattern must not match the pre-change excerpt');
   assert.match(shapingMode, /rename-grep/, 'rename-grep citation must survive the clause insertion');
 });
 
 test('live probe: the snippet finds the real generator from its generated file', () => {
-  const cmd = SNIPPET.replace('{basename}', 'track-issue-fixes.yml');
+  const m = EXTRACT_RE.exec(specTemplate);
+  assert.ok(m, 'extraction failed — cannot probe');
+  const cmd = m[1].replace('{basename}', 'track-issue-fixes.yml');
   const r = spawnSync('bash', ['-c', cmd], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
   assert.strictEqual(r.status, 0, 'probe grep failed: ' + r.stderr);
   const hits = r.stdout.trim().split('\n');
@@ -68,9 +72,12 @@ test('live probe: the snippet finds the real generator from its generated file',
 });
 
 test('negative control: a producer-less basename yields zero executable-code hits', () => {
-  // feedback-objectives.md verified zero-hit at plan time; a future spurious hit
-  // here means the control needs re-picking, not that the product regressed.
-  const cmd = SNIPPET.replace('{basename}', 'feedback-objectives.md');
+  // A nonsense token structurally unlikely to ever match (spec Gotcha: never a
+  // plausible module name); a future hit here means re-pick the control, not a
+  // product regression.
+  const m = EXTRACT_RE.exec(specTemplate);
+  assert.ok(m, 'extraction failed — cannot probe');
+  const cmd = m[1].replace('{basename}', 'zzz-no-such-generator-1321.md');
   const r = spawnSync('bash', ['-c', cmd], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
   // grep -l exits 1 on zero matches — that IS the expected outcome here.
   assert.ok(r.status === 0 || r.status === 1, 'probe errored: ' + r.stderr);
