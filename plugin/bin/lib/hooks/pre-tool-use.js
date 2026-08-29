@@ -30,6 +30,7 @@ const {
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
+const { resolveIntegrationBranch } = require('./worktree-reap');
 const { runGit, FAILURE } = require('./git-exec');
 const { detectIntegrationModel, resolvePolicyConfig } = require('../policy-schema');
 
@@ -838,12 +839,73 @@ function hasMaterializeCommit(worktreeRoot, runDir) {
   // pattern, so a wildcard directory component followed by a literal tail
   // never matches. 'spec-*/work/*' keeps the wildcard trailing so the
   // multi-record form ({run-dir}/spec-{slug}/work/{n}-spec.md) is reached.
-  const { stdout, failure } = runGit(
-    ['log', '--oneline', '-1', '--', `${runRel}/work`, `${runRel}/spec-*/work/*`],
-    worktreeRoot,
-  );
-  if (failure) return false;
-  return Boolean(stdout && stdout.trim());
+  // Range-bound to this worktree's own commits (#1674). The unbounded walk
+  // this replaces matched the run-id pathspec anywhere in HEAD's reachable
+  // history — so once a run's materialize commit shipped and merged into the
+  // integration branch, it became part of every LATER worktree's inherited
+  // history and armed this gate against runs that had never materialized
+  // anything of their own. `{integration}..HEAD` is "reachable from HEAD but
+  // not from integration": exactly the commits unique to this worktree.
+  //
+  // When the integration branch can't be resolved, fall back to the
+  // pre-#1674 UNBOUNDED walk rather than returning false.
+  //
+  // #1674's acceptance criteria asked for `false` here, reasoning that
+  // "fail open" means "never a false denial". That reasoning does not hold
+  // in this function: `false` means *the gate is not armed*, and this gate
+  // is a protection (IL-131 — a build agent skipping mandatory bookkeeping),
+  // not an alarm. Returning `false` would disable it outright for every repo
+  // with no resolvable integration branch — which is every no-remote /
+  // `local-merge` project, a permanently supported configuration
+  // (`_shared/integration-model.md`). That trades a rare, self-correcting
+  // false deny for the total loss of the guard in a whole project class.
+  // Twenty pre-existing gate tests going red on the `false` version is the
+  // measured evidence: they are ordinary repos with no `origin`.
+  //
+  // The fallback is strictly non-regressive — an unbounded walk is exactly the
+  // behavior that shipped before #1674 — but it is NOT harmless, and an earlier
+  // version of this comment overclaimed that it was. It said the #1674 false
+  // positive "cannot arise where no integration branch exists". That is wrong,
+  // and this record's own review caught it by reproduction: a no-remote
+  // `local-merge` repo still has a real local integration branch (`main`) that
+  // materialize commits merge into — it is merely not *resolvable* here, since
+  // `resolveIntegrationBranch` needs either an `integration-branch:` policy key
+  // (normally unset; `policy-schema.js` documents it as needed only when the
+  // active branch is not the default) or an `origin/HEAD` (absent with no
+  // remote). Unresolvable is not the same as nonexistent, so on this path the
+  // pre-#1674 false positive genuinely persists.
+  //
+  // Accepted deliberately as the status quo ante for those repos rather than as
+  // a fix for them: the alternative (`false`) trades a recoverable false deny
+  // for silently disabling IL-131 there. Extending #1674's actual improvement to
+  // no-remote repos needs a third resolution source (a local default-branch
+  // probe) — real new scope, filed separately.
+  //
+  // Known limitation on the bounded path: resolveIntegrationBranch returns a
+  // LOCAL branch name, which can lag origin/{integration}. Usually that only
+  // widens the range (the conservative false-deny direction) — but when HEAD
+  // has already merged origin/{integration} in, as `_shared/worktree-setup.md`'s
+  // post-creation catch-up does routinely, the lagging local ref can leave those
+  // merged-in commits inside the range and reproduce the very inherited-history
+  // arm this bound exists to stop. Resolving origin/{integration} instead would
+  // need a fetch, which this file must not do: it runs on every covered tool
+  // call and must stay offline and cheap. Filed with the probe above.
+  const paths = ['--', `${runRel}/work`, `${runRel}/spec-*/work/*`];
+  const integration = resolveIntegrationBranch(worktreeRoot);
+  // Two distinct ways the bound can be unusable, and both must fall back the
+  // same way. `null` is the obvious one. The other: `policy.readIntegrationBranch`
+  // returns the raw `integration-branch:` string with no ref-existence check (it
+  // only rejects whitespace), so a stale, renamed, or mistyped key yields a
+  // TRUTHY name for which `git log {bogus}..HEAD` exits 128 (`fatal: bad
+  // revision` — measured). Collapsing that into the blanket `if (failure) return
+  // false` below would disarm IL-131 on a config typo: the same silent loss of
+  // protection this comment rejects, reached by a different route.
+  let res = integration
+    ? runGit(['log', '--oneline', '-1', `${integration}..HEAD`, ...paths], worktreeRoot)
+    : null;
+  if (!res || res.failure) res = runGit(['log', '--oneline', '-1', ...paths], worktreeRoot);
+  if (res.failure) return false;
+  return Boolean(res.stdout && res.stdout.trim());
 }
 
 // Graceful-degrade exemption for the PR-stamp check below: pr-early-run-lifecycle.md
@@ -1356,6 +1418,7 @@ module.exports = {
   isPipelineBookkeeping,
   isPolicyFile,
   isUntrackedOrIgnored,
+  hasMaterializeCommit,
   isPolicyOnlyCommit,
   POLICY_COMMIT_ALLOWLIST,
   isDeleteOnlyPush,
