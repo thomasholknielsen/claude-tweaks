@@ -32,6 +32,7 @@ function deps({
     calls,
     d: {
       repair,
+      runner: () => { throw new Error('runner must not be called directly by the CLI — only forwarded'); },
       gitRunner: () => { throw new Error('gitRunner must not be called directly by the CLI — only forwarded'); },
       ghAvailable: () => gh,
       remoteUrl: () => 'git@github.com:acme/w.git',
@@ -113,14 +114,14 @@ test('exit map: repaired->0, cas-rejected->3, refused->4, failed->1', () => {
 test('repaired outcome appends an AUTO decisions.md line and the envelope carries the documented fields', () => {
   const runDir = mkRun();
   const out = [];
-  const { d } = deps({
+  const { calls, d } = deps({
     repairResult: {
       outcome: 'repaired', state: 'unreadable', commentPosted: true, note: null, error: null,
     },
     out,
     mainRoot: rootOf(runDir),
   });
-  const code = run(['999', '--run', runDir, '--mode', 'release', '--reason', 'corrupt blob'], d);
+  const code = run(['999', '--run', runDir, '--mode', 'release', '--reason', 'corrupt blob', '--link', 'https://example.com/run/1'], d);
   assert.equal(code, 0);
   const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
   assert.match(log, /repaired unreadable claim blob on #999 \(mode release/);
@@ -132,6 +133,21 @@ test('repaired outcome appends an AUTO decisions.md line and the envelope carrie
       issue: 999, runId: RUN_DIR_NAME, mode: 'release', outcome: 'repaired', state: 'unreadable', commentPosted: true, logged: true,
     },
   );
+  // Pin the CLI->module argument contract: a renamed or dropped field here
+  // must fail this test, not silently reach repairClaim as undefined.
+  assert.equal(calls.length, 1, 'repair called exactly once');
+  const call = calls[0];
+  assert.equal(typeof call.issueNumber, 'number');
+  assert.equal(call.issueNumber, 999);
+  assert.equal(call.runId, RUN_DIR_NAME, 'runId is the basename of --run');
+  assert.equal(call.mode, 'release');
+  assert.equal(call.reason, 'corrupt blob');
+  assert.equal(call.link, 'https://example.com/run/1');
+  assert.equal(call.sessionId, 'sess-1');
+  assert.equal(call.host, 'host-1');
+  assert.equal(typeof call.runner, 'function', 'runner is forwarded');
+  assert.equal(typeof call.gitRunner, 'function', 'gitRunner is forwarded');
+  assert.equal(call.now, NOW, 'now is forwarded');
 });
 
 test('refused outcome logs a line naming "refused" and the blocking state', () => {
@@ -149,6 +165,39 @@ test('refused outcome logs a line naming "refused" and the blocking state', () =
   const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
   assert.match(log, /refused/);
   assert.match(log, /live/);
+});
+
+test('cas-rejected outcome logs a line naming the compare-and-swap rejection and re-read instruction', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { d } = deps({
+    repairResult: {
+      outcome: 'cas-rejected', state: 'unreadable', commentPosted: false, note: null, error: 'HTTP 409/422 sha mismatch',
+    },
+    out,
+    mainRoot: rootOf(runDir),
+  });
+  const code = run(['999', '--run', runDir, '--mode', 'release', '--reason', 'r'], d);
+  assert.equal(code, 3);
+  const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  assert.match(log, /claim repair on #999 rejected by compare-and-swap \(sha changed since read\)/);
+  assert.match(log, /nothing written; re-read and reassess/);
+});
+
+test('failed outcome logs a line naming the failure and its error text', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { d } = deps({
+    repairResult: {
+      outcome: 'failed', state: null, commentPosted: false, note: null, error: 'ECONNRESET: network blip',
+    },
+    out,
+    mainRoot: rootOf(runDir),
+  });
+  const code = run(['999', '--run', runDir, '--mode', 'release', '--reason', 'r'], d);
+  assert.equal(code, 1);
+  const log = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  assert.match(log, /claim repair of #999 FAILED \(r\): ECONNRESET: network blip/);
 });
 
 // --- 5. Log failure never changes exit code ---

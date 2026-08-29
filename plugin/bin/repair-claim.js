@@ -102,23 +102,29 @@ function run(argv, deps = realDeps) {
   const runDir = o.run.replace(/\/+$/, '');
   const runId = path.basename(runDir);
   const reason = o.reason.trim();
+  // Anchoring is resolved and any refusal warned BEFORE the destructive
+  // repair call runs, so an operator sees "decisions.md will not be written"
+  // before content is overwritten, not after (Finding 3, spec #1608).
+  let target;
+  try { target = resolveTarget({ runDir, cwd: deps.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
+  if (!target.ok) {
+    if (target.reason === 'not-anchored') {
+      deps.stderr(`repair-claim.js: decisions.md not written — run dir is not anchored under the main checkout (a worktree-local shadow): ${runDir} — see _shared/pipeline-run-dir.md\n`);
+    } else {
+      deps.stderr(`repair-claim.js: decisions.md not written — run dir does not exist: ${runDir}\n`);
+    }
+  }
   const r = deps.repair({
     owner: repoSpec.owner, repo: repoSpec.repo, issueNumber: issue, runId, mode: o.mode, reason, link: o.link || undefined,
     sessionId: deps.sessionId(), host: deps.host(), runner: deps.runner, gitRunner: deps.gitRunner, now: deps.now(),
   });
   let logged = false;
-  let target;
-  try { target = resolveTarget({ runDir, cwd: deps.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
   if (target.ok) {
     const reversibility = r.outcome === 'repaired' ? 'low' : 'n/a';
     const entry = formatEntry({
       status: 'AUTO', now: deps.now(), step: o.step || 'claim repair', text: decisionText(issue, r, o.mode, reason, o.link), reversibility,
     });
     try { appendEntry({ runDir, section: o.section, entry }); logged = true; } catch (err) { deps.stderr(`repair-claim.js: decisions.md not written (${err && err.message})\n`); }
-  } else if (target.reason === 'not-anchored') {
-    deps.stderr(`repair-claim.js: decisions.md not written — run dir is not anchored under the main checkout (a worktree-local shadow): ${runDir} — see _shared/pipeline-run-dir.md\n`);
-  } else {
-    deps.stderr(`repair-claim.js: decisions.md not written — run dir does not exist: ${runDir}\n`);
   }
   deps.stdout(JSON.stringify({
     issue, runId, mode: o.mode, reason, link: o.link || null, outcome: r.outcome, state: r.state, commentPosted: r.commentPosted, note: r.note || null, error: r.error || null, logged,

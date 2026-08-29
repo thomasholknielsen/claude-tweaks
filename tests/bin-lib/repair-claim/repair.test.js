@@ -77,7 +77,7 @@ test('refused: an absent blob — no write', () => {
   assert.equal(f.calls.filter(isPut).length, 0);
 });
 
-test('repaired, release mode: unreadable blob overwritten with releasePayload-shaped tombstone content, carrying the read sha', () => {
+test('repaired, release mode: unreadable blob overwritten with releasePayload-shaped tombstone content, carrying the read sha and a repair-override-marked reason', () => {
   const f = fakeRunner({ content: 'not json {{{', sha: 'abc123' });
   const r = repairClaim({ ...base, mode: 'release', reason: 'corrupt blob', runner: f.runner });
   assert.equal(r.outcome, 'repaired');
@@ -88,7 +88,11 @@ test('repaired, release mode: unreadable blob overwritten with releasePayload-sh
   const written = JSON.parse(Buffer.from(fieldOf(put, 'content'), 'base64').toString('utf8'));
   assert.equal(written.released, true);
   assert.equal(written.runId, base.runId);
-  assert.equal(written.reason, 'corrupt blob');
+  assert.equal(written.reason, 'repair-force-release: corrupt blob', 'tombstone reason is prefixed so it reads as a repair override, not a routine release');
+  const comment = f.calls.find(isComment);
+  assert.ok(comment, 'a comment was posted');
+  const body = comment[comment.indexOf('--body') + 1];
+  assert.match(body, /repair-force-release: corrupt blob/, 'the issue comment also reads as a repair override');
 });
 
 test('repaired, reclaim mode: unreadable blob overwritten with claimPayload-shaped claim content', () => {

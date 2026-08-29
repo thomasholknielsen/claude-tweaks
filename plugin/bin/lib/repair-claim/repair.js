@@ -10,6 +10,12 @@
 // the other (spec #1608 gotcha). Reuses release.js's readClaimBlob /
 // writeTombstone (content-agnostic conditional PUT) rather than composing its
 // own gh calls. Injectable runner(args) per gh-api-module-pattern.
+// `mode` is NOT validated here — any value other than the literal string
+// 'release' falls through to the reclaim branch and writes claim content
+// (claimPayload shape), not a tombstone. bin/repair-claim.js's `run()` is the
+// one validation gate restricting `--mode` to {release, reclaim}; a second
+// consumer calling repairClaim directly with an unvalidated mode string would
+// silently get reclaim behavior instead of a rejection.
 'use strict';
 
 const releaseLib = require('../release-claim/release');
@@ -55,7 +61,7 @@ function repairClaim({
   }
   const payload = mode === 'release'
     ? releasePayload({
-      issueNumber, runId, reason, link: link || undefined, now,
+      issueNumber, runId, reason: `repair-force-release: ${reason}`, link: link || undefined, now,
     })
     : claimPayload({
       issueNumber, runId, sessionId, host, note: `repair-and-claim: ${reason}`, now,
