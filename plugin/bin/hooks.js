@@ -59,6 +59,37 @@ function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
 }
 
+// #1143: usage strings for every documented `hooks.js` subcommand (the
+// dispatch table's own record-worktree/close-run/teardown-run/archive-run/
+// resolve-run-dir/record-pr/spec-status/check-resume-freshness/check-staged-
+// inventory/check-sibling-sessions/sweep-shadow/reconcile/reconcile-
+// background/reconcile-summary set — see docs/plugin-structure.md's hooks.js
+// line). Doubles as the membership table for the `--help`/`-h` intercept
+// below: a verb absent from this map gets no guard, by design — the six
+// EVENTS names are invoked by the harness via stdin JSON, never probed with
+// a `--help` flag, and never fell through to the implicit-run-dir-guess
+// hazard this record closes. record-pr's and spec-status's own internal
+// "usage:" error strings (printed on malformed non-help args) reuse these
+// same entries rather than a second, driftable copy of the same text.
+const USAGE = {
+  'record-worktree': 'record-worktree --run <dir> <worktree-path>',
+  'resolve-run-dir': 'resolve-run-dir [--spec-slug <slug>] [--mode <mode>] [--standalone <value>] [--create] [--root-only]',
+  'sweep-shadow': 'sweep-shadow [--run <dir>] [--worktree <path>]',
+  'record-pr': 'record-pr [--run <dir>] <number> <url>',
+  'spec-status': 'spec-status --run <parent-dir> --spec <n> --status <pending|running|complete|failed|not-run> --phase <phase>',
+  'close-run': 'close-run [--run <dir>]',
+  'teardown-run': 'teardown-run [--run <dir>] [--merged|--abandoned]',
+  'archive-run': 'archive-run [--run <dir>]',
+  'check-resume-freshness': 'check-resume-freshness [--run <dir>]',
+  'check-staged-inventory': 'check-staged-inventory [--run <dir>]',
+  'check-sibling-sessions': 'check-sibling-sessions --record <id-or-slug>',
+  reconcile: 'reconcile [--dry-run] [--json]',
+  'reconcile-summary': 'reconcile-summary',
+  'reconcile-background': 'reconcile-background',
+};
+
+const HELP_FLAGS = new Set(['--help', '-h']);
+
 // Shared by the resolve-run-dir and spec-status subcommands below — each
 // previously defined its own identical `--flag value` lookup closure over a
 // different local array (`args` vs `rest`); one function taking the array
@@ -254,6 +285,19 @@ function reportWorktreeLocalFallback(runDir, worktreeLocalFallback) {
 
 async function main(argv) {
   const cmd = argv[2];
+  // #1143: dumb, verb-agnostic --help/-h intercept — ahead of every branch
+  // below, before any lib call or resolveRunArg scan. Every subcommand here
+  // (other than record-worktree, hardened separately by #1124) previously
+  // fell through to its normal dispatch on a stray --help, and several of
+  // those paths implicitly guess a target run dir (resolveRunDir's "newest
+  // non-terminal run") when --run is absent — the exact cross-session
+  // corruption hazard observed 2026-08-20 (see the now-removed docs/donts.md
+  // bridging rule). Checked against the USAGE table, not a hardcoded verb
+  // list, so a verb with no usage entry gets no guard by design.
+  if (USAGE[cmd] && argv.slice(3).some((a) => HELP_FLAGS.has(a))) {
+    process.stdout.write(`claude-tweaks: usage: ${USAGE[cmd]}\n`);
+    return 0;
+  }
   if (cmd === 'record-worktree') {
     // --run <path> pins the target run dir explicitly, mirroring close-run
     // below — without it, this always fell through to resolveRunDir's
@@ -266,17 +310,18 @@ async function main(argv) {
     // #1124: every real caller already passes --run explicitly (build's
     // worktree-setup.md Step 4.5, the run-resume-freshness re-stamp, the
     // subagent-output-contract re-stamp) — nothing legitimate depends on the
-    // implicit fallback below. An invocation that omits --run, including a
-    // bare/malformed `--help`, previously fell through to resolveRunDir's
-    // "newest non-terminal run" GUESS and could silently clobber a DIFFERENT
-    // live session's run-state.json (reproduced 3x independently on
-    // 2026-08-20, across three different dispatched subagents). Never guess
-    // here: refuse loudly, before this handler ever gets a chance to WRITE
-    // anything — a true no-op, non-zero exit. (`resolveRunArg` itself still
-    // runs unconditionally above and, on the no-`--run` path, still calls
-    // `ctxLib.resolveRunDir` — a real scan of sibling run-state.json files —
-    // whose result this branch simply discards; the guarantee here is "no
-    // write," not "no read.")
+    // implicit fallback below. An invocation that omits --run previously fell
+    // through to resolveRunDir's "newest non-terminal run" GUESS and could
+    // silently clobber a DIFFERENT live session's run-state.json (reproduced
+    // 3x independently on 2026-08-20, across three different dispatched
+    // subagents). Never guess here: refuse loudly, before this handler ever
+    // gets a chance to WRITE anything — a true no-op, non-zero exit. (A bare
+    // or malformed `--help` no longer reaches this branch at all — #1143's
+    // dedicated guard above intercepts it first, before `resolveRunArg` ever
+    // runs. `resolveRunArg` itself still runs unconditionally on every other
+    // no-`--run` path below, and still calls `ctxLib.resolveRunDir` — a real
+    // scan of sibling run-state.json files — whose result this branch simply
+    // discards; the guarantee here is "no write," not "no read.")
     if (!explicit) {
       process.stdout.write('claude-tweaks: record-worktree requires --run — worktree not recorded\n');
       return 1;
@@ -285,9 +330,10 @@ async function main(argv) {
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — worktree not recorded\n`);
     } else if (worktreeArg && worktreeArg.startsWith('-')) {
-      // An unrecognized flag (e.g. a stray --help) landing in the
-      // worktree-path position must never be treated as a literal path —
-      // this is the exact shape every observed incident hit.
+      // An unrecognized flag landing in the worktree-path position must
+      // never be treated as a literal path — this is the exact shape every
+      // observed incident hit (a stray --help specifically no longer reaches
+      // this far — #1143's dedicated guard above intercepts it first).
       process.stdout.write(`claude-tweaks: unrecognized argument ${worktreeArg} — worktree not recorded\n`);
       return 1;
     } else if (runDir && worktreeArg) {
@@ -392,7 +438,7 @@ async function main(argv) {
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — PR not recorded\n');
     } else if (!numberArg || !Number.isInteger(number) || number <= 0 || !urlArg) {
-      process.stdout.write(`claude-tweaks: usage: record-pr [--run <dir>] <number> <url> — PR not recorded\n`);
+      process.stdout.write(`claude-tweaks: usage: ${USAGE['record-pr']} — PR not recorded\n`);
     } else {
       const result = ctxLib.writeRunState(runDir, { pr: { number, url: urlArg } });
       if (result) {
@@ -422,7 +468,7 @@ async function main(argv) {
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — spec status not recorded\n');
     } else if (!specArg || !statusArg || !phaseArg) {
-      process.stdout.write('claude-tweaks: usage: spec-status --run <parent-dir> --spec <n> --status <pending|running|complete|failed|not-run> --phase <phase> — spec status not recorded\n');
+      process.stdout.write(`claude-tweaks: usage: ${USAGE['spec-status']} — spec status not recorded\n`);
     } else {
       const result = specStatusLib.transitionSpec({
         runDir, specId: specArg, status: statusArg, phase: phaseArg,
@@ -818,4 +864,7 @@ if (require.main === module) {
   main(process.argv).then((code) => process.exit(code)).catch(() => process.exit(0));
 }
 
-module.exports = { main, BACKGROUND_CHECKS };
+// USAGE exported so tests/hooks-help-guard.test.js's table-driven suite
+// iterates the SAME verb list this dispatcher's --help/-h guard checks
+// membership against, rather than a second, driftable copy of it.
+module.exports = { main, BACKGROUND_CHECKS, USAGE };
