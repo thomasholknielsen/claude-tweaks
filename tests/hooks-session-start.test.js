@@ -517,7 +517,12 @@ test('SessionStart: a second session start inside the TTL short-circuits the inl
   cp.spawn = () => ({ unref() {}, on() {} });
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const originalHealth = preflight.ghHealthCheck;
+  const originalHealthAsync = preflight.ghHealthCheckAsync;
   preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  // The inline pass uses FAST_CHECKS, which runs the preflight via
+  // ghHealthCheckAsync concurrently with the shared fetch (#872) — stub
+  // both or the async twin reaches a real `gh` call.
+  preflight.ghHealthCheckAsync = async () => ({ ok: true, reason: null });
   try {
     const originDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-ttl-origin-'));
     git(['init', '-q', '--bare', '--initial-branch=main'], originDir);
@@ -573,6 +578,7 @@ test('SessionStart: a second session start inside the TTL short-circuits the inl
   } finally {
     cp.spawn = originalSpawn;
     preflight.ghHealthCheck = originalHealth;
+    preflight.ghHealthCheckAsync = originalHealthAsync;
   }
 });
 

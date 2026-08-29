@@ -20,7 +20,7 @@ const { archiveMerged } = require('./archive-merged');
 const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
-const { sharedFetch } = require('./shared-fetch');
+const { sharedFetch, sharedFetchAsync } = require('./shared-fetch');
 const { readCache, writeCache, isFresh } = require('./cache');
 const { formatReconcileSummary, archivedCountFromRunsResult } = require('./residue-summary');
 
@@ -139,13 +139,36 @@ async function reconcile(opts = {}) {
   // so a test's `require('./preflight').ghHealthCheck = fn` monkeypatch
   // actually reaches this call site.
   const ghDependentChecks = checks.filter((c) => c !== 'mirror');
+  // #872: the FAST_CHECKS shape (mirror requested, remote-prune not — the
+  // same "mirror only" shape shared-fetch.js's own header names) runs this
+  // preflight and the shared git fetch below concurrently via Promise.all,
+  // instead of paying for both serially — sibling code in the same diff
+  // (pr-state.js's resolvePrStateAsync) already established the async
+  // execFile pattern this reuses (ghHealthCheckAsync, sharedFetchAsync).
+  // Computed from `checks` BEFORE the narrowing below, so a request that
+  // ever included remote-prune stays on the sequential path even if a
+  // preflight failure later narrows `checks` down to mirror-only —
+  // ALL_CHECKS/mixed and BACKGROUND_CHECKS are explicitly out of scope for
+  // this concurrency and must not gain it incidentally through narrowing.
+  const fastChecksShape = checks.includes('mirror') && !checks.includes('remote-prune');
+  let health = null;
+  // Set only by the concurrent branch below — the sequential fetch dispatch
+  // further down reuses it instead of fetching a second time.
+  let concurrentFetch = null;
   if (ghDependentChecks.length) {
-    const health = require('./preflight').ghHealthCheck();
-    if (!health.ok) {
-      result.skipped.push({ check: ghDependentChecks.join(','), reason: `preflight-${health.reason}` });
-      checks = checks.filter((c) => c === 'mirror');
-      if (!checks.length) return result;
+    if (fastChecksShape) {
+      [health, concurrentFetch] = await Promise.all([
+        require('./preflight').ghHealthCheckAsync(),
+        sharedFetchAsync(root, { integration }),
+      ]);
+    } else {
+      health = require('./preflight').ghHealthCheck();
     }
+  }
+  if (health && !health.ok) {
+    result.skipped.push({ check: ghDependentChecks.join(','), reason: `preflight-${health.reason}` });
+    checks = checks.filter((c) => c === 'mirror');
+    if (!checks.length) return result;
   }
 
   // Overall wall-clock ceiling for the rest of this pass (#820, D4) — bounds
@@ -179,7 +202,10 @@ async function reconcile(opts = {}) {
   // below: red-tip is included even though it triggers no fetch itself,
   // because it reads the ref this fetch (formerly mirror's own) just
   // refreshed — see the ordering comment on red-tip's dispatch below. A
-  // failed fetch is recorded once here rather than once per check.
+  // failed fetch is recorded once here rather than once per check. For the
+  // FAST_CHECKS shape (#872), `concurrentFetch` already carries this
+  // fetch's result — it ran above, concurrently with the preflight, rather
+  // than being dispatched here a second time.
   let sharedFetchOk = true;
   const wantsMirror = checks.includes('mirror');
   const wantsRemotePrune = checks.includes('remote-prune');
@@ -193,7 +219,7 @@ async function reconcile(opts = {}) {
   // gate should say so rather than rely on that pairing holding forever).
   const fetchRan = wantsMirror || wantsRemotePrune;
   if (fetchRan) {
-    const fetched = sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
+    const fetched = concurrentFetch || sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
     if (fetched.failure) {
       sharedFetchOk = false;
       const affected = ['mirror', 'red-tip', 'remote-prune'].filter((c) => checks.includes(c));

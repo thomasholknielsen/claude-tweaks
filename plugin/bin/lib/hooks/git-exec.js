@@ -11,6 +11,14 @@
 // (unlike the `gh api` modules under `bin/lib/`, per `gh-api-module-pattern`);
 // this is the minimum needed for a spawn-count test to observe these calls at all (#381).
 const cp = require('child_process');
+const { promisify } = require('util');
+// promisify(cp.execFile) is called fresh inside runGitAsync below, not
+// snapshotted here — the same call-time-resolution reason as the comment
+// above: promisify captures its argument by reference at the point it's
+// called, so hoisting this to module scope would silently defeat a test's
+// `cp.execFile = stub` monkeypatch (#872 follow-up — exactly this hoisted
+// form shipped once and broke `runGitAsync`'s own timeout test's ability to
+// mock a slow child deterministically).
 
 // Budget for one git query, sized from measurement rather than intuition (#134).
 //
@@ -127,6 +135,25 @@ function runGit(args, cwd, opts = {}) {
   }
 }
 
+// Async twin of runGit — a real (non-blocking) execFile, so a caller can run
+// this concurrently with sibling async work instead of blocking the event
+// loop (reconcile/index.js's FAST_CHECKS Promise.all, #872). Same contract
+// as runGit (identical return shape, same classify()), just non-blocking —
+// mirrors the execFile-based async pattern reconcile/pr-state.js's
+// resolvePrStateAsync already established for `gh` calls, applied here to
+// `git`.
+async function runGitAsync(args, cwd, opts = {}) {
+  const timeout = resolveTimeout(opts);
+  try {
+    const { stdout } = await promisify(cp.execFile)('git', ['-C', cwd, ...args], {
+      encoding: 'utf8', timeout, windowsHide: true,
+    });
+    return { stdout: stdout.trim(), failure: null };
+  } catch (err) {
+    return { stdout: null, failure: classify(err) };
+  }
+}
+
 // origin remote URL -> 'owner/repo' slug, or null when unparseable/absent.
 // Moved here from reconcile/release-merged.js (#1082) — pr-state.js is a
 // second consumer, and a third copy of this parse is how drift starts.
@@ -137,4 +164,4 @@ function repoSlugOf(repoRoot) {
   return m ? m[1] : null;
 }
 
-module.exports = { runGit, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS, repoSlugOf };
+module.exports = { runGit, runGitAsync, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS, repoSlugOf };
