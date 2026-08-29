@@ -1,0 +1,9 @@
+# Open Items — Encode the declined structural-isolation rationale for framing-check's inline invocation
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | ops | Pre-flight divergence (Step 2.5): origin/main 9 commits ahead of worktree HEAD at pipeline start — continued under auto; build's post-creation catch-up merges origin/main before planning | fixed | commit 8cd378bc1 (post-creation catch-up merge) |
+| 2 | build | Follow-up (out of AC-3 scope): sweep sibling restatements of the retired cost-only inline rationale — plugin/skills/specify/next-mode-shape.md:46-48 and plugin/skills/assess-agent-autonomy/SKILL.md:96 still argue cost-only; both should cite challenge/SKILL.md's three-ground declined rationale (#1276) | deferred → backlog | staged/ledger-record-2.md (defer-reason: genuinely-larger, landing: born-ready) |
+| 3 | review/hindsight | Skill-worthy pattern: vacuous go-red control fixture (control must freeze the SAME region the pin targets) — staged for wrap-up Skills curation, staged/reflect-1.md [skill: skill-prose-conformance-tests] | fixed | commit 75923b6de (applied by Skills-row curation judge) |
+| 4 | wrap-up | Contract gap: curation-engine.md's dispatch contract (never git-mutate) conflicts with .claude/skills/skill-prose-conformance-tests/SKILL.md's own audit-recording step (harness-health.js validate-findings), which pushes to health-state — surfaced when the Skills-row judge ran it mid-dispatch; contained (health-state branch only, zero findings, worktree/branch/main untouched) | deferred → backlog | staged/wrap-up-4.md (defer-reason: genuinely-larger, landing: born-ready) |
+| 5 | wrap-up | PR #1668 — this run's own open draft PR (residue sweep, blast-radius scope) — awaiting Phase 4's merge decision, part of this same wrap-up run | accepted | not a gap — resolves via this same wrap-up's Phase 4 merge step (user-confirmed) |

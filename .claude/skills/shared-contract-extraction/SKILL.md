@@ -53,6 +53,7 @@ The steps above describe a first extraction. The shape this repo now runs more o
 | Adding the citation to every consumer uniformly | Conflates "retired a clause" with "purely additive"; the conformance suite then can't be written without lying about one class |
 | Restating the new edge inside a `SKILL.md` | Two copies of an edge drift; `docs/skill-graph.md` is the single home |
 | Asserting the retired clause is gone with a plain `includes()` | Fails open on a line wrap — the deletion is certified without being verified |
+| Carrying an extension's *rationale* the way you carry its obligation | An obligation transfers to every call site; the grounds a decision rested on do not. Re-derive each ground against each site's own mechanics, and have the contract say which ones transfer instead of leaving the next reader to assume all of them do. #1276 declined Task-agent isolation for `framing-check` on three grounds, and only two survived the trace — the third (non-gating blast radius) holds at all three `framing-check` sites but not for a gating consumer, so `_shared/untrusted-record-content.md` had to scope the inheritance to "these two structural grounds" explicitly |
 
 ## Evidence
 
