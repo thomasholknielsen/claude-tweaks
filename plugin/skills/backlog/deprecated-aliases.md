@@ -8,9 +8,10 @@ mode name. Kept out of `SKILL.md` to stay under its size ceiling, mirroring
 
 Parses identically to the old `grant` mode: same arguments, same Preflight, same gate chain. The
 one behavioral difference from a bare `refine` invocation is that `grant` **forces the headless
-posture regardless of any `--source` value or its absence** — the one deliberate override of
-`refine-mode.md` Step 0's presence switch, cross-referenced from both this alias and the switch
-text in `SKILL.md` by name so the two can't drift apart independently. A `grant` invocation runs
+posture regardless of any `--source` value or its absence** — the one deliberate override of the
+`--source` presence switch documented in `SKILL.md`'s Input table, cross-referenced from both this
+alias and the switch text in `SKILL.md` by name so the two can't drift apart independently. A
+`grant` invocation runs
 no batch-confirm and no lanes beyond `refine-headless.md`'s grant chain — it does not run the
 Priority, Related, Flag-back, or Dependency-repair lanes the headless posture otherwise runs
 alongside the grant chain — preserving today's exact `grant`-mode behavior byte-for-byte for any

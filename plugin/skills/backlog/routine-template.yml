@@ -1,6 +1,6 @@
-template_version: 3
+template_version: 4
 routine_name: backlog-grant-weekdays
-kickoff: backlog grant
+kickoff: backlog refine --source routine
 # Optional: `branch: <name>` pins the assembled kernel's target-branch placeholder.
 # Normally unset here — a branch is project-specific, so /claude-tweaks:routine resolves
 # it at instantiation.
@@ -11,23 +11,28 @@ default_schedule:
   cron_expression: "30 3 * * 1-5"
   description: "weekday off-peak anchor, UTC, slotted between the finder routines and dispatch — confirm against your local timezone at creation time"
 notes: >
-  Headless machine-grant unit: each firing sweeps the `ready` queue and applies
-  `auto:build` (+ auto:merge-pending when its own checks clear, maturing later to
-  auto:merge) to every candidate whose gate chain fully clears — see
-  `skills/backlog/grant-mode.md`'s Step 0-4. This is the one machine-origination path for
-  `auto:build`/`auto:merge` — everything else in the fleet (this routine included) only
-  downgrades or strips a grant it reads, never originates one, except this mode itself,
-  which is gated behind the `unattended` ceiling plus its
-  own `grant-origination-enabled` opt-in (both must be set in `.claude-tweaks/policy.yml`
-  or the whole firing is a no-op — grant-mode.md Step 0). A firing with the ceiling gate
-  unsatisfied, or with no eligible candidates in the `ready` queue, is a cheap no-op
-  (report nothing, exit clean), mirroring dispatch's own no-eligible-candidates
-  convention. No candidate is ever human-filed (agent `by:*` origin is a hard gate), and
-  no per-record `AskUserQuestion` fires — the gate chain decides, not a human. Grants and
-  skips are logged one line each to this run's `decisions.md`, and every grant posts an
-  evidence-snapshot comment on the record itself (`grant-mode.md`'s Audit format) — the
-  durable trace of what a headless firing decided and why. `fleet-daily-grant-cap` (when
-  configured) can stop mid-firing, self-correcting on the next firing per grant-mode.md's
-  Concurrency section. Scheduling this routine alone does not make it grant anything: the
-  two-key opt-in above is a deliberate, human-set ceiling — this routine only becomes
-  live once a human has turned both keys on.
+  Behavioral change from template_version 3: this kickoff now fires `/claude-tweaks:backlog
+  refine`'s headless posture, not the standalone `grant` mode — a firing is no longer a
+  pure no-op below the two-key threshold. Every firing runs the Priority/Related/Flag-back/
+  mechanical Dependency-repair labeling lanes zero-click regardless of `autonomy`, writing
+  label changes to `decisions.md` whenever there's anything to label (see
+  `skills/backlog/refine-headless.md`'s labeling-lanes preamble). Only the grant chain
+  itself stays gated: it sweeps the `ready` queue and applies `auto:build`
+  (+ auto:merge-pending when its own checks clear, maturing later to auto:merge) to every
+  candidate whose gate chain fully clears — see `skills/backlog/refine-headless.md`'s
+  Step 0-4. This is the one machine-origination path for `auto:build`/`auto:merge` —
+  everything else in the fleet (this routine's own labeling lanes included) only
+  downgrades or strips a grant it reads, never originates one, except this chain itself,
+  which is gated behind the `unattended` ceiling plus its own
+  `grant-origination-enabled` opt-in (both must be set in `.claude-tweaks/policy.yml` or
+  the grant chain alone is a no-op — refine-headless.md Step 0; the labeling lanes are
+  unaffected by this gate). No candidate is ever human-filed (agent `by:*` origin is a
+  hard gate), and no per-record `AskUserQuestion` fires — the gate chain decides, not a
+  human. Grants and skips are logged one line each to this run's `decisions.md`, and every
+  grant posts an evidence-snapshot comment on the record itself (`refine-headless.md`'s
+  Audit format) — the durable trace of what a headless firing decided and why.
+  `fleet-daily-grant-cap` (when configured) can stop the grant chain mid-firing,
+  self-correcting on the next firing per refine-headless.md's Concurrency section.
+  Scheduling this routine alone does not make it grant anything: the two-key opt-in above
+  is a deliberate, human-set ceiling — the grant chain only becomes live once a human has
+  turned both keys on, though the labeling lanes are live from the first firing.
