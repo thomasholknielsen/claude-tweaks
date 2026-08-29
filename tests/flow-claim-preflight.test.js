@@ -59,8 +59,14 @@ test('task-prompt.md first template no longer claims "already-claimed"; second s
   assert.match(content, /Execute claude-tweaks review\+polish\+wrap-up for this already-claimed/);
 });
 
-test('task-prompt.md documents DISPATCH_HEADLESS for next-form firings', () => {
+test('task-prompt.md documents DISPATCH_HEADLESS for headless firings', () => {
   assert.match(read('plugin/skills/dispatch/task-prompt.md'), /DISPATCH_HEADLESS/);
+});
+
+test('task-prompt.md keys DISPATCH_HEADLESS on Routine-fired presence, not the next form (refs #1492)', () => {
+  const content = read('plugin/skills/dispatch/task-prompt.md');
+  assert.match(content, /Add it when this firing came from a scheduled Routine/);
+  assert.doesNotMatch(content, /Add it only when the dispatching session's own firing was `next`-form/);
 });
 
 test('_shared/headless-self-report.md documents the Step 2.8 contest trigger', () => {

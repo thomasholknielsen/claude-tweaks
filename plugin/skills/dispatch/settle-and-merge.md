@@ -44,7 +44,8 @@ build or test ever ran, the pipeline stopped before the Config Manifesto, this r
 claimed by this run at all, so step 1 below's ownership check will correctly find no claim to
 release (skip is the right outcome there, not an error). The one thing this case adds: **when
 `DISPATCH_HEADLESS=1` was set on this Task call's invocation** (`dispatch/task-prompt.md`'s first
-template — set only for a `next`-form firing, where nobody is present to read the stop directly),
+template — set only for a Routine-fired headless firing (bare drain or its `next` alias), where
+nobody is present to read the stop directly),
 read `_shared/headless-self-report.md` and follow its dedup-and-file procedure (caller =
 `dispatch`), using failing-check-name `flow-step-2.8-claim-contest` for the contested-claim stop
 or `flow-step-2.8-claim-in-flight` for the in-flight-tombstone stop — distinct names, since the
