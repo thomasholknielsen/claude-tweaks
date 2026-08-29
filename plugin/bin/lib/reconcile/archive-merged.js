@@ -15,6 +15,8 @@ const { resolvePrState } = require('./pr-state');
 const { recordResidueSuccess, trackResidue } = require('./cache');
 const { escalateResidue } = require('./escalate-residue');
 const { repoSlugOf } = require('./release-merged');
+const { closeRunState } = require('../hooks/close-run-state');
+const { checkRunIntegrity } = require('../hooks/run-integrity');
 
 // Orphan case introduced by the dispatch/flow run-identity unification:
 // dispatch mints an empty, anchored run directory (mkdir only, no
@@ -74,6 +76,53 @@ function archiveOrphanedMint(root, dir) {
     return { ok: false, reason: 'move-failed' };
   }
   return { ok: true };
+}
+
+// Same 24h window as ORPHAN_MINT_TTL_MS, and for the same reason — longer than
+// any plausible pause before a session resumes its own run, short enough that
+// a genuinely abandoned one is swept the next day. Deliberately not a second,
+// differently-tuned constant.
+const STALE_INTERRUPTED_TTL_MS = ORPHAN_MINT_TTL_MS;
+
+// Newest event this run can actually claim as its own, in ms — or null when
+// there are none (or the log is unreadable).
+//
+// Deliberately NOT run-state's `updatedAt`, and deliberately excluding
+// `attribution: 'fallback'` lines: a fallback event is one ANOTHER session's
+// hook guessed into this run because the run had no provable owner
+// (context.js's resolveRun). Those lines advance `updatedAt` without this run
+// being alive at all, which is precisely how an abandoned run looks
+// perpetually busy and never becomes closeable (#1673 Deliverable 4).
+function lastOwnEventMs(runDir) {
+  let raw;
+  try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
+  let newest = null;
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (!ev || ev.attribution === 'fallback') continue;
+    const t = Date.parse(ev.ts);
+    if (Number.isNaN(t)) continue;
+    if (newest === null || t > newest) newest = t;
+  }
+  return newest;
+}
+
+// The ownership half of the criterion, inverted from close-run-state.js's
+// `foreignOwner`: that check asks "does a DIFFERENT session own this?" to
+// refuse a close; here the same comparison answers "is this session's own
+// run?" — if it is, we are that session and the run is by definition alive, so
+// never auto-close it. A run owned by nobody, or by some other session, is a
+// candidate only if it ALSO shows no self-attributed activity inside the
+// staleness window. Both halves must hold; neither alone is evidence.
+function isAbandonedInterrupted(runDir, state, sessionId, now = Date.now()) {
+  if (!state || state.status !== 'interrupted') return false;
+  const owner = typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
+  if (owner && sessionId && owner === sessionId) return false; // our own live run
+  const last = lastOwnEventMs(runDir);
+  if (last !== null && (now - last) <= STALE_INTERRUPTED_TTL_MS) return false;
+  return true;
 }
 
 // A run's PR state + its console state -> what to do. Pure — no I/O.
@@ -490,7 +539,7 @@ function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateRe
   trackResidue(root, repoSlug, 'move-failed', dir, { failed: true, lastError: undefined }, { escalate });
 }
 
-function archiveMerged({ cwd, dryRun = false } = {}) {
+function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_CODE_SESSION_ID || null } = {}) {
   const archived = [];
   const skipped = [];
   const start = cwd || process.cwd();
@@ -512,6 +561,34 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
       archived.push(dir);
       continue;
     }
+
+    // #1673: an abandoned `interrupted` run whose work actually shipped. This
+    // has to sit ahead of the no-worktree/no-branch skips below: those are
+    // exactly where such a run dies today, because its worktree was torn down
+    // long ago and there is no live entry to derive a branch from. #1672's
+    // fallback evidence is what lets checkRunIntegrity answer at all here.
+    // Evaluated last of the three gates because it is the only one that spawns
+    // git.
+    if (isAbandonedInterrupted(dir, state, sessionId)
+      && checkRunIntegrity(dir).state === 'shipped-unclosed') {
+      if (dryRun) { archived.push(dir); continue; }
+      // closeRunState, not a hand-rolled status write — it owns the
+      // close-without-wrapup event and the un-archived-work advisory, which is
+      // what makes an automated close indistinguishable from a manual one.
+      // `explicit: true` because this IS a deliberate decision about this exact
+      // run dir, not the implicit newest-run fallback its refusal guards.
+      closeRunState(dir, { explicit: true, sessionId });
+      // Then archive. Closing without moving would leave the dir `clean` and
+      // therefore permanently invisible to iterRunDirsWithState (docs/hooks.md
+      // names this as a blind spot that is "not just delayed"), and would let
+      // `archived: N` count a directory still sitting in pipelines/.
+      const closeResult = archiveRunDir(root, dir);
+      trackArchiveResult(root, repoSlug, dir, closeResult);
+      if (!closeResult.ok) { skipped.push({ runDir: dir, reason: closeResult.reason }); continue; }
+      archived.push(dir);
+      continue;
+    }
+
     if (!state || !state.worktree) { skipped.push({ runDir: dir, reason: 'no-worktree' }); continue; }
     const wtEntry = worktrees.find((w) => path.resolve(w.path) === path.resolve(state.worktree));
     const branch = wtEntry ? wtEntry.branch : null;
@@ -540,5 +617,5 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
 module.exports = {
   archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
   isOrphanedMint, isAdHocStandaloneMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
-  localHasMerge,
+  localHasMerge, lastOwnEventMs, isAbandonedInterrupted, STALE_INTERRUPTED_TTL_MS,
 };

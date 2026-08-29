@@ -11,6 +11,7 @@ const os = require('os');
 const path = require('path');
 const {
   archiveRunDir, listSpecDirs, decideArchive, readConsoleState, isOrphanedMint, trackArchiveResult,
+  archiveMerged, lastOwnEventMs, isAbandonedInterrupted,
 } = require('../../../plugin/bin/lib/reconcile/archive-merged');
 const { RESIDUE_ESCALATE_THRESHOLD, listResidueFailures } = require('../../../plugin/bin/lib/reconcile/cache');
 
@@ -60,6 +61,52 @@ function installFailingPreCommitHook(root) {
 
 function removePreCommitHook(root) {
   fs.rmSync(path.join(root, '.git', 'hooks', 'pre-commit'), { force: true });
+}
+
+// #1673: a torn-down, shipped, `interrupted` run — the shape
+// `isAbandonedInterrupted` + `checkRunIntegrity` must recognize as
+// auto-closeable. Mirrors tests/run-integrity.test.js's `fixtureTornDownRepo`
+// (a merged feature branch whose worktree is later removed, `pr.branch`
+// stamped on run-state.json as the #1672 fallback-evidence source) rather
+// than inventing a new shape, plus this file's own `makeRepo()` for the base
+// repo. `runId`'s ISO prefix (09:00:00) is before the feature commit's
+// pinned date (10:00:00) so checkRunIntegrity's run-start corroboration
+// passes. The one seed event is dated 2020 — far outside the 24h staleness
+// window — so it satisfies checkRunIntegrity's "at least one skill_invoked,
+// no wrap-up" evidence bar AND lastOwnEventMs' recency check in one line;
+// `extraEventLines` lets a caller (case 3) append a second, recent,
+// fallback-attributed line without disturbing that.
+function fixtureAbandonedShippedRun({ runId, ownerSessionId, extraEventLines = [] } = {}) {
+  // realpath'd (unlike makeRepo()'s own return) because mainCheckoutRoot
+  // resolves through realpath internally (macOS's os.tmpdir() sits behind a
+  // /var -> /private/var symlink) — archiveMerged's `root` would otherwise
+  // differ from this fixture's own `runDir` string, and a plain string
+  // membership assertion against `result.archived` would spuriously fail.
+  const root = fs.realpathSync(makeRepo());
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), 'integration-branch: main\n');
+
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-wt-'));
+  git(root, 'worktree', 'add', '-q', wt, '-b', 'feat-branch');
+  fs.writeFileSync(path.join(wt, 'feature.txt'), 'feature\n');
+  execFileSync('git', ['add', 'feature.txt'], { cwd: wt, encoding: 'utf8' });
+  execFileSync('git', ['commit', '-q', '-m', 'feature work'], {
+    cwd: wt,
+    encoding: 'utf8',
+    env: { ...process.env, GIT_AUTHOR_DATE: '2026-08-01T10:00:00Z', GIT_COMMITTER_DATE: '2026-08-01T10:00:00Z' },
+  });
+  git(root, 'merge', '-q', '--no-edit', 'feat-branch');
+  git(root, 'worktree', 'remove', '--force', wt); // branch ref stays, worktree gone
+
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  const runState = { status: 'interrupted', worktree: wt, pr: { branch: 'feat-branch' } };
+  if (ownerSessionId) runState.sessionId = ownerSessionId;
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify(runState));
+  const seedEvent = '{"skill":"claude-tweaks:build","ts":"2020-01-01T09:05:00.000Z","type":"skill_invoked"}';
+  fs.writeFileSync(path.join(runDir, 'events.jsonl'), [seedEvent, ...extraEventLines].join('\n') + '\n');
+
+  return { root, wt, runDir };
 }
 
 // #593 AC: archiving a run dir with a tracked work/*-spec.md file removes the
@@ -730,4 +777,80 @@ test('trackArchiveResult: a success clears a prior failure streak for the same d
   assert.equal(listResidueFailures(root).length, 1);
   trackArchiveResult(root, 'o/r', dir, { ok: true, movedEntries: [] });
   assert.deepEqual(listResidueFailures(root), []);
+});
+
+// --- #1673: auto-close an abandoned `interrupted` run whose work shipped ---
+
+// AC1: a stale interrupted run meeting the shipped-unclosed evidence bar,
+// with no owning session, is auto-closed and counted in archived.
+test('archiveMerged: an abandoned interrupted run whose work shipped is auto-closed via closeRunState and counted in archived', () => {
+  const runId = '2026-08-01T090000-spec-1673-close';
+  const { root, runDir } = fixtureAbandonedShippedRun({ runId });
+
+  const result = archiveMerged({ cwd: root, sessionId: 'this-session' });
+
+  assert.ok(result.archived.includes(runDir), `expected ${runDir} in archived, got ${JSON.stringify(result)}`);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  const state = JSON.parse(fs.readFileSync(path.join(archiveDir, 'run-state.json'), 'utf8'));
+  assert.equal(state.status, 'clean');
+  assert.equal(state.worktree, null);
+  const events = fs.readFileSync(path.join(archiveDir, 'events.jsonl'), 'utf8')
+    .split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  assert.ok(
+    events.some((e) => e.type === 'close-without-wrapup'),
+    `expected a close-without-wrapup event, got ${JSON.stringify(events)}`,
+  );
+  assert.equal(fs.existsSync(runDir), false, 'original run dir must have been archived away');
+});
+
+// AC2: a run with a live owning session is never auto-closed by this
+// criterion, regardless of evidence bar — the control case that must stay
+// green even before Task 2's implementation lands.
+test('archiveMerged: a run owned by the calling session is never auto-closed, even when otherwise shipped-unclosed', () => {
+  const runId = '2026-08-01T090000-spec-1673-live';
+  const { root, runDir } = fixtureAbandonedShippedRun({ runId, ownerSessionId: 'this-session' });
+
+  const result = archiveMerged({ cwd: root, sessionId: 'this-session' });
+
+  assert.ok(!result.archived.includes(runDir), `expected ${runDir} NOT in archived, got ${JSON.stringify(result)}`);
+  const state = JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8'));
+  assert.equal(state.status, 'interrupted');
+});
+
+// AC3: fallback-attributed events landing in a stale run's events.jsonl must
+// not make it look alive — a fallback line is another session's activity
+// guessed into this run, not evidence this run is still owned by anyone.
+test('archiveMerged: recent fallback-attributed events do not block auto-close — only non-fallback activity counts as recency', () => {
+  const runId = '2026-08-01T090000-spec-1673-fallback';
+  const recentFallback = JSON.stringify({
+    skill: 'claude-tweaks:build', attribution: 'fallback', ts: new Date().toISOString(), type: 'skill_invoked',
+  });
+  const { root, runDir } = fixtureAbandonedShippedRun({ runId, extraEventLines: [recentFallback] });
+
+  const result = archiveMerged({ cwd: root, sessionId: 'this-session' });
+
+  assert.ok(
+    result.archived.includes(runDir),
+    `a recent fallback-attributed event must not prevent auto-close, got ${JSON.stringify(result)}`,
+  );
+});
+
+test('lastOwnEventMs: excludes fallback-attributed lines, returns the newest non-fallback timestamp', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-lastown-'));
+  const runDir = path.join(root, 'run');
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'events.jsonl'), [
+    JSON.stringify({ type: 'skill_invoked', ts: '2020-01-01T00:00:00.000Z' }),
+    JSON.stringify({ type: 'skill_invoked', ts: '2026-01-01T00:00:00.000Z', attribution: 'fallback' }),
+  ].join('\n') + '\n');
+  assert.equal(lastOwnEventMs(runDir), Date.parse('2020-01-01T00:00:00.000Z'));
+});
+
+test('lastOwnEventMs: null when events.jsonl is absent', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-lastown2-'));
+  assert.equal(lastOwnEventMs(path.join(root, 'no-such-run')), null);
+});
+
+test('isAbandonedInterrupted: false for a non-interrupted status', () => {
+  assert.equal(isAbandonedInterrupted('/x', { status: 'active' }, 'sess-1', Date.now()), false);
 });
