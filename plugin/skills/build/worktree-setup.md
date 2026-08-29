@@ -85,10 +85,16 @@ re-derived regexes.
    both were previously incidental side effects, not a designed safety net (#767's Current State).
 1.6. **Remote-only stale branch check** (#1470) — Step 1.5's local check above only inspects this
    checkout's own git refs, so it cannot see a same-named branch that is absent here but very much
-   alive on `origin`, left behind by a prior attempt that ran on a *different* machine or sandbox.
-   Runs only when Step 1.5 found **no local match** — a local match already
-   routes through Step 1.5's own handling, which independently resolves the reuse-vs-delete
-   ambiguity this step exists for. Probe the remote for the same deterministic name:
+   alive on `origin` — left behind by a prior attempt on a *different* machine or sandbox, or by
+   one on *this* machine whose remote ref outlived the local ref Step 1.5 just deleted.
+   Runs after Step 1.5 on both of the branches that reach Step 2: its **No match** branch, and
+   its **Match, no attached worktree** branch. `git branch -D` there removes only the local ref —
+   Step 1.5's own log line says so — and under `integration-model: pr-first` an abandoned run has
+   already pushed this name at Step 6, so a same-machine retry is a *more* common way a stale
+   `origin/{name}` survives than the cross-machine case, not a rarer one. It does **not** run on
+   Step 1.5's **Match, and a worktree directory still attached** branch, which that step
+   deliberately routes into the "## If worktree creation fails" table instead. Probe the remote
+   for the same deterministic name:
    ```bash
    git ls-remote --heads origin "{name}"
    ```
