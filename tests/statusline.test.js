@@ -20,8 +20,10 @@ function stripLinks(s) {
 
 // Expected project segment for a dir with no GitHub origin remote: the
 // basename wrapped in a file:// hyperlink to the (resolved) project dir.
+// The URL must end with "/" — a directory URL without it makes macOS reveal
+// the folder in its parent instead of opening the folder itself.
 function linkedName(dir) {
-  return color.link(pathToFileURL(dir).href, path.basename(dir));
+  return color.link(`${pathToFileURL(dir).href}/`, path.basename(dir));
 }
 
 // Hermetic: a throwaway $HOME, and the running session's own CLAUDE_CONFIG_DIR
@@ -203,8 +205,13 @@ test('renderProject: falls back to explicit fallbackCwd when nothing else availa
 
 test('renderProject: percent-encodes spaces in the file:// link (real project dirs contain them)', () => {
   const out = sl.renderProject({ workspace: { project_dir: '/Users/x/Code Workspaces/my-proj' } });
-  assert.ok(out.includes('file:///Users/x/Code%20Workspaces/my-proj'), `expected encoded file URL: ${out}`);
+  assert.ok(out.includes('file:///Users/x/Code%20Workspaces/my-proj/'), `expected encoded file URL: ${out}`);
   assert.strictEqual(stripLinks(out), 'my-proj');
+});
+
+test('renderProject: the file:// link ends with a trailing slash (opens the folder, not a reveal in its parent)', () => {
+  const out = sl.renderProject({ workspace: { project_dir: '/Users/x/Code/claude-tweaks' } });
+  assert.ok(out.includes('file:///Users/x/Code/claude-tweaks/\x07'), `expected trailing slash before terminator: ${out}`);
 });
 
 test('color.link emits the documented OSC 8 byte shape (BEL-terminated)', () => {
@@ -259,7 +266,7 @@ test('renderProject: GitHub origin remote adds a glyph hyperlinked to the repo p
     const out = sl.renderProject({ workspace: { project_dir: repoDir } });
     assert.strictEqual(
       out,
-      `${linkedName(repoDir)} ${color.link('https://github.com/owner/repo', '🐙')}`,
+      `${linkedName(repoDir)} ${color.link('https://github.com/owner/repo', '')}`,
     );
   });
 });
@@ -300,7 +307,7 @@ test('renderProject: resolves a linked worktree to the main project name', () =>
     // symlinked mkdtemp path.
     assert.strictEqual(
       sl.renderProject({ workspace: { project_dir: worktreeDir } }),
-      `${linkedName(fs.realpathSync(mainDir))} ${color.link('https://github.com/owner/real-project', '🐙')}`,
+      `${linkedName(fs.realpathSync(mainDir))} ${color.link('https://github.com/owner/real-project', '')}`,
     );
   } finally {
     git(['worktree', 'remove', '--force', worktreeDir], mainDir);
