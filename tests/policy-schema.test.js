@@ -95,8 +95,12 @@ test('POLICY_KEYS entries are unique', () => {
   // 61 -> 62, #309 (veto-window maturation): grant-veto-window-hours — how
   // long a machine-granted auto:merge-pending grant must sit unvetoed before
   // /claude-tweaks:dispatch's Auto-merge gate matures it to auto:merge.
-  assert.strictEqual(POLICY_KEYS.length, 62);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 62);
+  // 62 -> 63, #1654 (dispatch group-size guard lever): dispatch-group-size-guard
+  // — headless `next` selection's file-overlap group-size exclusion threshold,
+  // wired through the same policy.yml precedence chain as its dispatch-batch-size
+  // sibling; grouping.js's GROUP_SIZE_GUARD_DEFAULT stays the unset fallback.
+  assert.strictEqual(POLICY_KEYS.length, 63);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 63);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
