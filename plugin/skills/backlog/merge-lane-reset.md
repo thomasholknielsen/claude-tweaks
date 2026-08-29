@@ -27,7 +27,7 @@ node -e "
 A read failure here (any error, including the fail-closed `tripped: true` degraded shape
 `readBreakerState` returns on a genuine fetch failure) degrades to **"can't confirm reset offer,
 skip the question"** — silently proceed to the grant-sweep as if untripped. Unlike
-`skills/backlog/grant-mode.md`'s Step 0.5, this sub-stage never originates a machine grant, so it
+`skills/backlog/refine-headless.md`'s Step 0.5, this sub-stage never originates a machine grant, so it
 never needs that file's fail-closed rule: worst case here is simply not offering a reset this run,
 never a spurious machine grant slipping through.
 
@@ -44,7 +44,7 @@ grant-sweep proceeds:
   every grant row in this run still recommends `auto:build` normally, but any row that would
   otherwise carry `auto:merge-pending` is applied `auto:build`-only for this run (mirrors
   `evaluateGrantGate`'s own `mergeLaneBreakerTripped` behavior for the headless path — `grant`
-  unaffected, `autoMerge` forced off, which per #309 is what suppresses `grant-mode.md` Step 4's
+  unaffected, `autoMerge` forced off, which per #309 is what suppresses `refine-headless.md` Step 4's
   `auto:merge-pending` grant, not a direct `auto:merge` one) until the breaker is reset in a
   future run.
 - **Reset** — this is the **only** write path that ever clears a trip. CAS-write

@@ -3,7 +3,7 @@
 Referenced by `refine-mode.md`'s Step 3 (the branch this file documents) and Step 3.5 (which of the
 two outcomes below also needs body-shape re-verification) and Step 5 (the write mechanics), by
 `refine-lanes.md`'s Needs-decision lane (the rendered row + annotation template), and by
-`grant-mode.md`'s Step 4 (the headless gate-4 refusal that reaches the identical `needs:decision`
+`refine-headless.md`'s Step 4 (the headless gate-4 refusal that reaches the identical `needs:decision`
 outcome). Split out to keep `refine-mode.md` under the 40 KB per-file lazy-load ceiling
 (`tests/bin-lib/skill-audit/context-cost.test.js`) rather than duplicating this branch and its
 bash snippets inline at every call site.
@@ -24,10 +24,10 @@ bash snippets inline at every call site.
 `refine-mode.md` Step 1's fetch already carries `facets.risk`/`facets.size` for every selected
 record — this check reads already-fetched facts, no new API call.
 
-**`/backlog grant`'s identical outcome (`grant-mode.md` Step 4):** Phase C's `evaluateGrantGate`
+**`refine`'s headless posture's identical outcome (`refine-headless.md` Step 4):** Phase C's `evaluateGrantGate`
 returns `grant: false, failedKey: 'grant-check'` — gate 4 denied a candidate that already cleared
-gates 1-3. Unlike `refine`'s path, no risk/size precondition applies here — every other `failedKey`
-at any phase stays a silent Skip row (`grant-mode.md` Step 4, unchanged).
+gates 1-3. Unlike `refine`'s human-present path, no risk/size precondition applies here — every
+other `failedKey` at any phase stays a silent Skip row (`refine-headless.md` Step 4, unchanged).
 
 ## Idempotence check (before laning/applying)
 
@@ -45,7 +45,7 @@ deliberate: a resolved comment must never gate a fresh one.
 - **Non-empty** — an earlier run already marked this record for this unit. Render one annotation
   line only, never a fresh row, and write nothing this run — as its own bare line under the
   caller's own Needs-decision lane heading (`refine-lanes.md`'s Needs-decision lane, or
-  `grant-mode.md`'s Needs-decision rows), since a record on this branch has no higher-precedence
+  `refine-headless.md`'s Needs-decision rows), since a record on this branch has no higher-precedence
   lane row to attach beneath.
 - **Empty** — lane/apply it as a fresh row.
 - **Query failed** (network error, non-zero `gh` exit) — fail closed, the same as a mismatch in
@@ -68,8 +68,8 @@ Keep `ready`, add no `auto:*` grant, add `needs:decision` (bootstrap per
 
 `{unit}` is `backlog-refine` or `backlog-grant` — the literal skill/mode name that wrote it, per
 `_shared/work-record.md`'s decision-comment template. `**Command:**` is always
-`/claude-tweaks:backlog refine #{n}`, regardless of which unit wrote the comment — `grant-mode.md`
-is a headless unit with no human-facing apply step of its own, so a record it stamps
+`/claude-tweaks:backlog refine #{n}`, regardless of which unit wrote the comment — `refine-headless.md`
+is a headless posture with no human-facing apply step of its own, so a record it stamps
 `needs:decision` is resolved the same way as one `refine` stamped directly: through
 `refine-record.md`'s `#N` per-record resolver (Step 1(a)'s unresolved-decision-comment read),
 not through `refine-mode.md`'s own whole-queue Needs-decision lane — the two are separate
@@ -86,7 +86,7 @@ fi
 
 Treat the label edit and the comment post as two independently-reportable steps, never a single
 unguarded pair — mirroring `apply-refine-labels.js`'s own edit/comment split (#1073). This matters
-most on `grant-mode.md`'s headless path (no human present): a comment-post failure after a
+most on `refine-headless.md`'s headless path (no human present): a comment-post failure after a
 successful label write must never be silently indistinguishable from full success, since a
 `needs:decision` label with no comment leaves a human with nothing to resolve while the record
 stays excluded from every headless worklist.
@@ -96,5 +96,5 @@ stays excluded from every headless worklist.
 `$ST_BACKLOG_REFINE_ACTIONS_NEEDSDECISION`, then one `bin/apply-refine-labels.js` call applies the
 whole lane — same batching every other lane uses (`apply-refine-labels.js` already accepts
 `addLabels` + `commentFile` together in one action, the identical shape Flag-back already uses with
-`removeLabels` + `commentFile`). `grant-mode.md`'s Step 4 applies its own single-record write
-inline — that mode has no batched-lane apply step at all.
+`removeLabels` + `commentFile`). `refine-headless.md`'s Step 4 applies its own single-record write
+inline — that posture has no batched-lane apply step at all.

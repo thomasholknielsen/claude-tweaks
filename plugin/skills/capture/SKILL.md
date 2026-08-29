@@ -231,7 +231,7 @@ toward the grant.
 
    Tell the user issue creation failed and the record landed locally instead (path printed by the script), `unsynced: true`. No further marker is needed beyond that facet — `/claude-tweaks:tidy`'s record scan surfaces `unsynced` local records as Sync findings, reconciling them onto GitHub on a later pass.
 
-   **Decision (#1352): no MCP-first attempt, `gh`-absent included.** Unlike `/claude-tweaks:backlog grant`, whose whole Routine firing does nothing when `gh` is absent with no fallback, one capture's failure only delays a record's GitHub-side existence — `unsynced: true` is already a working, human-reconcilable path grant mode categorically lacked. MCP-first here would also need the same treatment across every health-skill filing site sharing this pattern, out of this record's scope. Revisit only if a Routine's capture step is observed hard-failing `gh`-absent in practice; `_shared/github-write-transport.md`'s "Create an issue" row is then a one-call wire-in.
+   **Decision (#1352): no MCP-first attempt, `gh`-absent included.** Unlike `/claude-tweaks:backlog refine`'s headless posture, whose whole Routine firing does nothing when `gh` is absent with no fallback, one capture's failure only delays a record's GitHub-side existence — `unsynced: true` is already a working, human-reconcilable path the headless posture categorically lacked. MCP-first here would also need the same treatment across every health-skill filing site sharing this pattern, out of this record's scope. Revisit only if a Routine's capture step is observed hard-failing `gh`-absent in practice; `_shared/github-write-transport.md`'s "Create an issue" row is then a one-call wire-in.
 
 **When `work-backend: local-files` (or the flag is missing):**
 

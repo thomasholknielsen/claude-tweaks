@@ -73,7 +73,7 @@ it.
    If `CLASSIFICATION` is `transient`, **preserve** `auto:merge`/`auto:merge-pending` — do not remove either. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
 
    Log this decision to `{run-dir}/decisions.md`, the same `Rationale:`-suffixed shape
-   `grant-check`'s two callers already use (`backlog/grant-mode.md`, `backlog/refine-mode.md`) —
+   `grant-check`'s two callers already use (`backlog/refine-headless.md`, `backlog/refine-mode.md`) —
    carrying `CLASSIFICATION`, `NOTIFY_NOW`, and `RATIONALE` verbatim regardless of whether
    `RATIONALE` holds a content judgment or names a could-not-gather failure class (the field name
    is the same either way, only its prose shape differs):

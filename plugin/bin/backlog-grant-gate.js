@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // bin/backlog-grant-gate.js — single-invocation CLI running
-// skills/backlog/grant-mode.md's Step 0 (ceiling gate) through Step 2 Phase A
+// skills/backlog/refine-headless.md's Step 0 (ceiling gate) through Step 2 Phase A
 // (gates 1-3, pure) in one shot: resolves the relevant policy keys, fetches
 // the ready-labeled candidate pool and the historical record set trustRows
 // grades, computes the trust table, and evaluates every candidate's
@@ -20,7 +20,7 @@
 //   { ceiling, grantOriginationEnabled, shortcut, candidates, trustRows,
 //     phaseA, eligible, refused }
 // `shortcut` is 'ceiling-gate' (Step 0 never cleared — the same "nothing to
-// do" stop grant-mode.md's Step 0 has always reported), 'zero-eligible'
+// do" stop refine-headless.md's Step 0 has always reported), 'zero-eligible'
 // (Step 0 cleared but not one candidate reached needsGrantCheck: true — the
 // caller's per-candidate Phase B/C loop has nothing to run this firing,
 // #1384's Deliverable 2), or null (at least one candidate is eligible; the
@@ -130,7 +130,7 @@ function run(argv, deps = realDeps) {
   };
 
   // Ceiling gate short-circuits before any network call — the ceiling and
-  // opt-in are whole-run facts, not per-candidate ones (grant-mode.md Step 0).
+  // opt-in are whole-run facts, not per-candidate ones (refine-headless.md Step 0).
   if (ceiling !== 'unattended' || !grantOriginationEnabled) {
     deps.stdout(`${JSON.stringify(computeOutlook(policy, {}))}\n`);
     return 0;

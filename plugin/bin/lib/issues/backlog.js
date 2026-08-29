@@ -243,8 +243,8 @@ function funnelBuckets(records) {
 // annotation. When `policy.ceiling === 'unattended' && policy.
 // grantOriginationEnabled === true`, a human-filed record (facets.origin
 // null/undefined) is pre-filtered OUT before the gate chain runs at all —
-// mirroring grant-mode.md's own Step 1 "cheap pre-pass on the same gate-3
-// condition" (skills/backlog/grant-mode.md), itself only reached once that
+// mirroring refine-headless.md's own Step 1 "cheap pre-pass on the same gate-3
+// condition" (skills/backlog/refine-headless.md), itself only reached once that
 // mode's own Step 0 ceiling/opt-in gate has passed (see the caller
 // precondition documented at the top of machine-grant-outlook.md) — so a
 // human-filed record is never counted under refused here, exactly as

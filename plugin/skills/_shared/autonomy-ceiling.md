@@ -6,7 +6,7 @@ matrix, Grant semantics, Born-ready rule), `_shared/work-record-permission-matri
 `/capture` row's ceiling-gated `--chained` shaping clause), `_shared/auto-mode-contract.md` (never-reversible list),
 `_shared/policy-schema.md` (lever table), `capture/SKILL.md` (the born-`ready` exception),
 `backlog/refine-mode.md` (Step 3.6), `backlog/refine-lanes.md` (the `refineAutoApply` batch-confirm
-short-circuit — see Bookkeeping capabilities below), `backlog/grant-mode.md` (the
+short-circuit — see Bookkeeping capabilities below), `backlog/refine-headless.md` (the
 machine-originated grant path — the "What it authorizes" table's `unattended` row, made live), `dispatch/settle-and-merge.md`
 (Step 6.5's negative-evidence persist point — see Revocation below), `flow/manifesto.md` and
 `review/step3-routing.md` (the review-auto-apply-ceiling ceiling-conditional default's two
@@ -97,7 +97,7 @@ be true, false, or any combination at once. Where the section above pins one *cl
 this one gates *origination of new `auto:merge` grants, repo-wide*, regardless of class.
 
 **Trip sources.** Any one of three signals, discovered against a record `/claude-tweaks:backlog
-grant`'s headless machine-grant unit (`skills/backlog/grant-mode.md`) itself granted `auto:merge`
+refine`'s headless posture (`skills/backlog/refine-headless.md`) itself granted `auto:merge`
 to, trips the breaker:
 
 - a closing commit later discovered reverted (reusing `trust.js`'s shipped
@@ -108,7 +108,7 @@ to, trips the breaker:
 
 **Machine-granted scope is load-bearing.** Only records the machine-grant unit itself granted
 `auto:merge` to are ever watched (`merge-lane/watched.json`, seeded exclusively at that grant —
-`bin/lib/issues/merge-lane-breaker.js`'s `writeWatched`, invoked from `grant-mode.md`'s Step 4). A
+`bin/lib/issues/merge-lane-breaker.js`'s `writeWatched`, invoked from `refine-headless.md`'s Step 4). A
 human adding `auto:merge` via `/claude-tweaks:backlog refine` and later having it reverted is a
 real, already-handled event — the class-scoped mechanism above — but it never touches this
 repo-wide breaker: conflating the two would let one human's own merge decision retroactively shut
@@ -133,7 +133,7 @@ a human reset for a problem that was never real.
 write path that ever clears a trip: `/claude-tweaks:backlog refine`'s grant sub-stage, at its
 start, best-effort-reads the breaker and — only when tripped — surfaces one `AskUserQuestion`
 ("Leave tripped (Recommended)" / "Reset — I've reviewed the cause") before its own grant-sweep
-proceeds. Neither `grant-mode.md`'s Step 0.5 (the whole-run sweep that trips it) nor its Phase A-C
+proceeds. Neither `refine-headless.md`'s Step 0.5 (the whole-run sweep that trips it) nor its Phase A-C
 per-record loop ever writes `tripped: false` anywhere in their own procedure — a machine can trip
 the breaker, but only a human, explicitly, can reset it.
 
@@ -332,10 +332,11 @@ grants need a second, explicit opt-in beyond setting `autonomy: unattended`
 `policy.yml` — `_shared/policy-schema.md`). **`false` by default**, so a repo that has not opted in
 gets exactly the pre-#269 behavior: the tier is defined so the ceiling is complete, and the grant
 path behind it stays shut until a human amends that invariant deliberately, in `policy.yml`, rather
-than as a side effect of raising a dial. `/claude-tweaks:backlog`'s headless `grant` mode
-(`skills/backlog/grant-mode.md`) is the one path that reads the opt-in and acts on it — it is
+than as a side effect of raising a dial. `/claude-tweaks:backlog refine`'s headless posture
+(`skills/backlog/refine-headless.md`, reached via `--source routine|sweep` or the deprecated
+`grant` alias) is the one path that reads the opt-in and acts on it — it is
 machinery, but it originates nothing on its own judgment: both keys are a human's deliberate
-project-level configuration, and the mode's own gate chain (`bin/lib/issues/grant-gate.js`) still
+project-level configuration, and the posture's own gate chain (`bin/lib/issues/grant-gate.js`) still
 requires a clean per-class trust verdict, agent-filed origin, a content-aware `grant-check` clear,
 and no floor trip before a single grant is written.
 

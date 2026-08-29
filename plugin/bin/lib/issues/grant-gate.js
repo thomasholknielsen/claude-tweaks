@@ -3,7 +3,7 @@
 // Pure: the gate chain `/claude-tweaks:backlog grant` (the headless machine-grant
 // mode) evaluates per candidate record. Five floors, ALL must hold, evaluated in
 // a fixed order with the first failure short-circuiting into a logged skip — the
-// order is load-bearing (see skills/backlog/grant-mode.md and this record's own
+// order is load-bearing (see skills/backlog/refine-headless.md and this record's own
 // #269 Deliverables). Callers apply labels/comments; this module only decides.
 //
 // Two-phase call, because gate 4 (assess-agent-autonomy grant-check) is a
@@ -154,7 +154,7 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   // call is confirmatory, not a new judgment.
   const permitted = permittedGrants({ ceiling, row, grantOriginationEnabled: pol.grantOriginationEnabled });
   // NOTE (#309): this boolean means "this class of record earns merge trust" —
-  // it does NOT decide which label carries it. The caller (backlog/grant-mode.md
+  // it does NOT decide which label carries it. The caller (backlog/refine-headless.md
   // Step 4) applies `auto:merge-pending`, never `auto:merge` directly; the
   // promotion happens later, at dispatch's Auto-merge gate.
   let autoMerge = permitted.grants.bornAuthorized.granted === true;

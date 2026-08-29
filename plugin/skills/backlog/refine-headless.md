@@ -32,9 +32,9 @@ two-key opt-in below — it never makes a human-present-only action reachable he
 
 A judgment-required Dependency-repair finding — the ambiguous case `refine-lanes.md`'s Dependency
 repair section routes to the Needs-you lane rather than a mechanical wire — stamps `needs:decision`
-in this posture exactly as it does interactively (state this explicitly: `grant-mode.md` never had
-a Dependency-repair lane at all, so this is new only relative to the old grant-only mode, never a
-new behavior relative to `refine`'s own interactive path).
+in this posture exactly as it does interactively (state this explicitly: the old grant-only mode,
+now merged into this row, never had a Dependency-repair lane at all, so this is new only relative
+to that retired mode, never a new behavior relative to `refine`'s own interactive path).
 
 ## The grant chain
 
@@ -46,8 +46,8 @@ semantics names: the `autonomy` ceiling's `unattended` tier plus its `grant-orig
 opt-in (`_shared/autonomy-ceiling.md`, `_shared/policy-schema.md`), narrowed by a per-record
 gate chain that still requires a clean trust verdict, agent-filed origin, a content-aware
 `grant-check` clearing, and no floor trip. Human-filed records are refused unconditionally,
-regardless of every other key — see `_shared/work-record.md`'s `/backlog grant` permission
-matrix row.
+regardless of every other key — see `_shared/work-record-permission-matrix.md`'s merged
+`/backlog refine` row (the headless-posture cell).
 
 As of #309, a gate-chain pass that would have granted merge trust applies `auto:merge-pending`
 instead of `auto:merge` directly — see `_shared/work-record.md`'s Grant semantics for the full
@@ -383,9 +383,10 @@ Skipped by /claude-tweaks:backlog grant: body is not spec-shaped — missing/emp
 ```
 
 Unlike `refine`'s interactive Step 3.5, this posture does **not** remove `ready` on this
-downgrade — flag-back is a human-gate action (`_shared/work-record.md`'s permission matrix:
-`/backlog refine` removes `ready`, `/backlog grant` never does). Leaving `ready` in place lets a
-human or a subsequent interactive `refine` run reconsider it normally.
+downgrade — flag-back is a human-gate action (`_shared/work-record-permission-matrix.md`'s merged
+`/backlog refine` row: the human-present cell removes `ready` on flag-back, the headless-posture
+cell never does). Leaving `ready` in place lets a human or a subsequent interactive `refine` run
+reconsider it normally.
 
 ## Step 4: Apply
 
