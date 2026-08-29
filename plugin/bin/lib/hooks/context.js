@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const wtDetect = require('./worktree-detect');
+const { writeFileAtomic } = require('../atomic-write');
 
 function readStdin() {
   try { return fs.readFileSync(0, 'utf8'); } catch { return ''; }
@@ -497,22 +498,26 @@ function releaseRunStateLock(lockPath) {
 // previously could each read the same pre-write state and one writer's
 // patch would silently overwrite the other's, e.g. resurrecting a worktree
 // assignment a close-run call had just cleared.
+// Read-modify-write on run-state.json, guarded by acquireRunStateLock above.
+// Two concurrent writers (e.g. a `close-run` racing session-end's own hook,
+// or two record-worktree/close-run invocations against the same run dir —
+// both anticipated scenarios per this file's own wd-foreign-session logic)
+// previously could each read the same pre-write state and one writer's
+// patch would silently overwrite the other's, e.g. resurrecting a worktree
+// assignment a close-run call had just cleared.
 function writeRunState(runDir, patch) {
   const lock = acquireRunStateLock(runDir);
   const finalPath = path.join(runDir, 'run-state.json');
-  // Write to a per-process tmp file, then atomically rename over the real
-  // path. fs.renameSync is atomic on every platform Node supports (same
-  // dir, same filesystem), so a reader or a racing unlocked writer can
-  // never observe a torn/partial JSON file, and a crash mid-write leaves
-  // the previous state intact instead of a half-written file.
-  const tmpPath = path.join(runDir, `run-state.json.tmp-${process.pid}`);
   try {
     const next = { ...(readRunState(runDir) || {}), ...patch, updatedAt: new Date().toISOString() };
-    fs.writeFileSync(tmpPath, JSON.stringify(next, null, 2) + '\n');
-    fs.renameSync(tmpPath, finalPath);
+    // bin/lib/atomic-write.js's writeFileAtomic (#1653): writes a per-process
+    // tmp file then fs.renameSync's atomically over the real path, so a
+    // reader or a racing unlocked writer can never observe a torn/partial
+    // JSON file, and a crash mid-write leaves the previous state intact
+    // instead of a half-written file.
+    writeFileAtomic(finalPath, JSON.stringify(next, null, 2) + '\n');
     return next;
   } catch {
-    try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
     return null;
   } finally {
     releaseRunStateLock(lock);
