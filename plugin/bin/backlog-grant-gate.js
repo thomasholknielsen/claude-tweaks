@@ -146,6 +146,17 @@ function run(argv, deps = realDeps) {
     if (!opts.repo) { try { remote = deps.remoteUrl(); } catch { remote = null; } }
     const repoSpec = parseRepo(opts.repo ? `github.com/${opts.repo}` : remote);
     if (!repoSpec) { deps.stderr('backlog-grant-gate.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
+    // #1443: parseRepo's regex accepts any non-'/' owner/repo segment, including '.'/'..'
+    // (#1153 review finding). resolveSubIssueNumbers's REST fallback (lib/backlog-grant-gate/
+    // backlog-grant-gate.js) builds a `repos/${owner}/${repo}/issues/.../sub_issues` path via
+    // direct string interpolation rather than gh's bound-variable mechanism, so a crafted
+    // --repo value reaches that path string. Reject it here rather than narrowing the shared
+    // parseRepo, which 8 other CLIs also call — same guard shape as fetch-sub-issues.js's own
+    // #1153 fix.
+    if (repoSpec.owner === '.' || repoSpec.owner === '..' || repoSpec.repo === '.' || repoSpec.repo === '..') {
+      deps.stderr('backlog-grant-gate.js: invalid --repo value — owner/repo cannot be "." or ".."\n');
+      return 2;
+    }
     owner = repoSpec.owner; repo = repoSpec.repo;
   }
 
