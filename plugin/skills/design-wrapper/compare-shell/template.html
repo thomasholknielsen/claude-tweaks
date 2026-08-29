@@ -328,6 +328,19 @@
 
   function applyTweak(token, value) {
     document.documentElement.style.setProperty('--tweak-' + token, value);
+    // #1336: also forward the tweak into the currently-focused candidate's
+    // own iframe, so an opted-in candidate can restyle itself live. The
+    // iframe stays `sandbox="allow-scripts"` with no `allow-same-origin`
+    // (#1207's deliberate security boundary, unchanged) — its origin is
+    // opaque, so postMessage's targetOrigin can't be asserted; '*' is the
+    // only option, and `type` is the only signal an opting-in candidate has
+    // to recognize this message among any other postMessage traffic it
+    // might receive. A candidate that never registers a 'message' listener
+    // is unaffected — nothing reads this message, so nothing breaks.
+    var frame = focusStage.querySelector('iframe');
+    if (frame && frame.contentWindow) {
+      frame.contentWindow.postMessage({ type: 'compare-shell-tweak', token: token, value: value }, '*');
+    }
   }
 
   function attachTweakHandlers() {

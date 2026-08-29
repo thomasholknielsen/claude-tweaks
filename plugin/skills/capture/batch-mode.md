@@ -29,6 +29,8 @@ For each entry, in file order, run exactly the same per-item pipeline `SKILL.md`
 
 Unlike a single invocation's per-record Immediate Routing, batch mode routes the whole successfully-filed set in one pass: apply the invocation's `--route=` arg (when supplied) to every filed entry, or — with no `--route=` — ask once via `AskUserQuestion` whether to route the batch as a set (`brainstorm` / `keep`) rather than asking per entry. `absorb:N` is not offered at the batch level (each entry would need its own target record) — an entry needing `absorb:N` should be filed singly instead.
 
+**Precedence with the headless absorb bar (#1296).** This batch-level restriction is about the *batch-wide* `--route=` arg only — it does not exempt batch filings from `routing.md`'s per-entry headless bar. The Per-entry loop above runs Backend Selection's filing step once per entry, and the headless bar pre-empts that same filing step per `routing.md`'s own trigger (`$PIPELINE_RUN_DIR` set, `--source`, or `--defer-reason=`, all of which batch mode carries uniformly across entries per the entry-file section above); an entry that qualifies absorbs into its own matched candidate and is reported in the Batch Summary as absorbed rather than filed, exactly like a single invocation's own headless absorb. The two rules are independent: one entry absorbing headlessly does not license `--route=absorb:N` at the batch level for the others.
+
 ## Batch Summary
 
 Render one table after the loop completes:
