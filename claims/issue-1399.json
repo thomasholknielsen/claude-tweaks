@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-28T201841-record-1100",
-  "sessionId": "ce96b724-4f98-5987-ae77-c2044f1d6859",
-  "claimedAt": "2026-08-28T20:30:40.753Z",
-  "ttlHours": 72,
-  "host": "ccr-sandbox"
+  "reason": "merged PR #1628",
+  "releasedAt": "2026-08-29T07:37:04.671Z"
 }
