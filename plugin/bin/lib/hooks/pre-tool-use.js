@@ -108,10 +108,17 @@ const GATE_COVERAGE = Object.freeze({
   // The two exemptions above (paths) plus the allowlisted-commit rule (see
   // POLICY_COMMIT_ALLOWLIST / isPolicyOnlyCommit below). `paths[0]` carries a
   // trailing slash to mark it as a PREFIX; `paths[1]` is an exact-file match.
+  // `target` (#1395) is a third kind again: not a fixed path at all, but a
+  // per-write git query (isUntrackedOrIgnored) — see that function's own
+  // header comment for exactly what it proves before exempting a target, and
+  // for why this reads `gitignored` rather than the issue's originally-asked
+  // `untracked-or-ignored`: the standalone untracked-but-not-ignored branch
+  // was built, then reverted, after it proved unsafe against real tests.
   exemptions: Object.freeze({
     paths: Object.freeze([`${toPosix(PIPELINE_STATE_DIR)}/`, toPosix(POLICY_FILE)]),
     commit: 'policy-only',
     push: 'delete-only',
+    target: 'gitignored',
   }),
 });
 
@@ -180,6 +187,73 @@ function isPolicyFile(repoRoot, targetPath) {
   const canonical = canonicalRepoPath(repoRoot, POLICY_FILE);
   if (!canonical) return false;
   return real === canonical;
+}
+
+// The third path exemption (#1395): an exemptible write target (see
+// `exemptible` in checkWorktreeRequired below — file-tool targets AND Bash
+// write-shape targets both qualify, unlike isPolicyFile's fileTool-only
+// scope) whose fully-resolved path is git-ignored in its OWN repo. Real-world
+// motivation: a gitignored runtime `.env` a docker compose in the main
+// checkout reads is not the project work this gate isolates, even though
+// writing it looks identical, mechanically, to a genuine wrong-checkout code
+// write. `cp realfile.js .env` still resolves correctly here because the
+// caller passes only the write's TARGET path — `.env` — never the source; a
+// tracked source file is never exempted by association with an untracked
+// destination.
+//
+// git check-ignore -q's exit codes (verified empirically, since this file's
+// header comment on the gotcha warns not to assume): 0 = ignored, a
+// definitive positive. 1 with NO stderr = a normal negative ("not ignored" —
+// not a git failure). Anything else — a non-zero exit that DID produce
+// stderr, e.g. exit 128 "fatal: ... is outside repository" or "Invalid
+// path" — is a real git failure, indeterminate about the answer this
+// function needs: fails closed, matching isPipelineBookkeeping's own posture
+// just above.
+//
+// DELIBERATELY NOT IMPLEMENTED: a standalone "untracked, but NOT git-ignored"
+// branch via `git ls-files --error-unmatch`, despite the issue's (#1395)
+// literal ask for one. Built and empirically tested during triage, then
+// reverted after it broke three existing, deliberately-designed security
+// tests (`tests/hooks-policy-exemption.test.js`'s "Edit to CLAUDE.md stays
+// denied", "policy.yml SWAPPED for a symlink escaping elsewhere resolves to
+// denied", and "a Bash WRITE SHAPE (tee/cp) targeting policy.yml stays
+// denied") — proving the hazard is real, not hypothetical. The root cause:
+// git has NO signal that distinguishes "a legitimate untracked deploy/scratch
+// artifact" from "real, valuable project content that simply has not been
+// `git add`ed yet" — both read back identically from `ls-files
+// --error-unmatch` (a non-zero exit, no matching index entry), regardless of
+// whether the path exists on disk. Trusting "untracked" alone as a signal
+// would blanket-exempt (a) every not-yet-`git add`ed file created during
+// ordinary iterative development — the single most common real-world state
+// of new project work, not an edge case — and (b) any write whose LITERAL
+// target path happens to coincide with an untracked enforcement-relevant
+// file, including `.claude-tweaks/policy.yml` itself before its first commit
+// (undermining both isPolicyFile's fileTool-only Bash-write-shape gating,
+// spec #537 Non-Goals, and its symlink-swap identity defense, since neither
+// check-ignore nor ls-files follow symlinks — they answer for the literal
+// pathname, not the swapped-in target). No git-observable heuristic (parent
+// directory has no tracked siblings, no history for the path, etc.) closes
+// this gap without inventing arbitrary, unlisted logic. This finding is
+// recorded on #1395 and in this build's PR description rather than silently
+// narrowing the implementation without a trace — the issue's own
+// conservatism directive ("fail closed on any ambiguity, never widen the
+// exemption beyond exactly what the acceptance criteria specify") takes
+// precedence over the literal "untracked-file allow" acceptance criterion
+// where the two conflict.
+//
+// Absolute-path-only, like isPipelineBookkeeping and realTarget: a relative
+// path is unprovable (the cwd it would resolve against is not necessarily
+// the one the write executes in), so it is never exempt.
+function isUntrackedOrIgnored(repoRoot, targetPath) {
+  if (!repoRoot || typeof targetPath !== 'string' || !targetPath) return false;
+  if (!path.isAbsolute(targetPath)) return false;
+  const resolved = path.resolve(targetPath);
+
+  const ignoreCheck = runGit(['check-ignore', '-q', resolved], repoRoot);
+  if (ignoreCheck.failure === null) return true; // ignored
+  // Not a clean "not ignored" negative -> indeterminate/fatal -> not exempt.
+  if (ignoreCheck.failure !== FAILURE.GIT_ERROR || ignoreCheck.stderr) return false;
+  return false; // not ignored -> not exempt (see the header comment above)
 }
 
 // The commit exemption's allowlist grammar (spec #537 Deliverables): admits
@@ -637,6 +711,23 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     // pipelines/ prefix rule above but must stay gated here (spec #537
     // Non-Goals; review finding — a shell rewrite of the enforcement file).
     if (fileTool && isPolicyFile(repoRoot, targetPath)) continue;
+    // The third path exemption (#1395): see isUntrackedOrIgnored's own header
+    // comment for what it proves (and for why it checks ONLY git-ignored
+    // status, not untracked status standalone). Keyed on `exemptible`, NOT
+    // `fileTool` — unlike isPolicyFile just above, this must cover a Bash
+    // write shape (cp/mv/tee/sed -i/…) targeting a gitignored path too, not
+    // only Edit/Write/NotebookEdit. Leaves its own allow breadcrumb (distinct
+    // from the deny breadcrumb below) so an operator can audit which writes
+    // this exemption let through — the issue's explicit auditability ask,
+    // since the two pre-existing path exemptions leave no breadcrumb at all.
+    if (exemptible && isUntrackedOrIgnored(repoRoot, targetPath)) {
+      const ownedRun = ctx.ownedRun || {};
+      const testTag = process.env.CT_HOOKS_TEST_MODE === '1' ? { test: true } : null;
+      ctxLib.appendEvent(
+        ownedRun.dir, 'gate-exempt-gitignored', { tool: toolName, path: targetPath, ...testTag }, ownedRun.attribution,
+      );
+      continue;
+    }
     // The commit exemption (#537): ONLY for a target this loop resolved from a
     // 'commit' action (never 'push' — see the field comment above), and only
     // when the allowlist-matched command's staged set is provably nothing but
@@ -663,7 +754,18 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     // strictly less bad than a failed tool call, and this hook must never
     // throw on a deny.
     const ownedRun = ctx.ownedRun || {};
-    ctxLib.appendEvent(ownedRun.dir, 'gate-denial', { tool: toolName, path: targetPath }, ownedRun.attribution);
+    // #1337: the test suite exercises this exact deny path against synthetic
+    // repos (tests/hooks-dispatcher.test.js's runHook sets CT_HOOKS_TEST_MODE
+    // for every pre-tool-use invocation it spawns), and those denials landed
+    // in whatever real run dir happened to be reachable from cwd — polluting
+    // friction-events.js's aggregate gate-denial count with fixture noise the
+    // reflect Friction Lens couldn't tell apart from a real operator denial.
+    // Tag rather than skip the write: existing tests assert the event IS
+    // written (this is the mechanism under test), so the write must stay —
+    // only its downstream aggregation (friction-events.js's readEvents)
+    // should exclude it.
+    const testTag = process.env.CT_HOOKS_TEST_MODE === '1' ? { test: true } : null;
+    ctxLib.appendEvent(ownedRun.dir, 'gate-denial', { tool: toolName, path: targetPath, ...testTag }, ownedRun.attribution);
 
     const retryGuidance = action === 'push'
       ? `If you're trying to delete a branch whose worktree is already gone, there is nothing to ` +
@@ -683,7 +785,8 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
       `see _shared/policy-schema-coverage.md's worktree-always coverage block; exempt: ` +
       `${GATE_COVERAGE.exemptions.paths.join(', ')}, an allowlisted (${GATE_COVERAGE.exemptions.commit}) commit, ` +
-      `and an allowlisted (${GATE_COVERAGE.exemptions.push}) push) ` +
+      `an allowlisted (${GATE_COVERAGE.exemptions.push}) push, and a write target that is ` +
+      `${GATE_COVERAGE.exemptions.target} in its own repo) ` +
       `(policy: worktree-always in .claude-tweaks/policy.yml). You're currently working in ` +
       `a non-isolated checkout (${repoRoot}). ${retryGuidance}`,
     );
@@ -791,6 +894,12 @@ function hasNoUpstreamYet(dir) {
 // received as `mainRoot` here (wtDetect.mainCheckoutRoot's fs-only result) —
 // shelling out to re-derive a value the caller already has would undercut
 // the spawn budget I5 exists to protect.
+//
+// This call site never passes detectIntegrationModel's mcpReachable override
+// (see that function's own comment in policy-schema.js) — a lifecycle hook
+// runs with no agent turn active, so there is no MCP call this gate could
+// ever source a reachability signal from. This is a permanent, structural
+// gap, not an oversight (docs/incident-log.md IL-63).
 function resolveRunPinnedIntegrationModel(mainRoot, runDir) {
   const git = () => mainRoot;
   const readFile = (p) => {
@@ -1240,6 +1349,7 @@ module.exports = {
   POLICY_FILE,
   isPipelineBookkeeping,
   isPolicyFile,
+  isUntrackedOrIgnored,
   isPolicyOnlyCommit,
   POLICY_COMMIT_ALLOWLIST,
   isDeleteOnlyPush,

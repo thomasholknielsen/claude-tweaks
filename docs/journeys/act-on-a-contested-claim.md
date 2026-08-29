@@ -39,10 +39,10 @@ files:
 
 ### 3b. Distinguish an in-flight build from a contest — terminal
 - **URL:** the `## Flow: Claim in-flight` block, rendered in place of the Config Manifesto
-- **Action:** Read the PR link on the card, open that PR, and resolve or merge it — nothing about this record is contested, so there is no holder to wait on and no claim to sweep.
-- **Should feel:** Like being told the work already exists, not like being locked out.
-- **Should understand:** The record's claim blob is a released `pr-opened:` tombstone, and its linked PR is still open — a prior build finished and is awaiting merge. Reclaiming would start a second build racing that PR, so the run stops instead. Any other tombstone reason, a missing or foreign-repo `link`, or a failed liveness check all fall through to the ordinary reclaim (fail open) — this stop only fires on positive evidence of an open PR for this same repo.
-- **Red flags:** An in-flight card for a PR that is already merged or closed; a `link` pointing at another repository being followed at all; the run reclaiming and rebuilding a record whose PR is still open.
+- **Action:** When a human is present (this run was not a headless `next`-form firing), the card's own routing resolves the linked PR's run identity and offers a "Confirm before resuming" prompt — answer it (Resume re-enters that run's Review Console; Cancel leaves it parked and this run stops as before). Under a headless firing, or when the PR carries no resolvable run identity, the card is the terminal output — open the PR and resolve or merge it manually.
+- **Should feel:** Like being told the work already exists and offered the one next step to reach it, not like being locked out.
+- **Should understand:** The record's claim blob is a released `pr-opened:` tombstone, and its linked PR is still open — a prior build finished and is awaiting merge. Reclaiming would start a second build racing that PR, so the run stops instead. Any other tombstone reason, a missing or foreign-repo `link`, or a failed liveness check all fall through to the ordinary reclaim (fail open) — this stop only fires on positive evidence of an open PR for this same repo. The resume-confirmation prompt makes no freshness judgment of its own — its own check tells a genuinely still-running build apart from one that only looks in-flight.
+- **Red flags:** An in-flight card for a PR that is already merged or closed; a `link` pointing at another repository being followed at all; the run reclaiming and rebuilding a record whose PR is still open; the resume routing firing under a headless invocation with nobody present to answer it.
 
 ### 4. Follow the verdict's own next step — terminal, or another session
 - **URL:** the `Next:` clause of whichever verdict rendered
@@ -61,4 +61,5 @@ files:
 ## Origin
 - Created during build of #722 (holder-liveness verdict in the claim-contest card) — the claim stop and its card already existed, but the card's only guidance was "wait for the claim to expire", so there was no decision to document; the live / stale / remote verdict and its per-verdict next step are what this journey covers.
 - Extended during build of #315 (in-flight claim detection) — a `pr-opened:` tombstone with a still-open PR became a fourth claim-time outcome alongside live / stale / remote, with its own card and next step.
-- Related specs: #720, #721, #722, #723, #315
+- Extended during build of #958 (in-flight claim routing) — the in-flight card's next step now routes into a resume confirmation when a human is present, instead of always requiring manual PR resolution.
+- Related specs: #720, #721, #722, #723, #315, #958

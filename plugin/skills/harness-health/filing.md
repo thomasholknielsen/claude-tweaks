@@ -32,19 +32,21 @@ applied and appear directly in the authorization gate's worklist, skipping matur
 
 **Drain-rate cap and digest mode.** Before filing any survivor whose Step 6 decision is `'file'`, apply the `health-open-cap` throttle per `_shared/health-filing-digest.md`'s FILE-step shape (`{PREFIX}` = `harness-health`) — at or above the cap, the finding is appended to `harness-health`'s digest issue instead of filed as a new singleton. A `'reopen'` decision (regression) always bypasses the cap.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt:
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`); check that file when either changes to keep this skill's copy in sync with its three siblings. Each drained retry payload is also subject to the same cap check above before its `gh issue create` attempt. Resolve this run's session-scoped temp path first (`_shared/session-tmp-root.md`):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue drain --root . > /tmp/harness-health-retry-payloads.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HARNESS_HEALTH_RETRY_PAYLOADS=harness-health-retry-payloads.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue drain --root . > "$HARNESS_HEALTH_RETRY_PAYLOADS"
 ```
 
-For each payload in `/tmp/harness-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/harness-health-retry-results.json`, then:
+For each payload in `$HARNESS_HEALTH_RETRY_PAYLOADS`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to this run's session-scoped `harness-health-retry-results.json`, then re-resolve both session-scoped paths this fence needs (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue update /tmp/harness-health-retry-results.json --root . > /tmp/harness-health-escalated.json
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HARNESS_HEALTH_RETRY_RESULTS=harness-health-retry-results.json HARNESS_HEALTH_ESCALATED=harness-health-escalated.json)"
+node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue update "$HARNESS_HEALTH_RETRY_RESULTS" --root . > "$HARNESS_HEALTH_ESCALATED"
 ```
 
-If `/tmp/harness-health-escalated.json` is non-empty, file (or update) a `harness-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
+If `$HARNESS_HEALTH_ESCALATED` is non-empty, file (or update) a `harness-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
 Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Canonical pairs copied verbatim from `_shared/label-bootstrap.md`'s `LABELS_JSON`, plus harness-health's own diagnostic labels:
 
@@ -63,7 +65,7 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["harness-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
 ```
 
-Each payload in `/tmp/harness-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, and `intent` are all present directly on the payload object, alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore, though Step 7's batch table renders `category`/`classification`/`confidence`/`reversibility` as columns. The finding's `oldString`/`newString` patch text is deliberately **not** duplicated as top-level fields: `payload.body` already carries both verbatim in its fenced Current/Proposed (or "Remove this content") blocks, and that markdown is what ships to GitHub. Read the patch out of `body` if you need it. `intent` is the exception that stays: it is a one-word classification rather than duplicated content, and with `newString` gone it is the only top-level signal distinguishing a removal from a replacement.
+Each payload in `$HARNESS_HEALTH_PAYLOADS` (SKILL.md Step 6's session-scoped output, `_shared/session-tmp-root.md`) carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, and `intent` are all present directly on the payload object, alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore, though Step 7's batch table renders `category`/`classification`/`confidence`/`reversibility` as columns. The finding's `oldString`/`newString` patch text is deliberately **not** duplicated as top-level fields: `payload.body` already carries both verbatim in its fenced Current/Proposed (or "Remove this content") blocks, and that markdown is what ships to GitHub. Read the patch out of `body` if you need it. `intent` is the exception that stays: it is a one-word classification rather than duplicated content, and with `newString` gone it is the only top-level signal distinguishing a removal from a replacement.
 
 For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/harness-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
 

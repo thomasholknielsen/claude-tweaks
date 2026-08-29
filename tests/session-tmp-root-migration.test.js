@@ -9,11 +9,11 @@
 // itself (#1386's follow-up migration) is also pinned here now, alongside the
 // backlog/trust-signal.md consumer that reads its intermediate files.
 //
-// AC1's grep is repo-wide (`skills/`); this test scopes to the files this
-// record actually migrated -- the broader sweep across code-health,
-// docs-health, harness-health, journey-health, tidy, wrap-up, capture,
-// help, init, and the remaining _shared/ scan-procedure files remains open,
-// filed as its own follow-up record (see the ledger for this run).
+// AC1's grep is repo-wide (`skills/`); this test scopes to the files each
+// migration record actually touched. #923 closed the follow-up named above
+// -- the four health-sweep skills, wrap-up/*, tidy/capture/help/init, and
+// the remaining shared _shared/ scan-procedure files -- so their migrated
+// files are pinned here too, alongside #266's original set.
 
 'use strict';
 const test = require('node:test');
@@ -26,7 +26,8 @@ const ROOT = path.join(__dirname, '..', 'plugin', 'skills');
 const MIGRATED_FILES = [
   'specify/decomposition-mode.md',
   'specify/record-creation.md',
-  'specify/shaping-mode.md',
+  'specify/record-creation-subissues.md', // #1346 split record-creation.md; carries its own session-tmp usage
+  'specify/shaping-mode-stamping.md', // #1346 split shaping-mode.md; the session-tmp usage landed here
   'dispatch/queue-pull-script.md',
   '_shared/headless-self-report.md',
   'dispatch/settle-and-merge.md',
@@ -39,6 +40,29 @@ const MIGRATED_FILES = [
   'backlog/trust-signal.md',
   'assess-agent-autonomy/grant-check.md',
   '_shared/trust-table.md',
+  // #923's remaining skills/** sweep:
+  '_shared/github-pr-scan-acceptance.md',
+  '_shared/github-pr-scan.md',
+  '_shared/harness-health-analysis.md',
+  '_shared/label-bootstrap.md',
+  'capture/SKILL.md',
+  'code-health/SKILL.md',
+  'code-health/filing.md',
+  'code-health/focus-mode.md',
+  'docs-health/SKILL.md',
+  'harness-health/SKILL.md',
+  'harness-health/filing.md',
+  'harness-health/judge-procedure.md',
+  'help/status-scan.md',
+  'init/bootstrap/step-14-cloud-routine-parity.md',
+  'journey-health/SKILL.md',
+  'specify/next-mode.md',
+  'tidy/step-1-records.md',
+  'wrap-up/SKILL.md',
+  'wrap-up/docs-health-integration.md',
+  'wrap-up/leftover-routing.md',
+  'wrap-up/unblocked-records.md',
+  'wrap-up/verification-brief-parent-gate.md',
 ];
 
 // Matches a literal, unscoped /tmp/{prefix}-*.{ext} path -- the shape this

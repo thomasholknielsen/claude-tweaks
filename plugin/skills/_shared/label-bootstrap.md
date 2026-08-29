@@ -7,15 +7,17 @@ health skills, `/capture`, `/specify`, `/backlog`, `/dispatch`, `/tidy`,
 shared `parked` restoration step). Consumers reference this file; do not restate the loop
 inline.
 
-Given a `LABELS` array of `[name, description]` pairs:
+Given a `LABELS` array of `[name, description]` pairs. Resolve this run's session-scoped temp
+path first, per `_shared/session-tmp-root.md`:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" LABEL_BOOTSTRAP_PAYLOADS=label-bootstrap-payloads.json)"
 node -e "
   const { ensureLabelPayload } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/labels.js');
   const labels = ${LABELS_JSON};
   console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));
-" > /tmp/label-bootstrap-payloads.json
-node -e "const ls=require('/tmp/label-bootstrap-payloads.json'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
+" > "$LABEL_BOOTSTRAP_PAYLOADS"
+node -e "const ls=require('$LABEL_BOOTSTRAP_PAYLOADS'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
   gh label list --search "$NAME" --json name -q '.[].name' | grep -qx "$NAME" || \
     gh label create "$NAME" --description "$DESCRIPTION"
 done
@@ -39,7 +41,7 @@ gh label list --search "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" -
   | grep -qx "claude-tweaks:bootstrapped-v{LABEL_BOOTSTRAP_VERSION}" && SKIP_BOOTSTRAP=true || SKIP_BOOTSTRAP=false
 ```
 
-`{LABEL_BOOTSTRAP_VERSION}` is the literal integer below — **current value: `5`**. Bump it (and
+`{LABEL_BOOTSTRAP_VERSION}` is the literal integer below — **current value: `6`**. Bump it (and
 this literal) whenever a label is added to or removed from the canonical `LABELS_JSON` array
 below. A marker stamped under the old version no longer matches the search after a bump, so the
 next consumer's Preflight falls through to the full loop, re-establishes the set (including
@@ -108,6 +110,7 @@ one-time provision-now offer, which uses this list whole):
   ["parent-issue",      "Structure: parent issue — carries the acceptance gate for its sub-issues"],
   ["solution:unjustified",   "Solution: named without being traded off against alternatives — add evidence or accept the risk"],
   ["needs:definition",  "Undecided idea — must go through /specify's brainstorm redirect before reaching ready"],
+  ["needs:decision",    "a headless unit proposed an action it may not take alone — see the newest decision comment"],
   ["shaped:headless",   "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body"],
   ["priority:high",     "Priority: dispatch picks this band first"],
   ["priority:medium",   "Priority: dispatch picks after priority:high"],

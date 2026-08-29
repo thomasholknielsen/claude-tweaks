@@ -72,7 +72,7 @@ function evaluateMaturation({ hasPendingLabel, hasMergeLabel, pendingSince, veto
     return { mature: false, state: 'unknown-age', reason: 'pending grant timestamp could not be determined from the audit trail — treated as not yet matured' };
   }
 
-  const windowHours = Number.isFinite(vetoWindowHours) && vetoWindowHours >= 0
+  const windowHours = Number.isFinite(vetoWindowHours) && vetoWindowHours > 0
     ? vetoWindowHours
     : DEFAULT_VETO_WINDOW_HOURS;
 

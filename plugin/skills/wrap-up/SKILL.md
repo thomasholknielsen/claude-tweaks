@@ -241,7 +241,7 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 
 **Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to the report.
 
-Empty-console fast path: skip the console entirely and proceed to the report when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` holds no decision-bearing entries — `SCANNED` audit lines are excluded — `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes, memory updates, or upstream feedback proposals are pending). Unconditional bookkeeping rows — run-dir archival — do not count as cleanup actions for that test; archival executes regardless.
+Empty-console fast path: skip the console entirely and proceed to the report when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` holds no decision-bearing entries — `SCANNED` and `SKIP` audit lines are excluded — `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes, memory updates, or upstream feedback proposals are pending). Unconditional bookkeeping rows — run-dir archival — do not count as cleanup actions for that test; archival executes regardless.
 
 **Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, and the Auto-merge short-circuit's applicability check — when **either** holds. Once a real stop will actually render (i.e. neither the Auto-resolution short-circuit nor the Empty-console fast path resolved and returned), also read `review-console-interactive.md` for the full console template with every section table (including the conditionally-rendered Low-confidence, Contested findings, and Reference repairs sections), override/stop semantics, and the sort-order requirement:
 
@@ -289,13 +289,13 @@ When invoked directly by a user (standalone wrap-up), resolve 2-4 lines based on
 | Signal | Option |
 |--------|--------|
 | Next spec exists (Phase 3's unblocked-records lookup) | `/claude-tweaks:flow {N}` — full pipeline on spec {N}: "{title}" **(Recommended)** |
-| Newly unblocked records (Phase 3's dependent check — `/tmp/wrapup-unblocked.json`, one option per entry) | `/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (bare `{N}` under `work-backend: local-files`) |
+| Newly unblocked records (Phase 3's dependent check — this run's session-scoped `wrapup-unblocked.json`, `_shared/session-tmp-root.md`, one option per entry) | `/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (bare `{N}` under `work-backend: local-files`) |
 | Always | `/claude-tweaks:help` — full pipeline status |
 
 Once the signals are resolved, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — when a next spec exists, its line renders first, bolded, suffixed `(recommended)`; otherwise the lines render in the table's order with no line marked recommended:
 
 **`/claude-tweaks:flow {N}`** — full pipeline on spec {N}: "{title}" (recommended, when a next spec exists)
-`/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (one line per entry in `/tmp/wrapup-unblocked.json`, up to the tool's option cap; bare `{N}` under `work-backend: local-files`)
+`/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (one line per entry in this run's session-scoped `wrapup-unblocked.json`, up to the tool's option cap; bare `{N}` under `work-backend: local-files`)
 `/claude-tweaks:help` — full pipeline status
 
 ## Component-Skill Contract

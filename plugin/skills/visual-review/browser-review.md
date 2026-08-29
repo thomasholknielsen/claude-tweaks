@@ -222,6 +222,19 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 **Hard gate.** Check the response you are about to send: does it already contain the Findings & Ideas table above as literal rendered markdown, with a row for every finding? If not, render it now, in this response, before the tool call — "Apply all" with no table above it leaves the user approving an unnamed set of UI findings.
 
+**Evaluated against `_shared/visual-decision.md` — not adopted (#1208).** This step's decision is
+an N-row findings triage (Apply all / Override specific items), not a single-target accept/reject
+and not an N-variant comparison — the two shapes that contract's pick/reroll/steer/exit vocabulary
+is built for. There is no "candidate" here to render as a compare-shell frame: findings are text
+rows referencing overlay markers already shown inline in this report, not rendered variants
+competing for a pick. Unlike `/claude-tweaks:demo`'s Show step (which hands the browser to the
+human directly, making a browser-hosted verdict control a natural fit — see that skill's Verdict
+step), this report's findings are already fully rendered in the terminal conversation the human is
+reading, so there is no separate browser tab already holding their attention to relocate the
+verdict into. Wrapping this table in a one-candidate compare-shell round would relocate an
+identical two-option question into the browser for no functional gain. This terminal
+`AskUserQuestion` stays exactly as it is above.
+
 The **Source** column traces each finding to its origin step (Health, Performance, First Impression, Persona, Analyze, Reimagine). This replaces the separate "Functional Issues," "Visual & Content Issues," and "UX Observations" report sections.
 
 **Recommendation rules for Issues:**

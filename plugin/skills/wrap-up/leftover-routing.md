@@ -31,20 +31,24 @@ explicit that there is no Review Console row per entry.
 
 2. **Build the payload** via `recordPayload` (`bin/lib/issues/record.js`) — no `origin` param (a wrap-up leftover carries no `by:*` label; `_shared/work-record.md`'s origin axis records this case as the body's `Origin:` line). Landing states, per `_shared/work-record.md`'s born-shaped `/wrap-up` row: **born-ready** — `risk`/`size` judged per that file's Scoring axis from the section's own content, `ready: true`; **parked** (a real `Trigger:` in the header) — scored, `parked: true`, `ready: false` (`recordPayload` rejects both together); **needs-you** (the `openQuestion` body) — `needs:definition` in `Labels:`, no `ready`, no scoring. Also pass the same value as `recordPayload`'s `deferReason` — the composed body already carries the line, so this inserts nothing; it buys the mismatch throw (`record.js`'s match-or-throw), catching a staged header that diverges from the body:
 
+   Resolve this run's session-scoped temp paths first, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated):
+
    ```bash
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" WRAP_UP_LEFTOVER_ARGS=wrap-up-leftover-args.json WRAP_UP_LEFTOVER_PAYLOAD=wrap-up-leftover-payload.json)"
    node -e "const {recordPayload,specShapedBody}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
      const args=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));
      const body=specShapedBody(args.compose);
      const p=recordPayload({ ...args.payload, body, deferReason: args.compose.provenance.deferReason });
-     require('fs').writeFileSync('/tmp/wrap-up-leftover-payload.json', JSON.stringify(p))" /tmp/wrap-up-leftover-args.json
+     require('fs').writeFileSync(process.argv[2], JSON.stringify(p))" "$WRAP_UP_LEFTOVER_ARGS" "$WRAP_UP_LEFTOVER_PAYLOAD"
    ```
 
-   `/tmp/wrap-up-leftover-args.json` carries `{ compose: {header, currentState, deliverables, acceptanceCriteria|openQuestion, filedBy, provenance, footer}, payload: {title, type, risk?, size?, ready?, parked?} }` — `type`: `task` by default, `bug` for a defect, `feature` for a distinct new capability. The `needs:definition` label is appended at the staging step below (it is a label with no `recordPayload` parameter).
+   `$WRAP_UP_LEFTOVER_ARGS` carries `{ compose: {header, currentState, deliverables, acceptanceCriteria|openQuestion, filedBy, provenance, footer}, payload: {title, type, risk?, size?, ready?, parked?} }` — `type`: `task` by default, `bug` for a defect, `feature` for a distinct new capability. The `needs:definition` label is appended at the staging step below (it is a label with no `recordPayload` parameter).
 
-3. **Stage it** — render the payload to `{run-dir}/staged/leftover-{slug}.md` (`{slug}` — kebab-case derived from the section title), now through a CLI rather than a direct `writeFileSync` against the run dir — the same anchoring guarantee `bin/log-decision.js` already gives `decisions.md` writes, now extended to this staged file:
+3. **Stage it** — render the payload to `{run-dir}/staged/leftover-{slug}.md` (`{slug}` — kebab-case derived from the section title), now through a CLI rather than a direct `writeFileSync` against the run dir — the same anchoring guarantee `bin/log-decision.js` already gives `decisions.md` writes, now extended to this staged file. Re-resolve this fence's session-scoped path (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
    ```bash
-   node -e "const p=require('/tmp/wrap-up-leftover-payload.json');
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" WRAP_UP_LEFTOVER_PAYLOAD=wrap-up-leftover-payload.json)"
+   node -e "const p=require('$WRAP_UP_LEFTOVER_PAYLOAD');
      require('fs').writeFileSync(process.argv[1],
        'Title: ' + p.title + '\nType: ' + p.type + '\nLabels: ' + ((p.labels.concat(process.argv[3]==='true'?['needs:definition']:[]).join(', ')) || 'none') + '\nDefer-reason: ' + process.argv[2] + '\n\n' + p.body)" \
      "/tmp/wrap-up-leftover-${CLAUDE_CODE_SESSION_ID}-${SLUG}.md" "$DEFER_REASON" "$NEEDS_DEFINITION"

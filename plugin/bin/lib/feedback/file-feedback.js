@@ -130,10 +130,15 @@ function fingerprintMarker(fingerprint) {
 // placeholder line as part of the human-readable preview — possibly the
 // literal `[object Object]` bug text if drafted before this fix. Never trust
 // that incoming value: replace the line wholesale if present, else append it.
+// #1435: the replacement must be a function, not the literal `line` string —
+// String.replace's string-replacement grammar treats a raw `$`-prefixed
+// sequence in that argument as a splice directive ($` = "everything before
+// the match"), not literal text. `line` is always a hex fingerprint today
+// (no `$`), but the function form costs nothing and removes the trap.
 function embedFingerprint(body, fingerprint) {
   const line = fingerprintMarker(fingerprint);
   const marker = /<!-- fingerprint:[^\n]*-->/;
-  if (marker.test(String(body))) return String(body).replace(marker, line);
+  if (marker.test(String(body))) return String(body).replace(marker, () => line);
   const sep = String(body).endsWith('\n') ? '' : '\n';
   return `${body}${sep}${line}\n`;
 }

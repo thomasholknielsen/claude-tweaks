@@ -39,18 +39,20 @@ For each doc in scope:
 Route surviving findings by `classification`:
 
 - **`additive`** → collect as `[doc] {file} — {description}` rows. In every mode they surface in the Review Console's own "Documentation updates" section (`review-console.md`), which owns the one terminal decision — applied at Phase 4's execution step exactly like any other approved doc edit.
-- **`restructural`** → file as a `by:docs-health` GitHub issue via the existing dedup/filing CLI machinery, scoped to exactly this run's touched-doc IDs instead of a `next-target` rotation pick. This index build is issue-backed (`gh issue list`), so on `gh`-absent it routes through `_shared/github-write-transport.md`'s `list_issues` mapping instead of running the command below — never invoke `validate-findings --issues` against a file this branch didn't write:
+- **`restructural`** → file as a `by:docs-health` GitHub issue via the existing dedup/filing CLI machinery, scoped to exactly this run's touched-doc IDs instead of a `next-target` rotation pick. This index build is issue-backed (`gh issue list`), so on `gh`-absent it routes through `_shared/github-write-transport.md`'s `list_issues` mapping instead of running the command below — never invoke `validate-findings --issues` against a file this branch didn't write. Resolve this run's session-scoped temp paths first, per `_shared/session-tmp-root.md` (cited throughout this file rather than restated):
 
   ```bash
-  gh issue list --label by:docs-health --state all --json number,state,labels,body --limit 500 > /tmp/wrapup-docs-health-issues-raw.json
+  eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" WRAPUP_DOCS_HEALTH_ISSUES_RAW=wrapup-docs-health-issues-raw.json WRAPUP_DOCS_HEALTH_ISSUES=wrapup-docs-health-issues.json)"
+  gh issue list --label by:docs-health --state all --json number,state,labels,body --limit 500 > "$WRAPUP_DOCS_HEALTH_ISSUES_RAW"
   ```
 
-  Parse via `extractFingerprint` (`bin/lib/issues/record.js`) into `{ number, state, labels, fingerprint }` objects, same as `/claude-tweaks:docs-health` Step 4, and write to `/tmp/wrapup-docs-health-issues.json`. Write this check's `restructural` findings to `/tmp/wrapup-docs-health-findings.json` in the same finding shape `_shared/criteria-docs-diataxis.md`'s "Emitting a finding" section defines, then:
+  Parse via `extractFingerprint` (`bin/lib/issues/record.js`) into `{ number, state, labels, fingerprint }` objects, same as `/claude-tweaks:docs-health` Step 4, and write to `$WRAPUP_DOCS_HEALTH_ISSUES`. Write this check's `restructural` findings to this run's session-scoped `wrapup-docs-health-findings.json` in the same finding shape `_shared/criteria-docs-diataxis.md`'s "Emitting a finding" section defines, then re-resolve this fence's session-scoped paths (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" validate-findings /tmp/wrapup-docs-health-findings.json \
-    --root "${ROOT:-$PWD}" --issues /tmp/wrapup-docs-health-issues.json --dry-run \
-    > /tmp/wrapup-docs-health-payloads.json
+  eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" WRAPUP_DOCS_HEALTH_FINDINGS=wrapup-docs-health-findings.json WRAPUP_DOCS_HEALTH_ISSUES=wrapup-docs-health-issues.json WRAPUP_DOCS_HEALTH_PAYLOADS=wrapup-docs-health-payloads.json)"
+  node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" validate-findings "$WRAPUP_DOCS_HEALTH_FINDINGS" \
+    --root "${ROOT:-$PWD}" --issues "$WRAPUP_DOCS_HEALTH_ISSUES" --dry-run \
+    > "$WRAPUP_DOCS_HEALTH_PAYLOADS"
   ```
 
   `--dry-run` here — wrap-up's own approval gate (the Review Console) is the point of approval, not `validate-findings`'s own dedup-and-file path. After the user approves at that gate, re-run the identical command without `--dry-run` so the cursor/cache state actually persists. Before filing, bootstrap the label families this run applies — same canonical pairs `/claude-tweaks:docs-health` Step 6 bootstraps from `_shared/label-bootstrap.md`'s `LABELS_JSON`, since a project with no prior standalone `/docs-health` run won't have them yet. Then file each surviving payload with `gh issue create` exactly as `/claude-tweaks:docs-health` Step 6 does (same label set: `by:docs-health`, the scoring labels from that skill's classification table's `restructural` row, `ready`, `docs-health:restructural`).
