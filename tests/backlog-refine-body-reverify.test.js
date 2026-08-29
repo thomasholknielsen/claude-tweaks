@@ -6,7 +6,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REFINE_MODE_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'refine-mode.md');
-const refineModeProse = fs.readFileSync(REFINE_MODE_PATH, 'utf8');
+const APPLY_STEP_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'apply-step.md');
+// #1442 split refine-mode.md's Step 5 body out to apply-step.md; the body pre-write
+// reverify prose this suite pins lives there now.
+const refineModeProse = fs.readFileSync(REFINE_MODE_PATH, 'utf8') + '\n' + fs.readFileSync(APPLY_STEP_PATH, 'utf8');
 
 // #842: the label-only pre-write reverify (#764) left the Related-rows and dependency-repair
 // body-text writes rewriting a record's full body from a Step 1 fetch that could be hours stale

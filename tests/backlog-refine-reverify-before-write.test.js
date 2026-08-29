@@ -6,7 +6,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REFINE_MODE_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'refine-mode.md');
-const refineModeProse = fs.readFileSync(REFINE_MODE_PATH, 'utf8');
+const APPLY_STEP_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'apply-step.md');
+// #1442 split refine-mode.md's Step 5 body out to apply-step.md; the pre-write
+// reverify prose this suite pins lives there now.
+const refineModeProse = fs.readFileSync(REFINE_MODE_PATH, 'utf8') + '\n' + fs.readFileSync(APPLY_STEP_PATH, 'utf8');
 
 // The pre-change Step 5 opening (#764) — narration-allowance line followed directly by the
 // Priority/Related write block, no reverify subsection between them. Used below to prove each

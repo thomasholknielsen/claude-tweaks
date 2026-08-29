@@ -35,7 +35,7 @@ test('reverify-before-write.md states the skip-on-mismatch, fail-closed policy',
 
 test('reverify-before-write.md names all three consumers in its "does not decide" section', () => {
   assert.ok(CONTRACT.includes('tidy/step-6-auto.md'));
-  assert.ok(CONTRACT.includes('backlog/refine-mode.md'));
+  assert.ok(CONTRACT.includes('backlog/apply-step.md'));
   assert.ok(CONTRACT.includes('_shared/staged-patch.md'));
 });
 
@@ -45,7 +45,7 @@ test('reverify-before-write.md names all three consumers in its "does not decide
 
 const CONSUMER_FILES = [
   'plugin/skills/tidy/step-6-auto.md',
-  'plugin/skills/backlog/refine-mode.md',
+  'plugin/skills/backlog/apply-step.md',
   'plugin/skills/_shared/staged-patch.md',
 ];
 
@@ -61,18 +61,19 @@ for (const rel of CONSUMER_FILES) {
   });
 }
 
-// --- backlog/refine-mode.md no longer carries its retired standalone
-// "General rule" restatement (the pure-rationale paragraph); its own
-// label/body reverify mechanics (Step 5's per-field diff procedure) are
-// deliberately not pinned here — outcome wording stays owned by the consumer ---
+// --- backlog/apply-step.md (refine-mode.md's Step 5, split out by #1442) no longer
+// carries its retired standalone "General rule" restatement (the pure-rationale
+// paragraph); its own label/body reverify mechanics (Step 5's per-field diff
+// procedure) are deliberately not pinned here — outcome wording stays owned by
+// the consumer ---
 
-test('refine-mode.md no longer restates the general-rule rationale standalone', () => {
-  const content = read('plugin/skills/backlog/refine-mode.md');
+test('apply-step.md no longer restates the general-rule rationale standalone', () => {
+  const content = read('plugin/skills/backlog/apply-step.md');
   assert.ok(!content.includes('Any batch-confirm-then-apply flow with a long-lived `AskUserQuestion` gate between building a row\'s premise and writing it needs this same pre-write reverify — the gate\'s wait time is unbounded and nothing else in this plugin guards the window.'));
 });
 
-test('refine-mode.md no longer restates the general-rule rationale standalone (whitespace-spanning control)', () => {
-  const collapsed = collapseWhitespace(read('plugin/skills/backlog/refine-mode.md'));
+test('apply-step.md no longer restates the general-rule rationale standalone (whitespace-spanning control)', () => {
+  const collapsed = collapseWhitespace(read('plugin/skills/backlog/apply-step.md'));
   const collapsedRetired = collapseWhitespace('Any batch-confirm-then-apply flow with a long-lived `AskUserQuestion` gate between building a row\'s premise and writing it needs this same pre-write reverify — the gate\'s wait time is unbounded and nothing else in this plugin guards the window.');
   assert.ok(!collapsed.includes(collapsedRetired));
 });
@@ -84,8 +85,8 @@ test('step-6-auto.md keeps its gate-still-due outcome wording', () => {
   assert.ok(read('plugin/skills/tidy/step-6-auto.md').includes('re-verifies the gate is still `due` with freshly read state'));
 });
 
-test('refine-mode.md keeps its per-row label/body diff mechanics', () => {
-  const content = read('plugin/skills/backlog/refine-mode.md');
+test('apply-step.md keeps its per-row label/body diff mechanics', () => {
+  const content = read('plugin/skills/backlog/apply-step.md');
   assert.ok(content.includes("re-fetch that record's live labels"));
   assert.ok(content.includes('re-fetch the record\'s live body'));
 });

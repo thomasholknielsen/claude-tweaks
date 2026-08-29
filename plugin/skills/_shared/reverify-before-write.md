@@ -31,9 +31,9 @@ mechanics for what "live state" means and how a mismatch is handled procedurally
 
 - `tidy/step-6-auto.md`'s `[parent-gate]` row re-reads the gate's own `due` status before opening
   it, rather than trusting the scan that staged it.
-- `backlog/refine-mode.md` Step 5 re-fetches each row's live labels (or, for a body-rewriting
-  write, the live body) and diffs them against the facets captured at Step 1, skipping any row
-  whose premise no longer holds.
+- `backlog/apply-step.md` (`refine-mode.md`'s Step 5, split out by #1442) re-fetches each row's
+  live labels (or, for a body-rewriting write, the live body) and diffs them against the facets
+  captured at Step 1, skipping any row whose premise no longer holds.
 - `_shared/staged-patch.md`'s Review Console apply step treats a stale diff as the expected end
   state of a diff written mid-pipeline, not a failure — it re-derives the change from the staged
   `Invariant:` line against the current tree instead of trusting the cached patch bytes.

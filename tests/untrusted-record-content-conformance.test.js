@@ -264,3 +264,65 @@ test('skill-graph rows carry the grant-check extension, still one dedicated cont
   const rows = GRAPH.split('\n').filter((l) => l.startsWith('| `_shared/untrusted-record-content.md`'));
   assert.strictEqual(rows.length, 1, 'still exactly one dedicated contract row');
 });
+
+// --- Phase 4 (#1442): refine-mode.md's grant-check call site (deliberately left out of #1391) ---
+
+// refine-mode.md's pre-#1442 Step 3 tail, frozen: proves the citation/verdict pins can go red.
+const FROZEN_REFINE_STEP3_TAIL = collapse(`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "grant-check #{n}")
+\`\`\`
+
+Each invocation returns \`RECOMMEND_BUILD\`/\`RECOMMEND_MERGE\`/\`RATIONALE\` (see
+\`skills/assess-agent-autonomy/grant-check.md\`). Derive the Grant lane's Recommended value for
+grant rows directly from this output, and carry \`RATIONALE\` through to the lane's own Evidence
+column (Step 4) and the \`decisions.md\` log line (Step 5) — a content-aware judgment the
+human is about to act on must stay visible at decision time and stay in the audit trail
+afterward, not be computed and then silently discarded.`);
+
+const REFINE_MODE_FLAT_P4 = readFlat('plugin/skills/backlog/refine-mode.md');
+
+test('refine-mode.md Step 3 wraps per the contract and pins the RECOMMEND_BUILD/RECOMMEND_MERGE verdict source', () => {
+  assert.ok(REFINE_MODE_FLAT_P4.includes('wrapped per `_shared/untrusted-record-content.md`'), 'wrap citation missing from refine-mode.md Step 3');
+  assert.ok(REFINE_MODE_FLAT_P4.includes('^RECOMMEND_BUILD: (true|false)$'), 'anchored RECOMMEND_BUILD verdict regex missing');
+  assert.ok(REFINE_MODE_FLAT_P4.includes('^RECOMMEND_MERGE: (true|false)$'), 'anchored RECOMMEND_MERGE verdict regex missing');
+  assert.ok(REFINE_MODE_FLAT_P4.includes("from `grant-check.md`'s own rendered Step 3 output only"), 'verdict-source constraint missing');
+  assert.ok(!FROZEN_REFINE_STEP3_TAIL.includes('untrusted-record-content.md'), 'control: frozen pre-change tail must lack the citation (proves go-red)');
+});
+
+test('refine-mode.md never defaults a missing grant-check verdict to auto:build, routes it to Flag-back instead', () => {
+  assert.ok(REFINE_MODE_FLAT_P4.includes('ready → flag back (no verdict rendered)'), 'missing-verdict Flag-back routing missing');
+  assert.ok(REFINE_MODE_FLAT_P4.includes('never a default `auto:build` recommendation'), 'never-default rule missing');
+  assert.ok(REFINE_MODE_FLAT_P4.includes('never silently dropped from the table'), 'never-silently-dropped rule missing');
+  assert.ok(!FROZEN_REFINE_STEP3_TAIL.includes('no verdict rendered'), 'control: frozen pre-change tail must lack the routing (proves go-red)');
+  assert.ok(!FROZEN_REFINE_STEP3_TAIL.includes('never silently dropped'), 'control: frozen pre-change tail must lack the rule (proves go-red)');
+});
+
+// refine-lanes.md's pre-#1442 Flag-back Population sentence, frozen.
+const FROZEN_REFINE_LANES_FLAGBACK_POP = collapse(`Step 3.5's body-shape auto-downgrade (a row Step 3 recommended granting whose body failed the
+spec-shape re-check immediately before Step 4).`);
+
+const REFINE_LANES_FLAT_P4 = readFlat('plugin/skills/backlog/refine-lanes.md');
+
+test('refine-lanes.md Flag-back lane documents the no-verdict-rendered row', () => {
+  assert.ok(REFINE_LANES_FLAT_P4.includes('flag back (no verdict rendered)'), 'no-verdict-rendered row missing from refine-lanes.md Flag-back lane');
+  assert.ok(REFINE_LANES_FLAT_P4.includes('grant-check rendered no RECOMMEND_BUILD/RECOMMEND_MERGE verdict line'), 'no-verdict-rendered Evidence string missing');
+  assert.ok(!FROZEN_REFINE_LANES_FLAGBACK_POP.includes('no verdict rendered'), 'control: frozen pre-change population sentence must lack the row (proves go-red)');
+});
+
+test('skill-graph rows carry the #1442 refine-mode.md extension, still one dedicated contract row', () => {
+  const GRAPH = read('docs/skill-graph.md');
+  const GRAPH_FLAT = collapse(GRAPH);
+  assert.ok(GRAPH_FLAT.includes("#1442 extends the same obligation to `refine-mode.md`'s own Step 3 invocation"), 'backlog-section row not extended to name the refine call site');
+  assert.ok(GRAPH_FLAT.includes("extended again to `backlog/refine-mode.md`'s own Step 3 grant-check invocation by #1442"), 'contract row not extended to name refine-mode.md');
+  // The Phase 3 substring must still be intact verbatim — #1442 appends, never rewrites it.
+  assert.ok(GRAPH_FLAT.includes("and to grant-check by #1391 (`backlog/grant-mode.md`'s Phase B invocation, `assess-agent-autonomy/grant-check.md`'s Step 1)"), 'Phase 3 contract-row substring must survive the #1442 append verbatim');
+  const rows = GRAPH.split('\n').filter((l) => l.startsWith('| `_shared/untrusted-record-content.md`'));
+  assert.strictEqual(rows.length, 1, 'still exactly one dedicated contract row');
+});
+
+// untrusted-record-content.md's pre-#1442 Consumers tail, frozen.
+const FROZEN_CONTRACT_CONSUMERS_TAIL = collapse('| `backlog/grant-mode.md` (Phase B grant-check invocation) | The `^RECOMMEND_BUILD: (true\\|false)$` / `^RECOMMEND_MERGE: (true\\|false)$` instances and the missing-verdict grant-unit failure routing (skip, report — never a default grant or refusal) |\n| `assess-agent-autonomy/grant-check.md` (Step 1) | Its own Step 2 judgment and the mechanical `needs:definition` short-circuit that precedes any content weighing |');
+
+test('contract Consumers table gains a backlog/refine-mode.md (Step 3) row', () => {
+  assert.ok(CONTRACT_FLAT.includes('| `backlog/refine-mode.md` (Step 3 grant-check invocation) |'), 'refine-mode.md consumer row missing from the contract');
+  assert.ok(!FROZEN_CONTRACT_CONSUMERS_TAIL.includes('backlog/refine-mode.md'), 'control: frozen pre-change tail must lack the row (proves go-red)');
+});

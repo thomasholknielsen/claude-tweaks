@@ -6,7 +6,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REFINE_MODE_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'refine-mode.md');
-const refineModeProse = fs.readFileSync(REFINE_MODE_PATH, 'utf8');
+const APPLY_STEP_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'apply-step.md');
+// #1442 split refine-mode.md's Step 5 body out to apply-step.md; the closing-summary
+// prose this suite pins lives there now.
+const refineModeProse = fs.readFileSync(REFINE_MODE_PATH, 'utf8') + '\n' + fs.readFileSync(APPLY_STEP_PATH, 'utf8');
 
 // The pre-change Step 5 text (#741) — no closing-summary block, just the AUTO log-line
 // templates followed directly by the Concurrency section. Used below to prove each

@@ -140,14 +140,17 @@ approving one.
 
 Population: rows that reached this lane before Step 4 ever rendered — Step 3's
 `RECOMMEND_BUILD: false` recommendation (`flag back (needs scoring)`; the human may instead supply
-`risk:*`/`size:*` inline as a free-text override rather than accepting the flag-back — Step 5) and
+`risk:*`/`size:*` inline as a free-text override rather than accepting the flag-back — Step 5),
 Step 3.5's body-shape auto-downgrade (a row Step 3 recommended granting whose body failed the
-spec-shape re-check immediately before Step 4).
+spec-shape re-check immediately before Step 4), and Step 3's own missing-verdict routing (`#1442`:
+`grant-check`'s rendered output carried no `^RECOMMEND_BUILD: (true|false)$`/`^RECOMMEND_MERGE:
+(true|false)$` line for that record — a callee failure, never coerced to a grant).
 
 | # | Record | Current → Recommended | Evidence |
 |---|---|---|---|
 | 1 | #201: {title} | ready → flag back (needs scoring) | RECOMMEND_BUILD: false — {grant-check RATIONALE} |
 | 2 | #205: {title} | ready → flag back (not spec-shaped) | missing/empty: `## Acceptance Criteria` |
+| 3 | #209: {title} | ready → flag back (no verdict rendered) | grant-check rendered no RECOMMEND_BUILD/RECOMMEND_MERGE verdict line |
 
 Accepted defaults, paste-ready (Step 5's Flag-back-rows mechanics — bootstrap comment lives there,
 not repeated here). Write every flag-back row's action to `"$ST_BACKLOG_REFINE_ACTIONS_FLAGBACK"`

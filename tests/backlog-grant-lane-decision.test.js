@@ -9,7 +9,9 @@ const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
-const REFINE_MODE_FLAT = readFlat('plugin/skills/backlog/refine-mode.md');
+// #1442 split refine-mode.md's Step 5 body out to apply-step.md; concatenate both so
+// pins against either half of the (still logically one) Step 3/Step 5 flow keep working.
+const REFINE_MODE_FLAT = readFlat('plugin/skills/backlog/refine-mode.md') + ' ' + readFlat('plugin/skills/backlog/apply-step.md');
 
 test('grant-lane-decision.md exists and documents the RECOMMEND_BUILD: false branch', () => {
   const p = path.join(ROOT, 'plugin', 'skills', 'backlog', 'grant-lane-decision.md');

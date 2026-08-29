@@ -7,8 +7,12 @@ const path = require('node:path');
 
 const OVERVIEW_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'overview-mode.md');
 const REFINE_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'refine-mode.md');
+const APPLY_STEP_PATH = path.join(__dirname, '..', 'plugin', 'skills', 'backlog', 'apply-step.md');
 const overviewProse = fs.readFileSync(OVERVIEW_PATH, 'utf8');
 const refineProse = fs.readFileSync(REFINE_PATH, 'utf8');
+// #1442 split refine-mode.md's Step 5 body out to apply-step.md; the dependency-repair
+// failure-line convention pinned below lives there now.
+const applyStepProse = fs.readFileSync(APPLY_STEP_PATH, 'utf8');
 
 // The pre-change overview-mode.md banner (#742) — the absolute clean-step-silence rule this
 // change retires. Used below to prove each regex actually goes red on the text it replaces.
@@ -94,5 +98,5 @@ test('point-of-use failure/degradation-line conventions survive unchanged in bot
   // the failure/degradation lines themselves — only the absolute banner was retired.
   assert.match(overviewProse, /one failure-only narration line noting the probe was unavailable/, 'overview-mode.md Step 2 native pre-attach failure-line convention was altered or removed');
   assert.match(overviewProse, /render one failure-only narration line naming exactly those ids/, 'overview-mode.md Step 3 per-node failure-line convention was altered or removed');
-  assert.match(refineProse, /render one failure-only narration line naming exactly those ids/, 'refine-mode.md dependency-repair failure-line convention was altered or removed');
+  assert.match(applyStepProse, /render one failure-only narration line naming exactly those ids/, 'refine-mode.md (apply-step.md, #1442 split) dependency-repair failure-line convention was altered or removed');
 });
