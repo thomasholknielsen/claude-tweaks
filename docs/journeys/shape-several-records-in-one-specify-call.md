@@ -2,6 +2,7 @@
 files:
   - plugin/skills/specify/SKILL.md
   - plugin/skills/specify/shaping-mode.md
+  - plugin/skills/specify/shaping-mode-stamping.md
   - plugin/skills/specify/spec-template.md
   - plugin/skills/specify/design-pre-steps.md
 ---
