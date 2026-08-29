@@ -92,13 +92,18 @@ re-derived regexes.
    ```bash
    git ls-remote --heads origin "{name}"
    ```
-   - **No output** — nothing to do, proceed to Step 2.
+   - **Command fails** (non-zero exit — no network, no `origin` access) — fail open, the same
+     convention `_shared/worktree-setup.md`'s Post-creation catch-up already applies to a
+     fetch/merge failure on this same remote: log the degrade distinctly and proceed to Step 2
+     rather than treating an unreachable remote as a confirmed no-match.
+   - **No output, command succeeded** — nothing to do, proceed to Step 2.
    - **A ref comes back** — a remote-only collision: no local ref, no attached local worktree
      (guaranteed by the "no local match" precondition above). This is #1470's failure mode — an
      abandoned prior attempt pushed this deterministic name and was never cleaned up, and
      `EnterWorktree` would not itself catch it (no local branch conflicts, so creation succeeds;
      the collision would otherwise surface only later, as a rejected phase-exit push). Gather
-     context, best-effort:
+     context, best-effort — a failed or empty lookup surfaces as PR status unknown in the card
+     below, distinct from a confirmed no-open-PR result:
      ```bash
      gh pr list --repo {owner}/{repo} --head "{name}" --state all --json number,url,state,isDraft
      ```
@@ -109,14 +114,18 @@ re-derived regexes.
      ## Build: Remote-only branch collision
 
      `{name}` already exists on `origin` — no local ref, no attached worktree — {and has open PR
-     #{number} ({url}), likely from an abandoned prior attempt | with no open PR found}.
+     #{number} ({url}), likely from an abandoned prior attempt | with no open PR found | PR status
+     unknown (lookup failed)}.
 
      Options: (1) reuse the existing remote branch/PR and resume that prior attempt, (2) delete the
      stale remote branch (`git push origin --delete {name}`) and create fresh, (3) rename this
      run's branch to avoid the collision.
      ```
      **Interactive mode:** call `AskUserQuestion` with these three options, recommending (1) when
-     an open PR was found (resuming existing work beats discarding it), otherwise (2). **Auto
+     an open PR was confirmed found (resuming existing work beats discarding it), (2) when no open
+     PR was confirmed found, and no default recommendation when the lookup itself failed (PR status
+     unknown) — deleting a branch on an unconfirmed absence risks discarding someone else's live
+     work; let the human decide with that uncertainty stated plainly. **Auto
      mode:** this is not a lever `_shared/auto-mode-contract.md` lists as silenceable — Step 2.8's
      claim already rules out a *live* sibling on *this* record, but says nothing about a stale
      branch left by an unrelated record's abandoned attempt, so there is no safe default to
