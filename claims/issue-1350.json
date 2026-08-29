@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-29T080612-record-1350",
-  "sessionId": "ab4a7346-7d0b-46f0-9bfe-d0229e699d1b",
-  "claimedAt": "2026-08-29T08:06:13.609Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "not actionable now — standing watch-item for a future live /specify decomposition run, no code to build",
+  "releasedAt": "2026-08-29T08:06:19.451Z"
 }
