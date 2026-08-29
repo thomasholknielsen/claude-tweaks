@@ -79,10 +79,23 @@ function defaultRunner(args, opts = {}) {
   });
 }
 
-// {issueNumber, remote, branch, runner} -> {content, tipSha, absent, failure}
+// {issueNumber, remote, branch, runner, knownTip?} -> {content, tipSha, absent, failure}
 // Fetches the branch fresh every call (cheap — one ref) so `tipSha` is
 // always the live remote tip, never a locally-cached one that could be
-// stale by the time writeClaimBlobGit uses it as the compare-and-swap lease.
+// stale by the time writeClaimBlobGit uses it as the compare-and-swap lease
+// — UNLESS the caller passes `knownTip` (#1467's batch-amortization seam):
+// a commit sha this same process already knows is current (seeded from an
+// earlier call's own fetch, or advanced by a `writeClaimBlobGit` success in
+// this same batch). When present, this function skips its own fetch +
+// scratch-ref dance entirely and reads straight from that commit — safe
+// because a stale-but-trusted tip is never a correctness hazard here: this
+// function only ever informs a claim/contest DECISION from content, and the
+// actual compare-and-swap lease enforcement happens at `writeClaimBlobGit`'s
+// `--force-with-lease` push, which rejects (and gets re-verified with a
+// FRESH read — see claim-store.js's writeClaimBlob) the instant the real
+// remote tip has moved away from whatever this call assumed. Every non-batch
+// caller omits `knownTip` and gets the unconditional-fetch behavior below,
+// unchanged.
 //
 // Fetches into a per-call scratch ref rather than reading FETCH_HEAD: that
 // pseudo-ref is a single shared pointer, not scoped to this call, so a
@@ -93,16 +106,22 @@ function defaultRunner(args, opts = {}) {
 // instead of its own. A unique ref name has no such collision; the object
 // itself (read via `show` below) survives its own deletion, so cleanup here
 // never races the read that follows.
-function readClaimBlobGit({ issueNumber, remote = 'origin', branch = CLAIMS_BRANCH, runner = defaultRunner }) {
-  const scratchRef = `refs/claims-cas-read/${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+function readClaimBlobGit({
+  issueNumber, remote = 'origin', branch = CLAIMS_BRANCH, runner = defaultRunner, knownTip = null,
+}) {
   let tipSha;
-  try {
-    runner(['fetch', '-q', remote, `${branch}:${scratchRef}`]);
-    tipSha = runner(['rev-parse', scratchRef]).trim();
-  } catch {
-    return { content: null, tipSha: null, absent: false, failure: 'transport-failure' };
-  } finally {
-    try { runner(['update-ref', '-d', scratchRef]); } catch { /* best-effort cleanup — never mask the read's own outcome */ }
+  if (knownTip) {
+    tipSha = knownTip;
+  } else {
+    const scratchRef = `refs/claims-cas-read/${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    try {
+      runner(['fetch', '-q', remote, `${branch}:${scratchRef}`]);
+      tipSha = runner(['rev-parse', scratchRef]).trim();
+    } catch {
+      return { content: null, tipSha: null, absent: false, failure: 'transport-failure' };
+    } finally {
+      try { runner(['update-ref', '-d', scratchRef]); } catch { /* best-effort cleanup — never mask the read's own outcome */ }
+    }
   }
   const targetPath = claimFilePath(issueNumber);
   try {
@@ -116,7 +135,7 @@ function readClaimBlobGit({ issueNumber, remote = 'origin', branch = CLAIMS_BRAN
 }
 
 // {issueNumber, content, message, expectedTipSha, remote, branch, runner} ->
-// {ok, conflict?, secondaryRateLimit?, failure}
+// {ok, commitSha?, conflict?, secondaryRateLimit?, failure}
 // Builds the new commit via the index (read-tree + update-index + write-tree
 // + commit-tree) rather than manual tree-walking — git's own machinery
 // handles the nested `claims/` path and leaves every other entry in the
@@ -124,6 +143,15 @@ function readClaimBlobGit({ issueNumber, remote = 'origin', branch = CLAIMS_BRAN
 // tree's index. The push itself is the compare-and-swap: `--force-with-lease`
 // against `expectedTipSha` fails closed the instant the remote tip has
 // moved since this write's own read.
+//
+// On success, `commitSha` is the just-pushed commit — the new branch tip —
+// so a batch caller (#1467's `claim-targets.js`) can chain it straight into
+// the next item's `readClaimBlobGit({ knownTip: commitSha })` without a
+// fetch, instead of re-deriving it from a fresh read it doesn't otherwise
+// need. Present only on a genuine git-CAS success; every other outcome
+// (contents-API fallback success, conflict, transport failure) has no
+// commit sha a caller could safely chain from — see claim-store.js's
+// `writeClaimBlob` for how those cases propagate.
 function writeClaimBlobGit({
   issueNumber, content, message, expectedTipSha, remote = 'origin', branch = CLAIMS_BRANCH, runner = defaultRunner,
 }) {
@@ -137,7 +165,7 @@ function writeClaimBlobGit({
     const treeSha = runner(['write-tree'], { env }).trim();
     const commitSha = runner(['commit-tree', treeSha, '-p', expectedTipSha, '-m', message], { env }).trim();
     runner(['push', remote, `${commitSha}:refs/heads/${branch}`, `--force-with-lease=refs/heads/${branch}:${expectedTipSha}`]);
-    return { ok: true, failure: null };
+    return { ok: true, commitSha, failure: null };
   } catch (err) {
     const { kind } = classifyGitError(err);
     if (kind === 'contested') return { ok: false, conflict: true, failure: null };
