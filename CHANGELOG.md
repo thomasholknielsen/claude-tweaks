@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.111.0 — compare-shell: restyle the judged candidate when a tweak lever moves (#1336); sweep capture's headless absorb bar (#1296); document escalate-residue.js's minimal-label posture (#1216); fix stale redTip claim in docs/reconcile-checks.md
+
+compare-shell: restyle the judged candidate when a tweak lever moves (#1336); sweep capture's headless absorb bar (#1296); document escalate-residue.js's minimal-label posture (#1216); fix stale redTip claim in docs/reconcile-checks.md.
+
 ## v6.110.1 — Fix ENOBUFS crash in backlog-grant-gate.js gh/git runners (#1658); consolidate maxBuffer literal into shared-primitives.js and drop a risky timeout per review (#1661)
 
 Fix ENOBUFS crash in backlog-grant-gate.js gh/git runners (#1658); consolidate maxBuffer literal into shared-primitives.js and drop a risky timeout per review (#1661).
