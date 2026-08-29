@@ -228,7 +228,7 @@ Type, stage/scoring labels, and parent/dependency links are **record facets** �
 | Parent marker (`isParentIssue`) — decomposition parent; carries the acceptance gate for its sub-issues | `parent-issue` label (a retired name is still read on the read side only — see `_shared/work-record.md`'s Label taxonomy) | `is-parent-issue: true` frontmatter line |
 | Parent link | Sub-issue relationship (`work-links: native`) or a parent task-list entry (`- [ ] #{subIssueNum}`) + the sub-issue's own `Parent: #N` body line (`work-links: body-text`) | `parent:` frontmatter line |
 | Dependency links | Blocked-by dependency API (`work-links: native`) or `Blocked by #N` body lines (`work-links: body-text`) | `blocked-by: [...]` frontmatter line |
-| Related cross-link — non-dependency sibling reference; written by `/capture`'s body template and by `/specify`'s independent-2-unit collapse (`record-creation.md` Step 4), maintained by `/backlog refine` | `**Related:** #N` body line (both `work-links` values) | `**Related:** {id}` body line (no frontmatter facet) |
+| Related cross-link — non-dependency sibling reference; written by `/capture`'s body template and by `/specify`'s independent-2-unit collapse (`record-creation-linking.md` Step 4, #1346's split of `record-creation.md`), maintained by `/backlog refine` | `**Related:** #N` body line (both `work-links` values) | `**Related:** {id}` body line (no frontmatter facet) |
 
 The `local-files` frontmatter keys above are exactly `local-store.js`'s documented set (`bin/lib/issues/local-store.js`) — don't invent new keys here.
 

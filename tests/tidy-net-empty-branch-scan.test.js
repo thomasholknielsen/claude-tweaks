@@ -65,8 +65,8 @@ test('step-6-auto.md: the net-empty check is fully specified — command, applic
 });
 
 test('step-6-auto.md: the Delete row now covers net-empty worktrees/branches alongside merged ones', () => {
-  const deleteRowMatch = STEP6.match(/\| \*\*Delete\*\* \(stale temp files, broken symlinks, marked-as-specified design docs, ([^)]*)\)/);
-  assert.ok(deleteRowMatch, 'Delete row (stale temp files...) not found');
+  const deleteRowMatch = STEP6.match(/\| \*\*Delete\*\* \(marked-as-specified design docs, ([^)]*)\)/);
+  assert.ok(deleteRowMatch, 'Delete row (marked-as-specified design docs...) not found');
   assert.match(deleteRowMatch[1], /merged or net-empty worktrees\/branches/);
   assert.match(deleteRowMatch[1], /#613/);
 });

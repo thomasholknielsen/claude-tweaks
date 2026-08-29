@@ -2,13 +2,21 @@
 // reconcile() degrades once, fast, instead of every network-dependent check
 // separately discovering the same outage via its own 5-10s timeout (#820).
 'use strict';
-const { execFileSync } = require('child_process');
+const { execFileSync, execFile } = require('child_process');
+const { promisify } = require('util');
 const { classifyGhApiError } = require('../issues/claim-store');
+
+const execFileAsync = promisify(execFile);
 
 const PREFLIGHT_TIMEOUT_MS = 2000;
 
 function defaultRunner(args, timeoutMs) {
   return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: timeoutMs, windowsHide: true });
+}
+
+async function defaultRunnerAsync(args, timeoutMs) {
+  const { stdout } = await execFileAsync('gh', args, { encoding: 'utf8', timeout: timeoutMs, windowsHide: true });
+  return stdout;
 }
 
 // -> { ok: boolean, reason: null | 'gh-absent' | 'github-unreachable' }
@@ -31,4 +39,23 @@ function ghHealthCheck(opts = {}) {
   }
 }
 
-module.exports = { ghHealthCheck, PREFLIGHT_TIMEOUT_MS };
+// Async twin of ghHealthCheck — a real (non-blocking) execFile, so
+// reconcile/index.js's FAST_CHECKS dispatch can run this concurrently with
+// the shared git fetch via Promise.all instead of paying for both serially
+// (#872). Mirrors resolvePrStateAsync's (pr-state.js) established
+// execFile-based async pattern: same classification helper as the sync
+// version above (classifyGhApiError) — only the REASON VOCABULARY and the
+// blocking-vs-non-blocking spawn differ.
+async function ghHealthCheckAsync(opts = {}) {
+  const timeoutMs = opts.timeoutMs || PREFLIGHT_TIMEOUT_MS;
+  const runner = opts.runner || ((args) => defaultRunnerAsync(args, timeoutMs));
+  try {
+    await runner(['api', 'rate_limit', '-q', '.rate.remaining']);
+    return { ok: true, reason: null };
+  } catch (e) {
+    const { failure } = classifyGhApiError(e);
+    return failure === 'gh-absent' ? { ok: false, reason: 'gh-absent' } : { ok: false, reason: 'github-unreachable' };
+  }
+}
+
+module.exports = { ghHealthCheck, ghHealthCheckAsync, PREFLIGHT_TIMEOUT_MS };

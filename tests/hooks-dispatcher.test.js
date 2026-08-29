@@ -130,17 +130,20 @@ test('close-run does NOT warn about un-archived work/ when no work/ content exis
   assert.doesNotMatch(result.stdout, /still holds un-archived work\/ content/);
 });
 
-// #1124: record-worktree without --run (including a bare --help) used to
-// fall through to resolveRunDir's "newest non-terminal run" GUESS and could
-// silently clobber a DIFFERENT live session's run-state.json — reproduced 3x
-// independently on 2026-08-20, across three different dispatched subagents,
-// each time hitting a different live sibling run's run-state.json. This is
-// the regression test: two concurrent run directories, each already carrying
-// its own run-state.json (representing two genuinely live sibling sessions,
-// neither of which this invocation is scoped to), and an invocation omitting
-// --run (bare, or `--help`) must leave BOTH byte-unchanged and exit non-zero
-// — never guess which one to write into.
-test('record-worktree without --run (including --help) is a true no-op against two concurrent run directories, and exits non-zero', () => {
+// #1124: record-worktree without --run used to fall through to
+// resolveRunDir's "newest non-terminal run" GUESS and could silently clobber
+// a DIFFERENT live session's run-state.json — reproduced 3x independently on
+// 2026-08-20, across three different dispatched subagents, each time hitting
+// a different live sibling run's run-state.json. This is the regression
+// test: two concurrent run directories, each already carrying its own
+// run-state.json (representing two genuinely live sibling sessions, neither
+// of which this invocation is scoped to), and a bare invocation omitting
+// --run must leave BOTH byte-unchanged and exit non-zero — never guess which
+// one to write into. #1143 adds a dedicated, verb-agnostic --help/-h
+// intercept ahead of this whole branch (exit 0, usage text, no resolveRunArg
+// call at all) — a --help probe is exercised below too, but now as that
+// earlier, distinct no-op path rather than this "missing --run" refusal.
+test('record-worktree without --run is a true no-op against two concurrent run directories, and exits non-zero; --help is a separate, earlier no-op (#1143)', () => {
   const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
@@ -160,9 +163,14 @@ test('record-worktree without --run (including --help) is a true no-op against t
   assert.match(bare.stdout, /record-worktree requires --run/);
   assert.doesNotMatch(bare.stdout, /worktree recorded/);
 
+  // #1143: --help must never be treated as an implicit-resolution
+  // invocation — it's intercepted before resolveRunArg ever runs, so it
+  // gets its own dedicated no-op path (usage text, exit 0), not the
+  // "requires --run" refusal above (which stays non-zero on genuinely
+  // missing --run).
   const help = runHook(['record-worktree', '--help'], { cwd: project });
-  assert.notStrictEqual(help.code, 0, '--help must never be treated as an implicit-resolution invocation either');
-  assert.match(help.stdout, /record-worktree requires --run/);
+  assert.strictEqual(help.code, 0, '#1143: --help is a dedicated no-op path, distinct from the missing-args refusal');
+  assert.match(help.stdout, /usage: record-worktree --run <dir> <worktree-path>/);
   assert.doesNotMatch(help.stdout, /worktree recorded/);
 
   assert.deepStrictEqual(readRunState(staleDir), staleStateBefore, 'staleDir must be byte-unchanged');
@@ -191,25 +199,30 @@ test('record-worktree accepts --run before or after the worktree positional', ()
 });
 
 // #1124 review finding: the fix's OTHER guard — rejecting a flag-shaped
-// worktree positional (e.g. `--run <dir> --help`) — had no regression test,
-// even though it's the exact shape every observed pre-fix incident hit and
-// the code's own comment calls out. Discrimination check: reverting just the
+// worktree positional (e.g. `--run <dir> --bogus-flag`) — had no regression
+// test, even though it's the exact shape every observed pre-fix incident hit
+// (originally reproduced with a stray `--help`) and the code's own comment
+// calls out. Discrimination check: reverting just the
 // `worktreeArg.startsWith('-')` branch (hooks.js's "unrecognized argument"
 // guard) would let this test's run-state.json end up with a literal
-// `worktree: "--help"` value and exit 0 — this assertion set fails in that
-// case, not just on the guard's total absence.
-test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --help)', () => {
+// `worktree: "--bogus-flag"` value and exit 0 — this assertion set fails in
+// that case, not just on the guard's total absence. Uses a non-help flag
+// (rather than the original `--help`) because #1143 added a dedicated,
+// earlier `--help`/`-h` intercept that now short-circuits before this
+// branch is ever reached — see the `--help` case covered separately above
+// and in tests/hooks-help-guard.test.js.
+test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --bogus-flag)', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active' }));
   const before = readRunState(run);
 
-  const result = runHook(['record-worktree', '--run', run, '--help'], { cwd: project });
+  const result = runHook(['record-worktree', '--run', run, '--bogus-flag'], { cwd: project });
   assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
-  assert.match(result.stdout, /unrecognized argument --help/);
+  assert.match(result.stdout, /unrecognized argument --bogus-flag/);
   assert.doesNotMatch(result.stdout, /worktree recorded/);
-  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--help\\"" write');
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--bogus-flag\\"" write');
 });
 
 // #1124: --run is now required unconditionally — a call that omits it exits
@@ -573,6 +586,95 @@ test('#1337: a gate-denial event is untagged when CT_HOOKS_TEST_MODE is not set'
   assert.strictEqual(events.length, 1);
   assert.strictEqual(events[0].type, 'gate-denial');
   assert.strictEqual('test' in events[0], false, 'a real denial must not carry the test-mode tag');
+});
+
+// #750 deliverable 1: hooks.json registers checkWorktreeRequired's pre-tool-use
+// dispatch under MANY separate "if": "Bash(<shape> *)" entries on the SAME
+// Bash matcher (git commit/push/-C/-c/--exec-path/--namespace, cp, mv,
+// mkdir, tee, sed, perl, install, ln, truncate, dd, git worktree, ...) — the
+// harness independently evaluates each "if" against a real compound Bash
+// command and can spawn `pre-tool-use.js` once per matching entry for what
+// is, from the operator's perspective, ONE tool call. This reproduces that
+// shape directly (looping every registered "if" pattern's underlying command
+// shape against the SAME compound command, exactly as N separate harness
+// dispatches would) in a project with NO worktree-always policy — i.e. a
+// command that genuinely executes successfully, no actual denial anywhere.
+// checkWorktreeRequired's own fast-reject (`wtDetect.findPolicyFile` finds
+// nothing) means every one of those N invocations returns `{}` before ever
+// reaching the gate-denial write — so the burst reported in #750 cannot be
+// per-segment/per-matching-hook duplicate logging of a non-denial: this
+// invariant already holds structurally. (The reported burst's actual cause —
+// a genuinely-denied SIBLING session's events landing in the WRONG run's
+// events.jsonl via fallback attribution — is a `resolveRun` cross-worktree
+// misattribution bug tracked separately: #721 fixed the narrower
+// unadopted-mint case, and the broader cross-worktree case is #1402/PR #1577,
+// already built+tested+reviewed and awaiting merge as of this writing — not
+// re-implemented here to avoid duplicating that in-flight fix.)
+test('#750: a compound Bash command with no policy violation never logs a gate-denial event, no matter how many registered "if" hook entries would independently fire on it', () => {
+  const project = gitRepo(); // no writeWorktreeAlwaysPolicy(project) -- nothing to enforce
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
+  const compoundCommand = [
+    'git commit -m "x"', 'git push', 'git -C . status', 'git -c user.name=t status',
+    'cp a b', 'mv a b', 'mkdir -p scratch', 'tee out.txt', 'sed -i "" -e s/a/b/ f',
+    'perl -e 1', 'install -m 644 a b', 'ln -s a b', 'truncate -s 0 f', 'dd if=a of=b',
+    'git worktree list',
+  ].join(' && ');
+  const hooksConfig = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashEntry = hooksConfig.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashEntry.hooks.length > 10, 'expected many registered "if" entries under the Bash matcher (the mechanism under test)');
+  for (const { if: ifPattern } of bashEntry.hooks) {
+    const result = runHook(['pre-tool-use'], {
+      input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: compoundCommand } }),
+      cwd: project,
+    });
+    assert.strictEqual(result.code, 0, `invocation simulating "if": "${ifPattern}" should not error`);
+    assert.doesNotMatch(result.stdout, /"permissionDecision":"deny"/, `invocation simulating "if": "${ifPattern}" must not deny — no policy is set`);
+  }
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')), 'no gate-denial (or any) event should ever have been written across all simulated invocations');
+});
+
+// #1395: the gitignored-target exemption's own allow breadcrumb — unlike
+// the two pre-existing path exemptions (pipeline bookkeeping, policy.yml),
+// which leave no event at all, this one records a `gate-exempt-gitignored`
+// event so an operator can audit which writes it let through. (The issue
+// also asked for a standalone "untracked, not gitignored" branch — deliberately
+// not implemented; see isUntrackedOrIgnored's header comment in
+// pre-tool-use.js for the concrete regression evidence that made it unsafe.)
+test('an allowed gitignored write appends a gate-exempt-gitignored event', () => {
+  const { project, run } = policyRepoWithRun();
+  fs.writeFileSync(path.join(project, '.gitignore'), '*.env\n');
+  const target = path.join(project, 'deploy.env');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /"permissionDecision":"deny"/, 'a gitignored write target must be allowed');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1, 'expected exactly one breadcrumb event');
+  assert.strictEqual(events[0].type, 'gate-exempt-gitignored');
+  assert.strictEqual(events[0].tool, 'Write');
+  assert.strictEqual(events[0].path, target);
+});
+
+// Regression guard for the reverted branch above: an EXISTING, never-`git
+// add`ed file that is NOT gitignored must stay denied — proving the
+// exemption really is gitignored-only, not untracked-status-only.
+test('an existing, never-added file that is NOT gitignored stays denied (no gate-exempt-gitignored event)', () => {
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'scratch.txt');
+  fs.writeFileSync(target, 'pre-existing, never git-added, not ignored');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: `cp source.txt ${target}` } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/, 'an untracked-but-not-ignored write target must stay denied');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].type, 'gate-denial', 'must be the ordinary deny breadcrumb, not a gitignored-exemption allow');
 });
 
 // #1270 regression: the #1130 fix (`PIPELINE_RUN_DIR: ''` in runHook's spread,

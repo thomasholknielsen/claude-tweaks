@@ -179,6 +179,53 @@ test('the three local-merge fallback sections route the post-merge release-statu
   assert.match(AUTO_MERGE, /pr-first-merge-post-merge\.md` Step 4\.1/);
 });
 
+// #1411 deliverable 4: pin Step 3 item 1's auto-merge-not-enabled classification
+// against the literal captured GitHub GraphQL wording (PR #1401, 2026-08-24:
+// `GraphQL: Auto merge is not allowed for this repository
+// (enablePullRequestAutoMerge)`), and prove the branch it fires always
+// degrades — never falls through to item 5's generic "anything else" branch,
+// and never leaves an unhandled failure.
+
+// The pre-#1411 Step 3 item 1 text — paraphrase only, no literal GitHub
+// wording. Frozen as a string literal (not read from history) so the go-red
+// proof below survives future edits to the live file
+// (skill-prose-conformance-tests: freeze the bytes a change replaces).
+const PRE_CHANGE_ITEM_1 = `1. **Command failed with an auto-merge-not-enabled signature** (stderr contains
+   \`auto-merge\` and (\`not allowed\` or \`not enabled\`) — GitHub's own wording for the repository
+   setting "Allow auto-merge" being off):`;
+
+test('#1411: Step 3 item 1 names the literal captured GraphQL wording, not only the paraphrase', () => {
+  const literal = 'Auto merge is not allowed for this repository';
+  assert.ok(MERGE.includes(literal), 'live file must contain the literal captured GraphQL wording');
+  assert.ok(
+    !PRE_CHANGE_ITEM_1.includes(literal),
+    'pre-change text must NOT contain the literal wording (proves the pin can go red) [IL-105]',
+  );
+});
+
+test('#1411: the literal signature sits inside Step 3\'s auto-merge-not-enabled branch (item 1), not elsewhere', () => {
+  const step3 = MERGE.indexOf('## Step 3: Attempt auto-merge');
+  const conflictPath = MERGE.indexOf('## Conflict path');
+  assert.ok(step3 > 0 && conflictPath > step3, 'Step 3 section must be locatable');
+  const step3Body = MERGE.slice(step3, conflictPath);
+  const item1 = step3Body.indexOf('1. **Command failed with an auto-merge-not-enabled signature**');
+  const item2 = step3Body.indexOf('2. **Command failed with a checks-pending');
+  assert.ok(item1 > 0 && item2 > item1, 'item 1 must precede item 2');
+  const item1Body = step3Body.slice(item1, item2);
+  assert.ok(
+    item1Body.includes('Auto merge is not allowed for this repository'),
+    "literal wording must be inside item 1's own text, not a different item",
+  );
+});
+
+test('#1411: the auto-merge-not-enabled branch (item 1) always degrades — an immediate merge or Step 2.5\'s wait row, never item 5\'s generic fallback', () => {
+  // Given the classification fires on item 1 (proven above), both
+  // sub-branches item 1 itself names are a degrade, never an unhandled
+  // failure or a fall-through to item 5's "anything else" branch.
+  assert.match(MERGE, /under `merge-verification: off` only — degrade to an immediate merge/);
+  assert.match(MERGE, /under `merge-when-green` or `wait` — do not merge immediately: degrade to Step 2\.5's `wait`/);
+});
+
 test('/flow closing reports carry the release-status line verbatim (#678)', () => {
   const summary = read('plugin', 'skills', 'flow', 'summary-template.md');
   // The multi-spec closing template moved to multispec-summary.md in #724's

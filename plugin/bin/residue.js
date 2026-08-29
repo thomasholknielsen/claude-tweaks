@@ -48,9 +48,15 @@ function runner(cwd) {
   // local-only checks every probe currently runs) needs a bound; the
   // existing catch-all below already treats a timeout kill the same as any
   // other failure (returns null), so no new error handling is needed here.
+  // `maxBuffer` defaults to 64 MiB (mirrors suiteRun()'s own bound below) —
+  // Node's execFileSync default is 1 MiB, and CHANGELOG.md alone (read via
+  // `git show HEAD:CHANGELOG.md` in probeRelease) is already a quarter of
+  // that and growing; an overflow past the default silently fell into the
+  // bare catch below and read as an ordinary degraded probe. `opts` can
+  // still override it per call through the same spread.
   return (argv, opts = {}) => {
     try {
-      return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
+      return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
     } catch {
       return null;
     }
