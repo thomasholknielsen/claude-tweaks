@@ -124,7 +124,10 @@ function readOriginRemote(dir) {
   }
 }
 
-const GITHUB_GLYPH = '🐙';
+// U+F09B, the Nerd Font octocat — written as an escape because the literal
+// is invisible in most editors. Renders as a tofu box in unpatched fonts —
+// a deliberate trade for the real GitHub mark on Nerd Font terminals.
+const GITHUB_GLYPH = '\uf09b';
 
 // Cmd/Ctrl+click targets: the name opens the project folder in Finder/Explorer
 // (pathToFileURL handles this host's path shape, Windows drive letters
@@ -139,7 +142,10 @@ function renderProject(input, fallbackCwd) {
   if (!name) return null;
   let linked = name;
   try {
-    linked = color.link(pathToFileURL(mainDir).href, name);
+    // Trailing slash matters: a directory file:// URL without it makes macOS
+    // reveal the folder selected in its parent window instead of opening the
+    // folder itself.
+    linked = color.link(`${pathToFileURL(mainDir).href}/`, name);
   } catch {
     /* unconvertible path — keep the plain name */
   }
