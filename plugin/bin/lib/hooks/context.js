@@ -498,13 +498,6 @@ function releaseRunStateLock(lockPath) {
 // previously could each read the same pre-write state and one writer's
 // patch would silently overwrite the other's, e.g. resurrecting a worktree
 // assignment a close-run call had just cleared.
-// Read-modify-write on run-state.json, guarded by acquireRunStateLock above.
-// Two concurrent writers (e.g. a `close-run` racing session-end's own hook,
-// or two record-worktree/close-run invocations against the same run dir —
-// both anticipated scenarios per this file's own wd-foreign-session logic)
-// previously could each read the same pre-write state and one writer's
-// patch would silently overwrite the other's, e.g. resurrecting a worktree
-// assignment a close-run call had just cleared.
 function writeRunState(runDir, patch) {
   const lock = acquireRunStateLock(runDir);
   const finalPath = path.join(runDir, 'run-state.json');
