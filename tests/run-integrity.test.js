@@ -13,6 +13,19 @@ function sh(cwd, ...args) {
   return fixtureGit(['-C', cwd, ...args]).toString();
 }
 
+// Fixture commit dates are pinned so the run-start corroboration check (#1463)
+// is decided by fixture data, not by the machine clock. `fixtureRepo`'s history
+// is dated AFTER its run dir's own 2026-08-01T090000 prefix (a genuinely
+// shipped branch); `fixtureZeroCommitRepo`'s is dated BEFORE it (a branch that
+// has never diverged).
+function datedSh(cwd, iso, ...args) {
+  return fixtureGit(['-C', cwd, ...args], {
+    env: { ...process.env, GIT_AUTHOR_DATE: iso, GIT_COMMITTER_DATE: iso },
+  }).toString();
+}
+const AFTER_RUN_START = '2026-08-01T10:00:00Z';
+const BEFORE_RUN_START = '2026-07-01T00:00:00Z';
+
 // A main-checkout repo with an integration branch (named "trunk" — never "main",
 // resolved via policy.yml's integration-branch key), one linked worktree on a
 // feature branch with one commit, and one active run dir recording that worktree.
@@ -23,14 +36,36 @@ function fixtureRepo() {
   sh(root, 'config', 'user.name', 'T');
   fs.writeFileSync(path.join(root, 'a.txt'), 'base\n');
   sh(root, 'add', 'a.txt');
-  sh(root, 'commit', '-q', '-m', 'base');
+  datedSh(root, AFTER_RUN_START, 'commit', '-q', '-m', 'base');
   fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), 'integration-branch: trunk\n');
   const wt = path.join(root, '.claude', 'worktrees', 'feat');
   sh(root, 'worktree', 'add', '-q', '-b', 'feat-branch', wt);
   fs.writeFileSync(path.join(wt, 'b.txt'), 'feature\n');
   sh(wt, 'add', 'b.txt');
-  sh(wt, 'commit', '-q', '-m', 'feature work');
+  datedSh(wt, AFTER_RUN_START, 'commit', '-q', '-m', 'feature work');
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', '2026-08-01T090000-spec-9');
+  fs.mkdirSync(runDir, { recursive: true });
+  writeRunState(runDir, { status: 'active', worktree: wt });
+  return { root, wt, runDir };
+}
+
+// The #1463 false-positive shape: a worktree branch created from the
+// integration branch with ZERO commits of its own, so `merge-base
+// --is-ancestor branch integration` is trivially true. All history predates
+// the run directory's own 2026-08-01T090000 start time.
+function fixtureZeroCommitRepo() {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ri-zc-')));
+  fixtureGit(['init', '-q', '-b', 'trunk', root]);
+  sh(root, 'config', 'user.email', 't@example.com');
+  sh(root, 'config', 'user.name', 'T');
+  fs.writeFileSync(path.join(root, 'a.txt'), 'base\n');
+  sh(root, 'add', 'a.txt');
+  datedSh(root, BEFORE_RUN_START, 'commit', '-q', '-m', 'base');
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), 'integration-branch: trunk\n');
+  const wt = path.join(root, '.claude', 'worktrees', 'fresh');
+  sh(root, 'worktree', 'add', '-q', '-b', 'fresh-branch', wt);
   const runDir = path.join(root, '.claude-tweaks', 'pipelines', '2026-08-01T090000-spec-9');
   fs.mkdirSync(runDir, { recursive: true });
   writeRunState(runDir, { status: 'active', worktree: wt });
@@ -98,6 +133,47 @@ test('AC3b: worktree + branch deleted, no other signal -> in-progress (deletion 
   const r = checkRunIntegrity(runDir);
   assert.strictEqual(r.state, 'in-progress');
   assert.strictEqual(r.evidence.branch, null);
+});
+
+test('#1463: zero-commit worktree branch (trivially an ancestor) -> in-progress, even with a non-wrap-up ledger event', () => {
+  const { runDir } = fixtureZeroCommitRepo();
+  writeEvents(runDir, [EV_OTHER, EV_BUILD]);
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'in-progress');
+  // mergedEvidence() itself is unchanged — it still reports 'ancestor'; the
+  // corroboration gate is what downgrades the verdict.
+  assert.strictEqual(r.evidence.merged, 'ancestor');
+  assert.strictEqual(r.evidence.branch, 'fresh-branch');
+});
+
+test('#1463 discrimination: same fixture, one commit dated after the run start -> shipped-unclosed', () => {
+  // Orthogonal control for the test above: the ONLY difference is a commit at
+  // or after the run dir's own timestamp. Without the corroboration gate both
+  // cases return shipped-unclosed; without a working gate this case would be
+  // the one that regressed.
+  const { root, wt, runDir } = fixtureZeroCommitRepo();
+  fs.writeFileSync(path.join(wt, 'b.txt'), 'feature\n');
+  sh(wt, 'add', 'b.txt');
+  datedSh(wt, AFTER_RUN_START, 'commit', '-q', '-m', 'feature work');
+  sh(root, 'merge', '-q', '--no-edit', 'fresh-branch');
+  writeEvents(runDir, [EV_BUILD]);
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'shipped-unclosed');
+  assert.strictEqual(r.evidence.merged, 'ancestor');
+});
+
+test('#1463 fail-open: a run dir name with no parseable timestamp prefix -> in-progress', () => {
+  // The corroboration reference is the run dir NAME; when it cannot be parsed
+  // the check must resolve toward in-progress, matching every other fail-open
+  // field in this module.
+  const { root, wt } = fixtureZeroCommitRepo();
+  const oddRunDir = path.join(root, '.claude-tweaks', 'pipelines', 'not-a-timestamp-spec-9');
+  fs.mkdirSync(oddRunDir, { recursive: true });
+  writeRunState(oddRunDir, { status: 'active', worktree: wt });
+  writeEvents(oddRunDir, [EV_BUILD]);
+  const r = checkRunIntegrity(oddRunDir);
+  assert.strictEqual(r.state, 'in-progress');
+  assert.strictEqual(r.evidence.merged, 'ancestor');
 });
 
 test('branch derivation a: recorded path is a plain dir inside the repo (never a worktree) -> in-progress, branch null', () => {

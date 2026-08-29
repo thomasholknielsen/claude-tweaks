@@ -118,6 +118,39 @@ function mergedEvidence(root, branch, integration) {
   return lines.every((l) => l.startsWith('-')) ? 'cherry' : false;
 }
 
+// Run dirs are named `{YYYY-MM-DDTHHMMSS}-{slug}` (run-dir-resolve.js's
+// formatTimestamp(), always UTC). That prefix already encodes exactly the
+// reference point the ancestor check needs — when this run started — so the
+// corroboration below needs no new run-state.json field. Returns null for any
+// name that doesn't carry a parseable canonical prefix.
+const RUN_START_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})(\d{2})(\d{2})(?:-|$)/;
+function runStartIso(runDir) {
+  const m = RUN_START_RE.exec(path.basename(runDir));
+  if (!m) return null;
+  const iso = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
+  return Number.isNaN(Date.parse(iso)) ? null : iso;
+}
+
+// Corroboration for the 'ancestor' evidence path (#1463). `merge-base
+// --is-ancestor branch integration` is trivially true for a branch that has
+// never diverged from its base, so a freshly created worktree with zero
+// commits of its own produces byte-identical evidence to a genuinely
+// fast-forward-merged branch. Require at least one commit on the branch dated
+// at or after this run's own start time before 'ancestor' counts as shipped.
+//
+// Fail-open, per this module's per-field contract: an unparseable run-dir name
+// or an indeterminate git result returns false, resolving toward in-progress.
+// `--since` filters on committer date, so a rebase/amend that rewrites
+// timestamps can move a commit out of the window — an accepted edge case, not
+// the freshly-created-worktree path this guards.
+function hasCommitSinceRunStart(root, branch, runDir) {
+  const since = runStartIso(runDir);
+  if (!since) return false;
+  const log = runGit(['log', branch, `--since=${since}`, '--format=%H', '--max-count=1', '--'], root);
+  if (log.failure || log.stdout === null) return false;
+  return log.stdout.trim() !== '';
+}
+
 function checkRunIntegrity(runDir, opts = {}) {
   const cache = opts.cache;
   const evidence = { branch: null, merged: null, ledgerActive: null, wrapupInvoked: null };
@@ -132,6 +165,9 @@ function checkRunIntegrity(runDir, opts = {}) {
     if (!integration) return inProgress;
     evidence.merged = mergedEvidence(root, evidence.branch, integration);
     if (evidence.merged !== 'ancestor' && evidence.merged !== 'cherry') return inProgress;
+    // 'cherry' needs no corroboration — `git cherry` only reports commits the
+    // branch actually has, so that path already implies real divergent work.
+    if (evidence.merged === 'ancestor' && !hasCommitSinceRunStart(root, evidence.branch, runDir)) return inProgress;
     const events = ctxLib.scanWrapupEvents(runDir);
     if (!events) return inProgress;
     evidence.ledgerActive = events.any;
