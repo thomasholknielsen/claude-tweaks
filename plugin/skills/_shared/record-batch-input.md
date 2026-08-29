@@ -1,13 +1,19 @@
-# Record-batch input grammar
+# Record-batch input grammar + `--budget` flag
 
-Cited by `/claude-tweaks:flow`, `/claude-tweaks:dispatch`, `/claude-tweaks:specify`, and
-`/claude-tweaks:demo` — the four skills whose first argument accepts a comma-separated list
-of work-record references. States the grammar **only**: notation, tokenization, and element
-classification. It deliberately does not state what happens after classification —
-resolution-failure handling and execution shape (sequential loop / group-expansion fan-out /
-pipeline) genuinely differ per consumer (`/dispatch`'s fan-out and `/demo`'s never-fan-out
-loop cannot share one rule) — those stay in each consumer's own prose; see "Out of scope"
-below.
+One shared home for the batch-invocation surface (#762's extraction, extended by #1491),
+holding two contracts:
+
+- **The ref-list grammar** — cited by `/claude-tweaks:flow`, `/claude-tweaks:dispatch`,
+  `/claude-tweaks:specify`, and `/claude-tweaks:demo`, the four skills whose first argument
+  accepts a comma-separated list of work-record references. States the grammar **only**:
+  notation, tokenization, and element classification. It deliberately does not state what
+  happens after classification — resolution-failure handling and execution shape (sequential
+  loop / group-expansion fan-out / pipeline) genuinely differ per consumer (`/dispatch`'s
+  fan-out and `/demo`'s never-fan-out loop cannot share one rule) — those stay in each
+  consumer's own prose; see "Out of scope" below.
+- **The `--budget` flag** — canonical semantics for the drain-budget flag shared by
+  `/claude-tweaks:dispatch`'s and `/claude-tweaks:specify`'s bare-invocation drain modes; see
+  "The `--budget` flag" below.
 
 ## Notation
 
