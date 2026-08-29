@@ -26,7 +26,8 @@ const ROOT = path.join(__dirname, '..', 'plugin', 'skills');
 const MIGRATED_FILES = [
   'specify/decomposition-mode.md',
   'specify/record-creation.md',
-  'specify/shaping-mode.md',
+  'specify/record-creation-subissues.md', // #1346 split record-creation.md; carries its own session-tmp usage
+  'specify/shaping-mode-stamping.md', // #1346 split shaping-mode.md; the session-tmp usage landed here
   'dispatch/queue-pull-script.md',
   '_shared/headless-self-report.md',
   'dispatch/settle-and-merge.md',

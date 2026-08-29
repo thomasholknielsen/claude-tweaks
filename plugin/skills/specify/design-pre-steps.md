@@ -1,6 +1,6 @@
 # Specify — Design Pre-Steps (Step 2.5)
 
-Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a, Step 2.5c, and Step 2.5c2 run in both modes (Shaping mode calls them directly against the record's own body — see `shaping-mode.md` in this skill's directory); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
+Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a, Step 2.5c, and Step 2.5c2 run in both modes (Shaping mode calls them directly against the record's own body — see `shaping-mode-stamping.md` in this skill's directory, #1346's split of `shaping-mode.md`); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
 
 These pre-steps capture design context (`shape`), an optional accepted visual direction (`Visual-reference:`), creative direction (`Design-intent:`), and a UI-stack preference (`Ui-stack:`) so the resulting records carry all four forward to `/build` and `/flow`'s polish phase as body-metadata lines.
 
@@ -147,7 +147,7 @@ The user can select multiple options (e.g., Bold + Delightful). Map the answers:
 | `6` (or no answer) | `none` |
 | `1,4` (multiple) | `bold, delightful` (comma-separated) |
 
-Record the chosen value(s) — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode.md`) writes them into the record's body-metadata block.
+Record the chosen value(s) — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode-stamping.md`, #1346's split of `shaping-mode.md`) writes them into the record's body-metadata block.
 
 **For multi-record decompositions:** ask the question once per design doc and apply the same intent across all generated sub-issue records. If the user wants different intents per sub-issue, they can edit individual records after Step 3 (`gh issue edit` / `writeRecord`).
 
@@ -194,6 +194,6 @@ When no run directory resolves, note the outcome in the returned output only, as
 
 The tool's built-in `Other` field covers any UI stack not listed above (e.g. `Material UI`, `Chakra UI`, a project-specific design system) — the same escape hatch `step-09-establish-github-remote.md` documents for its own org-selection question. Map the answer to the `Ui-stack:` value verbatim: a preset option writes that option's label text (`shadcn/ui + Tailwind`, `Plain CSS / no library`); Option 3 writes `none — no preference, defer to reference codebase`; an `Other` answer writes the user's typed text verbatim.
 
-Record the chosen value — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode.md`) writes it into the record's body-metadata block, immediately after `Design-intent:`.
+Record the chosen value — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode-stamping.md`, #1346's split of `shaping-mode.md`) writes it into the record's body-metadata block, immediately after `Design-intent:`.
 
 **For multi-record decompositions:** ask the question once per design doc and apply the same UI stack across all generated sub-issue records covering a frontend surface — the same batching rule Step 2.5c already applies to `Design-intent:`.

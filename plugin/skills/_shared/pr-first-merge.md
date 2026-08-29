@@ -257,9 +257,12 @@ commit message is what makes closing work on any integration branch).
 **This call always either arms or performs the merge — `--auto` never blocks or polls.** Classify
 the result:
 
-1. **Command failed with an auto-merge-not-enabled signature** (stderr contains
-   `auto-merge` and (`not allowed` or `not enabled`) — GitHub's own wording for the repository
-   setting "Allow auto-merge" being off):
+1. **Command failed with an auto-merge-not-enabled signature** — stderr contains the literal
+   captured GitHub GraphQL wording `Auto merge is not allowed for this repository` (captured
+   verbatim on this repo, PR #1401, 2026-08-24: `GraphQL: Auto merge is not allowed for this
+   repository (enablePullRequestAutoMerge)`), or the looser paraphrase — `auto-merge` and
+   (`not allowed` or `not enabled`) — for a differently-worded GitHub response to the same
+   repository setting ("Allow auto-merge") being off:
 
    - under `merge-verification: off` only — degrade to an immediate merge, no `--auto` (today's
      behavior):
