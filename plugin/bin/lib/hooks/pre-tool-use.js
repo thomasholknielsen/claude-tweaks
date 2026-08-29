@@ -30,6 +30,7 @@ const {
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
+const { resolveIntegrationBranch } = require('./worktree-reap');
 const { runGit, FAILURE } = require('./git-exec');
 const { detectIntegrationModel, resolvePolicyConfig } = require('../policy-schema');
 
@@ -838,8 +839,29 @@ function hasMaterializeCommit(worktreeRoot, runDir) {
   // pattern, so a wildcard directory component followed by a literal tail
   // never matches. 'spec-*/work/*' keeps the wildcard trailing so the
   // multi-record form ({run-dir}/spec-{slug}/work/{n}-spec.md) is reached.
+  // Range-bound to this worktree's own commits (#1674). The unbounded walk
+  // this replaces matched the run-id pathspec anywhere in HEAD's reachable
+  // history — so once a run's materialize commit shipped and merged into the
+  // integration branch, it became part of every LATER worktree's inherited
+  // history and armed this gate against runs that had never materialized
+  // anything of their own. `{integration}..HEAD` is "reachable from HEAD but
+  // not from integration": exactly the commits unique to this worktree.
+  //
+  // Fail open when the integration branch can't be resolved — an unbounded
+  // fallback would reinstate the very false positive this fixes, and a gate
+  // that can't scope itself must not fire (same posture as every other check
+  // in this file). Known limitation: resolveIntegrationBranch returns a
+  // LOCAL branch name, which can sit behind origin/{integration} — when it
+  // does, the range is wider than this worktree's true own-work set and the
+  // gate stays armed on a few inherited commits, the conservative
+  // false-deny direction (the pre-existing behavior), not a false allow.
+  // Resolving origin/{integration} instead would need a fetch, which this
+  // file must not do: it runs on every covered tool call and must stay
+  // offline and cheap.
+  const integration = resolveIntegrationBranch(worktreeRoot);
+  if (!integration) return false;
   const { stdout, failure } = runGit(
-    ['log', '--oneline', '-1', '--', `${runRel}/work`, `${runRel}/spec-*/work/*`],
+    ['log', '--oneline', '-1', `${integration}..HEAD`, '--', `${runRel}/work`, `${runRel}/spec-*/work/*`],
     worktreeRoot,
   );
   if (failure) return false;
@@ -1356,6 +1378,7 @@ module.exports = {
   isPipelineBookkeeping,
   isPolicyFile,
   isUntrackedOrIgnored,
+  hasMaterializeCommit,
   isPolicyOnlyCommit,
   POLICY_COMMIT_ALLOWLIST,
   isDeleteOnlyPush,

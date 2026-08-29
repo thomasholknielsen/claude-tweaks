@@ -889,3 +889,87 @@ test('isUntrackedOrIgnored fails closed on anything it cannot prove, and is giti
   assert.strictEqual(pre.isUntrackedOrIgnored(repo, path.join(outsideRepo, 'x.txt')), false,
     'a path outside repoRoot is a git fatal error, not a clean negative — fails closed');
 });
+
+// --- hasMaterializeCommit range bound (#1674) ---
+//
+// hasMaterializeCommit is exercised directly (exported, same precedent as
+// isPipelineBookkeeping/isUntrackedOrIgnored above) rather than through
+// pre.run(), since driving it through the full bookkeeping-stamps gate would
+// require standing up run-state.json, stamp files, and integration-model
+// resolution just to reach a single git-log call this function makes on its
+// own. `hasMaterializeCommit` only ever reads `path.basename(runDir)`, so a
+// runDir need not exist on disk — only its basename (the run id) matters.
+
+const MATERIALIZE_RUN_ID = '2026-08-29T120000-spec-1674';
+
+function runDirForId(id) {
+  return path.join(os.tmpdir(), 'ct-e1-materialize-runs', id);
+}
+
+function currentBranch(repo) {
+  return execFileSync('git', ['-C', repo, 'branch', '--show-current']).toString().trim();
+}
+
+// Commits `.claude-tweaks/policy.yml` with `integration-branch: {branch}` —
+// linked worktrees only ever see a COMMITTED policy.yml (same reason
+// repoWithCommittedPolicy() above commits it), so this must land before any
+// worktree is branched off `repo`.
+function commitIntegrationBranchPolicy(repo, branch) {
+  withPolicy(repo, `integration-branch: ${branch}\n`);
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+}
+
+// Commits a materialize-commit-shaped spec file for `runId` into `repo`'s
+// CURRENT branch — the sentinel hasMaterializeCommit's pathspec matches.
+function commitMaterializeFile(repo, runId) {
+  const rel = path.join('.claude-tweaks', 'pipelines', runId, 'work', '1-spec.md');
+  const full = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, 'spec\n');
+  execFileSync('git', ['-C', repo, 'add', rel.split(path.sep).join('/')]);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'materialize', '-q']);
+}
+
+test('hasMaterializeCommit: AC1 — inherited history (materialize commit already merged into integration by an earlier run) must NOT arm the gate', () => {
+  // The materialize commit lands on `main` (the integration branch) itself —
+  // simulating an earlier attempt under the SAME run id whose commit already
+  // shipped and merged — BEFORE the worktree branches off. The fresh worktree
+  // therefore has zero commits beyond the integration branch: everything it
+  // sees, including the materialize commit, is inherited, not its own.
+  const main = gitRepoWithCommit();
+  const branch = currentBranch(main);
+  commitIntegrationBranchPolicy(main, branch);
+  commitMaterializeFile(main, MATERIALIZE_RUN_ID);
+  const wt = linkedWorktreeOf(main); // branches off main's CURRENT HEAD, which already includes the materialize commit
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), false,
+    'a materialize commit inherited from the integration branch must not arm the gate — against the unbounded implementation this returns true, which is the bug');
+});
+
+test('hasMaterializeCommit: AC2 — regression guard: a worktree carrying its OWN unmerged materialize commit still arms the gate (#991)', () => {
+  // The materialize commit lands on the WORKTREE's own branch, strictly after
+  // it branches off `main` — inside `{integration}..HEAD`, never merged back.
+  // This is the opposite direction from AC1 and is what must stay true.
+  const main = gitRepoWithCommit();
+  const branch = currentBranch(main);
+  commitIntegrationBranchPolicy(main, branch);
+  const wt = linkedWorktreeOf(main);
+  commitMaterializeFile(wt, MATERIALIZE_RUN_ID);
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
+    'a materialize commit unique to this worktree (record #991\'s original fix) must still arm the gate');
+});
+
+test('hasMaterializeCommit: AC3 — an unresolvable integration branch fails open, even when a matching commit exists', () => {
+  // No policy.yml (no integration-branch key) and no origin remote (no
+  // origin/HEAD) — resolveIntegrationBranch's two sources both come up empty,
+  // so it returns null. Reuses AC2's own-commit setup to prove this is the
+  // integration-resolution guard doing the work, not an absence of a match.
+  const main = gitRepoWithCommit(); // no policy.yml committed
+  const wt = linkedWorktreeOf(main);
+  commitMaterializeFile(wt, MATERIALIZE_RUN_ID);
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), false,
+    'an unresolvable integration branch must fail open (false), never a false deny, even with a real matching commit present');
+});
