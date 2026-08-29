@@ -93,4 +93,6 @@ gh issue create \
 
 Apply the same branch to every payload regardless of criterion — only the `--type task` vs. `--label type:task` branch changes; the `risk`/`size` tier labels and the underlying `gh issue create --title/--body` never do.
 
+**Recent-commit overlap check.** Immediately after each `gh issue create` above succeeds for a new finding, run `_shared/health-recent-commit-check.md` and apply it in full — it screens the just-filed finding against recently-merged commits and, on a strong match, posts a triage comment rather than blocking or reopening anything.
+
 In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.

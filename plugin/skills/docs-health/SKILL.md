@@ -218,6 +218,8 @@ gh issue create --title "<payload.title>" --body "<payload.body>" \
 
 Apply the same branch to every payload regardless of classification — a `restructural` payload's call carries `risk:medium`/`size:high`/`docs-health:restructural` instead. `/docs-health` never edits anything directly; matching `/code-health`/`/harness-health`, it only ever judges and files.
 
+**Recent-commit overlap check.** Immediately after each `gh issue create` above succeeds for a new finding, run `_shared/health-recent-commit-check.md` and apply it in full — it screens the just-filed finding against recently-merged commits and, on a strong match, posts a triage comment rather than blocking or reopening anything.
+
 In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
 **Step 7 — SUMMARIZE.**

@@ -215,6 +215,8 @@ toward the grant.
    Append `--label needs:definition` to whichever `gh issue create` call above ran, when
    `$NEEDS_DEFINITION` is `true`.
 
+   **Recent-commit overlap check.** Immediately after the `gh issue create` call above succeeds, run `_shared/health-recent-commit-check.md` and apply it in full (`title: "$TITLE"`) — it screens the just-filed record against recently-merged commits and, on a strong match, posts a triage comment rather than blocking or reopening anything.
+
    Immediately after the `gh issue create` call succeeds, invalidate the session-scoped record
    snapshot (`_shared/record-queue-fetch.md`) — this filing changed what a `--state all` pull
    would return, so the next consumer must re-fetch rather than read the pre-filing snapshot — and
@@ -225,9 +227,11 @@ toward the grant.
    rm -f "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-payload.json" "/tmp/capture-${CLAUDE_CODE_SESSION_ID}-body.md"
    ```
 
-3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
+3. **On failure** (GitHub unreachable, `gh` broken, `gh` not installed, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
 
    Tell the user issue creation failed and the record landed locally instead (path printed by the script), `unsynced: true`. No further marker is needed beyond that facet — `/claude-tweaks:tidy`'s record scan surfaces `unsynced` local records as Sync findings, reconciling them onto GitHub on a later pass.
+
+   **Decision (#1352): no MCP-first attempt, `gh`-absent included.** Unlike `/claude-tweaks:backlog grant`, whose whole Routine firing does nothing when `gh` is absent with no fallback, one capture's failure only delays a record's GitHub-side existence — `unsynced: true` is already a working, human-reconcilable path grant mode categorically lacked. MCP-first here would also need the same treatment across every health-skill filing site sharing this pattern, out of this record's scope. Revisit only if a Routine's capture step is observed hard-failing `gh`-absent in practice; `_shared/github-write-transport.md`'s "Create an issue" row is then a one-call wire-in.
 
 **When `work-backend: local-files` (or the flag is missing):**
 
