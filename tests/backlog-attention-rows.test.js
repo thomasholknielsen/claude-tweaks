@@ -221,8 +221,16 @@ test('work-record-permission-matrix.md: /backlog refine row Adds parked and Remo
   // Never) so the `parked`/`needs:decision` pins are checked against the
   // specific column they belong in, not merely "somewhere on the line" —
   // discriminates against the pre-edit row, where neither string appeared in
-  // its respective column.
-  const cells = line.split('|').map((c) => c.trim()).filter((c) => c.length > 0);
+  // its respective column. `\|` (GFM's mandatory escape for a literal pipe
+  // inside a table cell — this row's Actor cell carries `--source routine\|sweep`
+  // in an inline code span since #1490's matrix merge) is not a column
+  // separator; mask it before splitting so it isn't mistaken for one.
+  const ESCAPED_PIPE_PLACEHOLDER = '\u0001';
+  const cells = line
+    .replace(/\\\|/g, ESCAPED_PIPE_PLACEHOLDER)
+    .split('|')
+    .map((c) => c.trim().split(ESCAPED_PIPE_PLACEHOLDER).join('\\|'))
+    .filter((c) => c.length > 0);
   assert.strictEqual(cells.length, 4, `expected 4 data cells (Actor/Adds/Removes/Never), got ${cells.length}`);
   const [, adds, removes] = cells;
 

@@ -35,7 +35,7 @@ const MIGRATED_FILES = [
   'backlog/overview-mode.md',
   'backlog/refine-mode.md',
   'backlog/refine-lanes.md',
-  'backlog/grant-mode.md',
+  'backlog/refine-headless.md',
   'backlog/attention-mode.md',
   'backlog/trust-signal.md',
   'assess-agent-autonomy/grant-check.md',
