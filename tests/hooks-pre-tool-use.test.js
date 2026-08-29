@@ -937,6 +937,15 @@ test('hasMaterializeCommit: AC1 — inherited history (materialize commit alread
   // shipped and merged — BEFORE the worktree branches off. The fresh worktree
   // therefore has zero commits beyond the integration branch: everything it
   // sees, including the materialize commit, is inherited, not its own.
+  //
+  // What this test does and does not pin: it proves bounded-vs-unbounded (it
+  // fails against the pre-#1674 unbounded walk), but NOT the range *direction*.
+  // Both agents of this record's lens-3f pair demonstrated that inverting the
+  // range to `HEAD..{integration}` leaves this test green — the worktree branch
+  // and the integration branch point at the same commit here, so both
+  // directions are empty ranges. AC2 below is the test that actually pins
+  // direction; an earlier version of this comment claimed the two were
+  // symmetric, which was wrong.
   const main = gitRepoWithCommit();
   const branch = currentBranch(main);
   commitIntegrationBranchPolicy(main, branch);
@@ -983,4 +992,42 @@ test('hasMaterializeCommit: AC3 — an unresolvable integration branch falls bac
   const runDir = runDirForId(MATERIALIZE_RUN_ID);
   assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
     'with no integration branch to bound against, the check must fall back to the unbounded walk and stay armed — never silently disable IL-131');
+});
+
+test('hasMaterializeCommit: the unresolvable-integration fallback still RUNS the pathspec check, rather than arming unconditionally', () => {
+  // The review's lens-3f pair proved AC3 above could not tell the intended
+  // fallback (re-run the same git log unbounded) from a degenerate one
+  // (`if (!integration) return true`) — injecting the degenerate form left all
+  // three AC tests green, and only the separate bookkeeping-stamps-gate suite
+  // caught it. This is the missing half: same unresolvable-integration repo,
+  // but NO materialize commit anywhere. An unconditional arm returns true here;
+  // a real pathspec check returns false.
+  const main = gitRepoWithCommit(); // no policy.yml, no origin -> integration unresolvable
+  const wt = linkedWorktreeOf(main);
+  const runDir = runDirForId(MATERIALIZE_RUN_ID); // nothing ever committed for it
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), false,
+    'the fallback must still be a real pathspec query — arming unconditionally would deny every covered call in any no-origin repo');
+});
+
+test('hasMaterializeCommit: a resolvable-but-nonexistent integration-branch policy value falls back instead of disarming the gate', () => {
+  // `policy.readIntegrationBranch` returns the raw `integration-branch:` value
+  // with no ref-existence check, so a stale/renamed/mistyped key yields a
+  // truthy name for which `git log {bogus}..HEAD` exits 128. Before this
+  // guard, the blanket `if (failure) return false` collapsed that into "gate
+  // not armed" — disarming IL-131 on a config typo. Found by both agents of
+  // the review's lens-3c pair.
+  const main = gitRepoWithCommit();
+  const wt = linkedWorktreeOf(main);
+  // The policy file must live in the WORKTREE, not the main checkout:
+  // hasMaterializeCommit is called with the worktree root, linkedWorktreeOf
+  // places that outside the main checkout, and readIntegrationBranch walks up
+  // from the path it is given. Writing it to `main` instead made this test
+  // pass for the wrong reason — integration resolved `null` (the AC3 path)
+  // rather than the bogus name — which a mutation probe caught.
+  fs.mkdirSync(path.join(wt, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(wt, '.claude-tweaks', 'policy.yml'), 'integration-branch: no-such-branch-here\n');
+  commitMaterializeFile(wt, MATERIALIZE_RUN_ID);
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
+    'a bad integration-branch value must fall back to the unbounded walk, not silently disarm the gate');
 });
