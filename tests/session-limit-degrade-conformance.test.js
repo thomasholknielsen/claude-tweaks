@@ -23,6 +23,13 @@ const CONTRACT_PATH = 'plugin/skills/_shared/subagent-output-contract.md';
 const dispatchProse = fs.readFileSync(path.join(ROOT, DISPATCH_PATH), 'utf8');
 const contractProse = fs.readFileSync(path.join(ROOT, CONTRACT_PATH), 'utf8');
 
+// The pinned literal, checked case-insensitively at both revisions below.
+const PINNED_LITERAL = /session limit/i;
+
+function readAtRev(rev, file) {
+  return execFileSync('git', ['show', `${rev}:${file}`], { cwd: ROOT, encoding: 'utf8' });
+}
+
 test('base SHA is a real ancestor of HEAD (precondition for the git-show proof below)', () => {
   // Throws (non-zero exit) if BASE_SHA is not an ancestor — fails loud on a rebase or
   // history rewrite that would otherwise silently invalidate the go-red proof.
@@ -62,7 +69,7 @@ test('subagent-output-contract.md classifies the session-limit signature as term
   const start = contractProse.indexOf('## Failed-agent retrieval');
   assert.notStrictEqual(start, -1, 'the contract must keep its Failed-agent retrieval section');
   const nextHeading = contractProse.indexOf('\n## ', start + 1);
-  const section = contractProse.slice(start, nextHeading === -1 ? contractProse.length : nextHeading);
+  const section = contractProse.slice(start, nextHeading === -1 ? undefined : nextHeading);
   assert.match(
     section,
     /session[- ]limit/i,
@@ -79,26 +86,16 @@ test('subagent-output-contract.md classifies the session-limit signature as term
 
 test('go-red proof: the pinned literal is absent at the pre-change base SHA (#1449 AC2)', () => {
   for (const file of [DISPATCH_PATH, CONTRACT_PATH]) {
-    const atBase = execFileSync(
-      'bash',
-      ['-c', `git show ${BASE_SHA}:${file} | grep -c -i -F "session limit" || true`],
-      { cwd: ROOT, encoding: 'utf8' },
-    ).trim();
-    assert.strictEqual(
-      atBase,
-      '0',
+    assert.doesNotMatch(
+      readAtRev(BASE_SHA, file),
+      PINNED_LITERAL,
       `${file} must NOT contain "session limit" (case-insensitive) at the pre-change base ` +
-        `${BASE_SHA} — a non-zero count here means the literal pre-existed and this pin is vacuous.`,
+        `${BASE_SHA} — a match here means the literal pre-existed and this pin is vacuous.`,
     );
-
-    const atHead = execFileSync(
-      'bash',
-      ['-c', `git show HEAD:${file} | grep -c -i -F "session limit" || true`],
-      { cwd: ROOT, encoding: 'utf8' },
-    ).trim();
-    assert.ok(
-      Number(atHead) >= 1,
-      `${file} must contain "session limit" (case-insensitive) at HEAD — got ${atHead}.`,
+    assert.match(
+      readAtRev('HEAD', file),
+      PINNED_LITERAL,
+      `${file} must contain "session limit" (case-insensitive) at HEAD.`,
     );
   }
 });
