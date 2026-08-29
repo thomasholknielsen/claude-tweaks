@@ -2,7 +2,7 @@
 
 Loaded by `/claude-tweaks:backlog` (`grant` mode only) when Preflight's Detection Ladder check 2
 resolves `gh` as absent (`backlog/SKILL.md`'s `grant` mode Preflight paragraph). Every call site in
-`grant-mode.md` runs its `gh` CLI form unchanged when `gh` is present, so a normal run never reads
+`refine-headless.md` runs its `gh` CLI form unchanged when `gh` is present, so a normal run never reads
 this file.
 
 **Verification status: documented, not verified.** Unlike `dispatch/mcp-transport.md` (verified
