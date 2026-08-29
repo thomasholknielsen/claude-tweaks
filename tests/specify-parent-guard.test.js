@@ -85,8 +85,10 @@ test('specify SKILL.md guard states its scope: every shaping entry, cases 2-4 ou
 });
 
 test('shaping-mode.md territory line carries the parent-guard removal carve-out', () => {
-  const src = readFlat('plugin/skills/specify/shaping-mode.md');
-  assert.ok(src.includes('as the one removal carve-out'), 'territory-line carve-out clause missing from shaping-mode.md');
+  // #1346 split shaping-mode.md at the ### Metadata block boundary; the territory
+  // line (part of Actions Performed) landed in shaping-mode-stamping.md.
+  const src = readFlat('plugin/skills/specify/shaping-mode-stamping.md');
+  assert.ok(src.includes('as the one removal carve-out'), 'territory-line carve-out clause missing from shaping-mode-stamping.md');
   assert.ok(src.includes('record bearing the parent marker'), 'parent-marker scoping missing from shaping-mode.md carve-out');
 });
 

@@ -90,51 +90,72 @@ test('resolvePrState/resolvePrStateAsync: malformed gh output -> network-failure
 });
 
 test('resolvePrStateAsync: does not block the event loop (real concurrency, not execFileSync in disguise)', async () => {
-  // A wrapper that sleeps briefly before responding — if resolvePrStateAsync
-  // were secretly synchronous, N concurrent calls would take N * sleep; a
-  // real non-blocking execFile lets them overlap, so wall time stays close
-  // to one sleep regardless of N (#820 review — this is exactly the property
+  // If resolvePrStateAsync were secretly synchronous (execFileSync under an
+  // `async` wrapper), the three calls below could never run concurrently:
+  // JS is single-threaded, so the second/third call's spawn literally cannot
+  // start until the first call's blocking execFileSync returns — their
+  // spawned `gh` processes' lifetimes would never overlap. A real
+  // non-blocking execFile starts all three near-simultaneously, so their
+  // lifetimes DO overlap (#820 review — this is exactly the property
   // Phase 1.5's runWithConcurrency pooling in release-merged.js depends on).
   //
-  // The pass/fail boundary is measured against a freshly-taken sequential
-  // baseline in the same run rather than a fixed wall-clock margin, so the
-  // assertion self-calibrates to whatever load this machine is under right
-  // now instead of flaking under concurrent sibling sessions (#1127 — a
-  // fixed "< 400ms" margin observed ~474ms under load while still passing
-  // 7/7 in isolation). A genuine regression to blocking behavior still
-  // fails: concurrent and sequential would both take ~3x150ms, so the
-  // concurrent/sequential ratio would sit near 1 instead of well under it.
-  const wrapper = installGhWrapper('#!/bin/sh\nsleep 0.15\necho "[]"\n');
+  // #1127 then #1404: a fixed wall-clock margin ("< 400ms"), and later a
+  // concurrent-vs-sequential wall-clock RATIO ("< 0.9x"), both flaked under
+  // real sibling-session CPU load — any assertion built on *aggregate
+  // elapsed time* is exactly what shared-machine scheduler noise perturbs,
+  // regardless of where the margin is set. This version drops wall-clock
+  // comparison entirely and asserts a structural fact instead: each spawned
+  // `gh` process drops a marker file for its own lifetime and repeatedly
+  // snapshots how many marker files coexist. Genuine concurrency makes 2+
+  // files coexist no matter how fast or slow the machine is right now,
+  // because it's an existence check, not a duration; a blocking regression
+  // can never produce more than 1, for the single-threaded reason above.
+  const markerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-state-overlap-'));
+  const observationsPath = path.join(markerDir, 'observations');
+  const wrapperScript = [
+    '#!/bin/sh',
+    `MYFILE="${markerDir}/m.$$"`,
+    ': > "$MYFILE"',
+    'i=0',
+    'while [ $i -lt 6 ]; do',
+    `  ls "${markerDir}"/m.* 2>/dev/null | wc -l >> "${observationsPath}"`,
+    '  sleep 0.025',
+    '  i=$((i+1))',
+    'done',
+    'rm -f "$MYFILE"',
+    'echo "[]"',
+    '',
+  ].join('\n');
+  const wrapper = installGhWrapper(wrapperScript);
   try {
-    const concurrentStart = Date.now();
     await Promise.all([
       resolvePrStateAsync('/tmp', 'branch-a'),
       resolvePrStateAsync('/tmp', 'branch-b'),
       resolvePrStateAsync('/tmp', 'branch-c'),
     ]);
-    const concurrentElapsed = Date.now() - concurrentStart;
-
-    const sequentialStart = Date.now();
-    await resolvePrStateAsync('/tmp', 'branch-d');
-    await resolvePrStateAsync('/tmp', 'branch-e');
-    await resolvePrStateAsync('/tmp', 'branch-f');
-    const sequentialElapsed = Date.now() - sequentialStart;
-
+    const observations = fs.readFileSync(observationsPath, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((n) => parseInt(n, 10));
+    const maxConcurrent = Math.max(0, ...observations);
     assert.ok(
-      concurrentElapsed < sequentialElapsed * 0.9,
-      `expected concurrent (${concurrentElapsed}ms) under sequential (${sequentialElapsed}ms) — a blocking implementation would make these roughly equal (ratio ~1)`,
+      maxConcurrent >= 2,
+      `expected at least 2 spawned gh processes to coexist (real concurrency); observed max ${maxConcurrent} across ${observations.length} samples: [${observations.join(',')}]`,
     );
   } finally {
     wrapper.restore();
+    fs.rmSync(markerDir, { recursive: true, force: true });
   }
 });
 
+// Shared fixture for the recurring "MERGED #10 vs. newer OPEN #11" scenario
+// exercised (in various shapes) by several tests below.
+const PR_MERGED_10 = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+const PR_OPEN_11 = { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
+
 test('preferOpen: an OPEN PR outranks a MERGED PR for destructive callers, whichever is newer', async () => {
   // #664 / #570 review scenario: branch reused after its first PR merged.
-  const openNewer = [
-    { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
-    { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' },
-  ];
+  const openNewer = [PR_MERGED_10, PR_OPEN_11];
   const openOlder = [
     { number: 12, state: 'OPEN', mergedAt: null, updatedAt: '2026-01-01T00:00:00Z' },
     { number: 13, state: 'MERGED', mergedAt: '2026-02-01T00:00:00Z', updatedAt: '2026-02-01T00:00:00Z' },
@@ -150,10 +171,7 @@ test('preferOpen: an OPEN PR outranks a MERGED PR for destructive callers, which
 });
 
 test('read-mostly consumers (no opts): MERGED still wins over a newer OPEN PR — explicit regression proof for reap/archive/release', async () => {
-  const prs = [
-    { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
-    { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' },
-  ];
+  const prs = [PR_MERGED_10, PR_OPEN_11];
   const wrapper = installGhWrapper(prs);
   try {
     assert.equal(resolvePrState('/tmp', 'some-branch').number, 10);
@@ -189,10 +207,8 @@ function graphqlResponse(entries) {
 }
 
 test('resolvePrStatesBulk: complete map, tie-break parity with resolvePrState (preferOpen both ways)', () => {
-  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-  const open = { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
   const calls = [];
-  const runner = (args) => { calls.push(args); return graphqlResponse([{ prs: [merged, open] }, { prs: [merged] }, null]); };
+  const runner = (args) => { calls.push(args); return graphqlResponse([{ prs: [PR_MERGED_10, PR_OPEN_11] }, { prs: [PR_MERGED_10] }, null]); };
   const r = resolvePrStatesBulk('/tmp', ['reused', 'merged-only', 'gone'], { preferOpen: true, runner, repoSlug: 'o/r' });
   assert.equal(calls.length, 1);
   assert.ok(calls[0].includes('-f') && calls[0].includes('owner=o') && calls[0].includes('name=r'), 'owner/name must travel via -f (never -F: #610 type-coercion)');
@@ -206,9 +222,7 @@ test('resolvePrStatesBulk: complete map, tie-break parity with resolvePrState (p
 });
 
 test('resolvePrStatesBulk: default tie-break (no preferOpen) matches resolvePrState — MERGED wins over newer OPEN', () => {
-  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-  const open = { number: 11, state: 'OPEN', mergedAt: null, updatedAt: '2026-02-01T00:00:00Z' };
-  const runner = () => graphqlResponse([{ prs: [merged, open] }]);
+  const runner = () => graphqlResponse([{ prs: [PR_MERGED_10, PR_OPEN_11] }]);
   const r = resolvePrStatesBulk('/tmp', ['reused'], { runner, repoSlug: 'o/r' });
   assert.equal(r.get('reused').number, 10);
 });
@@ -244,15 +258,13 @@ test('resolvePrStatesBulk: degraded responses classify network-failure; missing 
 // call fails closed ('network-failure') when any alias reports it, the same posture already
 // used for a missing alias key.
 test('resolvePrStatesBulk: a branch whose associatedPullRequests page is truncated (hasNextPage) fails the whole call closed', () => {
-  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-  const runner = () => graphqlResponse([{ prs: [merged], hasNextPage: true }]);
+  const runner = () => graphqlResponse([{ prs: [PR_MERGED_10], hasNextPage: true }]);
   const r = resolvePrStatesBulk('/tmp', ['many-prs'], { runner, repoSlug: 'o/r' });
   assert.equal(r, 'network-failure');
 });
 
 test('resolvePrStatesBulk: hasNextPage:false (the normal case) still resolves the map — the guard does not misfire', () => {
-  const merged = { number: 10, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-  const runner = () => graphqlResponse([{ prs: [merged], hasNextPage: false }]);
+  const runner = () => graphqlResponse([{ prs: [PR_MERGED_10], hasNextPage: false }]);
   const r = resolvePrStatesBulk('/tmp', ['few-prs'], { runner, repoSlug: 'o/r' });
   assert.equal(r.get('few-prs').number, 10);
 });

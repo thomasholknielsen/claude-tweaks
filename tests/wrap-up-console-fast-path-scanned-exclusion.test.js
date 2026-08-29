@@ -50,8 +50,20 @@ test('review-console.md: Empty-console fast path names the SCANNED exclusion alo
   assert.match(REVIEW_CONSOLE, /Cleanup rows that are unconditional bookkeeping/);
 });
 
+// #904: SKIP joins SCANNED as a second, independent exclusion from the
+// decision-bearing-entries test — a degrade-trace line, not a decision.
+test('review-console.md: Empty-console fast path also excludes SKIP audit lines, alongside SCANNED', () => {
+  assert.match(REVIEW_CONSOLE, /`SKIP` audit lines are also excluded/);
+  assert.match(REVIEW_CONSOLE, /Three kinds of entry never count toward this test/);
+  assert.match(REVIEW_CONSOLE, /\*\*`SKIP` audit lines\*\* do not count as decision-bearing/);
+});
+
 test('SKILL.md Phase 4 restatement carries the same SCANNED exclusion', () => {
   assert.match(WRAP_UP_SKILL, /decisions\.md.*no decision-bearing entries.*SCANNED.*excluded/s);
+});
+
+test('SKILL.md Phase 4 restatement also names the SKIP exclusion', () => {
+  assert.match(WRAP_UP_SKILL, /`SCANNED` and `SKIP` audit lines are excluded/);
 });
 
 test('multispec-review-console.md cites review-console.md\'s test rather than re-deriving it', () => {
@@ -119,6 +131,31 @@ test('fixture: a decisions.md holding only SCANNED lines has no decision-bearing
     '- SCANNED 12:00:01 — skill-curation: gate closed (n/a); read 3 (none); gap detection: run. Result: clean. Reversibility: N/A.',
   ].join('\n');
   assert.equal(hasDecisionBearingEntry(decisionsMd), false, 'an all-SCANNED log must read as having no decision-bearing entry');
+});
+
+// #904: SKIP is the second exclusion — a decisions.md holding only SKIP lines
+// (a build that skipped some conditional steps but found nothing to decide)
+// must also read as having no decision-bearing entry.
+test('fixture: a decisions.md holding only SKIP lines has no decision-bearing entry (fast path reachable)', () => {
+  const decisionsMd = [
+    '# Auto-Decision Log — pipeline 2026-08-21T000000-spec-904',
+    '',
+    '## /build',
+    '- SKIP 12:00:00 — Common Step 6.5 (skipped): condition: no docs/REGISTRY.md → fallback: no doc-sync check. Reversibility: n/a.',
+    '- SKIP 12:00:01 — Spec Step 1 draft-PR bootstrap (skipped): condition: integration-model=local-merge → fallback: no draft PR opened. Reversibility: n/a.',
+  ].join('\n');
+  assert.equal(hasDecisionBearingEntry(decisionsMd), false, 'an all-SKIP log must read as having no decision-bearing entry');
+});
+
+test('fixture: SKIP plus a real AUTO finding still has a decision-bearing entry (fast path does not fire)', () => {
+  const decisionsMd = [
+    '# Auto-Decision Log — pipeline 2026-08-21T000000-spec-904',
+    '',
+    '## /build',
+    '- SKIP 12:00:00 — Common Step 6.5 (skipped): condition: no docs/REGISTRY.md → fallback: no doc-sync check. Reversibility: n/a.',
+    '- AUTO 12:00:01 — Common Step 3: simplified src/foo.js. Reversibility: high (commit abc1234).',
+  ].join('\n');
+  assert.equal(hasDecisionBearingEntry(decisionsMd), true, 'a log carrying a real AUTO finding alongside SKIP must still read as decision-bearing');
 });
 
 test('fixture: a decisions.md with SCANNED plus a real AUTO finding still has a decision-bearing entry (fast path does not fire)', () => {

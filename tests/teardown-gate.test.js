@@ -364,8 +364,8 @@ test('MINOR 6: a run recording the main checkout as its worktree does not deny a
 test('AC5: a foreign-owned run warns instead of denying, and logs wd-foreign-teardown', () => {
   const root = fixtureRoot();
   const wt = addWorktree(root);
-  makeRun(root); // empty run dir (no run-state.json yet) for record-worktree to claim
-  const recorded = runHook(['record-worktree', wt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root); // empty run dir (no run-state.json yet) for record-worktree to claim
+  const recorded = runHook(['record-worktree', '--run', emptyRun, wt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   assert.match(recorded.stdout, /worktree recorded/);
   const runDir = findRunByWorktreePath(root, wt).runDir;
@@ -448,8 +448,8 @@ test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktr
   const root = fixtureRoot();
   withPolicy(root, 'worktree-always: true\n');
   const foreignWt = addWorktree(root);
-  makeRun(root); // empty run dir for record-worktree to claim
-  const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root); // empty run dir for record-worktree to claim
+  const recorded = runHook(['record-worktree', '--run', emptyRun, foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   const payload = JSON.stringify({
     tool_name: 'Bash',
@@ -473,8 +473,8 @@ test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktr
 test('IMPORTANT 3: a lone foreign-owned `git worktree remove` (no compound command) still allows and warns', () => {
   const root = fixtureRoot();
   const foreignWt = addWorktree(root);
-  makeRun(root);
-  const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root);
+  const recorded = runHook(['record-worktree', '--run', emptyRun, foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   const payload = JSON.stringify({
     tool_name: 'Bash', tool_input: { command: `git worktree remove ${foreignWt}` }, cwd: root, session_id: 'bystander-2',

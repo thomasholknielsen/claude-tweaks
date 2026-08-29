@@ -567,6 +567,40 @@ test('carrier-commit check skips when no resolved issues found (conversation-bas
   assert.strictEqual(row.result, 'skip');
 });
 
+// ---- resolvedIssueNumbers' verify-expectations.json `issues` fallback (#1223) ----
+//
+// No materialized header under work/ -- a current-branch (non-materialized) record run.
+// review-console.md's step 10 now populates `issues` in this case; these tests pin the
+// read side (resolvedIssueNumbers) actually consuming it, no longer dead code.
+
+test('carrier-commit check resolves issue numbers from verify-expectations.json issues key when no materialized header exists', () => {
+  const runDir = makeTmpDir('verify-carrier-expissues-pass-');
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [], issues: [900] });
+  const fakeGit = (args) => (args.some((a) => a.includes('Fixes #900')) ? 'abc1234 Fix wrap-up verify verb\n' : '');
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'pass');
+});
+
+test('carrier-commit check fails naming the issue when resolved via expectations issues key and no carrier commit exists', () => {
+  const runDir = makeTmpDir('verify-carrier-expissues-fail-');
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [], issues: [900] });
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'fail');
+  assert.match(row.detail, /900/);
+});
+
+test('carrier-commit check prefers a materialized header over expectations issues when both are present', () => {
+  const runDir = makeTmpDir('verify-carrier-header-priority-');
+  writeSpecFile(runDir, '901', 901);
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [], issues: [900] });
+  const fakeGit = (args) => (args.some((a) => a.includes('Fixes #901')) ? 'abc1234 Fix wrap-up verify verb\n' : '');
+  const result = runVerify({ runDir, base: 'main', deps: { git: fakeGit, gh: () => '' } });
+  const row = result.rows.find((r) => r.check === 'carrier-commit');
+  assert.strictEqual(row.result, 'pass', row.detail);
+});
+
 // ---- carrier-commit PR-body fallback (record #900 fix round, C1) ----
 //
 // Under `worktree` mode + `integration-model: pr-first`, there is
@@ -706,6 +740,21 @@ test('acceptance-labeling check skips when no resolved issues found', () => {
   const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
   const row = result.rows.find((r) => r.check === 'acceptance-labeling');
   assert.strictEqual(row.result, 'skip');
+});
+
+test('acceptance-labeling check resolves issue numbers from verify-expectations.json issues key when no materialized header exists', () => {
+  const runDir = makeTmpDir('verify-acceptance-expissues-');
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [], issues: [900] });
+  const fakeGh = (args) => {
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) return JSON.stringify({});
+    if (args.includes('labels')) return JSON.stringify({ labels: [{ name: 'demo:pending' }] });
+    if (args.includes('comments')) return JSON.stringify({ comments: [{ body: '## Verification Brief\n### Confirmed\n' }] });
+    return '';
+  };
+  const result = runVerify({ runDir, base: 'main', deps: { git: () => '', gh: fakeGh } });
+  const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+  assert.strictEqual(row.result, 'pass', row.detail);
 });
 
 test('acceptance-labeling check redirects to a resolvable parent, never checking the sub-issue itself', () => {

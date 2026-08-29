@@ -177,20 +177,55 @@ function run(argv, deps) {
 
   // Every non---keep-going stop shares one shape: release everything this run
   // claimed (all-or-abort), then report the stop alongside what was released
-  // and what could not be. Stated once so the four stop sites below cannot
-  // drift from each other. `exitCode` is 3 for a `contested` envelope, 4 for
-  // a `transient` one.
+  // and what could not be. Called only from `stopOrSkip()` below, which is
+  // in turn the single call site every stop below shares — so this cannot
+  // drift from any of them. `exitCode` is 3 for a `contested`/`inFlight`
+  // envelope, 4 for a `transient` one.
   function abort(envelope, exitCode) {
     const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
     deps.stdout(JSON.stringify({ ...envelope, released, releaseFailed }));
     return exitCode;
   }
 
+  // The one shape every stop site below shares: with `--keep-going`, record
+  // `{issue, reason: skipReason, ...extra}` in `skipped` and keep looping
+  // (signaled by returning `null` — `abort()`'s exit codes are always 3 or 4,
+  // never null/0, so callers can tell the two outcomes apart with `!== null`);
+  // otherwise abort the whole run via the envelope `{[envelopeKey]: [{issue,
+  // ...extra}]}`. `extra` is exactly what differs between call sites (an
+  // `error`, a `link`, or a `holder`) and is identical between the skipped
+  // record and the envelope entry at every site — stated once here instead of
+  // 5 times so the sites cannot drift from each other (#977).
+  function stopOrSkip(issue, skipReason, envelopeKey, exitCode, extra) {
+    if (opts.keepGoing) { skipped.push({ issue, reason: skipReason, ...extra }); return null; }
+    return abort({ [envelopeKey]: [{ issue, ...extra }] }, exitCode);
+  }
+
+  // Per-`$LINK` memoization of `tombstoneInFlightPr`'s `gh pr view` call,
+  // scoped to this one `run()` invocation (a fresh Map every call — never a
+  // cross-invocation cache). Issues released together from one multi-spec
+  // build commonly tombstone with the identical `link`, so this collapses
+  // what would otherwise be one `gh pr view` per tombstoned target down to
+  // one per distinct link (#977). Wraps only this call site's `gh`, not
+  // `deps.gh` itself, so every other `deps.gh` call (label list/create, issue
+  // edit, issue comment) is untouched. Only successful calls are cached — a
+  // thrown failure is left uncached and re-thrown so `tombstoneInFlightPr`'s
+  // own fail-open catch still applies per-target, exactly as before.
+  const prViewCache = new Map();
+  function cachedGhForPrView(args) {
+    const key = JSON.stringify(args);
+    if (prViewCache.has(key)) return prViewCache.get(key);
+    const result = deps.gh(args);
+    prViewCache.set(key, result);
+    return result;
+  }
+
   for (const issue of targets) {
     const read = claimStore.readClaimBlob(deps, repoSlug, issue);
     if (read.failure) {
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: read.failure }); continue; }
-      return abort({ transient: [{ issue, error: read.failure }] }, 4);
+      const stop = stopOrSkip(issue, 'transient', 'transient', 4, { error: read.failure });
+      if (stop !== null) return stop;
+      continue;
     }
 
     const content = read.absent ? null : read.content;
@@ -204,10 +239,11 @@ function run(argv, deps) {
     // the check itself, falls straight through unchanged (fail open) —
     // see `tombstoneInFlightPr`'s own doc comment in claim-store.js.
     if (classified.state === 'tombstone') {
-      const inFlight = tombstoneInFlightPr(content, deps.gh, repoOwner, repoName);
+      const inFlight = tombstoneInFlightPr(content, cachedGhForPrView, repoOwner, repoName);
       if (inFlight) {
-        if (opts.keepGoing) { skipped.push({ issue, reason: 'in-flight', link: inFlight.link }); continue; }
-        return abort({ inFlight: [{ issue, link: inFlight.link }] }, 3);
+        const stop = stopOrSkip(issue, 'in-flight', 'inFlight', 3, { link: inFlight.link });
+        if (stop !== null) return stop;
+        continue;
       }
     }
 
@@ -223,8 +259,9 @@ function run(argv, deps) {
 
     if (classified.state === 'live' || classified.state === 'unreadable') {
       const holder = classified.state === 'live' ? identity : null;
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
-      return abort({ contested: [{ issue, holder }] }, 3);
+      const stop = stopOrSkip(issue, 'contested', 'contested', 3, { holder });
+      if (stop !== null) return stop;
+      continue;
     }
 
     // Reclaimable: 'absent' (create-only) or 'tombstone'/'stale' not self-owned
@@ -264,8 +301,9 @@ function run(argv, deps) {
       // (record-697's incident read exactly that way before diagnosis,
       // #787's amendment).
       const reason = write.secondaryRateLimit ? 'secondary-rate-limit' : write.failure;
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: reason }); continue; }
-      return abort({ transient: [{ issue, error: reason }] }, 4);
+      const stop = stopOrSkip(issue, 'transient', 'transient', 4, { error: reason });
+      if (stop !== null) return stop;
+      continue;
     }
     if (!write.ok) {
       // Rejected (race lost between this read and this write) — contested,
@@ -278,8 +316,9 @@ function run(argv, deps) {
       // unknown from the write response itself, so re-read the blob once,
       // best-effort, to name the winner in the contested report.
       const holder = holderFromFreshRead(deps, repoSlug, issue);
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
-      return abort({ contested: [{ issue, holder }] }, 3);
+      const stop = stopOrSkip(issue, 'contested', 'contested', 3, { holder });
+      if (stop !== null) return stop;
+      continue;
     }
 
     claimedThisRun.push(issue);
