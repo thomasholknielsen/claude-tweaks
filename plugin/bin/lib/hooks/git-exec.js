@@ -19,6 +19,7 @@ const { promisify } = require('util');
 // `cp.execFile = stub` monkeypatch (#872 follow-up — exactly this hoisted
 // form shipped once and broke `runGitAsync`'s own timeout test's ability to
 // mock a slow child deterministically).
+const { runClassified, runClassifiedAsync } = require('../shared-primitives');
 
 // Budget for one git query, sized from measurement rather than intuition (#134).
 //
@@ -108,10 +109,29 @@ function classify(err) {
 //
 // opts.timeoutMs overrides the budget; tests use it to force the timeout branch
 // deterministically. Production callers omit it.
+//
+// Shared by both runGit and runGitAsync below — defined once so a future
+// fix to the success/failure shape (e.g. the #1341 stderr addition) cannot
+// land on one twin without the other picking it up automatically (#1652).
+function buildSuccess(stdout) {
+  return { stdout: stdout.trim(), failure: null, stderr: null };
+}
+
+function buildFailure(err) {
+  // execFileSync/execFile populate err.stderr as a string when `encoding` is
+  // set (as it is below), same as they populate err.stdout on success. A
+  // timeout kill or a spawn failure (EAGAIN/ENOENT/...) may never have
+  // produced any stderr at all — fall back to '' rather than surfacing
+  // `undefined` through a field every caller now expects to be
+  // string-or-null.
+  const stderr = typeof err.stderr === 'string' ? err.stderr.trim() : '';
+  return { stdout: null, failure: classify(err), stderr };
+}
+
 function runGit(args, cwd, opts = {}) {
   const timeout = resolveTimeout(opts);
-  try {
-    const stdout = cp.execFileSync('git', ['-C', cwd, ...args], {
+  return runClassified(
+    () => buildSuccess(cp.execFileSync('git', ['-C', cwd, ...args], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout,
       // Node defaults windowsHide to FALSE, which hands a child console
       // process a console of its OWN whenever the parent has none to
@@ -122,40 +142,36 @@ function runGit(args, cwd, opts = {}) {
       // user as a runaway loop rather than routine janitorial work. Inert on
       // POSIX, where the option is ignored.
       windowsHide: true,
-    });
-    return { stdout: stdout.trim(), failure: null, stderr: null };
-  } catch (err) {
-    // execFileSync populates err.stderr as a string when `encoding` is set
-    // (as it is above), same as it does err.stdout on success. A timeout
-    // kill or a spawn failure (EAGAIN/ENOENT/...) may never have produced
-    // any stderr at all — fall back to '' rather than surfacing `undefined`
-    // through a field every caller now expects to be string-or-null.
-    const stderr = typeof err.stderr === 'string' ? err.stderr.trim() : '';
-    return { stdout: null, failure: classify(err), stderr };
-  }
+    })),
+    buildFailure,
+  );
 }
 
 // Async twin of runGit — a real (non-blocking) execFile, so a caller can run
 // this concurrently with sibling async work instead of blocking the event
 // loop (reconcile/index.js's FAST_CHECKS Promise.all, #872). Same contract
-// as runGit (identical return shape, same classify()), just non-blocking —
-// mirrors the execFile-based async pattern reconcile/pr-state.js's
-// resolvePrStateAsync already established for `gh` calls, applied here to
-// `git`.
+// as runGit (identical return shape via the shared buildSuccess/buildFailure
+// above), just non-blocking — mirrors the execFile-based async pattern
+// reconcile/pr-state.js's resolvePrStateAsync already established for `gh`
+// calls, applied here to `git`.
+//
+// promisify(cp.execFile) is resolved fresh inside this function body, not
+// hoisted to module scope — promisify captures its argument by reference at
+// the point it's called, so hoisting would silently defeat a test's
+// `cp.execFile = stub` monkeypatch (#872 follow-up — exactly this hoisted
+// form shipped once and broke runGitAsync's own timeout test's ability to
+// mock a slow child deterministically).
 async function runGitAsync(args, cwd, opts = {}) {
   const timeout = resolveTimeout(opts);
-  try {
-    const { stdout } = await promisify(cp.execFile)('git', ['-C', cwd, ...args], {
-      encoding: 'utf8', timeout, windowsHide: true,
-    });
-    return { stdout: stdout.trim(), failure: null, stderr: null };
-  } catch (err) {
-    // Same fallback as runGit's catch branch above: execFile's promisified
-    // rejection carries `stderr` as a string when it ran at all (a timeout
-    // kill or spawn failure may never have produced any).
-    const stderr = typeof err.stderr === 'string' ? err.stderr.trim() : '';
-    return { stdout: null, failure: classify(err), stderr };
-  }
+  return runClassifiedAsync(
+    async () => {
+      const { stdout } = await promisify(cp.execFile)('git', ['-C', cwd, ...args], {
+        encoding: 'utf8', timeout, windowsHide: true,
+      });
+      return buildSuccess(stdout);
+    },
+    buildFailure,
+  );
 }
 
 // origin remote URL -> 'owner/repo' slug, or null when unparseable/absent.
