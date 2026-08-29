@@ -2,8 +2,18 @@
 
 Cited by `refine-mode.md` Step 3 ("Merge-lane circuit breaker reset offer") — the one place
 `/claude-tweaks:backlog refine`'s grant sub-stage checks and, when tripped, offers to clear the
-global merge-lane circuit breaker (#311). Read this file only when Step 3 actually reaches this
-point; nothing else in this skill cites it.
+global merge-lane circuit breaker (#311). Two other callers read this file too, for different
+purposes: `refine-record.md`'s standalone `--reset-breaker` form runs this file's Reset branch
+verbatim as its entire procedure (never the offer's read/skip-if-untripped framing above it), and
+`attention-mode.md`'s breaker-banner row cites this file's fail-open read posture (a read failure
+or the degraded shape omits the banner, never a false-positive tripped state) without ever writing
+anything. The grant-sweep continuation clauses below (what changes about this run's own
+`auto:merge`/`auto:merge-pending` grants once the question is answered) are scoped to the
+`refine-mode.md` Step 3 caller only — the standalone `--reset-breaker` caller has no grant-sweep
+of its own: it asks, writes, logs, and exits, nothing more.
+
+Read this file only when the caller actually reaches this point; nothing else in this skill cites
+it.
 
 Before the grant-sweep in Step 3 runs, best-effort read the global merge-lane circuit breaker:
 

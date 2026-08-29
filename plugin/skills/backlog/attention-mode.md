@@ -60,7 +60,8 @@ if [ -n "$SNAPSHOT" ] && node -e "
   cp "$SNAPSHOT" "$ST_BACKLOG_ATTENTION_SNAPSHOT_RAW"
 else
   FIELDS=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').UNION_FIELDS)")
-  gh issue list --state open --json "$FIELDS" --limit 200 > "$ST_BACKLOG_ATTENTION_SNAPSHOT_RAW"
+  LIMIT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit)
+  gh issue list --state open --json "$FIELDS" --limit "$LIMIT" > "$ST_BACKLOG_ATTENTION_SNAPSHOT_RAW"
 fi
 node -e "
   const records = require('$ST_BACKLOG_ATTENTION_SNAPSHOT_RAW').filter((r) => !r.state || r.state === 'OPEN');
@@ -77,9 +78,10 @@ this mode's own fallback fetch narrows to `--state open` only (the shared cache 
 per `_shared/record-queue-fetch.md`), and writing that narrower result back would silently starve
 a later consumer in the same session of closed-record data it expects the shared cache to carry.
 
-If any fetch returns exactly `200` results, state that in the rendered output — the same
-"may be more, here's the count" convention `/claude-tweaks:help`'s own fetches use — rather than
-silently treating it as complete. The `shaped-headless` fetch additionally needs `auto:build`
+If the snapshot-fallback fetch returns exactly the resolved `backlog-fetch-limit` results, or
+either of the two direct `--label` fetches below returns exactly `200`, state that in the
+rendered output — the same "may be more, here's the count" convention `/claude-tweaks:help`'s own
+fetches use — rather than silently treating it as complete. The `shaped-headless` fetch additionally needs `auto:build`
 excluded, done in Step 2's merge script (below) rather than via a `gh` query flag — `gh issue
 list --label` only ANDs, it has no exclusion flag, matching this file's own established idiom of
 doing set logic in the `node -e` merge step rather than the `gh` query.

@@ -70,8 +70,10 @@ Keep `ready`, add no `auto:*` grant, add `needs:decision` (bootstrap per
 `_shared/work-record.md`'s decision-comment template. `**Command:**` is always
 `/claude-tweaks:backlog refine #{n}`, regardless of which unit wrote the comment — `grant-mode.md`
 is a headless unit with no human-facing apply step of its own, so a record it stamps
-`needs:decision` is resolved the same way as one `refine` stamped directly: through `/backlog
-refine`'s own Needs-decision lane, the only place this outcome is ever applied.
+`needs:decision` is resolved the same way as one `refine` stamped directly: through
+`refine-record.md`'s `#N` per-record resolver (Step 1(a)'s unresolved-decision-comment read),
+not through `refine-mode.md`'s own whole-queue Needs-decision lane — the two are separate
+resolution paths (this file's own header names both callers).
 
 ```bash
 eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_NEEDS_DECISION=backlog-needs-decision-${ISSUE}.md")"
