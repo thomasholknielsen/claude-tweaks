@@ -83,7 +83,7 @@ Scheduling it does not make it grant anything. Every firing is a cheap no-op —
 **After `refine`:** render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):
 
 **`/claude-tweaks:dispatch {#-prefixed, comma-joined numbers of every record this run granted a build authorization to, e.g. #201,#202,#205}`** — skips re-selection, claims and builds them directly (recommended) — omit this line entirely if nothing was granted this run
-**`/claude-tweaks:dispatch next`** — claim and build the single highest-priority authorized record (recommended) — bold and suffix `(recommended)` only when the dispatch line above is omitted
+**`/claude-tweaks:dispatch --budget 1`** — claim and build the single highest-priority authorized record (recommended) — bold and suffix `(recommended)` only when the dispatch line above is omitted
 `/claude-tweaks:backlog refine` — review anything still left needing labels
 
 **After `overview`:** The rendered recommendation is never a static tag on one line — it is computed fresh each run and MUST be attached to exactly the line whose action matches the report's closing `Next:` line (Step 4's two-channel contract — the close-out block carries this-session moves only, never other-terminal command lists), resolving through the three-level precedence (needs-you first, then executable Dispatch entry, then fallback ladder): whichever line that resolves to renders first, bolded, with `(recommended)`, ahead of the lines below in their listed order. Render as plain markdown (docs/skill-authoring.md's Skill handoffs convention):

@@ -3,9 +3,9 @@
 # /claude-tweaks:backlog refine). Re-create it via
 # `/claude-tweaks:routine create dispatch` (this template) — the old routine keeps
 # firing a dead prompt until you replace or delete it at claude.ai/code/routines.
-template_version: 9
+template_version: 10
 routine_name: dispatch-weekdays
-kickoff: dispatch next
+kickoff: dispatch --budget 1
 # Optional: `branch: <name>` pins the assembled kernel's target-branch placeholder.
 # Normally unset here — a branch is project-specific, so /claude-tweaks:routine resolves
 # it at instantiation.
@@ -16,9 +16,11 @@ default_schedule:
   cron_expression: "11 */2 * * 1-5"
   description: "every 2 hours on weekdays, UTC — confirm against your local timezone at creation time. Tightened from a once-daily anchor (was \"0 4 * * 1-5\") for 12x lower queue-drain latency while keeping the same daily-brake role"
 notes: >
-  Headless queue consumer: each firing selects exactly one file-overlap group from the
-  authorized queue (open + auto:build, no bot:*, unclaimed), claims every member of that
-  group, and hands it to /claude-tweaks:flow for pure execution. The claim ref makes
+  each firing runs the bare drain with an explicit --budget 1 — exactly one file-overlap
+  group per firing, chosen by priority-then-age ranking. --budget 1 is stated explicitly
+  (rather than inheriting dispatch-batch-size, default 3) to preserve the fleet's
+  one-group-per-firing cadence after #1492 retired `dispatch next`; raise it deliberately
+  if you want each firing to drain more. The claim ref makes
   overlapping firings harmless — a second firing's queue pull skips anything already
   claimed — and a failed run releases its claim and retries at a later firing, up to the
   dispatch-retry-ceiling policy flag (default 3), after which auto:build is removed,

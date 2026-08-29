@@ -72,7 +72,7 @@ present → proceed exactly as always; `gh` absent → proceed via the GitHub MC
 `mcp-transport.md` in this skill's directory (and, for Settle and the Auto-merge gate, in
 `settle-and-merge.md`) — verified end-to-end against a live cloud Routine run (was
 `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, deleted `d83f0720`). Report the specific failing check and
-stop for any real failure (headless self-report above still applies for the `next` form).
+stop for any real failure (headless self-report above still applies for bare drain, incl. its `next` alias).
 
 **MCP transport details.** When `gh` is absent, read `mcp-transport.md` in this skill's directory
 before any GitHub call: it carries check 3's own MCP equivalent (a bounded `list_issues` probe, since
