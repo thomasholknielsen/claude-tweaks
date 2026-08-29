@@ -865,14 +865,16 @@ test('each candidate carries evidence naming its own file and symbol', () => {
 // check here rather than left to prose (IL-102). Comment lines are stripped
 // first so the header's illustrative `require('./a')`-style examples don't
 // count as imports.
-test('cursor-neutrality: the module imports nothing beyond fs/path/child_process/./focus-generators — never scope.js or next-slice', () => {
+test('cursor-neutrality: the module imports nothing beyond fs/path/child_process/./focus-generators/../shared-primitives — never scope.js or next-slice', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'code-health', 'candidates-dead-code.js'), 'utf8');
   const codeOnly = src.split('\n').filter((line) => !/^\s*\/\//.test(line)).join('\n');
   const imports = (codeOnly.match(/require\(\s*['"][^'"]+['"]\s*\)/g) || []).sort();
   // './focus-generators' is the shared framework registry this module
-  // registers into (Item 6) — still never scope.js or next-slice, the two
+  // registers into (Item 6); '../shared-primitives' (#977) is a pure,
+  // zero-dependency utility module (GH_TIMEOUT_MS, escapeRegExp) with no
+  // requires of its own — neither touches scope.js or next-slice, the two
   // this guarantee actually cares about.
-  assert.deepStrictEqual(imports, ["require('./focus-generators')", "require('child_process')", "require('fs')", "require('path')"]);
+  assert.deepStrictEqual(imports, ["require('../shared-primitives')", "require('./focus-generators')", "require('child_process')", "require('fs')", "require('path')"]);
 });
 
 // Behavioral counterpart to the source-grep test above (review finding: the

@@ -58,8 +58,8 @@ An aggregate line lists one `defer-reason` value per item, comma-separated in it
 
 ## Entry schema
 
-**`bin/log-decision.js --run <dir> --status <STATUS> --text <message> [--spec <n>] [--section "/<skill>"]`** is the
-canonical appender for this schema — it timestamps and status-prefixes `message` (composed by the
+**`bin/log-decision.js --run <run-dir> --status <STATUS> --text "<message>" [--spec <n>] [--step <text>] [--reversibility high|med|low|n/a] [--lever "<key>=<value> (<source>)"] [--section "/<skill>"]`** is the
+canonical appender for this schema — it timestamps and status-prefixes `--text` (composed by the
 caller per the shape below) and inserts it under the given `--section` heading (creating the section
 if absent) or at end of file otherwise. Every consumer of this file writes through it instead of
 hand-appending a formatted line per call site — with one documented exception: `FAILED`, which is
@@ -73,12 +73,12 @@ Each entry follows this shape:
 
 | Field | Required | Format |
 |---|---|---|
-| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`), `FAILED` (a batch write attempt that errored — no "revert" or "no valid Defer-reason" semantics, so it's kept separate from `AUTO`/`REFUSED`; hand-composed by `backlog/refine-mode.md` and `apply-refine-labels.js` rather than gated through `append.js`'s `STATUSES`/`formatEntry`, a deliberate choice from #1072's review that extending that enum would touch multiple consumers; `decisions-classifier.js`'s `KIND_RE` and the wrap-up console's Empty-console fast path both recognize it on the read side) |
+| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`), `SKIP` (a documented conditional action was skipped or degraded — no staged artifact; see the Degrade-trace rule below), `FAILED` (a batch write attempt that errored — no "revert" or "no valid Defer-reason" semantics, so it's kept separate from `AUTO`/`REFUSED`; hand-composed by `backlog/refine-mode.md` and `apply-refine-labels.js` rather than gated through `append.js`'s `STATUSES`/`formatEntry`, a deliberate choice from #1072's review that extending that enum would touch multiple consumers; `decisions-classifier.js`'s `KIND_RE` and the wrap-up console's Empty-console fast path both recognize it on the read side) |
 | `HH:MM:SS` | yes | Local time of the decision |
 | Step or location | yes | Skill step name OR file:line if relevant |
 | Short action | yes | One sentence: what was decided |
 | Detail line | optional | Wraps to second line if needed; explain rationale |
-| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED, REFUSED, and FAILED entries: N/A — nothing to revert) |
+| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED, REFUSED, SKIP, and FAILED entries: N/A — nothing to revert) |
 | Commit ref / stage path | when reversible | `commit abc1234` or `stage path: staged/...` |
 
 ## Lever attribution (optional trailing field)
@@ -122,7 +122,41 @@ The third example is a decision whose outcome was driven by the findings' own se
 | `REFUSED` | Console blocked a reason-less queue-write proposal at creation; kept staged (or flipped its ledger item back to `open`). | Shown under "Refused — no defer reason". No default; human edits the staged header or drops via Override → Skip. |
 | `KEPT-PROMPT` | Skill could not auto-resolve (floor failed or item is in "not silenced" list). Asked user inline. | Already resolved — informational entry only. |
 | `SCANNED` | Skill ran its independent scan/gap-detection and is reporting the scan's scope and outcome — emitted on every run of a scanning step, whether or not the scan found anything actionable. Not itself a decision — the decision, if any, is a separate AUTO/STAGED entry. | Shown in "Auto-applied" section as an informational line (no action to override). |
+| `SKIP` | A documented conditional action (a skill step whose text states a skip/no-op/degrade condition) was skipped or degraded during this run attempt — no staged artifact. Not itself a decision — see the Degrade-trace rule below. | Shown alongside `SCANNED` as an informational trace line (no action to override). |
 | `FAILED` | A batch write attempt errored — the write was neither applied nor refused for a content reason, so nothing landed and nothing is staged. Hand-composed by its two writers (see the `STATUS` row above). | Shown in "Auto-applied" section as an informational failure line (no commit ref, nothing to revert). Decision-bearing for the Empty-console fast path — a log holding one never skips the console — but the remedy is the producing skill's own paste-ready retry, not an Override. |
+
+## Degrade-trace rule (SKIP)
+
+Applies whenever a documented conditional action is actually skipped or degraded during a run attempt. Two things it is **not**:
+
+- **Not a normal run.** A step that executes as documented writes nothing — a clean pass is silent, exactly like `worktree-setup.md`'s post-creation catch-up (which logs only when the merge advanced the branch). Never log "ran fine."
+- **Not `STAGED`'s territory.** `STAGED` and `SKIP` are disjoint by the presence of a staged artifact: a deferral that produces a proposal in `staged/` for the Review Console is `STAGED`, never `SKIP`, regardless of how the deferral is described in prose. `SKIP` covers only actions not performed with **no** staged artifact — a full skip or a degrade to a lesser fallback.
+
+**Entry shape** — a specialization of the Entry schema above, where `{step or location}` carries the outcome-kind tag:
+
+```
+- SKIP {HH:MM:SS} — {step-name} ({skipped|degraded}): {condition that fired} → {fallback taken}. Reversibility: n/a.
+```
+
+`skipped` = the step did not run at all; `degraded` = the step ran, but to a lesser fallback than its documented default. Worked example — the pr-first draft-PR bootstrap's `local-merge` no-op (`integration-model` — `_shared/integration-model.md`), the #778 incident class this rule exists to make traceable instead of silent:
+
+```
+- SKIP 09:14:02 — Spec Step 1 draft-PR bootstrap (skipped): condition: integration-model=local-merge → fallback: no-op, no draft PR opened. Reversibility: n/a.
+```
+
+One line per documented conditional action per run attempt — append-only, same as every other status: a resumed or retried attempt that re-evaluates the same condition appends its own line, never a dedupe check.
+
+Write via the canonical appender (`--section`/`--spec` as usual):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status SKIP \
+  --section "/{skill-name}" --step "{step-name} ({skipped|degraded})" \
+  --text "condition: {condition that fired} → fallback: {fallback taken}" --reversibility n/a
+```
+
+**No-run-dir carrier.** A standalone run with no `$PIPELINE_RUN_DIR` has no `decisions.md` to append to — list the skip inline in the handoff instead (`build/handoff-template.md`'s inline-skip listing) rather than dropping it silently.
+
+**Self-adoption obligation.** This rule is not scoped to the conditional steps it is initially adopted in (`/build`'s Common Steps 1.7/4.5/5.5/6.5, Spec Steps 1/2.5, and Common Step 7's phase-exit push) — any *new* documented conditional action added to any skill after this rule lands adopts a SKIP-write instruction at introduction, not as a later follow-up.
 
 ## Append protocol
 
@@ -170,7 +204,7 @@ The Review Console reads the log file for the current pipeline run:
 
 1. Resolve `PIPELINE_RUN_DIR` env var, or find the most recent run matching the current spec
 2. Read `{run-dir}/decisions.md`
-3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED / REFUSED / FAILED
+3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED / REFUSED / SKIP / FAILED
 4. List staged artifacts from `{run-dir}/staged/`
 5. Present in the Review Console (see `/wrap-up`'s Phase 4)
 

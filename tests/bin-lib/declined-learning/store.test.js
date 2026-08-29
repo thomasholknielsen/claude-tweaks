@@ -94,9 +94,9 @@ test('lookupDecline: no entry for an unknown fingerprint -> null', () => {
 
 test('recordDecline: defaults reason to null and declinedAt to an ISO timestamp when omitted', () => {
   const deps = makeStore();
-  const entry = store.recordDecline('reflect-abc12345', { source: 'wrap-up' }, deps);
+  const entry = store.recordDecline('reflect-abc12345', { source: 'reflect' }, deps);
   assert.equal(entry.reason, null);
-  assert.equal(entry.source, 'wrap-up');
+  assert.equal(entry.source, 'reflect');
   assert.match(entry.declinedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
 });
 
@@ -111,7 +111,7 @@ test('recordDecline: overwrites an existing entry for the same fingerprint', () 
 test('recordDecline: two different fingerprints coexist in the store', () => {
   const deps = makeStore();
   store.recordDecline('feedback-aaa', { source: 'feedback' }, deps);
-  store.recordDecline('reflect-bbb', { source: 'wrap-up' }, deps);
+  store.recordDecline('reflect-bbb', { source: 'reflect' }, deps);
 
   assert.notEqual(store.lookupDecline('feedback-aaa', deps), null);
   assert.notEqual(store.lookupDecline('reflect-bbb', deps), null);
@@ -147,7 +147,7 @@ test('listDeclined: no filter returns every entry with its fingerprint and subje
     source: 'feedback', reason: 'r1', subject: 'subject one', declinedAt: '2026-08-20T00:00:00Z',
   }, deps);
   store.recordDecline('reflect-bbb', {
-    source: 'wrap-up', reason: 'r2', subject: 'subject two', declinedAt: '2026-08-21T00:00:00Z',
+    source: 'reflect', reason: 'r2', subject: 'subject two', declinedAt: '2026-08-21T00:00:00Z',
   }, deps);
 
   const all = store.listDeclined({}, deps).sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
@@ -156,7 +156,7 @@ test('listDeclined: no filter returns every entry with its fingerprint and subje
       fingerprint: 'feedback-aaa', declinedAt: '2026-08-20T00:00:00Z', reason: 'r1', source: 'feedback', subject: 'subject one',
     },
     {
-      fingerprint: 'reflect-bbb', declinedAt: '2026-08-21T00:00:00Z', reason: 'r2', source: 'wrap-up', subject: 'subject two',
+      fingerprint: 'reflect-bbb', declinedAt: '2026-08-21T00:00:00Z', reason: 'r2', source: 'reflect', subject: 'subject two',
     },
   ]);
 });
@@ -165,7 +165,7 @@ test('listDeclined: filtered by source returns only matching entries', () => {
   const deps = makeStore();
   store.recordDecline('feedback-aaa', { source: 'feedback', subject: 'a' }, deps);
   store.recordDecline('feedback-ccc', { source: 'feedback', subject: 'c' }, deps);
-  store.recordDecline('reflect-bbb', { source: 'wrap-up', subject: 'b' }, deps);
+  store.recordDecline('reflect-bbb', { source: 'reflect', subject: 'b' }, deps);
 
   const feedbackOnly = store.listDeclined({ source: 'feedback' }, deps).map((e) => e.fingerprint).sort();
   assert.deepEqual(feedbackOnly, ['feedback-aaa', 'feedback-ccc']);
@@ -189,7 +189,7 @@ test('listDeclined: an entry recorded with no subject omits the key rather than 
 test('listDeclinedFingerprints: no filter returns every fingerprint', () => {
   const deps = makeStore();
   store.recordDecline('feedback-aaa', { source: 'feedback' }, deps);
-  store.recordDecline('reflect-bbb', { source: 'wrap-up' }, deps);
+  store.recordDecline('reflect-bbb', { source: 'reflect' }, deps);
 
   const all = store.listDeclinedFingerprints({}, deps).sort();
   assert.deepEqual(all, ['feedback-aaa', 'reflect-bbb']);
@@ -199,7 +199,7 @@ test('listDeclinedFingerprints: filtered by source returns only matching fingerp
   const deps = makeStore();
   store.recordDecline('feedback-aaa', { source: 'feedback' }, deps);
   store.recordDecline('feedback-ccc', { source: 'feedback' }, deps);
-  store.recordDecline('reflect-bbb', { source: 'wrap-up' }, deps);
+  store.recordDecline('reflect-bbb', { source: 'reflect' }, deps);
 
   const feedbackOnly = store.listDeclinedFingerprints({ source: 'feedback' }, deps).sort();
   assert.deepEqual(feedbackOnly, ['feedback-aaa', 'feedback-ccc']);
@@ -234,10 +234,86 @@ test('clearDecline: unknown fingerprint -> false, no write', () => {
 test('clearDecline: leaves sibling entries untouched', () => {
   const deps = makeStore();
   store.recordDecline('feedback-aaa', { source: 'feedback' }, deps);
-  store.recordDecline('reflect-bbb', { source: 'wrap-up' }, deps);
+  store.recordDecline('reflect-bbb', { source: 'reflect' }, deps);
 
   store.clearDecline('feedback-aaa', deps);
 
   assert.equal(store.lookupDecline('feedback-aaa', deps), null);
   assert.notEqual(store.lookupDecline('reflect-bbb', deps), null);
+});
+
+// ---- pruneDeclines (#1399) ---------------------------------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const NOW = Date.parse('2026-08-28T00:00:00Z');
+
+test('pruneDeclines: an entry older than the policy\'s age threshold is removed', () => {
+  const deps = makeStore();
+  const old = new Date(NOW - 200 * DAY_MS).toISOString();
+  store.recordDecline('feedback-old', { source: 'feedback', declinedAt: old }, deps);
+
+  const removed = store.pruneDeclines({ maxAgeDays: 180, now: NOW }, deps);
+
+  assert.equal(removed, 1);
+  assert.equal(store.lookupDecline('feedback-old', deps), null);
+});
+
+test('pruneDeclines: an entry within the threshold survives', () => {
+  const deps = makeStore();
+  const recent = new Date(NOW - 10 * DAY_MS).toISOString();
+  store.recordDecline('feedback-recent', { source: 'feedback', declinedAt: recent }, deps);
+
+  const removed = store.pruneDeclines({ maxAgeDays: 180, now: NOW }, deps);
+
+  assert.equal(removed, 0);
+  assert.notEqual(store.lookupDecline('feedback-recent', deps), null);
+});
+
+test('pruneDeclines: an empty store is a no-op (no write, returns 0)', () => {
+  const deps = makeStore();
+  const writeCallsBefore = Object.keys(deps.data).length;
+
+  const removed = store.pruneDeclines({ maxAgeDays: 180, now: NOW }, deps);
+
+  assert.equal(removed, 0);
+  assert.equal(Object.keys(deps.data).length, writeCallsBefore);
+});
+
+test('pruneDeclines: leaves a sibling within-threshold entry untouched while removing an old one', () => {
+  const deps = makeStore();
+  const old = new Date(NOW - 200 * DAY_MS).toISOString();
+  const recent = new Date(NOW - 10 * DAY_MS).toISOString();
+  store.recordDecline('feedback-old', { source: 'feedback', declinedAt: old }, deps);
+  store.recordDecline('feedback-recent', { source: 'feedback', declinedAt: recent }, deps);
+
+  const removed = store.pruneDeclines({ maxAgeDays: 180, now: NOW }, deps);
+
+  assert.equal(removed, 1);
+  assert.equal(store.lookupDecline('feedback-old', deps), null);
+  assert.notEqual(store.lookupDecline('feedback-recent', deps), null);
+});
+
+test('pruneDeclines: an entry with a missing/unparseable declinedAt is kept, not treated as infinitely old', () => {
+  const deps = makeStore();
+  store.recordDecline('feedback-nodate', { source: 'feedback' }, deps);
+  // Overwrite the written entry with a corrupt declinedAt to simulate pre-existing bad data,
+  // without going through recordDecline's own default-timestamp behavior.
+  const raw = JSON.parse(deps.data[STORE_REL]);
+  raw['feedback-nodate'].declinedAt = 'not-a-date';
+  deps.data[STORE_REL] = JSON.stringify(raw);
+
+  const removed = store.pruneDeclines({ maxAgeDays: 180, now: NOW }, deps);
+
+  assert.equal(removed, 0);
+  assert.notEqual(store.lookupDecline('feedback-nodate', deps), null);
+});
+
+test('pruneDeclines: defaults maxAgeDays to DEFAULT_PRUNE_MAX_AGE_DAYS (180) when omitted', () => {
+  const deps = makeStore();
+  const justOverDefault = new Date(NOW - (store.DEFAULT_PRUNE_MAX_AGE_DAYS + 1) * DAY_MS).toISOString();
+  store.recordDecline('feedback-old', { source: 'feedback', declinedAt: justOverDefault }, deps);
+
+  const removed = store.pruneDeclines({ now: NOW }, deps);
+
+  assert.equal(removed, 1);
 });

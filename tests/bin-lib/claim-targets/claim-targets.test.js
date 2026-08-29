@@ -318,6 +318,34 @@ test('(k5) pr-opened tombstone whose link points at a DIFFERENT repo: falls thro
   assert.ok(!ghCalls.some((a) => a[0] === 'pr' && a[1] === 'view'), 'a wrong-repo link must never trigger the PR-state check');
 });
 
+// #977: two targets released together from one multi-spec build tombstone
+// with the identical `link` — `tombstoneInFlightPr`'s `gh pr view` call must
+// be memoized per `$LINK` within this one `run()` invocation, so the second
+// target's check is answered from cache instead of a second real call.
+test('(k6) two targets sharing the identical in-flight link: only one `gh pr view` call for both', () => {
+  const link = 'https://github.com/acme/w/pull/309';
+  const { ghApi } = makeGhApi({
+    reads: {
+      765: [readOk(prOpenedTombstoneMarker('otherRun', link), 'sha765')],
+      766: [readOk(prOpenedTombstoneMarker('otherRun', link), 'sha766')],
+    },
+    writes: {},
+  });
+  const { gh, calls: ghCalls } = makeGh({ prState: 'OPEN' });
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '765,766', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.skipped, [
+    { issue: 765, reason: 'in-flight', link },
+    { issue: 766, reason: 'in-flight', link },
+  ]);
+  const prViewCalls = ghCalls.filter((a) => a[0] === 'pr' && a[1] === 'view');
+  assert.equal(prViewCalls.length, 1, 'the second target must reuse the first target\'s cached gh pr view result');
+});
+
 // (c) stale target -> conditional PUT (re-claim)
 test('(c) stale target: conditional write re-claims with the blob sha', () => {
   const staleClaimedAt = new Date(NOW - 100 * 3600 * 1000).toISOString(); // 100h ago, ttl 72h

@@ -10,7 +10,9 @@ const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
-const SHAPING_MODE_FLAT = readFlat('plugin/skills/specify/shaping-mode.md');
+// #1346 split shaping-mode.md at the ### Metadata block boundary; the needs:*
+// stamp/compose/read-back content pinned here all landed in shaping-mode-stamping.md.
+const SHAPING_MODE_FLAT = readFlat('plugin/skills/specify/shaping-mode-stamping.md');
 
 test('shaping-mode.md states the needs:* removal-on-promotion bullet, generalizing #825', () => {
   assert.ok(SHAPING_MODE_FLAT.includes('generalizes #825'), 'shaping-mode.md must cite #825 in its needs:* removal bullet');

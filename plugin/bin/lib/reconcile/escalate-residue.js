@@ -21,7 +21,7 @@ const { fingerprintFromBasis, normalizeText } = require('../health-core/fingerpr
 // diverges deliberately (no readBack/verify round trip, `--body` inline
 // rather than `--body-file`) — that's a real behavioral difference, not
 // duplication, and stays local to this module.
-const { defaultRunner, errorText } = require('../feedback/file-feedback');
+const { defaultRunner, errorText, findDuplicate } = require('../feedback/file-feedback');
 
 function residueFingerprint(reason, targetPath) {
   return fingerprintFromBasis('reconcile-residue', [reason, normalizeText(targetPath)]);
@@ -54,14 +54,12 @@ function escalateResidue({ repo, reason, targetPath, count, firstFailedAt, lastE
   const { body, marker } = residueBody({ reason, targetPath, count, firstFailedAt, lastError });
   const title = `reconcile: ${reason} stuck on ${targetPath}`;
 
-  let dup;
   try {
-    const out = runner(['issue', 'list', '--repo', repo, '--search', marker, '--state', 'all', '--json', 'number']);
-    dup = JSON.parse(out);
+    const hit = findDuplicate({ repo, marker, runner });
+    if (hit) return { status: 'dedup-hit', number: hit.number };
   } catch (err) {
     return { status: 'escalation-failed', reason: errorText(err) };
   }
-  if (Array.isArray(dup) && dup.length > 0) return { status: 'dedup-hit', number: dup[0].number };
 
   try {
     const out = runner(['issue', 'create', '--repo', repo, '--title', title, '--body', body, '--label', 'bug']);

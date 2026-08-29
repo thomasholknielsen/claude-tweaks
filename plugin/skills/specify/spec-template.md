@@ -55,6 +55,8 @@ Parent: {#N — decomposition-mode sub-issues under work-links: body-text only, 
 - [ ] {Concrete deliverable 2}
 - [ ] ...
 
+When a Deliverable adds a new Manifesto policy lever — a new `auto`-mode behavior surfaced through the Pipeline Config Manifesto and configurable via `.claude-tweaks/policy.yml` — cite `_shared/auto-mode-contract.md`'s "Adding a new policy lever" checklist by reference (name the file and heading) rather than restating its five touch points or naming only one of them. A lever's addition touches more files than its own logic; the checklist exists because a past lever-adding spec named only one file and three of the checklist's five items were missed until whole-branch review.
+
 ## Acceptance Criteria
 
 1. {Specific, testable criterion that `/superpowers:writing-plans` can convert to a TDD step}
@@ -179,6 +181,16 @@ prose — include a deliverable that pins it with a conformance test (`skill-pro
 way a code path earns regression coverage. A plan that adds a Gate-table row with no test task is
 the same brief-compliance gap this section already exists to close, one layer further in.
 
+### Third-Party CLI/API Behavior Task 0
+
+When the premise being checked is specifically how a **third-party CLI or API** behaves — not this project's own harness — name a blocking empirical Task 0 as a deliberate option rather than letting it get rediscovered per-record. Its three constituent parts, all required:
+
+- **Safe probe target** — a throwaway/disposable target the probe can act against without touching real state (a scratch repo, an unprotected test branch, a sandboxed resource) — never the project's own production data or an artifact anyone else depends on.
+- **Mandatory teardown** — the Task 0 deliverable itself includes tearing the probe target back down, unconditionally, whether the probe confirmed or reversed the assumed premise.
+- **Literal-capture rule** — record the actually-observed behavior verbatim (the exact output, timing, or status — not a paraphrase) in the spec's `## Gotchas` or `## Technical Approach`, so a later reader can check the captured fact rather than re-trust the original assumption.
+
+Example: #560's Task 0 probed `gh pr merge --auto`'s actual merge timing against a throwaway PR opened on a disposable base branch, tore that branch down unconditionally after capturing the result, and recorded the literal observed behavior — which reversed the plan's assumed premise (`gh pr merge --auto` does not wait for anything on an unprotected repo; it merges immediately) before any other deliverable's fixtures were written.
+
 ## Gate-Authoring Deliverables
 
 When a spec's plan adds a new gate — a PreToolUse/PostToolUse hook check, a permission rule, or a teardown/cleanup guard — write a plan-time deliverable that traces the gate's proposed condition against two enumerations before implementation begins, not after:
@@ -216,7 +228,7 @@ Type, stage/scoring labels, and parent/dependency links are **record facets** �
 | Parent marker (`isParentIssue`) — decomposition parent; carries the acceptance gate for its sub-issues | `parent-issue` label (a retired name is still read on the read side only — see `_shared/work-record.md`'s Label taxonomy) | `is-parent-issue: true` frontmatter line |
 | Parent link | Sub-issue relationship (`work-links: native`) or a parent task-list entry (`- [ ] #{subIssueNum}`) + the sub-issue's own `Parent: #N` body line (`work-links: body-text`) | `parent:` frontmatter line |
 | Dependency links | Blocked-by dependency API (`work-links: native`) or `Blocked by #N` body lines (`work-links: body-text`) | `blocked-by: [...]` frontmatter line |
-| Related cross-link — non-dependency sibling reference; written by `/capture`'s body template and by `/specify`'s independent-2-unit collapse (`record-creation.md` Step 4), maintained by `/backlog refine` | `**Related:** #N` body line (both `work-links` values) | `**Related:** {id}` body line (no frontmatter facet) |
+| Related cross-link — non-dependency sibling reference; written by `/capture`'s body template and by `/specify`'s independent-2-unit collapse (`record-creation-linking.md` Step 4, #1346's split of `record-creation.md`), maintained by `/backlog refine` | `**Related:** #N` body line (both `work-links` values) | `**Related:** {id}` body line (no frontmatter facet) |
 
 The `local-files` frontmatter keys above are exactly `local-store.js`'s documented set (`bin/lib/issues/local-store.js`) — don't invent new keys here.
 
