@@ -75,6 +75,20 @@ test('embedFingerprint: appends the fingerprint line when none exists', () => {
   assert.match(result, /Body text with no fingerprint comment\.\n<!-- fingerprint: feedback-cafef00d -->\n$/);
 });
 
+test('#1435: a replacement line containing $` survives composition intact (function replacer, not string replacer)', () => {
+  // Regression for the String.replace self-splicing bug: a raw `$`-prefixed
+  // sequence in a *string* replacement argument is a splice directive, not
+  // literal text ('abc'.replace('b', '$`') === 'aac', not 'a$`c'). fingerprint
+  // values are always hex today, so this can't fire in practice yet — but the
+  // fix (a function replacer) must hold regardless of what embedFingerprint is
+  // ever called with.
+  const body = 'Some preceding text.\n<!-- fingerprint: placeholder -->\nMore text.';
+  const hostileFingerprint = '$`$&$$';
+  const result = feedback.embedFingerprint(body, hostileFingerprint);
+  assert.match(result, /<!-- fingerprint: \$`\$&\$\$ -->/, 'a string replacer would corrupt $-pattern sequences ($` splices preceding text, $& inserts the match)');
+  assert.doesNotMatch(result, /Some preceding text\.\s*Some preceding text\./, 'the preceding text must not be spliced back in');
+});
+
 // ---- fileDraft: argv-safe title -------------------------------------------
 
 test('fileDraft: a title with backtick, $(...), and single quote round-trips as one argv element', () => {

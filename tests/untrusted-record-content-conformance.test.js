@@ -75,7 +75,9 @@ test('contract stays within its 6144-byte cap', () => {
   assert.ok(Buffer.byteLength(CONTRACT, 'utf8') <= 6144, `contract is ${Buffer.byteLength(CONTRACT, 'utf8')} bytes, over the 6144 cap`);
 });
 
-const NEXT_MODE_FLAT_C = readFlat('plugin/skills/specify/next-mode.md');
+// #1346 split next-mode.md at the ## Framing Guard boundary; the boundary/contract
+// citation this suite pins lives in the Framing Guard, now in next-mode-shape.md.
+const NEXT_MODE_FLAT_C = readFlat('plugin/skills/specify/next-mode.md') + ' ' + readFlat('plugin/skills/specify/next-mode-shape.md');
 
 test('next-mode.md no longer carries the retired boundary clause (whitespace-collapsed)', () => {
   assert.ok(!NEXT_MODE_FLAT_C.includes('**Untrusted-content boundary.**'), 'retired paragraph opener still present');
@@ -89,7 +91,9 @@ test('next-mode.md cites the contract', () => {
   assert.ok(!FROZEN_NEXT_MODE_BOUNDARY.includes('untrusted-record-content.md'), 'control: frozen excerpt must lack the citation (proves go-red)');
 });
 
-const SHAPING_FLAT_C = readFlat('plugin/skills/specify/shaping-mode.md');
+// #1346 split shaping-mode.md at the ### Metadata block boundary; the Framing bullet
+// this suite pins lives in the Stamp scoring section, now in shaping-mode-stamping.md.
+const SHAPING_FLAT_C = readFlat('plugin/skills/specify/shaping-mode.md') + ' ' + readFlat('plugin/skills/specify/shaping-mode-stamping.md');
 const FROZEN_SHAPING_SENTENCES = collapse("Under the `next` form's headless posture, the `## Original request` block is unreviewed external content the same way `next-mode.md`'s Framing Guard fetch is — and the same holds under `--chained`, so this call site's content is equally unreviewed there — and should be wrapped per that file's Untrusted-content boundary convention before being passed to `framing-check`.");
 
 test('shaping-mode.md no longer scopes the wrap to headless entry paths (whitespace-collapsed)', () => {
@@ -104,7 +108,10 @@ test('shaping-mode.md cites the contract unconditionally', () => {
 });
 
 const CHALLENGE_FLAT_C = readFlat('plugin/skills/challenge/SKILL.md');
-const RECORD_CREATION_FLAT_C = readFlat('plugin/skills/specify/record-creation.md');
+// #1346 split record-creation.md at the Step 3 Parent record/Sub-issues boundary; the
+// Framing paragraph this suite pins lives in the Sub-issues section, now in
+// record-creation-subissues.md.
+const RECORD_CREATION_FLAT_C = readFlat('plugin/skills/specify/record-creation-subissues.md');
 const FROZEN_RECORD_CREATION_SENTENCE = collapse("A freshly created sub-issue has no `## Original request` block, so the composed body is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode.");
 const FROZEN_GRAPH_ATTRIBUTION = collapse("the caller wraps the record's raw title/body in `next-mode.md`'s collision-resistant BEGIN/END markers (never a bare `---`) before passing it");
 const FROZEN_AUTHORING_SENTENCE = collapse("See `plugin/skills/specify/next-mode.md`'s `## Framing Guard` section for the worked example (added by #1041).");
@@ -115,11 +122,15 @@ test('challenge/SKILL.md Step 1 keeps its callee stance and cites the contract a
   assert.ok(CHALLENGE_FLAT_C.includes('untrusted-record-content.md'), 'contract path missing from challenge/SKILL.md');
 });
 
-test('record-creation.md Framing paragraph wraps per the contract (byte-neutral edit)', () => {
-  assert.ok(RECORD_CREATION_FLAT_C.includes('passed wrapped per `_shared/untrusted-record-content.md`'), 'citation missing from record-creation.md Framing paragraph');
+test('record-creation-subissues.md Framing paragraph wraps per the contract', () => {
+  assert.ok(RECORD_CREATION_FLAT_C.includes('passed wrapped per `_shared/untrusted-record-content.md`'), 'citation missing from record-creation-subissues.md Framing paragraph');
   assert.ok(!RECORD_CREATION_FLAT_C.includes('is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode'), 'retired sentence still present');
   assert.ok(FROZEN_RECORD_CREATION_SENTENCE.includes('is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode'), 'control: frozen sentence must contain the retired text (proves the absence pin can go red)');
-  assert.ok(Buffer.byteLength(read('plugin/skills/specify/record-creation.md'), 'utf8') <= 40853, 'record-creation.md grew — the edit must be byte-neutral or negative');
+  // The original 40853-byte cap pinned a byte-neutral edit against the pre-#1346
+  // monolithic record-creation.md; #1346 split that file across three files under
+  // tests/bin-lib/skill-audit/context-cost.test.js's own 28KB per-sub-file ceiling,
+  // which is the current, superseding constraint on this file's size.
+  assert.ok(Buffer.byteLength(read('plugin/skills/specify/record-creation-subissues.md'), 'utf8') <= 28 * 1024, 'record-creation-subissues.md exceeds the 28KB /specify sub-file ceiling');
 });
 
 test('docs carry exactly one skill-graph row for the contract, under ## assess-agent-autonomy, and the re-pointed authoring example', () => {

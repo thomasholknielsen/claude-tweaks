@@ -523,15 +523,29 @@ function extractMapEntry(raw, topKey) {
 // Never throws — fails open to 'local-merge' on any error, including no git
 // remote at all (checked first, so a local-files project with no remote never
 // shells out to gh). Each check runs under a 5s timeout.
-function detectIntegrationModel(repoRoot) {
-  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8', windowsHide: true };
+//
+// `opts.mcpReachable` (optional, default undefined/falsy) is a caller-supplied
+// override — never resolved inside this function, per docs/incident-log.md
+// IL-63: a spawned-subprocess-style module cannot invoke MCP tools itself, so
+// this function can only accept the answer, never derive it. When true AND a
+// git remote exists, short-circuits straight to 'pr-first', skipping the `gh`
+// probe entirely — a remote is still required, since an MCP reachability
+// signal is meaningless with nothing to integrate through. The one caller
+// positioned to supply this (bin/resolve-policy.js's CLI, invoked inside an
+// agent turn) is documented in that file; pre-tool-use.js's hook call site
+// runs with no agent turn active and can never supply it (see
+// resolveRunPinnedIntegrationModel's own comment).
+function detectIntegrationModel(repoRoot, opts = {}) {
+  const { mcpReachable } = opts;
+  const execOpts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8', windowsHide: true };
   try {
-    execFileSync('git', ['remote', 'get-url', 'origin'], opts);
+    execFileSync('git', ['remote', 'get-url', 'origin'], execOpts);
   } catch {
     return 'local-merge';
   }
+  if (mcpReachable === true) return 'pr-first';
   try {
-    execFileSync('gh', ['repo', 'view', '--json', 'owner,name'], opts);
+    execFileSync('gh', ['repo', 'view', '--json', 'owner,name'], execOpts);
   } catch {
     return 'local-merge';
   }
@@ -547,12 +561,14 @@ function detectIntegrationModel(repoRoot) {
 // key isn't cleanly set (absent, or set-but-invalid — a typo'd value still
 // gets a usable default here, unlike the raw resolvePolicyKeys/CLI path,
 // which surfaces `invalid: true` for a caller that wants to report it).
-function resolveIntegrationModel(repoRoot) {
+// `opts` (optional) forwards unchanged to detectIntegrationModel — see that
+// function's own comment for the mcpReachable override contract.
+function resolveIntegrationModel(repoRoot, opts = {}) {
   const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
   const resolved = resolvePolicyKeys(['integration-model'], { policyRaw, runConfigRaw: null });
   const entry = resolved['integration-model'];
   if (entry && entry.source !== 'default') return entry.value;
-  return detectIntegrationModel(repoRoot);
+  return detectIntegrationModel(repoRoot, opts);
 }
 
 // Shared root-resolution + policy.yml/config.yml read + resolvePolicyKeys

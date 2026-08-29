@@ -16,7 +16,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const FILE = path.join(__dirname, '..', 'plugin', 'skills', 'specify', 'record-creation.md');
+// #1346 split record-creation.md at the Step 3/Step 4 boundary; Step 4's Linking
+// section (this file's whole subject) landed in record-creation-linking.md.
+const FILE = path.join(__dirname, '..', 'plugin', 'skills', 'specify', 'record-creation-linking.md');
 const text = fs.readFileSync(FILE, 'utf8');
 
 test('native linking cites bin/link-records.js with its argument shape', () => {
