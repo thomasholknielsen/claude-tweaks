@@ -21,4 +21,4 @@ caller) as the replacement spelling.
 
 Removal condition: once this repo's own `.claude-tweaks/policy.yml`, `skills/help/reference-card.md`'s
 `/claude-tweaks:backlog` argument grammar, and `backlog/routine-template.yml` cite only `refine`,
-checked at the next minor release.
+checked at the next minor release — and no earlier than the second minor release after #1490 ships.

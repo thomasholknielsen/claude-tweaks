@@ -182,35 +182,53 @@ test('work-record-permission-matrix.md: exactly one merged /backlog refine row, 
   // "/backlog grant (headless machine-grant mode ...)".
 });
 
-// --- (9) AC4 sweep: no lingering "backlog grant" phrase outside the ledgered
-// archival/template exemptions ---
+// --- (9) Retired-vocabulary sweep: widened past record #1490's original
+// AC4 ("backlog grant" only, plugin/+docs/+README) by this record's own
+// whole-branch review fix-wave — four offender tokens, evals/ walked too ---
 
-test('AC4 sweep: "backlog grant" survives only at the ledgered exemptions', () => {
-  // Exemption ruling (Task 4 brief amendment 1, binding): the phrase "backlog
-  // grant" may survive in exactly these places and nowhere else in plugin/
-  // or docs/ or README.md:
-  //   - plugin/skills/backlog/refine-headless.md — ONLY inside its two
-  //     byte-pinned templates (the Skipped-by / Machine-granted-by comment
-  //     strings, ~lines 382/445) — asserted below by an exact occurrence count.
+test('retired-vocabulary sweep: no lingering grant-mode/standalone-mode phrasing outside ledgered exemptions', () => {
+  // Exemption ruling (fix-wave review amendment, binding): each offender
+  // token below may survive only in exactly these places:
+  //   - plugin/skills/backlog/refine-headless.md — ONLY its two byte-pinned
+  //     audit-comment templates ("Skipped by /claude-tweaks:backlog grant: ..."
+  //     / "Machine-granted by /claude-tweaks:backlog grant (headless)." —
+  //     ~lines 388/451) — asserted below by an exact "backlog grant" count.
+  //   - evals/scenarios/backlog-grant-local-files-preflight-stop.yaml — ONLY
+  //     its skill_invocation.prompt literal ("/claude-tweaks:backlog grant")
+  //     — the deprecated `grant` alias command actually under test, not a
+  //     citation of retired vocabulary — asserted below by an exact
+  //     "backlog grant" count.
   //   - docs/incident-log.md — historical incident narrative, never rewritten.
-  //   - docs/superpowers/plans/2026-08-26-sweep-residue-needs-decision-marker.md
-  //     — archival plan prose.
-  //   - docs/superpowers/plans/2026-08-29-retire-grant-mode-presence-switch.md
-  //     — this record's own plan, archival.
-  // plugin/skills/backlog/deprecated-aliases.md is explicitly NOT required to
-  // carry the phrase (it currently doesn't) — not part of the exemption set.
-  const EXEMPT_FILES = new Set([
-    'plugin/skills/backlog/refine-headless.md',
-    'docs/incident-log.md',
-    'docs/superpowers/plans/2026-08-26-sweep-residue-needs-decision-marker.md',
-    'docs/superpowers/plans/2026-08-29-retire-grant-mode-presence-switch.md',
-  ]);
-  // refine-headless.md's own exemption is capped to exactly its two known
-  // templates — read the file directly and count occurrences.
-  const REFINE_HEADLESS_TEMPLATE_COUNT = 2;
+  //   - docs/decisions/**, docs/plans/**, docs/superpowers/plans/** —
+  //     whole-directory exemption: ADRs are immutable historical record, and
+  //     docs/plans/*.md / docs/superpowers/plans/*.md are per-run plan/ledger
+  //     artifacts (deleted at wrap-up per CLAUDE.md, not shipped prose) whose
+  //     membership at any given time isn't stable enough to enumerate by
+  //     filename — rewriting either's historical language would misrepresent
+  //     what was actually decided or done.
+  // The `grant-mode` token excludes the permanent `grant-mode-audit` marker
+  // (#269's durable, byte-pinned GitHub comment marker, `fleet-counters.js`'s
+  // `GRANT_AUDIT_RE`) everywhere — that convention is not a citation of the
+  // retired standalone mode and is never renamed.
+  const EXEMPT_FILES = new Set(['docs/incident-log.md']);
+  const EXEMPT_DIR_PREFIXES = ['docs/decisions/', 'docs/plans/', 'docs/superpowers/plans/'];
+  const CAPPED_FILES = {
+    'plugin/skills/backlog/refine-headless.md': { 'backlog grant': 2 },
+    'evals/scenarios/backlog-grant-local-files-preflight-stop.yaml': { 'backlog grant': 1 },
+  };
+  const OFFENDER_TOKENS = ['backlog grant', 'grant-mode', 'grant mode', 'Four modes over the open'];
+
+  function countToken(text, token) {
+    if (token === 'grant-mode') {
+      const matches = text.match(/grant-mode(?!-audit)/g);
+      return matches ? matches.length : 0;
+    }
+    return text.split(token).length - 1;
+  }
 
   const PLUGIN_DIR = path.join(ROOT, 'plugin');
   const DOCS_DIR = path.join(ROOT, 'docs');
+  const EVALS_DIR = path.join(ROOT, 'evals');
   const README_PATH = path.join(ROOT, 'README.md');
 
   function walk(dir, out) {
@@ -224,6 +242,7 @@ test('AC4 sweep: "backlog grant" survives only at the ledgered exemptions', () =
   const files = [];
   walk(PLUGIN_DIR, files);
   walk(DOCS_DIR, files);
+  walk(EVALS_DIR, files);
   if (fs.existsSync(README_PATH)) files.push(README_PATH);
 
   const offenders = [];
@@ -234,25 +253,29 @@ test('AC4 sweep: "backlog grant" survives only at the ledgered exemptions', () =
     } catch {
       continue; // skip unreadable (binary, etc.)
     }
-    if (!text.includes('backlog grant')) continue;
     const rel = path.relative(ROOT, absPath).split(path.sep).join('/');
-    if (!EXEMPT_FILES.has(rel)) {
-      offenders.push(rel);
-      continue;
-    }
-    if (rel === 'plugin/skills/backlog/refine-headless.md') {
-      const count = (text.match(/backlog grant/g) || []).length;
-      if (count !== REFINE_HEADLESS_TEMPLATE_COUNT) {
-        offenders.push(
-          `${rel}: expected exactly ${REFINE_HEADLESS_TEMPLATE_COUNT} "backlog grant" occurrences (its two byte-pinned templates), found ${count}`,
-        );
+    if (EXEMPT_FILES.has(rel)) continue;
+    if (EXEMPT_DIR_PREFIXES.some((prefix) => rel.startsWith(prefix))) continue;
+
+    for (const token of OFFENDER_TOKENS) {
+      const count = countToken(text, token);
+      if (count === 0) continue;
+      const cap = CAPPED_FILES[rel] && CAPPED_FILES[rel][token];
+      if (cap !== undefined) {
+        if (count !== cap) {
+          offenders.push(
+            `${rel}: expected exactly ${cap} "${token}" occurrences, found ${count}`,
+          );
+        }
+        continue;
       }
+      offenders.push(`${rel}: found ${count} occurrence(s) of "${token}"`);
     }
   }
 
   assert.deepStrictEqual(
     offenders,
     [],
-    `"backlog grant" survives outside the ledgered exemptions:\n${offenders.join('\n')}`,
+    `retired-vocabulary phrasing survives outside the ledgered exemptions:\n${offenders.join('\n')}`,
   );
 });

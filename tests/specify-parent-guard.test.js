@@ -108,8 +108,8 @@ test('permission-matrix.md /backlog refine row Adds column carries needs:decisio
   assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (a scored, spec-shaped record `grant-check` refuses'), 'needs:decision missing from /backlog refine\'s Adds column');
 });
 
-test('permission-matrix.md /backlog grant row Adds column carries needs:decision', () => {
-  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (a gate-4 `grant-check` refusal'), 'needs:decision missing from /backlog grant\'s Adds column');
+test('permission-matrix.md /backlog refine row (headless-posture cell) Adds column carries needs:decision', () => {
+  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (a gate-4 `grant-check` refusal'), 'needs:decision missing from /backlog refine\'s headless-posture Adds column');
 });
 
 test('permission-matrix.md /specify row Removes column carries the generalized needs:* removal', () => {
