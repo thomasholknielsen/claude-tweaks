@@ -15,7 +15,7 @@ The `needs:*` family and `bot:blocked` are read from the session-scoped record s
 (`_shared/record-queue-fetch.md`'s Session-scoped record snapshot section) rather than a
 dedicated `gh issue list --label` call: resolve `snapshotPath($CLAUDE_CODE_SESSION_ID)` and reuse
 it when fresh, falling through to one plain `gh issue list --state open --json {UNION_FIELDS}
---limit 200` refresh when stale or absent, per that contract's plain-fetch fallback. The resulting
+--limit 200` refresh when stale or absent, adapted from that contract's plain-fetch fallback. The resulting
 open-record set is then filtered to two sets: records whose labels include any name starting with
 `needs:`, and records whose labels include `bot:blocked` — a record can land in both.
 
@@ -306,7 +306,7 @@ mode output.
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| A single `gh issue list --label solution:unjustified --label shaped:headless` call | `--label` ANDs multiple values within one call — this returns only records carrying both, nearly always empty |
+| A single `gh issue list --label solution:unjustified --label ready --label shaped:headless` call | `--label` ANDs multiple values within one call — this returns only records carrying all three, nearly always empty |
 | Granting, closing, or shaping anything from this mode | Read-only, like `overview` — the recommended actions are for the human to run, never executed here |
 | Inventing a third ranking scheme | Reuse `/claude-tweaks:dispatch`'s existing priority-band-then-age ordering |
 | A separate row per matched type for a record carrying two or more of the classifications | Dedupe by issue number and render one row with a concatenated Type/Recommended action, however many types matched |
