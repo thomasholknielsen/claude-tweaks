@@ -1,5 +1,5 @@
 // bin/lib/shared-primitives.js
-// Two small, previously-duplicated primitives, consolidated per #977:
+// Small, previously-duplicated primitives, consolidated per #977:
 //
 //   - GH_TIMEOUT_MS: the `gh` subprocess timeout (ms) shared by every direct
 //     `execFileSync('gh', ...)` / `execFileAsync('gh', ...)` call in the
@@ -24,6 +24,17 @@
 //     call) and `plugin/bin/lib/issues/backlog.js`'s `deriveCreatedAtFromGit`
 //     — a third pattern-copy landed in `plugin/bin/backlog-grant-gate.js`'s
 //     `gh`/`git` runners before this consolidation, which is what prompted it.
+//   - runClassified / runClassifiedAsync: the try/execute/catch scaffold
+//     shared by the sync/async primitive pairs below
+//     — `runGit`/`runGitAsync` (bin/lib/hooks/git-exec.js) and
+//     `ghHealthCheck`/`ghHealthCheckAsync` (bin/lib/reconcile/preflight.js)
+//     each previously retyped this shape once per twin. #1652: a
+//     whole-branch pre-release review (pre-v6.110.0) found runGit's stderr
+//     field had been added without updating runGitAsync to match, despite a
+//     header comment claiming "identical return shape" — this extraction,
+//     paired with each pair's own single buildSuccess/buildFailure shaping
+//     functions (defined once, called from both twins), makes that class of
+//     drift structurally impossible rather than merely documented against.
 'use strict';
 
 const GH_TIMEOUT_MS = 5000;
@@ -33,4 +44,20 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-module.exports = { GH_TIMEOUT_MS, LARGE_MAX_BUFFER_BYTES, escapeRegExp };
+function runClassified(fn, mapError) {
+  try {
+    return fn();
+  } catch (err) {
+    return mapError(err);
+  }
+}
+
+async function runClassifiedAsync(fn, mapError) {
+  try {
+    return await fn();
+  } catch (err) {
+    return mapError(err);
+  }
+}
+
+module.exports = { GH_TIMEOUT_MS, LARGE_MAX_BUFFER_BYTES, escapeRegExp, runClassified, runClassifiedAsync };
