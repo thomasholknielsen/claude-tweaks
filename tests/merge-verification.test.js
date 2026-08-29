@@ -270,10 +270,44 @@ test('CLI live smoke on this repo resolves a valid enum value (drift-sensitive b
   assert.ok(VALUES.includes(out), `got ${JSON.stringify(out)}`);
 });
 
-test('CLI: requesting integration-model and merge-verification together reuses the already-computed integration-model instead of re-detecting it (#559 M1)', () => {
-  const dir = fixtureRepo({ workflow: 'name: ci\non:\n  push:\n    branches: [main]\n  pull_request:\njobs: {}\n' });
-  const out = cli(['--values', 'integration-model', 'merge-verification'], dir);
-  assert.equal(out, 'pr-first\nmerge-when-green\n');
+// #604: the CLI-level version of this test (below, superseded) exercised the
+// AC1 fixture whose `integration-model` is explicit in policy.yml
+// (fixtureRepo's own default), so resolveIntegrationModel short-circuited
+// before detectIntegrationModel ever ran — the test passed with or without
+// the dedup and never actually guarded it. A discriminating fixture needs
+// integration-model UNSET so forge detection actually runs, which at the CLI
+// level means a real remote + authenticated `gh` in a temp repo (the
+// non-determinism this test exists to avoid) — so this exercises
+// computeDerivedDefaults directly instead, injecting deps to both count the
+// forge-detection call and observe whether merge-verification's derivation
+// receives the already-computed value or re-derives it from scratch.
+test('computeDerivedDefaults: requesting integration-model and merge-verification together reuses the already-computed integration-model instead of re-detecting it (#559 M1 / #604)', () => {
+  const { computeDerivedDefaults } = require('../plugin/bin/lib/policy-derived-defaults');
+  let detectCalls = 0;
+  let deriveDeps = null;
+  const deps = {
+    detectIntegrationModel: () => { detectCalls++; return 'pr-first'; },
+    deriveMergeVerification: (root, mvDeps) => { deriveDeps = mvDeps; return 'merge-when-green'; },
+  };
+  // integration-model UNSET (source: 'default', no policy value) — forge
+  // detection must actually run for this to discriminate.
+  const result = {
+    'integration-model': { value: null, source: 'default' },
+    'merge-verification': { value: null, source: 'default' },
+  };
+  const out = computeDerivedDefaults(result, ['integration-model', 'merge-verification'], '/unused-root', deps);
+
+  assert.equal(detectCalls, 1, 'detectIntegrationModel must run exactly once when both keys are requested together');
+  assert.deepEqual(out['integration-model'], { value: 'pr-first', source: 'default' });
+  // The discriminating assertion: merge-verification's derivation must receive
+  // the already-computed integration-model (an injected `integrationModel`
+  // dep) rather than an empty deps object that would let deriveMergeVerification
+  // re-run forge detection internally — reverting the dedup (passing `{}`
+  // unconditionally) makes this fail even though detectCalls above still
+  // reads 1, since that path never touches this module's injected stand-in.
+  assert.equal(typeof deriveDeps.integrationModel, 'function', 'merge-verification derivation must receive the already-computed integration-model, not re-derive it');
+  assert.equal(deriveDeps.integrationModel(), 'pr-first');
+  assert.deepEqual(out['merge-verification'], { value: 'merge-when-green', source: 'default' });
 });
 
 test('CLI --run precedence: a run-dir config.yml override wins over the derived AC1 default, and JSON mode reports source "run-config" (#559 M5)', () => {

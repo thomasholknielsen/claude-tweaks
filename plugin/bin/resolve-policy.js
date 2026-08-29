@@ -32,8 +32,8 @@
 'use strict';
 const fs = require('fs');
 const { execFileSync } = require('child_process');
-const { detectIntegrationModel, resolveIntegrationModel, POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
-const { deriveMergeVerification } = require('./lib/merge-verification');
+const { POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
+const { computeDerivedDefaults } = require('./lib/policy-derived-defaults');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 const { anchoredOrOutsideMessage } = require('./lib/run-dir-guard');
 
@@ -136,42 +136,18 @@ function main(argv) {
   // have written one yet; readFileSafe's null simply means no overlay.
   const { root, policyRaw, result } = resolvePolicyConfig({ git: gitRoot, readFile: readFileSafe, runDir, keys });
 
-  // integration-model has no static schema default (skills/_shared/integration-
-  // model.md) — an absent value (not a typo'd/invalid one; `invalid: true`
-  // stays visible as an error, never silently overwritten) is computed via
-  // forge detection instead of a literal.
-  if (keys.includes('integration-model')) {
-    const entry = result['integration-model'];
-    if (entry && entry.source === 'default' && !entry.invalid) {
-      result['integration-model'] = { value: detectIntegrationModel(root, { mcpReachable }), source: 'default' };
-    }
-  }
-
-  // merge-verification (#559) has no static schema default either — an absent
-  // value (never an invalid one; `invalid: true` stays visible) is derived by
-  // bin/lib/merge-verification.js's four-branch ladder, whose prose statement
-  // of record is skills/_shared/policy-schema-coverage.md's coverage block.
-  if (keys.includes('merge-verification')) {
-    const entry = result['merge-verification'];
-    if (entry && entry.source === 'default' && !entry.invalid) {
-      // When --mcp-reachable is set, always build a fresh deps.integrationModel
-      // that forwards it, regardless of whether integration-model is also in
-      // keys — reusing this call's own integration-model result (the
-      // avoid-running-forge-detection-twice optimization below) is only safe
-      // when mcpReachable is false, since a bare fallback to
-      // deriveMergeVerification's internal resolveIntegrationModel(root) with
-      // no opts would silently drop the flag (the `gh` probe would run
-      // despite the caller's assertion). Correctness beats the
-      // micro-optimization here.
-      const modelEntry = result['integration-model'];
-      const deps = mcpReachable
-        ? { integrationModel: (r) => resolveIntegrationModel(r, { mcpReachable }) }
-        : keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
-          ? { integrationModel: () => modelEntry.value }
-          : {};
-      result['merge-verification'] = { value: deriveMergeVerification(root, deps), source: 'default' };
-    }
-  }
+  // integration-model / merge-verification have no static schema default
+  // (skills/_shared/integration-model.md; #559) — an absent value (never a
+  // typo'd/invalid one; `invalid: true` stays visible as an error, never
+  // silently overwritten) is computed via forge detection / the four-branch
+  // derivation ladder instead of a literal, with merge-verification reusing
+  // this call's own integration-model result to avoid running forge
+  // detection twice per invocation. Extracted into bin/lib/policy-derived-
+  // defaults.js (#604) so the dedup is unit-testable via an injectable deps
+  // map — see that module for the full block. mcpReachable forwards through
+  // so both keys' forge detection can skip the `gh` probe within this call
+  // (--mcp-reachable, #1421).
+  computeDerivedDefaults(result, keys, root, { mcpReachable });
 
   // model-profiles is the one block-style key — policy-only (the --run
   // overlay never applies; run configs hold flat lever lines, not nested
