@@ -1,6 +1,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { writeFileAtomic } = require('../../plugin/bin/lib/atomic-write');
 
 test('writeFileAtomic: writes to a pid-suffixed tmp path in the same directory, then renames over the real path', () => {
@@ -74,4 +77,14 @@ test('writeFileAtomic: on success, unlink is never called', () => {
   const unlink = () => { unlinkCalled = true; };
   writeFileAtomic('/x/store.txt', 'a', { writeFile, rename, unlink });
   assert.equal(unlinkCalled, false);
+});
+
+test('writeFileAtomic: real-filesystem round-trip — writes the file with correct content and leaves no stray tmp file', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'atomic-write-'));
+  const outPath = path.join(tmpDir, 'out.txt');
+
+  writeFileAtomic(outPath, 'hello world');
+
+  assert.equal(fs.readFileSync(outPath, 'utf8'), 'hello world');
+  assert.deepEqual(fs.readdirSync(tmpDir), ['out.txt'], 'no stray out.txt.tmp-* file left behind');
 });
