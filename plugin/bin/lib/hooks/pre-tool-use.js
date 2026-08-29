@@ -894,6 +894,12 @@ function hasNoUpstreamYet(dir) {
 // received as `mainRoot` here (wtDetect.mainCheckoutRoot's fs-only result) —
 // shelling out to re-derive a value the caller already has would undercut
 // the spawn budget I5 exists to protect.
+//
+// This call site never passes detectIntegrationModel's mcpReachable override
+// (see that function's own comment in policy-schema.js) — a lifecycle hook
+// runs with no agent turn active, so there is no MCP call this gate could
+// ever source a reachability signal from. This is a permanent, structural
+// gap, not an oversight (docs/incident-log.md IL-63).
 function resolveRunPinnedIntegrationModel(mainRoot, runDir) {
   const git = () => mainRoot;
   const readFile = (p) => {
