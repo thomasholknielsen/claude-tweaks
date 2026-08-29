@@ -329,7 +329,7 @@ and let `/tidy`'s sweep surface it for human judgment.
 | Spec merged / PR opened / discarded | `/wrap-up` cleanup item 7 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
 | Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
 | Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:dispatch` settle step (automatic, unconditional) | `failed: {gate}` |
-| Headless `specify next` shapes the claimed record (success), routes it to `needs:definition` (success), or fails during shaping | `specify/next-mode.md` Release step (automatic, unconditional, always before that path's self-report) | `shaped: #{n}` / `routed: needs:definition #{n}` / `failed: shaping` |
+| Headless `specify next` shapes the claimed record (success), routes it to `needs:definition` (success), or fails during shaping | `specify/next-mode-shape.md` Release step (#1346's split of `next-mode.md`; automatic, unconditional, always before that path's self-report) | `shaped: #{n}` / `routed: needs:definition #{n}` / `failed: shaping` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
 | Grant removal (`auto:build`/`auto:merge`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up`'s `cleanup-procedures-execution.md` Section E step 6 (single-spec) | — (label edit, not a claim release) |
 | Interrupted session | nobody — TTL ages it out; `/tidy` sweeps it | — |
@@ -494,7 +494,7 @@ conflict.
 | `/claude-tweaks:flow` (issue-reference mode) | Claims its named targets at Step 2.8 (`flow/claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly. Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. |
 | `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 7 / `cleanup-procedures-execution.md` Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
-| `/claude-tweaks:specify` `next` form (`specify/next-mode.md`) | Claims the selected record before shaping (Claim step); releases on every path that actually acquired a claim — the shaping-success path and a post-claim shaping-stage failure. A zero-eligible exit or a contested/ineligible-on-re-read exit never acquires a claim, so there is nothing to release on those paths. |
+| `/claude-tweaks:specify` `next` form (`specify/next-mode.md` + `next-mode-shape.md`, #1346's split) | Claims the selected record before shaping (Claim step, `next-mode.md`); releases on every path that actually acquired a claim (Release step, `next-mode-shape.md`) — the shaping-success path and a post-claim shaping-stage failure. A zero-eligible exit or a contested/ineligible-on-re-read exit never acquires a claim, so there is nothing to release on those paths. |
 
 **Non-consumers (deliberate):** `/code-health` files issues but never works them — a concurrent-
 filing race costs at worst one duplicate issue, caught by dedup next run. Interactive

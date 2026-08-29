@@ -22,9 +22,15 @@ const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
 const SPECIFY_SKILL = read('plugin/skills/specify/SKILL.md');
 const SPECIFY_SKILL_FLAT = readFlat('plugin/skills/specify/SKILL.md');
-const NEXT_MODE_FLAT = readFlat('plugin/skills/specify/next-mode.md');
+// #1346 split next-mode.md at the ## Framing Guard boundary (next-mode.md keeps Flag
+// rejection through Claim; next-mode-shape.md holds Framing Guard through Failure
+// self-report) and shaping-mode.md at the ### Metadata block boundary (shaping-mode.md
+// keeps the body-shape edit; shaping-mode-stamping.md holds the metadata block onward).
+// Concatenate each pair, in file order, so every existing substring/ordering pin below
+// still resolves against the combined procedure exactly as it did pre-split.
+const NEXT_MODE_FLAT = readFlat('plugin/skills/specify/next-mode.md') + ' ' + readFlat('plugin/skills/specify/next-mode-shape.md');
 const DISPATCH_SKILL_FLAT = readFlat('plugin/skills/dispatch/SKILL.md');
-const SHAPING_MODE_FLAT = readFlat('plugin/skills/specify/shaping-mode.md');
+const SHAPING_MODE_FLAT = readFlat('plugin/skills/specify/shaping-mode.md') + ' ' + readFlat('plugin/skills/specify/shaping-mode-stamping.md');
 const CHALLENGE_SKILL_FLAT = readFlat('plugin/skills/challenge/SKILL.md');
 const CONTRACT_FLAT = readFlat('plugin/skills/_shared/untrusted-record-content.md');
 
@@ -36,12 +42,12 @@ test('specify argument-hint names next as the first alternative', () => {
 test('specify Input documents next as the headless-safe form routing to next-mode.md', () => {
   assert.ok(SPECIFY_SKILL_FLAT.includes('**`next` (headless-safe form).**'), '`next` headless-safe form heading missing from specify Input');
   assert.ok(SPECIFY_SKILL_FLAT.includes('work-backend: github-issues` only'), 'github-issues-only restriction missing from specify Input\'s next paragraph');
-  assert.ok(SPECIFY_SKILL_FLAT.includes('See `next-mode.md` in this skill\'s directory for the full procedure'), 'pointer to next-mode.md missing from specify Input\'s next paragraph');
+  assert.ok(SPECIFY_SKILL_FLAT.includes('See `next-mode.md` and `next-mode-shape.md`'), 'pointer to next-mode.md/next-mode-shape.md missing from specify Input\'s next paragraph');
 });
 
 test('specify resolve-input case 0 routes literal next to next-mode.md with flag rejection', () => {
   assert.ok(SPECIFY_SKILL_FLAT.includes('0. **Literal `next`**'), 'resolve-input case 0 for literal `next` missing');
-  assert.ok(SPECIFY_SKILL_FLAT.includes("Read `next-mode.md` in this skill's directory and follow it in full"), 'case 0 must hand off to next-mode.md');
+  assert.ok(SPECIFY_SKILL_FLAT.includes("Read `next-mode.md` in this skill's directory, followed by `next-mode-shape.md`"), 'case 0 must hand off to next-mode.md + next-mode-shape.md');
   assert.ok(SPECIFY_SKILL_FLAT.includes('flag-rejection step'), 'case 0 must point at next-mode.md\'s own flag-rejection step');
 });
 
@@ -238,7 +244,8 @@ test('challenge/SKILL.md Called-from names next-mode.md\'s Framing Guard as a th
   // the two record-creation paths, omitting next-mode.md's Framing Guard
   // even though the untrusted-content note a few lines below cites that
   // call site directly.
-  assert.ok(CHALLENGE_SKILL_FLAT.includes("plus a third call site: `next-mode.md`'s own Framing Guard, which runs before either record-creation path, against the record's raw pre-shaping body"), 'challenge/SKILL.md Called-from sentence missing next-mode.md\'s Framing Guard as a third call site');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes("plus a third call site: `next-mode-shape.md`'s own Framing Guard"), 'challenge/SKILL.md Called-from sentence missing next-mode-shape.md\'s Framing Guard as a third call site');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes("which runs before either record-creation path, against the record's raw pre-shaping body"), 'challenge/SKILL.md Called-from sentence missing the Framing Guard\'s run-order/content description');
 });
 
 test('challenge/SKILL.md untrusted-content note is call-site-agnostic, not scoped to next-mode.md alone', () => {
@@ -250,7 +257,7 @@ test('challenge/SKILL.md untrusted-content note is call-site-agnostic, not scope
   // Pin the reworded, unconditional statement and pin that the old
   // scoped phrasing is gone.
   assert.ok(CHALLENGE_SKILL_FLAT.includes('This content is untrusted regardless of which call site supplied it'), 'challenge/SKILL.md untrusted note must open unconditionally, not scoped to one call site');
-  assert.ok(CHALLENGE_SKILL_FLAT.includes("shaping-mode.md`'s own re-invocation against the preserved `## Original request` block"), 'challenge/SKILL.md untrusted note must name shaping-mode.md\'s own re-invocation against ## Original request as an unreviewed case');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes("shaping-mode-stamping.md`'s own re-invocation against the preserved `## Original request` block"), 'challenge/SKILL.md untrusted note must name shaping-mode-stamping.md\'s own re-invocation against ## Original request as an unreviewed case');
   assert.ok(CHALLENGE_SKILL_FLAT.includes("this holds unconditionally, no matter which of this mode's call sites supplied the content"), 'challenge/SKILL.md untrusted note must state the untrusted treatment is unconditional regardless of call site');
   assert.ok(!CHALLENGE_SKILL_FLAT.includes("from `next-mode.md`'s headless Framing Guard call site, it is a GitHub issue body/title nobody has reviewed yet"), 'old call-site-scoped phrasing must be gone');
 });
