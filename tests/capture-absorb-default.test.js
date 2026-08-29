@@ -166,11 +166,11 @@ test('capture/routing.md switches to a comment past 55,000 post-append chars, ag
 
 // --- the exact AUTO log line ---
 
-test('capture/routing.md logs the exact AUTO absorb line per _shared/auto-decision-log.md', () => {
+test('capture/routing.md logs the exact AUTO absorb line per _shared/auto-decision-log.md (reclassified high, #1296)', () => {
   const text = read(ROUTING);
   assert.match(
     text,
-    /AUTO \{time\} — capture absorbed into #\{N\} \(shared path \+ same type\)\. Reversibility: medium \(append is visible on #\{N\}\)\./
+    /AUTO \{time\} — capture absorbed into #\{N\} \(shared path \+ same type\)\. Reversibility: high \(a delimited Absorbed-heading append; deleting that section restores #\{N\}'s prior body exactly\)\./
   );
 });
 
@@ -261,4 +261,42 @@ test('#1295: SKILL.md\'s Workflow Step 1 forward-points to the headless bar\'s p
 test('#1295: SKILL.md points to routing.md for the Immediate Routing procedure', () => {
   const text = read(CAPTURE);
   assert.match(text, /Read `routing\.md` in this skill's directory for the full procedure/);
+});
+
+// --- #1296: cross-contract sweep (reversibility, batch-mode precedence, work-types axis) ---
+
+const BATCH_MODE = 'plugin/skills/capture/batch-mode.md';
+const TIDY_STEP6_AUTO = 'plugin/skills/tidy/step-6-auto.md';
+
+test('#1296: routing.md states the reclassification rationale from medium to high for the headless absorb append', () => {
+  const text = read(ROUTING);
+  assert.match(
+    text,
+    /\*\*Reclassified from `medium` \(#1296\):\*\* unlike an indistinguishable integration, this append is delimited under its own dated `## Absorbed:` heading/
+  );
+});
+
+test('#1296: tidy/step-6-auto.md\'s github-issues Absorb row explains why capture\'s absorb rates high instead', () => {
+  const text = read(TIDY_STEP6_AUTO);
+  assert.match(
+    text,
+    /capture's absorb differs \(delimited append\) and rates `high`; see `capture\/routing\.md`/
+  );
+});
+
+test('#1296: batch-mode.md states the headless absorb bar\'s precedence over the batch-level absorb:N restriction', () => {
+  const text = read(BATCH_MODE);
+  assert.match(text, /headless absorb bar/i);
+  assert.match(
+    text,
+    /This batch-level restriction is about the \*batch-wide\* `--route=` arg only — it does not exempt batch filings from `routing\.md`'s per-entry headless bar/
+  );
+});
+
+test('#1296: routing.md documents that work-types: none disables the headless bar\'s criterion (b)', () => {
+  const text = read(ROUTING);
+  assert.match(
+    text,
+    /\*\*`work-types: none` \(#1296\):\*\* criterion \(b\) has no `type:\{t\}`\/`facets\.type` to read on this config — the bar cannot evaluate it and never fires, so every agent-driven capture files fresh/
+  );
 });

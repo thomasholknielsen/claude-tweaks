@@ -170,11 +170,15 @@ test('#1207 finding 1: explore.md documents a fifth Verdict branch for tweak, wi
   assert.equal(exploreText.includes('"type":"tweak"'), false);
 });
 
-test('#1207 finding 2: the contract states the judged candidate is deliberately never restyled (sandboxed iframe), not merely "only how it renders"', () => {
+test('#1207 finding 2 (superseded by #1336): the contract still names the sandboxed-iframe boundary; restyling the judged candidate is now opt-in rather than never', () => {
   const text = readNonTombstone(CONTRACT);
   assert.match(text, /allow-scripts/);
   assert.match(text, /allow-same-origin/);
-  assert.match(text, /deliberate scope\s*\n?\s*boundary, not a gap/);
+  // #1336 replaced the old absolute "never restyles the judged candidate
+  // itself" claim with a postMessage opt-in convention — the sandbox
+  // boundary itself (no allow-same-origin) is still asserted above; only
+  // the "restyled or not" claim changed from absolute to conditional.
+  assert.match(text, /opt-in per candidate/i);
   assert.equal(
     text.includes('it never changes which variant is selected, only how the currently-focused one renders'),
     false,
