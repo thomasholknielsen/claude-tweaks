@@ -41,6 +41,15 @@ function assertPinned(haystack, pattern, msg) {
   assert.doesNotMatch(PRE_CHANGE_KEY_FILES_TAIL, pattern, 'pattern must NOT match the pre-change excerpt (proves it can go red)');
 }
 
+// Shared by the live-probe tests: extract the pinned snippet, substitute
+// {basename}, and run it as the grep the paragraph describes.
+function runProbeGrep(basename) {
+  const m = EXTRACT_RE.exec(specTemplate);
+  assert.ok(m, 'extraction failed — cannot probe');
+  const cmd = m[1].replace('{basename}', basename);
+  return spawnSync('bash', ['-c', cmd], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
+}
+
 test('spec-template.md pins the generated-file grep paragraph', () => {
   assertPinned(specTemplate, /generated-file grep/, 'paragraph anchor missing');
   assertPinned(specTemplate, /edit the generator, not this file/, 'generated-entry annotation rule missing');
@@ -62,10 +71,7 @@ test('shaping-mode.md cites the generated-file grep alongside the rename-grep', 
 });
 
 test('live probe: the snippet finds the real generator from its generated file', () => {
-  const m = EXTRACT_RE.exec(specTemplate);
-  assert.ok(m, 'extraction failed — cannot probe');
-  const cmd = m[1].replace('{basename}', 'track-issue-fixes.yml');
-  const r = spawnSync('bash', ['-c', cmd], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
+  const r = runProbeGrep('track-issue-fixes.yml');
   assert.strictEqual(r.status, 0, 'probe grep failed: ' + r.stderr);
   const hits = r.stdout.trim().split('\n');
   assert.ok(hits.includes('plugin/bin/lib/issue-branch-tracking.js'), 'generator not surfaced; got: ' + r.stdout);
@@ -75,10 +81,7 @@ test('negative control: a producer-less basename yields zero executable-code hit
   // A nonsense token structurally unlikely to ever match (spec Gotcha: never a
   // plausible module name); a future hit here means re-pick the control, not a
   // product regression.
-  const m = EXTRACT_RE.exec(specTemplate);
-  assert.ok(m, 'extraction failed — cannot probe');
-  const cmd = m[1].replace('{basename}', 'zzz-no-such-generator-1321.md');
-  const r = spawnSync('bash', ['-c', cmd], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
+  const r = runProbeGrep('zzz-no-such-generator-1321.md');
   // grep -l exits 1 on zero matches — that IS the expected outcome here.
   assert.ok(r.status === 0 || r.status === 1, 'probe errored: ' + r.stderr);
   assert.strictEqual(r.stdout.trim(), '', 'expected zero hits, got: ' + r.stdout);
