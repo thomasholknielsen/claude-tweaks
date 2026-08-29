@@ -123,7 +123,17 @@ function branchFromDecisions(runDir) {
   try { text = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'); } catch { return null; }
   for (const re of DECISION_BRANCH_RES) {
     const m = re.exec(text);
-    if (m && m[1]) return m[1];
+    // The log lines these patterns match end in a sentence period with no
+    // space before it (`… opened PR #42 for {branch}. Reversibility: …`), so
+    // `\S+` captures the period into the name and every later ref lookup
+    // fails — source 2 then silently never resolves, which is exactly the gap
+    // this fallback exists to close. Stripping a trailing run of dots can
+    // never truncate a real branch: git-check-ref-format forbids a ref ending
+    // in `.`. Found by both agents of this review's lens-3c reproduction pair.
+    if (m && m[1]) {
+      const name = m[1].replace(/\.+$/, '');
+      if (name) return name;
+    }
   }
   return null;
 }

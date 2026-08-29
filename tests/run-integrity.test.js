@@ -109,6 +109,36 @@ test('#1672 source 2: torn-down worktree + only a decisions.md branch mention ->
   assert.strictEqual(r.evidence.branch, 'feat-branch');
 });
 
+test('#1672 source 2: the "opened PR" log line resolves too — its trailing sentence period is not part of the branch', () => {
+  // Regression for the defect this review's lens-3c reproduction pair caught:
+  // `\S+` captured the period from `… for feat-branch. Reversibility: …`, so
+  // the ref lookup was for `feat-branch.` and always failed. The bug was
+  // fail-safe (in-progress, never a false shipped verdict) but it silently
+  // disabled source 2 for any run whose decisions.md carries only this line —
+  // precisely the gap the fallback exists to close. Pattern 0 ("pushed X to
+  // origin") is deliberately absent here so this test can only pass via the
+  // "opened PR" pattern.
+  const { wt, runDir } = fixtureTornDownRepo();
+  writeRunState(runDir, { status: 'active', worktree: wt });
+  fs.writeFileSync(path.join(runDir, 'decisions.md'),
+    '- AUTO 09:06:00 — PR-early run lifecycle: opened PR #42 for feat-branch. Reversibility: high (gh pr close).\n');
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'shipped-unclosed');
+  assert.strictEqual(r.evidence.branch, 'feat-branch');
+});
+
+test('#1672 source 2: the push-FAILED degrade line resolves too (third pattern)', () => {
+  // The degrade line is the one a local-only run leaves behind, so it is the
+  // only branch mention some runs ever get. Untested until this review.
+  const { wt, runDir } = fixtureTornDownRepo();
+  writeRunState(runDir, { status: 'active', worktree: wt });
+  fs.writeFileSync(path.join(runDir, 'decisions.md'),
+    '- AUTO 09:07:00 — PR-early run lifecycle: push of feat-branch to origin FAILED (network); run proceeds local-only, no PR opened. Reversibility: n/a.\n');
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'shipped-unclosed');
+  assert.strictEqual(r.evidence.branch, 'feat-branch');
+});
+
 test('#1672 AC2: torn-down worktree with neither artifact -> in-progress (fail-open unchanged)', () => {
   const { wt, runDir } = fixtureTornDownRepo();
   writeRunState(runDir, { status: 'active', worktree: wt });

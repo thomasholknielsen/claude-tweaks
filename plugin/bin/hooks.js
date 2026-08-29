@@ -453,7 +453,16 @@ async function main(argv) {
       // `git worktree list` no longer has an entry to derive it from.
       // Best-effort: a run with no recorded worktree, or a derivation that
       // comes back null, simply records {number, url} as before.
-      const prBranch = deriveBranch(repoRootOf(runDir), ctxLib.readRunState(runDir)?.worktree || null);
+      // Guarded because this is the first external-process call in a verb that
+      // previously had none: main()'s own `.catch(() => process.exit(0))` would
+      // swallow a throw here and skip writeRunState entirely, exiting 0 with no
+      // output — the PR silently never recorded, while every other failure
+      // branch in this verb prints a "not recorded" notice. Degrading to the
+      // pre-#1672 {number, url} write is the correct best-effort outcome.
+      let prBranch = null;
+      try {
+        prBranch = deriveBranch(repoRootOf(runDir), ctxLib.readRunState(runDir)?.worktree || null);
+      } catch { prBranch = null; }
       const prField = prBranch ? { number, url: urlArg, branch: prBranch } : { number, url: urlArg };
       const result = ctxLib.writeRunState(runDir, { pr: prField });
       if (result) {
