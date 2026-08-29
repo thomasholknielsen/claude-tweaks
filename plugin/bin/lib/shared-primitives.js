@@ -1,5 +1,5 @@
 // bin/lib/shared-primitives.js
-// Two small, previously-duplicated primitives, consolidated per #977:
+// Small, previously-duplicated primitives, consolidated per #977:
 //
 //   - GH_TIMEOUT_MS: the `gh` subprocess timeout (ms) shared by every direct
 //     `execFileSync('gh', ...)` / `execFileAsync('gh', ...)` call in the
@@ -25,7 +25,7 @@
 //     — a third pattern-copy landed in `plugin/bin/backlog-grant-gate.js`'s
 //     `gh`/`git` runners before this consolidation, which is what prompted it.
 //   - runClassified / runClassifiedAsync: the try/execute/catch scaffold
-//     shared by every hand-duplicated sync/async primitive pair in this repo
+//     shared by the sync/async primitive pairs below
 //     — `runGit`/`runGitAsync` (bin/lib/hooks/git-exec.js) and
 //     `ghHealthCheck`/`ghHealthCheckAsync` (bin/lib/reconcile/preflight.js)
 //     each previously retyped this shape once per twin. #1652: a

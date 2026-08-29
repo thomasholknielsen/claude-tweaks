@@ -86,6 +86,24 @@ function classify(err) {
   return FAILURE.GIT_ERROR;
 }
 
+// Shared by both runGit and runGitAsync below — defined once so a future
+// fix to the success/failure shape (e.g. the #1341 stderr addition) cannot
+// land on one twin without the other picking it up automatically (#1652).
+function buildSuccess(stdout) {
+  return { stdout: stdout.trim(), failure: null, stderr: null };
+}
+
+function buildFailure(err) {
+  // execFileSync/execFile populate err.stderr as a string when `encoding` is
+  // set (as it is below), same as they populate err.stdout on success. A
+  // timeout kill or a spawn failure (EAGAIN/ENOENT/...) may never have
+  // produced any stderr at all — fall back to '' rather than surfacing
+  // `undefined` through a field every caller now expects to be
+  // string-or-null.
+  const stderr = typeof err.stderr === 'string' ? err.stderr.trim() : '';
+  return { stdout: null, failure: classify(err), stderr };
+}
+
 // Runs `git -C <cwd> <args>`.
 //
 // Returns { stdout, failure, stderr }:
@@ -109,25 +127,6 @@ function classify(err) {
 //
 // opts.timeoutMs overrides the budget; tests use it to force the timeout branch
 // deterministically. Production callers omit it.
-//
-// Shared by both runGit and runGitAsync below — defined once so a future
-// fix to the success/failure shape (e.g. the #1341 stderr addition) cannot
-// land on one twin without the other picking it up automatically (#1652).
-function buildSuccess(stdout) {
-  return { stdout: stdout.trim(), failure: null, stderr: null };
-}
-
-function buildFailure(err) {
-  // execFileSync/execFile populate err.stderr as a string when `encoding` is
-  // set (as it is below), same as they populate err.stdout on success. A
-  // timeout kill or a spawn failure (EAGAIN/ENOENT/...) may never have
-  // produced any stderr at all — fall back to '' rather than surfacing
-  // `undefined` through a field every caller now expects to be
-  // string-or-null.
-  const stderr = typeof err.stderr === 'string' ? err.stderr.trim() : '';
-  return { stdout: null, failure: classify(err), stderr };
-}
-
 function runGit(args, cwd, opts = {}) {
   const timeout = resolveTimeout(opts);
   return runClassified(
