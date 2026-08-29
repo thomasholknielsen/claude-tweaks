@@ -17,12 +17,17 @@ this file's chain below.
 
 The Priority, Related, Flag-back, and mechanical Dependency-repair lanes run in this posture
 exactly as `refine-mode.md`/`refine-lanes.md` document for the interactive path — no behavior
-change to any of the four. The one difference is how their batch gets committed: the whole-batch
+change to any of the four. Flag-back's `ready` removal applies in this posture exactly as it does
+interactively — stated once here; `_shared/work-record-permission-matrix.md`'s `/backlog refine`
+row cites this sentence rather than restating it. The one difference is how their batch gets
+committed: the whole-batch
 `AskUserQuestion` `refine-lanes.md`'s confirm-gate section renders for a human is resolved
 headlessly, zero-click, under the identical `refineAutoApply` semantics `refine-lanes.md` already
 exercises at `autonomy: unattended` today — that precedent is about the labels being applied
 without a confirm click, not about no human being present in the session at all; this posture is
-what extends it to that genuinely new case.
+what extends it to that genuinely new case. This zero-click commit applies at any resolved
+`autonomy` ceiling in this posture, not only `unattended` — presence and ceiling are orthogonal
+(`SKILL.md`'s Input table); only the grant chain below is gated by the ceiling.
 
 Every human-decision lane stays unreachable in this posture: Re-authorize, the Grant lane's
 interactive confirm, the `#N` single-record form, and `--reset-breaker` all remain
@@ -38,7 +43,8 @@ to that retired mode, never a new behavior relative to `refine`'s own interactiv
 
 ## The grant chain
 
-The headless machine-grant unit: `/dispatch next`'s headless-unit shape applied to granting.
+The headless machine-grant unit: the Routine-fired bare drain's headless-unit shape
+(`/claude-tweaks:dispatch --budget 1`; `next` is its deprecated alias) applied to granting.
 Sweeps the `ready` queue and applies `auto:build` (+ `auto:merge` when its own checks clear) to
 every candidate whose gate chain fully clears — mechanically, with no per-record
 `AskUserQuestion`. This is the one machine-origination path `_shared/work-record.md`'s Grant
