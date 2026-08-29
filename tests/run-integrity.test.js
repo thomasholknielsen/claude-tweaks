@@ -358,6 +358,20 @@ test('SessionStart: shipped-unclosed run line names both remediations (AC1 messa
   assert.match(ctxOut, /close-run --run "/);
 });
 
+test('#1672 AC1: SessionStart renders the shipped-unclosed hint for a torn-down-worktree run', () => {
+  const { root, wt, runDir } = fixtureTornDownRepo();
+  writeRunState(runDir, {
+    status: 'active', worktree: wt,
+    pr: { number: 7, url: 'https://example.test/pr/7', branch: 'feat-branch' },
+  });
+  const r = runSessionStart(root);
+  assert.strictEqual(r.code, 0);
+  const ctxOut = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+  assert.match(ctxOut, /appears shipped/);
+  assert.match(ctxOut, /\/claude-tweaks:wrap-up/);
+  assert.match(ctxOut, /close-run --run "/);
+});
+
 test('SessionStart: genuinely in-progress run line is byte-identical to the pre-change format (AC6 half)', () => {
   const { runDir, root } = fixtureRepo(); // unmerged branch -> in-progress
   writeEvents(runDir, [EV_BUILD]);
