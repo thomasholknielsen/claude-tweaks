@@ -362,16 +362,31 @@ function findGitLead(t, dir) {
   return { index: -1, dir, unprovable };
 }
 
+// Shared findGitLead -> skipGlobalFlags preamble: resolves one command
+// segment's real git lead and the subcommand position/dir past any global
+// flags, in the one index/unprovable/dir-null check sequence both gitTargets
+// and teardownTargets (pre-tool-use.js) need. Returns `{ index, dir }` (index
+// is the resolved SUBCOMMAND token position) or null when the segment isn't
+// git, or the target is unprovable / cwd-unknown-with-no-provable--C. A
+// single shared point so a future fix to this preamble lands once for both
+// callers instead of drifting between two hand-kept copies — the exact gap
+// #1308 closed for teardownTargets, which used to skip this preamble
+// entirely and check a bare `toks[0] !== 'git'` instead.
+function resolveGitCommand(t, effCwd) {
+  const lead = findGitLead(t, effCwd);
+  if (lead.index === -1) return null;
+  const { index, dir, unprovable } = skipGlobalFlags(t, lead.index + 1, lead.dir);
+  if (lead.unprovable || unprovable || dir === null) return null;
+  return { index, dir };
+}
+
 function gitTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
-    const lead = findGitLead(t, effCwd);
-    if (lead.index === -1) return;
-    const { index: i, dir, unprovable } = skipGlobalFlags(t, lead.index + 1, lead.dir);
-    if (lead.unprovable || unprovable) return;
-    if (dir === null) return; // cwd UNKNOWN and no provable -C — no target
-    const sub = t[i];
-    if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir });
+    const resolved = resolveGitCommand(t, effCwd);
+    if (!resolved) return;
+    const sub = t[resolved.index];
+    if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir: resolved.dir });
   });
   return targets;
 }
@@ -636,4 +651,6 @@ function mkdirTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, fileWriteTargets, mkdirTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, WRITE_SHAPES };
+module.exports = {
+  gitTargets, fileWriteTargets, mkdirTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, findGitLead, resolveGitCommand, WRITE_SHAPES,
+};
