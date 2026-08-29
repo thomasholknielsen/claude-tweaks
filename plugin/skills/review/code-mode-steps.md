@@ -35,7 +35,7 @@ If a spec number was provided, read the spec file and verify the implementation 
    spec (the same materialized file this step already reads — no separate fetch) for unresolved
    risk markers left over from `/claude-tweaks:specify`: Gotchas bullets whose validation status
    is not "validated" (contains "unvalidated," "assumed," or "unconfirmed" —
-   `shaping-mode.md`'s framing-check fold), inline `<!-- ambiguity: ... -->` markers
+   `shaping-mode-stamping.md`'s framing-check fold, #1346's split of `shaping-mode.md`), inline `<!-- ambiguity: ... -->` markers
    (`red-team.md`'s per-sentence write-back), and `## Open Questions` rows (`red-team.md`'s
    general-finding table). For each marker found, independently verify it against the artifact's
    real external validator/schema/tool — **a structural or syntax check alone (e.g. "the config

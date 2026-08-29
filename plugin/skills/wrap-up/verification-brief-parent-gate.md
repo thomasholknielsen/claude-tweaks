@@ -123,10 +123,10 @@ node -e "
 "
 ```
 
-`work-backend: local-files` — the parent body carries no task list (`specify/record-creation.md`'s
-local-files branch writes only `facets.parent` on each sub-issue, never a checklist on the parent), so
+`work-backend: local-files` — the parent body carries no task list (`specify/record-creation-linking.md`'s
+local-files branch — #1346's split of `record-creation.md` — writes only `facets.parent` on each sub-issue, never a checklist on the parent), so
 query the reverse relationship instead — every record whose own `facets.parent` matches, open and
-closed alike (the same two-call merge `specify/record-creation.md:35` already uses):
+closed alike (the same two-call merge `specify/record-creation.md:44` already uses):
 
 ```js
 const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
