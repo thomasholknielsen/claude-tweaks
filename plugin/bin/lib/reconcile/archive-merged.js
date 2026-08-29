@@ -12,7 +12,7 @@ const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { iterRunDirsWithState, writeRunState } = require('../hooks/context');
 const { resolvePrState } = require('./pr-state');
-const { recordResidueFailure, recordResidueSuccess } = require('./cache');
+const { recordResidueSuccess, trackResidue } = require('./cache');
 const { escalateResidue } = require('./escalate-residue');
 const { repoSlugOf } = require('./release-merged');
 
@@ -481,15 +481,13 @@ function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateRe
     recordResidueSuccess(root, 'move-failed', dir);
     return;
   }
+  // Archive-specific vocabulary — not part of the shared branching cache.js's
+  // trackResidue dedups (#1233) — so it stays here, ahead of the shared
+  // call, rather than moving inside it.
   if (result.reason !== 'move-failed') return;
-  const streak = recordResidueFailure(root, 'move-failed', dir);
-  if (!streak.shouldEscalate) return;
-  try {
-    escalate({
-      repo: repoSlug, reason: 'move-failed', targetPath: dir,
-      count: streak.count, firstFailedAt: streak.firstFailedAt,
-    });
-  } catch { /* best-effort — never let escalation turn an archive skip into a thrown error */ }
+  // archive-merged.js's failure path carries no lastError today — pass
+  // undefined rather than inventing one.
+  trackResidue(root, repoSlug, 'move-failed', dir, { failed: true, lastError: undefined }, { escalate });
 }
 
 function archiveMerged({ cwd, dryRun = false } = {}) {
