@@ -72,9 +72,63 @@ function fixtureZeroCommitRepo() {
   return { root, wt, runDir };
 }
 
+// #1672's shape: a run that really shipped (its branch has a commit dated
+// after the run start AND is merged into trunk), whose worktree has since
+// been torn down — so deriveBranch() returns null and only a durable
+// artifact (a record-pr stamp, or a decisions.md line) can name the branch.
+function fixtureTornDownRepo() {
+  const { root, wt, runDir } = fixtureRepo();
+  sh(root, 'merge', '-q', '--no-edit', 'feat-branch');
+  sh(root, 'worktree', 'remove', '--force', wt);   // branch ref stays, worktree gone
+  writeEvents(runDir, [EV_BUILD]);
+  return { root, wt, runDir };
+}
+
 function writeRunState(runDir, state) {
   fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify(state));
 }
+
+test('#1672 source 1: torn-down worktree + record-pr stamp carrying the branch -> shipped-unclosed', () => {
+  const { wt, runDir } = fixtureTornDownRepo();
+  writeRunState(runDir, {
+    status: 'active', worktree: wt,
+    pr: { number: 7, url: 'https://example.test/pr/7', branch: 'feat-branch' },
+  });
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'shipped-unclosed');
+  assert.strictEqual(r.evidence.branch, 'feat-branch');
+});
+
+test('#1672 source 2: torn-down worktree + only a decisions.md branch mention -> shipped-unclosed', () => {
+  const { wt, runDir } = fixtureTornDownRepo();
+  writeRunState(runDir, { status: 'active', worktree: wt }); // no pr stamp at all
+  fs.writeFileSync(path.join(runDir, 'decisions.md'),
+    '- AUTO 09:05:00 — PR-early run lifecycle: pushed feat-branch to origin. Reversibility: high.\n');
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'shipped-unclosed');
+  assert.strictEqual(r.evidence.branch, 'feat-branch');
+});
+
+test('#1672 AC2: torn-down worktree with neither artifact -> in-progress (fail-open unchanged)', () => {
+  const { wt, runDir } = fixtureTornDownRepo();
+  writeRunState(runDir, { status: 'active', worktree: wt });
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'in-progress');
+  assert.strictEqual(r.evidence.branch, null);
+});
+
+test('#1672 validation: a resolved name that is not a real local ref never becomes evidence', () => {
+  // The whole risk of this fallback is manufacturing a branch out of a bad
+  // parse or a stale stamp. Ref-existence validation is what bounds it.
+  const { wt, runDir } = fixtureTornDownRepo();
+  writeRunState(runDir, {
+    status: 'active', worktree: wt,
+    pr: { number: 7, url: 'https://example.test/pr/7', branch: 'no-such-branch' },
+  });
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'in-progress');
+  assert.strictEqual(r.evidence.branch, null);
+});
 
 // Real landed event-line shapes from #371 (field order matters not; extra fields tolerated).
 const EV_BUILD = '{"skill":"claude-tweaks:build","ts":"2026-08-01T09:05:00.000Z","type":"skill_invoked"}';

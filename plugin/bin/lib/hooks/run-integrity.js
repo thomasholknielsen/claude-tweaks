@@ -94,6 +94,54 @@ function deriveBranch(root, worktreePath, cache) {
   return null;
 }
 
+// A branch name is only usable as evidence if it actually exists in this
+// checkout. Both fallback sources below are recovered from artifacts that can
+// be stale (a stamp from a run whose branch was later deleted) or imprecise (a
+// prose log line) — without this check a bad name could match nothing, or
+// worse, match some unrelated merged branch and manufacture a false
+// 'shipped-unclosed'. This is the bound on the precision/coverage trade the
+// whole fallback makes.
+function branchExists(root, branch) {
+  if (!branch) return false;
+  const r = runGit(['rev-parse', '--verify', '--quiet', '--end-of-options', `refs/heads/${branch}`], root);
+  return !r.failure && r.stdout !== null && r.stdout.trim() !== '';
+}
+
+// Source 2: the branch name from decisions.md's PR-early lifecycle log lines
+// (_shared/pr-early-run-lifecycle.md Steps 2-3 make both lines mandatory, which
+// is what makes this parseable at all). Read-and-catch rather than
+// existsSync-then-read: a concurrent sibling archiving this run dir between the
+// two calls is a live hazard here, and an unreadable file means the same thing
+// as an absent one.
+const DECISION_BRANCH_RES = [
+  /PR-early run lifecycle: pushed (\S+) to origin/,
+  /PR-early run lifecycle: opened PR #?\d+ for (\S+)/,
+  /PR-early run lifecycle: push of (\S+) to origin FAILED/,
+];
+function branchFromDecisions(runDir) {
+  let text;
+  try { text = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8'); } catch { return null; }
+  for (const re of DECISION_BRANCH_RES) {
+    const m = re.exec(text);
+    if (m && m[1]) return m[1];
+  }
+  return null;
+}
+
+// #1672: deriveBranch() reads `git worktree list --porcelain`, so it goes null
+// the moment a finished run's worktree is torn down — which is the normal end
+// state of a run that shipped. That made checkRunIntegrity fail open to
+// 'in-progress' permanently for exactly the runs the shipped-unclosed advisory
+// exists to catch. Two artifacts outlive the worktree; try them in the order
+// the record specifies, most durable first.
+function fallbackBranch(root, runDir, state) {
+  const fromStamp = state && state.pr && typeof state.pr.branch === 'string' ? state.pr.branch : null;
+  if (branchExists(root, fromStamp)) return fromStamp;
+  const fromDecisions = branchFromDecisions(runDir);
+  if (branchExists(root, fromDecisions)) return fromDecisions;
+  return null;
+}
+
 // 'ancestor' | 'cherry' | false (definitively unmerged) | null (indeterminate).
 // merge-base --is-ancestor answers via exit code: 0 = ancestor (success), 1 =
 // not an ancestor (classified 'git-error' by runGit — the one failure kind that
@@ -167,6 +215,8 @@ function checkRunIntegrity(runDir, opts = {}) {
     if (!state || !NON_TERMINAL.has(state.status)) return inProgress;
     const root = repoRootOf(runDir);
     evidence.branch = deriveBranch(root, state.worktree || null, cache);
+    // Live worktree wins; the fallback runs only when it can't answer (#1672).
+    if (!evidence.branch) evidence.branch = fallbackBranch(root, runDir, state);
     if (!evidence.branch) return inProgress;
     const integration = resolveIntegrationBranch(root, cache);
     if (!integration) return inProgress;
