@@ -102,5 +102,9 @@
   "plugin/bin/lib/code-health": {
     "lastSweptMs": 1787886948754,
     "lastHash": "0c8947fbe661c88307a1e167d3f77a4f4d824aa8"
+  },
+  "plugin/bin/lib/compose-record": {
+    "lastSweptMs": 1787972918241,
+    "lastHash": "243a8b34f9088214eb15df9067b4dba1007febae"
   }
 }
