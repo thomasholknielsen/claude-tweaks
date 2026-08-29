@@ -847,10 +847,28 @@ function hasMaterializeCommit(worktreeRoot, runDir) {
   // anything of their own. `{integration}..HEAD` is "reachable from HEAD but
   // not from integration": exactly the commits unique to this worktree.
   //
-  // Fail open when the integration branch can't be resolved — an unbounded
-  // fallback would reinstate the very false positive this fixes, and a gate
-  // that can't scope itself must not fire (same posture as every other check
-  // in this file). Known limitation: resolveIntegrationBranch returns a
+  // When the integration branch can't be resolved, fall back to the
+  // pre-#1674 UNBOUNDED walk rather than returning false.
+  //
+  // #1674's acceptance criteria asked for `false` here, reasoning that
+  // "fail open" means "never a false denial". That reasoning does not hold
+  // in this function: `false` means *the gate is not armed*, and this gate
+  // is a protection (IL-131 — a build agent skipping mandatory bookkeeping),
+  // not an alarm. Returning `false` would disable it outright for every repo
+  // with no resolvable integration branch — which is every no-remote /
+  // `local-merge` project, a permanently supported configuration
+  // (`_shared/integration-model.md`). That trades a rare, self-correcting
+  // false deny for the total loss of the guard in a whole project class.
+  // Twenty pre-existing gate tests going red on the `false` version is the
+  // measured evidence: they are ordinary repos with no `origin`.
+  //
+  // The fallback is strictly non-regressive — an unbounded walk is exactly
+  // the behavior that shipped before #1674 — and it costs nothing that
+  // #1674 was trying to buy: the false positive #1674 fixes requires a
+  // materialize commit *merged into an integration branch*, which cannot
+  // arise where no integration branch exists.
+  //
+  // Known limitation on the bounded path: resolveIntegrationBranch returns a
   // LOCAL branch name, which can sit behind origin/{integration} — when it
   // does, the range is wider than this worktree's true own-work set and the
   // gate stays armed on a few inherited commits, the conservative
@@ -859,9 +877,9 @@ function hasMaterializeCommit(worktreeRoot, runDir) {
   // file must not do: it runs on every covered tool call and must stay
   // offline and cheap.
   const integration = resolveIntegrationBranch(worktreeRoot);
-  if (!integration) return false;
+  const range = integration ? [`${integration}..HEAD`] : [];
   const { stdout, failure } = runGit(
-    ['log', '--oneline', '-1', `${integration}..HEAD`, '--', `${runRel}/work`, `${runRel}/spec-*/work/*`],
+    ['log', '--oneline', '-1', ...range, '--', `${runRel}/work`, `${runRel}/spec-*/work/*`],
     worktreeRoot,
   );
   if (failure) return false;

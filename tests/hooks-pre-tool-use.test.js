@@ -961,15 +961,26 @@ test('hasMaterializeCommit: AC2 — regression guard: a worktree carrying its OW
     'a materialize commit unique to this worktree (record #991\'s original fix) must still arm the gate');
 });
 
-test('hasMaterializeCommit: AC3 — an unresolvable integration branch fails open, even when a matching commit exists', () => {
+test('hasMaterializeCommit: AC3 — an unresolvable integration branch falls back to the unbounded walk, keeping the gate armed', () => {
   // No policy.yml (no integration-branch key) and no origin remote (no
   // origin/HEAD) — resolveIntegrationBranch's two sources both come up empty,
-  // so it returns null. Reuses AC2's own-commit setup to prove this is the
-  // integration-resolution guard doing the work, not an absence of a match.
+  // so it returns null. Reuses AC2's own-commit setup so the only variable is
+  // whether an integration branch resolves.
+  //
+  // #1674's AC3 originally specified `false` here, reading "fail open" as
+  // "never a false denial". That is the wrong direction for THIS function:
+  // `false` means the IL-131 gate is not armed, and the gate is a protection,
+  // not an alarm. Returning `false` disabled it for every repo without a
+  // resolvable integration branch — every no-remote / `local-merge` project —
+  // and turned 20 pre-existing gate tests red, which is what surfaced it.
+  // The unbounded fallback is exactly the pre-#1674 behavior, so it is
+  // strictly non-regressive, and it forfeits nothing #1674 set out to fix:
+  // the false positive #1674 targets needs a materialize commit merged INTO
+  // an integration branch, which cannot exist when none does.
   const main = gitRepoWithCommit(); // no policy.yml committed
   const wt = linkedWorktreeOf(main);
   commitMaterializeFile(wt, MATERIALIZE_RUN_ID);
   const runDir = runDirForId(MATERIALIZE_RUN_ID);
-  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), false,
-    'an unresolvable integration branch must fail open (false), never a false deny, even with a real matching commit present');
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
+    'with no integration branch to bound against, the check must fall back to the unbounded walk and stay armed — never silently disable IL-131');
 });
