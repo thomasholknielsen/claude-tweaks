@@ -16,30 +16,54 @@
 // Shells out to nothing (no `gh`, no `git`) — this CLI reads only the text
 // it is given.
 //
+// `--surface=condensed|full` (#1625): when the condense rule fires, the
+// report splits into two texts — a condensed chat render and the full
+// `report.md` — and step-6-auto.md's Conformance scan intro documents a
+// different 7/6 rule subset for each (see rules.js's RULES `surface` tags).
+// Pass the matching flag when linting either half; omit it (the default)
+// when linting a single, un-split report — the case where the condense rule
+// never fired and all 13 rules apply together, as before this flag existed.
+//
 // Exit codes: 0 conformant (no issues, nothing printed), 1 non-conformant
 // (issues printed to stdout, one per line), 2 malformed invocation (bad
-// args, unreadable path, or no stdin available).
+// args, unreadable path, bad --surface value, or no stdin available).
 'use strict';
 
 const fs = require('node:fs');
-const { lintReport } = require('./lib/tidy-report-lint/rules');
+const { lintReport, SURFACES } = require('./lib/tidy-report-lint/rules');
 
-const USAGE = 'usage: tidy-report-lint.js [path]  (reads stdin when no path is given)\n';
+const USAGE =
+  'usage: tidy-report-lint.js [--surface=condensed|full] [path]  (reads stdin when no path is given)\n';
 
 function run(argv, deps) {
   if (argv.includes('--help') || argv.includes('-h')) {
     deps.stdout(USAGE);
     return 0;
   }
-  if (argv.length > 1) {
+
+  const positional = [];
+  let surface;
+  for (const arg of argv) {
+    const m = /^--surface=(.*)$/.exec(arg);
+    if (m) {
+      surface = m[1];
+      continue;
+    }
+    positional.push(arg);
+  }
+  if (surface !== undefined && !SURFACES.has(surface)) {
+    deps.stderr(`tidy-report-lint.js: --surface must be "condensed" or "full" (got "${surface}")\n${USAGE}`);
+    return 2;
+  }
+  if (positional.length > 1) {
     deps.stderr(USAGE);
     return 2;
   }
 
   let text;
   try {
-    if (argv.length === 1) {
-      text = deps.readFileSync(argv[0], 'utf8');
+    if (positional.length === 1) {
+      text = deps.readFileSync(positional[0], 'utf8');
     } else {
       if (deps.stdinIsTTY()) {
         deps.stderr(`tidy-report-lint.js: no path given and stdin is a terminal\n${USAGE}`);
@@ -52,7 +76,7 @@ function run(argv, deps) {
     return 2;
   }
 
-  const issues = lintReport(text);
+  const issues = lintReport(text, { surface });
   for (const issue of issues) deps.stdout(`${issue}\n`);
   return issues.length === 0 ? 0 : 1;
 }

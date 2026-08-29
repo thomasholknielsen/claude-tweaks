@@ -22,6 +22,13 @@
 // hardcodes today's batchable-skill list because this linter has no way to
 // read a live SKILL.md argument-hint the way step-6-auto.md's own "read the
 // hint at render time" instruction does — see BATCHABLE_SKILLS below.
+//
+// Surface-scoping (#1625): step-6-auto.md's Conformance scan intro documents
+// a 7-rule/6-rule split for when the condense rule has fired and the report
+// is checked as two separate texts (condensed chat render + `report.md`).
+// Each RULES entry below carries a `surface` tag ('condensed' | 'full')
+// pinning it to that documented split; `lintReport`'s `surface` option
+// filters on it. See the RULES declaration below for the exact partition.
 
 const MAX_LINE = 100;
 const MAX_TITLE = 50;
@@ -353,26 +360,50 @@ function checkCondense(text) {
   return null;
 }
 
+// Surface tag on each rule: which text step-6-auto.md's Conformance scan
+// intro says this row is checked against when the condense rule has fired
+// and the report is split across two texts (the condensed chat text and
+// `report.md`). 'condensed' = the 7 rows the intro names explicitly
+// ("Width, Titles, No shorthand, Command alone, Batch only where allowed,
+// Aligned and Condense"); 'full' = the 6 section-shape rows it names as
+// checked "against the full report in report.md" (One record per row, Every
+// Yours row covered, Fenced, Group order, Clean shape, Footer once). This is
+// a strict partition of all 13 rows — every rule carries exactly one tag.
+// When no condense split is in play (a single, un-split report), all 13
+// still run together; see lintReport's `surface` option below.
+//
 // Order matches step-6-auto.md's Conformance scan table, top to bottom.
 const RULES = [
-  { name: 'Width', check: checkWidth },
-  { name: 'Titles', check: checkTitles },
-  { name: 'Aligned', check: checkAligned },
-  { name: 'One record per row', check: checkOneRecordPerRow },
-  { name: 'No shorthand', check: checkNoShorthand },
-  { name: 'Command alone', check: checkCommandAlone },
-  { name: 'Every Yours row covered', check: checkEveryYoursRowCovered },
-  { name: 'Batch only where allowed', check: checkBatchOnlyWhereAllowed },
-  { name: 'Fenced, no box art', check: checkFencedNoBoxArt },
-  { name: 'Group order', check: checkGroupOrder },
-  { name: 'Clean shape', check: checkCleanShape },
-  { name: 'Footer once', check: checkFooterOnce },
-  { name: 'Condense', check: checkCondense },
+  { name: 'Width', check: checkWidth, surface: 'condensed' },
+  { name: 'Titles', check: checkTitles, surface: 'condensed' },
+  { name: 'Aligned', check: checkAligned, surface: 'condensed' },
+  { name: 'One record per row', check: checkOneRecordPerRow, surface: 'full' },
+  { name: 'No shorthand', check: checkNoShorthand, surface: 'condensed' },
+  { name: 'Command alone', check: checkCommandAlone, surface: 'condensed' },
+  { name: 'Every Yours row covered', check: checkEveryYoursRowCovered, surface: 'full' },
+  { name: 'Batch only where allowed', check: checkBatchOnlyWhereAllowed, surface: 'condensed' },
+  { name: 'Fenced, no box art', check: checkFencedNoBoxArt, surface: 'full' },
+  { name: 'Group order', check: checkGroupOrder, surface: 'full' },
+  { name: 'Clean shape', check: checkCleanShape, surface: 'full' },
+  { name: 'Footer once', check: checkFooterOnce, surface: 'full' },
+  { name: 'Condense', check: checkCondense, surface: 'condensed' },
 ];
 
-function lintReport(text) {
+const SURFACES = new Set(['condensed', 'full']);
+
+// `options.surface`, when given, restricts the scan to the rule subset
+// step-6-auto.md's Conformance scan intro documents for that surface
+// ('condensed' or 'full' — see the RULES comment above). Omitted (the
+// default), every rule runs — the un-split, single-report case where the
+// condense rule never fired and the whole report is one text.
+function lintReport(text, options = {}) {
+  const { surface } = options;
+  if (surface !== undefined && !SURFACES.has(surface)) {
+    throw new Error(`lintReport: surface must be "condensed" or "full" (got ${JSON.stringify(surface)})`);
+  }
+  const rules = surface === undefined ? RULES : RULES.filter((r) => r.surface === surface);
   const issues = [];
-  for (const rule of RULES) {
+  for (const rule of rules) {
     const issue = rule.check(text);
     if (issue) issues.push(issue);
   }
@@ -381,6 +412,7 @@ function lintReport(text) {
 
 module.exports = {
   RULES,
+  SURFACES,
   lintReport,
   // Exported for direct unit coverage of the trickier extraction helpers.
   extractFencedBlocks,
