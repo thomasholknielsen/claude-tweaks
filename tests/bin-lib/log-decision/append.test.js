@@ -144,3 +144,37 @@ test('appendEntry: creates the file, then inserts under the named section before
     '- AUTO 10:00:01 — c: d. Reversibility: high.\n' +
     '- AUTO 10:00:03 — g: h. Reversibility: high.\n');
 });
+
+// #816: appendEntry's read-modify-write raced under concurrent invocations and could
+// silently drop an entry — two writers reading the same pre-append content each
+// overwrite the other's write. Reproduces with real OS processes (the actual
+// `node bin/log-decision.js --run <same-dir> ...` shape the AC names), the same
+// cross-process technique bin/lib/file-lock.test.js's own concurrency test uses.
+test('appendEntry: concurrent `node bin/log-decision.js` processes against the same run dir never drop an entry', async () => {
+  const { spawn } = require('child_process');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-concurrent-'));
+  fs.mkdirSync(path.join(root, '.git')); // a real checkout root: mainCheckoutRoot(cwd) anchors here
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', 'run-concurrent');
+  fs.mkdirSync(runDir, { recursive: true });
+
+  const cliPath = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'log-decision.js');
+  const WORKERS = 8;
+  const spawnOne = (i) => new Promise((resolve, reject) => {
+    const p = spawn(process.execPath, [
+      cliPath, '--run', runDir, '--status', 'AUTO', '--text', `worker ${i}`,
+    ], { cwd: root, env: { ...process.env, CLAUDE_TWEAKS_LOCK_WAIT_MS: '60000' } });
+    let stderr = '';
+    p.stderr.on('data', (d) => { stderr += d; });
+    p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`worker ${i} exited ${code}: ${stderr}`))));
+    p.on('error', reject);
+  });
+
+  await Promise.all(Array.from({ length: WORKERS }, (_, i) => spawnOne(i)));
+
+  const text = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  for (let i = 0; i < WORKERS; i++) {
+    assert.match(text, new RegExp(`worker ${i}\\.`), `worker ${i}'s entry must not be dropped by a concurrent writer`);
+  }
+  const lines = text.trim().split('\n').filter(Boolean);
+  assert.equal(lines.length, WORKERS, 'every worker\'s line must survive, none clobbered');
+});

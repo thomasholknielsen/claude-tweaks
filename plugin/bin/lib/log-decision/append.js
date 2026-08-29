@@ -24,6 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const { mainCheckoutRoot, safeReal } = require('../hooks/worktree-detect');
+const { withLock } = require('../file-lock');
 
 const STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED', 'SKIP'];
 
@@ -97,28 +98,59 @@ function resolveTarget({ runDir, cwd = process.cwd(), mainRoot }) {
 }
 
 // { runDir, section?, entry } -> { file, created }. Append-only; never rewrites prior lines.
+//
+// Two concurrent invocations against the same run dir (e.g. two `node
+// bin/log-decision.js` processes) do a read-modify-write of decisions.md — an
+// unguarded pair can each read the same pre-append content and each overwrite
+// the other's line (#816). Guarded two ways, mirroring bin/lib/flow/manifest.js's
+// writeManifest: the whole read-modify-write-rename sequence runs under
+// ../file-lock.js's mkdir-based mutex (so a second writer's read can't start
+// until the first's rename has landed), and the write itself goes to a per-
+// process tmp file then fs.renameSync's atomically over decisions.md (so a
+// reader never observes a torn/partial file even without the lock). The lock
+// is best-effort/fail-open (file-lock.js's own contract) — a write that can't
+// acquire it in time still proceeds unlocked rather than hang the caller.
 function appendEntry({ runDir, section, entry }) {
-  const file = path.join(runDir, 'decisions.md');
-  const created = !fs.existsSync(file);
-  let text = created ? '' : fs.readFileSync(file, 'utf8');
-  if (text && !text.endsWith('\n')) text += '\n';
-  if (!section) {
-    fs.writeFileSync(file, text + entry + '\n');
+  const lockPath = path.join(runDir, '.decisions.lock');
+  return withLock(lockPath, () => {
+    const file = path.join(runDir, 'decisions.md');
+    let created = false;
+    let text;
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+      created = true;
+      text = '';
+    }
+    if (text && !text.endsWith('\n')) text += '\n';
+    let finalText;
+    if (!section) {
+      finalText = text + entry + '\n';
+    } else {
+      const heading = `## ${section}`;
+      const lines = text ? text.split('\n') : [];
+      if (lines.length && lines[lines.length - 1] === '') lines.pop();
+      const start = lines.indexOf(heading);
+      if (start === -1) {
+        lines.push(heading, entry);
+      } else {
+        let end = lines.length;
+        for (let i = start + 1; i < lines.length; i++) { if (/^## /.test(lines[i])) { end = i; break; } }
+        lines.splice(end, 0, entry);
+      }
+      finalText = lines.join('\n') + '\n';
+    }
+    const tmpPath = path.join(runDir, `decisions.md.tmp-${process.pid}`);
+    try {
+      fs.writeFileSync(tmpPath, finalText);
+      fs.renameSync(tmpPath, file);
+    } catch (err) {
+      try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
+      throw err;
+    }
     return { file, created };
-  }
-  const heading = `## ${section}`;
-  const lines = text ? text.split('\n') : [];
-  if (lines.length && lines[lines.length - 1] === '') lines.pop();
-  const start = lines.indexOf(heading);
-  if (start === -1) {
-    lines.push(heading, entry);
-  } else {
-    let end = lines.length;
-    for (let i = start + 1; i < lines.length; i++) { if (/^## /.test(lines[i])) { end = i; break; } }
-    lines.splice(end, 0, entry);
-  }
-  fs.writeFileSync(file, lines.join('\n') + '\n');
-  return { file, created };
+  });
 }
 
 module.exports = { STATUSES, formatEntry, resolveTarget, appendEntry, hms };
