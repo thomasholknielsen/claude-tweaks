@@ -838,6 +838,23 @@ test('record-pr with a non-numeric or missing number/url prints a usage notice i
   }
 });
 
+// #1672: the branch is only reliably knowable while the worktree is still
+// live, so record-pr stamps it into pr.branch at that moment — the
+// torn-down-worktree fallback in run-integrity.js reads it back later, once
+// `git worktree list` no longer has an entry to derive it from.
+test('record-pr records the branch alongside the PR — deriveBranch() run while the worktree is still live', () => {
+  const project = tmpProject();
+  execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
+  const worktree = linkedWorktreeOf(project);
+  const branch = execFileSync('git', ['-C', worktree, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', run, worktree], { cwd: project });
+
+  const result = runHook(['record-pr', '--run', run, '7', 'https://github.com/o/r/pull/7'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.deepStrictEqual(readRunState(run).pr, { number: 7, url: 'https://github.com/o/r/pull/7', branch });
+});
+
 test('check-resume-freshness: reports OK when the run is not interrupted', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-01T000000-record-1');

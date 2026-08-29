@@ -19,6 +19,7 @@ const stagedInventory = require('./lib/hooks/staged-inventory');
 const wtDetect = require('./lib/hooks/worktree-detect');
 const { closeRunState } = require('./lib/hooks/close-run-state');
 const { teardownRun } = require('./lib/hooks/teardown-run');
+const { deriveBranch, repoRootOf } = require('./lib/hooks/run-integrity');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -446,7 +447,24 @@ async function main(argv) {
     } else if (!numberArg || !Number.isInteger(number) || number <= 0 || !urlArg) {
       process.stdout.write(`claude-tweaks: usage: ${USAGE['record-pr']} — PR not recorded\n`);
     } else {
-      const result = ctxLib.writeRunState(runDir, { pr: { number, url: urlArg } });
+      // Record the branch alongside the PR while the worktree is still live —
+      // this is the one moment it is reliably knowable. run-integrity.js's
+      // torn-down-worktree fallback (#1672) reads it back later, when
+      // `git worktree list` no longer has an entry to derive it from.
+      // Best-effort: a run with no recorded worktree, or a derivation that
+      // comes back null, simply records {number, url} as before.
+      // Guarded because this is the first external-process call in a verb that
+      // previously had none: main()'s own `.catch(() => process.exit(0))` would
+      // swallow a throw here and skip writeRunState entirely, exiting 0 with no
+      // output — the PR silently never recorded, while every other failure
+      // branch in this verb prints a "not recorded" notice. Degrading to the
+      // pre-#1672 {number, url} write is the correct best-effort outcome.
+      let prBranch = null;
+      try {
+        prBranch = deriveBranch(repoRootOf(runDir), ctxLib.readRunState(runDir)?.worktree || null);
+      } catch { prBranch = null; }
+      const prField = prBranch ? { number, url: urlArg, branch: prBranch } : { number, url: urlArg };
+      const result = ctxLib.writeRunState(runDir, { pr: prField });
       if (result) {
         process.stdout.write(`claude-tweaks: PR #${number} recorded for ${path.basename(runDir)}\n`);
       } else {

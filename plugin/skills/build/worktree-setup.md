@@ -83,6 +83,63 @@ re-derived regexes.
    neither `local-merge`'s non-force-push rejection nor `pr-first`'s branch-reuse ordering (see
    `_shared/pr-early-run-lifecycle.md`'s Step 1 note) is ever relied on as the actual protection;
    both were previously incidental side effects, not a designed safety net (#767's Current State).
+1.6. **Remote-only stale branch check** (#1470) — Step 1.5's local check above only inspects this
+   checkout's own git refs, so it cannot see a same-named branch that is absent here but very much
+   alive on `origin` — left behind by a prior attempt on a *different* machine or sandbox, or by
+   one on *this* machine whose remote ref outlived the local ref Step 1.5 just deleted.
+   Runs after Step 1.5 on both of the branches that reach Step 2: its **No match** branch, and
+   its **Match, no attached worktree** branch. `git branch -D` there removes only the local ref —
+   Step 1.5's own log line says so — and under `integration-model: pr-first` an abandoned run has
+   already pushed this name at Step 6, so a same-machine retry is a *more* common way a stale
+   `origin/{name}` survives than the cross-machine case, not a rarer one. It does **not** run on
+   Step 1.5's **Match, and a worktree directory still attached** branch, which that step
+   deliberately routes into the "## If worktree creation fails" table instead. Probe the remote
+   for the same deterministic name:
+   ```bash
+   git ls-remote --heads origin "{name}"
+   ```
+   - **Command fails** (non-zero exit — no network, no `origin` access) — fail open, the same
+     convention `_shared/worktree-setup.md`'s Post-creation catch-up already applies to a
+     fetch/merge failure on this same remote: log the degrade distinctly and proceed to Step 2
+     rather than treating an unreachable remote as a confirmed no-match.
+   - **No output, command succeeded** — nothing to do, proceed to Step 2.
+   - **A ref comes back** — a remote-only collision: no local ref, no attached local worktree
+     (guaranteed by the "no local match" precondition above). This is #1470's failure mode — an
+     abandoned prior attempt pushed this deterministic name and was never cleaned up, and
+     `EnterWorktree` would not itself catch it (no local branch conflicts, so creation succeeds;
+     the collision would otherwise surface only later, as a rejected phase-exit push). Gather
+     context, best-effort — a failed lookup surfaces as PR status unknown in the card below,
+     distinct from a confirmed no-open-PR result:
+     ```bash
+     gh pr list --repo {owner}/{repo} --head "{name}" --state all --json number,url,state,isDraft
+     ```
+     then surface a stop card — reusing, deleting, or renaming a branch that might belong to
+     someone else's still-running attempt is a shared-state change no agent is authorized to make
+     unilaterally (the record's own Current State names exactly this):
+     ```markdown
+     ## Build: Remote-only branch collision
+
+     `{name}` already exists on `origin` — no local ref, no attached worktree — {and has open PR
+     #{number} ({url}), likely from an abandoned prior attempt | with no open PR found | PR status
+     unknown (lookup failed)}.
+
+     Options: (1) reuse the existing remote branch/PR and resume that prior attempt, (2) delete the
+     stale remote branch (`git push origin --delete {name}`) and create fresh, (3) rename this
+     run's branch to avoid the collision.
+     ```
+     **Interactive mode:** call `AskUserQuestion` with these three options, recommending (1) when
+     an open PR was confirmed present (resuming existing work beats discarding it), (2) when it
+     was confirmed absent, and no default recommendation when the lookup itself failed (PR status
+     unknown) — deleting a branch on an unconfirmed absence risks discarding someone else's live
+     work; let the human decide with that uncertainty stated plainly. **Auto
+     mode:** this is not a lever `_shared/auto-mode-contract.md` lists as silenceable — Step 2.8's
+     claim already rules out a *live* sibling on *this* record, but says nothing about a stale
+     branch left by an unrelated record's abandoned attempt, so there is no safe default to
+     auto-pick. Render the card above and **stop the build** before any worktree is created — the
+     same HARD-GATE posture `flow/claim-targets.md` already uses for a claim contest.
+
+   Together with Step 1.5 this closes both collision directions — local (#767) and remote (#1470)
+   — before `EnterWorktree` ever runs, so neither depends on a failed push to surface it.
 2. Invoke `/superpowers:using-git-worktrees` to create an isolated workspace — the name passed
    through it to `EnterWorktree` is the sanitized name from "## Worktree name derivation" above,
    never the raw branch/record slug

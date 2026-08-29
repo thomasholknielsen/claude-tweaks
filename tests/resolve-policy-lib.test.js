@@ -27,6 +27,13 @@ test('health-open-cap is schema-registered — default 10, configured value wins
   assert.deepStrictEqual(set['health-open-cap'], { value: 25, source: 'policy' });
 });
 
+test('dispatch-group-size-guard is schema-registered — default 10, configured value wins', () => {
+  const unset = resolvePolicyKeys(['dispatch-group-size-guard'], { policyRaw: null });
+  assert.deepStrictEqual(unset['dispatch-group-size-guard'], { value: 10, source: 'default' });
+  const set = resolvePolicyKeys(['dispatch-group-size-guard'], { policyRaw: 'dispatch-group-size-guard: 25\n' });
+  assert.deepStrictEqual(set['dispatch-group-size-guard'], { value: 25, source: 'policy' });
+});
+
 test('policy-source value resolves with source: "policy"', () => {
   const result = resolvePolicyKeys(['tidy-aggressiveness'], {
     policyRaw: 'tidy-aggressiveness: aggressive\n',

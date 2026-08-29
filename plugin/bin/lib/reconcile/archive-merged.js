@@ -15,6 +15,8 @@ const { resolvePrState } = require('./pr-state');
 const { recordResidueSuccess, trackResidue } = require('./cache');
 const { escalateResidue } = require('./escalate-residue');
 const { repoSlugOf } = require('./release-merged');
+const { closeRunState } = require('../hooks/close-run-state');
+const { checkRunIntegrity } = require('../hooks/run-integrity');
 
 // Orphan case introduced by the dispatch/flow run-identity unification:
 // dispatch mints an empty, anchored run directory (mkdir only, no
@@ -74,6 +76,98 @@ function archiveOrphanedMint(root, dir) {
     return { ok: false, reason: 'move-failed' };
   }
   return { ok: true };
+}
+
+// Same 24h window as ORPHAN_MINT_TTL_MS, and for the same reason — longer than
+// any plausible pause before a session resumes its own run, short enough that
+// a genuinely abandoned one is swept the next day. Deliberately not a second,
+// differently-tuned constant.
+const STALE_INTERRUPTED_TTL_MS = ORPHAN_MINT_TTL_MS;
+
+// Newest event this run can actually claim as its own, in ms — or null when
+// there are none (or the log is unreadable).
+//
+// Deliberately NOT run-state's `updatedAt`, and deliberately excluding
+// `attribution: 'fallback'` lines: a fallback event is one ANOTHER session's
+// hook guessed into this run because the run had no provable owner
+// (context.js's resolveRun). Those lines advance `updatedAt` without this run
+// being alive at all, which is precisely how an abandoned run looks
+// perpetually busy and never becomes closeable (#1673 Deliverable 4).
+//
+// Deliberately asymmetric with context.js's `scanWrapupEvents` (read by
+// `checkRunIntegrity`), which does NOT filter fallback-attributed lines: a
+// run whose events.jsonl holds ONLY fallback-attributed lines can therefore
+// read as both "abandoned" here (no self-attributed activity) AND "shipped"
+// there (>=1 skill_invoked still counts, fallback or not). That combination
+// is coherent and intended, not a bug to reconcile: the work shipped, and
+// nothing THIS run itself produced has touched it since — a future reader
+// should not "fix" the two filters into agreement.
+function lastOwnEventMs(runDir) {
+  let raw;
+  try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
+  let newest = null;
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (!ev || ev.attribution === 'fallback') continue;
+    const t = Date.parse(ev.ts);
+    if (Number.isNaN(t)) continue;
+    if (newest === null || t > newest) newest = t;
+  }
+  return newest;
+}
+
+// Whether runDir's events.jsonl exists and is readable at all — distinct
+// from `lastOwnEventMs`'s own `null`, which conflates two different things:
+// "the log is readable but has no qualifying (non-fallback, parseable-ts)
+// event" and "the log couldn't be read in the first place." Only the caller
+// below needs to tell those apart (#1673 F9 review finding): a genuinely
+// unreadable/absent log is UNKNOWN evidence, not proof of staleness.
+function hasReadableEventsLog(runDir) {
+  try {
+    fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The ownership half of the criterion, inverted from close-run-state.js's
+// `foreignOwner`: that check asks "does a DIFFERENT session own this?" to
+// refuse a close; here the same comparison answers "is this session's own
+// run?" — if it is, we are that session and the run is by definition alive, so
+// never auto-close it. A run owned by nobody, or by some other session, is a
+// candidate only if it ALSO shows no self-attributed activity inside the
+// staleness window. Both halves must hold; neither alone is evidence.
+//
+// Honest scope of this ownership half: it only ever engages when BOTH
+// `state.sessionId` and `sessionId` are non-null. `sessionId` is reliably
+// present when this runs off the Bash-invoked `reconcile` subcommand (the
+// calling shell's own `CLAUDE_CODE_SESSION_ID` — see the module default
+// below), but is `null` in the path that actually matters most: the
+// SessionStart-triggered background pass (`reconcile-background`, a detached
+// child process spawned with no stdin), where no session id is ever threaded
+// in. There, this half of the criterion never fires — it is not "the"
+// protection, it is an ADDITIONAL guard that only engages when a session id
+// happens to be known. The substantive protection for every caller, known
+// session id or not, is the two checks below: the 24h staleness window
+// (`STALE_INTERRUPTED_TTL_MS`) and, at the call site, the `shipped-unclosed`
+// evidence gate from `checkRunIntegrity`.
+function isAbandonedInterrupted(runDir, state, sessionId, now = Date.now()) {
+  if (!state || state.status !== 'interrupted') return false;
+  const owner = typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
+  if (owner && sessionId && owner === sessionId) return false; // our own live run
+  // An unreadable/absent events.jsonl is UNKNOWN evidence of activity, not
+  // proof of staleness — fail toward not-abandoned rather than collapsing
+  // "we can't tell" into "definitely idle" (review finding: `checkRunIntegrity`
+  // happens to also require a readable log with >=1 skill_invoked before this
+  // branch is ever reached, but that is a coincidence of two separate reads
+  // at different moments, not a guarantee this function can rely on alone).
+  if (!hasReadableEventsLog(runDir)) return false;
+  const last = lastOwnEventMs(runDir);
+  if (last !== null && (now - last) <= STALE_INTERRUPTED_TTL_MS) return false;
+  return true;
 }
 
 // A run's PR state + its console state -> what to do. Pure — no I/O.
@@ -490,7 +584,7 @@ function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateRe
   trackResidue(root, repoSlug, 'move-failed', dir, { failed: true, lastError: undefined }, { escalate });
 }
 
-function archiveMerged({ cwd, dryRun = false } = {}) {
+function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_CODE_SESSION_ID || null } = {}) {
   const archived = [];
   const skipped = [];
   const start = cwd || process.cwd();
@@ -512,6 +606,67 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
       archived.push(dir);
       continue;
     }
+
+    // #1673: an abandoned `interrupted` run whose work actually shipped. This
+    // has to sit ahead of the no-worktree/no-branch skips below: those are
+    // exactly where such a run dies today, because its worktree was torn down
+    // long ago and there is no live entry to derive a branch from. #1672's
+    // fallback evidence is what lets checkRunIntegrity answer at all here.
+    // Evaluated last of the three gates because it is the only one that spawns
+    // git.
+    if (isAbandonedInterrupted(dir, state, sessionId)
+      && checkRunIntegrity(dir).state === 'shipped-unclosed') {
+      if (dryRun) { archived.push(dir); continue; }
+      // Moves-first, close-last — the same invariant this file's own header
+      // comment above archiveRunDir (line ~185, "Moves-first, close-last
+      // ordering") states for the pre-existing archive path: marking a run
+      // terminal BEFORE its move succeeds would make a failed move
+      // permanently invisible, since iterRunDirsWithState skips any run
+      // already status: 'clean'. Archive FIRST — a failure here leaves the
+      // run non-terminal (still 'interrupted') and retryable next pass, which
+      // is the whole point — and only close it once the move has actually
+      // landed.
+      const archiveResult = archiveRunDir(root, dir);
+      trackArchiveResult(root, repoSlug, dir, archiveResult);
+      if (!archiveResult.ok) {
+        // Non-'move-failed' reasons (mkdir-failed, git-mv-failed,
+        // commit-failed, ls-files-failed, tracked-entry, readdir-failed) are
+        // retried next pass — the run stays non-terminal above — but
+        // trackArchiveResult only feeds the residue-escalation counter on
+        // 'move-failed' (pre-existing behavior shared with the merged-PR
+        // archive path, unchanged here), so a failure of one of those other
+        // kinds is visible in `skipped` but will not self-escalate.
+        skipped.push({ runDir: dir, reason: archiveResult.reason });
+        continue;
+      }
+      // Only now, against the ARCHIVED directory — everything (events.jsonl,
+      // run-state.json, work/) has already moved there — close the run
+      // terminal. closeRunState, not a hand-rolled status write — it owns the
+      // close-without-wrapup event and the un-archived-work advisory, which
+      // is what makes an automated close indistinguishable from a manual one
+      // in the ledger.
+      //
+      // `explicit: true` is defensible ONLY because isAbandonedInterrupted
+      // plus the shipped-unclosed evidence gate have ALREADY made the
+      // ownership determination upstream, above — this call site owns that
+      // decision instead of delegating it to closeRunState's own
+      // foreign-owner refusal, rather than claiming ownership doesn't matter
+      // here. Weakening either upstream gate would silently weaken this
+      // bypass too.
+      const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', path.basename(dir));
+      const closeResult = closeRunState(archiveDir, { explicit: true, sessionId });
+      if (!closeResult.writeOk) {
+        // The move already succeeded — never roll it back over a close-write
+        // failure; the run is physically archived either way. Just make the
+        // failure visible instead of silently reporting a clean archive: its
+        // status may not actually read 'clean'.
+        skipped.push({ runDir: dir, reason: 'close-write-failed' });
+        continue;
+      }
+      archived.push(dir);
+      continue;
+    }
+
     if (!state || !state.worktree) { skipped.push({ runDir: dir, reason: 'no-worktree' }); continue; }
     const wtEntry = worktrees.find((w) => path.resolve(w.path) === path.resolve(state.worktree));
     const branch = wtEntry ? wtEntry.branch : null;
@@ -540,5 +695,5 @@ function archiveMerged({ cwd, dryRun = false } = {}) {
 module.exports = {
   archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
   isOrphanedMint, isAdHocStandaloneMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
-  localHasMerge,
+  localHasMerge, lastOwnEventMs, isAbandonedInterrupted, STALE_INTERRUPTED_TTL_MS,
 };

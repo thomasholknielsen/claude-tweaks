@@ -25,6 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const { mainCheckoutRoot, safeReal } = require('../hooks/worktree-detect');
 const { withLock } = require('../file-lock');
+const { writeFileAtomic } = require('../atomic-write');
 
 const STATUSES = ['AUTO', 'STAGED', 'KEPT-PROMPT', 'SCANNED', 'REFUSED', 'SKIP'];
 
@@ -105,11 +106,13 @@ function resolveTarget({ runDir, cwd = process.cwd(), mainRoot }) {
 // the other's line (#816). Guarded two ways, mirroring bin/lib/flow/manifest.js's
 // writeManifest: the whole read-modify-write-rename sequence runs under
 // ../file-lock.js's mkdir-based mutex (so a second writer's read can't start
-// until the first's rename has landed), and the write itself goes to a per-
-// process tmp file then fs.renameSync's atomically over decisions.md (so a
-// reader never observes a torn/partial file even without the lock). The lock
-// is best-effort/fail-open (file-lock.js's own contract) — a write that can't
-// acquire it in time still proceeds unlocked rather than hang the caller.
+// until the first's rename has landed), and the write itself goes through
+// bin/lib/atomic-write.js's writeFileAtomic (#1653), which writes a
+// per-process tmp file then fs.renameSync's atomically over decisions.md (so
+// a reader never observes a torn/partial file even without the lock). The
+// lock is best-effort/fail-open (file-lock.js's own contract) — a write that
+// can't acquire it in time still proceeds unlocked rather than hang the
+// caller.
 function appendEntry({ runDir, section, entry }) {
   const lockPath = path.join(runDir, '.decisions.lock');
   return withLock(lockPath, () => {
@@ -141,14 +144,7 @@ function appendEntry({ runDir, section, entry }) {
       }
       finalText = lines.join('\n') + '\n';
     }
-    const tmpPath = path.join(runDir, `decisions.md.tmp-${process.pid}`);
-    try {
-      fs.writeFileSync(tmpPath, finalText);
-      fs.renameSync(tmpPath, file);
-    } catch (err) {
-      try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
-      throw err;
-    }
+    writeFileAtomic(file, finalText);
     return { file, created };
   });
 }
