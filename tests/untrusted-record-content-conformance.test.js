@@ -75,6 +75,15 @@ test('contract stays within its 6144-byte cap', () => {
   assert.ok(Buffer.byteLength(CONTRACT, 'utf8') <= 6144, `contract is ${Buffer.byteLength(CONTRACT, 'utf8')} bytes, over the 6144 cap`);
 });
 
+const FROZEN_PRE_1276_SCOPE = collapse('Task-agent dispatches are out of scope — they get a fresh context (`_shared/subagent-output-contract.md`).');
+
+test('contract Scope declines Task-agent isolation with two-ground-only inheritance (#1276)', () => {
+  assert.ok(CONTRACT_FLAT.includes('A fresh subagent context is not a stronger boundary'), 'declined-isolation sentence missing');
+  assert.ok(CONTRACT_FLAT.includes('evaluated and declined for `framing-check` in #1276'), '#1276 attribution missing');
+  assert.ok(CONTRACT_FLAT.includes('Only these two structural grounds transfer to other consumers'), 'two-ground inheritance scoping missing');
+  assert.ok(!FROZEN_PRE_1276_SCOPE.includes('not a stronger boundary'), 'control: frozen pre-#1276 Scope text lacks the sentence (proves the pin can go red)');
+});
+
 // #1346 split next-mode.md at the ## Framing Guard boundary; the boundary/contract
 // citation this suite pins lives in the Framing Guard, now in next-mode-shape.md.
 const NEXT_MODE_FLAT_C = readFlat('plugin/skills/specify/next-mode.md') + ' ' + readFlat('plugin/skills/specify/next-mode-shape.md');
