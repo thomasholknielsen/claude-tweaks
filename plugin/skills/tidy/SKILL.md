@@ -162,7 +162,7 @@ Execute each approved action per the Action Vocabulary table above, plus the Act
 
 Cross-action housekeeping (apply once per run after all actions execute):
 
-- Remove worktrees with `git -C "{REPO_ROOT}" worktree remove {path}`; delete branches with `git -C "{REPO_ROOT}" branch -d {name}` (see Step 4.5 working-directory discipline).
+- Remove worktrees with `git -C "{REPO_ROOT}" worktree remove {path}`; delete branches with `git -C "{REPO_ROOT}" branch -d {name}` — `-D` only for a `net-empty — delete via -D` finding (#613), never to force past an ordinary `-d` refusal (see Step 4.5 working-directory discipline).
 
 ## Step 7.5: Verify Execution
 
@@ -254,7 +254,7 @@ One exception to "never creates or enters a worktree": under `worktree-always: t
 | Clearing a local record before `gh issue create` confirms success | Sync writes GitHub-first; clearing early turns a failed write into a lost item, not an unsynced one. |
 | Treating Defer (`github-issues` backend) as a single atomic step | A multi-step GitHub-side sequence (body edit → label add → possible milestone attach), no local file — a late failure leaves the record partially updated. Report which step failed. |
 | Auto-running downstream skills like `/review`, `/build`, or `/specify` | /tidy only stages recommendations; the user judges timing and scope. |
-| Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing only means "not contained in HEAD/upstream" — check every configured base before concluding merged-elsewhere vs. genuinely unmerged. Manual `-D` stays forbidden without `git cherry` patch-equivalence evidence; reconcile's `archive-branches` check (`pr-first`-only, `bin/lib/reconcile/archive-branches.js`) is the sole exception, via cherry-proof or an archive-tag-then-delete path. |
+| Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing only means "not contained in HEAD/upstream" — check every configured base before concluding merged-elsewhere vs. genuinely unmerged. Manual `-D` stays forbidden without positive proof nothing is lost. Exactly two paths carry that proof: reconcile's `archive-branches` check (`pr-first`-only, `bin/lib/reconcile/archive-branches.js`), via cherry-equivalence or an archive-tag-then-delete path; and Step 4.5's `net-empty` outcome (#613), whose empty diff against the branch's own fork point is itself the proof (`scan-procedures.md`'s outcome table, `step-6-auto.md`'s Delete row). |
 | Closing a PR/issue without a comment | Silent closes destroy the audit trail — the comment is the record of why. |
 | Resolving review threads without commit evidence | The concern disappears unfixed, worse than leaving it open. Evidence is a commit touching the flagged lines. |
 | Treating an unscored `ready` record as automatically triage-eligible | Labels are projection, not truth — a `ready` label doesn't mean scoring happened. Shape 4 catches it before `/claude-tweaks:backlog refine` flags it back. |
