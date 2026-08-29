@@ -216,6 +216,30 @@ function listRunDirs(cwd) {
 // to the run dir and the PR regardless of this resolution, the same way
 // `bin/lib/reconcile/*` already reads and writes runs regardless of session
 // ownership. Do not "fix" this by tightening the ownership check.
+//
+// #1410: a fallback candidate is also filtered on WORKTREE binding, via
+// classifyOwnership (#1098) — an axis orthogonal to the session-ownership
+// filtering the two comments below deliberately skip. A candidate whose
+// recorded `worktree` provably belongs to a different, still-live worktree
+// than the caller's own `cwd` classifies 'foreign' regardless of session id
+// (classifyOwnership degrades to 'indeterminate', never 'foreign', whenever
+// the caller's own repo/worktree can't be determined, so this never narrows
+// the fallback beyond what #62's original "newest non-terminal, not
+// session-foreign" guess already allowed for a candidate lacking a provable
+// worktree binding). This is what stops a concurrent sibling worktree's
+// event (e.g. an AskUserQuestion answered in one session) from landing in an
+// unrelated run's events.jsonl, without touching the 'env'/'session' arms
+// above, or #413's console-execution exception, at all.
+function isForeignWorktreeCandidate(cwd, sessionId, state) {
+  return classifyOwnership({ sessionId, cwd }, state) === 'foreign';
+}
+// Shared by both resolveRun fallback arms below: a candidate is never
+// eligible to be guessed into if it's an unadopted mint (#721) or provably
+// worktree-foreign (#1410) — both checks apply regardless of whether the
+// caller's own session id is known.
+function isSkippableFallbackCandidate(cwd, sessionId, dir, state) {
+  return isUnadoptedMint(dir, state) || isForeignWorktreeCandidate(cwd, sessionId, state);
+}
 function resolveRun(cwd, env, sessionId) {
   if (env && env.PIPELINE_RUN_DIR) {
     try {
@@ -225,23 +249,32 @@ function resolveRun(cwd, env, sessionId) {
     } catch { /* fall through */ }
   }
   const me = typeof sessionId === 'string' && sessionId ? sessionId : null;
+  // Resolve once, up front, so the worktree-binding check below always sees
+  // the same cwd the candidate scan itself uses — iterRunDirsWithState falls
+  // back to process.cwd() internally on a falsy cwd, but isForeignWorktreeCandidate
+  // (via classifyOwnership) treats a falsy cwd as 'indeterminate', never
+  // 'foreign' — passing the raw, unresolved cwd there would silently no-op
+  // the filter for any falsy-cwd caller.
+  const resolvedCwd = cwd || process.cwd();
   if (!me) {
     // Caller identity unknown — behave exactly as before #62. Filtering by an
     // owner we cannot compare against would just be the old guess with fewer
     // candidates, and `record-worktree`/`close-run` deliberately resolve runs
-    // they do NOT own so they can report that fact (see bin/hooks.js).
-    for (const { dir, state } of iterRunDirsWithState(cwd)) {
-      if (isUnadoptedMint(dir, state)) continue;
+    // they do NOT own so they can report that fact (see bin/hooks.js). The
+    // worktree-binding check above is a different axis and still applies.
+    for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
+      if (isSkippableFallbackCandidate(resolvedCwd, me, dir, state)) continue;
       return { dir, attribution: 'fallback' };
     }
     return { dir: null, attribution: null };
   }
   let unowned = null;
-  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+  for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
     if (owner === me) return { dir, attribution: 'session' };
-    // Newest-first, so the first unowned run is the one the old code returned.
-    if (!owner && !unowned && !isUnadoptedMint(dir, state)) unowned = dir;
+    // Newest-first, so the first unowned, worktree-compatible run is the one
+    // the old code returned unconditionally.
+    if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state)) unowned = dir;
   }
   return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
 }
