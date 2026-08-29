@@ -37,7 +37,7 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 **Claim-contest special case (before the numbered steps below).** When the failure this call is
 settling is a Step 2.8 claim-loop stop that renders as a static card with no `AskUserQuestion` of
 its own — either `flow/claim-targets.md`'s "Claim contested" stop, or its "Claim in-flight" stop
-(#315/#958's in-flight-tombstone variant — reached here only when that card's own routing into
+(#315/#958/#974's in-flight-tombstone variant — reached here only when that card's own routing into
 `dispatch/resume-confirmation.md` was itself skipped under `DISPATCH_HEADLESS=1`, since that
 routing's own headless skip is what leaves the card as this Task call's terminal output) — no
 build or test ever ran, the pipeline stopped before the Config Manifesto, this record was never
