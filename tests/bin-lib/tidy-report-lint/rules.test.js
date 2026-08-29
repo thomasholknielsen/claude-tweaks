@@ -3,9 +3,10 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   RULES,
+  SURFACES,
   lintReport,
 } = require('../../../plugin/bin/lib/tidy-report-lint/rules');
-const { conformantReport } = require('./fixtures');
+const { conformantReport, condensedReport, longFullReport } = require('./fixtures');
 
 test('lintReport: a known-conformant rendered report produces zero output', () => {
   assert.deepEqual(lintReport(conformantReport()), []);
@@ -179,4 +180,87 @@ test('Condense: flags an over-40-line report with no report.md footer; a short r
   const over40WithFooter = `${'line\n'.repeat(41)}Full report: run-dir/report.md\n`;
   assert.equal(check(over40WithFooter), null);
   assert.equal(check('line\n'.repeat(10)), null);
+});
+
+// #1625: surface-scoping. step-6-auto.md's Conformance scan intro documents
+// a 7-rule/6-rule split for when the condense rule has split a report into
+// a condensed chat render and a separate report.md — see step-6-auto.md's
+// "Against a condensed report, only ... apply" sentence.
+
+test('RULES: surface tags partition all 13 rules into exactly the documented condensed/full split', () => {
+  const condensed = RULES.filter((r) => r.surface === 'condensed').map((r) => r.name);
+  const full = RULES.filter((r) => r.surface === 'full').map((r) => r.name);
+  assert.deepEqual(condensed, [
+    'Width',
+    'Titles',
+    'Aligned',
+    'No shorthand',
+    'Command alone',
+    'Batch only where allowed',
+    'Condense',
+  ]);
+  assert.deepEqual(full, [
+    'One record per row',
+    'Every Yours row covered',
+    'Fenced, no box art',
+    'Group order',
+    'Clean shape',
+    'Footer once',
+  ]);
+  // Every rule carries exactly one of the two tags — no untagged row, no
+  // row belonging to both.
+  assert.equal(condensed.length + full.length, RULES.length);
+});
+
+test('SURFACES: exposes the two valid surface values', () => {
+  assert.deepEqual([...SURFACES].sort(), ['condensed', 'full']);
+});
+
+test('lintReport: surface="condensed" runs only the 7 condensed-scoped rules', () => {
+  const names = new Set(RULES.filter((r) => r.surface === 'condensed').map((r) => r.name));
+  // A report that fails a full-only rule (missing decisions.md footer) but
+  // is otherwise clean must produce no issues when scoped to "condensed".
+  const text = conformantReport().replace(/Full decision log:.*\n?$/, '');
+  const issues = lintReport(text, { surface: 'condensed' });
+  for (const issue of issues) {
+    const ruleName = issue.split(':')[0];
+    assert.ok(names.has(ruleName), `unexpected rule "${ruleName}" fired under surface="condensed"`);
+  }
+});
+
+test('lintReport: surface="full" runs only the 6 section-shape rules', () => {
+  const names = new Set(RULES.filter((r) => r.surface === 'full').map((r) => r.name));
+  // A report over the 40-line Condense threshold with no report.md footer
+  // would fail "Condense" (a condensed-only rule) but must produce no
+  // issues when scoped to "full".
+  const issues = lintReport(longFullReport(), { surface: 'full' });
+  for (const issue of issues) {
+    const ruleName = issue.split(':')[0];
+    assert.ok(names.has(ruleName), `unexpected rule "${ruleName}" fired under surface="full"`);
+  }
+  assert.deepEqual(issues, []);
+});
+
+test('lintReport: an invalid surface value throws', () => {
+  assert.throws(() => lintReport(conformantReport(), { surface: 'bogus' }), /surface must be "condensed" or "full"/);
+});
+
+test('#1625 regression: a genuinely condensed report false-positives on Footer once/Clean shape/Fenced-no-box-art when linted unscoped, but not under surface="condensed"', () => {
+  const unscoped = lintReport(condensedReport());
+  assert.deepEqual(unscoped, [
+    'Fenced, no box art: section "Applied automatically" is not followed by a fence',
+    'Clean shape: line 20 is neither the no-findings sentence nor bare "**Clean:**"',
+    'Footer once: "decisions.md" appears 0 times (expected exactly 1)',
+  ]);
+  assert.deepEqual(lintReport(condensedReport(), { surface: 'condensed' }), []);
+});
+
+test('#1625 regression: a full report.md over 40 lines false-positives on Condense when linted unscoped, but not under surface="full"', () => {
+  const text = longFullReport();
+  assert.ok(text.split('\n').length > 40, 'fixture must exceed the 40-line Condense threshold');
+  assert.ok(!/report\.md/.test(text), 'report.md must carry no self-reference to report.md');
+  const unscoped = lintReport(text);
+  assert.equal(unscoped.length, 1);
+  assert.match(unscoped[0], /^Condense: report is \d+ lines \(over 40\) with no "Full report: \{run-dir\}\/report\.md" footer$/);
+  assert.deepEqual(lintReport(text, { surface: 'full' }), []);
 });

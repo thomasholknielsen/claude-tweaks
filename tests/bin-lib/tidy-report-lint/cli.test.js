@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { run } = require('../../../plugin/bin/tidy-report-lint');
-const { conformantReport } = require('./fixtures');
+const { conformantReport, condensedReport, longFullReport } = require('./fixtures');
 
 function fakeDeps({ readFileMap = {}, stdinText = null, stdinIsTTY = false } = {}) {
   const out = [];
@@ -110,4 +110,51 @@ test('cli: --help prints usage and exits 0 without reading anything', () => {
   const code = run(['--help'], deps);
   assert.equal(code, 0);
   assert.match(out.join(''), /usage: tidy-report-lint\.js/);
+});
+
+// #1625: --surface=condensed|full
+
+test('cli: an unknown --surface value is a malformed invocation (exit 2)', () => {
+  const { deps, err } = fakeDeps({ readFileMap: { '/report.md': conformantReport() } });
+  const code = run(['--surface=bogus', '/report.md'], deps);
+  assert.equal(code, 2);
+  assert.match(err.join(''), /--surface must be "condensed" or "full"/);
+});
+
+test('cli: --surface=condensed against a genuinely condensed report exits 0 (no Footer once/Clean shape/Fenced-no-box-art false positives)', () => {
+  const { deps, out } = fakeDeps({ readFileMap: { '/report.md': condensedReport() } });
+  const code = run(['--surface=condensed', '/report.md'], deps);
+  assert.equal(code, 0);
+  assert.deepEqual(out, []);
+});
+
+test('cli: the same condensed report WITHOUT --surface reproduces the pre-#1625 false positives (exit 1)', () => {
+  const { deps, out } = fakeDeps({ readFileMap: { '/report.md': condensedReport() } });
+  const code = run(['/report.md'], deps);
+  assert.equal(code, 1);
+  const text = out.join('');
+  assert.match(text, /^Footer once:/m);
+  assert.match(text, /^Clean shape:/m);
+  assert.match(text, /^Fenced, no box art:/m);
+});
+
+test('cli: --surface=full against a long report.md exits 0 (no Condense false positive)', () => {
+  const { deps, out } = fakeDeps({ readFileMap: { '/report.md': longFullReport() } });
+  const code = run(['--surface=full', '/report.md'], deps);
+  assert.equal(code, 0);
+  assert.deepEqual(out, []);
+});
+
+test('cli: the same long report.md WITHOUT --surface reproduces the pre-#1625 Condense false positive (exit 1)', () => {
+  const { deps, out } = fakeDeps({ readFileMap: { '/report.md': longFullReport() } });
+  const code = run(['/report.md'], deps);
+  assert.equal(code, 1);
+  assert.match(out.join(''), /^Condense: report is \d+ lines \(over 40\)/m);
+});
+
+test('cli: --surface works via stdin too', () => {
+  const { deps, out } = fakeDeps({ stdinText: condensedReport() });
+  const code = run(['--surface=condensed'], deps);
+  assert.equal(code, 0);
+  assert.deepEqual(out, []);
 });
