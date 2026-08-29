@@ -87,8 +87,16 @@ function errorText(err) {
 const realDeps = {
   ghAvailable,
   remoteUrl,
-  runner: (args) => execFileSync('gh', args, { encoding: 'utf8' }),
-  gitRunner: (args) => execFileSync('git', args, { encoding: 'utf8' }),
+  // maxBuffer widened past Node's 1MB default: fetchAllRecords' historical
+  // `--state all` fetch returns full bodies for up to `backlog-fetch-limit`
+  // (default 1000) records and routinely exceeds it on a backlog this size
+  // (spawnSync gh ENOBUFS, observed live). timeout widened past the 5s
+  // single-call default for the same batched call, mirroring link.js's
+  // generic-runner precedent.
+  runner: (args) => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 64, timeout: 30000 }),
+  // maxBuffer widened for the same reason: fetchGitLog dumps every commit
+  // message on the integration branch in one call.
+  gitRunner: (args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 64 }),
   readPolicyRaw: () => readFileSafe(path.join(repoRoot(), '.claude-tweaks', 'policy.yml')),
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
