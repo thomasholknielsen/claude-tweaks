@@ -49,7 +49,7 @@ test('dispatch/SKILL.md argument-hint drops --claim-only', () => {
     .find((l) => l.startsWith('argument-hint:'));
   assert.ok(hintLine, 'argument-hint line should exist');
   assert.doesNotMatch(hintLine, /claim-only/);
-  assert.match(hintLine, /--batch-size/);
+  assert.match(hintLine, /--budget/);
 });
 
 test('task-prompt.md first template no longer claims "already-claimed"; second still does', () => {

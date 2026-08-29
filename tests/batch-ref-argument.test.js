@@ -104,7 +104,7 @@ test('dispatch Input cites the shared batch grammar for its explicit-list form',
 
 test('dispatch argument-hint already uses the unified #N[,#M...] notation', () => {
   const hint = extractArgumentHint(read('plugin/skills/dispatch/SKILL.md'));
-  assert.ok(hint.startsWith('[next|#N[,#M...]]'), `dispatch hint must open with the unified batch notation, got: ${hint}`);
+  assert.ok(hint.startsWith('[#N[,#M...]]'), `dispatch hint must open with the unified batch notation, got: ${hint}`);
 });
 
 test('parseExplicitIssueList (bin/lib/issues/grouping.js) classifies mixed lists and empty elements instead of silently dropping them', () => {

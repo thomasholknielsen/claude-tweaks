@@ -566,5 +566,12 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   returns exactly this one `+` line and no `-` lines. Measured by RUNNING
   //   the parser on the working tree (actual 383), not by adding 1 to 382 —
   //   the arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
-  assert.strictEqual(total, 383);
+  //
+  //   383 -> 384, #1492 added dispatch's "Re-selecting a Settle-failed group
+  //   within the same drain firing" row. Verified: `git diff d05746546..HEAD --
+  //   plugin/skills/dispatch/SKILL.md | grep "^+.*|"` shows one Anti-Patterns
+  //   row added inside the `## Anti-Patterns` section (the other `+`/`-` lines
+  //   in that diff are argument-hint, Input-table, and Configuration-table
+  //   rows, outside this parser's section scope) and no row evicted.
+  assert.strictEqual(total, 384);
 });
