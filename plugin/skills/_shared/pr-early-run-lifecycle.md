@@ -101,13 +101,12 @@ existed, a same-name retry risked reopening the CLOSED PR found above (this step
 2's push, then having that push rejected non-fast-forward — leaving a reopened PR pointing at
 stale content with no automatic re-close. Step 1.6 (Remote-only stale branch check) closes the
 same gap in the other direction — a same-name branch left on `origin` by a prior attempt on a
-*different* machine or sandbox, invisible to Step 1.5's local-refs-only check — by probing `git
-ls-remote` and stopping for a human decision before `EnterWorktree` ever runs, rather than letting
-it surface only via this step's own reopen logic or a later rejected push. With both collision
-directions closed at their root, the branch this step queries is always freshly created, so `gh pr
-list --head {branch}` only ever matches a PR this exact run itself opened (resume case) — the
-CLOSED-match reopen branch above still exists for that legitimate resume, just never for a
-same-name-collision retry anymore.
+*different* machine or sandbox, invisible to Step 1.5's local-refs-only check — by stopping for a
+human decision before `EnterWorktree` ever runs, rather than letting it surface only via this
+step's own reopen logic or a later rejected push. With both collision directions closed at their
+root, the branch this step queries is always freshly created, so `gh pr list --head {branch}` only
+ever matches a PR this exact run itself opened (resume case) — the CLOSED-match reopen branch above
+still exists for that legitimate resume, just never for a same-name-collision retry anymore.
 
 ### Step 2: Push the branch
 
