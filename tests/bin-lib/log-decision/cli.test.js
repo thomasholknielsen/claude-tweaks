@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { run } = require('../../../plugin/bin/log-decision');
 
-const SCHEMA = /^- (AUTO|STAGED|KEPT-PROMPT|SCANNED) (\d{2}:\d{2}:\d{2}) — (.+?): (.+)\. Reversibility: (high|med|low|n\/a)\.(?: \[lever: .+\])?$/;
+const SCHEMA = /^- (AUTO|STAGED|KEPT-PROMPT|SCANNED|SKIP) (\d{2}:\d{2}:\d{2}) — (.+?): (.+)\. Reversibility: (high|med|low|n\/a)\.(?: \[lever: .+\])?$/;
 const NOW = new Date(2026, 7, 16, 9, 5, 7).getTime();
 
 function fixture() {
@@ -48,6 +48,16 @@ test('--section places the entry under the heading; --lever/--reversibility carr
   const lines = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8').split('\n');
   assert.equal(lines[4], '- STAGED 09:05:07 — Step 3 Routing: 2 findings staged. Reversibility: high. [lever: review-auto-apply-ceiling=low (default)]');
   assert.equal(lines[5], '## /test');
+});
+
+test('--status SKIP appends a schema-valid degrade-trace line', () => {
+  const { main, run: runDir } = fixture();
+  const out = [];
+  const code = run(['--run', runDir, '--status', 'SKIP', '--section', '/build', '--step', 'Common Step 6.5 (skipped)', '--text', 'condition: no docs/REGISTRY.md → fallback: no doc-sync check'], deps(main, out));
+  assert.equal(code, 0);
+  const text = fs.readFileSync(path.join(runDir, 'decisions.md'), 'utf8');
+  assert.equal(text, '## /build\n- SKIP 09:05:07 — Common Step 6.5 (skipped): condition: no docs/REGISTRY.md → fallback: no doc-sync check. Reversibility: n/a.\n');
+  assert.match(text.trim().split('\n').pop(), SCHEMA);
 });
 
 test('a --run inside a linked-worktree path is rejected non-zero and names the shadow', () => {

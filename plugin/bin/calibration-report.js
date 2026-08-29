@@ -132,19 +132,26 @@ function main() {
     process.exitCode = 0;
     return;
   }
-  let runs = loadRuns(args.root);
+  const runs = loadRuns(args.root);
   if (!runs) {
     process.stdout.write('no archived runs found\n');
     process.exitCode = 0;
     return;
   }
-  if (runs.length === 0 && tsv.rows.length > 0) {
-    const runIds = new Set(tsv.rows.map(r => r.runId));
-    runs = Array.from(runIds).map(runId => ({
-      runId,
-      decisionLines: [],
-      events: { counts: {} }
-    }));
+  if (tsv.rows.length > 0) {
+    // #917: a partially-pruned archive (older run dirs archived-then-deleted
+    // while wrap-up-outcomes.tsv persists) must not silently drop TSV rows
+    // whose runId has no matching archived dir. Synthesize a stub for every
+    // TSV runId missing from the loaded archive, not just the all-empty case
+    // — this subsumes the pre-#917 all-empty branch (existingRunIds is empty
+    // there, so every TSV runId gets a stub, same as before).
+    const existingRunIds = new Set(runs.map((r) => r.runId));
+    const tsvRunIds = new Set(tsv.rows.map((r) => r.runId));
+    for (const runId of tsvRunIds) {
+      if (!existingRunIds.has(runId)) {
+        runs.push({ runId, decisionLines: [], events: { counts: {} } });
+      }
+    }
   }
   const result = aggregate({ tsv, runs, rowIds: ROW_IDS, windowN: args.runs });
   const ceiling = resolveAutonomyCeiling(args.root);
