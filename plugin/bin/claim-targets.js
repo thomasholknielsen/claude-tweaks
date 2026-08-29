@@ -14,8 +14,7 @@ const { execFileSync } = require('child_process');
 const claimStore = require('./lib/issues/claim-store');
 const { run } = require('./lib/claim-targets/claim-targets');
 const { defaultRunner: gitDefaultRunner } = require('./lib/issues/claims-git-cas');
-
-const GH_TIMEOUT_MS = 5000;
+const { GH_TIMEOUT_MS } = require('./lib/shared-primitives');
 
 function defaultGh(args) {
   return execFileSync('gh', args, {
