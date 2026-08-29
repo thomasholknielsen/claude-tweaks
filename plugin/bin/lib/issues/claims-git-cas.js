@@ -7,6 +7,34 @@
 // `claim-store.js` tries this first and falls back to its own contents-API
 // implementation when this module reports a transport failure or a
 // secondary rate limit (see that module's `readClaimBlob`/`writeClaimBlob`).
+//
+// Deliberately NOT built on `bin/lib/health-core/durable-state.js`'s
+// `createNamespacedState` (#1466) — that generic CAS primitive looks like a
+// duplicate of this one at a glance, but the two engines have real,
+// load-bearing API-shape differences that a naive merge would either lose
+// or would require complicating `createNamespacedState`'s existing four
+// health-skill callers and `merge-lane-breaker.js` to accommodate:
+//   - This module reads/writes ONE raw string blob per issue.
+//     `createNamespacedState` always JSON.parses on read and JSON.stringifies
+//     on write, for a whole namespace's multi-file set.
+//   - This module's failure classification is four-way (`contested` /
+//     `secondary-rate-limit` / `missing-path` / `transport-failure`) — the
+//     `conflict`/`secondaryRateLimit` distinction specifically is consumed by
+//     `claim-store.js`'s contents-API-fallback decision. `createNamespacedState`
+//     collapses every write failure to `{ok, error}` with no such signal.
+//   - This module targets `CLAIMS_BRANCH` (`claims-registry`);
+//     `createNamespacedState` hardcodes `HEALTH_STATE_BRANCH` (`health-state`).
+//   - `createNamespacedState` owns its own CAS retry loop internally
+//     (`MAX_CAS_ATTEMPTS`, backoff/jitter, a post-failure re-fetch check).
+//     Retrying a rejected write here is the CALLER's job (`claim-store.js`'s
+//     `writeClaimBlob`) — folding that ownership into this module would
+//     change `claim-store.js`'s own disambiguation contract.
+// Extending `createNamespacedState` to cover all of the above (a raw/
+// non-JSON file-spec option, a parameterized branch, a failure-classification
+// passthrough) is possible in principle, but was judged not worth the risk
+// to its existing byte-identical-behavior guarantee for `createDurableState`
+// and `merge-lane-breaker.js` — see that file's own header comment for the
+// reciprocal note. If either engine's contract changes, check the other.
 'use strict';
 
 const { execFileSync } = require('child_process');

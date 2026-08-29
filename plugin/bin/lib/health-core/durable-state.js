@@ -34,6 +34,22 @@ const { execFileSync } = require('child_process');
 // breaker.json/watched.json pair does not fit the health skills' fixed
 // schema, so it calls createNamespacedState directly rather than going
 // through createDurableState.
+//
+// NOT extended to also absorb `bin/lib/issues/claims-git-cas.js`'s
+// claims-registry CAS engine (#1466), despite the surface-level resemblance
+// (both are git-plumbing-based CAS primitives). That module reads/writes a
+// single raw string blob (this primitive always JSON-parses/stringifies),
+// needs a four-way failure classification passthrough
+// (`contested`/`secondary-rate-limit`/`missing-path`/`transport-failure` —
+// this primitive collapses writes to `{ok, error}`), targets a different
+// hardcoded branch, and leaves retry ownership to its caller instead of
+// looping internally the way `writeState` below does. Absorbing it would mean
+// adding a raw-file mode, a branch parameter, and a classification
+// passthrough to this primitive without breaking `createDurableState`'s
+// byte-identical-behavior guarantee or `merge-lane-breaker.js`'s existing
+// contract — judged not worth that risk. See that module's own header
+// comment for the reciprocal note; if this primitive's contract changes,
+// check that module too.
 
 const HEALTH_STATE_BRANCH = 'health-state';
 const MAX_RUN_HISTORY = 90;
