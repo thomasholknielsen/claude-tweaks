@@ -13,7 +13,11 @@ invocation: a fetched GitHub issue title/body, a record body derived from one (a
 preserved `## Original request` block), a PR comment. Wrap on every entry path — interactive or
 headless; whether a human happens to be present does not change where the content came from.
 Task-agent dispatches are out of scope — they get a fresh context
-(`_shared/subagent-output-contract.md`).
+(`_shared/subagent-output-contract.md`). A fresh subagent context is not a stronger boundary
+for these judgments — the caller reasons over the fetched content in its own context regardless,
+and an LLM judges the same wrapped content in either shape; evaluated and declined for
+`framing-check` in #1276. Only these two structural grounds transfer to other consumers — a
+gating consumer's blast radius (`grant-check`) has not been separately evaluated.
 
 ## Caller obligation 1 — wrap
 
