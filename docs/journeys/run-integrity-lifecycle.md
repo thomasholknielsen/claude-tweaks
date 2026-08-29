@@ -20,7 +20,7 @@ files:
 
 ### 1. Work happens — the ledger writes itself
 - **Action:** Run any pipeline (`/claude-tweaks:flow`, `/claude-tweaks:build`): every model-initiated Skill-tool call is appended to the owned run's `events.jsonl` as `{"skill": ..., "ts": ..., "type": "skill_invoked"}` by the PostToolUse hook.
-- **Expect:** No visible output — log tier. Boundary (measured): user-typed slash commands and failed calls leave no event; subagent Skill calls do land, so a flow-driven wrap-up always registers.
+- **Expect:** No visible output — log tier. Boundary (measured): user-typed slash commands and failed calls leave no event; subagent Skill calls do land, so a flow-driven wrap-up always registers. Since `#1410` there is a third boundary: the event never lands in a *sibling worktree's* run. A run dir provably bound to a different, still-live worktree than the session's own cwd is skipped when the runtime has to guess an owner, so the event is appended to this session's own run or to none at all — never to an unrelated concurrent run's `events.jsonl`. A run with no provable worktree binding is still guessed into exactly as before.
 
 ### 2. A bypassed closure is flagged — next SessionStart
 - **Action:** Start a session in a repo whose newest non-terminal run's branch has actually merged (ancestry or squash/rebase patch-equivalence) while its ledger holds skill activity but no wrap-up event.

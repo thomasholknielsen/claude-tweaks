@@ -85,8 +85,10 @@ test('specify SKILL.md guard states its scope: every shaping entry, cases 2-4 ou
 });
 
 test('shaping-mode.md territory line carries the parent-guard removal carve-out', () => {
-  const src = readFlat('plugin/skills/specify/shaping-mode.md');
-  assert.ok(src.includes('as the one removal carve-out'), 'territory-line carve-out clause missing from shaping-mode.md');
+  // #1346 split shaping-mode.md at the ### Metadata block boundary; the territory
+  // line (part of Actions Performed) landed in shaping-mode-stamping.md.
+  const src = readFlat('plugin/skills/specify/shaping-mode-stamping.md');
+  assert.ok(src.includes('as the one removal carve-out'), 'territory-line carve-out clause missing from shaping-mode-stamping.md');
   assert.ok(src.includes('record bearing the parent marker'), 'parent-marker scoping missing from shaping-mode.md carve-out');
 });
 
@@ -95,7 +97,25 @@ test('next-mode.md names the shaping-time guard as the backstop for unlabeled le
   assert.ok(src.includes('shaping-time backstop'), 'backstop sentence missing from next-mode.md');
 });
 
-test('work-record.md permission matrix grants /specify the parent-guard removal carve-out', () => {
-  const src = readFlat('plugin/skills/_shared/work-record.md');
-  assert.ok(src.includes('parent-marked record only (case-1 parent-record guard cleanup'), 'permission-matrix carve-out missing from work-record.md');
+test('work-record-permission-matrix.md grants /specify the parent-guard removal carve-out', () => {
+  const src = readFlat('plugin/skills/_shared/work-record-permission-matrix.md');
+  assert.ok(src.includes('parent-marked record only (case-1 parent-record guard cleanup'), 'permission-matrix carve-out missing from work-record-permission-matrix.md');
+});
+
+const PERMISSION_MATRIX_FLAT = readFlat('plugin/skills/_shared/work-record-permission-matrix.md');
+
+test('permission-matrix.md /backlog refine row Adds column carries needs:decision', () => {
+  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (a scored, spec-shaped record `grant-check` refuses'), 'needs:decision missing from /backlog refine\'s Adds column');
+});
+
+test('permission-matrix.md /backlog grant row Adds column carries needs:decision', () => {
+  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (a gate-4 `grant-check` refusal'), 'needs:decision missing from /backlog grant\'s Adds column');
+});
+
+test('permission-matrix.md /specify row Removes column carries the generalized needs:* removal', () => {
+  assert.ok(PERMISSION_MATRIX_FLAT.includes('every `needs:*`-prefixed label present, on promotion'), 'generalized needs:* removal missing from /specify\'s Removes column');
+});
+
+test('permission-matrix.md /tidy row Adds column reserves needs:decision for Phase 6', () => {
+  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (Phase 6 — reserved here, not yet wired'), 'needs:decision Phase-6 reservation missing from /tidy\'s Adds column');
 });

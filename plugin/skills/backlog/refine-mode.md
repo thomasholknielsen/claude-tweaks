@@ -157,11 +157,8 @@ human is about to act on must stay visible at decision time and stay in the audi
 afterward, not be computed and then silently discarded. `blocked`/`parked` rows (below) have no
 `assess-agent-autonomy` call to draw a rationale from — Evidence reads a fixed string, per Step 4.
 
-- **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
-  `true`).
-- **`RECOMMEND_BUILD: false`** → `flag back (needs scoring)`. The human may supply scoring inline as
-  a free-text override instead of flagging back — the gate then stamps the supplied `risk:*`/
-  `size:*` labels alongside the grant (Step 5).
+Read `grant-lane-decision.md` in this skill's directory for its `RECOMMEND_BUILD: false`-branch
+outcome table and Step 5's write mechanics for each — not restated here.
 
 For every record in `blocked` or `parked` (unaffected by the budget), skip `grant-check` and
 recommend a fixed action regardless of content: **`re-authorize (bot:blocked)`** for `blocked` — a
@@ -187,7 +184,12 @@ fetch/render this sub-stage advises with, and how it never changes what the gate
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-For every record the grant-check pass recommends **granting** (not flag-back/blocked rows) — fetch the body and re-verify spec shape immediately before writing any label, using the same cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check` already fetched and cached the body at this run's session-scoped `assess-grant-{n}.json` — `_shared/session-tmp-root.md`; reuse it instead of a second API round-trip).
+For every record recommended for granting (Step 3) or resolved to `needs:decision` per
+`grant-lane-decision.md`'s outcome table — fetch the body and re-verify spec shape immediately
+before writing any label, using the same
+cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check`
+already fetched and cached the body at this run's session-scoped `assess-grant-{n}.json` —
+`_shared/session-tmp-root.md`; reuse it instead of a second API round-trip).
 
 ```bash
 eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "ASSESS_GRANT=assess-grant-${ISSUE}.json" "BACKLOG_REFINE_BODY=backlog-refine-body-${ISSUE}.md")"
@@ -241,10 +243,10 @@ born-`ready` by this path and this step does nothing.
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-One lane per record, precedence: Re-authorize → Re-triage (parked) → Grant → Flag-back → Priority →
-Dependency repair → Needs you. A record already laned above (Re-authorize/Re-triage/Grant/Flag-back)
-keeps its priority/Related suggestion as an annotation line under its row — a suggestion is never
-silently dropped.
+One lane per record, precedence: Re-authorize → Re-triage (parked) → Grant → Flag-back →
+Needs-decision → Priority → Dependency repair → Needs you. A record already laned above
+(Re-authorize/Re-triage/Grant/Flag-back) keeps its priority/Related suggestion as an annotation
+line under its row — a suggestion is never silently dropped.
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
 and paste-block templates, the consequence-line trust and `solution:unjustified` annotation templates, the
@@ -338,6 +340,9 @@ gh issue edit "$ISSUE" --remove-label ready
 gh issue comment "$ISSUE" --body-file "$BACKLOG_REFINE_FLAGBACK"
 ```
 
+**Needs-decision rows:** `grant-lane-decision.md`'s Write mechanics — label, comment, keep `ready`,
+no `auto:*`. Logged the same as any row above.
+
 Check each write's own result before logging it — a non-zero exit from any `gh`/`writeRecord` call
 above is a failure, not a success, regardless of which lane produced it (a reverify fetch above
 is not itself a write; it follows its own skip rule instead). Log every action to this
@@ -351,8 +356,9 @@ AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: repaired dependency on #{n} — {wired native blocked-by referencing #{m} | appended Blocked by #{m} line}.
 AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
+AUTO {time} — Backlog refine: stamped needs:decision on #{n} — {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: skipped #{n} — premise changed since confirmation ({what changed}); dropped without writing.
-FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
+FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back | needs-decision} write failed on #{n}: {error}.
 ```
 
 The closing summary below counts these lines by type — `FAILED` feeds the tally's `failed` count and per-failure lines; `AUTO … skipped …` (including a reverify-fetch failure) feeds `skipped` and its per-skip lines; a write with no matching line was never attempted and counts toward neither.
@@ -366,7 +372,7 @@ second bookkeeping channel:
    present, even at zero:
 
    ```
-   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 0 skipped · 0 failed
+   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 1 needs-decision · 0 skipped · 0 failed
    ```
 
 2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry

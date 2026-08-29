@@ -93,7 +93,7 @@ are about to apply.
 | Upstream (1) | `upstream-candidate` | marks a record whose real destination is the claude-tweaks plugin, filed locally only because a headless run could not clear `/claude-tweaks:feedback`'s confirmation gate |
 | Structure (1) | `parent-issue` | Structure: parent issue — carries the acceptance gate for its sub-issues. Marks a `/claude-tweaks:specify` decomposition parent — the only thing that makes it enumerable for `/claude-tweaks:tidy`'s `parent-gate` sweep (`_shared/github-pr-scan-acceptance.md`); never carried by a sub-issue |
 | Justification (1) | `solution:unjustified` | Marks a record whose stated problem names a solution that was never traded off; stamped by `/specify` via `/claude-tweaks:challenge`'s `framing-check`, absent means the framing read clean. Non-gating: the remedy is a one-line human call — `/claude-tweaks:challenge #{n}` resolves it in one step (supply evidence or accept the risk); re-running `/specify #N` also clears it, but only if the re-shape changes the framing itself. Pre-rename spelling `framing:baked` stays readable forever (`[IL-85]`), never emitted |
-| Definition (1) | `needs:definition` | Marks a record naming a genuine open choice with no tradeoff made yet, rather than a single clear ask; stamped by `/capture` and `/feedback` at filing time (a content judgment, not a structural heuristic), absent means the ask read clear |
+| Definition (2) | `needs:definition`, `needs:decision` | Marks a record naming a genuine open choice with no tradeoff made yet (`needs:definition`, stamped by `/capture`/`/feedback` at filing time — a content judgment), or a record where a headless unit proposed an action it may not take alone (`needs:decision` — the proposal and its command are in the record's newest unresolved decision comment; stamped by `/backlog refine`'s Grant lane and `/backlog grant`'s gate-4 refusal, see `backlog/grant-lane-decision.md`) |
 | Provenance (1) | `shaped:headless` | Marks a record shaped by `/specify`'s headless `next` unit with no human review of the resulting spec body — absent means either a human shaped it, or it predates this feature. Writer: `/specify` `next` mode only, applied in the same call as `ready` — never on an interactively-shaped record. Readers: the grant gate (`evaluateGrantGate`, #969), `/backlog attention`, and `/assess-agent-autonomy`'s `grant-check.md` Step 2 Judge (weighs this provenance toward a conservative verdict, #969). Never blocks an interactive human grant. |
 | Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
 | Container (1) | `digest` | marks the rolling digest issue container for below-materiality-floor deferred findings, per `_shared/materiality-floor.md` |
@@ -121,43 +121,44 @@ on filing a *new* write-only label the way `remembered.json`'s harness-health/do
 `upstream-candidate`'s original orphan state both did (#239) — both closed by giving the writer an
 actual reader rather than by deleting the write.
 
+### Decision-comment template
+
+The canonical shape for a `needs:decision` residue comment — cited by every writer
+(`backlog/grant-lane-decision.md`, `backlog/grant-mode.md`) rather than restated:
+
+```
+<!-- needs-decision: {unit} -->
+## Decision needed
+**Proposed:** {one line — the action}
+**Why:** {one line — the rationale, e.g. the grant-check RATIONALE}
+**Command:** `{paste-ready, fully-qualified}`
+```
+
+`{unit}` is the literal skill/mode name that wrote it (`backlog-refine`, `backlog-grant`, `tidy`) —
+this is what lets a later reader (and Phase 6's tidy loop-safety rule) tell which unit's proposal a
+given comment is.
+
+**Resolution rule.** A resolver prepends `**Resolved:** {choice} — {date}` to the comment body and
+removes the label **only when zero unresolved `needs-decision:*` comments remain on the record** —
+a record refused by both `backlog-refine` and `backlog-grant` concurrently carries two separate
+comments under the one shared label; resolving one leaves the label in place until the other is
+also resolved, so a still-open proposal from a second unit is never silently hidden by the first
+unit's own resolution. A comment with no `**Resolved:**` line is unresolved.
+
+### Worklist rule
+
+The worklist rule: a headless unit skips any open record carrying a `needs:*` label — a genuine
+open choice (`needs:definition`) or a proposal awaiting a human decision (`needs:decision`) is
+never a candidate for further autonomous action until a human resolves it. Every headless
+eligibility/candidate filter cites this rule rather than restating the label list:
+`bin/lib/issues/grant-gate.js`'s Gate 1c, `specify/next-mode.md`'s Eligibility query, and
+`tidy/step-1-records.md`'s record-scoped shapes.
+
 ## Permission matrix
 
-Who may add / remove which labels. "Machinery" = any headless or autonomous path.
-
-**Every row is exhaustive for its actor.** There is no general "agent path" row that widens the
-specific ones — each actor's born-`ready` conditions are documented on its own row directly:
-`/capture`'s (the ceiling-gated `--chained` shaping its Never column describes, and — since #625 — the Shaped-body branch its Adds column authorizes) and, since
-#623, the `side-effect:*` residue producers' — `/wrap-up` (leftover, ledger, and residue-sweep
-routing), `/reflect`, `/review`, and `/visual-review` — whose rows below state the `specShapedBody` composition
-their `ready` is conditional on. Extending born-`ready` to any further actor (`/demo` follow-ups)
-still means editing that actor's own row, deliberately, and until then its `Never` column holds
-as written whatever the ceiling says.
-
-| Actor | Adds | Removes | Never |
-|---|---|---|---|
-| **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
-| **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `size:*`, `ready` (born-ready), Type; on a headless D5 finding, `upstream-candidate` **instead of** `ready`/`risk:*`/`size:*` | nothing | `auto:*`, `bot:*`, `parked` |
-| **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`), `needs:definition` (content judgment at filing time — see Judging Definition in `capture/SKILL.md`); `risk:*`, `size:*`, `ready` (**only** on the Shaped-body branch — structural check passed, `needs:definition` false, `via specShapedBody` footer present — see `capture/SKILL.md`); `size:*` on an **absorb target** record — a different, pre-existing record, raise-only, never lowered, on any branch (see Absorb mechanics in `capture/SKILL.md`) | nothing | `parked`, `auto:*`, `bot:*` — always; scoring and `ready` on the **new record** of any **stub** filing, at every ceiling (the Shaped-body branch is the sole exception, per Adds; the absorb-target `size:` raise is a write to a different record, not a scoring of the filing). Under `autonomy: trusted`+ with a `clean` `producer:capture` verdict the filing chains into `/claude-tweaks:specify --chained`, and *specify* stamps scoring and `ready` under its own row's authority (see `_shared/autonomy-ceiling.md`); the chain never fires alongside `needs:definition` — an undecided record cannot be born-ready |
-| **`/feedback`** | `needs:definition` (content judgment at filing time, same posture as `/capture`'s), `bug`/`enhancement` **only** when `gh label list` confirms the label exists on `thomasholknielsen/claude-tweaks` | nothing | every other label in this repository's own internal automation taxonomy (`by:*`, `type:*`, `risk:*`, `size:*`, `ready`, `ceremony:*`, `auto:*`, `bot:*`, `parked`) — `needs:definition` is the single named exception |
-| **`/specify`** (shaper) | `ready`, `risk:*`/`size:*` when unstamped, `ceremony:*` (always — no unscored state), `solution:unjustified` (via `/claude-tweaks:challenge`'s `framing-check`), Type, `parent-issue` (decomposition parents only, never sub-issues), `shaped:headless` (`next` mode only, stamped alongside `ready` in the same call — never on an interactively-shaped record) | `parked` (promotion); `ready`/`risk:*`/`size:*`/`ceremony:*`/`solution:unjustified` from a parent-marked record only (case-1 parent-record guard cleanup — `skills/specify/SKILL.md`); `needs:definition` from the origin record a 1-unit collapse shapes in place (`specify/record-creation.md`'s Origin-set carve-out) | `auto:*`, `bot:*` |
-| **`/backlog refine`** (write mode, human present) | `auto:build`, `auto:merge` (human-confirmed), `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path, adding any `bot:*`, `risk:*`/`size:*` beyond the inline-override case, body-shaping beyond the `**Related:**` line |
-| **`/backlog grant`** (headless machine-grant mode, `github-issues` only — the one machine-origination path, see Grant semantics above) | `auto:build` (+`auto:merge-pending` when authorized), only on a record whose full gate chain clears (`bin/lib/issues/grant-gate.js`, `backlog/grant-mode.md`) | `bot:blocked` (re-authorize, `auto:build` only — never bundles `auto:merge`) | granting a human-filed record (no `by:*`), adding `ready`/`priority:*`/any `bot:*`, body-shaping beyond the audit comment, running at all under `work-backend: local-files` (no headless consumer acts on a local grant) |
-| **`/backlog overview`** (read mode) | nothing | nothing | everything — pure read-only distribution/recommendation view |
-| **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling), `demo:pending` (group auto-merge gate, `dispatch/settle-and-merge.md` — reuses `/wrap-up`'s own `verification-brief.md` procedure, including its parent-gate routing, so on a parent-linked sub-issue the label lands on the parent instead), `auto:merge` (**maturation only**) | `auto:merge` (failure downgrade), `auto:merge-pending` (maturation's label swap), `auto:*` (at ceiling), `bot:in-progress` (release) | originating a fresh `auto:*` grant (promotion, not origination), adding `ready`, `demo:approved`, `demo:changes-requested` |
-| **`/tidy`** (hygiene) | `parked` (Defer action, with trigger), `demo:pending` (Open parent gate action, either driver — the local twin writes the parent's `acceptance: pending` facet; both reuse `/wrap-up`'s own gate-opening write) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*`, `demo:approved`, `demo:changes-requested` |
-| **Executors** (`/flow`, `/build`) | `bot:parked` — merge-verification park only (`_shared/pr-first-merge.md` Step 2.5's red path). This path parks **without** revoking `auto:*`: a red or timed-out CI check is not a build failure, so there is no Settle classification and no retry increment behind it — unlike `/dispatch`'s retry-ceiling `bot:blocked` write above | nothing | `auto:*`, `ready` |
-| **`/wrap-up`** (all filing paths: leftover routing, ledger Phase 2/3 routing, residue-sweep records) | `demo:pending`; `parked` (a `Trigger:` leftover or Defer — never alongside `ready`); `bot:parked` (the same `_shared/pr-first-merge.md` Step 2.5 red path, reached through `wrap-up/review-console.md`'s fast-lane merge — same no-`auto:*`-revocation rule as the Executors row); `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer; a `Trigger:` leftover carries `parked` instead of `ready`); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant); `auto:merge` (**maturation only**) | `bot:in-progress` (claim release); `auto:merge-pending` (short-circuit's swap) | originating a fresh `auto:*` grant (promotion, not origination), `bot:*` (other than the release), `priority:*`, `demo:approved`, `demo:approved-batch`, `demo:changes-requested`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
-| **`/reflect`** (tangential routing, Defer) | `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant); `parked` (a Defer with a real `Trigger:` — never alongside `ready`) | nothing | `auto:*`, `bot:*`, `priority:*`, `demo:*`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
-| **`/review`** (Step 3 Defer — Capture routes file under `/capture`'s own row) | `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant); `parked` (a Defer with a real `Trigger:` — never alongside `ready`) | nothing | `auto:*`, `bot:*`, `priority:*`, `demo:*`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
-| **`/visual-review`** (Findings & Ideas Defer — standalone runs; under `/review` its findings route through that row) | `risk:*`, `size:*` (scored per the Scoring axis from the filed content); `ready` (born-ready — **only** on a body composed via `specShapedBody` carrying a valid `Defer-reason:` and a `via specShapedBody` footer); Type (content-judged: `task`/`bug`/`feature`); `needs:definition` (**instead of** `ready`/scoring, on the composer's `openQuestion` variant); `parked` (a Defer with a real `Trigger:` — never alongside `ready`) | nothing | `auto:*`, `bot:*`, `priority:*`, `demo:*`, and `ready` on any body not composed by `specShapedBody` or alongside `parked`/`needs:definition` |
-| **`/demo`** | `demo:approved`, `demo:changes-requested`, `demo:approved-batch` (Approve only, stacked alongside `demo:approved`, batch-sourced verdicts only) | `demo:pending` (on resolution) | `auto:*`, `ready`, `bot:*`, adding `demo:pending` itself |
-
-**Driver-conditional note:** grants are *enforceable* only under the `github-issues` driver —
-GitHub's RBAC means applying a label requires triage permission (a label is a maintainer's
-signature), and the label audit trail records who granted what. The `local-files` driver
-records grants as frontmatter for isomorphism, but no headless consumer acts on them —
-headless dispatch is github-issues only.
+Who may add / remove which labels, per actor — extracted to keep this file under the 40 KB
+lazy-load ceiling. See `_shared/work-record-permission-matrix.md` for the full actor table
+(every row exhaustive for its actor) and the driver-conditional enforceability note.
 
 ## Grant semantics
 

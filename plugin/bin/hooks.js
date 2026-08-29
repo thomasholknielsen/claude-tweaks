@@ -163,7 +163,9 @@ function resolveRunArg(args, cwd, env) {
       //       archive/{id} shadow specifically, no LIVE (non-archived) run
       //       dir exists under that same id either, since a run can be live
       //       under one id while a worktree-local session independently
-      //       archived its own local copy under the same id (#1183 fix-wave).
+      //       archived its own local copy under the same id (#1183 fix-wave);
+      //       the mirror also holds for a LIVE-shape shadow: no ARCHIVED run
+      //       dir exists under that same id at the main checkout either (#1299).
       // #1183: (d) used to join only path.basename(resolved), so a nested
       // multi-spec shadow (pipelines/{parent}/spec-N) or an archived shadow
       // (pipelines/archive/{id}) computed the wrong main-checkout candidate
@@ -203,10 +205,22 @@ function resolveRunArg(args, cwd, env) {
       const mainLiveCandidate = (inPipelines && isArchiveShape && runIdSegment)
         ? path.join(mainRoot, '.claude-tweaks', 'pipelines', runIdSegment)
         : null;
+      // #1299: the mirror direction — a LIVE-shape shadow (relParts[0] !==
+      // 'archive') must also be checked against an ARCHIVED copy of the same
+      // run-id under the main checkout. A run can be archived under one id at
+      // the main checkout while a worktree-local session independently kept
+      // (or re-created) a live copy under the same id; checking only the
+      // live/live path (mainCandidate) would miss that, mirroring the exact
+      // gap #1183 closed for the opposite (archive-shape) direction above.
+      const mainArchivedCandidate = (inPipelines && !isArchiveShape && runIdSegment)
+        ? path.join(mainRoot, '.claude-tweaks', 'pipelines', 'archive', runIdSegment)
+        : null;
       // isDirectory already fails closed (try/catch) on a null path, so no
-      // separate truthiness guard is needed for mainLiveCandidate — mirrors
-      // how mainCandidate above is passed through unguarded.
-      const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate);
+      // separate truthiness guard is needed for mainLiveCandidate/
+      // mainArchivedCandidate — mirrors how mainCandidate above is passed
+      // through unguarded.
+      const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate)
+        || isDirectory(mainArchivedCandidate);
       // `inPipelines` is provably implied by `runIdShaped` here (relParts, and so
       // runIdSegment, is only ever populated when inPipelines is true) — kept explicit
       // anyway as a self-documenting invariant a future edit to relParts/runIdSegment's
@@ -246,12 +260,36 @@ async function main(argv) {
     // "newest non-terminal run" fallback, which a stale never-closed run
     // could win over the run genuinely making this call.
     const {
-      runDir, invalidRunArg, rest, worktreeLocalFallback,
+      runDir, invalidRunArg, rest, worktreeLocalFallback, explicit,
     } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     const worktreeArg = rest[0];
+    // #1124: every real caller already passes --run explicitly (build's
+    // worktree-setup.md Step 4.5, the run-resume-freshness re-stamp, the
+    // subagent-output-contract re-stamp) — nothing legitimate depends on the
+    // implicit fallback below. An invocation that omits --run, including a
+    // bare/malformed `--help`, previously fell through to resolveRunDir's
+    // "newest non-terminal run" GUESS and could silently clobber a DIFFERENT
+    // live session's run-state.json (reproduced 3x independently on
+    // 2026-08-20, across three different dispatched subagents). Never guess
+    // here: refuse loudly, before this handler ever gets a chance to WRITE
+    // anything — a true no-op, non-zero exit. (`resolveRunArg` itself still
+    // runs unconditionally above and, on the no-`--run` path, still calls
+    // `ctxLib.resolveRunDir` — a real scan of sibling run-state.json files —
+    // whose result this branch simply discards; the guarantee here is "no
+    // write," not "no read.")
+    if (!explicit) {
+      process.stdout.write('claude-tweaks: record-worktree requires --run — worktree not recorded\n');
+      return 1;
+    }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — worktree not recorded\n`);
+    } else if (worktreeArg && worktreeArg.startsWith('-')) {
+      // An unrecognized flag (e.g. a stray --help) landing in the
+      // worktree-path position must never be treated as a literal path —
+      // this is the exact shape every observed incident hit.
+      process.stdout.write(`claude-tweaks: unrecognized argument ${worktreeArg} — worktree not recorded\n`);
+      return 1;
     } else if (runDir && worktreeArg) {
       // Stamp the owning session so E1 can scope enforcement to it. Absent env
       // var: omit the key rather than write null — an env-less re-record must
@@ -264,12 +302,13 @@ async function main(argv) {
       } else {
         process.stdout.write(`claude-tweaks: failed to record worktree for ${path.basename(runDir)} — run-state.json could not be written\n`);
       }
-    } else if (!runDir) {
-      process.stdout.write('claude-tweaks: no pipeline run dir found — worktree not recorded\n');
     } else {
       // runDir resolved but worktreeArg is falsy — the only remaining case
-      // in this chain. Without this branch, a call that omits the worktree
-      // positional (e.g. "record-worktree --run <dir>" with nothing after)
+      // in this chain (with --run now required above, invalidRunArg is
+      // falsy here only when runDir already resolved to a real directory —
+      // see resolveRunArg: runDir is null iff invalidRunArg is truthy).
+      // Without this branch, a call that omits the worktree positional
+      // (e.g. "record-worktree --run <dir>" with nothing after)
       // printed nothing and exited 0, indistinguishable from success.
       process.stdout.write(`claude-tweaks: no worktree path given for ${path.basename(runDir)} — worktree not recorded\n`);
     }
@@ -598,7 +637,7 @@ async function main(argv) {
     try {
       out = await require('./lib/reconcile').reconcile(opts);
     } catch {
-      out = { mirror: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
+      out = { mirror: null, redTip: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [{ check: 'all', reason: 'reconcile-threw' }] };
     }
     if (jsonOut) {
       // Unchanged from before #638 — byte-for-byte, so bin/lib/reconcile's

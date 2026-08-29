@@ -8,7 +8,7 @@
 // bin/lib/model-profiles/policy-fragment.js#parsePolicyModelConfig (the one
 // nested-block key). No resolution logic lives here. Zero runtime npm deps.
 //
-// Usage: resolve-policy.js [--values | --all] [--run <dir>] <key> [<key>…]
+// Usage: resolve-policy.js [--values | --all] [--mcp-reachable] [--run <dir>] <key> [<key>…]
 // Output: one JSON object on stdout keyed by requested name — or, with
 // --values, one plain value per line in request order (scalar mode for shell
 // captures; empty line for unset-no-default and error entries; not valid for
@@ -23,10 +23,16 @@
 // git repo) — never from
 // CLAUDE_PLUGIN_ROOT (observed unset in Bash tool environments, #170) and
 // never from a positional path argument.
+// --mcp-reachable asserts the caller has already confirmed GitHub
+// reachability via its own MCP probe (e.g. a bounded `list_issues`/`get_me`
+// call) inside the current agent turn — pass it only when that probe
+// succeeded; it forwards into detectIntegrationModel's mcpReachable override
+// for the integration-model key, and (via resolveIntegrationModel) for
+// merge-verification too whenever that key is derived in the same call.
 'use strict';
 const fs = require('fs');
 const { execFileSync } = require('child_process');
-const { detectIntegrationModel, POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
+const { detectIntegrationModel, resolveIntegrationModel, POLICY_KEYS, resolvePolicyConfig } = require('./lib/policy-schema');
 const { deriveMergeVerification } = require('./lib/merge-verification');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 const { anchoredOrOutsideMessage } = require('./lib/run-dir-guard');
@@ -56,6 +62,7 @@ function main(argv) {
   let runDir = null;
   let valuesMode = false;
   let allMode = false;
+  let mcpReachable = false;
   const keys = [];
   while (args.length) {
     const arg = args.shift();
@@ -74,6 +81,8 @@ function main(argv) {
       valuesMode = true;
     } else if (arg === '--all') {
       allMode = true;
+    } else if (arg === '--mcp-reachable') {
+      mcpReachable = true;
     } else {
       // A key argument may be a single lever or a comma-joined list
       // (`--values a,b,c`) — both shapes collect into the same flat key list,
@@ -93,7 +102,7 @@ function main(argv) {
   }
   if (allMode) keys.push(...POLICY_KEYS.map((row) => row.key));
   if (keys.length === 0) {
-    fail('usage: resolve-policy.js [--values | --all] [--run <dir>] <key> [<key>…]');
+    fail('usage: resolve-policy.js [--values | --all] [--mcp-reachable] [--run <dir>] <key> [<key>…]');
     return;
   }
   if (valuesMode && keys.includes('model-profiles')) {
@@ -134,7 +143,7 @@ function main(argv) {
   if (keys.includes('integration-model')) {
     const entry = result['integration-model'];
     if (entry && entry.source === 'default' && !entry.invalid) {
-      result['integration-model'] = { value: detectIntegrationModel(root), source: 'default' };
+      result['integration-model'] = { value: detectIntegrationModel(root, { mcpReachable }), source: 'default' };
     }
   }
 
@@ -145,14 +154,21 @@ function main(argv) {
   if (keys.includes('merge-verification')) {
     const entry = result['merge-verification'];
     if (entry && entry.source === 'default' && !entry.invalid) {
-      // Reuse this call's own integration-model result (already computed
-      // above) instead of letting deriveMergeVerification's internal
-      // resolveIntegrationModel()->detectIntegrationModel() redo forge
-      // detection from scratch — avoids running it twice per invocation.
+      // When --mcp-reachable is set, always build a fresh deps.integrationModel
+      // that forwards it, regardless of whether integration-model is also in
+      // keys — reusing this call's own integration-model result (the
+      // avoid-running-forge-detection-twice optimization below) is only safe
+      // when mcpReachable is false, since a bare fallback to
+      // deriveMergeVerification's internal resolveIntegrationModel(root) with
+      // no opts would silently drop the flag (the `gh` probe would run
+      // despite the caller's assertion). Correctness beats the
+      // micro-optimization here.
       const modelEntry = result['integration-model'];
-      const deps = keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
-        ? { integrationModel: () => modelEntry.value }
-        : {};
+      const deps = mcpReachable
+        ? { integrationModel: (r) => resolveIntegrationModel(r, { mcpReachable }) }
+        : keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
+          ? { integrationModel: () => modelEntry.value }
+          : {};
       result['merge-verification'] = { value: deriveMergeVerification(root, deps), source: 'default' };
     }
   }

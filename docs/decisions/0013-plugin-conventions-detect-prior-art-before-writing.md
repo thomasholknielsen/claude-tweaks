@@ -10,6 +10,13 @@
 > dated evidence of what was decided and in what words, superseded rather than edited. The
 > decision itself is untouched by the rename.
 
+> **Naming note (6.108.0).** The Decision section below records the answer key as
+> `doc-convention.{genre}`. That dotted spelling was renamed to `doc-convention-{genre}`
+> (dash, matching this schema's flat kebab-case keys) in the naming-convention rename program;
+> `doc-convention.adr` now resolves only via the legacy alias in `bin/lib/policy-schema.js`'s
+> `RENAMED_KEYS` (removal condition: `_shared/policy-deprecations.md`). Unchanged here for the
+> same reason as the note above — read `doc-convention-{genre}` as current.
+
 ## Context
 
 `_shared/decision-records.md` stated `docs/decisions/NNNN-{kebab-slug}.md` as a fact. A consuming repo had sixteen ADRs named `ADR-{n}-{kebab-title}.md`, its own committed `architecture-decision` skill, and a `docs/REGISTRY.md` indexing them. The first passing ADR gate there would have produced a seventeenth file in a grammar matching neither the other sixteen nor the registry.

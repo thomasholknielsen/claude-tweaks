@@ -11,6 +11,14 @@
 // (unlike the `gh api` modules under `bin/lib/`, per `gh-api-module-pattern`);
 // this is the minimum needed for a spawn-count test to observe these calls at all (#381).
 const cp = require('child_process');
+const { promisify } = require('util');
+// promisify(cp.execFile) is called fresh inside runGitAsync below, not
+// snapshotted here — the same call-time-resolution reason as the comment
+// above: promisify captures its argument by reference at the point it's
+// called, so hoisting this to module scope would silently defeat a test's
+// `cp.execFile = stub` monkeypatch (#872 follow-up — exactly this hoisted
+// form shipped once and broke `runGitAsync`'s own timeout test's ability to
+// mock a slow child deterministically).
 
 // Budget for one git query, sized from measurement rather than intuition (#134).
 //
@@ -79,9 +87,18 @@ function classify(err) {
 
 // Runs `git -C <cwd> <args>`.
 //
-// Returns { stdout, failure }:
-//   - success -> { stdout: '<trimmed stdout>', failure: null }
-//   - failure -> { stdout: null, failure: one of FAILURE.* }
+// Returns { stdout, failure, stderr }:
+//   - success -> { stdout: '<trimmed stdout>', failure: null, stderr: null }
+//   - failure -> { stdout: null, failure: one of FAILURE.*, stderr: '<trimmed
+//     stderr text, or '' when git produced none>' }
+//
+// `stderr` is additive (#1341) — every existing call site destructures only
+// `{ stdout }`/`{ failure }`/both, so a new third field changes nothing for
+// them. It does NOT change the FAILURE.* category any caller switches on or
+// `isIndeterminate`'s verdict — those stay exactly the coarse classification
+// they were; `stderr` is strictly extra diagnostic detail for a consumer
+// (e.g. reap-merged.js's residue escalation) that wants git's real message
+// instead of just the category name.
 //
 // Always an object, never null. The function is deliberately no longer named
 // `execGit`: the old name returned `string | null`, so a call site left
@@ -95,7 +112,7 @@ function runGit(args, cwd, opts = {}) {
   const timeout = resolveTimeout(opts);
   try {
     const stdout = cp.execFileSync('git', ['-C', cwd, ...args], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout,
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout,
       // Node defaults windowsHide to FALSE, which hands a child console
       // process a console of its OWN whenever the parent has none to
       // inherit. session-start.js's `reconcile-background` child is exactly
@@ -105,6 +122,31 @@ function runGit(args, cwd, opts = {}) {
       // user as a runaway loop rather than routine janitorial work. Inert on
       // POSIX, where the option is ignored.
       windowsHide: true,
+    });
+    return { stdout: stdout.trim(), failure: null, stderr: null };
+  } catch (err) {
+    // execFileSync populates err.stderr as a string when `encoding` is set
+    // (as it is above), same as it does err.stdout on success. A timeout
+    // kill or a spawn failure (EAGAIN/ENOENT/...) may never have produced
+    // any stderr at all — fall back to '' rather than surfacing `undefined`
+    // through a field every caller now expects to be string-or-null.
+    const stderr = typeof err.stderr === 'string' ? err.stderr.trim() : '';
+    return { stdout: null, failure: classify(err), stderr };
+  }
+}
+
+// Async twin of runGit — a real (non-blocking) execFile, so a caller can run
+// this concurrently with sibling async work instead of blocking the event
+// loop (reconcile/index.js's FAST_CHECKS Promise.all, #872). Same contract
+// as runGit (identical return shape, same classify()), just non-blocking —
+// mirrors the execFile-based async pattern reconcile/pr-state.js's
+// resolvePrStateAsync already established for `gh` calls, applied here to
+// `git`.
+async function runGitAsync(args, cwd, opts = {}) {
+  const timeout = resolveTimeout(opts);
+  try {
+    const { stdout } = await promisify(cp.execFile)('git', ['-C', cwd, ...args], {
+      encoding: 'utf8', timeout, windowsHide: true,
     });
     return { stdout: stdout.trim(), failure: null };
   } catch (err) {
@@ -122,4 +164,4 @@ function repoSlugOf(repoRoot) {
   return m ? m[1] : null;
 }
 
-module.exports = { runGit, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS, repoSlugOf };
+module.exports = { runGit, runGitAsync, isIndeterminate, FAILURE, DEFAULT_TIMEOUT_MS, repoSlugOf };
