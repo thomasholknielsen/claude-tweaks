@@ -18,6 +18,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { escapeRegExp } = require('../shared-primitives');
 
 function listSkillDirs(repoRoot) {
   const skillsDir = path.join(repoRoot, 'skills');
@@ -33,10 +34,6 @@ function listSkillDirs(repoRoot) {
 // silently passing a count-only check. Mirrors the pattern already established
 // in tests/bin-lib/skill-audit/house-structure.test.js.
 const KNOWN_SKILLS = ['build', 'flow', 'review', 'wrap-up', 'specify', 'test'];
-
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 // True when `name` is mentioned as a skill reference in `body`: either the
 // fully-qualified `claude-tweaks:{name}` form, or the short `` `/{name}` ``

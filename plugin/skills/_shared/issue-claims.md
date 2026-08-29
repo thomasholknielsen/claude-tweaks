@@ -167,7 +167,9 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   5. **`state: 'live'`** — contested. Do not attempt any write.
   6. **`state: 'unreadable'`** — fails closed to *live* (`classifyClaimBlob` reports
      `reclaimable: false`) — treat identically to step 5. `/tidy`'s sweep surfaces it for human
-     judgment, per the standing "a claim you cannot read is not yours to break" posture.
+     judgment, per the standing "a claim you cannot read is not yours to break" posture. To
+     repair or force-release a blob stuck in this state, see "Repairing an unreadable claim
+     blob" below.
 
   The only `sha` either write above ever uses is the target **file's** current blob sha, from
   step 1's fresh read.
@@ -176,10 +178,14 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   conditional-overwrite as step 4's re-claim, differing only in what content it writes. A sha
   mismatch means someone else already broke/re-claimed it; treat as a release race (log, TTL is
   the backstop, per the Failure posture table below). **`bin/release-claim.js`** performs this
-  whole sequence (read → classify → ownership check → tombstone `PUT` → comment → optional
-  label removals) in one command on the `gh` path — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js"
-  <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress]`,
-  exit `0` released / `3` already released or swept / `4` held by another run / `5` claim blob is
+  whole sequence (read → classify → ownership check → tombstone `PUT` → comment → label
+  removals) in one command on the `gh` path — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js"
+  <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--keep-in-progress-label]`.
+  `bot:in-progress` removal is opt-**out** (default on every release outcome that reaches the
+  label step, #1631 — `--remove-in-progress` is still accepted, now a no-op, and
+  `--keep-in-progress-label` is the only way to suppress it); `--remove-grants` (stripping
+  `auto:build`/`auto:merge-pending`/`auto:merge`) stays opt-in — see "Grant revocation" below.
+  Exit `0` released / `3` already released or swept / `4` held by another run / `5` claim blob is
   corrupt/unreadable (nothing written — distinct from `4`, since a corrupt blob can never
   self-resolve the way a live holder's claim eventually expires; do not retry-and-wait on `5` the
   way `4` permits) / `1` failed / `2` malformed or `gh` absent. The MCP path stays the manual
@@ -188,6 +194,40 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/claims?ref=${CLAIMS_BRANCH}" -q '.[].name'`
   - **MCP:** the equivalent read-tree/list-directory tool call against `claims/` on
     `CLAIMS_BRANCH`.
+
+### Repairing an unreadable claim blob
+
+`classifyClaimBlob` fails closed to `'unreadable'` for a blob whose content isn't valid claim
+JSON — both the acquire path (step 6 above) and `release-claim.js`'s exit `5` refuse to touch it,
+since content they cannot parse might still encode someone's live claim. This is a **human or
+`/tidy`-invoked override**, not a new classify outcome: performing it does not change what
+`classifyClaimBlob` reports for the same content on a future read — it changes the *content*, by
+overwriting it.
+
+Repair reuses step 4's re-claim mechanics exactly — a conditional-overwrite `PUT`/
+`create_or_update_file` with `sha` set — with one difference: step 4 gets its `sha` from a blob it
+just classified as `'tombstone'`/`'stale'`; here the blob's *content* is unreadable, but its **blob
+sha is ordinary response metadata from the read**, independent of whether the content parses, so
+it is always available even when `classifyClaimBlob` cannot make sense of what the sha points at.
+
+1. Read the blob at `claims/issue-<number>.json` on `CLAIMS_BRANCH` (step 1 above) and capture its
+   current blob **sha** from the read response. This step never depends on the content parsing.
+2. Confirm the content is genuinely unreadable rather than merely mis-extracted: run it through
+   step 2's classify call and confirm the outcome really is `'unreadable'` — a wrapper-object
+   extraction mistake (the false-`'unreadable'` case step 2's own note describes) is not this
+   case and should be fixed at the read, not repaired here.
+3. Write the replacement content **conditionally**, with `sha` = the sha captured in step 1 (the
+   same `PUT`/`create_or_update_file` call shape as step 3/4 above, `sha` included):
+   - **Force-release without re-claiming:** write `releasePayload`-shaped tombstone content — the
+     same content shape the Release bullet above writes.
+   - **Repair-and-claim in one step:** write `claimPayload`-shaped content — the same content
+     shape steps 3/4 above write.
+   A rejection here means the sha changed since step 1's read — someone else already broke or
+   overwrote the blob first; re-read and reassess rather than retrying blind.
+4. Log the override (who, when, why) somewhere durable (a `/tidy` run's own record, or a comment
+   on the issue). Every other write in this file is a routine claim/release; this one silently
+   destroys content that — despite failing to parse — may have carried a real holder's identity,
+   so it is the one write here that should never go unlogged.
 
 ### Group claiming
 
@@ -310,7 +350,7 @@ and let `/tidy`'s sweep surface it for human judgment.
 | Spec merged / PR opened / discarded | `/wrap-up` cleanup item 7 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
 | Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
 | Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:dispatch` settle step (automatic, unconditional) | `failed: {gate}` |
-| Headless `specify next` shapes the claimed record (success), routes it to `needs:definition` (success), or fails during shaping | `specify/next-mode.md` Release step (automatic, unconditional, always before that path's self-report) | `shaped: #{n}` / `routed: needs:definition #{n}` / `failed: shaping` |
+| Headless `specify next` shapes the claimed record (success), routes it to `needs:definition` (success), or fails during shaping | `specify/next-mode-shape.md` Release step (#1346's split of `next-mode.md`; automatic, unconditional, always before that path's self-report) | `shaped: #{n}` / `routed: needs:definition #{n}` / `failed: shaping` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
 | Grant removal (`auto:build`/`auto:merge`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up`'s `cleanup-procedures-execution.md` Section E step 6 (single-spec) | — (label edit, not a claim release) |
 | Interrupted session | nobody — TTL ages it out; `/tidy` sweeps it | — |
@@ -477,7 +517,7 @@ conflict.
 | `/claude-tweaks:flow` (issue-reference mode) | Claims its named targets at Step 2.8 (`flow/claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly. Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. |
 | `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 7 / `cleanup-procedures-execution.md` Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
-| `/claude-tweaks:specify` `next` form (`specify/next-mode.md`) | Claims the selected record before shaping (Claim step); releases on every path that actually acquired a claim — the shaping-success path and a post-claim shaping-stage failure. A zero-eligible exit or a contested/ineligible-on-re-read exit never acquires a claim, so there is nothing to release on those paths. |
+| `/claude-tweaks:specify` `next` form (`specify/next-mode.md` + `next-mode-shape.md`, #1346's split) | Claims the selected record before shaping (Claim step, `next-mode.md`); releases on every path that actually acquired a claim (Release step, `next-mode-shape.md`) — the shaping-success path and a post-claim shaping-stage failure. A zero-eligible exit or a contested/ineligible-on-re-read exit never acquires a claim, so there is nothing to release on those paths. |
 
 **Non-consumers (deliberate):** `/code-health` files issues but never works them — a concurrent-
 filing race costs at worst one duplicate issue, caught by dedup next run. Interactive

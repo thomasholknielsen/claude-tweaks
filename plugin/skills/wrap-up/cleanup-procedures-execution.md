@@ -115,7 +115,28 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    **`integration-model: local-merge`:** verify the feature branch reached an outcome (merged, PR
    created, discarded, or explicitly kept as-is) via `/superpowers:finishing-a-development-branch`:
    - **Already completed (merged, PR created, or discarded)** → proceed to step 4.
-   - **Not yet decided** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. Then branch on the outcome:
+   - **Not yet decided** → check `_shared/local-merge-auto-finish.md`'s Precondition
+     (`integration-model` resolves `local-merge` AND `{run-dir}/config.yml` exists — see
+     `_shared/integration-model.md` for the resolution and `flow/manifesto.md` for why
+     `config.yml`'s presence is the "not interactive" proxy). When it holds, read and follow that
+     file's Procedure instead of invoking `/superpowers:finishing-a-development-branch` — it never
+     presents that skill's interactive menu, and every outcome it produces is already logged per
+     `_shared/auto-decision-log.md`'s canonical schema. Map its outcome onto this branch structure:
+     - **`merged`** → proceed to step 4, same as "Merged, PR created, or discarded" below.
+     - **`pending-review`** → a merge conflict or a failed merged-result verification — do NOT
+       proceed to step 4. Skip steps 3.5, 3.6, 4, and 5 below entirely for this spec (do NOT close
+       the run, do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue
+       claim release) — same posture as "Kept as-is" below, since the worktree and branch are
+       exactly as `local-merge-auto-finish.md` left them: unmerged, unmodified, awaiting a human.
+       Note in the wrap-up summary that this spec parked pending resolution of a merge conflict or
+       failed post-merge verification, distinct from a deliberate keep-as-is.
+
+     When the Precondition does not hold (an `interactive` or standalone run — no `config.yml` in
+     this run's directory), run `/superpowers:finishing-a-development-branch` now (do not stop and
+     ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the
+     skill normally would, unmodified — step 2's carrier commit already guarantees closure
+     regardless of which option is chosen, so this skill's own literal git commands need no
+     adaptation. Then branch on the outcome:
      - **Merged, PR created, or discarded** → proceed to step 4.
      - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 3.5, 3.6, 4, and 5 below entirely for this spec (do NOT close the run, do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
    In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp

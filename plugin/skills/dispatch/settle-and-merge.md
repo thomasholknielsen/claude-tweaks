@@ -35,21 +35,25 @@ A group is dispatched as **two** sequential Task calls (Step 5). This procedure 
 When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
 **Claim-contest special case (before the numbered steps below).** When the failure this call is
-settling is a Step 2.8 claim contest **or in-flight-tombstone stop** (`flow/claim-targets.md`'s
-"Claim contested" stop, or its "Claim in-flight" variant (#315) — that file documents the two as
-behaving identically — no build or test ever ran, the pipeline stopped before the Config
-Manifesto), this record was never claimed by this run at all, so step 1 below's ownership check
-will correctly find no claim to release (skip is the right outcome there, not an error). The one
-thing this case adds: **when `DISPATCH_HEADLESS=1` was set on this Task call's invocation**
-(`dispatch/task-prompt.md`'s first template — set only for a `next`-form firing, where nobody is
-present to read the stop directly), read `_shared/headless-self-report.md` and follow its
-dedup-and-file procedure (caller = `dispatch`), using failing-check-name
-`flow-step-2.8-claim-contest` (contest stop) or `flow-step-2.8-claim-in-flight` (in-flight stop)
-and that stop's own message as the diagnostic body. This is the one Settle branch that runs
-*before* any release/classification logic, since there is nothing to release or classify — it is
-a pre-flight stop, not a build/test failure. When `DISPATCH_HEADLESS` is unset (a human-present
-dispatch form), skip this — the stop message the Task call already produced is sufficient; nobody
-headless needs a durable trace of it.
+settling is a Step 2.8 claim-loop stop that renders as a static card with no `AskUserQuestion` of
+its own — either `flow/claim-targets.md`'s "Claim contested" stop, or its "Claim in-flight" stop
+(#315/#958/#974's in-flight-tombstone variant — reached here only when that card's own routing into
+`dispatch/resume-confirmation.md` was itself skipped under `DISPATCH_HEADLESS=1`, since that
+routing's own headless skip is what leaves the card as this Task call's terminal output) — no
+build or test ever ran, the pipeline stopped before the Config Manifesto, this record was never
+claimed by this run at all, so step 1 below's ownership check will correctly find no claim to
+release (skip is the right outcome there, not an error). The one thing this case adds: **when
+`DISPATCH_HEADLESS=1` was set on this Task call's invocation** (`dispatch/task-prompt.md`'s first
+template — set only for a `next`-form firing, where nobody is present to read the stop directly),
+read `_shared/headless-self-report.md` and follow its dedup-and-file procedure (caller =
+`dispatch`), using failing-check-name `flow-step-2.8-claim-contest` for the contested-claim stop
+or `flow-step-2.8-claim-in-flight` for the in-flight-tombstone stop — distinct names, since the
+two are different stop shapes and must dedup separately — and that stop's own card text as the
+diagnostic body. This is the one Settle branch that runs *before* any release/classification
+logic, since there is nothing to release or classify — it is a pre-flight stop, not a build/test
+failure. When `DISPATCH_HEADLESS` is unset (a human-present dispatch form), skip this — the stop
+message the Task call already produced is sufficient; nobody headless needs a durable trace of
+it.
 
 1. The CLI in step 2 performs the ownership read itself (`claims/issue-{n}.json` on `claims-registry`, per `_shared/issue-claims.md`'s "The lock" and Ownership rule) and exits `4` — writing nothing — when the blob's `runId` doesn't match `basename($PIPELINE_RUN_DIR)` — the group directory dispatch minted before claiming and this Task call received directly (`dispatch/task-prompt.md`): a mismatch means a successor already broke the stale claim and now holds the lock. Skip the rest of this step for that record and move to the next one — no manual read.
 2. Release the claim and remove `bot:in-progress` in one command — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" "$ISSUE" --run "$PIPELINE_RUN_DIR" --reason "failed: {gate}" --remove-in-progress --section "/dispatch" --step "Settle"` (reason per `_shared/issue-claims.md`'s Release triggers table; label removal best-effort, the CLI logs a warning and continues on failure). Same CLI `wrap-up/cleanup-procedures-execution.md` Section E uses — the exit-code contract lives there, not restated here.

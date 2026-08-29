@@ -74,18 +74,6 @@ test('settle-and-merge.md documents the claim-contest special case', () => {
   assert.match(content, /DISPATCH_HEADLESS/);
 });
 
-test('settle-and-merge.md Claim-contest special case also recognizes the in-flight-tombstone stop (#315, #974)', () => {
-  const content = read('plugin/skills/dispatch/settle-and-merge.md');
-  const sectionStart = content.indexOf('**Claim-contest special case');
-  assert.ok(sectionStart !== -1, 'Claim-contest special case section should exist');
-  const sectionEnd = content.indexOf('\n\n1. The CLI in step 2', sectionStart);
-  assert.ok(sectionEnd !== -1, 'section should end before the numbered release steps');
-  const section = content.slice(sectionStart, sectionEnd);
-  assert.match(section, /Claim in-flight/);
-  assert.match(section, /flow-step-2\.8-claim-contest/);
-  assert.match(section, /flow-step-2\.8-claim-in-flight/);
-});
-
 test('issue-claims.md "The lock" step 4 checks for an in-flight PR before a tombstone/stale reclaim (#315, #974)', () => {
   const content = read('plugin/skills/_shared/issue-claims.md');
   const step4Start = content.indexOf("4. **`state: 'tombstone'` or `'stale'`**");
@@ -97,6 +85,41 @@ test('issue-claims.md "The lock" step 4 checks for an in-flight PR before a tomb
   assert.match(step4, /mcp__github__pull_request_read/);
   assert.match(step4, /OPEN/);
   assert.match(step4, /fail-open/);
+});
+
+test('claim-targets.md in-flight card routes into resume-confirmation.md, gated on DISPATCH_HEADLESS (#958)', () => {
+  const content = read('plugin/skills/flow/claim-targets.md');
+  const cardStart = content.indexOf('## Flow: Claim in-flight');
+  assert.ok(cardStart !== -1, 'in-flight card region should exist');
+  const sectionEnd = content.indexOf('\n- **4** —', cardStart);
+  assert.ok(sectionEnd !== -1, 'in-flight section should end before the exit-4 bullet');
+  const section = content.slice(cardStart, sectionEnd);
+  // The stale "Known gap ... unimplemented" framing must be gone, replaced by an actual route.
+  assert.doesNotMatch(section, /Known gap/);
+  assert.doesNotMatch(section, /hook-in is unimplemented/);
+  assert.match(section, /DISPATCH_HEADLESS/);
+  assert.match(section, /dispatch\/resume-confirmation\.md/);
+  assert.match(section, /claude-tweaks-run: \{run-id\}/);
+  assert.match(section, /check-resume-freshness/);
+});
+
+test('resume-confirmation.md documents claim-targets.md as a second caller (#958)', () => {
+  const content = read('plugin/skills/dispatch/resume-confirmation.md');
+  assert.match(content, /flow\/claim-targets\.md/);
+  assert.match(content, /#958/);
+});
+
+test('settle-and-merge.md Claim-contest special case also covers the Claim in-flight stop, with a distinct failing-check-name (review finding, #958)', () => {
+  const content = read('plugin/skills/dispatch/settle-and-merge.md');
+  const sectionStart = content.indexOf('**Claim-contest special case');
+  assert.ok(sectionStart !== -1, 'Claim-contest special case section should exist');
+  const sectionEnd = content.indexOf('\n1. The CLI in step 2', sectionStart);
+  assert.ok(sectionEnd !== -1, 'special-case section should end before the numbered steps');
+  const section = content.slice(sectionStart, sectionEnd);
+  assert.match(section, /Claim in-flight/);
+  assert.match(section, /flow-step-2\.8-claim-in-flight/);
+  // both failing-check-names must be distinct and both present
+  assert.match(section, /flow-step-2\.8-claim-contest/);
 });
 
 test('mcp-transport.md no longer carries claim-write sections', () => {

@@ -3,6 +3,7 @@ files:
   - plugin/bin/residue.js
   - plugin/bin/lib/residue/probes/pipeline-runs.js
   - plugin/bin/lib/residue/probes/branches.js
+  - plugin/bin/lib/residue/probes/worktrees.js
   - plugin/bin/lib/residue/scope-filter.js
   - plugin/skills/wrap-up/residue-sweep.md
 ---
@@ -27,8 +28,8 @@ files:
 - **URL:** `node plugin/bin/residue.js --base <merge-base> --integration-branch origin/main --scope repo --no-suite --json`
 - **Action:** Re-run with `--scope repo` (the CLI default) and compare: the sibling's clean run dir and merged branches reappear, tagged `observed`.
 - **Should feel:** Reassuring — narrowing the close-time sweep dropped nothing from the repo-wide view.
-- **Should understand:** `scope-filter.js` filters only under `blast-radius`; `repo` passes every finding through untouched. Cross-session housekeeping is `/tidy`'s job (its Step 4.5 pass runs `--scope repo`), and clean-but-unarchived dirs older than 30 days fall to `/tidy`'s archival compaction.
-- **Red flags:** A finding present under `blast-radius` but missing under `repo` — structurally impossible if the filter is intact; `--scope repo` output changing shape after #1118 at all.
+- **Should understand:** `scope-filter.js` filters only under `blast-radius`; `repo` passes every finding through untouched. Cross-session housekeeping is `/tidy`'s job (its Step 4.5 pass runs `--scope repo`), and clean-but-unarchived dirs older than 30 days fall to `/tidy`'s archival compaction — except a dir whose recorded `worktree` is still a locked entry in `git worktree list`, which carries `remedy: record` plus the shared locked-worktree evidence (`lockedEvidence`, reused from `probeWorktrees`) instead of `remedy: auto`, so nothing archives out from under a live sibling session (#1328).
+- **Red flags:** A finding present under `blast-radius` but missing under `repo` — structurally impossible if the filter is intact; a sibling's clean run dir whose worktree is still locked offered as `remedy: auto`; a change to *which* findings `--scope repo` reports (as distinct from the `remedy`/`evidence` a single finding carries, which #1328 does change for the locked case).
 
 ### 3. Sweep from a context with no run identity
 - **URL:** `env -u PIPELINE_RUN_DIR node plugin/bin/residue.js --base <merge-base> --integration-branch origin/main --scope blast-radius --no-suite`
