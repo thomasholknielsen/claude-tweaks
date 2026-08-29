@@ -232,7 +232,7 @@ Re-prompting on format (below) does not apply to an exempt agent: it is not viol
 
 ## Re-prompt on violation
 
-When an agent returns malformed output (no table, narration before the table, wrong columns), the dispatcher re-prompts:
+When an agent returns malformed output — a wrong or missing status line, no table, narration before the table, wrong columns — the dispatcher re-prompts:
 
 ```
 Your output didn't match the required format. Re-emit using only this format:
@@ -241,6 +241,8 @@ Do not add explanation.
 ```
 
 Cap at one retry. If still malformed, accept what you got and move on (do not loop).
+
+**Check the status word's position, not merely its presence.** A reply that opens with narration and states the status word only later ("Based on my review, DONE") violates the Implementer Status Protocol even though the literal token appears somewhere in the reply. Verify line 1 is exactly the status word before accepting it: reading a reply for its content does not check this, and a dispatcher that trusts its own read-through accepts the violation silently. Observed twice — #606's wrap-up (a lens agent accepted on token presence alone), and record #1653, where 3 of 8 `/claude-tweaks:review` lens dispatches opened with narration and all three were accepted with no re-prompt, despite every prompt carrying the explicit `WRONG: "Based on my review, DONE"` example.
 
 ## Anti-Patterns
 
