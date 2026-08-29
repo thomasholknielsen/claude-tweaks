@@ -113,6 +113,13 @@ git -C "{worktree-path}" push origin {branch}
 Its own Bash call — never chained (the `worktree-always` gate denies a compound command whole,
 same as every other push in this plugin).
 
+**On success: this log line is mandatory, not optional — write it before moving on to Step 3,
+for the same reason the failure line below is (#838, #1356's Current State: a run that skips it
+leaves no way to distinguish "Step 6 hasn't run yet" from "Step 6 ran and this is fine").** Log
+to `decisions.md`:
+
+`AUTO {time} — PR-early run lifecycle: pushed {branch} to origin. Reversibility: high (branch can be reset/force-pushed).`
+
 **On a transient-looking failure** (the error text names a 5xx/server error, a timeout, a reset
 connection, or otherwise names no auth/ref problem — e.g. GitHub's push-receive endpoint or its
 backing GraphQL API returning a `503`) — retry **once** after a 15-second wait, then treat a
@@ -236,6 +243,11 @@ gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {b
 
 `{record title}` — the lowest-numbered record's title for a bundle; `{n}` likewise the
 lowest-numbered record.
+
+**On success: this log line is mandatory, not optional — write it before moving on to Step 4,
+for the same reason Step 2's success line is (#1356).** Log to `decisions.md`:
+
+`AUTO {time} — PR-early run lifecycle: opened PR #{number} for {branch}. Reversibility: high (gh pr close).`
 
 **If creation fails, retry once** — wait 15 seconds first when the failure looks transient (a
 5xx/server error or timeout, same signature as Step 2's push retry above), immediately otherwise.
