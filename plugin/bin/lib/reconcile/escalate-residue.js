@@ -12,6 +12,18 @@
 // `_shared/github-write-transport.md` path — gh-absent here is a normal,
 // best-effort miss, not a hard failure, and the next `/tidy` sweep or a
 // human reading `reconcile`'s JSON is the backstop.
+//
+// Label posture (#1216, decided 2026-08-29): filing with `--label bug` only
+// is a deliberate choice, not a gap — never add `by:*`/`type:*`/`risk:*`/
+// `size:*`/`ready` here. Risk/size are content judgments, and this module
+// runs in the no-LLM contexts named above, which cannot score them; a
+// mechanical always-low default fails independently (`ready` requires a
+// spec-shaped body, which reconcile's terse auto-report is not). Enrichment
+// belongs to the downstream path that demonstrably picks these issues up: a
+// plain open issue IS a backlog-stage record, the scheduled `/specify next`
+// routine shapes it headlessly, and `/backlog` grants route it to an
+// autonomous build. No `by:reconcile` origin value, no scoring heuristic —
+// closed #1216 is the recorded decision.
 'use strict';
 const { fingerprintFromBasis, normalizeText } = require('../health-core/fingerprint');
 // #644 review fix — defaultRunner/errorText were a byte-for-byte duplicate
