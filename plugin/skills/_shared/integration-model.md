@@ -22,7 +22,7 @@ Take the **first** source that yields a value; once one does, the rest are not c
 node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-model
 ```
 
-Detection is **gh-only** — a Node subprocess cannot see an agent session's MCP tools, so an MCP-only sandbox (no `gh` CLI, only the MCP GitHub connection) detects `local-merge` even though it could, in principle, integrate through GitHub via MCP. This is exactly why `/claude-tweaks:init`'s offer (Step 20) recommends setting the value explicitly for GitHub-backed projects: an explicit policy value resolves identically in every environment, while detection can differ between a local `gh` session and an MCP-only sandbox for the same repo.
+Detection is **gh-only** — a Node subprocess cannot see an agent session's MCP tools, so an MCP-only sandbox (no `gh` CLI, only the MCP GitHub connection) detects `local-merge` even though it could, in principle, integrate through GitHub via MCP. This is exactly why `/claude-tweaks:init`'s offer (Step 20) recommends setting the value explicitly for GitHub-backed projects: an explicit policy value resolves identically in every environment, while detection can differ between a local `gh` session and an MCP-only sandbox for the same repo. `bin/resolve-policy.js`'s `--mcp-reachable` flag narrows this gap for the one call site that runs inside an agent turn (a calling skill that already confirmed MCP reachability can pass the flag through) — `detectIntegrationModel` itself never attempts an MCP call, per docs/incident-log.md IL-63; `pre-tool-use.js`'s hook call site has no agent turn to source a reachability signal from, so this narrowing does not reach it.
 
 ## Run-scoped stability
 

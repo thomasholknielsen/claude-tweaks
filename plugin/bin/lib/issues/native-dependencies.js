@@ -2,8 +2,9 @@
 // Executes bin/lib/issues/record.js's buildNativeDependencyQuery — the pure
 // batched, aliased GraphQL query builder for work-links: native's blocked-by
 // check — via an injectable runner, and parses the response into the
-// {blockedBy: number[], openBlocker: boolean} shape every caller expects.
-// Extracted from bin/lib/preflight-records/preflight-records.js (#538) so
+// {blockedBy: number[], openBlocker: boolean, openBlockerIds: number[]} shape
+// every caller expects. Extracted from
+// bin/lib/preflight-records/preflight-records.js (#538) so
 // bin/resolve-blockers.js's single-record CLI and preflight-records.js's own
 // N-record batch call the same underlying function instead of each carrying
 // its own copy of the GraphQL-call-and-parse logic. Not pure (network via
@@ -13,7 +14,8 @@
 
 const { buildNativeDependencyQuery, hasOpenNativeBlocker, buildNativeSubIssuesQuery } = require('./record');
 
-// { numbers, owner, repo, runner } -> Map<number, {blockedBy: number[], openBlocker: boolean}>.
+// { numbers, owner, repo, runner } -> Map<number, {blockedBy: number[],
+// openBlocker: boolean, openBlockerIds: number[]}>.
 // ONE batched, aliased GraphQL call (buildNativeDependencyQuery) resolving
 // every candidate's native blockedBy connection at once — work-links: native.
 // owner/repo are already-resolved String! values, so -f (never -F — -F would
@@ -48,6 +50,11 @@ function fetchNativeDependencies({ numbers, owner, repo, runner } = {}) {
     result.set(n, {
       blockedBy: nodes.map((b) => b && b.number).filter((v) => v !== undefined),
       openBlocker: hasOpenNativeBlocker(node),
+      // The identical OPEN-state filter partitionByOpenNativeBlockers
+      // (bin/lib/issues/record.js) applies, precomputed here so a caller holding
+      // only this output — dispatch/queue-pull-script.md via resolve-blockers.js
+      // — names the blocker ids without a raw GraphQL response (#1309).
+      openBlockerIds: nodes.filter((b) => b && b.state === 'OPEN').map((b) => b.number),
     });
   }
   return result;

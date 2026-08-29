@@ -104,7 +104,13 @@ appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged fi
 writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <value>` — the
 ceremony escape hatch's downgrade path, refs #1376) the same way — none of the three are
 subject to this tool-level pinning, and all work identically from a worktree session or the
-main checkout.
+main checkout. Reach for `bin/set-config.js` rather than a hand-rolled `sed -i` on `config.yml`
+even from a Bash call: a `sed -i` target built from a shell variable set in an earlier command
+(`"$RUN_DIR/config.yml"`) is unresolvable to the gate's own path-exemption check, since the gate
+matches the literal command text and only substitutes a variable it sees assigned in that same
+command — and unresolvable means the write is silently allowed unguarded, not denied —
+`policy-schema-coverage.md`'s "A shell-variable path is unresolvable by construction, and
+unresolvable means unguarded, not denied" note has the full mechanism.
 
 A second, unconditional PreToolUse guard (`bin/lib/hooks/pre-tool-use.js`'s
 `checkPipelineShadowGuard`, not gated on `worktree-always`) denies the opposite direction: an
@@ -175,7 +181,13 @@ main-checkout candidate and was adopted even though the anchored copy existed at
 nested/archived path). An `archive/{id}` shadow is also checked against a *live*, non-archived
 copy of the same run-id under the main checkout — a run can be live under one id while a
 worktree-local session independently archived its own local copy under the same id, and checking
-only the archived path would miss that (`#1183` fix-wave). A bare `mkdir` of a worktree-local pipelines path (the [IL-96]/[IL-127]
+only the archived path would miss that (`#1183` fix-wave). The mirror direction holds too: a
+*live*-shape shadow (no `archive/` prefix) is checked against an **archived** copy of the same
+run-id under the main checkout — a run can be archived at the main checkout while a worktree-local
+session independently kept or re-created a live copy under the same id, and checking only the
+live-to-live path would miss that (`#1299`). Both twin-checks are ORed into the same condition (d):
+a shadow is refused when *any* of the three main-checkout candidates — same pipelines-relative
+path, live twin, archived twin — exists. A bare `mkdir` of a worktree-local pipelines path (the [IL-96]/[IL-127]
 shadow shape `checkPipelineShadowGuard` exists to prevent, above) fails condition (c) and is
 rejected exactly as before — an ordinary run with no worktree-local run dir at all can never
 spuriously match this fallback, satisfying the "blocked vs. absent" distinction the record's

@@ -16,6 +16,7 @@ const { closeRunState } = require('./close-run-state');
 const { archiveRunDir } = require('../reconcile/archive-merged');
 const { runGit } = require('./git-exec');
 const { parseWorktreeList, isWorktreeLocked, resolveIntegrationBranch } = require('./worktree-reap');
+const { mainCheckoutRoot } = require('./worktree-detect');
 
 const GH_TIMEOUT_MS = 15000;
 
@@ -69,7 +70,16 @@ function teardownRun(runDir, opts = {}) {
   const mode = opts.mode || null;
   const sessionId = opts.sessionId || null;
   const ghApiDelete = (opts.deps && opts.deps.ghApiDelete) || defaultGhApiDelete;
-  const root = path.resolve(runDir, '..', '..', '..'); // {root}/.claude-tweaks/pipelines/{run-id}
+  // Git-based anchoring (same mechanism `_shared/pipeline-run-dir.md`'s Anchoring section
+  // documents as canonical for every other `--run`-accepting subcommand): walks up from `runDir`
+  // to the nearest `.git`, so it resolves the correct root regardless of how many levels `runDir`
+  // sits below it — 3 for a live run (.claude-tweaks/pipelines/{run-id}), 4 for an
+  // already-archived one (.claude-tweaks/pipelines/archive/{run-id}). Replaces the former fixed
+  // `path.resolve(runDir, '..', '..', '..')`, which silently assumed the 3-level case and, given
+  // the 4-level archived case, landed one directory short — {root}/.claude-tweaks instead of
+  // {root} — corrupting every downstream git-rooted call (most visibly a doubled
+  // .claude-tweaks/.claude-tweaks/... path out of archiveRunDir).
+  const root = mainCheckoutRoot(runDir);
   const lines = [];
 
   // Read the worktree/branch this run recorded BEFORE Step 1 flips run-state.json to
@@ -79,8 +89,14 @@ function teardownRun(runDir, opts = {}) {
   const ctxLib = require('./context');
   const prevState = ctxLib.readRunState(runDir) || {};
   const worktreePath = typeof prevState.worktree === 'string' && prevState.worktree ? prevState.worktree : null;
-  const branch = branchOfWorktree(root, worktreePath) || (prevState && prevState.branch) || null;
-  const integration = resolveIntegrationBranch(root);
+  // Every root-rooted lookup below is guarded: `root` can be null (no `.git` found walking up
+  // from `runDir`, or an unreadable/unparseable gitdir) — a failure mode the old fixed arithmetic
+  // had no equivalent for, since it always returned SOME path, right or wrong. branchOfWorktree
+  // and resolveIntegrationBranch both shell out to git with `root` as cwd, so a null root must
+  // never reach them; falling back to the recorded state's own `branch` field (no git needed)
+  // keeps the foreign-owner refusal check below meaningful even when root can't be resolved.
+  const branch = (root ? branchOfWorktree(root, worktreePath) : null) || (prevState && prevState.branch) || null;
+  const integration = root ? resolveIntegrationBranch(root) : null;
   const isIntegrationBranch = !!(branch && integration && branch === integration);
 
   // `explicit: false` here is deliberate, not a copy-paste of close-run's default: teardown-run
@@ -104,6 +120,18 @@ function teardownRun(runDir, opts = {}) {
     lines.push('state: failed — run-state.json could not be written');
   } else {
     lines.push('state: closed' + (state.wrapupSeen ? '' : ' (no wrap-up event recorded)'));
+  }
+
+  // `root === null` means mainCheckoutRoot couldn't find a `.git` walking up from `runDir` (or hit
+  // an unreadable/unparseable gitdir) — every remaining step needs a real root to run git against,
+  // so skip them all individually here (same try/skip/report posture as every other step) rather
+  // than letting a null root reach runGit/archiveRunDir and produce a confusing downstream failure.
+  if (!root) {
+    lines.push('archive: skipped — could not determine main checkout root from run dir');
+    lines.push('worktree: skipped — could not determine main checkout root from run dir');
+    lines.push('branch: skipped — could not determine main checkout root from run dir');
+    lines.push('remote ref: skipped — could not determine main checkout root from run dir');
+    return { lines };
   }
 
   // Step 2 (archive) — reuse archive-merged.js's git-mv-and-commit sequence verbatim rather than
