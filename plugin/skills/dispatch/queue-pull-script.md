@@ -1,6 +1,6 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (bare and `#N`/`#N,#M,...` still resolve them normally — a human present, explicitly picking or naming one, is itself the required surfacing); only the headless `next` ranking script (SKILL.md Step 3) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent.
 
 ```bash
 eval "$(node -e "
@@ -19,6 +19,7 @@ eval "$(node -e "
     DISPATCH_NATIVE_DEPS_ERR: 'dispatch-native-deps.err',
     DISPATCH_GROUPS: 'dispatch-groups.json',
     DISPATCH_BLOCKED_EXCLUDED: 'dispatch-blocked-excluded.json',
+    DISPATCH_OVERSIZED_EXCLUDED: 'dispatch-oversized-excluded.json',
   };
   for (const [varName, filename] of Object.entries(files)) {
     const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
@@ -80,7 +81,7 @@ if [ "$WORK_LINKS" = "native" ]; then
 fi
 node -e "
   const fs = require('fs');
-  const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap, partitionGroupsBySizeGuard } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const eligible = require(process.argv[1]);
   const nativeDeps = require(process.argv[2]);
   const finalEligible = [];
@@ -102,7 +103,15 @@ node -e "
   console.log(JSON.stringify(groups));
   const excludedBody = require(process.argv[3]);
   fs.writeFileSync(process.argv[4], JSON.stringify([...excludedBody, ...excludedNative]));
-" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" "$DISPATCH_BLOCKED_EXCLUDED_BODY" "$DISPATCH_BLOCKED_EXCLUDED" > "$DISPATCH_GROUPS"
+  // Size guard (#1228): flagged, never removed from DISPATCH_GROUPS -- bare
+  // and #N/#N,#M still resolve an oversized group normally (a human present,
+  // explicitly naming/picking it, is itself the required surfacing). Only
+  // the headless `next` ranking script (Step 3) reads this file to exclude
+  // an oversized group from its own candidate pool, since nobody is present
+  // there to see a table row or answer a prompt.
+  const { oversized, threshold } = partitionGroupsBySizeGuard(groups);
+  fs.writeFileSync(process.argv[5], JSON.stringify(oversized.map((g) => ({ records: g.map((i) => i.number), size: g.length, threshold }))));
+" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" "$DISPATCH_BLOCKED_EXCLUDED_BODY" "$DISPATCH_BLOCKED_EXCLUDED" "$DISPATCH_OVERSIZED_EXCLUDED" > "$DISPATCH_GROUPS"
 ```
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
