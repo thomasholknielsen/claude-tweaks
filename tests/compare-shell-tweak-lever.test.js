@@ -130,3 +130,61 @@ test('finding 3 (#1207): durable mode replays DATA.outcome.tweaks after building
   const replayIdx = text.indexOf("(DATA.outcome.tweaks || []).forEach(function (t) {");
   assert.ok(disableIdx > -1 && replayIdx > -1 && replayIdx > disableIdx, 'expected the replay to run after tweak inputs are disabled, inside the durable branch');
 });
+
+// --- #1336: restyle the judged candidate itself when a tweak lever moves ---
+
+function readApplyTweakBody(text) {
+  const match = text.match(/function applyTweak\(token, value\) \{([\s\S]*?)\n  \}/);
+  assert.ok(match, 'expected an applyTweak function body');
+  return match[1];
+}
+
+test('AC1 (#1336): applyTweak still sets the --tweak-{token} custom property, unchanged from #1207', () => {
+  const text = readTemplate();
+  const body = readApplyTweakBody(text);
+  assert.match(body, /document\.documentElement\.style\.setProperty\('--tweak-' \+ token, value\)/);
+});
+
+test('AC1 (#1336): applyTweak postMessages {type: \'compare-shell-tweak\', token, value} into the focused iframe\'s contentWindow', () => {
+  const text = readTemplate();
+  const body = readApplyTweakBody(text);
+  assert.match(body, /var frame = focusStage\.querySelector\('iframe'\);/, 'expected applyTweak to look up the currently-focused iframe from #focus-stage');
+  assert.match(
+    body,
+    /frame\.contentWindow\.postMessage\(\{ type: 'compare-shell-tweak', token: token, value: value \}, '\*'\)/,
+    'expected a postMessage carrying type/token/value into the focused iframe',
+  );
+});
+
+test('AC3 (#1336): the postMessage call is guarded so a durable page with no focused iframe never throws', () => {
+  const text = readTemplate();
+  const body = readApplyTweakBody(text);
+  assert.match(body, /if \(frame && frame\.contentWindow\) \{/, 'expected a null-guard before calling postMessage — durable mode\'s replay calls applyTweak with no focus-stage iframe present');
+});
+
+test('AC2 (#1336): the iframe sandbox attribute is unchanged — allow-scripts only, exactly one setAttribute(\'sandbox\', ...) call, never widened to include allow-same-origin', () => {
+  const text = readTemplate();
+  assert.match(text, /frame\.setAttribute\('sandbox', 'allow-scripts'\);/, 'expected the sandbox attribute to still be exactly allow-scripts');
+  const sandboxCalls = text.match(/\.setAttribute\('sandbox', '([^']*)'\)/g) || [];
+  assert.equal(sandboxCalls.length, 1, `expected exactly one setAttribute('sandbox', ...) call, found ${sandboxCalls.length}`);
+  assert.equal(sandboxCalls[0].includes('allow-same-origin'), false, 'allow-same-origin must never be added to the sandbox value — #1207\'s security boundary is load-bearing');
+});
+
+test('#1336: seed-compare.mjs documents the postMessage opt-in convention for candidate authors, without auto-injecting a listener', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const text = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'skills', 'design-wrapper', 'compare-shell', 'seed-compare.mjs'), 'utf8');
+  assert.match(text, /compare-shell-tweak/, 'expected the opt-in doc comment to name the message type');
+  assert.match(text, /addEventListener\('message'/, 'expected a documented example listener snippet');
+  assert.match(text, /Deliberately not auto-injected here/i, 'expected the file to state the no-auto-injection decision explicitly');
+});
+
+test('#1336: visual-decision.md\'s tweak event description states the candidate is restyled only when it opts in, and the sandbox posture is unchanged', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const text = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'visual-decision.md'), 'utf8');
+  assert.match(text, /compare-shell-tweak/, 'expected the doc to name the postMessage type');
+  assert.match(text, /opt-in per candidate/i, 'expected the doc to state reflection is opt-in per candidate');
+  assert.match(text, /sandbox="allow-scripts"/, 'expected the doc to keep stating the sandbox attribute');
+  assert.doesNotMatch(text, /it never restyles the judged candidate itself/i, 'the old absolute claim must be replaced, not left alongside the new conditional behavior');
+});
