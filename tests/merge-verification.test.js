@@ -310,6 +310,32 @@ test('computeDerivedDefaults: requesting integration-model and merge-verificatio
   assert.deepEqual(out['merge-verification'], { value: 'merge-when-green', source: 'default' });
 });
 
+test('computeDerivedDefaults: an mcpReachable call still reuses an already-resolved integration-model run-config pin instead of re-deriving from forge detection (whole-branch review finding, pre-v6.110.0)', () => {
+  const { computeDerivedDefaults } = require('../plugin/bin/lib/policy-derived-defaults');
+  let resolveModelCalls = 0;
+  let deriveDeps = null;
+  const deps = {
+    mcpReachable: true,
+    resolveIntegrationModel: () => { resolveModelCalls++; return 'pr-first'; },
+    deriveMergeVerification: (root, mvDeps) => {
+      deriveDeps = mvDeps;
+      return mvDeps.integrationModel() === 'local-merge' ? 'off' : 'merge-when-green';
+    },
+  };
+  // integration-model already resolved via a run-config pin (source
+  // 'run-config', not 'default') — exactly what resolvePolicyConfig produces
+  // for a run whose config.yml pins integration-model: local-merge.
+  const result = {
+    'integration-model': { value: 'local-merge', source: 'run-config' },
+    'merge-verification': { value: null, source: 'default' },
+  };
+  const out = computeDerivedDefaults(result, ['integration-model', 'merge-verification'], '/unused-root', deps);
+
+  assert.equal(resolveModelCalls, 0, 'a pinned integration-model must not be re-derived from scratch when mcpReachable is set');
+  assert.equal(deriveDeps.integrationModel(), 'local-merge');
+  assert.deepEqual(out['merge-verification'], { value: 'off', source: 'default' });
+});
+
 test('CLI --run precedence: a run-dir config.yml override wins over the derived AC1 default, and JSON mode reports source "run-config" (#559 M5)', () => {
   const dir = fixtureRepo({ workflow: 'name: ci\non:\n  push:\n    branches: [main]\n  pull_request:\njobs: {}\n' });
   // Sanity: without --run, this fixture derives merge-when-green (AC1).

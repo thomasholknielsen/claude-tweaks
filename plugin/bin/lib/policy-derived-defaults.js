@@ -18,8 +18,10 @@
 // reachability via its own MCP probe this turn — see bin/resolve-policy.js's
 // own --mcp-reachable header comment for the full contract. It forwards into
 // detectIntegrationModel's mcpReachable override for the integration-model
-// key, and (via resolveIntegrationModel) for merge-verification too whenever
-// that key is derived in the same call.
+// key, and — only when merge-verification is derived WITHOUT integration-
+// model also being requested in the same call, so there is no already-
+// resolved value to reuse — into resolveIntegrationModel for merge-
+// verification's fallback resolution too.
 'use strict';
 const { detectIntegrationModel, resolveIntegrationModel } = require('./policy-schema');
 const { deriveMergeVerification } = require('./merge-verification');
@@ -51,21 +53,22 @@ function computeDerivedDefaults(result, keys, root, deps = {}) {
   if (keys.includes('merge-verification')) {
     const entry = result['merge-verification'];
     if (entry && entry.source === 'default' && !entry.invalid) {
-      // When mcpReachable is set, always build a fresh integrationModel dep
-      // that forwards it, regardless of whether integration-model is also in
-      // keys — reusing this call's own integration-model result (the
-      // avoid-running-forge-detection-twice optimization below) is only safe
-      // when mcpReachable is false, since a bare fallback to
-      // deriveMergeVerification's internal resolveIntegrationModel(root) with
-      // no opts would silently drop the flag (the `gh` probe would run
-      // despite the caller's assertion). Correctness beats the
-      // micro-optimization here.
+      // Reuse this call's own integration-model result whenever it was
+      // resolved above — it already reflects the full run-config -> policy ->
+      // schema-default precedence (including any explicit pin, which
+      // detectIntegrationModel/resolveIntegrationModel below have no way to
+      // see) and already applied mcpReachable when it computed a forge-
+      // detected default. Re-deriving from scratch instead — forwarding
+      // mcpReachable to a bare resolveIntegrationModel(root) with no run dir
+      // — would silently discard an explicit integration-model pin (#1421
+      // regression: a run pinned to local-merge could derive
+      // merge-when-green instead of off). Only fall back to fresh
+      // (mcpReachable-forwarding) resolution when integration-model wasn't
+      // requested in this same call, so there is nothing to reuse.
       const modelEntry = result['integration-model'];
-      const mvDeps = mcpReachable
-        ? { integrationModel: (r) => resolveModel(r, { mcpReachable }) }
-        : keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
-          ? { integrationModel: () => modelEntry.value }
-          : {};
+      const mvDeps = keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
+        ? { integrationModel: () => modelEntry.value }
+        : { integrationModel: (r) => resolveModel(r, { mcpReachable }) };
       result['merge-verification'] = { value: deriveVerification(root, mvDeps), source: 'default' };
     }
   }

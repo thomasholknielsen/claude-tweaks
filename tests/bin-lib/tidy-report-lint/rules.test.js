@@ -187,9 +187,10 @@ test('Condense: flags an over-40-line report with no report.md footer; a short r
 // a condensed chat render and a separate report.md — see step-6-auto.md's
 // "Against a condensed report, only ... apply" sentence.
 
-test('RULES: surface tags partition all 13 rules into exactly the documented condensed/full split', () => {
+test('RULES: surface tags split 12 of the 13 rules into the documented condensed/full partition, plus one rule tagged "both"', () => {
   const condensed = RULES.filter((r) => r.surface === 'condensed').map((r) => r.name);
   const full = RULES.filter((r) => r.surface === 'full').map((r) => r.name);
+  const both = RULES.filter((r) => r.surface === 'both').map((r) => r.name);
   assert.deepEqual(condensed, [
     'Width',
     'Titles',
@@ -201,23 +202,26 @@ test('RULES: surface tags partition all 13 rules into exactly the documented con
   ]);
   assert.deepEqual(full, [
     'One record per row',
-    'Every Yours row covered',
     'Fenced, no box art',
     'Group order',
     'Clean shape',
     'Footer once',
   ]);
-  // Every rule carries exactly one of the two tags — no untagged row, no
-  // row belonging to both.
-  assert.equal(condensed.length + full.length, RULES.length);
+  // "Every Yours row covered" is the one row step-6-auto.md's Conformance
+  // scan intro names as applying on top of whichever surface-tagged set is
+  // active, not inside either partition alone (#1625 follow-up).
+  assert.deepEqual(both, ['Every Yours row covered']);
+  // The three groups are disjoint and exhaustive — no untagged row, none
+  // double-counted.
+  assert.equal(condensed.length + full.length + both.length, RULES.length);
 });
 
 test('SURFACES: exposes the two valid surface values', () => {
   assert.deepEqual([...SURFACES].sort(), ['condensed', 'full']);
 });
 
-test('lintReport: surface="condensed" runs only the 7 condensed-scoped rules', () => {
-  const names = new Set(RULES.filter((r) => r.surface === 'condensed').map((r) => r.name));
+test('lintReport: surface="condensed" runs the 7 condensed-scoped rules plus the "both"-scoped one', () => {
+  const names = new Set(RULES.filter((r) => r.surface === 'condensed' || r.surface === 'both').map((r) => r.name));
   // A report that fails a full-only rule (missing decisions.md footer) but
   // is otherwise clean must produce no issues when scoped to "condensed".
   const text = conformantReport().replace(/Full decision log:.*\n?$/, '');
@@ -228,8 +232,17 @@ test('lintReport: surface="condensed" runs only the 7 condensed-scoped rules', (
   }
 });
 
-test('lintReport: surface="full" runs only the 6 section-shape rules', () => {
-  const names = new Set(RULES.filter((r) => r.surface === 'full').map((r) => r.name));
+test('lintReport: surface="condensed" still catches a condensed report whose Yours section drops its command lines (the gap this rule closes)', () => {
+  const broken = condensedReport().replace('   /claude-tweaks:specify #301\n', '');
+  const issues = lintReport(broken, { surface: 'condensed' });
+  assert.ok(
+    issues.some((i) => i.startsWith('Every Yours row covered')),
+    `expected an "Every Yours row covered" issue under surface="condensed", got: ${JSON.stringify(issues)}`,
+  );
+});
+
+test('lintReport: surface="full" runs the 5 section-shape rules plus the "both"-scoped one', () => {
+  const names = new Set(RULES.filter((r) => r.surface === 'full' || r.surface === 'both').map((r) => r.name));
   // A report over the 40-line Condense threshold with no report.md footer
   // would fail "Condense" (a condensed-only rule) but must produce no
   // issues when scoped to "full".
