@@ -453,7 +453,7 @@ async function main(argv) {
       // `git worktree list` no longer has an entry to derive it from.
       // Best-effort: a run with no recorded worktree, or a derivation that
       // comes back null, simply records {number, url} as before.
-      const prBranch = deriveBranch(repoRootOf(runDir), (ctxLib.readRunState(runDir) || {}).worktree || null);
+      const prBranch = deriveBranch(repoRootOf(runDir), ctxLib.readRunState(runDir)?.worktree || null);
       const prField = prBranch ? { number, url: urlArg, branch: prBranch } : { number, url: urlArg };
       const result = ctxLib.writeRunState(runDir, { pr: prField });
       if (result) {
