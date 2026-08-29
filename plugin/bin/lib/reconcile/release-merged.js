@@ -19,10 +19,9 @@ const { resolvePrStateAsync } = require('./pr-state');
 const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
 const { readCache, writeCache } = require('./cache');
 const { runWithConcurrency } = require('./gh-pool');
+const { GH_TIMEOUT_MS } = require('../shared-primitives');
 
 const execFileAsync = promisify(execFile);
-
-const GH_TIMEOUT_MS = 5000;
 
 // One claim's classified state + the branch's PR state (+ optionally the
 // issue's own state) -> what to do. Pure — no I/O — so the whole decision
