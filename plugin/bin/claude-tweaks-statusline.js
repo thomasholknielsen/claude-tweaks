@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { pathToFileURL } = require('url');
 const { execSync } = require('child_process');
 const color = require('./lib/color');
 
@@ -92,12 +93,58 @@ function resolveMainProjectDir(dir) {
   }
 }
 
+// Normalizes an origin remote URL to the repo's browse URL — the three forms
+// git actually stores (scp-like ssh, ssh://, https), with or without the
+// `.git` suffix. Anything not github.com, or not owner/repo shaped, is null:
+// the glyph's presence is the "GitHub connected" indicator, so a non-GitHub
+// remote must render nothing rather than a dead link.
+function githubRepoUrl(remoteUrl) {
+  if (typeof remoteUrl !== 'string') return null;
+  const trimmed = remoteUrl.trim();
+  const m =
+    trimmed.match(/^git@github\.com:(.+?)(?:\.git)?\/?$/) ||
+    trimmed.match(/^ssh:\/\/git@github\.com\/(.+?)(?:\.git)?\/?$/) ||
+    trimmed.match(/^https:\/\/github\.com\/(.+?)(?:\.git)?\/?$/);
+  if (!m) return null;
+  const repoPath = m[1];
+  if (repoPath.split('/').length !== 2 || repoPath.split('/').some((p) => !p)) return null;
+  return `https://github.com/${repoPath}`;
+}
+
+function readOriginRemote(dir) {
+  try {
+    const url = execSync('git config --get remote.origin.url', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      cwd: dir,
+    }).trim();
+    return url || null;
+  } catch {
+    return null;
+  }
+}
+
+const GITHUB_GLYPH = '🐙';
+
+// Cmd/Ctrl+click targets: the name opens the project folder in Finder/Explorer
+// (pathToFileURL handles this host's path shape, Windows drive letters
+// included), the glyph — present only when origin is a GitHub remote — opens
+// the repo page. Both resolve against the main checkout, matching the name.
 function renderProject(input, fallbackCwd) {
   const ws = input.workspace || {};
   const dir = ws.project_dir || ws.current_dir || input.cwd || fallbackCwd;
   if (!dir || typeof dir !== 'string') return null;
-  const name = path.basename(resolveMainProjectDir(dir));
-  return name || null;
+  const mainDir = resolveMainProjectDir(dir);
+  const name = path.basename(mainDir);
+  if (!name) return null;
+  let linked = name;
+  try {
+    linked = color.link(pathToFileURL(mainDir).href, name);
+  } catch {
+    /* unconvertible path — keep the plain name */
+  }
+  const repoUrl = githubRepoUrl(readOriginRemote(mainDir));
+  return repoUrl ? `${linked} ${color.link(repoUrl, GITHUB_GLYPH)}` : linked;
 }
 
 function renderContext(input) {
@@ -327,6 +374,7 @@ module.exports = {
   main,
   renderModel,
   renderProject,
+  githubRepoUrl,
   renderContext,
   renderEffort,
   renderGit,
