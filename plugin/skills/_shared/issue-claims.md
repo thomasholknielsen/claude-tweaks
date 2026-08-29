@@ -161,10 +161,14 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   conditional-overwrite as step 4's re-claim, differing only in what content it writes. A sha
   mismatch means someone else already broke/re-claimed it; treat as a release race (log, TTL is
   the backstop, per the Failure posture table below). **`bin/release-claim.js`** performs this
-  whole sequence (read → classify → ownership check → tombstone `PUT` → comment → optional
-  label removals) in one command on the `gh` path — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js"
-  <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress]`,
-  exit `0` released / `3` already released or swept / `4` held by another run / `5` claim blob is
+  whole sequence (read → classify → ownership check → tombstone `PUT` → comment → label
+  removals) in one command on the `gh` path — `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js"
+  <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--keep-in-progress-label]`.
+  `bot:in-progress` removal is opt-**out** (default on every release outcome that reaches the
+  label step, #1631 — `--remove-in-progress` is still accepted, now a no-op, and
+  `--keep-in-progress-label` is the only way to suppress it); `--remove-grants` (stripping
+  `auto:build`/`auto:merge-pending`/`auto:merge`) stays opt-in — see "Grant revocation" below.
+  Exit `0` released / `3` already released or swept / `4` held by another run / `5` claim blob is
   corrupt/unreadable (nothing written — distinct from `4`, since a corrupt blob can never
   self-resolve the way a live holder's claim eventually expires; do not retry-and-wait on `5` the
   way `4` permits) / `1` failed / `2` malformed or `gh` absent. The MCP path stays the manual
