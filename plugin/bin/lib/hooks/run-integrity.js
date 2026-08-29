@@ -146,7 +146,14 @@ function runStartIso(runDir) {
 function hasCommitSinceRunStart(root, branch, runDir) {
   const since = runStartIso(runDir);
   if (!since) return false;
-  const log = runGit(['log', branch, `--since=${since}`, '--format=%H', '--max-count=1', '--'], root);
+  // `--end-of-options` (not `--`) is what stops a ref name beginning with `-`
+  // from being read as an option: `--` only guards the pathspec position, which
+  // is a different argument slot (this repo's `gh-api-module-pattern` skill owns
+  // the rule). `branch` comes from git's own porcelain output today, so this is
+  // convention-adoption on new code, not an exploitable hole being closed — the
+  // two pre-existing call sites in mergedEvidence() above still use the old
+  // shape and migrate separately.
+  const log = runGit(['log', `--since=${since}`, '--format=%H', '--max-count=1', '--end-of-options', branch, '--'], root);
   if (log.failure || log.stdout === null) return false;
   return log.stdout.trim() !== '';
 }
