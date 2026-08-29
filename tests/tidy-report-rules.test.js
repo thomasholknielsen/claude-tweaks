@@ -160,3 +160,63 @@ test('journey doc: Step 3 expects fenced aligned columns, grouped Yours, no shor
   const fenced = example.split('\n').filter((l) => !l.startsWith('#') && !l.startsWith('**') && !l.startsWith('```') && !l.startsWith('Full ') && l.trim() !== '' && !l.startsWith('An example') && !l.startsWith('The 16 Yours'));
   for (const line of fenced) assert.ok(line.length <= 100, `example line over 100 chars: ${line}`);
 });
+
+// --- Task 6: #1383 — every Yours row carries a command/exemption, plus why-not-auto reasoning ---
+
+test('step-6-auto.md: Why-not-auto sourcing states the two canonical reasons and forbids a blank/unfilled column', () => {
+  const why = section(STEP6, '#### Why-not-auto sourcing', '### Report rules');
+  assert.match(why, /outward GitHub write, never auto per reversibility floor/);
+  assert.match(why, /judgment call, no mechanical fix/);
+  assert.match(why, /never leave the column blank/i);
+  assert.match(why, /sourced from this file's own routing table above, never re-derived per render/);
+});
+
+test('step-6-auto.md: Report rules Condense bullet requires a shared why-not-auto clause per Yours group', () => {
+  const rules = section(STEP6, '### Report rules', '#### Conformance scan');
+  assert.match(rules, /each followed by one shared why-not-auto clause for the group/);
+});
+
+test('step-6-auto.md: conformance scan gained Why stated + Condense why rows, and condensed scope now covers Every Yours row covered', () => {
+  const scanAt = STEP6.indexOf('#### Conformance scan (before the hard gate)');
+  const gateAt = STEP6.indexOf('#### Hard gate (report before question)');
+  assert.ok(scanAt > 0 && gateAt > scanAt);
+  const scan = STEP6.slice(scanAt, gateAt);
+  assert.match(scan, /^\| Why stated \|/m, 'conformance scan lacks a "Why stated" row');
+  assert.match(scan, /^\| Condense why \|/m, 'conformance scan lacks a "Condense why" row');
+  const everyIdx = scan.search(/^\| Every Yours row covered \|/m);
+  const whyIdx = scan.search(/^\| Why stated \|/m);
+  const condenseIdx = scan.search(/^\| Condense \|/m);
+  const condenseWhyIdx = scan.search(/^\| Condense why \|/m);
+  assert.ok(everyIdx > 0 && whyIdx > everyIdx, '"Why stated" should follow "Every Yours row covered"');
+  assert.ok(condenseIdx > 0 && condenseWhyIdx > condenseIdx, '"Condense why" should follow "Condense"');
+  assert.match(
+    scan,
+    /Against a condensed report,[\s\S]*Every Yours row covered[\s\S]*fails this row exactly the way an omitted Approve section already fails the Hard gate/,
+    'condensed scope note must extend Every Yours row covered coverage to the condensed report, not just the full report'
+  );
+});
+
+test('step-6-auto.md: every Yours row carries a command or a stated review-only exemption', () => {
+  const rules = section(STEP6, '### Report rules', '#### Conformance scan');
+  assert.match(
+    rules,
+    /Every actionable line carries a paste-ready command.*or lands in \*\*Approve \(\{N\}\)\*\*/,
+    'Report rules must require a command on every actionable Yours line'
+  );
+  const grp = section(STEP6, '#### Yours grouping (by the command the human runs)', '### Report rules');
+  assert.match(
+    grp,
+    /No runnable command.*keys under a fixed final group, `review \(\{k\}\)`.*the group closes with no command line — the conformance scan's "Every Yours row covered" row exempts `review`/s,
+    'the review group must be the one documented, explicit exemption from the command requirement'
+  );
+});
+
+test('_shared/github-pr-scan.md: the "awaiting review" PR finding carries a paste-ready command, not a bare summary', () => {
+  const scan = read('plugin', 'skills', '_shared', 'github-pr-scan.md');
+  assert.match(
+    scan,
+    /awaiting review — last updated \{age\} ago, CI \{status\}, 0 unresolved threads — gh pr view \{n\} --web/,
+    'the awaiting-review finding must carry a trailing per-PR command'
+  );
+  assert.match(scan, /Open PR awaiting review, nothing wrong \(item 1's first finding\)/, 'Findings and recommendations table must list the awaiting-review row');
+});
