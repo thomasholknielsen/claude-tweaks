@@ -835,6 +835,91 @@ test('archiveMerged: recent fallback-attributed events do not block auto-close �
   );
 });
 
+// F1/F5 regression guard: under the OLD close-first ordering, this test fails
+// — closeRunState would have already flipped the (pre-move) run dir's own
+// run-state.json to status:'clean' before archiveRunDir ever ran, so a
+// subsequent archive failure would leave the run 'clean' (and therefore
+// permanently invisible to iterRunDirsWithState) instead of 'interrupted'.
+// Proven by the Mandatory proof step below (old ordering restored,
+// re-verified this test goes red).
+test('archiveMerged: an abandoned interrupted run whose archive move fails is reported in skipped and stays interrupted, not silently closed', () => {
+  const runId = '2026-08-01T090000-spec-1673-archivefail';
+  const { root, runDir } = fixtureAbandonedShippedRun({ runId });
+  // A git-tracked work/ subtree so archiveRunDir actually reaches `git
+  // commit` — without one, the plain fs.renameSync path never touches git at
+  // all and installFailingPreCommitHook has nothing to bite.
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/work/1673-spec.md`, '# spec 1673\n');
+  installFailingPreCommitHook(root);
+
+  const result = archiveMerged({ cwd: root, sessionId: 'this-session' });
+
+  assert.ok(
+    result.skipped.some((s) => s.runDir === runDir),
+    `expected ${runDir} in skipped when the archive move fails, got ${JSON.stringify(result)}`,
+  );
+  assert.ok(
+    !result.archived.includes(runDir),
+    'a failed archive must never be counted as archived',
+  );
+  assert.equal(
+    fs.existsSync(runDir),
+    true,
+    'the run dir must still exist on disk after a failed archive — nothing was actually moved',
+  );
+  const state = JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8'));
+  assert.equal(
+    state.status,
+    'interrupted',
+    `expected the run to stay 'interrupted' (never closed) after a failed archive, got ${JSON.stringify(state)}`,
+  );
+});
+
+// F3: a direct unit test for isAbandonedInterrupted's ownership-equality
+// branch — same state, same run dir, only `sessionId` varies. Pins the one
+// line the safety property hinges on, independent of the integration path
+// (the AC2 integration test above stays green even with this branch deleted,
+// since its fixture tears down the worktree and falls through to the
+// pre-existing no-branch skip either way).
+test('isAbandonedInterrupted: false when owner === sessionId, true when they differ (same state, same run dir)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-ownereq-'));
+  const runDir = path.join(root, 'run');
+  fs.mkdirSync(runDir, { recursive: true });
+  // Dated well outside STALE_INTERRUPTED_TTL_MS so the recency half of the
+  // criterion never masks what this test is actually pinning.
+  fs.writeFileSync(
+    path.join(runDir, 'events.jsonl'),
+    JSON.stringify({ type: 'skill_invoked', ts: '2020-01-01T00:00:00.000Z' }) + '\n',
+  );
+  const state = { status: 'interrupted', sessionId: 'sess-a' };
+
+  assert.equal(
+    isAbandonedInterrupted(runDir, state, 'sess-a'),
+    false,
+    'the owning session must never see its own live run as abandoned',
+  );
+  assert.equal(
+    isAbandonedInterrupted(runDir, state, 'sess-b'),
+    true,
+    'a different session id, with no recent self-attributed activity, is a genuine abandoned-run candidate',
+  );
+});
+
+// F9: an unreadable/absent events.jsonl must fail toward not-abandoned, not
+// toward stale — see hasReadableEventsLog's header comment for why this must
+// not rely on checkRunIntegrity's own separate read of the same file.
+test('isAbandonedInterrupted: an unreadable/absent events.jsonl is UNKNOWN evidence — never treated as abandoned', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-unknownlog-'));
+  const runDir = path.join(root, 'run-no-log');
+  fs.mkdirSync(runDir, { recursive: true }); // events.jsonl deliberately never written
+  const state = { status: 'interrupted' }; // no owner recorded either
+
+  assert.equal(
+    isAbandonedInterrupted(runDir, state, 'this-session'),
+    false,
+    'an unreadable/absent events log must never be treated as evidence of staleness',
+  );
+});
+
 test('lastOwnEventMs: excludes fallback-attributed lines, returns the newest non-fallback timestamp', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-lastown-'));
   const runDir = path.join(root, 'run');

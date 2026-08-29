@@ -93,6 +93,15 @@ const STALE_INTERRUPTED_TTL_MS = ORPHAN_MINT_TTL_MS;
 // (context.js's resolveRun). Those lines advance `updatedAt` without this run
 // being alive at all, which is precisely how an abandoned run looks
 // perpetually busy and never becomes closeable (#1673 Deliverable 4).
+//
+// Deliberately asymmetric with context.js's `scanWrapupEvents` (read by
+// `checkRunIntegrity`), which does NOT filter fallback-attributed lines: a
+// run whose events.jsonl holds ONLY fallback-attributed lines can therefore
+// read as both "abandoned" here (no self-attributed activity) AND "shipped"
+// there (>=1 skill_invoked still counts, fallback or not). That combination
+// is coherent and intended, not a bug to reconcile: the work shipped, and
+// nothing THIS run itself produced has touched it since — a future reader
+// should not "fix" the two filters into agreement.
 function lastOwnEventMs(runDir) {
   let raw;
   try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
@@ -109,6 +118,21 @@ function lastOwnEventMs(runDir) {
   return newest;
 }
 
+// Whether runDir's events.jsonl exists and is readable at all — distinct
+// from `lastOwnEventMs`'s own `null`, which conflates two different things:
+// "the log is readable but has no qualifying (non-fallback, parseable-ts)
+// event" and "the log couldn't be read in the first place." Only the caller
+// below needs to tell those apart (#1673 F9 review finding): a genuinely
+// unreadable/absent log is UNKNOWN evidence, not proof of staleness.
+function hasReadableEventsLog(runDir) {
+  try {
+    fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // The ownership half of the criterion, inverted from close-run-state.js's
 // `foreignOwner`: that check asks "does a DIFFERENT session own this?" to
 // refuse a close; here the same comparison answers "is this session's own
@@ -116,10 +140,31 @@ function lastOwnEventMs(runDir) {
 // never auto-close it. A run owned by nobody, or by some other session, is a
 // candidate only if it ALSO shows no self-attributed activity inside the
 // staleness window. Both halves must hold; neither alone is evidence.
+//
+// Honest scope of this ownership half: it only ever engages when BOTH
+// `state.sessionId` and `sessionId` are non-null. `sessionId` is reliably
+// present when this runs off the Bash-invoked `reconcile` subcommand (the
+// calling shell's own `CLAUDE_CODE_SESSION_ID` — see the module default
+// below), but is `null` in the path that actually matters most: the
+// SessionStart-triggered background pass (`reconcile-background`, a detached
+// child process spawned with no stdin), where no session id is ever threaded
+// in. There, this half of the criterion never fires — it is not "the"
+// protection, it is an ADDITIONAL guard that only engages when a session id
+// happens to be known. The substantive protection for every caller, known
+// session id or not, is the two checks below: the 24h staleness window
+// (`STALE_INTERRUPTED_TTL_MS`) and, at the call site, the `shipped-unclosed`
+// evidence gate from `checkRunIntegrity`.
 function isAbandonedInterrupted(runDir, state, sessionId, now = Date.now()) {
   if (!state || state.status !== 'interrupted') return false;
   const owner = typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
   if (owner && sessionId && owner === sessionId) return false; // our own live run
+  // An unreadable/absent events.jsonl is UNKNOWN evidence of activity, not
+  // proof of staleness — fail toward not-abandoned rather than collapsing
+  // "we can't tell" into "definitely idle" (review finding: `checkRunIntegrity`
+  // happens to also require a readable log with >=1 skill_invoked before this
+  // branch is ever reached, but that is a coincidence of two separate reads
+  // at different moments, not a guarantee this function can rely on alone).
+  if (!hasReadableEventsLog(runDir)) return false;
   const last = lastOwnEventMs(runDir);
   if (last !== null && (now - last) <= STALE_INTERRUPTED_TTL_MS) return false;
   return true;
@@ -572,19 +617,52 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
     if (isAbandonedInterrupted(dir, state, sessionId)
       && checkRunIntegrity(dir).state === 'shipped-unclosed') {
       if (dryRun) { archived.push(dir); continue; }
-      // closeRunState, not a hand-rolled status write — it owns the
-      // close-without-wrapup event and the un-archived-work advisory, which is
-      // what makes an automated close indistinguishable from a manual one.
-      // `explicit: true` because this IS a deliberate decision about this exact
-      // run dir, not the implicit newest-run fallback its refusal guards.
-      closeRunState(dir, { explicit: true, sessionId });
-      // Then archive. Closing without moving would leave the dir `clean` and
-      // therefore permanently invisible to iterRunDirsWithState (docs/hooks.md
-      // names this as a blind spot that is "not just delayed"), and would let
-      // `archived: N` count a directory still sitting in pipelines/.
-      const closeResult = archiveRunDir(root, dir);
-      trackArchiveResult(root, repoSlug, dir, closeResult);
-      if (!closeResult.ok) { skipped.push({ runDir: dir, reason: closeResult.reason }); continue; }
+      // Moves-first, close-last — the same invariant this file's own header
+      // comment above archiveRunDir (line ~185, "Moves-first, close-last
+      // ordering") states for the pre-existing archive path: marking a run
+      // terminal BEFORE its move succeeds would make a failed move
+      // permanently invisible, since iterRunDirsWithState skips any run
+      // already status: 'clean'. Archive FIRST — a failure here leaves the
+      // run non-terminal (still 'interrupted') and retryable next pass, which
+      // is the whole point — and only close it once the move has actually
+      // landed.
+      const archiveResult = archiveRunDir(root, dir);
+      trackArchiveResult(root, repoSlug, dir, archiveResult);
+      if (!archiveResult.ok) {
+        // Non-'move-failed' reasons (mkdir-failed, git-mv-failed,
+        // commit-failed, ls-files-failed, tracked-entry, readdir-failed) are
+        // retried next pass — the run stays non-terminal above — but
+        // trackArchiveResult only feeds the residue-escalation counter on
+        // 'move-failed' (pre-existing behavior shared with the merged-PR
+        // archive path, unchanged here), so a failure of one of those other
+        // kinds is visible in `skipped` but will not self-escalate.
+        skipped.push({ runDir: dir, reason: archiveResult.reason });
+        continue;
+      }
+      // Only now, against the ARCHIVED directory — everything (events.jsonl,
+      // run-state.json, work/) has already moved there — close the run
+      // terminal. closeRunState, not a hand-rolled status write — it owns the
+      // close-without-wrapup event and the un-archived-work advisory, which
+      // is what makes an automated close indistinguishable from a manual one
+      // in the ledger.
+      //
+      // `explicit: true` is defensible ONLY because isAbandonedInterrupted
+      // plus the shipped-unclosed evidence gate have ALREADY made the
+      // ownership determination upstream, above — this call site owns that
+      // decision instead of delegating it to closeRunState's own
+      // foreign-owner refusal, rather than claiming ownership doesn't matter
+      // here. Weakening either upstream gate would silently weaken this
+      // bypass too.
+      const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', path.basename(dir));
+      const closeResult = closeRunState(archiveDir, { explicit: true, sessionId });
+      if (!closeResult.writeOk) {
+        // The move already succeeded — never roll it back over a close-write
+        // failure; the run is physically archived either way. Just make the
+        // failure visible instead of silently reporting a clean archive: its
+        // status may not actually read 'clean'.
+        skipped.push({ runDir: dir, reason: 'close-write-failed' });
+        continue;
+      }
       archived.push(dir);
       continue;
     }

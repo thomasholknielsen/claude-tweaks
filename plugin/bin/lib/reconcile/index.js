@@ -34,8 +34,13 @@ const { formatReconcileSummary, archivedCountFromRunsResult } = require('./resid
 // determine dispatch order.
 const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'];
 
-// opts: { dryRun?: boolean, checks?: string[], cwd?: string }
+// opts: { dryRun?: boolean, checks?: string[], cwd?: string, sessionId?: string }
 // -> { mirror, worktrees, claims, runs, branches, console, skipped }
+// `sessionId`, when the caller has one, threads through to archiveMerged's
+// own `isAbandonedInterrupted` ownership check (archive-merged.js) — omitted
+// (undefined), archiveMerged falls back to its own
+// `process.env.CLAUDE_CODE_SESSION_ID` default, unchanged from before this
+// option existed.
 // This module is gh-CLI-only by design (a Node subprocess cannot reach an
 // agent session's MCP tools), so a gh-absent environment reports that reason
 // per-check rather than attempting an MCP fallback (see
@@ -292,7 +297,7 @@ async function reconcile(opts = {}) {
 
   if (overBudget(DISPATCH_ORDER.slice(4))) return result;
   if (checks.includes('archive')) {
-    const r = archiveMerged({ cwd: root, dryRun });
+    const r = archiveMerged({ cwd: root, dryRun, sessionId: opts.sessionId });
     result.runs = r.archived.map((d) => ({ runDir: d, action: 'archived' }))
       .concat(r.skipped.map((s) => ({ runDir: s.runDir, action: 'skipped', reason: s.reason })));
   }

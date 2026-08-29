@@ -111,8 +111,22 @@ async function run(ctx) {
     // NOT gated on this same stamp — it keys off
     // reconcile-background-status.json's own `completedAt` (see the spawn
     // block below and its comment for why conflating the two was a bug).
+    // `ctx.input.session_id` is the hook payload's own session id — the same
+    // field hooks.js's dispatcher already reads for `ownedRun` (`ctxLib.resolveRun(cwd,
+    // process.env, input.session_id)`), unlike `process.env.CLAUDE_CODE_SESSION_ID`,
+    // which hooks.js's own header comment documents as not reliably present for a
+    // hook-spawned process. FAST_CHECKS never includes 'archive' (see this file's own
+    // constant above), so this has no effect on archive-merged.js's ownership gate
+    // today — that check only ever runs off the detached `reconcile-background`
+    // child process (spawned below), which receives no stdin and therefore has no
+    // session id to thread through at all. Passed here anyway for correctness: this
+    // is the one call site in this file that actually calls reconcile(), and a real
+    // session id is genuinely reachable at it.
+    const sessionId = typeof ctx.input === 'object' && ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id
+      ? ctx.input.session_id
+      : undefined;
     const result = await reconcile({
-      cwd: ctx.cwd, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: DEFAULT_TTL_MS, cache,
+      cwd: ctx.cwd, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: DEFAULT_TTL_MS, cache, sessionId,
     });
 
     // One added summary line for what the fast path did — today just mirror
