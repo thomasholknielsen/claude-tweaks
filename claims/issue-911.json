@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-28T201841-record-1100",
-  "reason": "not-run: sibling #1100 hard-gate stopped the multi-spec group before #911's turn",
-  "releasedAt": "2026-08-28T20:50:00.000Z"
+  "runId": "2026-08-29T054553-record-911",
+  "sessionId": "ab4a7346-7d0b-46f0-9bfe-d0229e699d1b",
+  "claimedAt": "2026-08-29T05:45:54.831Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
