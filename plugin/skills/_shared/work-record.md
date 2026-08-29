@@ -277,6 +277,13 @@ are the right ones is the shaper's (`/specify`) and the human gate's job. The st
 check exists so machinery can cheaply catch "the label says shaped but the body is a
 one-liner," not to automate editorial judgment.
 
+**Dependency-narration check** (`_shared/dependency-narration-check.md`) is a related but
+separate authoring-time safeguard, run by `/claude-tweaks:capture`'s Shaped-body branch and
+`/claude-tweaks:specify`'s shaping mode: it catches a body that narrates another record's
+not-yet-merged follow-up as settled fact and auto-populates the missing `blocked-by:` edge
+before the record reaches `ready`, instead of leaving `/claude-tweaks:build`'s late
+prerequisite-check grep as the only backstop.
+
 ## Born-ready rule
 
 Health-skill records (`by:code-health`, `by:harness-health`, `by:journey-health`,
