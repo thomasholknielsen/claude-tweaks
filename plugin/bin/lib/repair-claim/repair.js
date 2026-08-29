@@ -53,7 +53,7 @@ function repairClaim({
     return result;
   }
   result.calls.push('read');
-  const classified = classifyClaimBlob(blob.absent ? null : blob.content, now);
+  const classified = classifyClaimBlob(blob.content, now);
   result.state = classified.state;
   if (classified.state !== 'unreadable') {
     result.outcome = 'refused';
