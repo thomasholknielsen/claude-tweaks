@@ -19,17 +19,20 @@ it when fresh, falling through to one plain `gh issue list --state open --json {
 open-record set is then filtered to two sets: records whose labels include any name starting with
 `needs:`, and records whose labels include `bot:blocked` — a record can land in both.
 
-Three `gh issue list` calls. `--label` ANDs multiple values passed to the same flag, which cuts
-both ways here, so the two shapes are deliberate and must not be normalized into each other:
+Two `gh issue list` calls remain direct label-based fetches (`needs:*` and `bot:blocked` now come
+from the session-scoped snapshot above, not from a `--label` call). `--label` ANDs multiple values
+passed to the same flag, which cuts both ways here, so the two shapes below are deliberate and
+must not be normalized into each other:
 
-- The first two fetches (`needs:definition`, `solution:unjustified`) are each their own
-  **single-label** call precisely because of that AND — one call passing both labels would return
-  only records carrying both (nearly always empty), not either. Never merge them into one call.
-- The third fetch (`ready` + `shaped:headless`) passes **two labels to one call on purpose** — it
-  wants exactly the AND: records carrying both. **Do not "fix" it by splitting it into separate
-  `--label ready` / `--label shaped:headless` calls** — the rationale above is about the first two
-  fetches only, and splitting this one silently widens it to every `ready` record plus every
-  `shaped:headless` record, which is not what this classification is.
+- The `solution:unjustified` fetch is its own **single-label** call precisely because of that AND
+  — merging it into the `ready`+`shaped:headless` call below would AND all three labels together,
+  returning only records carrying all three (nearly always empty), not any of them on their own.
+  Never merge it into that call.
+- The `ready` + `shaped:headless` fetch passes **two labels to one call on purpose** — it wants
+  exactly the AND: records carrying both. **Do not "fix" it by splitting it into separate
+  `--label ready` / `--label shaped:headless` calls** — the rationale above is about
+  `solution:unjustified` staying single-label, and splitting this one silently widens it to every
+  `ready` record plus every `shaped:headless` record, which is not what this classification is.
 
 Every temp file this mode writes below resolves through `bin/lib/session-tmp.js`'s `sessionTmpPath`, per `_shared/session-tmp-root.md`'s session-scoped temp-root convention (cited once here, not restated per script).
 
@@ -265,19 +268,19 @@ omitted when its own condition doesn't hold; the ranked table follows:
 |--------|------|-------|---------------------|
 | #{n} | needs:definition | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming |
 | #{n} | needs:decision | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} — proposed: "{Proposed line, verbatim}" |
-| #{n} | solution:unjustified | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to grant despite the flag (accept risk), or add evidence to Current State and re-run /claude-tweaks:specify #{n} first |
+| #{n} | solution:unjustified | {createdAt, relative} | run /claude-tweaks:challenge #{n} for the evidence-or-accept-risk verdict on the flag |
 | #{n} | shaped:headless (no grant) | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to grant (spec was headlessly shaped — no human has reviewed it) |
 | #{n} | bot:blocked | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to re-authorize after the failure |
-| #{n} | needs:definition + solution:unjustified | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming; run /claude-tweaks:backlog refine #{n} to grant despite the flag (accept risk), or add evidence to Current State and re-run /claude-tweaks:specify #{n} first |
+| #{n} | needs:definition + solution:unjustified | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming; run /claude-tweaks:challenge #{n} for the evidence-or-accept-risk verdict on the flag |
 
 Pick up next: #{n} "{title}" — {oldest/highest-priority reason}.
 ```
 
 `needs:definition` rows recommend `run /claude-tweaks:specify #{n} to route through
-brainstorming`. `solution:unjustified` rows recommend `run /claude-tweaks:backlog refine #{n} to
-grant despite the flag (accept risk), or add evidence to Current State and re-run
-/claude-tweaks:specify #{n} first` — naming `/backlog refine` explicitly as the actual grant
-mechanism, since this mode itself performs no grant.
+brainstorming`. `solution:unjustified` rows recommend `run /claude-tweaks:challenge #{n} for the
+evidence-or-accept-risk verdict on the flag` — naming `/claude-tweaks:challenge` explicitly as the
+mechanism that renders the actual accept-risk-or-add-evidence choice, since this mode itself
+performs no grant and reads no evidence judgment on its own.
 
 Every other `needs:*` value — starting with `needs:decision`, and including any `needs:*` marker
 this file doesn't name individually — recommends `run /claude-tweaks:backlog refine #{n} to
