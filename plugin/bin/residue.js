@@ -9,6 +9,7 @@
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { LARGE_MAX_BUFFER_BYTES } = require('./lib/shared-primitives');
 const { MANIFEST_PATHS } = require('./lib/manifest-path');
 const { resolveScope } = require('./lib/residue/scope');
 const { hasTestScript } = require('./lib/residue/detect-test-script');
@@ -56,7 +57,7 @@ function runner(cwd) {
   // still override it per call through the same spread.
   return (argv, opts = {}) => {
     try {
-      return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
+      return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', maxBuffer: LARGE_MAX_BUFFER_BYTES, stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
     } catch {
       return null;
     }
@@ -94,7 +95,7 @@ function main() {
 
   const suiteRun = () => {
     try {
-      return { code: 0, stdout: execFileSync('npm', ['test'], { cwd, encoding: 'utf8', timeout: 600000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }) };
+      return { code: 0, stdout: execFileSync('npm', ['test'], { cwd, encoding: 'utf8', timeout: 600000, maxBuffer: LARGE_MAX_BUFFER_BYTES, stdio: ['ignore', 'pipe', 'ignore'] }) };
     } catch (err) {
       if (err && (err.killed || err.code === 'ETIMEDOUT')) return { code: null, stdout: '', timedOut: true };
       if (err && err.code === 'ENOBUFS') return { code: null, stdout: '', bufferOverflowed: true };

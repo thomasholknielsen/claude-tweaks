@@ -16,12 +16,21 @@
 //     extraction. Unrelated in purpose to GH_TIMEOUT_MS, but consolidated
 //     into this same file per #977's single-shared-module deliverable
 //     rather than a second one-export file.
+//   - LARGE_MAX_BUFFER_BYTES: the 64 MiB `execFileSync`/`execSync` `maxBuffer`
+//     override for a call whose output can exceed Node's 1MB default (a full
+//     `git log`/`gh issue list --state all` dump). Previously defined
+//     identically (in two different multiplication orders) in
+//     `plugin/bin/residue.js` (both its generic runner and its `npm test`
+//     call) and `plugin/bin/lib/issues/backlog.js`'s `deriveCreatedAtFromGit`
+//     — a third pattern-copy landed in `plugin/bin/backlog-grant-gate.js`'s
+//     `gh`/`git` runners before this consolidation, which is what prompted it.
 'use strict';
 
 const GH_TIMEOUT_MS = 5000;
+const LARGE_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-module.exports = { GH_TIMEOUT_MS, escapeRegExp };
+module.exports = { GH_TIMEOUT_MS, LARGE_MAX_BUFFER_BYTES, escapeRegExp };
