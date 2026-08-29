@@ -8,7 +8,7 @@
 // bin/lib/model-profiles/policy-fragment.js#parsePolicyModelConfig (the one
 // nested-block key). No resolution logic lives here. Zero runtime npm deps.
 //
-// Usage: resolve-policy.js [--values | --all] [--run <dir>] <key> [<key>…]
+// Usage: resolve-policy.js [--values | --all] [--mcp-reachable] [--run <dir>] <key> [<key>…]
 // Output: one JSON object on stdout keyed by requested name — or, with
 // --values, one plain value per line in request order (scalar mode for shell
 // captures; empty line for unset-no-default and error entries; not valid for
@@ -23,6 +23,12 @@
 // git repo) — never from
 // CLAUDE_PLUGIN_ROOT (observed unset in Bash tool environments, #170) and
 // never from a positional path argument.
+// --mcp-reachable asserts the caller has already confirmed GitHub
+// reachability via its own MCP probe (e.g. a bounded `list_issues`/`get_me`
+// call) inside the current agent turn — pass it only when that probe
+// succeeded; it forwards into detectIntegrationModel's mcpReachable override
+// for the integration-model key, and (via resolveIntegrationModel) for
+// merge-verification too whenever that key is derived in the same call.
 'use strict';
 const fs = require('fs');
 const { execFileSync } = require('child_process');
@@ -56,6 +62,7 @@ function main(argv) {
   let runDir = null;
   let valuesMode = false;
   let allMode = false;
+  let mcpReachable = false;
   const keys = [];
   while (args.length) {
     const arg = args.shift();
@@ -74,6 +81,8 @@ function main(argv) {
       valuesMode = true;
     } else if (arg === '--all') {
       allMode = true;
+    } else if (arg === '--mcp-reachable') {
+      mcpReachable = true;
     } else {
       // A key argument may be a single lever or a comma-joined list
       // (`--values a,b,c`) — both shapes collect into the same flat key list,
@@ -93,7 +102,7 @@ function main(argv) {
   }
   if (allMode) keys.push(...POLICY_KEYS.map((row) => row.key));
   if (keys.length === 0) {
-    fail('usage: resolve-policy.js [--values | --all] [--run <dir>] <key> [<key>…]');
+    fail('usage: resolve-policy.js [--values | --all] [--mcp-reachable] [--run <dir>] <key> [<key>…]');
     return;
   }
   if (valuesMode && keys.includes('model-profiles')) {
@@ -135,8 +144,10 @@ function main(argv) {
   // this call's own integration-model result to avoid running forge
   // detection twice per invocation. Extracted into bin/lib/policy-derived-
   // defaults.js (#604) so the dedup is unit-testable via an injectable deps
-  // map — see that module for the full block.
-  computeDerivedDefaults(result, keys, root);
+  // map — see that module for the full block. mcpReachable forwards through
+  // so both keys' forge detection can skip the `gh` probe within this call
+  // (--mcp-reachable, #1421).
+  computeDerivedDefaults(result, keys, root, { mcpReachable });
 
   // model-profiles is the one block-style key — policy-only (the --run
   // overlay never applies; run configs hold flat lever lines, not nested

@@ -51,6 +51,14 @@ test('stale runs are reported in additionalContext, capped at 3, newest first', 
   assert.ok(ctx.indexOf('spec-3') < ctx.indexOf('spec-2'), 'newest-first: spec-3 before spec-2');
 });
 
+test('#803: the banner names a designated consumer — relay the list once in the first reply', async () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /Relay this list once, in your first reply to the user/);
+});
+
 test('#410: a stale run carrying a recorded pr URL includes it in the reported line; one without does not', async () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'active', pr: { number: 42, url: 'https://github.com/o/r/pull/42' } });
@@ -509,7 +517,12 @@ test('SessionStart: a second session start inside the TTL short-circuits the inl
   cp.spawn = () => ({ unref() {}, on() {} });
   const preflight = require('../plugin/bin/lib/reconcile/preflight');
   const originalHealth = preflight.ghHealthCheck;
+  const originalHealthAsync = preflight.ghHealthCheckAsync;
   preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  // The inline pass uses FAST_CHECKS, which runs the preflight via
+  // ghHealthCheckAsync concurrently with the shared fetch (#872) — stub
+  // both or the async twin reaches a real `gh` call.
+  preflight.ghHealthCheckAsync = async () => ({ ok: true, reason: null });
   try {
     const originDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-ttl-origin-'));
     git(['init', '-q', '--bare', '--initial-branch=main'], originDir);
@@ -565,6 +578,7 @@ test('SessionStart: a second session start inside the TTL short-circuits the inl
   } finally {
     cp.spawn = originalSpawn;
     preflight.ghHealthCheck = originalHealth;
+    preflight.ghHealthCheckAsync = originalHealthAsync;
   }
 });
 

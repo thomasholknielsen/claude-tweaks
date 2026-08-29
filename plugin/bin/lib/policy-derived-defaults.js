@@ -9,11 +9,19 @@
 // subprocess and without a real git remote + authenticated `gh` in a temp
 // repo (the non-determinism this extraction exists to avoid).
 //
-// production callers (bin/resolve-policy.js) pass no deps — the two
-// production lookups below apply unmodified. Tests inject deps.detectIntegrationModel
-// (and/or deps.deriveMergeVerification) to observe/count calls.
+// production callers (bin/resolve-policy.js) pass deps.mcpReachable only —
+// the two production lookups below apply unmodified otherwise. Tests inject
+// deps.detectIntegrationModel (and/or deps.deriveMergeVerification) to
+// observe/count calls.
+//
+// deps.mcpReachable (#1421) asserts the caller has already confirmed GitHub
+// reachability via its own MCP probe this turn — see bin/resolve-policy.js's
+// own --mcp-reachable header comment for the full contract. It forwards into
+// detectIntegrationModel's mcpReachable override for the integration-model
+// key, and (via resolveIntegrationModel) for merge-verification too whenever
+// that key is derived in the same call.
 'use strict';
-const { detectIntegrationModel } = require('./policy-schema');
+const { detectIntegrationModel, resolveIntegrationModel } = require('./policy-schema');
 const { deriveMergeVerification } = require('./merge-verification');
 
 // Mutates `result` in place (same object bin/resolve-policy.js already reads
@@ -21,7 +29,9 @@ const { deriveMergeVerification } = require('./merge-verification');
 // `root` is the resolved repo root passed through to both lookups.
 function computeDerivedDefaults(result, keys, root, deps = {}) {
   const detectModel = deps.detectIntegrationModel || detectIntegrationModel;
+  const resolveModel = deps.resolveIntegrationModel || resolveIntegrationModel;
   const deriveVerification = deps.deriveMergeVerification || deriveMergeVerification;
+  const mcpReachable = deps.mcpReachable === true;
 
   // integration-model has no static schema default (skills/_shared/integration-
   // model.md) — an absent value (not a typo'd/invalid one; `invalid: true`
@@ -30,7 +40,7 @@ function computeDerivedDefaults(result, keys, root, deps = {}) {
   if (keys.includes('integration-model')) {
     const entry = result['integration-model'];
     if (entry && entry.source === 'default' && !entry.invalid) {
-      result['integration-model'] = { value: detectModel(root), source: 'default' };
+      result['integration-model'] = { value: detectModel(root, { mcpReachable }), source: 'default' };
     }
   }
 
@@ -41,14 +51,21 @@ function computeDerivedDefaults(result, keys, root, deps = {}) {
   if (keys.includes('merge-verification')) {
     const entry = result['merge-verification'];
     if (entry && entry.source === 'default' && !entry.invalid) {
-      // Reuse this call's own integration-model result (already computed
-      // above) instead of letting deriveMergeVerification's internal
-      // resolveIntegrationModel()->detectIntegrationModel() redo forge
-      // detection from scratch — avoids running it twice per invocation.
+      // When mcpReachable is set, always build a fresh integrationModel dep
+      // that forwards it, regardless of whether integration-model is also in
+      // keys — reusing this call's own integration-model result (the
+      // avoid-running-forge-detection-twice optimization below) is only safe
+      // when mcpReachable is false, since a bare fallback to
+      // deriveMergeVerification's internal resolveIntegrationModel(root) with
+      // no opts would silently drop the flag (the `gh` probe would run
+      // despite the caller's assertion). Correctness beats the
+      // micro-optimization here.
       const modelEntry = result['integration-model'];
-      const mvDeps = keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
-        ? { integrationModel: () => modelEntry.value }
-        : {};
+      const mvDeps = mcpReachable
+        ? { integrationModel: (r) => resolveModel(r, { mcpReachable }) }
+        : keys.includes('integration-model') && modelEntry && typeof modelEntry.value === 'string'
+          ? { integrationModel: () => modelEntry.value }
+          : {};
       result['merge-verification'] = { value: deriveVerification(root, mvDeps), source: 'default' };
     }
   }

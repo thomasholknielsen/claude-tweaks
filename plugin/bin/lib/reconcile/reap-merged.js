@@ -20,7 +20,7 @@ const { mainCheckoutRoot, safeReal } = require('../hooks/worktree-detect');
 const { parseWorktreeList, isWorktreeLocked, HARNESS_WORKTREE_DIR, QUIET_SKIP_REASONS } = require('../hooks/worktree-reap');
 const { resolvePrState } = require('./pr-state');
 const { findRunByWorktreePath, appendEvent } = require('../hooks/context');
-const { recordResidueFailure, recordResidueSuccess } = require('./cache');
+const { trackResidue } = require('./cache');
 const { escalateResidue } = require('./escalate-residue');
 const { repoSlugOf } = require('./release-merged');
 
@@ -67,23 +67,13 @@ function decideReap(prState) {
   return { action: 'reap' };
 }
 
-// #644 Deliverable 2 — mirrors archive-merged.js's own `trackArchiveResult`:
-// one choke point for the consecutive-failure counter and escalation on
-// `removal-failed`, `escalate` injectable so a test can assert escalation
-// fired (and how many times) without touching real `gh`.
+// #644 Deliverable 2 — mirrors archive-merged.js's own `trackArchiveResult`;
+// both now call cache.js's shared `trackResidue` helper (#1233) rather than
+// duplicating the success/fail branch. `escalate` stays injectable so a test
+// can assert escalation fired (and how many times) without touching real
+// `gh`.
 function trackReapResidue(root, repoSlug, real, { failed, lastError }, { escalate = escalateResidue } = {}) {
-  if (!failed) {
-    recordResidueSuccess(root, 'removal-failed', real);
-    return;
-  }
-  const streak = recordResidueFailure(root, 'removal-failed', real, { lastError });
-  if (!streak.shouldEscalate) return;
-  try {
-    escalate({
-      repo: repoSlug, reason: 'removal-failed', targetPath: real,
-      count: streak.count, firstFailedAt: streak.firstFailedAt, lastError,
-    });
-  } catch { /* best-effort — never let escalation turn a reap skip into a thrown error */ }
+  trackResidue(root, repoSlug, 'removal-failed', real, { failed, lastError }, { escalate });
 }
 
 // A candidate worktree the CALLING process is standing inside (or under),
@@ -144,7 +134,10 @@ function reapMerged({ cwd, dryRun = false } = {}) {
     if (rm.failure) {
       skipped.push({ path: real, reason: 'removal-failed', prNumber: prState.number });
       logReapEvent(owningRunDir, 'worktree-reap-skipped', { reason: 'removal-failed', prNumber: prState.number });
-      trackReapResidue(root, repoSlug, real, { failed: true, lastError: rm.failure });
+      // #1341 — carry git's real stderr as lastError, falling back to the
+      // bare category only when git produced no stderr at all (e.g. an
+      // indeterminate timeout/spawn failure with nothing to say).
+      trackReapResidue(root, repoSlug, real, { failed: true, lastError: rm.stderr || rm.failure });
       continue;
     }
     // A path that just succeeded has no more residue to track (#644) — clear
