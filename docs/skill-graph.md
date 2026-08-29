@@ -120,7 +120,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 
 | Target | Relationship |
 |---|---|
-| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored); `/backlog` never files or closes them. `refine`'s grant sub-stage is the primary consumer of code-health's `risk:<tier>`/`size:<tier>` labels: `grant-check` (via `/assess-agent-autonomy`) reads them as one input to its authorization recommendation, not a direct label-driven rule. `/dispatch` (not `triage dispatch`, which no longer exists) then mints each authorized record's file-overlap group's run directory and hands it to `/flow`, which claims the group at its Step 2.8 (`flow/claim-targets.md`) before executing. |
+| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored); `/backlog` never files or closes them (one exception: `refine #N`'s human-confirmed close choice — `backlog/refine-record.md`). `refine`'s grant sub-stage is the primary consumer of code-health's `risk:<tier>`/`size:<tier>` labels: `grant-check` (via `/assess-agent-autonomy`) reads them as one input to its authorization recommendation, not a direct label-driven rule. `/dispatch` (not `triage dispatch`, which no longer exists) then mints each authorized record's file-overlap group's run directory and hands it to `/flow`, which claims the group at its Step 2.8 (`flow/claim-targets.md`) before executing. |
 | `/deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `_shared/criteria-architecture-depth.md`. |
 | `/docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline and shared `_shared/health-state.md` persistence, scoped to `docs/**` for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of code quality. One of the four recurring-sweep siblings; both file born-`ready` findings on the unified work-record contract. |
 | `/feedback` | A finding whose subject is a claude-tweaks skill routes here instead of filing a project issue — `_shared/learning-routing.md`'s "Subject check (health sweeps)" section. |
@@ -205,7 +205,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 
 | Target | Relationship |
 |---|---|
-| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored); `/backlog` never files or closes them. `refine` is the human gate over the `ready` queue: docs-health records feed its grant worklist the same way code-health/harness-health findings do. |
+| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored); `/backlog` never files or closes them (one exception: `refine #N`'s human-confirmed close choice — `backlog/refine-record.md`). `refine` is the human gate over the `ready` queue: docs-health records feed its grant worklist the same way code-health/harness-health findings do. |
 | `/feedback` | A finding whose subject is a claude-tweaks skill routes here instead of filing a project issue — `_shared/learning-routing.md`'s "Subject check (health sweeps)" section. |
 | `/harness-health` | Sibling health skill — mirrors the same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and shares `_shared/health-state.md`'s durable persistence, but on a disjoint file set: docs-health's rotation pool only ever walks `docs/`, never harness-health's `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory. Diátaxis genre-drift + depth-mismatch + findability + staleness instead of skill/rule/CLAUDE.md accuracy and template-conformance. |
 | `/journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (journey-health's Step 3.6 mirrors this skill's Step 3.5) and `_shared/health-state.md` persistence, scoped to `docs/journeys/*.md` accuracy and agent-e2e coverage instead of `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness. Both file born-`ready` findings on the unified work-record contract. |
@@ -303,7 +303,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 
 | Target | Relationship |
 |---|---|
-| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored) into `refine`'s grant worklist; `/backlog` never files or closes them. |
+| `/backlog` | Feeder — files records born `ready` (spec-shaped, scored) into `refine`'s grant worklist; `/backlog` never files or closes them (one exception: `refine #N`'s human-confirmed close choice — `backlog/refine-record.md`). |
 | `/feedback` | Same subject check as `/code-health` — plugin-owned findings route here rather than to the project's tracker. |
 | `/review` | Both read `_shared/journey-coverage-check.md`'s coverage computation — `/review`'s lens `3g-cov` stays inline/informational; journey-health's decoupled coverage-scan tier adds cursor-tracking and issue-filing on top. |
 | `/specify` | Journey-health findings are pre-specs — a filed `by:journey-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |

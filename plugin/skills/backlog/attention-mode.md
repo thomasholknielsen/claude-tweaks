@@ -162,7 +162,7 @@ node -e "
   for (const r of byNumber.values()) {
     if (!r.types.includes('needs:decision')) continue;
     const live = getComments(r)
-      .filter((c) => c.body && c.body.includes('<!-- needs-decision:') && !c.body.includes('**Resolved:**'))
+      .filter((c) => c.body && /^<!-- needs-decision: (\S+) -->/m.test(c.body) && !c.body.includes('**Resolved:**'))
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
       .pop();
     const match = live && live.body.match(/\*\*Proposed:\*\*\s*(.+)/);
@@ -243,14 +243,15 @@ per `_shared/pipeline-run-dir.md`'s Anchoring section (`git rev-parse --git-comm
 ISO-timestamp prefix. When that directory's `staged/` holds one or more files, render:
 
 ```
-{count} tidy proposal(s) staged awaiting approval — run /claude-tweaks:tidy --approve
+{count} tidy proposal(s) staged awaiting approval — run **/claude-tweaks:tidy** (the run
+re-renders its staged approvals)
 ```
 
 Omit the row entirely when no such directory exists, or its `staged/` is empty or absent.
-**Accepted limitation:** only the single newest matching directory is ever surfaced — if two tidy
-runs both left non-empty `staged/` before either was approved, the older one stays invisible on
-this row until the newer is resolved (`tidy --approve` always targets the newest by the same rule,
-so resolving it surfaces the next-newest on this row's next render).
+**Accepted limitation:** only the single newest matching directory is ever surfaced (this row's
+own newest-directory selection rule above) — if two tidy runs both left non-empty `staged/`
+before either was approved, the older one stays invisible on this row until the newer is
+resolved, so resolving it surfaces the next-newest on this row's next render.
 
 ## Step 4: Render
 
@@ -260,7 +261,8 @@ omitted when its own condition doesn't hold; the ranked table follows:
 ```markdown
 ⚠ Merge-lane circuit breaker tripped {trippedAt} by #{trippedBy.record}: {trippedBy.reason} — run /claude-tweaks:backlog refine --reset-breaker
 
-{count} tidy proposal(s) staged awaiting approval — run /claude-tweaks:tidy --approve
+{count} tidy proposal(s) staged awaiting approval — run **/claude-tweaks:tidy** (the run
+re-renders its staged approvals)
 
 ## Backlog — Needs Attention
 
@@ -269,7 +271,7 @@ omitted when its own condition doesn't hold; the ranked table follows:
 | #{n} | needs:definition | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming |
 | #{n} | needs:decision | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} — proposed: "{Proposed line, verbatim}" |
 | #{n} | solution:unjustified | {createdAt, relative} | run /claude-tweaks:challenge #{n} for the evidence-or-accept-risk verdict on the flag |
-| #{n} | shaped:headless (no grant) | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to grant (spec was headlessly shaped — no human has reviewed it) |
+| #{n} | shaped:headless (no grant) | {createdAt, relative} | run /claude-tweaks:backlog refine to grant via the sweep's Grant lane (spec was headlessly shaped — no human has reviewed it) |
 | #{n} | bot:blocked | {createdAt, relative} | run /claude-tweaks:backlog refine #{n} to re-authorize after the failure |
 | #{n} | needs:definition + solution:unjustified | {createdAt, relative} | run /claude-tweaks:specify #{n} to route through brainstorming; run /claude-tweaks:challenge #{n} for the evidence-or-accept-risk verdict on the flag |
 
@@ -288,9 +290,12 @@ resolve the {type} marker`, with one per-type clause added on top: a `needs:deci
 replaces the generic clause with `run /claude-tweaks:backlog refine #{n} — proposed: "{Proposed
 line, verbatim}"` (the record's captured `proposed` text from Step 2, quoted exactly);
 `shaped:headless (no grant)` keeps its existing no-human-reviewed clause, `run
-/claude-tweaks:backlog refine #{n} to grant (spec was headlessly shaped — no human has reviewed
-it)`; `bot:blocked` says `run /claude-tweaks:backlog refine #{n} to re-authorize after the
-failure`. This `refine #{n}` catch-all is the **permanent default** for any future `needs:*`
+/claude-tweaks:backlog refine to grant via the sweep's Grant lane (spec was headlessly shaped —
+no human has reviewed it)` — bare `refine`'s Grant lane (the sweep), never `refine #{n}` (the
+per-record resolver has no grant path for a `shaped:headless`-only row: `refine-record.md`'s own
+fetch reads only decision comments and `bot:blocked`, so pointing this row at `refine #{n}` would
+route the human to a command that finds nothing to grant); `bot:blocked` says `run
+/claude-tweaks:backlog refine #{n} to re-authorize after the failure`. This `refine #{n}` catch-all is the **permanent default** for any future `needs:*`
 marker — a new marker earns a dedicated launcher only by a later record's own explicit decision,
 never by default. The trailing "Pick up next" line names the single oldest/highest-priority
 record across all types — the same shape `overview` mode's own "what to build next" recommendation

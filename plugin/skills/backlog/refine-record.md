@@ -12,7 +12,11 @@ Resolves before any worklist fetch — a `#N` also present on the same invocatio
 this: the reset runs first, then the run exits without touching any record, named or not. Runs
 exactly `merge-lane-reset.md`'s existing question-and-write procedure verbatim — read that file
 directly rather than restating its `AskUserQuestion` text or its `writeBreakerState` call here.
-No sweep, no batch table.
+No sweep, no batch table. When a `#N[,#M...]` list is also present on the same invocation, report
+one explicit line after the reset procedure completes naming the record(s) that were **not**
+processed this run (e.g. "#{n}, #{m}: not processed — `--reset-breaker` exits before any
+worklist fetch; re-run `/claude-tweaks:backlog refine #{n},#{m}` to resolve them") — never a
+silent discard of the named numbers.
 
 `/claude-tweaks:backlog` is already on `_shared/pipeline-run-dir.md`'s standalone-auto allowlist,
 so this resolves the same `{ISO}-backlog-standalone` run directory any other standalone `backlog`
@@ -69,8 +73,12 @@ Render one table for the whole `#N,#M` list (columns: `#`, `Record`, `Unit`, `Ch
   write in `_shared/work-record-permission-matrix.md`).
 - **build it myself** — resolves the comment only, no label change.
 - **keep** — resolves the comment only, no label change.
-- **park** — adds `parked` (bootstrapped per `_shared/label-bootstrap.md`, the same mechanic
-  `/tidy`'s Defer action uses).
+- **park** — removes `ready`, adds `parked` (bootstrapped per `_shared/label-bootstrap.md`) — the
+  two are never applied together (`_shared/work-record.md`'s Stage axis: backlog | `parked` |
+  `ready`, one-of). Requires a `Trigger:` condition: ask the human for the trigger text as part
+  of resolving this row (same convention as `/tidy`'s Defer action —
+  `tidy/actions-github-issues.md`'s `## Defer` — cited, not restated), appended to the body as a
+  `**Trigger:** {condition}` line before the label writes.
 - **close** — closes the record (`gh issue close`).
 - **re-authorize** — appended to every row belonging to a record carrying `bot:blocked` (including
   a comment-less row from (c) above); strips `bot:blocked`, adds `auto:build`, mirroring
@@ -87,6 +95,18 @@ Evidence column: quote the row's live proposal's `**Proposed:**` line verbatim, 
 (b), the rationale sentence in place of it. A bare re-authorize row with no live proposal states
 "Prior failure — human judgment required," mirroring the whole-queue Re-authorize lane's own fixed
 evidence line.
+
+### Step 2.5: Empty batch
+
+When Step 2 yields zero rows for every named record — no unresolved decision comment ((a)/(b))
+and no `bot:blocked` (c) on any of them — skip Step 3's confirm gate entirely (there is nothing to
+confirm) and report exactly that: which named record(s) were checked and that neither an
+unresolved decision comment nor `bot:blocked` was found on any of them. For a record in the named
+list that is `ready` + `shaped:headless` with no `auto:build` grant — the one ungranted-headless
+case this resolver's own fetch doesn't classify — route the human onward to bare
+`/claude-tweaks:backlog refine`'s Grant lane (the sweep, not this per-record resolver) rather than
+implying this command itself has a grant path for it: this file's Step 1 fetch never checks for
+that condition, so never claim it was found clean.
 
 ### Step 3: Confirm
 
@@ -107,7 +127,9 @@ option has no analog here and is omitted:
 - Option 3 — `label`: `"Skip all"`, `description`: `"Leave every row untouched for now"`
 
 Overrides are ordinary free-text in the user's next message, not the `Other` field — same
-convention as `refine-lanes.md`'s own gate.
+convention as `refine-lanes.md`'s own gate. An override naming **park** for a row with no
+trigger stated in that same message is incomplete — ask a follow-up for the `Trigger:` condition
+before applying that row; never write `parked` with no trigger.
 
 ### Step 4: Apply
 
@@ -134,18 +156,27 @@ For each resolved row (skip a row the human's answer left untouched):
    |---|---|
    | grant anyway | `gh issue edit {n} --add-label auto:build` |
    | build it myself / keep | none |
-   | park | bootstrap `parked` (`_shared/label-bootstrap.md`), then `gh issue edit {n} --add-label parked` |
+   | park | append `**Trigger:** {condition}` to the body (`gh issue edit {n} --body-file <temp file>`, same mechanic as `/tidy`'s Defer action), bootstrap `parked` (`_shared/label-bootstrap.md`), then `gh issue edit {n} --remove-label ready --add-label parked` |
    | close | `gh issue close {n}` |
    | re-authorize | `gh issue edit {n} --remove-label bot:blocked --add-label auto:build` |
 
-3. **`needs:decision` label removal.** After every row for a given record has been applied this
+3. **Snapshot invalidation.** Immediately after a record's label/state writes above succeed,
+   invalidate the session-scoped record snapshot (`_shared/github-write-transport.md`'s
+   unconditional rule — cited, never restated; call shape copied from `capture/SKILL.md`'s own
+   post-write invalidation):
+
+   ```bash
+   node -e "require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+   ```
+
+4. **`needs:decision` label removal.** After every row for a given record has been applied this
    run, remove the `needs:decision` label from that record only when zero unresolved
    `needs-decision:*`-marked comments remain on it (`_shared/work-record.md`'s Resolution rule) —
    a record refused by two units concurrently keeps the label until both are resolved. A
    shim-only row (Step 1(b)) may carry no `needs:decision` label at all (comment-only, pre-label
    marker) — nothing to remove in that case.
 
-4. **Log** one `decisions.md` line per record (this run's `{ISO}-backlog-standalone` directory —
+5. **Log** one `decisions.md` line per record (this run's `{ISO}-backlog-standalone` directory —
    same resolution as `--reset-breaker` above), naming the record, every choice applied, and the
    writes made:
 
