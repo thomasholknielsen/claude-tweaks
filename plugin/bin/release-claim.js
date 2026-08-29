@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 // bin/release-claim.js — release a claims-registry claim in one command.
 //   node bin/release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] \
-//     [--remove-grants] [--remove-in-progress] [--repo owner/name] \
+//     [--remove-grants] [--remove-in-progress] [--keep-in-progress-label] [--repo owner/name] \
 //     [--section "/<skill>"] [--step <text>] [--help]
 // Performs wrap-up/cleanup-procedures.md Section E steps 3-8 for one issue: read the
 // blob, ownership check (never delete a successor's claim), releasePayload -> tombstone
-// PUT carrying the read sha, release comment; --remove-grants strips auto:build/auto:merge,
-// --remove-in-progress strips bot:in-progress; one AUTO line is appended to
+// PUT carrying the read sha, release comment; --remove-grants strips auto:build/auto:merge;
+// bot:in-progress is stripped by DEFAULT on every outcome that reaches the label step
+// (#1631 — every documented caller always wanted this, so requiring an opt-in flag on
+// each call site was itself the bug: a caller that composed its own release command and
+// omitted the flag silently left the label in place, with labelsRemoved/labelsFailed both
+// reporting empty and no error). --remove-in-progress is still accepted as a no-op for any
+// existing call site that still passes it explicitly. --keep-in-progress-label is the new
+// (rarely needed) opt-out. One AUTO line is appended to
 // <run-dir>/decisions.md when that directory exists AND resolves as anchored under the
 // main checkout (resolveTarget — a worktree-local shadow is refused, never silently
 // written, matching bin/log-decision.js's guard [IL-127]). runId = basename(<run-dir>).
@@ -33,11 +39,17 @@ const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/
 const { defaultRunner: gitDefaultRunner } = require('./lib/issues/claims-git-cas');
 const { parseRepo } = require('./lib/repo-resolve');
 
-const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--repo owner/name] [--section "/<skill>"] [--step <text>] [--help]\n';
+const USAGE = 'usage: release-claim.js <issue> --run <run-dir> --reason <reason> [--link <url>] [--remove-grants] [--remove-in-progress] [--keep-in-progress-label] [--repo owner/name] [--section "/<skill>"] [--step <text>] [--help]\n';
 const EXIT = { released: 0, 'already-released': 3, 'skipped-not-owner': 4, unreadable: 5, failed: 1 };
 
+// bot:in-progress removal is opt-out, not opt-in (#1631) — parseArgs models this as two
+// independent booleans (`removeInProgress` for the now-redundant explicit flag,
+// `keepInProgressLabel` for the new opt-out) rather than one, so `run()` below can log which
+// one a caller actually passed without either flag silently overriding a default.
 function parseArgs(argv) {
-  const o = { issue: null, run: null, reason: null, link: null, removeGrants: false, removeInProgress: false, repo: null, section: null, step: null, help: false };
+  const o = {
+    issue: null, run: null, reason: null, link: null, removeGrants: false, removeInProgress: false, keepInProgressLabel: false, repo: null, section: null, step: null, help: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => { const v = argv[++i]; return v === undefined ? null : v; };
@@ -47,6 +59,7 @@ function parseArgs(argv) {
     else if (a === '--link') o.link = next();
     else if (a === '--remove-grants') o.removeGrants = true;
     else if (a === '--remove-in-progress') o.removeInProgress = true;
+    else if (a === '--keep-in-progress-label') o.keepInProgressLabel = true;
     else if (a === '--repo') o.repo = next();
     else if (a === '--section') o.section = next();
     else if (a === '--step') o.step = next();
@@ -89,6 +102,7 @@ function run(argv, deps = realDeps) {
   if (!Number.isInteger(issue) || issue <= 0) { deps.stderr('release-claim.js: <issue> must be a positive integer\n' + USAGE); return 2; }
   if (!o.run) { deps.stderr('release-claim.js: --run <run-dir> is required (its basename is the claim runId)\n' + USAGE); return 2; }
   if (!o.reason || !o.reason.trim()) { deps.stderr('release-claim.js: --reason is required\n' + USAGE); return 2; }
+  if (o.removeInProgress && o.keepInProgressLabel) { deps.stderr('release-claim.js: --remove-in-progress and --keep-in-progress-label are contradictory\n' + USAGE); return 2; }
   if (!deps.ghAvailable()) {
     deps.stderr('release-claim.js: `gh` is required — in a gh-absent environment run the same read-classify-write over the MCP tools per _shared/github-write-transport.md and _shared/issue-claims.md ("The lock").\n');
     return 2;
@@ -100,9 +114,12 @@ function run(argv, deps = realDeps) {
   const runDir = o.run.replace(/\/+$/, '');
   const runId = path.basename(runDir);
   const reason = o.reason.trim();
+  // Default true (#1631) — --remove-in-progress is accepted as a redundant no-op for
+  // existing call sites; --keep-in-progress-label is the only way to suppress it.
+  const removeInProgress = !o.keepInProgressLabel;
   const r = release.releaseClaim({
     owner: repoSpec.owner, repo: repoSpec.repo, issueNumber: issue, runId, reason, link: o.link || undefined,
-    removeGrants: o.removeGrants, removeInProgress: o.removeInProgress, runner: deps.runner, gitRunner: deps.gitRunner, now: deps.now(),
+    removeGrants: o.removeGrants, removeInProgress, runner: deps.runner, gitRunner: deps.gitRunner, now: deps.now(),
   });
   for (const label of r.labelsFailed) {
     deps.stderr(`release-claim.js: warning — could not remove label ${label} on #${issue} (best-effort, continuing)\n`);
