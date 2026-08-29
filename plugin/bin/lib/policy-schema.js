@@ -121,7 +121,7 @@ const POLICY_KEYS = [
   { key: 'risk-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high', summary: "The risk tier at which machine-originated grants and demo fast-paths stop and require human review.", category: 'autonomy-trust', tier: 'core' },
   { key: 'size-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high', summary: "The size tier at which machine-originated grants and demo fast-paths stop and require human review.", category: 'autonomy-trust', tier: 'core' },
   // Positive integer counting machine grants issued today (audit-comment
-  // markers dated today, UTC) — /claude-tweaks:backlog grant mode's own floor.
+  // markers dated today, UTC) — /claude-tweaks:backlog refine's headless posture's own floor.
   // Absent = uncapped (optional-when-absent, see #269's Deliverables).
   { key: 'fleet-daily-grant-cap', type: 'integer', min: 1, summary: "Caps how many machine-issued grants may be handed out across one calendar day; leave it unset for no cap.", category: 'autonomy-trust', tier: 'advanced' },
   // Sampling floor (#310): counts machine-granted merged records in closedAt

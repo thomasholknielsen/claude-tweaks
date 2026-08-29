@@ -1,7 +1,7 @@
 'use strict';
 
-// Pure: the gate chain `/claude-tweaks:backlog grant` (the headless machine-grant
-// mode) evaluates per candidate record. Five floors, ALL must hold, evaluated in
+// Pure: the gate chain `/claude-tweaks:backlog refine`'s headless posture (the headless
+// machine-grant chain) evaluates per candidate record. Five floors, ALL must hold, evaluated in
 // a fixed order with the first failure short-circuiting into a logged skip — the
 // order is load-bearing (see skills/backlog/refine-headless.md and this record's own
 // #269 Deliverables). Callers apply labels/comments; this module only decides.
@@ -15,7 +15,7 @@
 // since they're pure).
 //
 // Was docs/superpowers/specs/2026-08-09-self-maintaining-fleet-design.md —
-// decomposed into #265 + #267-#276 (bc1de29d) — and #269 (backlog grant mode:
+// decomposed into #265 + #267-#276 (bc1de29d) — and #269 (refine's headless posture:
 // headless machine-grant unit behind the unattended ceiling).
 
 const { normalizeLabelNames, parseRecordFacets } = require('./record.js');
