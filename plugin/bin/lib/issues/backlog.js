@@ -16,6 +16,7 @@
 'use strict';
 
 const { execSync } = require('child_process');
+const { LARGE_MAX_BUFFER_BYTES } = require('../shared-primitives');
 const { PRIORITIES, TIERS, parseRecordFacets } = require('./record');
 const { blockersOf } = require('./ranking');
 const { evaluateGrantGate } = require('./grant-gate');
@@ -128,7 +129,7 @@ function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
   try {
     const out = execFn(`git log --name-only --format=${COMMIT_DATE_MARKER}%cI`, {
       encoding: 'utf8',
-      maxBuffer: 1024 * 1024 * 64,
+      maxBuffer: LARGE_MAX_BUFFER_BYTES,
     });
     let currentDate = null;
     for (const rawLine of out.split('\n')) {
