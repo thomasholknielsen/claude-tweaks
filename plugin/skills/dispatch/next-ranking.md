@@ -1,13 +1,14 @@
 # Dispatch Step 3 — The `next` Ranking Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 3's `next` form. Run this verbatim — it picks
+Referenced by `skills/dispatch/SKILL.md` Step 3 — reused by the bare drain's per-iteration loop
+and its deprecated `next` alias (`--budget 1`, one iteration). Run this verbatim — it picks
 exactly one group from `dispatch-groups.json` (`queue-pull-script.md`'s output) by priority band
 (high > medium > low > unprioritized), oldest-first within a band, using each group's
 highest-priority (then oldest) member as its representative. Also reads
 `dispatch-oversized-excluded.json` (same file, `{records, size, threshold}[]`) and excludes any
 group matching one of its record-number sets from the candidate pool entirely — a headless firing
-has nobody present to see the Oversized-group report's surfaced line, so `next` is the one form
-that must not auto-select an oversized group at all (#1228). Writes the picked group (or `null`,
+has nobody present to see the Oversized-group report's surfaced line, so the bare drain (and its
+`next` alias) is the form that must not auto-select an oversized group at all (#1228). Writes the picked group (or `null`,
 when no candidate remains) to `dispatch-next-pick.json`.
 
 ```bash

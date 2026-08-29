@@ -18,7 +18,10 @@ test('dispatch Step 3 no longer renders the interactive bare pick', () => {
   const content = read('plugin/skills/dispatch/SKILL.md');
   assert.doesNotMatch(content, /"Dispatch pick"/);
   assert.doesNotMatch(content, /Which groups should this firing dispatch\?/);
-  assert.match(content, /--budget/);
+  // Discriminating pin: the drain-loop sentence, not a near-vacuous `--budget` match
+  // that would pass even if the loop's driver had regressed back to a rendered pick.
+  assert.match(content, /No `AskUserQuestion` fires/);
+  assert.match(content, /Step 3's own loop is the driver — re-fetch, rank, dispatch, repeat/);
 });
 
 test('deprecated-aliases.md carries the --batch-size and next rows without touching --concurrent', () => {
