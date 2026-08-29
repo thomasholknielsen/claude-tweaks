@@ -64,3 +64,24 @@ prose — required, and never unified here:
 - Selector verbs (`next` and similar) and any range/expansion form (`/specify`'s `#A-#B`) are
   per-skill grammar extensions outside this contract's scope; this file governs the
   comma-list form only.
+
+## The `--budget` flag
+
+Canonical semantics for `--budget <n|all>`, the drain-budget flag shared by `/dispatch`'s and
+`/specify`'s bare (no-argument) drain invocations:
+
+- `n` caps the number of claim-attempt cycles the firing performs — an attempt is a claimed
+  record that is then shaped/dispatched, routed, or fails; a lost claim race consumes nothing.
+- `all` loops until the eligible set — re-fetched fresh each iteration — is empty, with no
+  upper cap.
+
+Applies to bare-drain invocations only; this file states no default. Per-skill default
+resolution is the caller's own policy key (`dispatch-batch-size` for `/dispatch`,
+`specify-budget` for `/specify`), read the same place every other project-config lever is
+(`_shared/policy-schema.md`). Rejecting `--budget` when combined with an explicit input form,
+and rejecting `--budget 0`/a negative value, are each caller's own rule, stated in that
+caller's own `## Input`/`## Syntax` prose — this file states the flag's meaning only, per the
+Out-of-scope split above.
+
+Consumed by: `/claude-tweaks:dispatch` (bare drain, #1492) and `/claude-tweaks:specify` (bare
+drain, #1491).

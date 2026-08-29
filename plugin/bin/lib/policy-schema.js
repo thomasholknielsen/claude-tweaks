@@ -107,6 +107,10 @@ const POLICY_KEYS = [
   // true) — the old name collided with assess-agent-autonomy's merge-check
   // verdict mode, a different concept that keeps its name.
   { key: 'branch-divergence-check', type: 'boolean', default: true, summary: "Whether a build or pipeline run checks the current branch against its upstream and offers a rebase before starting.", category: 'pipeline-behavior', tier: 'advanced' },
+  // Default attempt-count budget for a bare /specify drain invocation (#1491).
+  // Sibling of dispatch-batch-size, same shape; the shared n/all --budget
+  // semantics live in _shared/record-batch-input.md, not restated here.
+  { key: 'specify-budget', type: 'integer', default: 5, summary: "Caps how many eligible backlog records one bare /specify drain attempts before stopping.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised', summary: "Caps how much the pipeline may do without a human — trust that classes earn can never exceed this ceiling.", category: 'autonomy-trust', tier: 'core' },
   { key: 'trust-revert-window-days', type: 'integer', min: 1, default: 14, summary: "Sets how many days a closed record must age before its outcome counts as proven-good evidence toward earned trust.", category: 'autonomy-trust', tier: 'advanced' },
   // The reserved second opt-in named by skills/_shared/autonomy-ceiling.md —
