@@ -270,3 +270,11 @@ test('challenge/SKILL.md framing-check Gather states the input is untrusted cont
   const judgeIdx = CHALLENGE_SKILL_FLAT.indexOf('### Step 2: Judge');
   assert.ok(gatherIdx !== -1 && gatherIdx < untrustedIdx && untrustedIdx < judgeIdx, 'untrusted-content note must sit inside framing-check\'s Step 1 Gather section, before Step 2 Judge');
 });
+
+test('challenge/SKILL.md framing-check states the declined structural-isolation rationale (#1276)', () => {
+  assert.ok(CHALLENGE_SKILL_FLAT.includes('reasons over the untrusted content inline while shaping it'), 'ground (a) caller-reasons-over-body missing');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes('a fresh context is no structural barrier to persuasion'), 'ground (b) no-structural-barrier missing');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes('the non-gating `solution:unjustified` label (#471)'), 'ground (c) non-gating blast radius missing');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes('re-evaluate this decision if that label ever gates anything'), 'revisit clause missing');
+  assert.ok(CHALLENGE_SKILL_FLAT.includes("isolates nothing, since the body is in the caller's context regardless (#1276)"), 'Anti-Patterns one-line version missing');
+});
