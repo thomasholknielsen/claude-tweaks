@@ -120,6 +120,25 @@ test('bookkeeping-stamps gate: same deny fires for a Bash git-commit call, not j
   assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-worktree/);
 });
 
+test('bookkeeping-stamps gate: materialize commit landed, run dir resolved but run-state.json never written (record-worktree never ran) -> deny, not allow', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = projectDir();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', RUN_ID);
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), '# Auto-Decision Log\n');
+  // Deliberately no run-state.json -- mirrors bin/hooks.js's real wiring
+  // (`runState = runDir ? ctxLib.readRunState(runDir) : null`), where a
+  // resolved-but-uninitialized run dir yields runState === null, not {}.
+  const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: null, cwd: wt });
+  assert.ok(out.json, 'expected a deny result -- a landed materialize commit with no run-state.json at all must not be treated as "no run resolved"');
+  const spec = out.json.hookSpecificOutput;
+  assert.strictEqual(spec.permissionDecision, 'deny');
+  assert.match(spec.permissionDecisionReason, /record-worktree/);
+  assert.match(spec.permissionDecisionReason, /IL-131/);
+});
+
 test('bookkeeping-stamps gate: materialize commit landed AND worktree stamp present -> allow (pr-first check runs but resolves local-merge, no origin remote on this fixture)', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
