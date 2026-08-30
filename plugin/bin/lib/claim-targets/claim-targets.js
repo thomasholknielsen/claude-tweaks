@@ -174,6 +174,7 @@ function run(argv, deps) {
   const alreadyOwned = [];
   const skipped = [];
   const labelFailures = [];
+  const transportByIssue = {};
 
   // #1467: amortizes this loop's git-CAS fetch across the whole batch instead
   // of one `git fetch` per issue. `null` means "no trusted tip — fetch fresh
@@ -360,6 +361,15 @@ function run(argv, deps) {
     // fresh (see the `knownTip` comment above `claimedThisRun`).
     knownTip = typeof write.commitSha === 'string' ? write.commitSha : null;
 
+    // #1486: a permanent, zero-extra-cost record of which transport this
+    // claim actually went through — `write.commitSha` is a string only on a
+    // genuine git-CAS push success (claims-git-cas.js's writeClaimBlobGit);
+    // every contents-API-success path (direct PUT, or the self-write
+    // recheck after a rejected git-CAS/PUT) never sets it. This answers the
+    // "trace which transport actually wrote" question a future incident
+    // investigation would otherwise need temporary logging to answer.
+    transportByIssue[issue] = typeof write.commitSha === 'string' ? 'git' : 'contents-api';
+
     claimedThisRun.push(issue);
 
     try {
@@ -380,7 +390,7 @@ function run(argv, deps) {
   }
 
   deps.stdout(JSON.stringify({
-    claimed: claimedThisRun, alreadyOwned, skipped, labelFailures,
+    claimed: claimedThisRun, alreadyOwned, skipped, labelFailures, transportByIssue,
   }));
   return 0;
 }
