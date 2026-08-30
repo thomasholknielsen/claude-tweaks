@@ -720,6 +720,8 @@ Why it stayed invisible: nothing about a stale base looks wrong. The worktree ha
 
 The generalizable rule: treat a newly created worktree's base as unknown rather than current, and merge the integration branch into it as the first action — a fetch beforehand is not equivalent, because the worktree's base is not resolved from the ref the fetch updated.
 
+Independently reported again in #1464 (`EnterWorktree`'s `fresh` baseRef branching from a stale ref across 4 consecutive calls in one session) — same pattern, same remedy; see that record for the defensive-coverage hardening it drove around the plugin's own `checkWorktreeStaleness` backstop.
+
 ## IL-107 — A finished nine-task implementation was nearly redone from scratch
 
 A session picked up record #185 (worktree reaping), read its plan, created a worktree, wrote the SDD ledger, and began the pre-flight scan before discovering — incidentally, in `git worktree list --porcelain` output gathered for an unrelated safety question — a sibling worktree named `worktree-reaping-impl` holding eleven commits that implemented all nine of the plan's tasks, including a fix its own review had already caught. The owning session (pid 30559) was still alive, 15h22m in. Its branch was unpushed and unmerged, so `origin/main`, the record's labels, and the claim refs all showed the work as untouched.
