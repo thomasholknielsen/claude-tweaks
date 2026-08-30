@@ -119,6 +119,15 @@ function sweepShadow({ runRoot, pipelineRunDir, worktree }) {
   const rel = runDir.slice(rootWithSep.length);
   const shadow = path.join(wt, rel);
 
+  // #1493: a `*-tidy-standalone*` run's worktree copy of `staged/`/`decisions.md`
+  // is intentionally left in place — Step 7.5 commits it onto the branch and the
+  // pr-first PR merge is what lands it in the anchored $RUN_ROOT copy. Sweeping
+  // it back here would defeat that copy-then-commit path, so this run-dir shape
+  // is exempt the same way `work/` above is (never touched by this sweep at all).
+  if (path.basename(runDir).includes('-tidy-standalone')) {
+    return { lines: [], diagnostic: false };
+  }
+
   let shadowReal = null;
   try { shadowReal = fs.realpathSync(shadow); } catch { /* shadow doesn't exist — fine, treated as not-same-path */ }
   const samePath = shadowReal !== null && shadowReal === runDir;

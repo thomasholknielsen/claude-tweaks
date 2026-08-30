@@ -144,6 +144,27 @@ test('#1305: a genuinely absent shadow (no staged/, no decisions.md) is still a 
   assert.deepEqual(result.lines, []);
 });
 
+test('#1493: a *-tidy-standalone* run dir is exempt — its worktree copy of staged/decisions.md is never swept back', () => {
+  const root = tmpDir('ct-sweep-shadow-root-');
+  const rel = path.join('.claude-tweaks', 'pipelines', '2026-08-30T090000-tidy-standalone');
+  const runDir = path.join(root, rel);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# Decisions log\n');
+
+  const wt = tmpDir('ct-sweep-shadow-wt-');
+  const shadow = path.join(wt, rel);
+  const shadowStaged = path.join(shadow, 'staged');
+  fs.mkdirSync(shadowStaged, { recursive: true });
+  fs.writeFileSync(path.join(shadowStaged, 'proposal.md'), 'content');
+  fs.writeFileSync(path.join(shadow, 'decisions.md'), '# Decisions\n- an entry\n');
+
+  const result = sweepShadow({ runRoot: root, pipelineRunDir: runDir, worktree: wt });
+  assert.equal(result.diagnostic, false, 'a tidy-standalone shadow is a clean no-op, not a diagnostic');
+  assert.deepEqual(result.lines, []);
+  assert.ok(fs.existsSync(path.join(shadowStaged, 'proposal.md')), 'the worktree copy of staged/ must survive untouched');
+  assert.ok(fs.existsSync(path.join(shadow, 'decisions.md')), 'the worktree copy of decisions.md must survive untouched');
+});
+
 test('unlink-before-append: a shadow decisions.md with no "- " entry lines is dropped and unlinked, not left behind', () => {
   const { root, runDir, wt, shadow } = setup();
   const shadowDecisions = path.join(shadow, 'decisions.md');

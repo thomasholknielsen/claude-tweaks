@@ -2,7 +2,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 // #1493: tidy residue markers + `--approve`. This file pins the `.gitignore`
 // carve-out that makes a `*-tidy-standalone*` run's own audit files
@@ -251,4 +253,50 @@ test('AC2 half 2: tidy staleness clock reads the same updatedAt a comment edit b
     fetchDoc.includes("`github-issues` uses the query's own `updatedAt`, straight from the fetch above."),
     'record-queue-fetch.md must state the staleness clock reads the fetch\'s own updatedAt under github-issues',
   );
+});
+
+// --- Fix-wave (review of #1493): Critical C1 — the committed-set test ---
+//
+// The Critical finding: under pr-first, a scratch worktree cannot `git add` a
+// path anchored under the MAIN checkout ($RUN_ROOT) — tidy/SKILL.md Step 7.5
+// now instead copies decisions.md/report.md/staged/** into the worktree's OWN
+// copy of the run dir first, then adds/commits that copy (mirroring the
+// established work/{n}-spec.md exception). Prose alone can't prove a `git add`
+// actually stages the right paths, so this simulates the copy+add in a
+// throwaway git repo standing in for the worktree, using the REAL .gitignore
+// carve-out rules, and asserts via `git diff --cached --name-only` that the
+// staged set is exactly what Step 7.5's new prose says it stages.
+test('#1493 C1: Step 7.5\'s copy+add lands decisions.md, report.md, and staged/** in the worktree\'s own commit', () => {
+  const wt = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-tidy-c1-')));
+  const git = (...args) => execFileSync('git', args, { cwd: wt, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'T');
+
+  // The real .gitignore, copied verbatim — proves the simulation runs against
+  // the actual carve-out, not a hand-rolled stand-in that could drift from it.
+  fs.copyFileSync(path.join(ROOT, '.gitignore'), path.join(wt, '.gitignore'));
+  git('add', '.gitignore');
+  git('commit', '-q', '-m', 'seed');
+
+  const runId = '2026-08-30T090000-tidy-standalone';
+  const runRel = path.join('.claude-tweaks', 'pipelines', runId);
+  const runDir = path.join(wt, runRel);
+  fs.mkdirSync(path.join(runDir, 'staged'), { recursive: true });
+  // Simulates Step 7.5's copy step: these files already exist at $RUN_ROOT and
+  // are copied into the worktree's own copy of the same relative path.
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n- AUTO: did a thing\n');
+  fs.writeFileSync(path.join(runDir, 'report.md'), '# report\n');
+  fs.writeFileSync(path.join(runDir, 'staged', 'digest-promotion-1.md'), '# staged proposal\n');
+
+  // Step 7.5's own `git add` over the worktree copies (the fix's literal claim).
+  git('add', path.join(runRel, 'decisions.md'), path.join(runRel, 'report.md'), path.join(runRel, 'staged'));
+  git('commit', '-q', '-m', 'Tidy: housekeeping');
+
+  const staged = git('diff', 'HEAD~1', 'HEAD', '--name-only').trim().split('\n').filter(Boolean).sort();
+  assert.deepStrictEqual(staged, [
+    path.join(runRel, 'decisions.md'),
+    path.join(runRel, 'report.md'),
+    path.join(runRel, 'staged', 'digest-promotion-1.md'),
+  ].sort(), `expected exactly decisions.md/report.md/staged/** to be committed, got: ${JSON.stringify(staged)}`);
 });
