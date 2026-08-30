@@ -72,8 +72,8 @@ function archiveOrphanedMint(root, dir) {
   try {
     fs.mkdirSync(path.dirname(archiveDir), { recursive: true });
     fs.renameSync(dir, archiveDir);
-  } catch {
-    return { ok: false, reason: 'move-failed' };
+  } catch (err) {
+    return { ok: false, reason: 'move-failed', lastError: err && err.message };
   }
   return { ok: true };
 }
@@ -466,9 +466,13 @@ function archiveRunDir(root, runDir) {
       const dest = path.join(archiveDir, name);
       try {
         fs.renameSync(src, dest);
-      } catch {
+      } catch (err) {
         const fullyReverted = revertPlainMoves(movedThisPass);
-        return { ok: false, reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert' };
+        return {
+          ok: false,
+          reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert',
+          lastError: err && err.message,
+        };
       }
       movedThisPass.push([src, dest]);
       movedEntries.push(name);
@@ -501,8 +505,8 @@ function archiveRunDir(root, runDir) {
       // (it may already exist from the workMoves batch above).
       try {
         fs.mkdirSync(specArchiveDir, { recursive: true });
-      } catch {
-        return { ok: false, reason: 'move-failed' };
+      } catch (err) {
+        return { ok: false, reason: 'move-failed', lastError: err && err.message };
       }
     }
     const specMovedThisPass = [];
@@ -512,9 +516,13 @@ function archiveRunDir(root, runDir) {
       const dest = path.join(specArchiveDir, name);
       try {
         fs.renameSync(src, dest);
-      } catch {
+      } catch (err) {
         const fullyReverted = revertPlainMoves(specMovedThisPass);
-        return { ok: false, reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert' };
+        return {
+          ok: false,
+          reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert',
+          lastError: err && err.message,
+        };
       }
       specMovedThisPass.push([src, dest]);
       movedEntries.push(path.join(specName, name));
@@ -604,9 +612,10 @@ function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateRe
   // trackResidue dedups (#1233) — so it stays here, ahead of the shared
   // call, rather than moving inside it.
   if (result.reason !== 'move-failed') return;
-  // archive-merged.js's failure path carries no lastError today — pass
-  // undefined rather than inventing one.
-  trackResidue(root, repoSlug, 'move-failed', dir, { failed: true, lastError: undefined }, { escalate });
+  // Mirrors reap-merged.js's trackReapResidue: forward the underlying error
+  // (now captured at each move-failed catch site above) into the shared
+  // residue-tracking/escalation choke point.
+  trackResidue(root, repoSlug, 'move-failed', dir, { failed: true, lastError: result.lastError }, { escalate });
 }
 
 function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_CODE_SESSION_ID || null } = {}) {

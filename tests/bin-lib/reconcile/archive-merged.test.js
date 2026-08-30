@@ -11,7 +11,7 @@ const os = require('os');
 const path = require('path');
 const {
   archiveRunDir, listSpecDirs, decideArchive, readConsoleState, isOrphanedMint, trackArchiveResult,
-  archiveMerged, lastOwnEventMs, isAbandonedInterrupted,
+  archiveMerged, lastOwnEventMs, isAbandonedInterrupted, archiveOrphanedMint,
 } = require('../../../plugin/bin/lib/reconcile/archive-merged');
 const { RESIDUE_ESCALATE_THRESHOLD, listResidueFailures } = require('../../../plugin/bin/lib/reconcile/cache');
 
@@ -569,6 +569,7 @@ test('archiveRunDir: a later gitignored top-level entry fails to move — the ea
   const result = archiveRunDir(root, runDir);
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.reason, 'move-failed');
+  assert.match(result.lastError, /simulated failure: fs\.renameSync \(2nd entry\)/);
   assert.equal(entryRenameCount, 3, 'first entry moved, second entry failed, first entry reverted');
 
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
@@ -607,6 +608,7 @@ test('archiveRunDir: a later gitignored spec-N entry fails to move — the earli
   const result = archiveRunDir(root, runDir);
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.reason, 'move-failed');
+  assert.match(result.lastError, /simulated failure: fs\.renameSync \(spec entry\)/);
 
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
   assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1402', 'a.md')), false);
@@ -801,6 +803,23 @@ test('archive-merged module still exports its pre-existing surface', () => {
   assert.equal(typeof isOrphanedMint, 'function');
 });
 
+// #1446/#1447 — archiveOrphanedMint's catch site must bind and thread the
+// underlying error as lastError, same as archiveRunDir's move-failed sites.
+test('archiveOrphanedMint: a forced fs.renameSync throw is captured as a non-empty lastError', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-orphan-mint-'));
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-orphan');
+  fs.mkdirSync(dir, { recursive: true });
+
+  t.mock.method(fs, 'renameSync', () => {
+    throw new Error('simulated failure: fs.renameSync (orphaned mint)');
+  });
+
+  const result = archiveOrphanedMint(root, dir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'move-failed');
+  assert.match(result.lastError, /simulated failure: fs\.renameSync \(orphaned mint\)/);
+});
+
 // #644 Deliverable 2 — trackArchiveResult is archiveMerged's one choke
 // point for the move-failed consecutive-failure counter and escalation.
 test('trackArchiveResult: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls', () => {
@@ -819,6 +838,31 @@ test('trackArchiveResult: escalates exactly once at the threshold via an injecte
 
   trackArchiveResult(root, 'o/r', dir, { ok: false, reason: 'move-failed' }, { escalate });
   assert.equal(calls.length, 1, 'must not re-escalate on a later still-failing call');
+});
+
+// #1446/#1447 — trackArchiveResult must forward result.lastError (now
+// captured at each move-failed catch site) into both the injected escalate
+// call and the residue cache entry, mirroring reap-merged.js's
+// trackReapResidue exactly.
+test('trackArchiveResult: forwards result.lastError into escalate and the residue cache entry', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-track-lasterr-'));
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-lasterr');
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    trackArchiveResult(
+      root, 'o/r', dir,
+      { ok: false, reason: 'move-failed', lastError: 'EACCES: permission denied, rename \'a\' -> \'b\'' },
+      { escalate },
+    );
+  }
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].lastError, /EACCES: permission denied/);
+
+  const cached = listResidueFailures(root).find((f) => f.reason === 'move-failed' && f.path === dir);
+  assert.ok(cached, 'expected a residue cache entry for this dir');
+  assert.match(cached.lastError, /EACCES: permission denied/);
 });
 
 test('trackArchiveResult: only tracks move-failed — a different failure reason never enters the counter', () => {
