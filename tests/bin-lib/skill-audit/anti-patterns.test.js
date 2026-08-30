@@ -598,5 +598,17 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   corpus lost a row. Measured by RUNNING the parser on the working tree
   //   (actual 391), not by adding 6 to 385 — the arithmetic agreeing here is
   //   a check, not the evidence (`[IL-99]`).
-  assert.strictEqual(total, 391);
+  //
+  //   391 -> 398, #1704 (new `/claude-tweaks:intake` skill), merged with
+  //   origin/main (#1492/#1489/#1494's own +8 above, moved this pin from 383
+  //   independently). Own-branch side: a brand-new SKILL.md, not a diff to an
+  //   existing one — its own `## Anti-Patterns` table ships with exactly
+  //   seven rows ("Filing a fragment as spec-shaped", "Running a second
+  //   nudge round", "Silently omitting a dropped fragment", "Fetching a URL
+  //   to see what it is", "Restating a skill edge inside this file", "Adding
+  //   an intake-side routing prompt on top of `/claude-tweaks:capture`'s
+  //   `--route=keep`", "Filing an upstream issue from an uncertain repo
+  //   identity"). Measured by RUNNING the parser on the merged working tree
+  //   (actual 398), not by adding 7 to 391 (`[IL-99]`).
+  assert.strictEqual(total, 398);
 });

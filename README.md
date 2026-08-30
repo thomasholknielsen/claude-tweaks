@@ -23,6 +23,8 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
   SKILL                      ARTIFACT                 SUPERPOWERS USED
   ─────                      ────────                 ────────────────
 
+  intake ─────────────►  Sorted fragments
+     │
   capture ──────────────►  Backlog record
      │
      │                     Design Doc          ◄───  brainstorm

@@ -7,6 +7,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | Command | What it does | Takes |
 |---------|-------------|-------|
 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs\|github-remote\|issue-form\|design-integration\|diagram-suggestions\|shadcn-integration\|cloud-parity\|routines\|branch-tracking\|work-backend\|autonomy\|emil-skills\|integration-model]` |
+| `/claude-tweaks:intake` | Sort a mixed braindump onto this repo's shelves — file / absorb / upstream / remember / drop, one table | `[<dump text>] [--file <path>]` |
 | `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task] [--needs-definition\|--no-needs-definition] [--batch <path>]` |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
 | `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready sub-issue records | `[#N[,#M...]\|#A-#B\|record-id[,id...]\|design-doc-path\|topic\|backlog-title] [--budget <n\|all>] [--priority high\|medium\|low] [phase-N] [--surface <web\|mobile\|desktop\|backend\|infra\|terminal>] [--granularity <fine\|standard\|coarse>] [--chained] [--source sweep]` |
