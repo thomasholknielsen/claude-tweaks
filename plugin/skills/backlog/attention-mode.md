@@ -239,10 +239,13 @@ tripped state. When it renders:
 
 ### Tidy row
 
-Glob `{$RUN_ROOT}/.claude-tweaks/pipelines/*-tidy-standalone*/staged/`, with `$RUN_ROOT` resolved
+Glob `{$RUN_ROOT}/.claude-tweaks/pipelines/*-tidy-standalone*/staged/` and
+`{$RUN_ROOT}/.claude-tweaks/pipelines/*-sweep-standalone*/staged/` together — a `*-sweep-standalone*`
+run's staged items originate from tidy's own Step 1 component run inside sweep's shared run dir,
+so they carry the same approvable shape as a standalone tidy run's — with `$RUN_ROOT` resolved
 per `_shared/pipeline-run-dir.md`'s Anchoring section (`git rev-parse --git-common-dir`, normalized
-— never a bare relative path, `[IL-127]`). Take the newest matching run directory by its
-ISO-timestamp prefix. When that directory's `staged/` holds one or more files, render:
+— never a bare relative path, `[IL-127]`). Take the newest matching run directory across both
+globs by its ISO-timestamp prefix. When that directory's `staged/` holds one or more files, render:
 
 ```
 {count} tidy proposal(s) staged awaiting approval — run /claude-tweaks:tidy --approve

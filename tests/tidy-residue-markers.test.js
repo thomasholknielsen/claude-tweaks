@@ -167,9 +167,9 @@ test('approve-mode.md exists and states the newest-run-dir default', () => {
   assert.match(src, /^# Tidy — `--approve` Mode/);
   assert.ok(
     src.includes(
-      '**No-arg default:** the newest `{$RUN_ROOT}/.claude-tweaks/pipelines/*-tidy-standalone*/` directory (glob match + ISO-timestamp-prefix sort, newest last) whose `staged/` holds one or more files',
+      '**No-arg default:** the newest `{$RUN_ROOT}/.claude-tweaks/pipelines/*-tidy-standalone*/` or `*-sweep-standalone*/` directory (glob match across both shapes + ISO-timestamp-prefix sort, newest last) whose `staged/` holds one or more files',
     ),
-    'approve-mode.md must state the newest-run-dir, non-empty-staged default',
+    'approve-mode.md must state the newest-run-dir, non-empty-staged default across both tidy-standalone and sweep-standalone shapes',
   );
 });
 

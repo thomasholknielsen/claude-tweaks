@@ -119,6 +119,16 @@ test('#1493 I2: a clean *-init-standalone run with non-empty staged/ renders NO 
   }
 });
 
+test('#1494: a *-sweep-standalone* run with non-empty staged/ is listed exactly as a *-tidy-standalone* one is', async () => {
+  const project = tmpProject();
+  const standalone = mkRun(project, '2026-08-30T120000-sweep-standalone', { status: 'clean' });
+  mkStagedFile(standalone, 'stale-close-1.json', '{}');
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /2026-08-30T120000-sweep-standalone/, 'the cleanly-finished sweep-standalone run is named');
+  assert.match(ctx, /\/claude-tweaks:tidy --approve/, 'the sweep-standalone run points at tidy --approve, same as a tidy-standalone run');
+});
+
 test('#1493: a cleanly-clean standalone run with EMPTY staged/ renders no tidy --approve line', async () => {
   const project = tmpProject();
   const standalone = mkRun(project, '2026-07-02T090000-tidy-standalone', { status: 'clean' });

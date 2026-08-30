@@ -114,7 +114,9 @@ async function run(ctx) {
     const pipelinesDir = path.join(pipelinesRoot, '.claude-tweaks', 'pipelines');
     let pipelineEntries = [];
     try { pipelineEntries = fs.readdirSync(pipelinesDir, { withFileTypes: true }); } catch { /* no pipelines dir yet */ }
-    // Only a `*-tidy-standalone*` run dir is `tidy --approve`-resolvable
+    // Only a `*-tidy-standalone*` run dir — or, since sweep's shared run dir
+    // (#1494), a `*-sweep-standalone*` one, whose Step 1 runs tidy inside it
+    // and stages the same residue shape — is `tidy --approve`-resolvable
     // (`approve-mode.md`'s own glob match) — narrowed from the earlier
     // `endsWith('-standalone')` match, which also matched every OTHER
     // standalone-auto skill's run dir (`-init-standalone`, `-capture-standalone`,
@@ -125,9 +127,9 @@ async function run(ctx) {
     // own comment a few lines above prescribes exactly this lazy pattern):
     // the per-name check below costs two fs reads, so only the names
     // actually reported pay for it, instead of eagerly filtering every
-    // tidy-standalone run dir that exists and slicing at the end.
+    // tidy-standalone/sweep-standalone run dir that exists and slicing at the end.
     const candidateNames = pipelineEntries
-      .filter((e) => e.isDirectory() && e.name.includes('-tidy-standalone'))
+      .filter((e) => e.isDirectory() && /-(tidy|sweep)-standalone/.test(e.name))
       .map((e) => e.name)
       .sort()
       .reverse();

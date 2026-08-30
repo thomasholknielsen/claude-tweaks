@@ -10,23 +10,26 @@ batch-approval mechanism for it to drive.
 
 ## Resolving the target run
 
-**No-arg default:** the newest `{$RUN_ROOT}/.claude-tweaks/pipelines/*-tidy-standalone*/` directory
-(glob match + ISO-timestamp-prefix sort, newest last) whose `staged/` holds one or more files —
-$RUN_ROOT anchored per `_shared/pipeline-run-dir.md`'s Anchoring section
-(`git rev-parse --git-common-dir`, normalized; never a bare relative path, `[IL-127]`). If the
-newest matching directory's `staged/` is empty, walk to the next-newest by the same sort; if none
-of them have a non-empty `staged/`, report `no staged tidy proposals found` and stop — nothing to
-approve. `backlog/attention-mode.md`'s Tidy row shares this same glob-and-sort rule but only ever
-looks at the single newest matching directory (its own accepted limitation) and omits the row
-when that one's `staged/` is empty, so this walk-back can resolve a run the attention row doesn't
-currently surface — the two are the same rule, not the same result, whenever the newest run's
-`staged/` is empty but an older one's isn't.
+**No-arg default:** the newest `{$RUN_ROOT}/.claude-tweaks/pipelines/*-tidy-standalone*/` or
+`*-sweep-standalone*/` directory (glob match across both shapes + ISO-timestamp-prefix sort,
+newest last) whose `staged/` holds one or more files — a `*-sweep-standalone*` run's staged items
+originate from tidy's own Step 1 component run inside sweep's shared run dir, and are approvable
+the same way as a standalone tidy run's — $RUN_ROOT anchored per `_shared/pipeline-run-dir.md`'s
+Anchoring section (`git rev-parse --git-common-dir`, normalized; never a bare relative path,
+`[IL-127]`). If the newest matching directory's `staged/` is empty, walk to the next-newest across
+both shapes by the same sort; if none of them have a non-empty `staged/`, report `no staged tidy
+proposals found` and stop — nothing to approve. `backlog/attention-mode.md`'s Tidy row shares this
+same glob-and-sort rule but only ever looks at the single newest matching directory (its own
+accepted limitation) and omits the row when that one's `staged/` is empty, so this walk-back can
+resolve a run the attention row doesn't currently surface — the two are the same rule, not the
+same result, whenever the newest run's `staged/` is empty but an older one's isn't.
 
 **Explicit `[run-dir]` argument:** validated as an existing directory that resolves under
 `$RUN_ROOT` (same anchoring check — reject and stop on a path outside the main checkout, the
 `[IL-127]` shape, rather than silently operating on a worktree-local shadow), whose name matches
-`*-tidy-standalone*` — reject and stop (`{run-dir} is not a tidy-standalone run — --approve only
-resolves *-tidy-standalone* run directories`) on any other run dir, since no other standalone-auto
+`*-tidy-standalone*` or `*-sweep-standalone*` — reject and stop (`{run-dir} is not a
+tidy-standalone or sweep-standalone run — --approve only resolves *-tidy-standalone* or
+*-sweep-standalone* run directories`) on any other run dir, since no other standalone-auto
 skill's run dir ever carries an Approve-set this mode can execute — and that has a `staged/`
 subdirectory. An explicit target with an empty or absent `staged/` reports `nothing
 staged in {run-dir}` and stops — no next-newest fallback for an explicit path; the caller named it
