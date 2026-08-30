@@ -41,17 +41,57 @@ const ORPHAN_MINT_TTL_MS = 24 * 60 * 60 * 1000;
 // (#1117). Unlike a genuine orphaned mint (mkdir-only, no worktree, no
 // branch, no PR — see this file's top comment), an ad-hoc dir's
 // run-state.json always carries a real `worktree`, so its correct lifecycle
-// answer is the ordinary merged-PR path below (`decideArchive`), not this
-// blind mtime heuristic: exempt it here, permanently, rather than giving it
-// a longer TTL that just moves the same race further out.
+// answer is the eventual-supersession path below (isAdHocStandaloneSuperseded),
+// not this blind mtime heuristic: exempt it here, permanently, rather than
+// giving it a longer TTL that just moves the same race further out.
+//
+// #1604: the suffix match alone is not sufficient corroboration — a
+// malformed or mkdir-only dir sharing the suffix would also fall through
+// isOrphanedMint (exempt) and decideArchive (no-worktree/no-branch skip),
+// leaking the same way a genuine ad-hoc mint used to before this fix.
+// Require the invariant the comment above actually asserts: a real
+// run-state.json with a non-empty `worktree` field. A dir that merely
+// carries the suffix without that is NOT treated as ad-hoc here — it falls
+// through to the ordinary isOrphanedMint mtime sweep instead, same as any
+// other malformed mint.
 function isAdHocStandaloneMint(dir) {
-  return path.basename(dir).endsWith('-adhoc-standalone');
+  if (!path.basename(dir).endsWith('-adhoc-standalone')) return false;
+  const state = readRunState(dir);
+  return !!(state && typeof state.worktree === 'string' && state.worktree);
+}
+
+// #1604: the "swept once genuinely superseded" half of #1117's own design
+// that never shipped. A genuine ad-hoc mint (isAdHocStandaloneMint already
+// corroborated) whose recorded worktree no longer resolves in a fresh
+// `git worktree list` — the session has definitively ended — is pure
+// clutter once ADHOC_SUPERSEDED_TTL_MS has passed since the dir was last
+// touched. A still-live one (worktree still registered) is NEVER swept here,
+// regardless of age — that is #1117's own invariant, unchanged. Longer than
+// ORPHAN_MINT_TTL_MS by two orders of magnitude: a torn-down worktree is
+// unambiguous "session over" evidence (unlike a bare mtime heuristic on a
+// never-adopted mint), so this window exists only to give wrap-up's own
+// reflect pass (or a human) a wide margin to consume the friction record
+// before this backstop claims it, not to guard against a false positive.
+const ADHOC_SUPERSEDED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isAdHocStandaloneSuperseded(dir, state, worktrees, now = Date.now()) {
+  if (!isAdHocStandaloneMint(dir)) return false;
+  if (!state || typeof state.worktree !== 'string' || !state.worktree) return false;
+  const stillLive = worktrees.some((w) => path.resolve(w.path) === path.resolve(state.worktree));
+  if (stillLive) return false;
+  let mtimeMs;
+  try {
+    mtimeMs = fs.statSync(dir).mtimeMs;
+  } catch {
+    return false;
+  }
+  return (now - mtimeMs) > ADHOC_SUPERSEDED_TTL_MS;
 }
 
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
-// is what writes it), not an ad-hoc-standalone mint (see above), and older
-// than the grace window. Pure — no I/O beyond the two stats already needed
-// to answer the question.
+// is what writes it), not an ad-hoc-standalone mint (see above — that check
+// now reads run-state.json for corroboration, #1604), and older than the
+// grace window. No I/O beyond what answering the question requires.
 function isOrphanedMint(dir, now = Date.now()) {
   if (fs.existsSync(path.join(dir, 'config.yml'))) return false;
   if (isAdHocStandaloneMint(dir)) return false;
@@ -705,6 +745,23 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
       continue;
     }
 
+    // #1604: a genuine ad-hoc-standalone dir whose worktree is definitively
+    // gone (session over) is otherwise permanently stuck below — it never
+    // gets a console.json (decideArchive's console-never-rendered skip) and
+    // its worktree lookup fails the moment the ordinary reap sweep tears it
+    // down (no-worktree/no-branch skip). Intercept it here, ahead of both,
+    // once ADHOC_SUPERSEDED_TTL_MS has passed — #1117's own invariant (never
+    // sweep a still-live ad-hoc session) is unchanged: isAdHocStandaloneSuperseded
+    // returns false while the worktree still resolves, regardless of age.
+    if (isAdHocStandaloneSuperseded(dir, state, worktrees)) {
+      if (dryRun) { archived.push(dir); continue; }
+      const result = archiveOrphanedMint(root, dir);
+      trackArchiveResult(root, repoSlug, dir, result);
+      if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
+      archived.push(dir);
+      continue;
+    }
+
     if (!state || !state.worktree) { skipped.push({ runDir: dir, reason: 'no-worktree' }); continue; }
     const wtEntry = worktrees.find((w) => path.resolve(w.path) === path.resolve(state.worktree));
     const branch = wtEntry ? wtEntry.branch : null;
@@ -764,4 +821,5 @@ module.exports = {
   archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
   isOrphanedMint, isAdHocStandaloneMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
   localHasMerge, lastOwnEventMs, isAbandonedInterrupted, STALE_INTERRUPTED_TTL_MS,
+  isAdHocStandaloneSuperseded, ADHOC_SUPERSEDED_TTL_MS,
 };

@@ -85,9 +85,11 @@ whole friction record with no error, reopening exactly the blind spot this secti
 different case. It carries a real `worktree` in its `run-state.json`, unlike a genuine orphaned
 mint, which has none — but the ordinary merged-PR archival path `archiveMerged` runs for every
 other run dir requires both a still-registered worktree at sweep time and a `console.json`
-written into that exact directory, and nothing in this codebase writes one there. **The exemption
-is currently permanent, with no eventual-cleanup path for a genuinely-abandoned ad-hoc dir —
-tracked as a known gap in #1604.**
+written into that exact directory, and nothing in this codebase writes one there. **A genuinely-
+abandoned ad-hoc dir (its recorded worktree no longer resolves in `git worktree list` at all) is
+swept separately once `ADHOC_SUPERSEDED_TTL_MS` (30 days) has elapsed since it was last touched
+(`isAdHocStandaloneSuperseded`, #1604) — a still-live one (worktree still registered) is never
+swept by this path, no matter its age, preserving this section's own invariant.**
 
 **This block is the single machine-checked statement of the vocabulary above** (`tests/reflect-friction-lens-vocab.test.js` pins it against the real `appendEvent(...)` call sites in `bin/lib/hooks/*.js` — a drift here is a test failure, not a silent doc rot, per `#452`'s post-mortem):
 
