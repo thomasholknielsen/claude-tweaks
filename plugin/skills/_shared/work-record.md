@@ -93,7 +93,7 @@ are about to apply.
 | Upstream (1) | `upstream-candidate` | marks a record whose real destination is the claude-tweaks plugin, filed locally only because a headless run could not clear `/claude-tweaks:feedback`'s confirmation gate |
 | Structure (1) | `parent-issue` | Structure: parent issue — carries the acceptance gate for its sub-issues. Marks a `/claude-tweaks:specify` decomposition parent — the only thing that makes it enumerable for `/claude-tweaks:tidy`'s `parent-gate` sweep (`_shared/github-pr-scan-acceptance.md`); never carried by a sub-issue |
 | Justification (1) | `solution:unjustified` | Marks a record whose stated problem names a solution that was never traded off; stamped by `/specify` via `/claude-tweaks:challenge`'s `framing-check`, absent means the framing read clean. Non-gating: the remedy is a one-line human call — `/claude-tweaks:challenge #{n}` resolves it in one step (supply evidence or accept the risk); re-running `/specify #N` also clears it, but only if the re-shape changes the framing itself. Pre-rename spelling `framing:baked` stays readable forever (`[IL-85]`), never emitted |
-| Definition (2) | `needs:definition`, `needs:decision` | Marks a record naming a genuine open choice with no tradeoff made yet (`needs:definition`, stamped by `/capture`/`/feedback` at filing time — a content judgment), or a record where a headless unit proposed an action it may not take alone (`needs:decision` — the proposal and its command are in the record's newest unresolved decision comment; stamped by `/backlog refine`'s Grant lane and `/backlog grant`'s gate-4 refusal, see `backlog/grant-lane-decision.md`) |
+| Definition (2) | `needs:definition`, `needs:decision` | Marks a record naming a genuine open choice with no tradeoff made yet (`needs:definition`, stamped by `/capture`/`/feedback` at filing time — a content judgment), or a record where a headless unit proposed an action it may not take alone (`needs:decision` — the proposal and its command are in the record's newest unresolved decision comment; stamped by `/backlog refine`'s Grant lane, in either posture — interactively, or the headless posture's gate-4 refusal, see `backlog/grant-lane-decision.md`) |
 | Provenance (1) | `shaped:headless` | Marks a record shaped by `/specify`'s headless `next` unit with no human review of the resulting spec body — absent means either a human shaped it, or it predates this feature. Writer: `/specify` `next` mode only, applied in the same call as `ready` — never on an interactively-shaped record. Readers: the grant gate (`evaluateGrantGate`, #969), `/backlog attention`, and `/assess-agent-autonomy`'s `grant-check.md` Step 2 Judge (weighs this provenance toward a conservative verdict, #969). Never blocks an interactive human grant. |
 | Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
 | Container (1) | `digest` | marks the rolling digest issue container for below-materiality-floor deferred findings, per `_shared/materiality-floor.md` |
@@ -124,7 +124,8 @@ actual reader rather than by deleting the write.
 ### Decision-comment template
 
 The canonical shape for a `needs:decision` residue comment — cited by every writer
-(`backlog/grant-lane-decision.md`, `backlog/grant-mode.md`) rather than restated:
+(`backlog/grant-lane-decision.md`, `backlog/refine-headless.md`, `tidy/decision-markers.md`) rather
+than restated:
 
 ```
 <!-- needs-decision: {unit} -->
@@ -184,8 +185,9 @@ action, ever.
   regardless of classification, machinery removes all `auto:*` labels and adds `bot:blocked` —
   the record needs a human re-grant to run again.
 - `auto:*` labels are only ever originated by an interactive human session, with **one
-  machine-origination path**: `/claude-tweaks:backlog`'s headless `grant` mode
-  (`backlog/grant-mode.md`). It requires the full key set together — the `autonomy` ceiling
+  machine-origination path**: `/claude-tweaks:backlog refine`'s headless posture
+  (`backlog/refine-headless.md`, reached via `--source routine|sweep`, or the deprecated `grant`
+  alias which forces it). It requires the full key set together — the `autonomy` ceiling
   resolving `unattended` AND the `grant-origination-enabled` policy opt-in
   (`_shared/autonomy-ceiling.md`, `_shared/policy-schema.md`), the candidate record's class
   reading a `clean` trust verdict, a `by:*` agent-filed origin, a content-aware
@@ -424,7 +426,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 | `/code-health`, `/harness-health`, `/journey-health`, `/docs-health` | File born-`ready` records with origin + scoring + fingerprint |
 | `/capture` | Files raw backlog records (`by:capture`, Type only) |
 | `/specify` | Shapes records to spec shape; decomposes designs into `ready` sub-issue records (plus a parent when Step 2.6 keeps one); seeds `## Cross-Spec Promises` on the parent for decompositions of 4 or more sub-issues |
-| `/backlog` | `refine` mode is the human gate — grants `auto:build`/`auto:merge` over the `ready` queue, and suggests `priority:*`/`**Related:**` (human-confirmed). `overview` mode is read-only — distribution views plus a "what to build next" recommendation. `grant` mode is the one headless machine-grant path — see Grant semantics above and `backlog/grant-mode.md`. |
+| `/backlog` | `refine` mode is the human gate — grants `auto:build`/`auto:merge` over the `ready` queue, and suggests `priority:*`/`**Related:**` (human-confirmed); its headless posture (`--source routine\|sweep`, or the deprecated `grant` alias) is the one machine-grant path — see Grant semantics above and `backlog/refine-headless.md`. `overview` mode is read-only — distribution views plus a "what to build next" recommendation. |
 | `/dispatch` | Queue consumer — selects authorized records, mints the run directory, hands off to `/flow` (which claims its own named targets at Step 2.8), settles (release / revoke / report); also files `by:dispatch`-labeled backlog records when its own headless `next` firing hits a Preflight failure with nobody present to see it (`skills/dispatch/SKILL.md`'s Preflight, "Headless self-report") |
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |

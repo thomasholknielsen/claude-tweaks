@@ -201,6 +201,64 @@ test('archiveRunDir: single-spec run — git-tracked work/ moves via git mv, gon
   assert.equal(state.status, 'clean');
 });
 
+// #1493 review fix: a `*-tidy-standalone*` run's own audit files
+// (`decisions.md`, `report.md`, `staged/**`) are git-tracked now (the
+// `.gitignore` carve-out) — they must join `work/` in the git-mv'd class
+// instead of tripping the #593 tracked-entry guard below.
+test('archiveRunDir: tidy-standalone run — tracked decisions.md/report.md/staged/** move via git mv, no tracked-entry refusal', () => {
+  const root = makeRepo();
+  const runId = '2026-08-30T090000-tidy-standalone';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/decisions.md`, '# decisions\n');
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/report.md`, '# report\n');
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/staged/proposal-1.md`, '# proposal\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, true, JSON.stringify(result));
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(runDir), false, 'old run dir must not survive on disk');
+
+  const tracked = trackedFiles(root);
+  for (const rel of ['decisions.md', 'report.md', 'staged/proposal-1.md']) {
+    assert.equal(
+      tracked.includes(`.claude-tweaks/pipelines/${runId}/${rel}`),
+      false,
+      `old path for ${rel} must not remain tracked in the git index`,
+    );
+    assert.equal(fs.existsSync(path.join(archiveDir, rel)), true, `${rel} must exist at the archived path`);
+    assert.ok(
+      tracked.includes(`.claude-tweaks/pipelines/archive/${runId}/${rel}`),
+      `${rel} must be tracked at the archived path`,
+    );
+  }
+
+  const state = JSON.parse(fs.readFileSync(path.join(archiveDir, 'run-state.json'), 'utf8'));
+  assert.equal(state.status, 'clean');
+});
+
+// #1493 review fix, negative case: the tidy-standalone carve-out above must
+// not widen into a blanket exemption — a stray tracked file this function
+// doesn't know how to move (anything other than work/, or, on a
+// tidy-standalone run, decisions.md/report.md/staged/**) still refuses
+// `tracked-entry`, on a NON-tidy-standalone run exactly as before #1493.
+test('archiveRunDir: non-tidy run with a stray tracked file outside work/ still refuses tracked-entry', () => {
+  const root = makeRepo();
+  const runId = '2026-08-30T090000-record-42-standalone';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/notes.md`, '# stray tracked file\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'tracked-entry');
+
+  // Refused before anything moved — run dir and tracked file both untouched.
+  assert.equal(fs.existsSync(runDir), true);
+  assert.ok(trackedFiles(root).includes(`.claude-tweaks/pipelines/${runId}/notes.md`));
+});
+
 // #593 deliverable 2/4: multi-spec parent run dirs nest per-record
 // spec-{N}/work/ subtrees (multi-spec.md's Run directory layout) — every one
 // of them must move via git mv too, not just a top-level work/ that a

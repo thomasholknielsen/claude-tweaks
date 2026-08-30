@@ -1,6 +1,6 @@
-template_version: 1
+template_version: 2
 routine_name: specify-weekdays
-kickoff: specify next
+kickoff: specify
 # Optional: `branch: <name>` pins the assembled kernel's target-branch placeholder.
 # Normally unset here — a branch is project-specific, so /claude-tweaks:routine resolves
 # it at instantiation.
@@ -11,12 +11,20 @@ default_schedule:
   cron_expression: "23 */2 * * 1-5"
   description: "every 2 hours on weekdays, UTC — confirm against your local timezone at creation time. Offset from dispatch's 11 */2 cadence to avoid same-minute collisions; the fleet-table cron (0 8 * * 1-5) is a separate, independently-chosen value — see fleet.md's own composition table"
 notes: >
-  Headless shaping unit: each firing selects exactly one open record carrying none of
-  `ready`, any `needs:*`-prefixed label, `parked`, `parent-issue`, and `bot:in-progress`
-  (next-mode.md's eligibility predicate — #967), claims it, and shapes it into spec form. A record that
-  fails a framing-check guard is routed to `needs:definition` instead (#968) rather than
-  shaped — that is a productive, successful outcome for this firing, not a failure. A
-  firing with no eligible records is a cheap no-op: no claim, no write, no self-report.
-  This routine's own output feeds the grant unit and the dispatch drain downstream — a
-  freshly-shaped record still needs a human or the grant unit (#969, provenance-gated) to
-  authorize it before dispatch will pick it up.
+  Headless drain unit (cadence change, refs #1491): each firing now repeats the claim →
+  framing-guard → shape-or-route → release loop (next-mode.md's eligibility predicate —
+  #967 — over open records carrying none of `ready`, any `needs:*`-prefixed label,
+  `parked`, `parent-issue`, and `bot:in-progress`) up to `specify-budget`'s default of 5
+  records per firing, instead of the single record this routine fired before #1491. This is
+  a deliberate cadence change, not an oversight — shaping hygiene is cheap enough to run
+  more than once per firing, so one weekday firing now clears up to five eligible records
+  instead of one. To pin the old one-record-per-firing cadence, either change `kickoff`
+  above to `specify --budget 1`, or set a project `specify-budget: 1` in
+  `.claude-tweaks/policy.yml` (the latter also affects every other bare `/specify`
+  invocation, not just this routine). A record that fails a framing-check guard is routed
+  to `needs:definition` instead (#968) rather than shaped — a productive outcome that still
+  consumes one budget unit, not a failure. A firing with no eligible records left is a
+  cheap no-op: no claim, no write, no self-report. This routine's own output feeds the
+  grant unit and the dispatch drain downstream — a freshly-shaped record still needs a
+  human or the grant unit (#969, provenance-gated) to authorize it before dispatch will
+  pick it up.

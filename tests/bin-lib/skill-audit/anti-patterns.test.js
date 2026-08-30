@@ -566,5 +566,37 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   returns exactly this one `+` line and no `-` lines. Measured by RUNNING
   //   the parser on the working tree (actual 383), not by adding 1 to 382 —
   //   the arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
-  assert.strictEqual(total, 383);
+  //
+  //   383 -> 384, #1492 added dispatch's "Re-selecting a Settle-failed group
+  //   within the same drain firing" row. Verified: `git diff d05746546..HEAD --
+  //   plugin/skills/dispatch/SKILL.md | grep "^+.*|"` shows one Anti-Patterns
+  //   row added inside the `## Anti-Patterns` section (the other `+`/`-` lines
+  //   in that diff are argument-hint, Input-table, and Configuration-table
+  //   rows, outside this parser's section scope) and no row evicted.
+  //
+  //   384 -> 385, #1489 added backlog/SKILL.md's "A scheduled Routine firing
+  //   `refine #N` or `refine --reset-breaker`" row. Verified:
+  //   `git show d18e0c871 -- 'plugin/skills/*/SKILL.md' | grep -E '^[-+]\|'`
+  //   returns exactly this one `+` line and no `-` lines. The #1489 fix-wave's
+  //   own edits (backlog/SKILL.md's Preflight/description prose,
+  //   attention-mode.md, refine-record.md) touched no Anti-Patterns table —
+  //   confirmed by `git diff <fix-wave-base>..HEAD -- plugin/skills/backlog/
+  //   {SKILL,attention-mode,refine-record}.md | grep -E '^[-+]\|'` showing no
+  //   hits inside any `## Anti-Patterns` section. Measured by RUNNING the
+  //   parser on the working tree (actual 385), not by adding 1 to 384 — the
+  //   arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
+  //
+  //   385 -> 391, #1494 added `plugin/skills/sweep/SKILL.md` (new sweep
+  //   orchestrator skill — Task 1). A wholly new skill, not a compression
+  //   pass: its Anti-Patterns table contributes 6 rows ("Invoking
+  //   `/claude-tweaks:dispatch`, `/claude-tweaks:flow`, or
+  //   `/claude-tweaks:build` from sweep", "Inferring parent invocation from
+  //   `$PIPELINE_RUN_DIR` in a child", "Restating attention's
+  //   fetch/merge/rank logic in the close-out", "Skipping the between-step
+  //   snapshot invalidations", "Continuing past a failed step", "Adding a
+  //   mode keyword or per-record targeting") and nothing elsewhere in the
+  //   corpus lost a row. Measured by RUNNING the parser on the working tree
+  //   (actual 391), not by adding 6 to 385 — the arithmetic agreeing here is
+  //   a check, not the evidence (`[IL-99]`).
+  assert.strictEqual(total, 391);
 });

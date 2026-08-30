@@ -59,7 +59,7 @@ Phase 2 runs at all:
   group falls back to pending-review. Reversibility: n/a (no label change). [lever:
   grant-veto-window-hours={result.windowHours ?? GRANT_VETO_WINDOW_HOURS} (source)]`. A
   `not-pending` result with no `auto:merge` either is exactly a human veto — permanent, since
-  nothing re-adds `auto:merge-pending` (`/backlog grant`'s own candidate fetch already excludes
+  nothing re-adds `auto:merge-pending` (`refine`'s headless posture's own candidate fetch already excludes
   any record carrying an existing `auto:build` grant, so a previously-granted-then-vetoed record
   is never re-evaluated by that gate chain again without a fresh human grant).
 
@@ -75,7 +75,7 @@ node -e "
 "
 ```
 
-This is the seed write `grant-mode.md`'s own Step 4 used to perform at grant time before #309 —
+This is the seed write `refine-headless.md`'s own Step 4 used to perform at grant time before #309 —
 it now happens here, at the moment merge trust actually activates, since a still-pending grant
 has nothing yet for the circuit breaker to watch. Log:
 `AUTO {time} — Auto-merge gate: matured #{n}'s auto:merge-pending to auto:merge ({result.ageHours}h
@@ -91,9 +91,9 @@ as the maturation carve-out): the group path above, cited from `settle-and-merge
 gate; and the single-record path in `wrap-up/auto-merge-short-circuit.md`, which reuses
 `evaluateMaturation` and the Phase 2 promotion write directly (no group to evaluate first, so no
 phase split there). Neither site ever originates a fresh grant — both only promote a grant the
-origination opt-in (`/backlog grant`) already authorized to mature.
+origination opt-in (`refine`'s headless posture) already authorized to mature.
 
 A veto — a human removing `auto:merge-pending` before maturation — is permanent: nothing re-adds
-it. `/backlog grant`'s own candidate fetch excludes any record already carrying `auto:build`
+it. `refine`'s headless posture's own candidate fetch excludes any record already carrying `auto:build`
 (which `auto:merge-pending` is always additive on), so a previously-granted-then-vetoed record is
 never re-evaluated by the origination gate chain again without a fresh, unrelated human re-grant.

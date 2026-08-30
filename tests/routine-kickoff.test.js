@@ -19,7 +19,7 @@ test('names dispatch, tidy, and backlog as manual-execution exclusions, with the
     'Dispatch claims queue records and triggers builds and merges, tidy\'s '
     + 'standalone-auto mode applies deletions'));
   assert.ok(skill.includes(
-    'backlog\'s headless grant mode applies `auto:build`/`auto:merge` labels — '
+    'backlog refine\'s headless posture applies `auto:build`/`auto:merge` labels — '
     + 'machine-granted authorization is the same class of standing effect'));
   assert.ok(skill.includes(
     'any future routine whose skill claims work or writes beyond report-only '
