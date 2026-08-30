@@ -116,6 +116,6 @@ test('permission-matrix.md /specify row Removes column carries the generalized n
   assert.ok(PERMISSION_MATRIX_FLAT.includes('every `needs:*`-prefixed label present, on promotion'), 'generalized needs:* removal missing from /specify\'s Removes column');
 });
 
-test('permission-matrix.md /tidy row Adds column reserves needs:decision for Phase 6', () => {
-  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (Phase 6 — reserved here, not yet wired'), 'needs:decision Phase-6 reservation missing from /tidy\'s Adds column');
+test('permission-matrix.md /tidy row Adds column carries the #1493 needs:decision wiring, comment-first per decision-markers.md', () => {
+  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (Phase 6 — wired by #1493: comment-first per `decision-markers.md`, then the label)'), 'needs:decision #1493 wiring missing from /tidy\'s Adds column');
 });
