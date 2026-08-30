@@ -245,15 +245,16 @@ per `_shared/pipeline-run-dir.md`'s Anchoring section (`git rev-parse --git-comm
 ISO-timestamp prefix. When that directory's `staged/` holds one or more files, render:
 
 ```
-{count} tidy proposal(s) staged awaiting approval — run **/claude-tweaks:tidy** (the run
-re-renders its staged approvals)
+{count} tidy proposal(s) staged awaiting approval — run /claude-tweaks:tidy --approve
 ```
 
 Omit the row entirely when no such directory exists, or its `staged/` is empty or absent.
 **Accepted limitation:** only the single newest matching directory is ever surfaced (this row's
 own newest-directory selection rule above) — if two tidy runs both left non-empty `staged/`
 before either was approved, the older one stays invisible on this row until the newer is
-resolved, so resolving it surfaces the next-newest on this row's next render.
+resolved (`tidy --approve`'s own no-arg default resolves this same newest-non-empty-staged
+directory — see `tidy/approve-mode.md` — so resolving it surfaces the next-newest on this row's
+next render).
 
 ## Step 4: Render
 
@@ -263,8 +264,7 @@ omitted when its own condition doesn't hold; the ranked table follows:
 ```markdown
 ⚠ Merge-lane circuit breaker tripped {trippedAt} by #{trippedBy.record}: {trippedBy.reason} — run /claude-tweaks:backlog refine --reset-breaker
 
-{count} tidy proposal(s) staged awaiting approval — run **/claude-tweaks:tidy** (the run
-re-renders its staged approvals)
+{count} tidy proposal(s) staged awaiting approval — run /claude-tweaks:tidy --approve
 
 ## Backlog — Needs Attention
 

@@ -1,7 +1,7 @@
 ---
 name: tidy
 description: Use when the backlog needs hygiene — review stale backlog records, parked-trigger wakes, unsynced local records, and orphaned plans/worktrees
-argument-hint: "[--scope=<name>[,<name>...]] [--dry-run]"
+argument-hint: "[--scope=<name>[,<name>...]] [--dry-run] [--approve [run-dir]]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -28,7 +28,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]] [--dry-run]`. With no `--scope` argument, /tidy scans everything — the open work-record queue (per `work-backend` — see `step-1-records.md`), design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. `--dry-run` forces every finding to Stage regardless of mode or aggressiveness tier, and skips Step 7 execution entirely — see Step 6's `--dry-run` override for the full behavior. The two flags compose freely (e.g. `--scope=github --dry-run` previews just the GitHub-triage scope's would-be mutations). An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope` or `--dry-run`.
+`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]] [--dry-run]`. With no `--scope` argument, /tidy scans everything — the open work-record queue (per `work-backend` — see `step-1-records.md`), design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. `--dry-run` forces every finding to Stage regardless of mode or aggressiveness tier, and skips Step 7 execution entirely — see Step 6's `--dry-run` override for the full behavior. The two flags compose freely (e.g. `--scope=github --dry-run` previews just the GitHub-triage scope's would-be mutations). An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope` or `--dry-run`. `--approve [run-dir]` skips Steps 1-5 entirely and resumes a prior run's staged Approve set instead — read `approve-mode.md` in this skill's directory for resolution, re-verification, and archival.
 
 ## Scope Selection
 
@@ -199,7 +199,7 @@ On success, tear the scratch worktree down via `ExitWorktree` the same way as th
 
 Skip this entirely when `worktree-always` isn't set, or when `--dry-run` was passed (Step 7 never mutates or commits in that case).
 
-Commit with a message summarizing the tidy-up. For a scoped run (`--scope` was passed), prefix the message with the scope, e.g. `Tidy (scope: github): closed 2 stale issues, promoted #142` — see "Scope Selection" above. An unscoped full run's commit message is unchanged (no scope prefix).
+Commit with a message summarizing the tidy-up. For a scoped run (`--scope` was passed), prefix the message with the scope, e.g. `Tidy (scope: github): closed 2 stale issues, promoted #142` — see "Scope Selection" above. An unscoped full run's commit message is unchanged (no scope prefix). Under `pr-first`, the `git add` for this commit also stages the run directory's own `decisions.md`, `report.md` (when present), and `staged/**` — the `.gitignore` carve-out makes them trackable now; `local-merge` needs no change.
 
 **The `housekeeping-auto-merge` grant and the `<!-- tidy-housekeeping-pr -->` marker** (`_shared/policy-schema.md`, `_shared/github-pr-scan.md`'s `repo-wide` item 9): under `integration-model: pr-first` **and** `worktree-always: true`, this run's commit is pushed as a PR by the `worktree-always` handling above, which stamps the PR body with `<!-- tidy-housekeeping-pr -->` at creation — that marker, not a label, is what lets the sweep identify a tidy-originated PR without a local run-dir join. With `housekeeping-auto-merge` set project-wide, creation-time arming (above) is primary; a still-unarmed, green, marker-stamped PR may arm via the `moderate`+ sweep backstop (`tidy/actions-github-issues.md`'s `## Arm ready PR`); unset, nothing arms at either point. **Under `local-merge`, or when `worktree-always` is off (no worktree ever provisioned, so no PR-opening path runs at all), Step 7 never opens a PR** — under `local-merge`'s `worktree-always: true` case, the commit merges back directly (`_shared/scratch-worktree.md`); with no `worktree-always`, it commits straight to the current branch. The marker has nothing to stamp in either of those cases, by design — it's a `pr-first`-only concept (`_shared/integration-model.md`'s consumer table).
 

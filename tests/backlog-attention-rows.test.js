@@ -106,13 +106,8 @@ test('attention-mode.md: breaker banner (fail-open + launcher) and tidy row (anc
     'expected the tidy row\'s glob resolution to cite IL-127 / the Anchoring section',
   );
   assert.ok(
-    source.includes('run **/claude-tweaks:tidy** (the run'),
-    'expected the softened bare-tidy launcher (no --approve, which does not exist yet) on the tidy row',
-  );
-  assert.doesNotMatch(
-    source,
-    /--approve/,
-    'A4: /claude-tweaks:tidy --approve does not exist yet -- no --approve string may remain in attention-mode.md',
+    source.includes('run /claude-tweaks:tidy --approve'),
+    'A4/#1493: /claude-tweaks:tidy --approve now ships -- the tidy row must launch it directly',
   );
 });
 
