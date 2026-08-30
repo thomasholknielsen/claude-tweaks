@@ -91,6 +91,11 @@ comment with no other label change. They exist as two separate options only so t
 `**Resolved:**` text names the human's actual reason (a scheduled future build vs. a considered
 no-op) for a later reader of the record's history, never for any downstream mechanism.
 
+**Premise, stated (#1493):** This relies on GitHub bumping the issue's own `updatedAt` on a
+comment mutation (verified for comment creation; assumed for edits). If a comment edit turns out
+not to bump it, `keep` must additionally perform a write that does (e.g. a no-op label touch) —
+revisit before relying on the staleness clock alone.
+
 Evidence column: quote the row's live proposal's `**Proposed:**` line verbatim, or, for a shim row
 (b), the rationale sentence in place of it. A bare re-authorize row with no live proposal states
 "Prior failure — human judgment required," mirroring the whole-queue Re-authorize lane's own fixed

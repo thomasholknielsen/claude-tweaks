@@ -24,8 +24,11 @@ currently surface — the two are the same rule, not the same result, whenever t
 
 **Explicit `[run-dir]` argument:** validated as an existing directory that resolves under
 `$RUN_ROOT` (same anchoring check — reject and stop on a path outside the main checkout, the
-`[IL-127]` shape, rather than silently operating on a worktree-local shadow) and that has a
-`staged/` subdirectory. An explicit target with an empty or absent `staged/` reports `nothing
+`[IL-127]` shape, rather than silently operating on a worktree-local shadow), whose name matches
+`*-tidy-standalone*` — reject and stop (`{run-dir} is not a tidy-standalone run — --approve only
+resolves *-tidy-standalone* run directories`) on any other run dir, since no other standalone-auto
+skill's run dir ever carries an Approve-set this mode can execute — and that has a `staged/`
+subdirectory. An explicit target with an empty or absent `staged/` reports `nothing
 staged in {run-dir}` and stops — no next-newest fallback for an explicit path; the caller named it
 on purpose.
 

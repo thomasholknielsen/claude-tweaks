@@ -222,13 +222,14 @@ test('auto-decision-log.md carries the tidy-standalone committed-run-dir carve-o
 // --- Task 4: AC2 prose-coherence pin ---
 //
 // AC2's chain: a `keep` choice in /backlog refine resolves the decision
-// comment by prepending `**Resolved:**` to its body (a comment edit, which
-// GitHub records as bumping the issue's own `updatedAt`), and /tidy's
-// staleness clock reads that same `updatedAt` off the fetch. Both halves
-// verified live in their source files below; if either sentence had drifted
-// or been removed, AC2's staleness-suppression chain would silently break.
+// comment by prepending `**Resolved:**` to its body (a comment edit), and
+// /tidy's staleness clock reads the issue's own `updatedAt` off the fetch.
+// Whether a comment *edit* (as opposed to a comment *creation*) actually
+// bumps that `updatedAt` is a stated, not verified, premise (fix-wave review
+// of #1493, ruled: state-with-fallback) — this pin now targets that stated
+// premise + fallback sentence, not a bare fact assertion.
 
-test('AC2 half 1: backlog/refine-record.md — "keep" resolves the comment via a body-prepend comment edit', () => {
+test('AC2 half 1: backlog/refine-record.md — "keep" resolves the comment via a body-prepend comment edit, premise stated with a fallback', () => {
   const src = readFlat('plugin', 'skills', 'backlog', 'refine-record.md');
   assert.ok(
     src.includes('**keep** — resolves the comment only, no label change.'),
@@ -239,6 +240,12 @@ test('AC2 half 1: backlog/refine-record.md — "keep" resolves the comment via a
       "1. **Comment edit** — every choice except a bare re-authorize row with no live proposal: prepend `**Resolved:** {choice} — {date}` to that comment's body.",
     ),
     'refine-record.md must state that resolving a choice (including keep) prepends **Resolved:** to the comment body',
+  );
+  assert.ok(
+    src.includes(
+      "This relies on GitHub bumping the issue's own `updatedAt` on a comment mutation (verified for comment creation; assumed for edits). If a comment edit turns out not to bump it, `keep` must additionally perform a write that does (e.g. a no-op label touch) — revisit before relying on the staleness clock alone.",
+    ),
+    'refine-record.md must state the updatedAt-on-comment-edit premise and its fallback, not assert it as fact',
   );
 });
 

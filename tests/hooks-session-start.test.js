@@ -77,6 +77,15 @@ test('#1493 AC5: a fixture with one interrupted run + one cleanly-clean standalo
   assert.match(ctx, /\/claude-tweaks:tidy --approve/, 'the standalone run points at tidy --approve, not close-run');
 });
 
+test('#1493 I4: the tidy --approve banner names a designated consumer — relay the list once in the first reply', async () => {
+  const project = tmpProject();
+  const standalone = mkRun(project, '2026-07-02T090000-tidy-standalone', { status: 'clean' });
+  mkStagedFile(standalone, 'stale-close-1.json', '{}');
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /Relay this list once, in your first reply to the user/);
+});
+
 test('#1493: the standalone-approvable list is capped at MAX_REPORTED, newest-first, no overflow line', async () => {
   const project = tmpProject();
   const names = [
@@ -96,6 +105,18 @@ test('#1493: the standalone-approvable list is capped at MAX_REPORTED, newest-fi
   assert.match(ctx, /2026-07-02T090000-tidy-standalone/);
   assert.doesNotMatch(ctx, /2026-07-01T090000-tidy-standalone/, 'the oldest of 4 must be excluded by the MAX_REPORTED cap');
   assert.doesNotMatch(ctx, /and \d+ more/i, 'the sibling stale-runs block renders no overflow line, so this must not invent one either');
+});
+
+test('#1493 I2: a clean *-init-standalone run with non-empty staged/ renders NO tidy --approve line — only *-tidy-standalone* is approve-mode-resolvable', async () => {
+  const project = tmpProject();
+  const standalone = mkRun(project, '2026-07-02T090000-init-standalone', { status: 'clean' });
+  mkStagedFile(standalone, 'stale-close-1.json', '{}');
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  if (out.json) {
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /tidy --approve/);
+  } else {
+    assert.deepStrictEqual(out, {});
+  }
 });
 
 test('#1493: a cleanly-clean standalone run with EMPTY staged/ renders no tidy --approve line', async () => {
