@@ -175,6 +175,26 @@ function run(argv, deps) {
   const skipped = [];
   const labelFailures = [];
 
+  // #1467: amortizes this loop's git-CAS fetch across the whole batch instead
+  // of one `git fetch` per issue. `null` means "no trusted tip — fetch fresh
+  // on the next read" (the starting state, and the state after anything that
+  // makes the previous tip untrustworthy). Set unconditionally right after
+  // every read (git success -> that read's own tip; anything else -> null),
+  // then re-set after any write attempt outcome for this same issue (git-CAS
+  // success -> the just-pushed commit sha, chainable as the next issue's
+  // known tip with zero fetch; anything else -> null, per the Gotchas below).
+  // Discarding on ANY non-git outcome — not just this one item's — is
+  // deliberate: a contents-API write can move the same `claims-registry`
+  // branch tip without producing a git commit sha this loop can chain from,
+  // and a contested/transient outcome means this run's belief about the tip
+  // was already wrong. Trusting a stale tip for the next item's READ is never
+  // a correctness hazard either way — it only ever informs a claim/contest
+  // decision from content; the actual compare-and-swap enforcement happens at
+  // `writeClaimBlobGit`'s `--force-with-lease` push, which fails closed (and
+  // gets re-verified with a fresh read — claim-store.js's writeClaimBlob) the
+  // instant the real remote tip has moved.
+  let knownTip = null;
+
   // Every non---keep-going stop shares one shape: release everything this run
   // claimed (all-or-abort), then report the stop alongside what was released
   // and what could not be. Called only from `stopOrSkip()` below, which is
@@ -221,12 +241,18 @@ function run(argv, deps) {
   }
 
   for (const issue of targets) {
-    const read = claimStore.readClaimBlob(deps, repoSlug, issue);
+    const read = claimStore.readClaimBlob(deps, repoSlug, issue, knownTip);
     if (read.failure) {
+      knownTip = null;
       const stop = stopOrSkip(issue, 'transient', 'transient', 4, { error: read.failure });
       if (stop !== null) return stop;
       continue;
     }
+    // A git-CAS success carries a chainable commit-sha tip; anything else
+    // (contents-API, whether via a `gitRunner`-absent run or a git-side
+    // fallback) is a blob sha and must not be chained (see the `knownTip`
+    // comment above `claimedThisRun`).
+    knownTip = read.via === 'git' ? read.sha : null;
 
     const content = read.absent ? null : read.content;
     const classified = classifyClaimBlob(content, deps.now());
@@ -299,7 +325,10 @@ function run(argv, deps) {
       // A secondary/abuse rate limit is transient, never contested — a
       // throttle must not masquerade as another agent holding the claim
       // (record-697's incident read exactly that way before diagnosis,
-      // #787's amendment).
+      // #787's amendment). Either way this issue's write never confirmed a
+      // git tip — discard the chain (see the `knownTip` comment above
+      // `claimedThisRun`).
+      knownTip = null;
       const reason = write.secondaryRateLimit ? 'secondary-rate-limit' : write.failure;
       const stop = stopOrSkip(issue, 'transient', 'transient', 4, { error: reason });
       if (stop !== null) return stop;
@@ -315,11 +344,21 @@ function run(argv, deps) {
       // lands here too and is handled the same way. Holder identity is
       // unknown from the write response itself, so re-read the blob once,
       // best-effort, to name the winner in the contested report.
+      // A genuine contest proves this run's belief about the tip was wrong —
+      // discard the chain, same as the transient branch above.
+      knownTip = null;
       const holder = holderFromFreshRead(deps, repoSlug, issue);
       const stop = stopOrSkip(issue, 'contested', 'contested', 3, { holder });
       if (stop !== null) return stop;
       continue;
     }
+    // write.ok === true. A git-CAS success carries `commitSha` — the just-
+    // pushed commit is the new branch tip, chainable into the next issue's
+    // read with zero fetch. A contents-API success (git-CAS never attempted,
+    // or fell back after a transport failure/exhausted retries) has no
+    // commit sha to chain — discard, forcing the next issue's read to fetch
+    // fresh (see the `knownTip` comment above `claimedThisRun`).
+    knownTip = typeof write.commitSha === 'string' ? write.commitSha : null;
 
     claimedThisRun.push(issue);
 

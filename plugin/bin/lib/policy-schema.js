@@ -69,7 +69,7 @@ const POLICY_KEYS = [
   // 'unarmed ready PR' and 'unsettled run' checks.
   { key: 'pr-unarmed-age-hours', type: 'integer', default: 24, summary: "Sets how long a ready, passing pull request may sit without being armed to merge before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
   { key: 'unsettled-age-hours', type: 'integer', default: 24, summary: "Sets how long a claimed piece of work may sit with no visible progress before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
-  { key: 'grant-veto-window-hours', type: 'integer', default: 24, summary: "Sets how long a machine-granted auto:merge-pending grant must sit unvetoed before the merge gate matures it to auto:merge.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'grant-veto-window-hours', type: 'integer', min: 1, default: 24, summary: "Sets how long a machine-granted auto:merge-pending grant must sit unvetoed before the merge gate matures it to auto:merge.", category: 'merge-safety', tier: 'advanced' },
   // The row default (false) is the `supervised` base only: the EFFECTIVE
   // unset default is derived in resolvePolicyKeys from the resolved autonomy
   // ceiling — trusted/unattended derive true (#580; was opt-in-only, #414).

@@ -11,7 +11,7 @@ const os = require('os');
 const path = require('path');
 const {
   archiveRunDir, listSpecDirs, decideArchive, readConsoleState, isOrphanedMint, trackArchiveResult,
-  archiveMerged, lastOwnEventMs, isAbandonedInterrupted,
+  archiveMerged, lastOwnEventMs, isAbandonedInterrupted, archiveOrphanedMint,
 } = require('../../../plugin/bin/lib/reconcile/archive-merged');
 const { RESIDUE_ESCALATE_THRESHOLD, listResidueFailures } = require('../../../plugin/bin/lib/reconcile/cache');
 
@@ -61,6 +61,50 @@ function installFailingPreCommitHook(root) {
 
 function removePreCommitHook(root) {
   fs.rmSync(path.join(root, '.git', 'hooks', 'pre-commit'), { force: true });
+}
+
+// resolvePrState (pr-state.js) shells to `gh pr list` and is bound at
+// archive-merged.js's own require time, same non-injectable caveat
+// reap-merged.test.js's own copy of this helper documents — intercept at the
+// process-spawn boundary via a `gh` wrapper placed first on PATH.
+function installGhWrapper(prsJson) {
+  const wrapperDir = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-ghwrap-'));
+  const wrapperPath = path.join(wrapperDir, 'gh');
+  fs.writeFileSync(wrapperPath, `#!/bin/sh\ncat <<'EOF'\n${JSON.stringify(prsJson)}\nEOF\n`);
+  fs.chmodSync(wrapperPath, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath}`;
+  return { restore: () => { process.env.PATH = originalPath; } };
+}
+
+// #1544: a run dir close-run already marked `{status: 'clean', worktree:
+// null}` whose archive-run step never followed — the worktree is torn down
+// (or was never present in this fixture), so the only way to recover a
+// branch name is run-state.json's own `pr.branch` stamp (run-integrity.js's
+// fallbackBranch, same source #1672's own fixture uses). `mergeCommit.oid`
+// is the feature branch's real tip commit — `git merge --no-edit` folds it
+// into main, so `merge-base --is-ancestor` (localHasMerge) sees it as an
+// ancestor, same as a genuine fast-forward/merge would.
+function fixtureCleanUnarchivedRun({ runId, consoleResolved = true } = {}) {
+  const root = fs.realpathSync(makeRepo());
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-cleanwt-'));
+  git(root, 'worktree', 'add', '-q', wt, '-b', 'feat-clean-branch');
+  fs.writeFileSync(path.join(wt, 'feature.txt'), 'feature\n');
+  execFileSync('git', ['add', 'feature.txt'], { cwd: wt, encoding: 'utf8' });
+  execFileSync('git', ['commit', '-q', '-m', 'feature work'], { cwd: wt, encoding: 'utf8' });
+  const featureSha = execFileSync('git', ['rev-parse', 'feat-clean-branch'], { cwd: root, encoding: 'utf8' }).trim();
+  git(root, 'merge', '-q', '--no-edit', 'feat-clean-branch');
+  git(root, 'worktree', 'remove', '--force', wt);
+
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({
+    status: 'clean', worktree: null, pr: { branch: 'feat-clean-branch' },
+  }));
+  if (consoleResolved) {
+    fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ resolved: true }));
+  }
+  return { root, runDir, featureSha };
 }
 
 // #1673: a torn-down, shipped, `interrupted` run — the shape
@@ -511,6 +555,7 @@ test('archiveRunDir: a later gitignored top-level entry fails to move — the ea
   const result = archiveRunDir(root, runDir);
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.reason, 'move-failed');
+  assert.match(result.lastError, /simulated failure: fs\.renameSync \(2nd entry\)/);
   assert.equal(entryRenameCount, 3, 'first entry moved, second entry failed, first entry reverted');
 
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
@@ -549,6 +594,7 @@ test('archiveRunDir: a later gitignored spec-N entry fails to move — the earli
   const result = archiveRunDir(root, runDir);
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.reason, 'move-failed');
+  assert.match(result.lastError, /simulated failure: fs\.renameSync \(spec entry\)/);
 
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
   assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1402', 'a.md')), false);
@@ -743,6 +789,23 @@ test('archive-merged module still exports its pre-existing surface', () => {
   assert.equal(typeof isOrphanedMint, 'function');
 });
 
+// #1446/#1447 — archiveOrphanedMint's catch site must bind and thread the
+// underlying error as lastError, same as archiveRunDir's move-failed sites.
+test('archiveOrphanedMint: a forced fs.renameSync throw is captured as a non-empty lastError', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-orphan-mint-'));
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-orphan');
+  fs.mkdirSync(dir, { recursive: true });
+
+  t.mock.method(fs, 'renameSync', () => {
+    throw new Error('simulated failure: fs.renameSync (orphaned mint)');
+  });
+
+  const result = archiveOrphanedMint(root, dir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  assert.equal(result.reason, 'move-failed');
+  assert.match(result.lastError, /simulated failure: fs\.renameSync \(orphaned mint\)/);
+});
+
 // #644 Deliverable 2 — trackArchiveResult is archiveMerged's one choke
 // point for the move-failed consecutive-failure counter and escalation.
 test('trackArchiveResult: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls', () => {
@@ -761,6 +824,31 @@ test('trackArchiveResult: escalates exactly once at the threshold via an injecte
 
   trackArchiveResult(root, 'o/r', dir, { ok: false, reason: 'move-failed' }, { escalate });
   assert.equal(calls.length, 1, 'must not re-escalate on a later still-failing call');
+});
+
+// #1446/#1447 — trackArchiveResult must forward result.lastError (now
+// captured at each move-failed catch site) into both the injected escalate
+// call and the residue cache entry, mirroring reap-merged.js's
+// trackReapResidue exactly.
+test('trackArchiveResult: forwards result.lastError into escalate and the residue cache entry', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-track-lasterr-'));
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-lasterr');
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    trackArchiveResult(
+      root, 'o/r', dir,
+      { ok: false, reason: 'move-failed', lastError: 'EACCES: permission denied, rename \'a\' -> \'b\'' },
+      { escalate },
+    );
+  }
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].lastError, /EACCES: permission denied/);
+
+  const cached = listResidueFailures(root).find((f) => f.reason === 'move-failed' && f.path === dir);
+  assert.ok(cached, 'expected a residue cache entry for this dir');
+  assert.match(cached.lastError, /EACCES: permission denied/);
 });
 
 test('trackArchiveResult: only tracks move-failed — a different failure reason never enters the counter', () => {
@@ -934,6 +1022,70 @@ test('lastOwnEventMs: excludes fallback-attributed lines, returns the newest non
 test('lastOwnEventMs: null when events.jsonl is absent', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-lastown2-'));
   assert.equal(lastOwnEventMs(path.join(root, 'no-such-run')), null);
+});
+
+// --- #1544: archive a status:'clean' run dir with a confirmed merged PR ---
+// (previously invisible to archiveMerged — iterRunDirsWithState excludes
+// every status:'clean' dir by design, so a run whose archive-run step never
+// followed close-run sat in pipelines/ forever.)
+
+test('archiveMerged: a status:clean run dir with a merged PR is archived (previously skipped)', () => {
+  const runId = '2026-08-01T090000-clean-1544-merged';
+  const { root, runDir, featureSha } = fixtureCleanUnarchivedRun({ runId });
+  const wrapper = installGhWrapper([{
+    number: 99, state: 'MERGED', mergedAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z',
+    mergeCommit: { oid: featureSha },
+  }]);
+  let result;
+  try {
+    result = archiveMerged({ cwd: root });
+  } finally {
+    wrapper.restore();
+  }
+  assert.ok(result.archived.includes(runDir), `expected ${runDir} in archived, got ${JSON.stringify(result)}`);
+  assert.equal(fs.existsSync(runDir), false, 'original run dir must have been archived away');
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(archiveDir), true);
+});
+
+// The gotcha this issue names explicitly: clean-status alone is never
+// sufficient — an OPEN (not-yet-merged) PR must leave the run dir in place.
+test('archiveMerged: a status:clean run dir whose PR is still OPEN is never archived — clean status alone is not enough', () => {
+  const runId = '2026-08-01T090000-clean-1544-open';
+  const { root, runDir } = fixtureCleanUnarchivedRun({ runId });
+  const wrapper = installGhWrapper([{
+    number: 100, state: 'OPEN', mergedAt: null, updatedAt: '2026-08-01T00:00:00Z',
+  }]);
+  let result;
+  try {
+    result = archiveMerged({ cwd: root });
+  } finally {
+    wrapper.restore();
+  }
+  assert.ok(!result.archived.includes(runDir), `expected ${runDir} NOT archived while its PR is still open, got ${JSON.stringify(result)}`);
+  assert.equal(fs.existsSync(runDir), true, 'a clean-status dir with an unmerged PR must stay in place');
+  const skip = result.skipped.find((s) => s.runDir === runDir);
+  assert.ok(skip, `expected ${runDir} reported in skipped, got ${JSON.stringify(result)}`);
+  assert.equal(skip.reason, 'pr-open');
+});
+
+// A clean-status dir with no recoverable branch (no pr.branch stamp, no
+// decisions.md PR-early lifecycle line) must skip on 'no-branch', never
+// throw or silently archive.
+test('archiveMerged: a status:clean run dir with no recoverable branch is skipped, not archived', () => {
+  const root = fs.realpathSync(makeRepo());
+  const runId = '2026-08-01T090000-clean-1544-nobranch';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'clean', worktree: null }));
+
+  const result = archiveMerged({ cwd: root });
+
+  assert.ok(!result.archived.includes(runDir));
+  const skip = result.skipped.find((s) => s.runDir === runDir);
+  assert.ok(skip, `expected ${runDir} reported in skipped, got ${JSON.stringify(result)}`);
+  assert.equal(skip.reason, 'no-branch');
+  assert.equal(fs.existsSync(runDir), true);
 });
 
 test('isAbandonedInterrupted: false for a non-interrupted status', () => {

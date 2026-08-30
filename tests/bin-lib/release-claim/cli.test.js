@@ -123,6 +123,26 @@ test('--remove-in-progress and --keep-in-progress-label together are a malformed
   assert.match(stderrOf(out), /contradictory/);
 });
 
+test('--repo owner/.. is rejected before any gh call (#1443: parseRepo accepts ".." segments)', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: live(RUN_DIR_NAME), out });
+  const code = run(['999', '--run', runDir, '--reason', 'r', '--repo', 'owner/..'], d);
+  assert.equal(code, 2);
+  assert.match(stderrOf(out), /invalid --repo value/);
+  assert.deepEqual(calls, []);
+});
+
+test('--repo ../evil is rejected before any gh call', () => {
+  const runDir = mkRun();
+  const out = [];
+  const { calls, d } = deps({ content: live(RUN_DIR_NAME), out });
+  const code = run(['999', '--run', runDir, '--reason', 'r', '--repo', '../evil'], d);
+  assert.equal(code, 2);
+  assert.match(stderrOf(out), /invalid --repo value/);
+  assert.deepEqual(calls, []);
+});
+
 test('a failed label removal (issue edit throws) warns to stderr and logs "label removal failed"; exit unchanged', () => {
   const runDir = mkRun();
   const out = [];
