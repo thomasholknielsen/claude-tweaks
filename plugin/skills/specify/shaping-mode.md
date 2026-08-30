@@ -2,7 +2,8 @@
 
 Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 1 (a work record reference,
 or a comma-joined batch of them — `SKILL.md`'s `## Input`, "Comma-list batch form"), case 5 (a
-backlog reference with no matching design doc), or the `next` form's headless entry (`next-mode.md`'s
+backlog reference with no matching design doc), or the bare-drain headless entry path (including its
+deprecated `next` alias) (`next-mode.md`'s
 Shape step, which fetches the claimed record itself and hands it to this procedure directly — the
 same in-process invocation `--chained` uses, never a recursive `Skill()` call). Each record already exists and IS the target —
 there is nothing to decompose, and none of decomposition mode's Steps 1-9 (`decomposition-mode.md`

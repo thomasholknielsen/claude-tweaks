@@ -22,9 +22,9 @@
 // belongs to the downstream path that demonstrably picks these issues up: a
 // plain open issue IS a backlog-stage record, the scheduled bare `/specify`
 // drain (its deprecated `next` alias, historically) shapes it headlessly,
-// and `/backlog` grants route it to an
-// autonomous build. No `by:reconcile` origin value, no scoring heuristic —
-// closed #1216 is the recorded decision.
+// and `/backlog` grants route it to an autonomous build. No `by:reconcile`
+// origin value, no scoring heuristic — closed #1216 is the recorded
+// decision.
 'use strict';
 const { fingerprintFromBasis, normalizeText } = require('../health-core/fingerprint');
 // #644 review fix — defaultRunner/errorText were a byte-for-byte duplicate

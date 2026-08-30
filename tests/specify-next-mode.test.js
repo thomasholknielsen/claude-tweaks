@@ -248,9 +248,9 @@ test('_shared/work-record.md declares shaped:headless in its taxonomy row, with 
   assert.ok(WORK_RECORD_FLAT.includes('/backlog attention'), '/backlog attention reader must be named');
 });
 
-test('_shared/work-record-permission-matrix.md declares shaped:headless in the /specify row\'s Adds column, next mode only', () => {
+test('_shared/work-record-permission-matrix.md declares shaped:headless in the /specify row\'s Adds column, bare-drain headless entry path only (refs #1491 I1)', () => {
   const MATRIX_FLAT = readFlat('plugin/skills/_shared/work-record-permission-matrix.md');
-  assert.ok(MATRIX_FLAT.includes('`shaped:headless` (`next` mode only, stamped alongside `ready` in the same call — never on an interactively-shaped record)'), 'permission-matrix /specify row must name shaped:headless as next-mode-only, stamped alongside ready, never on an interactively-shaped record');
+  assert.ok(MATRIX_FLAT.includes('`shaped:headless` (the bare-drain headless entry path only, including its deprecated `next` alias — stamped alongside `ready` in the same call — never on an interactively-shaped record)'), 'permission-matrix /specify row must name shaped:headless as bare-drain-headless-entry-path-only (incl. the deprecated next alias), stamped alongside ready, never on an interactively-shaped record');
 });
 
 test('_shared/label-bootstrap.md carries shaped:headless in the canonical LABELS_JSON list', () => {

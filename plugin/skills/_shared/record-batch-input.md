@@ -68,7 +68,7 @@ prose — required, and never unified here:
 - **Execution shape** — sequential loop (`/specify`, `/demo`), group-expansion fan-out
   (`/dispatch`), or pipeline (`/flow`).
 - Selector verbs (`next` and similar) and any range/expansion form (`/specify`'s `#A-#B`) are
-  per-skill grammar extensions outside this contract's scope; this file governs the
+  per-skill grammar extensions outside this contract's scope; this contract governs the
   comma-list form only.
 
 ## The `--budget` flag
