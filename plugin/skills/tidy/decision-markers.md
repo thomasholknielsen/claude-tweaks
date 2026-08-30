@@ -11,11 +11,16 @@ only trace is the existing `{run-dir}/staged/` file — nothing in this procedur
 Runs for a Stage-tier finding that targets an **existing** record — read the routing table's live
 disposition for the row at the currently-active tier; a row that resolves to `Auto` (including every
 `Auto (no-op, always surfaced)` row) is untouched, and a row's disposition can itself vary by tier, so
-this derives per firing, never from a fixed row list baked into this file. Two shapes never qualify
+this derives per firing, never from a fixed row list baked into this file. Three shapes never qualify
 even when they Stage: a finding whose disposition **creates** a new record rather than mutating one
 that already exists (`Capture`, `Propose digest cluster`) — there is no record yet to attach a comment
-to — and a finding with no record reference at all (a design doc, worktree, branch, PR, or registry
-finding) — the marker is a record-comment mechanism and has nothing to attach to.
+to — a finding with no record reference at all (a design doc, worktree, branch, PR, or registry
+finding) — the marker is a record-comment mechanism and has nothing to attach to — and a finding
+whose target is the digest **container** issue itself (`Merge-close duplicate digest`, `Expiry
+summary`, `Rollover digest container`, all Step 5.6): a digest container is not a work record —
+`step-1-records.md`'s Shape 1 exempts it from `isBacklog` treatment the same way it exempts a
+decomposition parent — so it never enters the `needs:*` worklist rule this marker feeds, and its own
+residue channel is the digest itself (`_shared/materiality-floor.md`), not a decision comment.
 
 ## Compose the comment
 
@@ -72,6 +77,18 @@ fresh read rather than trusting the label or the label's absence: if this run's 
 finds the same proposal live, re-post the comment; if the underlying finding no longer applies
 (the record changed, closed, or was resolved by other means), clear the label instead. Never leave
 the mismatch standing on the assumption that whichever half exists must be correct.
+
+The reverse half-write also happens (the write order above makes it the more common one): an
+unresolved `<!-- needs-decision: tidy -->` comment with **no** `needs:decision` label — the comment
+post succeeded and the label add then failed or was never reached. `/tidy`'s own
+`step-1-records.md` skip check reads comments directly, so it still self-heals against this case
+without repair; but every *other* unit's label-based worklist check (`_shared/work-record.md`'s
+Worklist rule, `bin/lib/issues/grant-gate.js`'s Gate 1c, `specify/next-mode.md`'s Eligibility
+query) reads the label, not the comment, and won't exclude the record until the label exists. The
+repair here is one-directional: re-apply the `needs:decision` label, never remove the comment — the
+comment is the authoritative half (`_shared/work-record.md`'s resolution rule already treats the
+comment, not the label, as the resolvable unit), so the label is what's missing and what gets
+restored.
 
 ## Written alongside, never instead of, the staged file
 

@@ -124,7 +124,8 @@ actual reader rather than by deleting the write.
 ### Decision-comment template
 
 The canonical shape for a `needs:decision` residue comment — cited by every writer
-(`backlog/grant-lane-decision.md`, `backlog/refine-headless.md`) rather than restated:
+(`backlog/grant-lane-decision.md`, `backlog/refine-headless.md`, `tidy/decision-markers.md`) rather
+than restated:
 
 ```
 <!-- needs-decision: {unit} -->
