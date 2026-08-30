@@ -335,12 +335,16 @@ Selection section maintains an in-memory this-firing attempted set that
 every record this firing successfully claimed enters, regardless of
 outcome, and every later iteration's fresh fetch is filtered against it —
 so this firing itself can never pick the same record twice, label change
-or not. **Cross-firing re-selection is unchanged**: the attempted set is
-scoped to this one firing only and is discarded when it ends, so a
-record whose failure wrote no label is exactly as eligible to a *later*
-firing as it was before this one ever ran — that firing's own fresh
-attempted set starts empty and re-selects it under the same ranking,
-independently re-counted toward that firing's own `--budget`. Post-claim
+or not. **Cross-firing re-selection is unchanged**: what scopes the
+attempted set to this one firing is `next-mode.md`'s own Drain start step
+resetting `$ATTEMPTED` to empty before *this* firing's iteration 1 —
+there is no delete-on-exit when this firing ends, since the file lives in
+session-scoped temp storage that outlives any one firing. A record whose
+failure wrote no label is exactly as eligible to a *later* firing as it
+was before this one ever ran: that later firing's own Drain start step
+resets the identical session-scoped file back to `[]` before its own
+iteration 1, and it re-selects the record under the same ranking,
+independently re-counted toward its own `--budget`. Post-claim
 shaping-stage failures are, concretely:
 
 - **Framing Guard** (the section generally, not one case of it): its

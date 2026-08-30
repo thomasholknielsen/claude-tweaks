@@ -88,6 +88,32 @@ canonical set in this repo. If `needs:definition` is absent, the routing stamp
 simply fails, and that is handled as the Framing Guard section's stamp-failure
 condition below — never swallowed as a success.
 
+## Drain start (once per firing, before iteration 1)
+
+Before the Eligibility query below ever runs for the first time this firing,
+reset the this-firing attempted set (introduced in Selection below,
+`$ATTEMPTED`) to empty — a plain overwrite, the same "wholly rewritten, not
+appended to" posture `$CANDIDATES` already has on every iteration:
+
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ATTEMPTED=specify-next-attempted.json)"
+echo '[]' > "$ATTEMPTED"
+```
+
+**This step runs exactly once per firing, never once per iteration** —
+unlike every bash fence in the sections below, which re-run every
+iteration by design. Session-scoped temp storage
+(`_shared/session-tmp-root.md`) is scoped to the CLI session, not to one
+firing: `session-tmp-resolve.js` resolves the identical `$ATTEMPTED` path
+for any invocation sharing `$CLAUDE_CODE_SESSION_ID`, so a second bare
+`/specify` invocation later in the *same* session would, without this
+reset, read a file already populated by the first firing's claims and
+silently inherit its exclusions. This unconditional reset at the drain's
+start is what makes the attempted set **firing-scoped** despite living in
+session-scoped storage — cross-firing behavior stays exactly as Selection
+and Failure self-report below describe: unaffected once this firing ends,
+since the *next* firing runs this same reset before its own iteration 1.
+
 ## Eligibility query
 
 This query runs fresh at the top of **every** drain-loop iteration — never
@@ -206,7 +232,12 @@ attempted this firing is never picked twice even when its labels are
 unchanged. Persist the set in a session-scoped file (`$ATTEMPTED` below)
 since a fresh bash invocation does not inherit prior iterations' shell
 state, the same reason `$CANDIDATES`/`$PICK` are re-resolved every
-iteration rather than kept in a shell variable.
+iteration rather than kept in a shell variable. Session-scoped storage by
+itself is scoped to the CLI session, not to one firing — it is the
+unconditional reset **before this firing's very first iteration** (Drain
+start above) that actually makes this set firing-scoped: without it, a
+second bare drain invocation later in the same session would resolve the
+identical `$ATTEMPTED` path and inherit the first firing's exclusions.
 
 Re-resolve this fence's session-scoped temp paths (a fresh bash invocation does not inherit the Eligibility fence's shell variables, `_shared/session-tmp-root.md`):
 
