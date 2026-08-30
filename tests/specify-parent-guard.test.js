@@ -61,7 +61,7 @@ test('specify SKILL.md tier-2 behavior: repair/shape-anyway prompt, one-shot esc
   assert.ok(src.includes('nothing is persisted, so the guard re-prompts'), 'no-persisted-suppressor clause missing');
   assert.ok(src.includes('refuse without repair'), 'headless refuse-without-repair clause missing');
   assert.ok(src.includes("the skill's returned output under `--chained`"), 'chained refusal-delivery clause missing');
-  assert.ok(src.includes("the firing's reported outcome under `next`"), 'next refusal-delivery clause missing');
+  assert.ok(src.includes("the firing's reported outcome under bare drain"), 'bare-drain refusal-delivery clause missing (refs #1491: next was renamed to bare drain / --budget)');
 });
 
 test('specify SKILL.md batch branch fails all on a parent element and refuses tier-2 without prompting', () => {
