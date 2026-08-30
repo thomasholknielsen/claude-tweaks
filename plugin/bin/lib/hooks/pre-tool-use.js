@@ -40,8 +40,9 @@ function pluginRoot() {
 
 // The gate's two path-prefix/path-identity exemptions. `.claude-tweaks/pipelines/`
 // holds plugin-owned pipeline bookkeeping — run config, the auto-decision log,
-// staged proposals — which is gitignored (except *-tidy-standalone* audit
-// files, #1493 — the exemption is path-prefix-based either way) and is not
+// staged proposals — which is gitignored (except *-tidy-standalone*/
+// *-sweep-standalone* audit files, #1493/#1494 — the exemption is
+// path-prefix-based either way) and is not
 // the project work this gate exists to isolate. `.claude-tweaks/policy.yml` is the second: the one
 // file a session legitimately needs to edit from a non-isolated checkout in
 // order to CONFIGURE the very gate that would otherwise deny every other

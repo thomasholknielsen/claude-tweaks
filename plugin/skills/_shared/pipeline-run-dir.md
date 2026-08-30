@@ -83,6 +83,8 @@ Two consequences, both load-bearing:
   `pr-first`, `decisions.md`, `report.md`, and `staged/**` are copied into the worktree's own
   copy of the run dir (`tidy/SKILL.md` Step 7.5) and committed there, the same shape as
   `work/{n}-spec.md` above; the `$RUN_ROOT` copies stay authoritative until the tidy PR merges.
+  A `*-sweep-standalone*` run shares this exact exception (#1494) — sweep's Step 1 runs tidy
+  inside its shared run dir, so the same Step 7.5 copy-then-commit lands the identical residue.
 
 **The staged-file invariant.** A staged proposal (`_shared/staged-patch.md`'s Artifact
 format — a review/reflect/test-fix/deepen-collapse `.patch`) lives at the **absolute**

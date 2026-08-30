@@ -354,19 +354,20 @@ function archiveRunDir(root, runDir) {
   const workMoves = [];
   const topWork = path.join(runDir, 'work');
   if (fs.existsSync(topWork)) workMoves.push([topWork, path.join(archiveDir, 'work')]);
-  // #1493: a `*-tidy-standalone*` run dir's own audit files (SKILL.md's
-  // pr-first Step 7.5 addition, `.gitignore`'s matching carve-out) are
-  // git-tracked the same way `work/` always has been — never spec-{N}/-nested
-  // (a tidy standalone run is never a multi-spec parent), so this joins the
-  // top-level `workMoves` batch only, not the per-spec loop below. Without
-  // this, the tracked-entry guard a few lines down would refuse to archive
-  // every tidy-standalone run forever, since it treats any tracked path
-  // outside `work/` as the #593 corruption hazard. Folding these into the
-  // same `git mv` + single-commit batch as `work/` means the guard never even
-  // sees them (they're already moved out of `runDir` by the time it runs) —
-  // a genuinely stray tracked file elsewhere in the run dir still refuses
-  // exactly as before.
-  if (runId.includes('-tidy-standalone')) {
+  // #1493/#1494: a `*-tidy-standalone*` (or, since sweep's shared run dir,
+  // `*-sweep-standalone*` — sweep's Step 1 runs tidy inside it) run dir's own
+  // audit files (SKILL.md's pr-first Step 7.5 addition, `.gitignore`'s
+  // matching carve-out) are git-tracked the same way `work/` always has
+  // been — never spec-{N}/-nested (neither shape is ever a multi-spec
+  // parent), so this joins the top-level `workMoves` batch only, not the
+  // per-spec loop below. Without this, the tracked-entry guard a few lines
+  // down would refuse to archive every tidy-standalone/sweep-standalone run
+  // forever, since it treats any tracked path outside `work/` as the #593
+  // corruption hazard. Folding these into the same `git mv` + single-commit
+  // batch as `work/` means the guard never even sees them (they're already
+  // moved out of `runDir` by the time it runs) — a genuinely stray tracked
+  // file elsewhere in the run dir still refuses exactly as before.
+  if (/-(tidy|sweep)-standalone/.test(runId)) {
     for (const auditFile of ['decisions.md', 'report.md']) {
       const src = path.join(runDir, auditFile);
       if (fs.existsSync(src)) workMoves.push([src, path.join(archiveDir, auditFile)]);

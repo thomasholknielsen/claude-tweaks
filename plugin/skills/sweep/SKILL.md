@@ -23,7 +23,7 @@ Lifecycle: utility — the on-demand, single-session sibling of the cloud fleet'
 `$ARGUMENTS` is parsed as `[--budget <n|all>] [--scope <name>[,<name>...]]`, both optional, order-independent:
 
 - `--budget <n|all>` → forwarded verbatim to the specify step (Step 2) — `_shared/record-batch-input.md`'s canonical `--budget` grammar; omitted, specify applies its own `specify-budget` policy default.
-- `--scope <name>[,<name>...]` → forwarded verbatim to the tidy step (Step 1) as `--scope=<name>[,<name>...]`; omitted, tidy runs its full scan roster.
+- `--scope <name>[,<name>...]` or `--scope=<name>[,<name>...]` — both spellings accepted for sweep's own argument; sweep normalizes to tidy's own `=` grammar when calling Step 1 (`--scope=<name>[,<name>...]`), rather than forwarding whichever spelling the caller typed. Omitted, tidy runs its full scan roster.
 
 Anything else in `$ARGUMENTS` is an error — report it and stop; sweep deliberately accepts no mode keyword (it is always hands-off) and no record refs (it drains queues, it doesn't target records).
 
@@ -37,9 +37,17 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --mode auto --standalo
 
 Adopt the printed path as `$PIPELINE_RUN_DIR` for the whole run — `{ISO}-sweep-standalone/` under the main checkout's `.claude-tweaks/pipelines/`, pre-populated with `decisions.md` and `staged/`. Every component step logs to this one `decisions.md`; none mints its own.
 
+## Step 0.5: Invalidate the record snapshot
+
+Other actors (a human, a concurrent session) may have written records earlier in this session, before sweep started — `record-snapshot-ttl-seconds` defaults to 300s, long enough for a stale snapshot to survive into Step 1's own mutating scan. Invalidate before tidy ever reads the queue, the same way Step 1.5 and 2.5 invalidate between the later steps:
+
+```bash
+node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+```
+
 ## Step 1: Tidy
 
-Invoke `/claude-tweaks:tidy --source sweep` (appending `--scope=<...>` when given) in auto mode, under `$PIPELINE_RUN_DIR`. Per tidy's Component-Skill Contract, `--source sweep` forces the auto-mode path regardless of the project's `auto-mode` policy, logs to the shared `decisions.md`, stages findings to the shared `staged/`, and suppresses both tidy's `## Next Actions` block and its terminal `AskUserQuestion` approval — tidy reports its counts (applied / staged / yours / clean) back to this step instead. Staged items wait for `/claude-tweaks:tidy --approve` after the run; nothing is applied unseen.
+Invoke `/claude-tweaks:tidy --source sweep` (appending `--scope=<...>` when given) in auto mode, under `$PIPELINE_RUN_DIR`. Per tidy's Component-Skill Contract, `--source sweep` forces the auto-mode path regardless of the project's `auto-mode` policy, logs to the shared `decisions.md`, stages findings to the shared `staged/`, and suppresses both tidy's `## Next Actions` block and its terminal `AskUserQuestion` approval — tidy reports its counts (applied / staged / yours / clean) back to this step instead. Findings route per the resolved `tidy-aggressiveness` tier (`tidy/step-6-auto.md`); `moderate` — the documented default, and unset (so the default applies) in this repo's own `.claude-tweaks/policy.yml` — auto-applies the Delete, Mark-as-specified, and Arm-ready-PR rows and stages everything else. Only the staged remainder waits for `/claude-tweaks:tidy --approve` after the run.
 
 ## Step 1.5: Invalidate the record snapshot
 
@@ -51,7 +59,7 @@ node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapsh
 
 ## Step 2: Specify
 
-Invoke `/claude-tweaks:specify --source sweep` bare (appending `--budget <n|all>` when given), under the same `$PIPELINE_RUN_DIR`. Per specify's Component-Skill Contract, `--source sweep` runs the bare-drain form headlessly: no `AskUserQuestion`, no suggestion menu, shared `decisions.md`; the drain's `{shaped: N, routed: M, failed: K}` close-out counts report back to this step.
+Invoke `/claude-tweaks:specify --source sweep` bare (appending `--budget <n|all>` when given), under the same `$PIPELINE_RUN_DIR`. Per specify's Component-Skill Contract, `--source sweep` runs the bare-drain form headlessly: no `AskUserQuestion`, no suggestion menu, shared `decisions.md`; the drain's `{shaped: N, routed: M, failed: K}` close-out counts report back to this step. **Driver dependency:** under `work-backend: local-files`, this step's bare drain Preflight-stops completely (headless shaping is `github-issues` only), and so does Step 3's grant sub-stage — both steps effectively no-op on that backend; sweep still runs Step 1 (tidy) and the close-out normally.
 
 ## Step 2.5: Invalidate the record snapshot again
 
@@ -63,7 +71,7 @@ Invoke `/claude-tweaks:backlog refine --source sweep` under the same `$PIPELINE_
 
 ## Failure propagation
 
-An unhandled error in a step halts the sequence before the next step — sweep never runs specify against a possibly-incomplete tidy pass, or refine against a possibly-incomplete specify pass. On a halt, skip Step 4's normal render and report the partial run instead: which step failed, what it had completed before failing (from its counts and `decisions.md` entries), and which steps never ran. A step's own internal per-record error handling (specify's `failed` bucket, refine's per-record `failedKey` skips, tidy's staged fallbacks) is NOT a sweep-level failure — only an exception the step's own contract doesn't already catch halts the run.
+An unhandled error in a step halts the sequence before the next step — sweep never runs specify against a possibly-incomplete tidy pass, or refine against a possibly-incomplete specify pass. On a halt, skip Step 4's normal render and report the partial run instead: which step failed, what it had completed before failing (from its counts and `decisions.md` entries), and which steps never ran. The partial-run report still ends with a short `## Next Actions` of its own, satisfying the Component-Skill Contract's "always renders when a human is present" rule even on a halt: re-run `/claude-tweaks:sweep`, and — if tidy's step completed before the halt — `/claude-tweaks:tidy --approve` for anything it staged. A step's own internal per-record error handling (specify's `failed` bucket, refine's per-record `failedKey` skips, tidy's staged fallbacks) is NOT a sweep-level failure — only an exception the step's own contract doesn't already catch halts the run.
 
 ## Step 4: Close-out
 

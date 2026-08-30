@@ -53,6 +53,34 @@ test('.gitignore: tidy-standalone carve-out lines are present verbatim, at top-l
   }
 });
 
+// Fix-wave addition (whole-branch review of #1494): sweep's Step 1 runs tidy
+// inside a `*-sweep-standalone*` run dir, which needs the identical carve-out
+// or Step 7.5's `git add` fails there the same way it would have failed for
+// `-tidy-standalone` before Task 2 added the lines above.
+test('.gitignore: sweep-standalone carve-out lines are present verbatim, at top-level pipelines depth', () => {
+  const expectedCarveOut = [
+    '!.claude-tweaks/pipelines/*-sweep-standalone*/decisions.md',
+    '!.claude-tweaks/pipelines/*-sweep-standalone*/report.md',
+    '!.claude-tweaks/pipelines/*-sweep-standalone*/staged/',
+    '!.claude-tweaks/pipelines/*-sweep-standalone*/staged/**',
+  ];
+  for (const line of expectedCarveOut) {
+    assert.ok(
+      LINES.includes(line),
+      `expected .gitignore to carry the exact carve-out line: ${line}`,
+    );
+  }
+
+  // Never spec-*/-nested: a sweep standalone run dir is never a multi-spec
+  // parent, so the carve-out must not also target a spec-*/-nested shape.
+  for (const line of expectedCarveOut) {
+    assert.ok(
+      !line.includes('/spec-'),
+      `sweep-standalone carve-out line must stay top-level, not spec-*/-nested: ${line}`,
+    );
+  }
+});
+
 test('.gitignore: the blanket pipelines-contents ignore the carve-out depends on is still present', () => {
   // The carve-out above only means anything as a narrow exception punched
   // into this still-active blanket rule. If a future edit ever removes or
@@ -297,6 +325,40 @@ test('#1493 C1: Step 7.5\'s copy+add lands decisions.md, report.md, and staged/*
   fs.writeFileSync(path.join(runDir, 'staged', 'digest-promotion-1.md'), '# staged proposal\n');
 
   // Step 7.5's own `git add` over the worktree copies (the fix's literal claim).
+  git('add', path.join(runRel, 'decisions.md'), path.join(runRel, 'report.md'), path.join(runRel, 'staged'));
+  git('commit', '-q', '-m', 'Tidy: housekeeping');
+
+  const staged = git('diff', 'HEAD~1', 'HEAD', '--name-only').trim().split('\n').filter(Boolean).sort();
+  assert.deepStrictEqual(staged, [
+    path.join(runRel, 'decisions.md'),
+    path.join(runRel, 'report.md'),
+    path.join(runRel, 'staged', 'digest-promotion-1.md'),
+  ].sort(), `expected exactly decisions.md/report.md/staged/** to be committed, got: ${JSON.stringify(staged)}`);
+});
+
+// Fix-wave addition (whole-branch review of #1494): identical simulation,
+// but for a `*-sweep-standalone*` run dir — sweep's Step 1 runs tidy inside
+// its own shared run dir, so the same Step 7.5 copy+add must succeed there
+// too, against the `.gitignore` carve-out lines this fix wave added for it.
+test('#1494 review fix: Step 7.5\'s copy+add also lands in a *-sweep-standalone* run dir\'s worktree commit', () => {
+  const wt = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sweep-c1-')));
+  const git = (...args) => execFileSync('git', args, { cwd: wt, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'T');
+
+  fs.copyFileSync(path.join(ROOT, '.gitignore'), path.join(wt, '.gitignore'));
+  git('add', '.gitignore');
+  git('commit', '-q', '-m', 'seed');
+
+  const runId = '2026-08-30T090000-sweep-standalone';
+  const runRel = path.join('.claude-tweaks', 'pipelines', runId);
+  const runDir = path.join(wt, runRel);
+  fs.mkdirSync(path.join(runDir, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n- AUTO: did a thing\n');
+  fs.writeFileSync(path.join(runDir, 'report.md'), '# report\n');
+  fs.writeFileSync(path.join(runDir, 'staged', 'digest-promotion-1.md'), '# staged proposal\n');
+
   git('add', path.join(runRel, 'decisions.md'), path.join(runRel, 'report.md'), path.join(runRel, 'staged'));
   git('commit', '-q', '-m', 'Tidy: housekeeping');
 

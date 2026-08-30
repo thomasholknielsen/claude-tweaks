@@ -150,9 +150,25 @@ assertions:
   # Steps 1/3/4/4.5/4.6/4.7/4.8/4.9/4.95/5/5.5/5.6 — even though most resolve
   # to no findings or a Keep recommendation on this near-empty backlog —
   # plus specify's own Preflight-stop overhead, plus refine's labeling
-  # lanes, plus three invalidateSnapshot Bash calls between/after steps, plus
+  # lanes, plus four invalidateSnapshot Bash calls before/between/after steps
+  # (Step 0.5, 1.5, 2.5, and the Step 4 close-out repeat), plus
   # the close-out's attention-mode render), so a flat multiple of the
   # sibling's single-skill ceiling is the right shape of headroom rather than
   # an arbitrarily larger fixed number.
   - type: tool-count
     max: 60
+  # Fix-wave addition (whole-branch review of #1494): the assertions above
+  # cannot fail on the exact regression this scenario is named for — under
+  # this fixture's local-files backend, both seeded records are ungrantable,
+  # so a future edit that adds a `/claude-tweaks:dispatch` (or `/flow`/`/build`)
+  # call to sweep's close-out would find zero authorized records, produce
+  # ~zero commits, and pass every assertion above cleanly. These three are the
+  # actual enforcement of the spec's Gotcha ("write the eval so a future edit
+  # that adds a dispatch call to sweep fails CI") — they fail regardless of
+  # how many records exist or what they're authorized for.
+  - type: tool-input-excludes
+    contains: "claude-tweaks:dispatch"
+  - type: tool-input-excludes
+    contains: "claude-tweaks:flow"
+  - type: tool-input-excludes
+    contains: "claude-tweaks:build"

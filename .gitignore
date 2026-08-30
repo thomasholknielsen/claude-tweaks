@@ -21,6 +21,13 @@ node_modules/
 !.claude-tweaks/pipelines/*-tidy-standalone*/report.md
 !.claude-tweaks/pipelines/*-tidy-standalone*/staged/
 !.claude-tweaks/pipelines/*-tidy-standalone*/staged/**
+# Sweep standalone runs share the same shape (#1494) — its Step 1 runs tidy
+# inside a `*-sweep-standalone*` run dir, whose Step 7.5 commits the same
+# decisions.md/report.md/staged/** residue there instead.
+!.claude-tweaks/pipelines/*-sweep-standalone*/decisions.md
+!.claude-tweaks/pipelines/*-sweep-standalone*/report.md
+!.claude-tweaks/pipelines/*-sweep-standalone*/staged/
+!.claude-tweaks/pipelines/*-sweep-standalone*/staged/**
 !.claude-tweaks/pipelines/archive/*/
 .claude-tweaks/pipelines/archive/*/*
 !.claude-tweaks/pipelines/archive/*/work/
