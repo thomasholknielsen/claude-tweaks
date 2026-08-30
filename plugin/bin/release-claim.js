@@ -111,6 +111,16 @@ function run(argv, deps = realDeps) {
   if (!o.repo) { try { remote = deps.remoteUrl(); } catch { remote = null; } }
   const repoSpec = o.repo ? parseRepo(`github.com/${o.repo}`) : parseRepo(remote);
   if (!repoSpec) { deps.stderr('release-claim.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
+  // #1443: parseRepo's regex accepts any non-'/' owner/repo segment, including '.'/'..'
+  // (#1153 review finding). release.releaseClaim -> lib/issues/claim-store.js interpolates
+  // `${owner}/${repo}` directly into a `gh api repos/{repoSlug}/contents/...` path rather than
+  // using gh's bound-variable mechanism, so a crafted --repo value reaches that path string.
+  // Reject it here rather than narrowing the shared parseRepo, which 8 other CLIs also call —
+  // same guard shape as fetch-sub-issues.js's own #1153 fix.
+  if (repoSpec.owner === '.' || repoSpec.owner === '..' || repoSpec.repo === '.' || repoSpec.repo === '..') {
+    deps.stderr('release-claim.js: invalid --repo value — owner/repo cannot be "." or ".."\n');
+    return 2;
+  }
   const runDir = o.run.replace(/\/+$/, '');
   const runId = path.basename(runDir);
   const reason = o.reason.trim();
