@@ -344,3 +344,15 @@ test('a shaped-branch born-ready filing composes the exact labels and body AC 1 
   assert.strictEqual((p.body.match(/^Defer-reason: tangential$/gm) || []).length, 1);
   assert.ok(p.body.includes('via specShapedBody'));
 });
+
+// --- #1703: --source intake exemption from the deferral check ---
+
+test('capture/SKILL.md names --source intake in at least three places, the deferral-check exemption, and the CSC trust boundary', () => {
+  const c = read('plugin/skills/capture/SKILL.md');
+  assert.ok((c.match(/--source intake/g) || []).length >= 3, 'at least three --source intake mentions');
+  assert.ok(c.includes('other than `intake`'), 'deferral check names the intake exemption');
+  assert.ok(c.includes('any `--source`'), 'every non-intake --source value keeps today\'s rule');
+  const csc = c.slice(c.indexOf('## Component-Skill Contract'));
+  assert.ok(csc.includes('/claude-tweaks:intake'), 'CSC names /claude-tweaks:intake as a parent');
+  assert.ok(csc.includes('prose-trusted'), 'CSC states the trust boundary');
+});

@@ -103,6 +103,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `/demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label. |
 | `/help` | Feeds items `/help` surfaces in the status dashboard / queue counts. |
 | `/init` | After bootstrap, `/init` suggests `/capture` as the entry point for ideas that surface during setup but aren't ready to specify. |
+| `/intake` | Parent — `/intake` delegates every `file` verdict as one `--batch --route=keep --source intake` call and every `absorb:#N` verdict as a single `--route=absorb:N --source intake` call; `--source intake` is the one `--source` value exempt from the deferral check (human intent, not exhaust). |
 | `/research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |
 | `/specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path, human-invoked or, under the born-`ready` condition, machine-chained via `Skill(skill: "claude-tweaks:specify", args: "#{n} --chained")` immediately after filing; also decomposes brainstormed design docs into ready sub-issue records. |
 | `/wrap-up` | May file new backlog records for genuinely new ideas; leftover work becomes a `parked` record instead. |
