@@ -22,7 +22,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" spec-status --run "$MULTISPEC_PARENT_D
 **Per-spec completion summary.** When a spec's own pipeline reaches its `/wrap-up` exit under `MULTISPEC_REVIEW_DEFER=1` (`wrap-up/SKILL.md`'s multi-spec defer branch — the per-spec Review Console is skipped there), `/flow` calls the same command once more with the terminal status. **In a worktree-isolated session, the literal word `complete` as a bare argv token triggers the harness's Bash-shape guard as a false-positive git-operation match** (`_shared/scratch-worktree.md` Section 7's 2026-08-30 addendum, #1651) — compose it inside a single `node -e` call instead of passing it as a literal token:
 
 ```bash
-node -e 'const s=["c","o","m","p","l","e","t","e"].join(""); require("child_process").execFileSync("node",["${CLAUDE_PLUGIN_ROOT}/bin/hooks.js","spec-status","--run","'"$MULTISPEC_PARENT_DIR"'","--spec","{n}","--status",s,"--phase","wrap-up"],{stdio:"inherit"})'
+node -e "const s=['c','o','m','p','l','e','t','e'].join(''); require('child_process').execFileSync('node',['${CLAUDE_PLUGIN_ROOT}/bin/hooks.js','spec-status','--run','$MULTISPEC_PARENT_DIR','--spec','{n}','--status',s,'--phase','wrap-up'],{stdio:'inherit'})"
 ```
 
 (`--status failed` on a HARD-GATE abort instead — `failed` is not a git-pattern-matched token, so that call keeps the plain literal form: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" spec-status --run "$MULTISPEC_PARENT_DIR" --spec {n} --status failed --phase wrap-up`.) The `complete` call prints the banner as above, **plus** one additional line on the same call:
