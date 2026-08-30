@@ -798,6 +798,20 @@ test('reconcile verb: --mcp-reachable is accepted (#1558) — a no-remote fixtur
   assert.deepStrictEqual(JSON.parse(r.stdout).skipped, [{ check: 'all', reason: 'no-remote' }]);
 });
 
+test('reconcile verb: --checks is accepted (#1543) — a no-remote fixture skips before it can matter', () => {
+  const dir = noRemoteFixture('ct-recon-checks-');
+  const r = runHook(['reconcile', '--dry-run', '--json', '--checks', 'mirror,release,archive'], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  assert.deepStrictEqual(JSON.parse(r.stdout).skipped, [{ check: 'all', reason: 'no-remote' }]);
+});
+
+test('reconcile verb: a missing/empty --checks value falls back to the ALL_CHECKS default (#1543)', () => {
+  const dir = noRemoteFixture('ct-recon-checks-empty-');
+  const r = runHook(['reconcile', '--dry-run', '--json', '--checks', ''], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  assert.deepStrictEqual(JSON.parse(r.stdout).skipped, [{ check: 'all', reason: 'no-remote' }]);
+});
+
 test('reconcile verb: --dry-run --json is accepted and never mutates on a no-remote fixture', () => {
   const dir = noRemoteFixture('ct-recon-hook-');
   const r = runHook(['reconcile', '--dry-run', '--json'], { cwd: dir });
