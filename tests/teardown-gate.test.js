@@ -429,6 +429,44 @@ test('AC5: an unowned run with a payload carrying no session_id is denied', () =
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+// #1563: this gate's own ownership check (owner && caller && owner !== caller
+// -> foreign, else deny) is deliberately NOT classifyOwnership (#1098) —
+// unlike context.js's resolveRun fallback (#1410), which does use it, this
+// gate has no worktree-binding "foreign" bypass. Pinned here so #1099 (still
+// open at the time this test was added), if it ever swaps this gate onto
+// classifyOwnership, cannot silently regress an owner-absent + different-
+// live-worktree caller from "denied" to "allowed with a warning" without this
+// test forcing that decision to be made explicitly.
+test('#1563: an unowned run targeted via Bash from a DIFFERENT live worktree is still denied, not foreign-allowed', () => {
+  const root = fixtureRoot();
+  const targetWt = addWorktree(root); // the run's own recorded binding — the removal target
+  const callerWt = addWorktree(root); // a genuinely different, live worktree — where the caller stands
+  makeRun(root, JSON.stringify({ status: 'active', worktree: targetWt })); // no sessionId recorded
+  // The Bash form (unlike ExitWorktree, which always targets ctx.cwd's own
+  // toplevel) lets the caller's cwd and the removal target genuinely differ
+  // — callerWt/targetWt are both live, distinct worktrees of the same repo,
+  // exactly the shape classifyOwnership's worktree-binding branch would
+  // compare (and, from that mismatch alone, classify 'foreign' regardless of
+  // session id). This gate's own check never reaches that comparison.
+  // Exercise both with and without a caller session_id, per the record's own
+  // AC — neither should change the outcome, since this gate's check requires
+  // BOTH sides present to ever classify anything other than deny.
+  const command = `git worktree remove ${targetWt}`;
+  const withoutSessionId = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command }, cwd: callerWt }),
+    cwd: callerWt,
+  });
+  assert.strictEqual(JSON.parse(withoutSessionId.stdout).hookSpecificOutput.permissionDecision, 'deny');
+
+  const withSessionId = runHook(['pre-tool-use'], {
+    input: JSON.stringify({
+      tool_name: 'Bash', tool_input: { command }, cwd: callerWt, session_id: 'caller-session',
+    }),
+    cwd: callerWt,
+  });
+  assert.strictEqual(JSON.parse(withSessionId.stdout).hookSpecificOutput.permissionDecision, 'deny');
+});
+
 // IMPORTANT 3 (whole-branch review): the foreign-owner WARN path must not
 // short-circuit runInner — previously, `git worktree remove <foreign-wt> &&
 // git commit -m x` returned on the warn and never reached the trailing

@@ -137,6 +137,39 @@ test('missing or malformed session identity on either side falls back to deny (s
   assert.strictEqual(corruptOut.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+// #1563: this gate's own ownership check (owner && caller && owner !== caller
+// -> foreign-allow-warn, else deny) is deliberately NOT classifyOwnership
+// (#1098) — unlike context.js's resolveRun fallback (#1410), which does use
+// it, this gate has no worktree-binding "foreign" bypass. The scenario above
+// ("missing or malformed session identity... falls back to deny") uses the
+// MAIN checkout as the caller's cwd, which classifyOwnership would ALSO
+// classify 'indeterminate' (not 'foreign') via its own !isLinkedWorktree
+// check — so it doesn't actually distinguish the two behaviors. THIS test
+// puts the caller in a genuinely different LINKED worktree (not main, not
+// the run's own assigned worktree) — the one case where classifyOwnership's
+// binding comparison alone would return 'foreign' regardless of session id.
+// Pinned here so #1099 (still open at the time this test was added), if it
+// ever swaps this gate onto classifyOwnership, cannot silently regress an
+// owner-absent + different-live-worktree caller from "denied" to "allowed
+// with a warning" without this test forcing that decision to be made
+// explicitly.
+test('#1563: commit from a genuinely different LIVE worktree, run has no recorded owner, is still denied — with and without a caller session_id', () => {
+  const { main, wt: assignedWt } = mainAndWorktree();
+  const callerWt = linkedWorktreeOf(main); // a second, genuinely different live worktree of the same repo
+  const { run, state } = mkRun(assignedWt); // no sessionId recorded
+
+  const withoutSessionId = pre.run({
+    input: bashInput('git commit -m "x"', callerWt), runDir: run, runState: state, cwd: callerWt,
+  });
+  assert.strictEqual(withoutSessionId.json.hookSpecificOutput.permissionDecision, 'deny');
+
+  const withSessionId = pre.run({
+    input: { ...bashInput('git commit -m "x"', callerWt), session_id: 'caller-session' },
+    runDir: run, runState: state, cwd: callerWt,
+  });
+  assert.strictEqual(withSessionId.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 test('git -C into the assigned worktree from elsewhere is allowed', () => {
   const wt = gitRepo();
   const other = gitRepo();
