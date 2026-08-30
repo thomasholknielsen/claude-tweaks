@@ -42,7 +42,7 @@ Adopt the printed path as `$PIPELINE_RUN_DIR` for the whole run — `{ISO}-sweep
 Other actors (a human, a concurrent session) may have written records earlier in this session, before sweep started — `record-snapshot-ttl-seconds` defaults to 300s, long enough for a stale snapshot to survive into Step 1's own mutating scan. Invalidate before tidy ever reads the queue, the same way Step 1.5 and 2.5 invalidate between the later steps:
 
 ```bash
-node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+node -e "require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
 ```
 
 ## Step 1: Tidy
@@ -54,7 +54,7 @@ Invoke `/claude-tweaks:tidy --source sweep` (appending `--scope=<...>` when give
 Tidy may have mutated records (closes, defers, `needs:decision` markers). Before Step 2, delete the session-scoped record snapshot so specify's drain reads tidy's mutations rather than a stale pre-tidy snapshot — `_shared/record-queue-fetch.md`'s invalidation rule, enforced at its own named point:
 
 ```bash
-node -e "require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
+node -e "require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID)"
 ```
 
 ## Step 2: Specify

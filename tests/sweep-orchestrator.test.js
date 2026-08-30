@@ -66,7 +66,7 @@ test('sweep/SKILL.md: invalidateSnapshot cites record-snapshot.js; Step 2.5 and 
     'expected the Step 1.5 heading (first between-step invalidation)',
   );
   assert.ok(
-    source.includes("require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').invalidateSnapshot("),
+    source.includes("require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').invalidateSnapshot("),
     'expected the literal invalidateSnapshot call citing bin/lib/issues/record-snapshot.js',
   );
   assert.ok(
