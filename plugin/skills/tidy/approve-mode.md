@@ -13,12 +13,14 @@ batch-approval mechanism for it to drive.
 **No-arg default:** the newest `{$RUN_ROOT}/.claude-tweaks/pipelines/*-tidy-standalone*/` directory
 (glob match + ISO-timestamp-prefix sort, newest last) whose `staged/` holds one or more files —
 $RUN_ROOT anchored per `_shared/pipeline-run-dir.md`'s Anchoring section
-(`git rev-parse --git-common-dir`, normalized; never a bare relative path, `[IL-127]`). This is the
-identical selection rule `backlog/attention-mode.md`'s Tidy row already applies to surface the
-"{count} tidy proposal(s) staged" line — the two never disagree about which run is "the newest
-one with something to approve." If the newest matching directory's `staged/` is empty, walk to the
-next-newest by the same sort; if none of them have a non-empty `staged/`, report `no staged tidy
-proposals found` and stop — nothing to approve.
+(`git rev-parse --git-common-dir`, normalized; never a bare relative path, `[IL-127]`). If the
+newest matching directory's `staged/` is empty, walk to the next-newest by the same sort; if none
+of them have a non-empty `staged/`, report `no staged tidy proposals found` and stop — nothing to
+approve. `backlog/attention-mode.md`'s Tidy row shares this same glob-and-sort rule but only ever
+looks at the single newest matching directory (its own accepted limitation) and omits the row
+when that one's `staged/` is empty, so this walk-back can resolve a run the attention row doesn't
+currently surface — the two are the same rule, not the same result, whenever the newest run's
+`staged/` is empty but an older one's isn't.
 
 **Explicit `[run-dir]` argument:** validated as an existing directory that resolves under
 `$RUN_ROOT` (same anchoring check — reject and stop on a path outside the main checkout, the

@@ -250,11 +250,15 @@ ISO-timestamp prefix. When that directory's `staged/` holds one or more files, r
 
 Omit the row entirely when no such directory exists, or its `staged/` is empty or absent.
 **Accepted limitation:** only the single newest matching directory is ever surfaced (this row's
-own newest-directory selection rule above) — if two tidy runs both left non-empty `staged/`
-before either was approved, the older one stays invisible on this row until the newer is
-resolved (`tidy --approve`'s own no-arg default resolves this same newest-non-empty-staged
-directory — see `tidy/approve-mode.md` — so resolving it surfaces the next-newest on this row's
-next render).
+own newest-directory selection rule above, with no walk-back of its own) — if two tidy runs both
+left non-empty `staged/` before either was approved, the older one stays invisible on this row
+until the newer is resolved, so resolving it surfaces the next-newest on this row's next render
+(archival removes the resolved run from the glob's candidate pool entirely). `tidy --approve`'s
+own no-arg default (`tidy/approve-mode.md`) shares this row's glob-and-sort rule and picks the
+same directory as this row whenever that directory's `staged/` is already non-empty, but
+additionally walks back past an empty-`staged/` newest run to an older non-empty one — so when
+the newest run's own `staged/` is already empty, `--approve` can find work this row is omitted
+and showing nothing for.
 
 ## Step 4: Render
 
