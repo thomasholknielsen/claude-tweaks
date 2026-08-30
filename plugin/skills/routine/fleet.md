@@ -20,7 +20,7 @@ Buckets, named explicitly in the `Bucket` column below (never restated elsewhere
 | 7 | Generalist sweep | journey-health | `skills/journey-health/routine-template.yml` | n/a | `30 6 * * *` | `{REPO_SLUG}-journey-health-daily` |
 | 8 | Generalist sweep | harness-health | `skills/harness-health/routine-template.yml` | n/a | `45 6 * * *` | `{REPO_SLUG}-harness-health-daily` |
 | 9 | Shaping unit | specify | `skills/specify/routine-template.yml` | n/a | `0 8 * * 1-5` | `{REPO_SLUG}-specify-weekdays` |
-| 10 | Grant unit (conditional) | backlog grant | `skills/backlog/routine-template.yml` | n/a | `0 9 * * 1-5` | `{REPO_SLUG}-backlog-grant-weekdays` |
+| 10 | Grant unit (conditional) | backlog refine (routine) | `skills/backlog/routine-template.yml` | n/a | `0 9 * * 1-5` | `{REPO_SLUG}-backlog-grant-weekdays` |
 | 11 | Dispatch drain | dispatch | `skills/dispatch/routine-template.yml` | n/a | `0 10 * * 1-5` | `{REPO_SLUG}-dispatch-weekdays` |
 | 12 | Tidy | tidy weekly | `skills/tidy/routine-template.yml` | n/a | `0 11 * * 0` | `{REPO_SLUG}-tidy-weekly` |
 
@@ -80,11 +80,11 @@ Fleet routines are scheduled Routines — the exact case CLAUDE.md's Cloud Parit
 
 ## Step 3 — Conditional grant-unit provisioning
 
-The grant unit (backlog grant) provisions **only when both** `autonomy: unattended` **and** `grant-origination-enabled: true` hold after Step 1 — "the unattended keys," exactly these two fields, no third, no paraphrase (per this sub-issue's own Deliverables wording).
+The grant unit (`backlog refine --source routine`) provisions **only when both** `autonomy: unattended` **and** `grant-origination-enabled: true` hold after Step 1 — "the unattended keys," exactly these two fields, no third, no paraphrase (per this sub-issue's own Deliverables wording). This conditional governs whether `fleet on` creates the row 10 record at all, not the grant chain's own per-firing ceiling gate — the routine's kickoff runs `refine`'s headless posture, whose labeling lanes (Priority/Related/Flag-back/Dependency-repair) apply regardless of ceiling once the routine exists; only its grant chain is gated by these two keys (`refine-headless.md` Step 0).
 
 - **Both set** → the grant unit provisions like every other row in Step 4's loop.
 - **Either unset** → skip the grant unit entirely; the summary states plainly that it was withheld and names which policy change(s) would enable it (e.g. "grant unit withheld — set `autonomy: unattended` and `grant-origination-enabled: true` in `.claude-tweaks/policy.yml` to enable").
-- **Downgrade on re-run** — a prior `fleet on` provisioned the grant unit (both keys were set then), and this Manifesto pass now reads `supervised` (or `grant-origination-enabled: false`): the grant unit's existing record is not silently left running unexplained. Pause the grant unit's live routine via the `pause` action's `RemoteTrigger update {"enabled": false}` call (`create-and-update.md`'s PAUSE section) and note "paused — autonomy downgraded to {ceiling}" in the summary. This is **harmless-by-construction** even before the pause takes effect: `bin/lib/issues/grant-gate.js`'s own gate chain re-checks the ceiling on every firing and denies every candidate at `supervised` (Gate 0, per `grant-mode.md`'s own contract) — a still-live but downgraded grant unit fires, finds nothing it's allowed to grant, and reports a clean no-op. State this explicitly in the summary so the human doesn't read "still live" as still-dangerous.
+- **Downgrade on re-run** — a prior `fleet on` provisioned the grant unit (both keys were set then), and this Manifesto pass now reads `supervised` (or `grant-origination-enabled: false`): the grant unit's existing record is not silently left running unexplained. Pause the grant unit's live routine via the `pause` action's `RemoteTrigger update {"enabled": false}` call (`create-and-update.md`'s PAUSE section) and note "paused — autonomy downgraded to {ceiling}" in the summary. This is **harmless-by-construction on the grant side** even before the pause takes effect: `bin/lib/issues/grant-gate.js`'s own gate chain re-checks the ceiling on every firing and denies every candidate at `supervised` (Gate 0, per `refine-headless.md`'s own Step 0 contract) — a still-live but downgraded grant unit's grant chain finds nothing it's allowed to grant and reports a no-op via `decisions.md`. Its labeling lanes are unaffected by this downgrade and keep writing `priority:*`/`**Related:**` changes every firing regardless of ceiling (presence and ceiling are orthogonal — `backlog/SKILL.md`'s Input table; `refine-headless.md`), so a downgraded-but-still-live routine is no longer fully harmless the way the old grant-only kickoff was. State both facts explicitly in the summary so the human doesn't read "still live" as either fully dangerous or fully inert.
 
 ## Step 4 — Per-routine provisioning loop
 
@@ -134,7 +134,7 @@ One consolidated report, closing the Manifesto's begin-stop with an end-of-actio
 |---|---|---|---|---|
 | 1 | dead-code | Created | 05:00 UTC daily | {url} |
 | ... | ... | ... | ... | ... |
-| 10 | backlog grant | Withheld — set autonomy: unattended + grant-origination-enabled: true to enable | — | — |
+| 10 | backlog refine (routine) | Grant lane withheld — labeling lanes still run once provisioned; set autonomy: unattended + grant-origination-enabled: true to enable the grant chain | — | — |
 | — | (missing template) | Skipped — {skill} has no routine-template.yml | — | — |
 
 Status is one of: `Created`, `Updated (drift)`, `Reconciled, no drift`, `Withheld — {reason}`, `Collision — {PREFIXED_NAME} already exists, not tracked by any record`, `Skipped — {skill} has no routine-template.yml`, `BLOCKED — record exists upstream only, not in this checkout`.
@@ -189,7 +189,7 @@ fleet-marked present; `autonomy` / `grantOriginationEnabled` from
 `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values autonomy grant-origination-enabled`.
 `--values` mode emits plain-text scalars, not JSON booleans, so `grant-origination-enabled`
 arrives as the string `"true"`/`"false"`; `fleetPosture` accepts `'true'` verbatim (same
-string-vs-boolean coercion `skills/backlog/grant-mode.md`'s Phase A script performs explicitly
+string-vs-boolean coercion `skills/backlog/refine-headless.md`'s Phase A script performs explicitly
 for its own `$OPT_IN` shell variable), so pass the resolver's output straight through with no
 extra coercion here.
 A **supervised** posture renders no grant counters and states why: "supervised fleet — no grant

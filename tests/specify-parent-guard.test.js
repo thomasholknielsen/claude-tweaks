@@ -61,7 +61,7 @@ test('specify SKILL.md tier-2 behavior: repair/shape-anyway prompt, one-shot esc
   assert.ok(src.includes('nothing is persisted, so the guard re-prompts'), 'no-persisted-suppressor clause missing');
   assert.ok(src.includes('refuse without repair'), 'headless refuse-without-repair clause missing');
   assert.ok(src.includes("the skill's returned output under `--chained`"), 'chained refusal-delivery clause missing');
-  assert.ok(src.includes("the firing's reported outcome under `next`"), 'next refusal-delivery clause missing');
+  assert.ok(src.includes("the firing's reported outcome under bare drain"), 'bare-drain refusal-delivery clause missing (refs #1491: next was renamed to bare drain / --budget)');
 });
 
 test('specify SKILL.md batch branch fails all on a parent element and refuses tier-2 without prompting', () => {
@@ -108,14 +108,14 @@ test('permission-matrix.md /backlog refine row Adds column carries needs:decisio
   assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (a scored, spec-shaped record `grant-check` refuses'), 'needs:decision missing from /backlog refine\'s Adds column');
 });
 
-test('permission-matrix.md /backlog grant row Adds column carries needs:decision', () => {
-  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (a gate-4 `grant-check` refusal'), 'needs:decision missing from /backlog grant\'s Adds column');
+test('permission-matrix.md /backlog refine row (headless-posture cell) Adds column carries needs:decision', () => {
+  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (a gate-4 `grant-check` refusal'), 'needs:decision missing from /backlog refine\'s headless-posture Adds column');
 });
 
 test('permission-matrix.md /specify row Removes column carries the generalized needs:* removal', () => {
   assert.ok(PERMISSION_MATRIX_FLAT.includes('every `needs:*`-prefixed label present, on promotion'), 'generalized needs:* removal missing from /specify\'s Removes column');
 });
 
-test('permission-matrix.md /tidy row Adds column reserves needs:decision for Phase 6', () => {
-  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (Phase 6 — reserved here, not yet wired'), 'needs:decision Phase-6 reservation missing from /tidy\'s Adds column');
+test('permission-matrix.md /tidy row Adds column carries the #1493 needs:decision wiring, comment-first per decision-markers.md', () => {
+  assert.ok(PERMISSION_MATRIX_FLAT.includes('`needs:decision` (Phase 6 — wired by #1493: comment-first per `decision-markers.md`, then the label)'), 'needs:decision #1493 wiring missing from /tidy\'s Adds column');
 });

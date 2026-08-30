@@ -1,9 +1,9 @@
 # Mode: grant-check
 
 **Called from:** `/claude-tweaks:backlog refine`'s grant-check pass, once per worklist record, every refine run
-— never pre-filtered to "borderline" records. Also called from `/claude-tweaks:backlog grant`'s gate
+— never pre-filtered to "borderline" records. Also called from `refine`'s headless posture's gate
 chain (gate 4), once per candidate whose ceiling/opt-in/trust/origin gates already cleared —
-`grant-mode.md`'s Step 2 Phase B, same call shape, same non-pre-filtered rule.
+`refine-headless.md`'s Step 2 Phase B, same call shape, same non-pre-filtered rule.
 
 ## Step 1: Gather
 

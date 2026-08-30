@@ -44,7 +44,8 @@ build or test ever ran, the pipeline stopped before the Config Manifesto, this r
 claimed by this run at all, so step 1 below's ownership check will correctly find no claim to
 release (skip is the right outcome there, not an error). The one thing this case adds: **when
 `DISPATCH_HEADLESS=1` was set on this Task call's invocation** (`dispatch/task-prompt.md`'s first
-template — set only for a `next`-form firing, where nobody is present to read the stop directly),
+template — set only for a Routine-fired headless firing (bare drain or its `next` alias), where
+nobody is present to read the stop directly),
 read `_shared/headless-self-report.md` and follow its dedup-and-file procedure (caller =
 `dispatch`), using failing-check-name `flow-step-2.8-claim-contest` for the contested-claim stop
 or `flow-step-2.8-claim-in-flight` for the in-flight-tombstone stop — distinct names, since the
@@ -72,7 +73,7 @@ it.
    If `CLASSIFICATION` is `transient`, **preserve** `auto:merge`/`auto:merge-pending` — do not remove either. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
 
    Log this decision to `{run-dir}/decisions.md`, the same `Rationale:`-suffixed shape
-   `grant-check`'s two callers already use (`backlog/grant-mode.md`, `backlog/refine-mode.md`) —
+   `grant-check`'s two callers already use (`backlog/refine-headless.md`, `backlog/refine-mode.md`) —
    carrying `CLASSIFICATION`, `NOTIFY_NOW`, and `RATIONALE` verbatim regardless of whether
    `RATIONALE` holds a content judgment or names a could-not-gather failure class (the field name
    is the same either way, only its prose shape differs):

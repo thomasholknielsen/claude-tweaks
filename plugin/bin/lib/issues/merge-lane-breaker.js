@@ -6,7 +6,7 @@
 // 5-gate chain: gates 1-5 answer "does this record earn a grant" (unchanged
 // by this module); this module answers "is the merge lane itself currently
 // trusted" — a whole-run fact, checked once per firing
-// (skills/backlog/grant-mode.md's Step 0.5), not folded into the per-record
+// (skills/backlog/refine-headless.md's Step 0.5), not folded into the per-record
 // gate loop. Independent from, not a replacement for, #268's per-class
 // revocation (trust.js's resolveOperationalOutcome/trustRows) — a class can
 // read 'clean' while this breaker is tripped, and vice versa. See
@@ -74,7 +74,7 @@ function readBreakerState(root, opts) {
 }
 
 // mutatorFn: (currentBreaker) -> nextBreaker. The only two callers of this
-// are grant-mode.md's Step 0.5 (trip on a watched-record classification) and
+// are refine-headless.md's Step 0.5 (trip on a watched-record classification) and
 // refine-mode.md's grant sub-stage (the sole reset-to-false path — see
 // classifyWatchedRecord below and skills/backlog/refine-mode.md).
 function writeBreakerState(root, mutatorFn, opts) {
@@ -89,7 +89,7 @@ function readWatched(root, opts) {
 // sites ADD an entry (seeded with { grantedAt }, at the moment a pending grant
 // matures): dispatch's Auto-merge gate (settle-and-merge.md's Phase 2) and
 // wrap-up's singleton short-circuit (auto-merge-short-circuit.md's
-// Authorization step) — grant-mode.md's own Step 4 no longer seeds it directly.
+// Authorization step) — refine-headless.md's own Step 4 no longer seeds it directly.
 // Step 0.5 is the only path that updates an existing entry's lastKnownState or
 // prunes a resolved-good one — all go through this same function.
 function writeWatched(root, mutatorFn, opts) {
@@ -97,7 +97,7 @@ function writeWatched(root, mutatorFn, opts) {
 }
 
 // Pure classification of one watched record against fresh evidence — no I/O,
-// reused directly by grant-mode.md's Step 0.5 per-entry loop.
+// reused directly by refine-headless.md's Step 0.5 per-entry loop.
 //
 // entry: {
 //   number,                    // record number

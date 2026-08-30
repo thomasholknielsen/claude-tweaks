@@ -36,10 +36,10 @@ files:
 - **Red flags:** The record shaped with no question asked; the escape persisting a suppress marker; prose merely *mentioning* the word Leaves triggering the sniff (the match is line-anchored).
 
 ### 4. Trigger the guard headlessly — refusal, not a hang
-- **URL:** a `specify next` Routine firing, or `/claude-tweaks:capture`'s born-ready chain (`--chained`)
+- **URL:** a bare `/claude-tweaks:specify` drain Routine firing (or its deprecated `next` alias), or `/claude-tweaks:capture`'s born-ready chain (`--chained`)
 - **Action:** Nothing — nobody is present; the guard resolves the sniff tier conservatively on its own.
-- **Should feel:** (Observed after the fact.) A clean, diagnosable refusal: the `next` firing reports the refusal as its outcome and exits; a `--chained` call returns the refusal as its output to the calling skill.
-- **Should understand:** `next`'s eligibility filter already excludes labeled parents; the guard is the shaping-time backstop for the unlabeled-legacy gap, applied in `next-mode.md`'s `## Shape` step against the body already fetched. Headless tier-2 never prompts and never repairs — repair is a human decision.
+- **Should feel:** (Observed after the fact.) A clean, diagnosable refusal: a drain firing reports the refusal as this attempt's outcome, releases the claim (`failed: shaping`), and the loop continues to its next candidate rather than stopping the whole firing; a `--chained` call returns the refusal as its output to the calling skill.
+- **Should understand:** Bare drain's eligibility filter already excludes labeled parents; the guard is the shaping-time backstop for the unlabeled-legacy gap, applied in `next-mode-shape.md`'s `## Shape` step against the body already fetched. Headless tier-2 never prompts and never repairs — repair is a human decision.
 - **Red flags:** A headless firing hanging on a question; a legacy parent shaped `ready` by a Routine; a refusal that leaves no trace in the firing report or decision log.
 
 ## Origin

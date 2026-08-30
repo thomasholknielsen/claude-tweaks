@@ -198,12 +198,24 @@ and does not go through the Routines UI at all.
    lists every environment with a checkmark on the selected one, plus `Add cloud environment…` as
    its last item. Apply Create step 3's 1-2 second `wait` here too.
    - **`environment_name` was passed and a row already matches it:** click that row to select it —
-     this is what makes it the composer's current environment. Continue to step 3 as usual; a
-     pre-existing environment by that name is not guaranteed to already carry the canonical script
-     (e.g. one a human created by hand under the same naming convention), so it still gets the
-     same verify/upgrade pass as any other target.
-   - **`environment_name` was passed and no row matches it:** click `Add cloud environment…`
-     instead (the same control Create step 4 uses) and, in the resulting "New cloud environment"
+     this is what makes it the composer's current environment. **Confirmed live:** the click closes
+     the entire chip menu — both the `Local`/`Cloud`/`Remote Control` popover and the `Cloud`
+     submenu — rather than leaving a plain, still-visible row for step 3 to hover. This does not
+     match the Audit procedure's collapsed-combobox precedent below (lines 245-247): that precedent
+     reads a *still-rendered*, closed combobox's selection without ever opening it, whereas here
+     nothing stays rendered to read — the precedent does not transfer to this control. Before step
+     3's hover-for-gear action, repeat this step's open sequence (click the chip, click `Cloud`,
+     apply the same 1-2 second `wait`) to bring the row back into view; a pre-existing environment
+     by that name is not guaranteed to already carry the canonical script (e.g. one a human created
+     by hand under the same naming convention), so it still gets the same verify/upgrade pass as
+     any other target.
+   - **`environment_name` was passed and no row matches it:** click `Add cloud environment…` —
+     **confirmed live:** that is the composer's own exact label, and this is *not* the same control
+     Create step 4 uses. Create step 4's affordance lives on the separate routine-creation form and
+     is labeled `+ Add environment` — a different label on a different UI surface (consistent with
+     line 190's confirmed-live note that the composer path never touches the Routines UI). The two
+     are functionally equivalent (both add a new environment from the last row of their own list)
+     but are distinct controls, not the same one. In the resulting "New cloud environment"
      dialog, set Name to `environment_name`, Network access to `Trusted`, leave Environment
      variables empty, and set Setup script to the canonical line (step 4 below). Click "Create
      environment" — this both creates the environment and selects it as the composer's current one
@@ -211,11 +223,14 @@ and does not go through the Routines UI at all.
      was just typed fresh) and report `{success: true, environment_name, had_script: false,
      field_action: "created"}`.
    - **`environment_name` was omitted:** proceed as before — operate on whichever row is currently
-     checkmarked.
+     checkmarked; the chip menu is still open in this branch (no row was clicked to close it), so
+     step 3 can hover it directly.
 3. Hover the row for `environment_name` (or the checkmarked row when no name was passed) — a gear
-   icon appears on hover and is not present in a screenshot taken before hovering. Click the gear.
-   This opens an **Update cloud environment** dialog with Name, Network access, Environment
-   variables, Setup script, and `Archive` / `Cancel` / `Save changes` controls.
+   icon appears on hover and is not present in a screenshot taken before hovering. (When arriving
+   from the row-match branch above, the chip menu was already reopened per that branch's note —
+   this step still applies to that freshly reopened row.) Click the gear. This opens an **Update
+   cloud environment** dialog with Name, Network access, Environment variables, Setup script, and
+   `Archive` / `Cancel` / `Save changes` controls.
 4. Read the Setup script field. Record whether it was non-empty as `had_script`. Classify it into
    exactly one of the four branches below. The canonical line, restated here rather than cited
    from Create's step 5 deliberately (the two are the same string today but reach different

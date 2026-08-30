@@ -9,7 +9,10 @@ starts from the identical fetch below before branching into its own consumer-spe
 classification (dashboard bucket counts for `/help`; the per-shape finding classification for `/tidy`;
 priority/Related synthesis plus the grant worklist for `/backlog refine`, lens routing plus the
 build recommendation for `/backlog overview`; stage-column bucketing plus six-axis encoding for
-`/visualize record-graph`).
+`/visualize record-graph`). `/claude-tweaks:backlog`'s `attention` mode (`attention-mode.md`'s
+Step 1) is a narrower fifth consumer — it reads only the Session-scoped record snapshot section
+below for its `needs:*`/`bot:blocked` fetch, never the full `work-backend: github-issues`/
+`local-files` fetch sections the other four consumers run.
 Subagents cannot read this file — the dispatcher inlines this section into the scan agent's
 prompt, the same pattern already used for `_shared/github-pr-scan.md`.
 

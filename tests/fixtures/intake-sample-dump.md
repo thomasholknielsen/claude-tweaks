@@ -1,0 +1,14 @@
+- Ledgers // delete orphaned pipeline ledgers with no open items and no matching run dir
+- https://example.com/interesting-post-about-agentic-workflows
+- Bug: /claude-tweaks:capture's --defer-reason= check doesn't trim whitespace before matching DEFER_REASONS
+- Prefer node --test over jest for anything new in this repo
+- Add a dark-mode toggle to my personal blog
+- It would be nice if /claude-tweaks:tidy had a --dry-run flag
+- Nice if tidy supported a dry-run mode
+- Sweep: something about retry backoff, not sure which skill owns it
+- Watch that new agent framework someone posted about
+- Feature idea: let /claude-tweaks:capture accept --tag=<value> for lightweight categorization
+- Reminder: prefer explicit --run-dir over relying on the most-recent-match resolver
+- Note for myself: check out that talk on prompt caching later
+- Question: does /claude-tweaks:review already check for accessibility issues?
+- Idea: home-cook a meal-planning app once I have time

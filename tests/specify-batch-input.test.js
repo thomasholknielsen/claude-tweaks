@@ -29,12 +29,12 @@ function inputSection(content) {
   return content.slice(start.index + start[0].length, next ? next.index : content.length);
 }
 
-test('specify argument-hint opens with the comma-list record-reference group', () => {
+test('specify argument-hint opens with the comma-list record-reference group (refs #1491: bare drain replaced the headless next prefix)', () => {
   const hint = extractArgumentHint(SKILL);
   assert.ok(hint, 'skills/specify/SKILL.md declares no argument-hint');
   assert.ok(
-    hint.startsWith('<next|#N[,#M...]|#A-#B|record-id[,id...]|design-doc-path|topic|backlog-title>'),
-    `argument-hint does not open with the headless next form followed by the comma-list group: ${hint}`,
+    hint.startsWith('[#N[,#M...]|#A-#B|record-id[,id...]|design-doc-path|topic|backlog-title]'),
+    `argument-hint does not open with the comma-list group: ${hint}`,
   );
 });
 

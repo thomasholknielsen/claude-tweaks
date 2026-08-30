@@ -1,6 +1,50 @@
-# Backlog — Grant Mode
+# Backlog — Refine Headless Posture
 
-The headless machine-grant unit: `/dispatch next`'s headless-unit shape applied to granting.
+This file documents `/claude-tweaks:backlog refine`'s **headless posture**: the labeling lanes
+and the grant chain, run together in one presence-headless firing with nobody present to answer
+any interactive question. `SKILL.md`'s Input table `--source` presence switch loads this file when
+it resolves `headless` — `--source routine` (`backlog/routine-template.yml`'s kickoff always passes
+it) or `--source sweep` (`/claude-tweaks:sweep`'s Step 3 component invocation). The
+deprecated `grant` alias (`deprecated-aliases.md`) also loads this file, forcing `headless` regardless of
+the `--source` value it was actually invoked with, or its absence — the one deliberate override of
+the presence switch, cross-referenced from both places by name so the two can't drift apart
+independently. A human-present firing (`--source` absent, or explicitly `human`) never reads this
+file: its labeling lanes render interactively per `refine-lanes.md`, and its Grant lane runs
+`refine-mode.md` Step 3's `assess-agent-autonomy` call behind a human batch-confirm, not through
+this file's chain below.
+
+## Labeling-lanes preamble
+
+The Priority, Related, Flag-back, and mechanical Dependency-repair lanes run in this posture
+exactly as `refine-mode.md`/`refine-lanes.md` document for the interactive path — no behavior
+change to any of the four. Flag-back's `ready` removal applies in this posture exactly as it does
+interactively — stated once here; `_shared/work-record-permission-matrix.md`'s `/backlog refine`
+row cites this sentence rather than restating it. The one difference is how their batch gets
+committed: the whole-batch
+`AskUserQuestion` `refine-lanes.md`'s confirm-gate section renders for a human is resolved
+headlessly, zero-click, under the identical `refineAutoApply` semantics `refine-lanes.md` already
+exercises at `autonomy: unattended` today — that precedent is about the labels being applied
+without a confirm click, not about no human being present in the session at all; this posture is
+what extends it to that genuinely new case. This zero-click commit applies at any resolved
+`autonomy` ceiling in this posture, not only `unattended` — presence and ceiling are orthogonal
+(`SKILL.md`'s Input table); only the grant chain below is gated by the ceiling.
+
+Every human-decision lane stays unreachable in this posture: Re-authorize, the Grant lane's
+interactive confirm, the `#N` single-record form, and `--reset-breaker` all remain
+human-present-only exactly as `refine-mode.md` and `refine-lanes.md` document them. The presence
+switch gates only which lanes run and whether the Grant lane's origination needs a click or the
+two-key opt-in below — it never makes a human-present-only action reachable headlessly.
+
+A judgment-required Dependency-repair finding — the ambiguous case `refine-lanes.md`'s Dependency
+repair section routes to the Needs-you lane rather than a mechanical wire — stamps `needs:decision`
+in this posture exactly as it does interactively (state this explicitly: the old grant-only mode,
+now merged into this row, never had a Dependency-repair lane at all, so this is new only relative
+to that retired mode, never a new behavior relative to `refine`'s own interactive path).
+
+## The grant chain
+
+The headless machine-grant unit: the Routine-fired bare drain's headless-unit shape
+(`/claude-tweaks:dispatch --budget 1`; `next` is its deprecated alias) applied to granting.
 Sweeps the `ready` queue and applies `auto:build` (+ `auto:merge` when its own checks clear) to
 every candidate whose gate chain fully clears — mechanically, with no per-record
 `AskUserQuestion`. This is the one machine-origination path `_shared/work-record.md`'s Grant
@@ -8,8 +52,8 @@ semantics names: the `autonomy` ceiling's `unattended` tier plus its `grant-orig
 opt-in (`_shared/autonomy-ceiling.md`, `_shared/policy-schema.md`), narrowed by a per-record
 gate chain that still requires a clean trust verdict, agent-filed origin, a content-aware
 `grant-check` clearing, and no floor trip. Human-filed records are refused unconditionally,
-regardless of every other key — see `_shared/work-record.md`'s new `/backlog grant` permission
-matrix row.
+regardless of every other key — see `_shared/work-record-permission-matrix.md`'s merged
+`/backlog refine` row (the headless-posture cell).
 
 As of #309, a gate-chain pass that would have granted merge trust applies `auto:merge-pending`
 instead of `auto:merge` directly — see `_shared/work-record.md`'s Grant semantics for the full
@@ -18,7 +62,7 @@ pending-then-mature flow and why this replaces the old immediate-grant behavior 
 Preflight (Detection Ladder, `work-backend: local-files` complete stop) is documented once in
 `SKILL.md` — read it before this file if you haven't; nothing here restates it.
 
-Every temp file this mode writes below resolves through `bin/lib/session-tmp.js`'s `sessionTmpPath`, per `_shared/session-tmp-root.md`'s session-scoped temp-root convention (cited once here, not restated per script).
+Every temp file this posture's grant chain writes below resolves through `bin/lib/session-tmp.js`'s `sessionTmpPath`, per `_shared/session-tmp-root.md`'s session-scoped temp-root convention (cited once here, not restated per script).
 
 ## Step 0: Ceiling gate (whole-run, before any candidate fetch)
 
@@ -42,7 +86,8 @@ later (shell state doesn't survive between calls or reach a subagent; same hazar
 applies the schema defaults, so both values are always concrete. If
 `CEILING` is not literally `unattended`, or `OPT_IN` is not literally `true`: **report "nothing
 to do — ceiling is `{CEILING}`, grant-origination-enabled is
-`{OPT_IN}`" and stop the whole mode here.** Log one line to this run's `decisions.md`
+`{OPT_IN}`" and stop this chain here — the labeling-lanes preamble above is unaffected and
+continues in the same firing; only grant origination stops.** Log one line to this run's `decisions.md`
 (standalone-auto run dir per `_shared/pipeline-run-dir.md`, resolved the same way every other
 standalone-auto skill on the allowlist resolves it):
 
@@ -51,17 +96,18 @@ AUTO {time} — Backlog grant: ceiling gate not satisfied (ceiling={CEILING}, op
 ```
 
 This is not an error and not a HARD-GATE — it's the expected steady state for any project that
-hasn't deliberately opted into both keys. Do not proceed to Step 1.
+hasn't deliberately opted into both keys. Do not proceed to this chain's Step 1 + Step 2 Phase A
+below — the labeling-lanes preamble above is unaffected.
 
 ## Step 0.5: Merge-lane circuit breaker sweep (whole-run, after Step 0, before Step 1)
 
 A second, independent, additive floor over the per-record gate chain (#311) — checked once per
 firing, the same "whole-run fact, not a per-record one" shape Step 0's ceiling gate already is.
-Reads `merge-lane/watched.json` — the set of records whose merge trust originated on this
-mode's headless path (as of #309, seeded when either `dispatch/settle-and-merge.md`'s Auto-merge
+Reads `merge-lane/watched.json` — the set of records whose merge trust originated through this
+posture's grant chain (as of #309, seeded when either `dispatch/settle-and-merge.md`'s Auto-merge
 gate or `wrap-up/auto-merge-short-circuit.md`'s singleton short-circuit matures a record's
 `auto:merge-pending` to `auto:merge` — these two are the only write paths that add an entry;
-this mode's own Step 4 no longer writes it directly, since a still-pending grant has nothing
+this posture's own Step 4 no longer writes it directly, since a still-pending grant has nothing
 yet for the breaker to watch) — and classifies each against fresh evidence, tripping
 `merge-lane/breaker.json` repo-wide the moment any one of them looks bad. Independent from,
 not a replacement for, `trust.js`'s per-class revocation (#268) — a class can read `clean`
@@ -102,7 +148,7 @@ An empty `{}` means nothing to sweep — skip straight to Step 1. Otherwise, for
 2. Fetch the integration-branch git log via `_shared/trust-table.md`'s Fetch section (its own
    session-scoped cache applies here as it does for every other consumer of that section) and
    the resolved `trust-revert-window-days` policy value (`resolve-policy.js --values
-   trust-revert-window-days`, same resolver pattern Step 0 already uses elsewhere in this mode):
+   trust-revert-window-days`, same resolver pattern Step 0 already uses elsewhere in this posture):
    ```bash
    git log "{integration-branch}" --format='%H%x1f%B%x1e' > "$ST_BACKLOG_GRANT_GITLOG"
    WINDOW_DAYS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values trust-revert-window-days)
@@ -175,7 +221,7 @@ exclusion, git-log dump, `trustRows()`), and per-candidate `evaluateGrantGate` (
 `grantCheck`) — reusing `evaluateGrantGate`/`trustRows`/`machineGrantOutlook` directly instead of
 the ~40-step hand-composed Bash pipeline this section used to document (#1384's Current State).
 It re-resolves the ceiling/opt-in policy itself (cheap, local file read) rather than trusting
-Step 0's shell variables, so it is safe to invoke on its own even outside this mode. Its
+Step 0's shell variables, so it is safe to invoke on its own even outside this posture. Its
 historical `--state all` fetch reads through `_shared/record-queue-fetch.md`'s session-scoped
 record snapshot the same way every other citer of that section does, rather than a bare fetch of
 its own:
@@ -214,7 +260,7 @@ SHORTCUT=$(node -e "
 **Early exit (#1384's Deliverable 2).** Before running the per-candidate Phase B/C loop below,
 check `$SHORTCUT`:
 
-- **`ceiling-gate`** — Step 0 already reported this and stopped the whole mode; this branch is
+- **`ceiling-gate`** — Step 0 already reported this and stopped this chain; this branch is
   unreachable here (the CLI's own ceiling check agrees with Step 0's, since both read the same
   policy).
 - **`zero-eligible`** — not one candidate in this firing reached `needsGrantCheck: true`; every
@@ -256,7 +302,7 @@ Returns `RECOMMEND_BUILD`/`RECOMMEND_MERGE`/`RATIONALE` (`assess-agent-autonomy/
 `{ clear: RECOMMEND_BUILD === true, rationale: RATIONALE }`. `RECOMMEND_MERGE` is read separately
 below — it is advisory context for the audit trail, never a second gate: `evaluateGrantGate`'s
 own final `autoMerge` decision comes from `permittedGrants`, not from `grant-check`'s merge
-opinion (this mode's Deliverables: "its own checks" means exactly `permittedGrants`, no other
+opinion (this posture's Deliverables: "its own checks" means exactly `permittedGrants`, no other
 criteria).
 
 **Untrusted content and the verdict's source.** This invocation carries the candidate's title +
@@ -342,10 +388,11 @@ on the record:
 Skipped by /claude-tweaks:backlog grant: body is not spec-shaped — missing/empty: {list}. This does not remove `ready`; a human or /claude-tweaks:backlog refine can still grant it after inspection.
 ```
 
-Unlike `refine`'s Step 3.5, this mode does **not** remove `ready` on this downgrade — flag-back
-is a human-gate action (`_shared/work-record.md`'s permission matrix: `/backlog refine` removes
-`ready`, `/backlog grant` never does). Leaving `ready` in place lets a human or a subsequent
-`refine` run reconsider it normally.
+Unlike `refine`'s interactive Step 3.5, this posture does **not** remove `ready` on this
+downgrade — flag-back is a human-gate action (`_shared/work-record-permission-matrix.md`'s merged
+`/backlog refine` row: the human-present cell removes `ready` on flag-back, the headless-posture
+cell never does). Leaving `ready` in place lets a human or a subsequent interactive `refine` run
+reconsider it normally.
 
 ## Step 4: Apply
 
@@ -358,7 +405,7 @@ removing the label before then. `bot:blocked` candidates take the **re-authorize
 path — strip `bot:blocked`, grant **`auto:build` only, never `auto:merge`/`auto:merge-pending`**,
 regardless of what `result.autoMerge` says (mirrors `refine-mode.md` Step 3's `re-authorize
 (bot:blocked)` row: "a prior failure means the human's renewed judgment is the point" — this
-mode has no human in the loop for this decision, so the conservative floor is to never restore
+posture has no human in the loop for this decision, so the conservative floor is to never restore
 merge trust on a re-authorization headlessly, full stop):
 
 ```bash
@@ -441,7 +488,7 @@ in either direction" is this record's own Deliverables wording, not a stylistic 
 
 ## Step 5: Report
 
-No `AskUserQuestion` for any individual decision — this mode's entire point is that the gate
+No `AskUserQuestion` for any individual decision — this posture's entire point is that the gate
 chain, not a human, decides. At the end, render a short summary (record count granted /
 re-authorized / needs-decision / skipped, with skip reasons grouped by `failedKey`) and the Next Actions block
 from `SKILL.md` (rendered only when a human is present — see that file's Next Actions section
@@ -451,7 +498,7 @@ and Component-Skill Contract).
 
 `fleet-daily-grant-cap` counts machine grants issued **today** (UTC calendar date), read from
 `<!-- grant-mode-audit: date=... -->` markers, not from an in-repo counter file (no durable
-per-day state this mode owns — the record comments already are that state, and reading them back
+per-day state this posture owns — the record comments already are that state, and reading them back
 avoids a second source of truth that could drift from what was actually granted). Seed
 `grantsIssuedToday` once, before Phase C begins, by searching today's comments:
 
@@ -480,15 +527,15 @@ transports, plus its accepted small undercount caveat.
 ## Concurrency
 
 Same reasoning as `refine-mode.md`'s Concurrency section: every label add is idempotent, so two
-overlapping grant-mode firings (e.g. an overlapping Routine cadence) at worst repeat the same
-write. The daily cap read is a snapshot at the start of each firing, not a lock — two concurrent
-firings could each read the same "N of M" count and both grant, overshooting the cap by a small,
-self-correcting margin. Acceptable for the same reason `refine-mode.md` accepts its own narrow
-race: the next firing reads the true, now-current count and stops appropriately; this is not
-worth a distributed lock for a soft fleet-hygiene cap.
+overlapping firings of this posture's grant chain (e.g. an overlapping Routine cadence) at worst
+repeat the same write. The daily cap read is a snapshot at the start of each firing, not a lock —
+two concurrent firings could each read the same "N of M" count and both grant, overshooting the
+cap by a small, self-correcting margin. Acceptable for the same reason `refine-mode.md` accepts
+its own narrow race: the next firing reads the true, now-current count and stops appropriately;
+this is not worth a distributed lock for a soft fleet-hygiene cap.
 
 **Holds unchanged on the MCP transport** — `mcp-transport.md`'s own Concurrency section works
 through why `issue_write`'s plain field update preserves the same idempotency this section relies
 on, and why `_shared/issue-claims.md`'s lock is not needed here on either transport (a different
-problem — mutual exclusion over who *builds* an issue — that this mode's label-add writes never
+problem — mutual exclusion over who *builds* an issue — that this posture's label-add writes never
 had).

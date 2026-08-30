@@ -396,6 +396,27 @@ function archiveRunDir(root, runDir) {
   const workMoves = [];
   const topWork = path.join(runDir, 'work');
   if (fs.existsSync(topWork)) workMoves.push([topWork, path.join(archiveDir, 'work')]);
+  // #1493/#1494: a `*-tidy-standalone*` (or, since sweep's shared run dir,
+  // `*-sweep-standalone*` — sweep's Step 1 runs tidy inside it) run dir's own
+  // audit files (SKILL.md's pr-first Step 7.5 addition, `.gitignore`'s
+  // matching carve-out) are git-tracked the same way `work/` always has
+  // been — never spec-{N}/-nested (neither shape is ever a multi-spec
+  // parent), so this joins the top-level `workMoves` batch only, not the
+  // per-spec loop below. Without this, the tracked-entry guard a few lines
+  // down would refuse to archive every tidy-standalone/sweep-standalone run
+  // forever, since it treats any tracked path outside `work/` as the #593
+  // corruption hazard. Folding these into the same `git mv` + single-commit
+  // batch as `work/` means the guard never even sees them (they're already
+  // moved out of `runDir` by the time it runs) — a genuinely stray tracked
+  // file elsewhere in the run dir still refuses exactly as before.
+  if (/-(tidy|sweep)-standalone/.test(runId)) {
+    for (const auditFile of ['decisions.md', 'report.md']) {
+      const src = path.join(runDir, auditFile);
+      if (fs.existsSync(src)) workMoves.push([src, path.join(archiveDir, auditFile)]);
+    }
+    const topStaged = path.join(runDir, 'staged');
+    if (fs.existsSync(topStaged)) workMoves.push([topStaged, path.join(archiveDir, 'staged')]);
+  }
   for (const specName of specDirs) {
     const specWork = path.join(runDir, specName, 'work');
     if (!fs.existsSync(specWork)) continue;
@@ -448,7 +469,12 @@ function archiveRunDir(root, runDir) {
   // Tracked-entry guard: a git-tracked file in the run dir outside work/
   // would otherwise be silently fs.renameSync'd (moved, not `git mv`'d) —
   // the tracked blob would still point at the OLD path, corrupting history.
-  // #593 documents this class. work/ itself is already git-mv'd above.
+  // #593 documents this class. work/ itself is already git-mv'd above — and,
+  // for a `*-tidy-standalone*` run, so are `decisions.md`/`report.md`/`staged/`
+  // (the workMoves batch above), so `git ls-files runDir` no longer finds them
+  // here and this guard never sees them. Any OTHER tracked path — a stray
+  // tracked file this function doesn't know how to move, on either a
+  // tidy-standalone run or any other — still refuses exactly as before.
   if (fs.existsSync(runDir)) {
     const lsFiles = runGit(['ls-files', runDir], root);
     if (lsFiles.failure) return { ok: false, reason: 'ls-files-failed' };

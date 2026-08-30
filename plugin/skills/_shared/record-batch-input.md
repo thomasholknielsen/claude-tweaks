@@ -1,13 +1,19 @@
-# Record-batch input grammar
+# Record-batch input grammar + `--budget` flag
 
-Cited by `/claude-tweaks:flow`, `/claude-tweaks:dispatch`, `/claude-tweaks:specify`, and
-`/claude-tweaks:demo` — the four skills whose first argument accepts a comma-separated list
-of work-record references. States the grammar **only**: notation, tokenization, and element
-classification. It deliberately does not state what happens after classification —
-resolution-failure handling and execution shape (sequential loop / group-expansion fan-out /
-pipeline) genuinely differ per consumer (`/dispatch`'s fan-out and `/demo`'s never-fan-out
-loop cannot share one rule) — those stay in each consumer's own prose; see "Out of scope"
-below.
+One shared home for the batch-invocation surface (#762's extraction, extended by #1491),
+holding two contracts:
+
+- **The ref-list grammar** — cited by `/claude-tweaks:flow`, `/claude-tweaks:dispatch`,
+  `/claude-tweaks:specify`, and `/claude-tweaks:demo`, the four skills whose first argument
+  accepts a comma-separated list of work-record references. States the grammar **only**:
+  notation, tokenization, and element classification. It deliberately does not state what
+  happens after classification — resolution-failure handling and execution shape (sequential
+  loop / group-expansion fan-out / pipeline) genuinely differ per consumer (`/dispatch`'s
+  fan-out and `/demo`'s never-fan-out loop cannot share one rule) — those stay in each
+  consumer's own prose; see "Out of scope" below.
+- **The `--budget` flag** — canonical semantics for the drain-budget flag shared by
+  `/claude-tweaks:dispatch`'s and `/claude-tweaks:specify`'s bare-invocation drain modes; see
+  "The `--budget` flag" below.
 
 ## Notation
 
@@ -62,5 +68,26 @@ prose — required, and never unified here:
 - **Execution shape** — sequential loop (`/specify`, `/demo`), group-expansion fan-out
   (`/dispatch`), or pipeline (`/flow`).
 - Selector verbs (`next` and similar) and any range/expansion form (`/specify`'s `#A-#B`) are
-  per-skill grammar extensions outside this contract's scope; this file governs the
+  per-skill grammar extensions outside this contract's scope; this contract governs the
   comma-list form only.
+
+## The `--budget` flag
+
+Canonical semantics for `--budget <n|all>`, the drain-budget flag shared by `/dispatch`'s and
+`/specify`'s bare (no-argument) drain invocations:
+
+- `n` caps the number of claim-attempt cycles the firing performs — an attempt is a claimed
+  record that is then shaped/dispatched, routed, or fails; a lost claim race consumes nothing.
+- `all` loops until the eligible set — re-fetched fresh each iteration — is empty, with no
+  upper cap.
+
+Applies to bare-drain invocations only; this file states no default. Per-skill default
+resolution is the caller's own policy key (`dispatch-batch-size` for `/dispatch`,
+`specify-budget` for `/specify`), read the same place every other project-config lever is
+(`_shared/policy-schema.md`). Rejecting `--budget` when combined with an explicit input form,
+and rejecting `--budget 0`/a negative value, are each caller's own rule, stated in that
+caller's own `## Input`/`## Syntax` prose — this file states the flag's meaning only, per the
+Out-of-scope split above.
+
+Consumed by: `/claude-tweaks:dispatch` (bare drain, #1492) and `/claude-tweaks:specify` (bare
+drain, #1491).

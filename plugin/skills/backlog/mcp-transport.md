@@ -1,8 +1,10 @@
-# Backlog Grant — GitHub MCP Transport (`gh` absent)
+# Backlog Refine (Headless Posture) — GitHub MCP Transport (`gh` absent)
 
-Loaded by `/claude-tweaks:backlog` (`grant` mode only) when Preflight's Detection Ladder check 2
-resolves `gh` as absent (`backlog/SKILL.md`'s `grant` mode Preflight paragraph). Every call site in
-`grant-mode.md` runs its `gh` CLI form unchanged when `gh` is present, so a normal run never reads
+Loaded by `/claude-tweaks:backlog refine`'s grant sub-stage — reached headlessly via `--source
+routine|sweep`, or via the deprecated `grant` alias, which forces the same headless posture
+(`refine-headless.md`) — when Preflight's Detection Ladder check 2 resolves `gh` as absent
+(`backlog/SKILL.md`'s grant sub-stage Preflight paragraph). Every call site in
+`refine-headless.md` runs its `gh` CLI form unchanged when `gh` is present, so a normal run never reads
 this file.
 
 **Verification status: documented, not verified.** Unlike `dispatch/mcp-transport.md` (verified
@@ -19,7 +21,7 @@ CRUD mappings throughout are per `_shared/github-write-transport.md`, cited rath
 
 ## Step 1 + Step 2 Phase A — ready-queue fetch and gates 1-3
 
-**This call site is structurally different from every other one in this file.** `grant-mode.md`'s
+**This call site is structurally different from every other one in this file.** `refine-headless.md`'s
 Step 1 + Step 2 Phase A run as a single invocation of `bin/backlog-grant-gate.js`, which hard-gates
 on `gh` itself — `deps.ghAvailable()` → stderr `` `gh` is required `` → exit 2 — before it ever
 reaches `computeOutlook`'s injectable `runner`/`gitRunner` parameters. Unlike a prose-level `gh`
@@ -98,7 +100,7 @@ applies identically to `gh search issues`:
 
 **Caveat, accepted deliberately.** An issue granted today that also merged and had `auto:build`
 stripped today (a fast-maturing `auto:merge-pending` → merge → `/wrap-up` label removal, all
-within one UTC day) drops out of this walk and undercounts the cap by one. `grant-mode.md`'s own
+within one UTC day) drops out of this walk and undercounts the cap by one. `refine-headless.md`'s own
 Concurrency section already accepts a comparable small, self-correcting margin on the `gh`-search
 form (two racing firings each reading a stale "N of M" count); this walk's undercount is the same
 order of magnitude, on a cap that same section already calls "not worth a distributed lock for."
@@ -112,14 +114,14 @@ records), never by copying another call site's `--limit`.
 
 ## Concurrency — does the MCP transport need `_shared/issue-claims.md`'s lock?
 
-**No — same conclusion as the `gh` transport, checked rather than assumed.** `grant-mode.md`'s own
+**No — same conclusion as the `gh` transport, checked rather than assumed.** `refine-headless.md`'s own
 Concurrency section reasons that every label write here is idempotent under `gh`: two overlapping
 firings applying the same `--add-label` at worst repeat the same write. That idempotency comes
 from label-set semantics (adding a label twice is the same as adding it once, order-independent),
 not from `gh`'s ref-level compare-and-set — so it transfers to `issue_write` (update mode)
 unchanged: a plain field/label update on the MCP transport is exactly as commutative as the CLI
-form, since grant mode's writes never depended on ref-level atomicity to begin with.
+form, since the headless posture's writes never depended on ref-level atomicity to begin with.
 `_shared/issue-claims.md`'s file-blob lock solves a different problem — mutual exclusion over *who
-builds* one issue — that grant mode's label-add writes don't have: nothing in this mode claims an
+builds* one issue — that this posture's label-add writes don't have: nothing in this posture claims an
 issue for building, only authorizes it for `/claude-tweaks:dispatch` to claim later. No lock added
 for this MCP path.

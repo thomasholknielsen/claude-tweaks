@@ -96,7 +96,7 @@ caller trusts a stale read.
 `skills/_shared/headless-self-report.md`, `skills/dispatch/settle-and-merge.md`,
 `skills/dispatch/SKILL.md`, `skills/backlog/overview-mode.md`,
 `skills/backlog/refine-mode.md`, `skills/backlog/refine-lanes.md`,
-`skills/backlog/grant-mode.md`, `skills/backlog/attention-mode.md`,
+`skills/backlog/refine-headless.md`, `skills/backlog/attention-mode.md`,
 `skills/backlog/trust-signal.md`, `skills/assess-agent-autonomy/grant-check.md`,
 `skills/_shared/trust-table.md` — whose Fetch section resolves seven paths at once via the
 CLI wrapper and hands their literal values downstream as `{tmp-*}` placeholders (see that
