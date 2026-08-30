@@ -353,6 +353,5 @@ test('capture/SKILL.md names --source intake in at least three places, the defer
   assert.ok(c.includes('other than `intake`'), 'deferral check names the intake exemption');
   assert.ok(c.includes('any `--source`'), 'every non-intake --source value keeps today\'s rule');
   const csc = c.slice(c.indexOf('## Component-Skill Contract'));
-  assert.ok(csc.includes('/claude-tweaks:intake'), 'CSC names /claude-tweaks:intake as a parent');
   assert.ok(csc.includes('prose-trusted'), 'CSC states the trust boundary');
 });

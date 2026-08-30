@@ -204,6 +204,8 @@ since content they cannot parse might still encode someone's live claim. This is
 `classifyClaimBlob` reports for the same content on a future read — it changes the *content*, by
 overwriting it.
 
+**Primary path — the CLI:** `node "${CLAUDE_PLUGIN_ROOT}/bin/repair-claim.js" <issue> --run <run-dir> --mode <release|reclaim> --reason <reason> [--link <url>] [--repo owner/name]` performs steps 1-4 below in one command — fresh read + sha capture, the confirm-`'unreadable'` gate (a live, stale, tombstone, or absent blob refuses with exit `4`, nothing written), the sha-carrying conditional overwrite (`release` writes `releasePayload`-shaped tombstone content, `reclaim` writes `claimPayload`-shaped content), and the override log (AUTO line in `<run-dir>/decisions.md`, plus the mirror comment). Exit `0` repaired / `3` CAS rejection (sha changed since the read — re-read and reassess, never retry blind) / `4` refused / `1` failed / `2` malformed or `gh` absent. The numbered manual steps below remain the transport-detail fallback for a `gh`-absent (MCP) environment — deliberately not grown into the CLI, matching `release-claim.js`'s own posture.
+
 Repair reuses step 4's re-claim mechanics exactly — a conditional-overwrite `PUT`/
 `create_or_update_file` with `sha` set — with one difference: step 4 gets its `sha` from a blob it
 just classified as `'tombstone'`/`'stale'`; here the blob's *content* is unreadable, but its **blob
@@ -350,7 +352,7 @@ and let `/tidy`'s sweep surface it for human judgment.
 | Spec merged / PR opened / discarded | `/wrap-up` cleanup item 7 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
 | Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
 | Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:dispatch` settle step (automatic, unconditional) | `failed: {gate}` |
-| Headless `specify next` shapes the claimed record (success), routes it to `needs:definition` (success), or fails during shaping | `specify/next-mode-shape.md` Release step (#1346's split of `next-mode.md`; automatic, unconditional, always before that path's self-report) | `shaped: #{n}` / `routed: needs:definition #{n}` / `failed: shaping` |
+| Headless bare `specify` drain (or its deprecated `next` alias) shapes the claimed record (success), routes it to `needs:definition` (success), or fails during shaping | `specify/next-mode-shape.md` Release step (#1346's split of `next-mode.md`; automatic, unconditional, always before that path's self-report) | `shaped: #{n}` / `routed: needs:definition #{n}` / `failed: shaping` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
 | Grant removal (`auto:build`/`auto:merge`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up`'s `cleanup-procedures-execution.md` Section E step 6 (single-spec) | — (label edit, not a claim release) |
 | Interrupted session | nobody — TTL ages it out; `/tidy` sweeps it | — |

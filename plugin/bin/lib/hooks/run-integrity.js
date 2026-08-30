@@ -247,4 +247,12 @@ function checkRunIntegrity(runDir, opts = {}) {
   }
 }
 
-module.exports = { checkRunIntegrity, repoRootOf, NON_TERMINAL, deriveBranch };
+module.exports = {
+  checkRunIntegrity, repoRootOf, NON_TERMINAL, deriveBranch,
+  // #1544: archive-merged.js's clean-status sweep (a run dir close-run
+  // already marked terminal, whose archive-run step never followed) needs
+  // this same torn-down-worktree branch fallback — checkRunIntegrity itself
+  // only evaluates NON_TERMINAL ('active'/'interrupted') statuses, so a
+  // 'clean' dir can't reuse that entry point and needs this piece directly.
+  fallbackBranch,
+};

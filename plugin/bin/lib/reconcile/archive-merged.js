@@ -10,13 +10,15 @@ const path = require('path');
 const { runGit } = require('../hooks/git-exec');
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
-const { iterRunDirsWithState, writeRunState } = require('../hooks/context');
+const {
+  iterRunDirsWithState, writeRunState, readRunState, RUN_ID_RE,
+} = require('../hooks/context');
 const { resolvePrState } = require('./pr-state');
 const { recordResidueSuccess, trackResidue } = require('./cache');
 const { escalateResidue } = require('./escalate-residue');
 const { repoSlugOf } = require('./release-merged');
 const { closeRunState } = require('../hooks/close-run-state');
-const { checkRunIntegrity } = require('../hooks/run-integrity');
+const { checkRunIntegrity, fallbackBranch } = require('../hooks/run-integrity');
 
 // Orphan case introduced by the dispatch/flow run-identity unification:
 // dispatch mints an empty, anchored run directory (mkdir only, no
@@ -354,6 +356,27 @@ function archiveRunDir(root, runDir) {
   const workMoves = [];
   const topWork = path.join(runDir, 'work');
   if (fs.existsSync(topWork)) workMoves.push([topWork, path.join(archiveDir, 'work')]);
+  // #1493/#1494: a `*-tidy-standalone*` (or, since sweep's shared run dir,
+  // `*-sweep-standalone*` — sweep's Step 1 runs tidy inside it) run dir's own
+  // audit files (SKILL.md's pr-first Step 7.5 addition, `.gitignore`'s
+  // matching carve-out) are git-tracked the same way `work/` always has
+  // been — never spec-{N}/-nested (neither shape is ever a multi-spec
+  // parent), so this joins the top-level `workMoves` batch only, not the
+  // per-spec loop below. Without this, the tracked-entry guard a few lines
+  // down would refuse to archive every tidy-standalone/sweep-standalone run
+  // forever, since it treats any tracked path outside `work/` as the #593
+  // corruption hazard. Folding these into the same `git mv` + single-commit
+  // batch as `work/` means the guard never even sees them (they're already
+  // moved out of `runDir` by the time it runs) — a genuinely stray tracked
+  // file elsewhere in the run dir still refuses exactly as before.
+  if (/-(tidy|sweep)-standalone/.test(runId)) {
+    for (const auditFile of ['decisions.md', 'report.md']) {
+      const src = path.join(runDir, auditFile);
+      if (fs.existsSync(src)) workMoves.push([src, path.join(archiveDir, auditFile)]);
+    }
+    const topStaged = path.join(runDir, 'staged');
+    if (fs.existsSync(topStaged)) workMoves.push([topStaged, path.join(archiveDir, 'staged')]);
+  }
   for (const specName of specDirs) {
     const specWork = path.join(runDir, specName, 'work');
     if (!fs.existsSync(specWork)) continue;
@@ -406,7 +429,12 @@ function archiveRunDir(root, runDir) {
   // Tracked-entry guard: a git-tracked file in the run dir outside work/
   // would otherwise be silently fs.renameSync'd (moved, not `git mv`'d) —
   // the tracked blob would still point at the OLD path, corrupting history.
-  // #593 documents this class. work/ itself is already git-mv'd above.
+  // #593 documents this class. work/ itself is already git-mv'd above — and,
+  // for a `*-tidy-standalone*` run, so are `decisions.md`/`report.md`/`staged/`
+  // (the workMoves batch above), so `git ls-files runDir` no longer finds them
+  // here and this guard never sees them. Any OTHER tracked path — a stray
+  // tracked file this function doesn't know how to move, on either a
+  // tidy-standalone run or any other — still refuses exactly as before.
   if (fs.existsSync(runDir)) {
     const lsFiles = runGit(['ls-files', runDir], root);
     if (lsFiles.failure) return { ok: false, reason: 'ls-files-failed' };
@@ -593,6 +621,33 @@ function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateRe
   trackResidue(root, repoSlug, 'move-failed', dir, { failed: true, lastError: result.lastError }, { escalate });
 }
 
+// #1544: `iterRunDirsWithState` (context.js) excludes every `status:
+// 'clean'` dir by design (line ~143 of that file) — most of its callers
+// treat a clean run as "nothing left to do here," which is right for
+// resolveRun/session-start but wrong for this sweep specifically. A run dir
+// close-run already marked `{status: 'clean', worktree: null}` is normally
+// archived within the same wrap-up pass (archive-run runs immediately
+// after) — but a headless second call that completed close-run and then
+// exited (or crashed) before archive-run leaves that dir sitting in
+// `pipelines/` forever, invisible to the loop below. Scan the same
+// top-level pipelines/ listing directly, filtered to `status: 'clean'` —
+// gated below on a confirmed merged PR (never bare clean-status alone, per
+// this issue's own gotcha: a clean status is not itself proof the PR
+// merged).
+function iterCleanRunDirs(root) {
+  const base = path.join(root, '.claude-tweaks', 'pipelines');
+  let entries;
+  try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return []; }
+  const out = [];
+  for (const e of entries) {
+    if (!e.isDirectory() || !RUN_ID_RE.test(e.name)) continue;
+    const dir = path.join(base, e.name);
+    const state = readRunState(dir);
+    if (state && state.status === 'clean') out.push({ dir, state });
+  }
+  return out;
+}
+
 function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_CODE_SESSION_ID || null } = {}) {
   const archived = [];
   const skipped = [];
@@ -698,6 +753,36 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
     if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
     archived.push(dir);
   }
+
+  // #1544: the clean-status sweep — see iterCleanRunDirs' own comment.
+  // `state.worktree` is already null by construction (close-run's write), so
+  // the ordinary worktree-list branch lookup above can't answer here; reuse
+  // run-integrity.js's own torn-down-worktree fallback (state.pr.branch, or
+  // decisions.md's PR-early lifecycle lines) instead. Otherwise identical to
+  // the main loop: decideArchive's merged-PR + resolved-console gate, then
+  // the same local-fast-forward check before any move.
+  for (const { dir, state } of iterCleanRunDirs(root)) {
+    const branch = fallbackBranch(root, dir, state);
+    if (!branch) { skipped.push({ runDir: dir, reason: 'no-branch' }); continue; }
+
+    const prState = resolvePrState(root, branch);
+    const consoleState = readConsoleState(dir);
+    const decision = decideArchive(prState, consoleState);
+    if (decision.action === 'skip') { skipped.push({ runDir: dir, reason: decision.reason }); continue; }
+
+    const hasMerge = localHasMerge(root, prState.mergeCommit);
+    if (hasMerge !== true) {
+      skipped.push({ runDir: dir, reason: hasMerge === false ? 'local-behind-merge' : 'merge-commit-unknown' });
+      continue;
+    }
+    if (dryRun) { archived.push(dir); continue; }
+
+    const result = archiveRunDir(root, dir);
+    trackArchiveResult(root, repoSlug, dir, result);
+    if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
+    archived.push(dir);
+  }
+
   return { archived, skipped };
 }
 

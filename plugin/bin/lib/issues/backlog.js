@@ -243,23 +243,23 @@ function funnelBuckets(records) {
 // annotation. When `policy.ceiling === 'unattended' && policy.
 // grantOriginationEnabled === true`, a human-filed record (facets.origin
 // null/undefined) is pre-filtered OUT before the gate chain runs at all —
-// mirroring grant-mode.md's own Step 1 "cheap pre-pass on the same gate-3
-// condition" (skills/backlog/grant-mode.md), itself only reached once that
+// mirroring refine-headless.md's own Step 1 "cheap pre-pass on the same gate-3
+// condition" (skills/backlog/refine-headless.md), itself only reached once that
 // mode's own Step 0 ceiling/opt-in gate has passed (see the caller
 // precondition documented at the top of machine-grant-outlook.md) — so a
 // human-filed record is never counted under refused here, exactly as
-// grant-mode's own candidate fetch drops it before the chain. Origin is the
+// the grant chain's own candidate fetch drops it before the chain. Origin is the
 // only axis this pre-filter aligns: funnelBuckets routes a ready, ungranted
-// record into `specified` regardless of open blockers, while grant-mode's
+// record into `specified` regardless of open blockers, while the grant chain's
 // Step 1 candidate fetch drops blocked records — so `eligible` can still
-// exceed grant-mode's candidate count by that blocked population.
+// exceed the grant chain's candidate count by that blocked population.
 // Without the pre-filter, a human-filed record whose class trust
 // ALSO happens to be non-clean gets misattributed to refused.trust by
 // evaluateGrantGate's gate order (gate 2 runs before gate 3, so gate
-// 3/origin never individually fires for it) even though grant-mode's own
+// 3/origin never individually fires for it) even though the grant chain's own
 // candidate fetch would never have considered it in the first place — this
 // was #1387's reported discrepancy between overview's reported refusal
-// counts and grant-mode's own candidate-set size for the same backlog
+// counts and the grant chain's own candidate-set size for the same backlog
 // state. Excluded records are counted via `excludedOrigin` rather than
 // folded into `refused`, so a reader can reconcile the funnel header's
 // `specified N` total against `eligible.length + refused-total +

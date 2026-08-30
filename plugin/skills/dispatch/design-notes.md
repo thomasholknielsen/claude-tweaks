@@ -4,11 +4,11 @@ Referenced by `skills/dispatch/SKILL.md`'s "When to Use" section and its Concurr
 
 Step and section references below (`Step 4`, `Step 5`, "Reporting") resolve against this skill's `SKILL.md`, not against this file.
 
-## Why no `drain` mode
+## Why no console-shepherding drain mode
 
-There is no mode that shepherds every authorized group to completion in one session. A session babysitting N pipeline runs accumulates context until it rots; throughput comes from routine cadence × single-group firings (a Routine firing `next` on a schedule), not session breadth.
+The rejected idea was a mode that shepherded every authorized group to completion in one session, aggregating outcomes into a consolidated multi-group Review Console. A session babysitting N pipeline runs accumulates context until it rots, and a single-group firing has nothing to consolidate — so that console died with the idea.
 
-The old design's consolidated multi-group Review Console existed to aggregate a drain session's N outcomes into one table; a single-group firing has nothing to consolidate, so it dies with drain — see Reporting.
+#1492's `--budget` drain is not that: it repeats the single-group select-and-dispatch loop (the same one a Routine fired via `next` on a schedule) up to `--budget` times in one invocation, with per-group reporting and no consolidated console — throughput still comes from routine cadence × per-group firings, not from session breadth or aggregated reporting.
 
 ## Why the concurrent-Preflight read race is accepted
 

@@ -2,7 +2,8 @@
 
 Loaded by `/claude-tweaks:specify` when Resolve-the-input lands on case 1 (a work record reference,
 or a comma-joined batch of them — `SKILL.md`'s `## Input`, "Comma-list batch form"), case 5 (a
-backlog reference with no matching design doc), or the `next` form's headless entry (`next-mode.md`'s
+backlog reference with no matching design doc), or the bare-drain headless entry path (including its
+deprecated `next` alias) (`next-mode.md`'s
 Shape step, which fetches the claimed record itself and hands it to this procedure directly — the
 same in-process invocation `--chained` uses, never a recursive `Skill()` call). Each record already exists and IS the target —
 there is nothing to decompose, and none of decomposition mode's Steps 1-9 (`decomposition-mode.md`
@@ -72,6 +73,10 @@ Absorb the record's existing content into whichever section it belongs in — a 
 One authoring constraint on the composed prose itself: never write the literal placeholder tokens `TBD`, `TODO`, or `<!-- ambiguity:` anywhere in a composed body — not even as a *mention* (e.g. "…not as a TODO in the files"). `_shared/work-record.md`'s spec-shaped-body check, re-run by `/claude-tweaks:backlog refine`'s Step 3.5 and the grant gate, greps for these tokens with no context sensitivity, so a prose mention flags the record as carrying an unresolved placeholder and downgrades it back out of `ready`. Paraphrase instead ("a deferred-work comment", "an unresolved marker"). A marker *inherited* inside the preserved `## Original request` copy is different — it is sanctioned: the spec-shaped-body checks exempt that section (#1240), and the verbatim copy must never be hand-edited to remove one.
 
 When a human-filed defect report names a specific affected file, function, or exact error string, do a cheap sanity check before shaping: grep the named artifact against the codebase. A miss doesn't necessarily mean the report is wrong (the code may be newer, or the artifact may genuinely live elsewhere) — but it's a fact-check worth doing at shaping time rather than discovering it mid-build, after a worktree and (under `pr-first`) a draft PR already exist (`#174`).
+
+### Dependency-narration check
+
+After composing `## Current State`/`## Deliverables` above, run `_shared/dependency-narration-check.md`'s check against that text — it catches a body that narrates another record's not-yet-merged follow-up as settled fact and, on a hit, auto-populates a `blocked-by:` edge onto this record before the compose-then-write-once call in `shaping-mode-stamping.md`. This record's own number is already known (it's the target being shaped), so the `work-links: native` branch runs its `bin/link-records.js` call immediately rather than waiting on a post-create step; the `body-text` branch's `Blocked by #{n}` line lands in the metadata block `shaping-mode-stamping.md`'s Metadata block subsection composes, the same placement `Parent: #N` already uses.
 
 ### Preserve the original request
 

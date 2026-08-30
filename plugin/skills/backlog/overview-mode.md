@@ -126,7 +126,7 @@ captured ▶ prioritized ▶ specified ▶ granted ▶ dispatchable ▶ in fligh
 # prioritized {n} — specify them; see the Specify next block below for the real ids
 
 # specified {n} — grant them, or dispatch here with the human gate
-/claude-tweaks:backlog grant
+/claude-tweaks:backlog refine
 
 # granted {n} — no pointer; blockers surface at /claude-tweaks:dispatch's own execution time
 
@@ -229,9 +229,10 @@ Three stages, each one paste-ready command block instead of one terminal per rec
 **Dispatch** (one bare `/claude-tweaks:dispatch` line), and **Sign-off**
 (`/claude-tweaks:demo #a,#b,...` chunks over the `parents` bucket). Neither of the first two stages
 computes a dependency graph any more — `docs/skill-graph.md`'s `## backlog` → `/dispatch` row is
-the canonical statement of what moved to that skill and why; not restated here. **Score**
-(`/claude-tweaks:backlog refine`) and **Grant** (`/claude-tweaks:backlog grant`) keep their existing one-command pointers from the
-Prioritize/Specify template lines above, unchanged.
+the canonical statement of what moved to that skill and why; not restated here. **Score** and **Grant** both point at `/claude-tweaks:backlog refine` — the merged command's
+single sweep covers the Priority/Related lanes at the captured stage and the Grant lane at the
+specified stage — keeping their existing one-command pointers from the Prioritize/Specify template
+lines above.
 
 ### Shape stage — specify the prioritized bucket in chunks
 

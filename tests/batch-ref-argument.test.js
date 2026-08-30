@@ -28,9 +28,9 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 // newlines to find the frontmatter fence and the line-anchored hint field).
 const readFlat = (rel) => read(rel).replace(/\s+/g, ' ');
 
-test('specify argument-hint accepts a comma-separated record-ref list', () => {
+test('specify argument-hint accepts a comma-separated record-ref list (refs #1491: bare drain replaced the headless next prefix)', () => {
   const hint = extractArgumentHint(read('plugin/skills/specify/SKILL.md'));
-  assert.ok(hint.startsWith('<next|#N[,#M...]|#A-#B|record-id[,id...]|'), `specify hint must open with the headless next form followed by the batch grammar, got: ${hint}`);
+  assert.ok(hint.startsWith('[#N[,#M...]|#A-#B|record-id[,id...]|'), `specify hint must open with the batch grammar, got: ${hint}`);
 });
 
 test('specify Input cites the shared batch grammar and keeps its own stop-all/refs-only rules', () => {
@@ -104,7 +104,7 @@ test('dispatch Input cites the shared batch grammar for its explicit-list form',
 
 test('dispatch argument-hint already uses the unified #N[,#M...] notation', () => {
   const hint = extractArgumentHint(read('plugin/skills/dispatch/SKILL.md'));
-  assert.ok(hint.startsWith('[next|#N[,#M...]]'), `dispatch hint must open with the unified batch notation, got: ${hint}`);
+  assert.ok(hint.startsWith('[#N[,#M...]]'), `dispatch hint must open with the unified batch notation, got: ${hint}`);
 });
 
 test('parseExplicitIssueList (bin/lib/issues/grouping.js) classifies mixed lists and empty elements instead of silently dropping them', () => {

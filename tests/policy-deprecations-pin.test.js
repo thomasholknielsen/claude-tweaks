@@ -44,9 +44,14 @@ test('every policy-deprecations.md heading has a backing RENAMED_KEYS entry', ()
   }
 });
 
-test('every deprecated-aliases.md heading backed by a RENAMED_KEYS entry matches it (--concurrent <n> excluded — CLI-flag alias, not a policy key)', () => {
+// CLI-flag/positional-argument aliases (dispatch invocation grammar, not
+// .claude-tweaks/policy.yml keys) never appear in RENAMED_KEYS — each is
+// excluded here deliberately, not by omission.
+const CLI_FLAG_ALIAS_HEADINGS = new Set(['--concurrent <n>', '--batch-size <n>', 'next']);
+
+test('every deprecated-aliases.md heading backed by a RENAMED_KEYS entry matches it (CLI-flag/positional-argument aliases excluded — not policy keys)', () => {
   for (const key of aliasesHeadings) {
-    if (key === '--concurrent <n>') continue;
+    if (CLI_FLAG_ALIAS_HEADINGS.has(key)) continue;
     assert.ok(renamedKeyNames.has(key), `${key}: heading in deprecated-aliases.md has no RENAMED_KEYS entry`);
   }
 });

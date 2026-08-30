@@ -20,6 +20,11 @@ function mkRun(project, name, state) {
   if (state) fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify(state));
   return run;
 }
+function mkStagedFile(run, name, content) {
+  const stagedDir = path.join(run, 'staged');
+  fs.mkdirSync(stagedDir, { recursive: true });
+  fs.writeFileSync(path.join(stagedDir, name), content || '{}');
+}
 
 test('deps.collect returns an array of strings and prints nothing', () => {
   const msgs = deps.collect();
@@ -57,6 +62,83 @@ test('#803: the banner names a designated consumer — relay the list once in th
   const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   const ctx = out.json.hookSpecificOutput.additionalContext;
   assert.match(ctx, /Relay this list once, in your first reply to the user/);
+});
+
+test('#1493 AC5: a fixture with one interrupted run + one cleanly-clean standalone run with non-empty staged/ renders both — close-run for the interrupted run, tidy --approve for the standalone one', async () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
+  const standalone = mkRun(project, '2026-07-02T090000-tidy-standalone', { status: 'clean' });
+  mkStagedFile(standalone, 'stale-close-1.json', '{}');
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /spec-1 \(status: interrupted\)/, 'the interrupted run keeps its existing entry');
+  assert.match(ctx, /close-run --run/, 'the interrupted run keeps its close-run pointer');
+  assert.match(ctx, /2026-07-02T090000-tidy-standalone/, 'the cleanly-finished standalone run is named');
+  assert.match(ctx, /\/claude-tweaks:tidy --approve/, 'the standalone run points at tidy --approve, not close-run');
+});
+
+test('#1493 I4: the tidy --approve banner names a designated consumer — relay the list once in the first reply', async () => {
+  const project = tmpProject();
+  const standalone = mkRun(project, '2026-07-02T090000-tidy-standalone', { status: 'clean' });
+  mkStagedFile(standalone, 'stale-close-1.json', '{}');
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /Relay this list once, in your first reply to the user/);
+});
+
+test('#1493: the standalone-approvable list is capped at MAX_REPORTED, newest-first, no overflow line', async () => {
+  const project = tmpProject();
+  const names = [
+    '2026-07-01T090000-tidy-standalone',
+    '2026-07-02T090000-tidy-standalone',
+    '2026-07-03T090000-tidy-standalone',
+    '2026-07-04T090000-tidy-standalone',
+  ];
+  for (const name of names) {
+    const run = mkRun(project, name, { status: 'clean' });
+    mkStagedFile(run, 'stale-close-1.json', '{}');
+  }
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /2026-07-04T090000-tidy-standalone/);
+  assert.match(ctx, /2026-07-03T090000-tidy-standalone/);
+  assert.match(ctx, /2026-07-02T090000-tidy-standalone/);
+  assert.doesNotMatch(ctx, /2026-07-01T090000-tidy-standalone/, 'the oldest of 4 must be excluded by the MAX_REPORTED cap');
+  assert.doesNotMatch(ctx, /and \d+ more/i, 'the sibling stale-runs block renders no overflow line, so this must not invent one either');
+});
+
+test('#1493 I2: a clean *-init-standalone run with non-empty staged/ renders NO tidy --approve line — only *-tidy-standalone* is approve-mode-resolvable', async () => {
+  const project = tmpProject();
+  const standalone = mkRun(project, '2026-07-02T090000-init-standalone', { status: 'clean' });
+  mkStagedFile(standalone, 'stale-close-1.json', '{}');
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  if (out.json) {
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /tidy --approve/);
+  } else {
+    assert.deepStrictEqual(out, {});
+  }
+});
+
+test('#1494: a *-sweep-standalone* run with non-empty staged/ is listed exactly as a *-tidy-standalone* one is', async () => {
+  const project = tmpProject();
+  const standalone = mkRun(project, '2026-08-30T120000-sweep-standalone', { status: 'clean' });
+  mkStagedFile(standalone, 'stale-close-1.json', '{}');
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /2026-08-30T120000-sweep-standalone/, 'the cleanly-finished sweep-standalone run is named');
+  assert.match(ctx, /\/claude-tweaks:tidy --approve/, 'the sweep-standalone run points at tidy --approve, same as a tidy-standalone run');
+});
+
+test('#1493: a cleanly-clean standalone run with EMPTY staged/ renders no tidy --approve line', async () => {
+  const project = tmpProject();
+  const standalone = mkRun(project, '2026-07-02T090000-tidy-standalone', { status: 'clean' });
+  fs.mkdirSync(path.join(standalone, 'staged'), { recursive: true });
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  if (out.json) {
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /tidy --approve/);
+  } else {
+    assert.deepStrictEqual(out, {});
+  }
 });
 
 test('#410: a stale run carrying a recorded pr URL includes it in the reported line; one without does not', async () => {

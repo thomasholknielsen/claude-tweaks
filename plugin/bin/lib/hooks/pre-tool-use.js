@@ -40,8 +40,10 @@ function pluginRoot() {
 
 // The gate's two path-prefix/path-identity exemptions. `.claude-tweaks/pipelines/`
 // holds plugin-owned pipeline bookkeeping — run config, the auto-decision log,
-// staged proposals — which is gitignored and is not the project work this
-// gate exists to isolate. `.claude-tweaks/policy.yml` is the second: the one
+// staged proposals — which is gitignored (except *-tidy-standalone*/
+// *-sweep-standalone* audit files, #1493/#1494 — the exemption is
+// path-prefix-based either way) and is not
+// the project work this gate exists to isolate. `.claude-tweaks/policy.yml` is the second: the one
 // file a session legitimately needs to edit from a non-isolated checkout in
 // order to CONFIGURE the very gate that would otherwise deny every other
 // write there (spec #537) — see isPolicyFile below for how its comparison
@@ -1074,9 +1076,11 @@ function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText, isF
 // gate, making Step 6 structurally impossible to ever complete.
 //
 // Four checks now compose here, in this order:
-//   1. Coverage + cheap outs — the tool isn't covered, no run resolved, the
-//      run is already clean, BOTH stamps are already present OR the worktree
-//      stamp is present and the PR stamp is durably not required
+//   1. Coverage + cheap outs — the tool isn't covered, `ctx.runDir` itself
+//      never resolved (a run dir that resolved but has no run-state.json yet
+//      is NOT this case — see #1456 below), the run is already clean, BOTH
+//      stamps are already present OR the worktree stamp is present and the
+//      PR stamp is durably not required
 //      (`runState.prExempt` — the common case once a run's first covered call
 //      after the worktree stamp has resolved its PR posture, and the one
 //      that must never pay for a git/gh spawn again for the rest of the
@@ -1127,8 +1131,18 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   const isFileTool = GATE_COVERAGE.tools.includes(toolName);
   const isGitWrite = toolName === 'Bash' && Array.isArray(commandGitTargets) && commandGitTargets.length > 0;
   if (!isFileTool && !isGitWrite) return {};
-  if (!ctx.runDir || !ctx.runState) return {};
-  if (ctx.runState.status === 'clean') return {};
+  if (!ctx.runDir) return {};
+  // ctx.runState is null both when no run resolved (already excluded above)
+  // AND when a real, adopted run dir exists but record-worktree never ran
+  // yet (bin/hooks.js: `runState = runDir ? ctxLib.readRunState(runDir) :
+  // null`, and readRunState returns null on a missing run-state.json the
+  // same way it does on a missing run dir). Only the first case is "nothing
+  // to gate" — the second is exactly the materialize-then-implement-directly
+  // shortcut this gate exists to catch (#1456), so it must fall through to
+  // the same stamp checks below as an explicit `runState.worktree` unset,
+  // not no-op here.
+  const runState = ctx.runState || {};
+  if (runState.status === 'clean') return {};
   // Both stamps already recorded, OR the worktree stamp is recorded and the
   // PR stamp is durably exempt (`prExempt`, memoized by the PR-stamp branch
   // below the first time it proves no further denial is possible): neither
@@ -1139,7 +1153,7 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   // state, which never sets `runState.pr` and previously never reached this
   // short-circuit at all. Purely an optimization; it changes no deny/allow
   // outcome.
-  if (ctx.runState.worktree && (ctx.runState.pr || ctx.runState.prExempt)) return {};
+  if (runState.worktree && (runState.pr || runState.prExempt)) return {};
 
   const { repoRoot: wtRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(ctx.cwd || process.cwd());
   if (indeterminate || !wtRoot || !isLinkedWorktree) return {};
@@ -1167,7 +1181,7 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
 
   if (!hasMaterializeCommit(wtRoot, ctx.runDir)) return {};
 
-  if (!ctx.runState.worktree) {
+  if (!runState.worktree) {
     return stampCheckOutcome(
       ctx, 'record-worktree', wtRoot, warnings,
       `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} has a landed materialize commit but no recorded ` +
@@ -1181,7 +1195,7 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
     );
   }
 
-  if (!ctx.runState.pr) {
+  if (!runState.pr) {
     // #989: exempt an in-flight initial publish (see hasNoUpstreamYet above)
     // before doing anything else in this branch — this is a narrow, one-shot
     // allowance for THIS call only, never persisted as `prExempt`, so a push
