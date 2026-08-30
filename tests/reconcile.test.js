@@ -791,6 +791,13 @@ test('reconcile verb: garbage stdin still exits 0 and prints valid JSON with --j
   assert.deepStrictEqual(JSON.parse(r.stdout).skipped, [{ check: 'all', reason: 'no-repo' }]);
 });
 
+test('reconcile verb: --mcp-reachable is accepted (#1558) — a no-remote fixture skips before it can matter', () => {
+  const dir = noRemoteFixture('ct-recon-mcp-reachable-');
+  const r = runHook(['reconcile', '--dry-run', '--json', '--mcp-reachable'], { cwd: dir });
+  assert.strictEqual(r.code, 0);
+  assert.deepStrictEqual(JSON.parse(r.stdout).skipped, [{ check: 'all', reason: 'no-remote' }]);
+});
+
 test('reconcile verb: --dry-run --json is accepted and never mutates on a no-remote fixture', () => {
   const dir = noRemoteFixture('ct-recon-hook-');
   const r = runHook(['reconcile', '--dry-run', '--json'], { cwd: dir });
@@ -911,6 +918,27 @@ function writePolicyViaSeedAndPull(seedDir, mainDir, contents) {
   git(['push', '-q', 'origin', 'main'], seedDir);
   git(['pull', '-q', 'origin', 'main'], mainDir);
 }
+
+// #1558: reconcile() must forward its own `mcpReachable` option into
+// integration-model resolution (the same deps-seam bin/resolve-policy.js's
+// --mcp-reachable flag already threads into detectIntegrationModel), rather
+// than resolving bare and silently downgrading to local-merge in a
+// gh-absent-but-MCP-reachable sandbox. Uses the injectable
+// `opts.resolveIntegrationModel` seam (test-only, mirrors the pattern
+// pre-tool-use.js's own `deps.resolveIntegrationModel` override already
+// uses) rather than a real gh-absent fixture, which would be fragile and
+// environment-dependent.
+test('reconcile(): forwards opts.mcpReachable into resolveIntegrationModel (#1558)', async () => {
+  const { mainDir } = pairedFixture();
+  const calls = [];
+  const fakeResolveIntegrationModel = (root, opts) => {
+    calls.push(opts);
+    return opts && opts.mcpReachable ? 'pr-first' : 'local-merge';
+  };
+  await reconcile({ cwd: mainDir, resolveIntegrationModel: fakeResolveIntegrationModel, mcpReachable: true });
+  await reconcile({ cwd: mainDir, resolveIntegrationModel: fakeResolveIntegrationModel });
+  assert.deepStrictEqual(calls, [{ mcpReachable: true }, { mcpReachable: false }]);
+});
 
 test('reconcile(): a failing GitHub-health preflight skips every requested check in one entry, never per-check timeouts (D1)', async () => {
   const { seedDir, mainDir } = pairedFixture();

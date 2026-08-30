@@ -84,7 +84,7 @@ const USAGE = {
   'check-resume-freshness': 'check-resume-freshness [--run <dir>]',
   'check-staged-inventory': 'check-staged-inventory [--run <dir>]',
   'check-sibling-sessions': 'check-sibling-sessions --record <id-or-slug>',
-  reconcile: 'reconcile [--dry-run] [--json]',
+  reconcile: 'reconcile [--dry-run] [--json] [--mcp-reachable]',
   'reconcile-summary': 'reconcile-summary',
   'reconcile-background': 'reconcile-background',
 };
@@ -707,7 +707,15 @@ async function main(argv) {
     // so both surfaces are guaranteed to behave identically by construction
     // rather than by a parity test re-deriving the same logic twice.
     const args = argv.slice(3);
-    const opts = { dryRun: args.includes('--dry-run'), cwd: process.cwd() };
+    // #1558: --mcp-reachable asserts the CALLER (an agent, inside its own
+    // turn) has already confirmed GitHub reachability via its own MCP probe
+    // (mcp-transport.md's Preflight probe) — same contract as
+    // resolve-policy.js's own --mcp-reachable flag. Forwards into
+    // reconcile()'s integration-model resolution so a gh-absent-but-MCP-
+    // reachable sandbox doesn't silently downgrade to local-merge.
+    const opts = {
+      dryRun: args.includes('--dry-run'), cwd: process.cwd(), mcpReachable: args.includes('--mcp-reachable'),
+    };
     const jsonOut = args.includes('--json');
     let out;
     try {
