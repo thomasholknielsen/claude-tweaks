@@ -103,6 +103,23 @@ test('next-mode.md states priority-then-age single selection', () => {
   assert.match(NEXT_MODE_FLAT, /priority:high.*priority:medium.*priority:low.*oldest `createdAt` first/s);
 });
 
+test('next-mode.md Selection filters candidates against the this-firing attempted set before ranking (refs #1491)', () => {
+  assert.ok(NEXT_MODE_FLAT.includes("filter((r) => !attempted.has(r.number))"), 'Selection fence must filter candidates against the $ATTEMPTED set before ranking');
+});
+
+test('next-mode.md Selection supports --priority <band>, mirroring /dispatch (refs #1491 C3)', () => {
+  assert.ok(NEXT_MODE_FLAT.includes("drop every candidate whose `priority:` label doesn't match the band"), '--priority band-drop sentence missing from Selection');
+  assert.ok(NEXT_MODE_FLAT.includes('unprioritized records never match'), '--priority sentence must state unprioritized records never match');
+  assert.ok(NEXT_MODE_FLAT.includes("mirrors `/dispatch`'s flag"), '--priority sentence must cite the /dispatch mirror');
+  assert.ok(NEXT_MODE_FLAT.includes("const priorityFilter = process.argv[1] || null;"), 'Selection fence must read the --priority value from argv');
+  assert.ok(NEXT_MODE_FLAT.includes("candidates = candidates.filter((r) => r.labels.some((l) => l.name === 'priority:' + priorityFilter))"), 'Selection fence must filter candidates by the matching priority: label');
+});
+
+test('next-mode.md close-out renders the remaining line on budget exhaustion, and skips the whole close-out on the nothing-claimed-yet no-op (refs #1491 M2)', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('remaining (budget exhausted, not attempted this firing): #e, #f, ...'), 'remaining (budget exhausted...) close-out line missing');
+  assert.ok(NEXT_MODE_FLAT.includes('renders on every loop-termination path above (bare drain interactive or headless alike) except the nothing-claimed-yet no-op'), 'close-out render rule must exempt the nothing-claimed-yet no-op');
+});
+
 test('next-mode.md states the zero-eligible clean no-op', () => {
   assert.ok(NEXT_MODE_FLAT.includes('nothing eligible this firing'), 'zero-eligible no-op message missing');
   assert.ok(NEXT_MODE_FLAT.includes('no self-report, no notification'), 'zero-eligible exit must not self-report');
@@ -110,8 +127,15 @@ test('next-mode.md states the zero-eligible clean no-op', () => {
 
 test('next-mode.md states claim-time live re-read with a no-cost loop retry on a lost claim race (loop semantics, refs #1491)', () => {
   assert.ok(NEXT_MODE_FLAT.includes("Re-read the selected record's live labels immediately before claiming"), 'claim-time live re-read missing');
-  assert.ok(NEXT_MODE_FLAT.includes('this is a **lost claim race**: it consumes no `--budget` unit, and the loop retries immediately'), 'lost-claim-race on ineligible re-read must state it consumes no --budget unit and the loop retries immediately');
-  assert.ok(NEXT_MODE_FLAT.includes('this is the same lost-claim-race outcome as an ineligible re-read above: no budget consumed, retry immediately against a fresh fetch'), 'contested claim write must be folded into the same lost-claim-race retry, not a one-shot exit');
+  assert.ok(NEXT_MODE_FLAT.includes('either is a **lost claim race**: it consumes no `--budget` unit, and the loop normally retries immediately'), 'lost-claim-race on either branch must state it consumes no --budget unit and the loop normally retries immediately');
+  assert.ok(NEXT_MODE_FLAT.includes('A contested write (\'live\', or a write rejection) runs the same lost-race bookkeeping fence above — no budget consumed either way') || NEXT_MODE_FLAT.includes("A contested write (`'live'`, or a write rejection) runs the same lost-race bookkeeping fence above — no budget consumed either way"), 'contested claim write must be folded into the same lost-race bookkeeping fence, not a one-shot exit');
+});
+
+test('next-mode.md bounds the lost-claim-race retry at 3 consecutive losses on the same record (refs #1491 C1)', () => {
+  assert.ok(NEXT_MODE_FLAT.includes('for an ineligible re-read specifically, that retry is never handed the same record again'), 're-scoped never-the-same-record argument must be limited to the ineligible-re-read branch');
+  assert.ok(NEXT_MODE_FLAT.includes('The contested-write branch below carries no such guarantee: a `409`/`5xx` can recur with zero label change'), 'contested-write branch must state it carries no never-the-same-record guarantee');
+  assert.ok(NEXT_MODE_FLAT.includes('its 3rd consecutive count for the same record number adds that record to `$ATTEMPTED`'), 'lost-race cap sentence (3rd consecutive loss adds the record to $ATTEMPTED) missing');
+  assert.ok(NEXT_MODE_FLAT.includes("const count = (race[n] || 0) + 1;") && NEXT_MODE_FLAT.includes("if (count >= 3) {"), 'lost-race bookkeeping fence must implement the 3-consecutive-loss cap');
 });
 
 test('next-mode.md states release-on-every-path claim handling', () => {

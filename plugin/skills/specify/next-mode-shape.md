@@ -267,9 +267,15 @@ Guard's own failed `needs:definition` stamp, per that section's step 1)
 (`_shared/issue-claims.md`'s Release triggers table) — and
 `--remove-in-progress` to remove the `bot:in-progress` label in the same
 call (best-effort, per `_shared/issue-claims.md`'s "The bot:in-progress
-label" section — never blocking the release itself on a failed removal):
+label" section — never blocking the release itself on a failed removal).
+`$RUN_DIR` is not inherited from `## Claim`'s fence (a fresh bash
+invocation carries no prior shell state) — re-resolve it from this
+firing's session-scoped run-directory file first, the same file `## Claim`
+above resolved it from:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" RUN_DIR_FILE=specify-next-rundir.txt)"
+RUN_DIR=$(cat "$RUN_DIR_FILE")
 # Success path:
 node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" {n} --run "$RUN_DIR" \
   --reason "shaped: #{n}" --remove-in-progress --section "/specify" --step "Release"

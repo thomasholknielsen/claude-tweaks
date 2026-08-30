@@ -92,12 +92,17 @@ condition below — never swallowed as a success.
 
 Before the Eligibility query below ever runs for the first time this firing,
 reset the this-firing attempted set (introduced in Selection below,
-`$ATTEMPTED`) to empty — a plain overwrite, the same "wholly rewritten, not
-appended to" posture `$CANDIDATES` already has on every iteration:
+`$ATTEMPTED`) to empty, alongside this firing's lost-claim-race counter
+(`$RACE`, `## Claim` below) and this firing's resolved run directory
+(`$RUN_DIR_FILE`, `## Claim` and `next-mode-shape.md`'s `## Release`
+below) — a plain overwrite, the same "wholly rewritten, not appended to"
+posture `$CANDIDATES` already has on every iteration:
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ATTEMPTED=specify-next-attempted.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ATTEMPTED=specify-next-attempted.json RACE=specify-next-race.json RUN_DIR_FILE=specify-next-rundir.txt)"
 echo '[]' > "$ATTEMPTED"
+echo '{}' > "$RACE"
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --standalone specify --mode auto --create > "$RUN_DIR_FILE"
 ```
 
 **This step runs exactly once per firing, never once per iteration** —
@@ -113,6 +118,8 @@ start is what makes the attempted set **firing-scoped** despite living in
 session-scoped storage — cross-firing behavior stays exactly as Selection
 and Failure self-report below describe: unaffected once this firing ends,
 since the *next* firing runs this same reset before its own iteration 1.
+The same posture applies to `$RACE` and `$RUN_DIR_FILE`, reset/re-resolved
+in the same fence for the identical reason.
 
 ## Eligibility query
 
@@ -195,6 +202,10 @@ pre-filter above and still turn out contested once Claim runs.
 
 ## Selection
 
+When `--priority <band>` is present, drop every candidate whose
+`priority:` label doesn't match the band — unprioritized records never
+match; mirrors `/dispatch`'s flag.
+
 The ranked list, by dispatch's own ranking (`dispatch/SKILL.md` Step 3):
 `priority:high` > `priority:medium` > `priority:low` > unprioritized,
 oldest `createdAt` first within each band — the top of that ranking is
@@ -251,11 +262,13 @@ node -e "
   };
   const fs = require('fs');
   const attempted = fs.existsSync('$ATTEMPTED') ? new Set(require('$ATTEMPTED')) : new Set();
-  const candidates = require('$CANDIDATES').filter((r) => !attempted.has(r.number));
+  const priorityFilter = process.argv[1] || null; // '--priority' value, or unset
+  let candidates = require('$CANDIDATES').filter((r) => !attempted.has(r.number));
+  if (priorityFilter) candidates = candidates.filter((r) => r.labels.some((l) => l.name === 'priority:' + priorityFilter));
   const ranked = candidates.slice().sort((a, b) =>
     bandOf(a) - bandOf(b) || new Date(a.createdAt) - new Date(b.createdAt));
   console.log(JSON.stringify(ranked.length ? ranked[0] : null));
-" > "$PICK"
+" "$PRIORITY_FILTER" > "$PICK"
 ```
 
 ## Zero eligible or budget exhausted (loop termination + close-out)
@@ -328,8 +341,8 @@ remaining (budget exhausted, not attempted this firing): #e, #f, ...
   entirely when the loop ended because the eligible set emptied.
 
 This close-out is this firing's own report — it renders on every
-loop-termination path above (bare drain interactive or headless alike),
-independent of the pre-existing, unchanged "no `## Next Actions` block for
+loop-termination path above (bare drain interactive or headless alike)
+except the nothing-claimed-yet no-op, independent of the pre-existing, unchanged "no `## Next Actions` block for
 a headless firing" rule (`next-mode-shape.md`'s Shape section) — that rule
 governs the separate interactive suggestion-menu render, not this summary.
 
@@ -344,26 +357,62 @@ gh issue view {n} --json labels -q '[.labels[].name]'
 ```
 
 If the re-read shows the record no longer eligible (now carries `ready`,
-any `needs:*`-prefixed label, `parked`, `parent-issue`, or `bot:in-progress`)
-— this is a **lost claim race**: it consumes no `--budget` unit, and the
-loop retries immediately, exactly as if the record had never appeared —
-return to the Eligibility query above for a fresh fetch and re-rank, then
-re-run this section against whichever record comes out on top now (never
-the same one; the fresh fetch's own predicate excludes it, since something
-else changed its labels between the two reads). This is a different
-outcome from the `gh issue view` re-read command, or the `resolve-run-dir`
-call below, failing to run at all (network error, `gh` auth failure,
-malformed response, a non-zero exit from either command) — that is a
-genuine infra failure, not an eligibility result, and ends the whole
-firing per Failure self-report below; it must not be folded into the
+any `needs:*`-prefixed label, `parked`, `parent-issue`, or `bot:in-progress`),
+or the claim write below is contested — either is a **lost claim race**: it
+consumes no `--budget` unit, and the loop normally retries immediately,
+exactly as if the record had never appeared, against a fresh Eligibility
+fetch and re-rank. The two branches differ in one respect: for an
+ineligible re-read specifically, that retry is never handed the same
+record again — the fresh fetch's own predicate excludes it, since
+something else changed its labels between the two reads. The
+contested-write branch below carries no such guarantee: a `409`/`5xx` can
+recur with zero label change, so nothing about the fresh fetch's predicate
+excludes it there. **Cap, covering both branches:** run the lost-race
+bookkeeping fence below on every lost claim race; its 3rd consecutive
+count for the same record number adds that record to `$ATTEMPTED`
+(Selection above) instead of retrying it again — still consuming no
+budget unit — and the loop continues from a fresh fetch same as any other
+lost race. The cap exists because the ineligible-re-read argument above
+does not extend to a recurring contested write, so an unbounded retry
+there could otherwise loop indefinitely on one record whose state never
+actually changes:
+
+```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ATTEMPTED=specify-next-attempted.json RACE=specify-next-race.json)"
+node -e "
+  const fs = require('fs');
+  const race = fs.existsSync('$RACE') ? require('$RACE') : {};
+  const n = Number(process.argv[1]);
+  const count = (race[n] || 0) + 1;
+  if (count >= 3) {
+    const ids = fs.existsSync('$ATTEMPTED') ? require('$ATTEMPTED') : [];
+    ids.push(n);
+    fs.writeFileSync('$ATTEMPTED', JSON.stringify(ids));
+    delete race[n];
+  } else {
+    race[n] = count;
+  }
+  fs.writeFileSync('$RACE', JSON.stringify(race));
+  console.log(count >= 3 ? 'capped' : 'retry');
+" {n}
+```
+
+`capped` means this record is now excluded for the rest of this firing —
+return to the Eligibility query above for a fresh fetch and re-rank as
+usual. `retry` means retry immediately against a fresh fetch, same as
+before this cap existed. This is a different outcome from the `gh issue
+view` re-read command, or reading `$RUN_DIR` from this firing's resolved
+run-directory file (below), failing to run at all (network error, `gh`
+auth failure, malformed response, a non-zero exit, a missing/empty file)
+— that is a genuine infra failure, not an eligibility result, and ends the
+whole firing per Failure self-report below; it must not be folded into the
 no-cost retry above.
 
 Otherwise, claim it per `_shared/issue-claims.md`'s "The lock": read the
 claim blob, classify with `classifyClaimBlob`, and write create-only
-(`'absent'`) or conditionally (`'tombstone'`/`'stale'`). If the write is
-contested (`'live'`, or a write rejection) — this is the same lost-claim-race
-outcome as an ineligible re-read above: no budget consumed, retry
-immediately against a fresh fetch. This is not a failure; file no
+(`'absent'`) or conditionally (`'tombstone'`/`'stale'`). A contested write
+(`'live'`, or a write rejection) runs the same lost-race bookkeeping fence
+above — no budget consumed either way. This is not a failure; file no
 self-report. A successful, uncontested claim write is what actually starts
 an attempt — increment this firing's attempt counter here, the one
 `--budget` is checked against (the loop-termination section above), and
@@ -376,35 +425,40 @@ alongside a successful claim write (bootstrap-then-add, per
 best-effort, never blocking the claim itself on a failed add.
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ATTEMPTED=specify-next-attempted.json)"
 node -e "
   const fs = require('fs');
   const ids = fs.existsSync('$ATTEMPTED') ? require('$ATTEMPTED') : [];
-  ids.push({n});
+  ids.push(Number(process.argv[1]));
   fs.writeFileSync('$ATTEMPTED', JSON.stringify(ids));
-"
+" {n}
 ```
 
 Proceed to `next-mode-shape.md`'s Framing Guard.
 
 This firing always resolves its run directory in `auto` mode — a headless
 bare drain firing has no human present to answer an interactive-mode
-prompt, so `--mode auto` below is a structural fact of the form itself
-(the deprecated `next` alias inherits the same posture), not a policy
-choice. `runId` for every claim this firing makes is this firing's own
-resolved run directory identity — resolved **once per firing, not once per
-iteration**: every later iteration's claim (and release) reuses the same
-`$RUN_DIR` established here, so one `decisions.md` accumulates this whole
-firing's audit trail across every record it attempts. Resolve it before
-this firing's first claim, via `_shared/pipeline-run-dir.md`'s
-standalone-auto fallback (Resolution order step 4) — `specify` is on that
-file's allowlist as of this task, added alongside
-`/claude-tweaks:dispatch`'s own bare-drain entry, for the identical
-reason: bare drain is the headless-safe form a scheduled Routine fires
-unattended, so step 5's interactive fallback is never a real option for
-it:
+prompt, so `--mode auto` is a structural fact of the form itself (the
+deprecated `next` alias inherits the same posture), not a policy choice.
+`runId` for every claim this firing makes is this firing's own resolved
+run directory identity — resolved **once per firing, not once per
+iteration**, via `_shared/pipeline-run-dir.md`'s standalone-auto fallback
+(Resolution order step 4) — `specify` is on that file's allowlist as of
+this task, added alongside `/claude-tweaks:dispatch`'s own bare-drain
+entry, for the identical reason: bare drain is the headless-safe form a
+scheduled Routine fires unattended, so step 5's interactive fallback is
+never a real option for it. The resolution itself runs exactly once, in
+Drain start above, writing the result to a session-scoped file
+(`$RUN_DIR_FILE`) rather than a shell variable — the same carrier
+`$ATTEMPTED` uses, and for the same reason: a fresh bash invocation
+inherits neither. Every fence needing it, here and in
+`next-mode-shape.md`'s Release, re-resolves the path and reads the file,
+so one `decisions.md` accumulates this whole firing's audit trail across
+every record it attempts:
 
 ```bash
-RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --standalone specify --mode auto --create)
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" RUN_DIR_FILE=specify-next-rundir.txt)"
+RUN_DIR=$(cat "$RUN_DIR_FILE")
 ```
 
 Call the result `$RUN_DIR`; the resulting directory's basename is this
