@@ -520,6 +520,10 @@ async function main(argv) {
         process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session — refusing to close it without an explicit --run\n`);
         return 0;
       }
+      if (r.status === 'refused-live-worktree') {
+        process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} still has a live worktree on disk — refusing to close it without an explicit --run\n`);
+        return 0;
+      }
       if (r.foreignOwner) {
         process.stdout.write(`claude-tweaks: closing run ${path.basename(runDir)} recorded by another session\n`);
       }

@@ -114,6 +114,9 @@ function teardownRun(runDir, opts = {}) {
   if (state.status === 'refused-foreign') {
     return { lines: ['state: refused — run recorded by another session; teardown-run does not override this'] };
   }
+  if (state.status === 'refused-live-worktree') {
+    return { lines: ['state: refused — run has no recorded owner and its worktree still exists on disk; teardown-run does not override this'] };
+  }
 
   // Step 1 (state).
   if (!state.writeOk) {
