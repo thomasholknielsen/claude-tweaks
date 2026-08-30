@@ -4,7 +4,7 @@ This file documents `/claude-tweaks:backlog refine`'s **headless posture**: the 
 and the grant chain, run together in one presence-headless firing with nobody present to answer
 any interactive question. `SKILL.md`'s Input table `--source` presence switch loads this file when
 it resolves `headless` — `--source routine` (`backlog/routine-template.yml`'s kickoff always passes
-it) or `--source sweep` (`/claude-tweaks:sweep`'s component-step invocation, Phase 7). The
+it) or `--source sweep` (`/claude-tweaks:sweep`'s Step 3 component invocation). The
 deprecated `grant` alias (`deprecated-aliases.md`) also loads this file, forcing `headless` regardless of
 the `--source` value it was actually invoked with, or its absence — the one deliberate override of
 the presence switch, cross-referenced from both places by name so the two can't drift apart

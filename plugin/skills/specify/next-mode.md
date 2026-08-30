@@ -346,6 +346,13 @@ except the nothing-claimed-yet no-op, independent of the pre-existing, unchanged
 a headless firing" rule (`next-mode-shape.md`'s Shape section) — that rule
 governs the separate interactive suggestion-menu render, not this summary.
 
+**Under `--source sweep`,** this firing is a component step of `/claude-tweaks:sweep`
+— the close-out counts above render as the step's report to the parent, never a
+`## Next Actions`/suggestion-menu render, even with a human present at sweep's own
+prompt: the parent owns the handoff. `decisions.md` entries go to the parent's shared
+run dir, adopted via the resolution ladder. The `$ATTEMPTED` this-firing set still
+resets at firing start exactly as for a Routine firing.
+
 ## Claim
 
 Re-read the selected record's live labels immediately before claiming — the
