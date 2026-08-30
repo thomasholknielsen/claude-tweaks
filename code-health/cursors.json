@@ -106,5 +106,9 @@
   "plugin/bin/lib/compose-record": {
     "lastSweptMs": 1787972918241,
     "lastHash": "243a8b34f9088214eb15df9067b4dba1007febae"
+  },
+  "plugin/bin/lib/declined-learning": {
+    "lastSweptMs": 1788059403454,
+    "lastHash": "091a3111c6758efe6a8ca31e5bc1dd88f37423bf"
   }
 }
