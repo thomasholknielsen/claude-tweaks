@@ -114,6 +114,12 @@ async function run(ctx) {
     const pipelinesDir = path.join(pipelinesRoot, '.claude-tweaks', 'pipelines');
     let pipelineEntries = [];
     try { pipelineEntries = fs.readdirSync(pipelinesDir, { withFileTypes: true }); } catch { /* no pipelines dir yet */ }
+    // Capped at MAX_REPORTED, same as the stale-runs block three lines up
+    // (this file's own precedent) and `attention-mode.md`'s Tidy row for the
+    // identical finding class — newest-first, no overflow line: the sibling
+    // block above renders none either (it stops pulling from its iterator
+    // once the cap is reached rather than announcing a remainder), so this
+    // mirrors that exactly rather than inventing new "…and N more" text.
     const approvable = pipelineEntries
       .filter((e) => e.isDirectory() && e.name.endsWith('-standalone'))
       .map((e) => e.name)
@@ -127,7 +133,8 @@ async function run(ctx) {
         let staged;
         try { staged = fs.readdirSync(path.join(dir, 'staged')); } catch { return false; }
         return staged.length > 0;
-      });
+      })
+      .slice(0, MAX_REPORTED);
     if (approvable.length) {
       const lines = approvable.map(
         (name) => `- ${name} — staged proposal(s) awaiting approval: /claude-tweaks:tidy --approve "${path.join(pipelinesDir, name)}"`,

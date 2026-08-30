@@ -77,6 +77,27 @@ test('#1493 AC5: a fixture with one interrupted run + one cleanly-clean standalo
   assert.match(ctx, /\/claude-tweaks:tidy --approve/, 'the standalone run points at tidy --approve, not close-run');
 });
 
+test('#1493: the standalone-approvable list is capped at MAX_REPORTED, newest-first, no overflow line', async () => {
+  const project = tmpProject();
+  const names = [
+    '2026-07-01T090000-tidy-standalone',
+    '2026-07-02T090000-tidy-standalone',
+    '2026-07-03T090000-tidy-standalone',
+    '2026-07-04T090000-tidy-standalone',
+  ];
+  for (const name of names) {
+    const run = mkRun(project, name, { status: 'clean' });
+    mkStagedFile(run, 'stale-close-1.json', '{}');
+  }
+  const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  const ctx = out.json.hookSpecificOutput.additionalContext;
+  assert.match(ctx, /2026-07-04T090000-tidy-standalone/);
+  assert.match(ctx, /2026-07-03T090000-tidy-standalone/);
+  assert.match(ctx, /2026-07-02T090000-tidy-standalone/);
+  assert.doesNotMatch(ctx, /2026-07-01T090000-tidy-standalone/, 'the oldest of 4 must be excluded by the MAX_REPORTED cap');
+  assert.doesNotMatch(ctx, /and \d+ more/i, 'the sibling stale-runs block renders no overflow line, so this must not invent one either');
+});
+
 test('#1493: a cleanly-clean standalone run with EMPTY staged/ renders no tidy --approve line', async () => {
   const project = tmpProject();
   const standalone = mkRun(project, '2026-07-02T090000-tidy-standalone', { status: 'clean' });
