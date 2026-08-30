@@ -74,6 +74,10 @@ One authoring constraint on the composed prose itself: never write the literal p
 
 When a human-filed defect report names a specific affected file, function, or exact error string, do a cheap sanity check before shaping: grep the named artifact against the codebase. A miss doesn't necessarily mean the report is wrong (the code may be newer, or the artifact may genuinely live elsewhere) — but it's a fact-check worth doing at shaping time rather than discovering it mid-build, after a worktree and (under `pr-first`) a draft PR already exist (`#174`).
 
+### Dependency-narration check
+
+After composing `## Current State`/`## Deliverables` above, run `_shared/dependency-narration-check.md`'s check against that text — it catches a body that narrates another record's not-yet-merged follow-up as settled fact and, on a hit, auto-populates a `blocked-by:` edge onto this record before the compose-then-write-once call in `shaping-mode-stamping.md`. This record's own number is already known (it's the target being shaped), so the `work-links: native` branch runs its `bin/link-records.js` call immediately rather than waiting on a post-create step; the `body-text` branch's `Blocked by #{n}` line lands in the metadata block `shaping-mode-stamping.md`'s Metadata block subsection composes, the same placement `Parent: #N` already uses.
+
 ### Preserve the original request
 
 Before editing, keep the record's fetched title and body exactly as they were. Append them to the composed body as their own section, using this exact heading — this is a rule, not a suggestion, and the section name is literal:

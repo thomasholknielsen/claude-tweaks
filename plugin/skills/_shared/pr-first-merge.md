@@ -33,6 +33,41 @@ before labeling silently drops acceptance sign-off the same way the pre-#410 fas
 did for a different reason (`wrap-up/review-console.md`'s own "console content is not all of
 Phase 4" note) — this procedure states the ordering explicitly so it is never re-dropped.
 
+## Step 1.5: Curation-apply completeness guard (#1465)
+
+Before marking the PR ready, confirm Phase 2's curation-engine apply work has actually landed —
+a defensive assertion against an ordering `wrap-up/curation-engine.md`'s own "Ordering is not
+advisory" note (section 2) states as prose but does not itself mechanically enforce at the merge
+boundary. One occurrence (Dispatch hub run #9, 2026-08-26, group [#251]) reached this merge step
+with a curation-row commit still pending, landing after the merge instead of before it.
+
+Skip this guard entirely when `$PIPELINE_RUN_DIR/engine-state.json` does not exist — Phase 2 had
+nothing open (every registry row closed), or the run took `curation-engine.md` section 6's prose
+fallback (which writes no `engine-state.json` and commits inline, in the same single thread that
+reaches this step). Otherwise:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" render --run-dir "$PIPELINE_RUN_DIR" --section trace --strict >/dev/null
+```
+
+This is the exact check Phase 2's own Step 3 already ran once (`curation-engine.md` section 2) —
+re-running it here is idempotent (`render` performs no writes) and catches a Phase 2 that was
+skipped, interrupted, or that this merge step is reached ahead of, out of documented order. Exit
+`0` means every worklist row Phase 2 opened has a recorded result — and, by
+`curation-engine.md` section 4's own sequencing (the serial-commit pass runs, and every applied
+finding's commit lands, strictly **before** the `record` call that produces that recorded
+result), every applied finding's commit has therefore already landed too. Nothing further to
+check: nothing this procedure could add to a `git status` scan tells it more than `render
+--strict`'s own exit code already does.
+
+**Exit `2`** (a worklist row has no recorded result) — fail loud, per this issue's own Gotcha (a
+defensive assertion that fires must abort/report, never silently retry or prompt mid-flow): STOP
+this procedure before Step 2, log `AUTO {time} — Curation-apply completeness guard: worklist row(s)
+unrecorded in engine-state.json — Phase 2 has not finished; merge blocked.`, and surface it to
+this run's caller the same way any other HARD-GATE failure here is surfaced (no merge attempted,
+no PR undrafted). Re-running Phase 2's own Step 2 (`wrap-up-engine.js record`) for the missing
+row(s) is the remedy — this guard only detects the gap, it does not repair it.
+
 ## Step 2: Mark the PR ready
 
 First, run `_shared/pr-early-run-lifecycle.md`'s "Pre-merge title/description refresh" section —

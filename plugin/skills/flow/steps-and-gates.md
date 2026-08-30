@@ -71,7 +71,7 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
    - Compute this run's policy levers fresh from the precedence chain and write `config.yml` into this directory, same as case 5 — but **never re-initialize `decisions.md`/`events.jsonl`**: append to whatever content already exists, preserving the interrupted first call's audit trail (case 1's same "do not overwrite" rule, extended here because `config.yml`'s absence is not evidence that nothing happened yet).
    - Check `run-state.json`: if it does not exist, or exists without a `worktree` field, run `record-worktree` now (`build/worktree-setup.md` Step 4.5). If `integration-model: pr-first` and there is no `pr` field, run `_shared/pr-early-run-lifecycle.md`'s push-and-open-draft-PR procedure now, before proceeding.
-   - Check whether `work/{n}-spec.md` is committed on the run's branch (`materialize.md`'s "When this runs"); if not, run `materialize.md`'s Composing the file + commit step now, before proceeding to whichever step this call was actually asked to run.
+   - Check whether `work/{n}-spec.md` is committed on the run's branch (`materialize.md`'s "When this runs"); if not, invoke `bin/materialize.js <n> --run-dir <dir>` now (`gh`-present) — or, in a `gh`-absent sandbox, fetch the record via MCP `issue_read` and invoke `bin/materialize.js <n> --record-json <file> --run-dir <dir>` (`materialize.md`'s `--record-json` paragraph, #1459) — then commit the written `work/{n}-spec.md`, before proceeding to whichever step this call was actually asked to run. Neither path hand-composes the header/file by any other means.
 
    Note it in the pipeline's output:
 

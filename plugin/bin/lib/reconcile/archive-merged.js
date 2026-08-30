@@ -10,13 +10,15 @@ const path = require('path');
 const { runGit } = require('../hooks/git-exec');
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
-const { iterRunDirsWithState, writeRunState } = require('../hooks/context');
+const {
+  iterRunDirsWithState, writeRunState, readRunState, RUN_ID_RE,
+} = require('../hooks/context');
 const { resolvePrState } = require('./pr-state');
 const { recordResidueSuccess, trackResidue } = require('./cache');
 const { escalateResidue } = require('./escalate-residue');
 const { repoSlugOf } = require('./release-merged');
 const { closeRunState } = require('../hooks/close-run-state');
-const { checkRunIntegrity } = require('../hooks/run-integrity');
+const { checkRunIntegrity, fallbackBranch } = require('../hooks/run-integrity');
 
 // Orphan case introduced by the dispatch/flow run-identity unification:
 // dispatch mints an empty, anchored run directory (mkdir only, no
@@ -619,6 +621,33 @@ function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateRe
   trackResidue(root, repoSlug, 'move-failed', dir, { failed: true, lastError: result.lastError }, { escalate });
 }
 
+// #1544: `iterRunDirsWithState` (context.js) excludes every `status:
+// 'clean'` dir by design (line ~143 of that file) — most of its callers
+// treat a clean run as "nothing left to do here," which is right for
+// resolveRun/session-start but wrong for this sweep specifically. A run dir
+// close-run already marked `{status: 'clean', worktree: null}` is normally
+// archived within the same wrap-up pass (archive-run runs immediately
+// after) — but a headless second call that completed close-run and then
+// exited (or crashed) before archive-run leaves that dir sitting in
+// `pipelines/` forever, invisible to the loop below. Scan the same
+// top-level pipelines/ listing directly, filtered to `status: 'clean'` —
+// gated below on a confirmed merged PR (never bare clean-status alone, per
+// this issue's own gotcha: a clean status is not itself proof the PR
+// merged).
+function iterCleanRunDirs(root) {
+  const base = path.join(root, '.claude-tweaks', 'pipelines');
+  let entries;
+  try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return []; }
+  const out = [];
+  for (const e of entries) {
+    if (!e.isDirectory() || !RUN_ID_RE.test(e.name)) continue;
+    const dir = path.join(base, e.name);
+    const state = readRunState(dir);
+    if (state && state.status === 'clean') out.push({ dir, state });
+  }
+  return out;
+}
+
 function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_CODE_SESSION_ID || null } = {}) {
   const archived = [];
   const skipped = [];
@@ -724,6 +753,36 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
     if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
     archived.push(dir);
   }
+
+  // #1544: the clean-status sweep — see iterCleanRunDirs' own comment.
+  // `state.worktree` is already null by construction (close-run's write), so
+  // the ordinary worktree-list branch lookup above can't answer here; reuse
+  // run-integrity.js's own torn-down-worktree fallback (state.pr.branch, or
+  // decisions.md's PR-early lifecycle lines) instead. Otherwise identical to
+  // the main loop: decideArchive's merged-PR + resolved-console gate, then
+  // the same local-fast-forward check before any move.
+  for (const { dir, state } of iterCleanRunDirs(root)) {
+    const branch = fallbackBranch(root, dir, state);
+    if (!branch) { skipped.push({ runDir: dir, reason: 'no-branch' }); continue; }
+
+    const prState = resolvePrState(root, branch);
+    const consoleState = readConsoleState(dir);
+    const decision = decideArchive(prState, consoleState);
+    if (decision.action === 'skip') { skipped.push({ runDir: dir, reason: decision.reason }); continue; }
+
+    const hasMerge = localHasMerge(root, prState.mergeCommit);
+    if (hasMerge !== true) {
+      skipped.push({ runDir: dir, reason: hasMerge === false ? 'local-behind-merge' : 'merge-commit-unknown' });
+      continue;
+    }
+    if (dryRun) { archived.push(dir); continue; }
+
+    const result = archiveRunDir(root, dir);
+    trackArchiveResult(root, repoSlug, dir, result);
+    if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
+    archived.push(dir);
+  }
+
   return { archived, skipped };
 }
 

@@ -35,6 +35,25 @@ test('AC7: pr-first-merge.md places acceptance labeling (Step 1) before marking 
   assert.ok(step2 < step3, 'marking ready must precede the merge attempt');
 });
 
+// #1465: a defensive ordering guard between curation-engine.md's apply step
+// (Phase 2) and this file's own merge attempt (invoked from Phase 4's
+// Auto-merge short-circuit) — asserted structurally, mirroring AC7's own
+// positional-guard convention above, since this guard is only real
+// protection if it actually sits between Step 1 (acceptance labeling) and
+// Step 2 (mark ready), not merely mentioned somewhere in the file.
+test('#1465: a curation-apply completeness guard sits between Step 1 and Step 2, checks worklist completeness, and fails loud (never silently retries)', () => {
+  const step1 = MERGE.indexOf('## Step 1: Acceptance labeling');
+  const guard = MERGE.indexOf('## Step 1.5: Curation-apply completeness guard');
+  const step2 = MERGE.indexOf('## Step 2: Mark the PR ready');
+  assert.ok(guard > 0, 'the guard section must exist as a located heading');
+  assert.ok(step1 < guard && guard < step2, 'the guard must sit strictly between Step 1 and Step 2');
+  const section = MERGE.slice(guard, step2);
+  assert.match(section, /wrap-up-engine\.js" render --run-dir "\$PIPELINE_RUN_DIR" --section trace --strict/, 'reuses the existing render --strict completeness check, never a hand-rolled re-derivation');
+  assert.match(section, /Exit `2`/, 'documents the failing exit code explicitly');
+  assert.match(section, /merge blocked/i, 'a failing guard blocks the merge rather than proceeding');
+  assert.doesNotMatch(section, /AskUserQuestion/, 'the guard must fail loud, never prompt mid-flow (this issue\'s own Gotcha)');
+});
+
 test('the precondition gate is the same one condition pr-run-comments.md already established', () => {
   assert.match(MERGE, /run-state\.json.*carries a `pr` object.*AND\s*\n?\s*`integration-model` resolves `pr-first`/s);
 });

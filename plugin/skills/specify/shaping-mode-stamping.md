@@ -25,7 +25,7 @@ Backend/infra records omit the `Design-intent:` and `Ui-stack:` lines entirely �
 Surface: backend
 ```
 
-These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header. Values, for reference:
+These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header. When `shaping-mode.md`'s Dependency-narration check found a hit under `work-links: body-text`, add `Blocked by #{n}` here too — the same metadata-block placement `Parent: #N` already uses. Values, for reference:
 
 | `Surface:` | Meaning |
 |---|---|
