@@ -213,6 +213,15 @@ tail — either a non-blocking `TaskOutput` call read for its trailing `<error>`
 raw transcript internals (measured at ~6% of one run's total tool-result characters for zero
 net information when read in full).
 
+**The session-limit signature is a terminal, non-retryable-now failure class, distinct from a
+transient 5xx.** An agent whose trailing `<error>` block reads `Agent terminated early due to an
+API error: You've hit your session limit` will not succeed on an immediate retry the way a
+transient 5xx/timeout might — the caller's account-level limit, not the agent's own work, caused
+the termination. A dispatch site handling a reproduction-pair partner's death this way retries
+once (to rule out a spurious one-off) and, on a second failure, degrades rather than retrying
+again in a loop — see `review/step3-lens-dispatch.md`'s reproduction-pair section for the
+degrade procedure this classification feeds.
+
 ## Exemption: third-party agents
 
 **The condition is structural, not a judgment call.** An agent is exempt from this contract when **its definition file lives outside the `agents/` directory this plugin owns** — it ships with a third-party plugin and is invoked as a delegation. Everything under this repository's `agents/` (declared in `.claude-plugin/plugin.json`'s `agents` array) is claude-tweaks-authored and is **never** exempt, however awkward its output is to parse. "This agent's output is inconvenient" is not a reading this paragraph supports: a dispatch site settles its own eligibility by asking where the agent file lives, with no appeal to intent.
