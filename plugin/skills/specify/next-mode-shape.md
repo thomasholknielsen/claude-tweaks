@@ -166,6 +166,22 @@ section's lost-claim-race retry above (which consumes no budget at all,
 because no claim ever succeeded) — this record *was* successfully claimed,
 so it is a spent attempt.
 
+**Known limitation, accepted (cross-firing repeat cost).** This refusal
+writes no exclusionary label by design — repairing the sniff (stamping
+`parent-issue`) is a human decision (`SKILL.md` case 1's parent-record
+guard), never done headlessly. So while `next-mode.md`'s attempted set
+guarantees *this* firing never re-attempts the same tier-2 record twice,
+a persistent, un-repaired tier-2 legacy parent re-burns one `--budget`
+unit on **every future firing** that ranks it to the top — the same
+"repeat indefinitely" shape the Framing Guard's own failed-`needs:definition`-stamp
+note above describes, just with no self-report to surface it (a
+tier-2 refusal is a `failed`-bucket close-out entry, not a Preflight or
+Claim-step infra failure, so it never triggers the firing-ending path).
+Resolution requires a human running `/claude-tweaks:specify #{n}`
+interactively against the flagged record (the tier-2 repair-or-escape
+question) — not something this file can fix from inside the loop. Tracked
+as a known, accepted limitation for a future record, not fixed here.
+
 Read `shaping-mode.md` in this skill's directory and follow its procedure
 directly against the record fetched above, under the same headless posture
 `--chained` uses: `next`-mode is a named entry path in `shaping-mode.md`'s
@@ -313,11 +329,19 @@ the loop continues to its next iteration (Release's own Loop continuation
 note above). This record's own claim is already released, so it is not
 this firing's problem to repair further this run — a later firing (or a
 human) picks it up. A record whose failure left no label written stays
-just as eligible as before and can be re-selected by a later iteration of
-this same firing; each such re-attempt is an independent claim, separately
-counted toward `--budget` and not deduplicated against the earlier failed
-attempt in the same firing. Post-claim shaping-stage failures are,
-concretely:
+just as eligible as before per the Eligibility query's own label
+predicate — but **same-firing re-selection is not possible**: `next-mode.md`'s
+Selection section maintains an in-memory this-firing attempted set that
+every record this firing successfully claimed enters, regardless of
+outcome, and every later iteration's fresh fetch is filtered against it —
+so this firing itself can never pick the same record twice, label change
+or not. **Cross-firing re-selection is unchanged**: the attempted set is
+scoped to this one firing only and is discarded when it ends, so a
+record whose failure wrote no label is exactly as eligible to a *later*
+firing as it was before this one ever ran — that firing's own fresh
+attempted set starts empty and re-selects it under the same ranking,
+independently re-counted toward that firing's own `--budget`. Post-claim
+shaping-stage failures are, concretely:
 
 - **Framing Guard** (the section generally, not one case of it): its
   record fetch or its `Skill()` invocation failing to run at all;

@@ -94,7 +94,10 @@ This query runs fresh at the top of **every** drain-loop iteration — never
 once at the firing's start. Selection below is a full re-derivation from
 that fresh fetch each time, not a filter over a list frozen earlier in the
 run (`next-mode.md`'s Zero eligible or budget exhausted section below names
-the two ways the loop actually ends).
+the two ways the loop actually ends). This re-query rule is unconditional
+and unchanged by the attempted-set filter Selection layers on top of it
+below — the fetch itself never excludes anything beyond this section's own
+label predicate; the additional exclusion happens after the fetch returns.
 
 Per `_shared/record-queue-fetch.md`'s `work-backend: github-issues` fetch:
 open records carrying none of `ready`, any `needs:*`-prefixed label
@@ -174,29 +177,50 @@ this iteration's pick.
 This is a **full re-derivation on every iteration** of the drain loop,
 never a filter over a list frozen at the firing's start: the Eligibility
 query above re-runs fresh each time this section is reached, so a record
-shaped, routed, or claimed elsewhere earlier in this same run is naturally
-absent from a later iteration's fetch (it no longer matches the
-Eligibility query's own predicate — it now carries `ready`,
-`shaped:headless`, a `needs:*`-prefixed label, or `bot:in-progress`), and a
-record that becomes newly eligible mid-run (a label removed, a `parked`
-deferral lifted by a human in another session) is naturally picked up the
-next time this section runs. A record `next-mode-shape.md`'s Framing Guard
-routes to `needs:definition` mid-run is likewise excluded from every later
-iteration by this same fresh re-fetch, via the Eligibility query's
-existing `needs:*`-prefixed-label exclusion — no special-case skip logic
-beyond re-running the query.
+shaped or routed earlier in this same run is naturally absent from a later
+iteration's fetch (it no longer matches the Eligibility query's own
+predicate — it now carries `ready`, `shaped:headless`, or a
+`needs:*`-prefixed label), and a record that becomes newly eligible
+mid-run (a label removed, a `parked` deferral lifted by a human in another
+session) is naturally picked up the next time this section runs.
+
+**This-firing attempted set (additive, on top of the mandatory re-query
+above).** A record whose attempt ends in `failed` (`next-mode.md`'s Zero
+eligible or budget exhausted section; concretely, `next-mode-shape.md`'s
+Failure self-report) does not always carry a new label — the parent-record
+guard's tier-2 headless refusal and some exception paths release the claim
+with no label write at all, so the fetch's own predicate alone cannot be
+relied on to exclude it. To guarantee **this same firing** never
+re-selects a record it already claimed, regardless of outcome (shaped,
+routed, failed, or refused), maintain an in-memory set of every record
+number this firing has successfully claimed — append to it the moment a
+claim write succeeds (`## Claim` below, the same point the attempt counter
+increments), and filter the ranked candidate list against it every
+iteration, after the fresh fetch returns and before picking the top
+entry. A **lost claim race never enters this set** — nothing was claimed,
+so there is nothing to exclude beyond what the fresh fetch's own predicate
+already handles. This filter is additive only: it never substitutes for
+the mandatory re-query above, which still re-runs unconditionally every
+iteration; it just narrows that fresh result further, so a record already
+attempted this firing is never picked twice even when its labels are
+unchanged. Persist the set in a session-scoped file (`$ATTEMPTED` below)
+since a fresh bash invocation does not inherit prior iterations' shell
+state, the same reason `$CANDIDATES`/`$PICK` are re-resolved every
+iteration rather than kept in a shell variable.
 
 Re-resolve this fence's session-scoped temp paths (a fresh bash invocation does not inherit the Eligibility fence's shell variables, `_shared/session-tmp-root.md`):
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CANDIDATES=specify-next-candidates.json PICK=specify-next-pick.json)"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CANDIDATES=specify-next-candidates.json PICK=specify-next-pick.json ATTEMPTED=specify-next-attempted.json)"
 node -e "
   const RANK = { high: 0, medium: 1, low: 2 };
   const bandOf = (r) => {
     const p = r.labels.find((l) => l.name.startsWith('priority:'));
     return p ? RANK[p.name.slice('priority:'.length)] : 3;
   };
-  const candidates = require('$CANDIDATES');
+  const fs = require('fs');
+  const attempted = fs.existsSync('$ATTEMPTED') ? new Set(require('$ATTEMPTED')) : new Set();
+  const candidates = require('$CANDIDATES').filter((r) => !attempted.has(r.number));
   const ranked = candidates.slice().sort((a, b) =>
     bandOf(a) - bandOf(b) || new Date(a.createdAt) - new Date(b.createdAt));
   console.log(JSON.stringify(ranked.length ? ranked[0] : null));
@@ -206,9 +230,16 @@ node -e "
 ## Zero eligible or budget exhausted (loop termination + close-out)
 
 A `null` result at this fence's `$PICK` path (this iteration's fresh
-Eligibility-query fetch turned up no candidates) ends the drain loop. Two
-distinct cases, by whether this firing has claimed anything yet (the
-`shaped`/`routed`/`failed` counts below):
+Eligibility-query fetch, filtered against the this-firing attempted set
+above, turned up no candidates) ends the drain loop. **`all`'s
+termination condition, stated precisely: the eligible set minus this
+firing's attempted set is empty** — not the eligible set alone, since a
+record this firing already attempted (any outcome) is permanently
+excluded from every later iteration by the attempted-set filter even when
+its labels never changed, which is what makes `--budget all` guaranteed
+to terminate rather than looping forever on one record whose failure
+writes no label. Two distinct cases, by whether this firing has claimed
+anything yet (the `shaped`/`routed`/`failed` counts below):
 
 - **Nothing claimed yet** (the very first iteration returns `null`): report
   "nothing eligible this firing" and exit cleanly — no self-report, no
@@ -217,17 +248,19 @@ distinct cases, by whether this firing has claimed anything yet (the
   groups" posture) — `/claude-tweaks:tidy` and `/claude-tweaks:help`
   surface queue state independently on their own cadence.
 - **At least one attempt already ran this firing**: this is the loop's
-  normal, successful termination — the eligible set drained to empty
-  before `--budget` was spent (`--budget all` can only end this way).
-  Render the close-out below; there is no "remaining" line in this case,
-  since nothing is left to attempt.
+  normal, successful termination — the eligible set minus this firing's
+  attempted set drained to empty before `--budget` was spent (`--budget
+  all` can only end this way). Render the close-out below; there is no
+  "remaining" line in this case, since nothing is left to attempt.
 
 **Budget exhaustion** ends the loop the same way but with the eligible set
-still non-empty: this firing's attempt counter (incremented once per
-successful claim in `## Claim` below) reaches `--budget <n>` while a fresh
-fetch still returns a non-`null` pick. Render the close-out below, plus one
+minus this firing's attempted set still non-empty: this firing's attempt
+counter (incremented once per successful claim in `## Claim` below)
+reaches `--budget <n>` while a fresh fetch, filtered against the attempted
+set, still returns a non-`null` pick. Render the close-out below, plus one
 line naming the record(s) this firing's ranking would have attempted next
-had budget allowed — the top of that final fetch's ranked list.
+had budget allowed — the top of that final fetch's (already
+attempted-set-filtered) ranked list.
 
 **Close-out.** Lead with the three counts, then each bucket's own
 accumulated record refs beneath:
@@ -245,14 +278,21 @@ remaining (budget exhausted, not attempted this firing): #e, #f, ...
 - `routed` — this firing's own Framing Guard routing outcomes
   (`next-mode-shape.md`'s `## Release`, `routed: needs:definition #{n}`
   reason) — a productive outcome, never a failure, per that section.
-- `failed` — exactly one outcome: this firing successfully claimed the
-  record, then `next-mode-shape.md`'s Framing Guard or Shape step raised
-  before completing (`## Release`'s `failed: shaping` reason). Never a
-  lost claim race (`## Claim` below — that consumes no budget and never
-  reaches this bucket) and never a Framing Guard routing outcome (that is
-  `routed`, never `failed`). Each entry here already filed the shared
-  self-report per `next-mode-shape.md`'s Failure self-report section
-  before the loop continued past it.
+- `failed` — this firing successfully claimed the record, then
+  `next-mode-shape.md`'s Framing Guard or Shape step raised an error
+  before completing, **or a shaping-stage guard deliberately refused the
+  record without writing any label** (the parent-record guard's tier-2
+  headless refusal, inside `next-mode-shape.md`'s own Shape section) —
+  both land on the same `## Release`'s `failed: shaping` reason. A
+  close-out reader should
+  treat `failed` as **"claimed but produced no record change"**, never
+  hunt for an exception that may not exist — a deliberate refusal is just
+  as valid a `failed` entry as a thrown error. Never a lost claim race
+  (`## Claim` below — that consumes no budget and never reaches this
+  bucket) and never a Framing Guard routing outcome (that is `routed`,
+  never `failed`). Each entry here already filed the shared self-report
+  per `next-mode-shape.md`'s Failure self-report section before the loop
+  continued past it.
 - `remaining` — rendered only on the budget-exhaustion case above; omitted
   entirely when the loop ended because the eligible set emptied.
 
@@ -295,11 +335,25 @@ outcome as an ineligible re-read above: no budget consumed, retry
 immediately against a fresh fetch. This is not a failure; file no
 self-report. A successful, uncontested claim write is what actually starts
 an attempt — increment this firing's attempt counter here, the one
-`--budget` is checked against (the loop-termination section above). Add
-`bot:in-progress` alongside a successful claim write (bootstrap-then-add,
-per `_shared/issue-claims.md`'s "The bot:in-progress label" section) —
-best-effort, never blocking the claim itself on a failed add. Proceed to
-`next-mode-shape.md`'s Framing Guard.
+`--budget` is checked against (the loop-termination section above), and
+append this record's number to the this-firing attempted set (Selection
+above, `$ATTEMPTED`) here as well, in the same step, regardless of what
+outcome the record goes on to reach below — a lost claim race above never
+reaches this point, so it never enters the set. Add `bot:in-progress`
+alongside a successful claim write (bootstrap-then-add, per
+`_shared/issue-claims.md`'s "The bot:in-progress label" section) —
+best-effort, never blocking the claim itself on a failed add.
+
+```bash
+node -e "
+  const fs = require('fs');
+  const ids = fs.existsSync('$ATTEMPTED') ? require('$ATTEMPTED') : [];
+  ids.push({n});
+  fs.writeFileSync('$ATTEMPTED', JSON.stringify(ids));
+"
+```
+
+Proceed to `next-mode-shape.md`'s Framing Guard.
 
 This firing always resolves its run directory in `auto` mode — a headless
 bare drain firing has no human present to answer an interactive-mode
