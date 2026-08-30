@@ -88,6 +88,58 @@ async function run(ctx) {
     }
   } catch { /* best-effort */ }
   try {
+    // #1493 AC5 (spec-1493, filed alongside #803 — the SAME designated
+    // consumer this file's stale-run block above already names): a
+    // standalone run (name matches `*-standalone`, the archival-compaction
+    // naming convention `step-6-auto.md` already uses) can finish cleanly and
+    // STILL carry human-facing work — un-actioned proposals under `staged/`
+    // (a `--dry-run` preview, or a staged-but-never-approved tidy firing).
+    // `_shared/pipeline-run-dir.md`'s run-dir layout section names exactly
+    // one terminal status value: "run-state.json (hook-maintained
+    // status/worktree assignment; terminal = status `clean`)" — that is the
+    // ONLY cleanly-finished value used anywhere in this codebase (verified:
+    // no other terminal status string, e.g. "complete", is ever written to
+    // run-state.json), so this checks for it by name rather than "anything
+    // other than interrupted", which would silently also match a future or
+    // unrecognized status value.
+    //
+    // This is a SEPARATE scan from the stale-runs block above, not a branch
+    // inside it: ctxLib.iterRunDirsWithState deliberately excludes status
+    // `clean` runs (context.js: "if (state && state.status === 'clean')
+    // continue;") because for THAT block's purpose (interrupted/still-live
+    // runs) a clean run is correctly done, not stale. Here the opposite
+    // signal matters — clean AND non-empty `staged/` — so it needs its own
+    // directory read rather than reusing that iterator's output.
+    const pipelinesRoot = wtDetect.mainCheckoutRoot(ctx.cwd) || ctx.cwd;
+    const pipelinesDir = path.join(pipelinesRoot, '.claude-tweaks', 'pipelines');
+    let pipelineEntries = [];
+    try { pipelineEntries = fs.readdirSync(pipelinesDir, { withFileTypes: true }); } catch { /* no pipelines dir yet */ }
+    const approvable = pipelineEntries
+      .filter((e) => e.isDirectory() && e.name.endsWith('-standalone'))
+      .map((e) => e.name)
+      .sort()
+      .reverse()
+      .filter((name) => {
+        const dir = path.join(pipelinesDir, name);
+        let state;
+        try { state = JSON.parse(fs.readFileSync(path.join(dir, 'run-state.json'), 'utf8')); } catch { return false; }
+        if (!state || state.status !== 'clean') return false;
+        let staged;
+        try { staged = fs.readdirSync(path.join(dir, 'staged')); } catch { return false; }
+        return staged.length > 0;
+      });
+    if (approvable.length) {
+      const lines = approvable.map(
+        (name) => `- ${name} — staged proposal(s) awaiting approval: /claude-tweaks:tidy --approve "${path.join(pipelinesDir, name)}"`,
+      );
+      parts.push(
+        'claude-tweaks: standalone run(s) finished with unapproved staged proposal(s) under staged/:\n' +
+          lines.join('\n') +
+          '\nReview and apply with /claude-tweaks:tidy --approve <dir>, or clear staged/ to dismiss.',
+      );
+    }
+  } catch { /* best-effort */ }
+  try {
     // reconcile() resolves the shared main checkout internally the same way
     // the pre-#408 direct reaper.reapWorktrees call did (mainCheckoutRoot,
     // never repoInfo().repoRoot — see `_shared/integration-branch.md`'s named
