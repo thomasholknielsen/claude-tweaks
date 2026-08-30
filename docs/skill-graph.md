@@ -300,6 +300,20 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `bin/lib/init/claude-md-conformance.js` | Phase 1u.5 (Contract Drift) calls this module's `checkConformance` to compare an existing project CLAUDE.md against `claude-md-template.md`, read live so a template change needs no edit in the skill. It returns `missing` / `drifted` / `conformant` over the plugin-authored sections only — a project's own Stack, Commands, and Don'ts are never reported. `## Philosophy` is present/absent-only and carries a `generate: 'maturity-classification'` marker instead of an expected body, since its template body is a placeholder and its generated content varies by maturity classification. Replaced the four hand-maintained contract-version marker greps. |
 | `bin/resolve-profile.js` | Phase 5's CLAUDE.md generation/patch synthesis dispatches as one `[Use: Frontier]` singleton Task agent, with `--unattended` in any headless (scheduled Routine) context — record #221. |
 
+## intake
+
+| Target | Relationship |
+|---|---|
+| `/capture` | Parent — every `file` verdict delegates as one `--batch --route=keep --source intake` call, every `absorb:#N` verdict as a single `--route=absorb:N --source intake` call; `--source intake` is the one `--source` value exempt from the deferral check (`## capture` row owns the exemption itself). |
+| `/feedback` | Every `upstream` verdict delegates as a plain `Skill(skill: "claude-tweaks:feedback", args: "<text>")` call — feedback's own scrub and confirm gate stays; never called when `$SELF_REPO` is true. |
+| `/specify` | The Next Actions target for whatever set of records intake actually filed this run. |
+| `_shared/learning-routing.md` | Rules 1–3 cited for the `upstream`/`remember` verdicts; the self-reference rule collapses `upstream` to `file`/`absorb` when `$SELF_REPO` is true; rule 4's D4 memory-write procedure is invoked inline for every `remember` fragment. |
+| `_shared/record-queue-fetch.md` | Step 1's session-scoped record snapshot is the candidate set Step 3 matches `absorb`/`shipped` fragments against. |
+| `_shared/health-recent-commit-check.md` | Step 3's `shipped` verdict reuses this file's matching discipline over the recent-merge window. |
+| `_shared/integration-branch.md` | Step 1 resolves the recent-merge window through this file's branch-resolution ladder. |
+| `_shared/session-tmp-root.md` | Step 6's `file` batch writes its entry JSON to a session-scoped path resolved via `session-tmp-resolve.js`. |
+| `/superpowers:brainstorming` | An over-cap `file` fragment nudges toward brainstorming instead of a stub (Step 3). |
+
 ## journey-health
 
 | Target | Relationship |

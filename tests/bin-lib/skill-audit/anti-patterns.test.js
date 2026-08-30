@@ -566,5 +566,15 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   returns exactly this one `+` line and no `-` lines. Measured by RUNNING
   //   the parser on the working tree (actual 383), not by adding 1 to 382 —
   //   the arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
-  assert.strictEqual(total, 383);
+  //
+  //   383 -> 390, #1704 (new `/claude-tweaks:intake` skill). A brand-new
+  //   SKILL.md, not a diff to an existing one — its own `## Anti-Patterns`
+  //   table ships with exactly seven rows ("Filing a fragment as
+  //   spec-shaped", "Running a second nudge round", "Silently omitting a
+  //   dropped fragment", "Fetching a URL to see what it is", "Restating a
+  //   skill edge inside this file", "Adding an intake-side routing prompt on
+  //   top of `/claude-tweaks:capture`'s `--route=keep`", "Filing an upstream
+  //   issue from an uncertain repo identity"). Measured by RUNNING the parser
+  //   on the working tree (actual 390), not by adding 7 to 383 (`[IL-99]`).
+  assert.strictEqual(total, 390);
 });
