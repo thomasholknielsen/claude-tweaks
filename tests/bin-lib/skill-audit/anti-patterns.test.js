@@ -585,5 +585,18 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   hits inside any `## Anti-Patterns` section. Measured by RUNNING the
   //   parser on the working tree (actual 385), not by adding 1 to 384 — the
   //   arithmetic agreeing here is a check, not the evidence (`[IL-99]`).
-  assert.strictEqual(total, 385);
+  //
+  //   385 -> 391, #1494 added `plugin/skills/sweep/SKILL.md` (new sweep
+  //   orchestrator skill — Task 1). A wholly new skill, not a compression
+  //   pass: its Anti-Patterns table contributes 6 rows ("Invoking
+  //   `/claude-tweaks:dispatch`, `/claude-tweaks:flow`, or
+  //   `/claude-tweaks:build` from sweep", "Inferring parent invocation from
+  //   `$PIPELINE_RUN_DIR` in a child", "Restating attention's
+  //   fetch/merge/rank logic in the close-out", "Skipping the between-step
+  //   snapshot invalidations", "Continuing past a failed step", "Adding a
+  //   mode keyword or per-record targeting") and nothing elsewhere in the
+  //   corpus lost a row. Measured by RUNNING the parser on the working tree
+  //   (actual 391), not by adding 6 to 385 — the arithmetic agreeing here is
+  //   a check, not the evidence (`[IL-99]`).
+  assert.strictEqual(total, 391);
 });

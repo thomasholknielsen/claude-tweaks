@@ -87,6 +87,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/help` | All pipeline artifacts (specs, ledger, PRs, backlog state), `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (installed version) — read-only status scan | — | — |
 | `/feedback` | A described defect or gap in a claude-tweaks skill | A GitHub issue against `thomasholknielsen/claude-tweaks` (human-invoked, after explicit scrub + confirmation) | — |
 | `/routine-kickoff` | Plugin cache listing, target SKILL.md (fallback path) | — (reconcile side effects belong to bin/lib/reconcile) | — |
+| `/sweep` | Open work-record queue (via its component steps' own fetches — no separate fetch of its own) | One shared run dir's `decisions.md`/`staged/`, plus whatever `/tidy`, `/specify`, and `/claude-tweaks:backlog refine` each write to records under `--source sweep`. Invokes those three in sequence; hands off to `/claude-tweaks:dispatch` as a recommendation only, never a call | — |
 
 ## Open Items Ledger
 

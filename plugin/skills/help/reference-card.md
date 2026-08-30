@@ -51,6 +51,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:docs-health` | Recurring health check auditing `docs/**` for Diátaxis genre-drift, depth-mismatch, findability, and factual staleness, with dual-persona misleading-risk tagging. Scheduled Routine. Never edits anything — always files a GitHub issue. | `[--target <id>] [--dir <path>] [--budget <n>] [--min-confidence low\|med\|high] [--dry-run] [--root <dir>]` |
 | `/claude-tweaks:demo` | Resolves one built thing per ref — this session's own unrecorded work (bare), a specific `#N` record, or a `#N,#M` list taken one item at a time — briefs you on it and captures a human verdict, approve or request changes; discovery of what's outstanding is `/claude-tweaks:help`'s job | `[#N[,#M...]]` |
 | `/claude-tweaks:routine-kickoff` | Machine-invoked by routine kernels (firing-lifecycle wrapper); not for direct human use | `<skill> [args...]` |
+| `/claude-tweaks:sweep` | One hands-off hygiene pass — tidy (auto) → specify drain → backlog refine headless under one run dir, closing with attention's render; never claims, builds, or merges | `[--budget <n\|all>] [--scope <name>[,<name>...]]` |
 
 ## Recommended Companion Tools
 
