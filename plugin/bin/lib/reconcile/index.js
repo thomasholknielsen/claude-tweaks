@@ -21,7 +21,7 @@ const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
 const { sharedFetch, sharedFetchAsync } = require('./shared-fetch');
-const { readCache, writeCache, isFresh } = require('./cache');
+const { readCache, isChecksFresh, recordChecksRun } = require('./cache');
 const { formatReconcileSummary, archivedCountFromRunsResult } = require('./residue-summary');
 
 // Execution order (mirror, red-tip, console, release, archive,
@@ -86,12 +86,15 @@ async function reconcile(opts = {}) {
   // standalone `reconcile` CLI subcommand and every test written before this
   // task) keeps today's always-runs semantics. Distinct from the GitHub-
   // health preflight below: that answers "is GitHub reachable right now,"
-  // this answers "did any session already do this very recently." Checked
-  // before resolveIntegrationBranch/resolveIntegrationModel so a fresh cache
-  // costs zero I/O, not just zero network calls.
+  // this answers "did THIS SAME checks subset already run very recently."
+  // Keyed on `checks` (#873), not "did any pass at all run recently" — see
+  // `isChecksFresh`'s own header comment in cache.js for why a single flat
+  // stamp shared across every subset was #820 Task 10's reverted regression.
+  // Checked before resolveIntegrationBranch/resolveIntegrationModel so a
+  // fresh cache costs zero I/O, not just zero network calls.
   if (opts.skipIfFresh) {
     const cache = readCache(root);
-    if (isFresh(cache, Date.now(), opts.ttlMs)) {
+    if (isChecksFresh(cache, checks, Date.now(), opts.ttlMs)) {
       result.skipped.push({ check: 'all', reason: 'fresh-cache' });
       return result;
     }
@@ -357,24 +360,27 @@ async function reconcile(opts = {}) {
   // preflight failure, budget-exceeded, and the skipIfFresh short-circuit
   // itself) exits above this line and never reaches it, so a failed or
   // partial pass never gets recorded as "fresh" for a future skipIfFresh
-  // check (#820, D7). `opts.skipCacheStamp` (#644 review fix) is the one
-  // exception: `bin/hooks.js reconcile-summary`'s own internal
-  // `checks: ['mirror']` call sets it, since this stamp is keyed on
-  // `lastRunAt` alone — it cannot distinguish "the FULL requested subset
-  // just finished" from "a narrow mirror-only probe just finished" — and
-  // `session-start.js`'s FAST_CHECKS call reads the exact same key via its
-  // own `skipIfFresh` gate. Without this opt-out, every `/claude-tweaks:flow`
-  // closing report would silently stamp the shared cache as fresh, and the
-  // next SessionStart within `DEFAULT_TTL_MS` would skip its own
-  // mirror/red-tip/console pass believing it already ran — silently
-  // suppressing red-tip's CI-failure surfacing for up to 7 minutes after
-  // every successful flow completion. No other caller sets this option, so
-  // every existing stamp-dependent behavior (including session-start.js's
-  // own FAST_CHECKS call, which both stamps and reads this key by design)
-  // is unchanged.
+  // check (#820, D7). The stamp is keyed on THIS pass's own `checks`
+  // signature (#873's `recordChecksRun`/`checksSignature`), not one flat
+  // timestamp shared across every subset — so this pass's stamp only ever
+  // satisfies a later `skipIfFresh` gate requesting the SAME subset. That is
+  // what closes the actual remaining gap #873 found: before this change,
+  // `reconcile-background`'s own `checks: BACKGROUND_CHECKS` call (never
+  // opting out via `skipCacheStamp`) stamped the one shared `lastRunAt` key
+  // on every completion, and `session-start.js`'s FAST_CHECKS `skipIfFresh`
+  // gate read that SAME key — so a background pass completing anywhere in a
+  // session's lifetime could make the next SessionStart's inline
+  // mirror/red-tip/console pass believe it had already run and silently skip
+  // it for up to `DEFAULT_TTL_MS`, even though none of FAST_CHECKS' own
+  // checks had. Per-signature stamping makes that cross-subset collision
+  // structurally impossible: BACKGROUND_CHECKS and FAST_CHECKS sort-join to
+  // different signatures. `opts.skipCacheStamp` (#644 review fix) still
+  // exists for a narrower reason: `bin/hooks.js reconcile-summary`'s internal
+  // `checks: ['mirror']` probe opts out so a `/claude-tweaks:flow` closing
+  // report never counts as a real mirror pass for a future mirror-keyed
+  // `skipIfFresh` caller — no other caller sets this option today.
   if (!opts.skipCacheStamp) {
-    const cache = readCache(root);
-    writeCache(root, { ...cache, lastRunAt: Date.now() });
+    recordChecksRun(root, checks, Date.now());
   }
 
   // #644 Deliverable 3 — the one-line residue summary /claude-tweaks:flow's

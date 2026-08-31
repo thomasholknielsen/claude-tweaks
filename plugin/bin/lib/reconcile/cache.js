@@ -33,12 +33,23 @@ function cachePath(root) {
   return path.join(root, '.claude-tweaks', CACHE_FILENAME);
 }
 
-// -> { lastRunAt: number|null, claimShas: {[issueNumber]: string},
+// -> { lastRunAt: {[checksSignature]: number}, claimShas: {[issueNumber]: string},
 //      residueFailures: {[reason:path]: {count, firstFailedAt, lastError, escalated}} }
 // Absent file or corrupt JSON both fail closed to empty defaults — a cache
 // is pure optimization; never let a bad read block or skew reconcile().
+//
+// `lastRunAt` is a map keyed by `checksSignature(checks)` (#873), not a single
+// scalar — #820 Task 10's fix-up shared one flat `lastRunAt` timestamp across
+// every `checks` subset a caller could request, so a narrow pass (e.g.
+// `checks: ['mirror']`) stamped the same key a wider pass's `skipIfFresh` gate
+// read, making that wider pass believe it had already run when only the
+// narrow one had. That fix-up was reverted for exactly this reason. A legacy
+// cache file written before this change carries `lastRunAt` as a bare number;
+// `typeof parsed.lastRunAt === 'object'` below rejects that shape back to the
+// empty default rather than misreading it — one redundant pass after an
+// upgrade, never a correctness issue, since this file is pure optimization.
 function readCache(root) {
-  const empty = { lastRunAt: null, claimShas: {}, residueFailures: {} };
+  const empty = { lastRunAt: {}, claimShas: {}, residueFailures: {} };
   let raw;
   try {
     raw = fs.readFileSync(cachePath(root), 'utf8');
@@ -48,7 +59,7 @@ function readCache(root) {
   try {
     const parsed = JSON.parse(raw);
     return {
-      lastRunAt: typeof parsed.lastRunAt === 'number' ? parsed.lastRunAt : null,
+      lastRunAt: (parsed.lastRunAt && typeof parsed.lastRunAt === 'object' && !Array.isArray(parsed.lastRunAt)) ? parsed.lastRunAt : {},
       claimShas: (parsed.claimShas && typeof parsed.claimShas === 'object') ? parsed.claimShas : {},
       residueFailures: (parsed.residueFailures && typeof parsed.residueFailures === 'object') ? parsed.residueFailures : {},
     };
@@ -70,9 +81,46 @@ function writeCache(root, cache) {
 
 // Pure — no I/O, no Date.now() call of its own (nowMs is always passed in),
 // so it's trivially testable and reusable by both a live caller and a test.
+// Takes a bare `{ lastRunAt: number|null }` shape, not the full cache object
+// above — this stays the single-scalar freshness primitive both
+// `isChecksFresh` below (over `lastRunAt[signature]`) and callers outside
+// this module tracking their own single timestamp (e.g. `session-start.js`'s
+// and `bin/hooks.js`'s `reconcile-background-status.json` `completedAt` gate
+// — a genuinely single-purpose value with only one writer, unrelated to this
+// file's own checks-subset cache) build against.
 function isFresh(cache, nowMs, ttlMs = DEFAULT_TTL_MS) {
   if (typeof cache.lastRunAt !== 'number') return false;
   return (nowMs - cache.lastRunAt) < ttlMs;
+}
+
+// Canonical key for a `checks` array — order-independent (a caller's list
+// order is dispatch order, not identity) so `['mirror','red-tip','console']`
+// and `['console','mirror','red-tip']` share one freshness entry. Empty/
+// missing `checks` has no meaningful subset identity and always signature
+// `''`, which `isChecksFresh` below always treats as not-fresh.
+function checksSignature(checks) {
+  if (!Array.isArray(checks) || !checks.length) return '';
+  return [...checks].sort().join(',');
+}
+
+// Per-checks-subset freshness (#873) — "did THIS checks subset run
+// recently," not "did any pass at all run recently." Reuses `isFresh`'s pure
+// comparison against just that subset's own stamp.
+function isChecksFresh(cache, checks, nowMs, ttlMs = DEFAULT_TTL_MS) {
+  const sig = checksSignature(checks);
+  if (!sig) return false;
+  const runAt = cache.lastRunAt && cache.lastRunAt[sig];
+  return isFresh({ lastRunAt: typeof runAt === 'number' ? runAt : null }, nowMs, ttlMs);
+}
+
+// Stamp `checks`' own signature as having just completed — read-modify-write
+// on the shared cache file, same pattern as `recordResidueFailure` below.
+// A no-op for an empty/missing `checks` (nothing to key the stamp on).
+function recordChecksRun(root, checks, now = Date.now()) {
+  const sig = checksSignature(checks);
+  if (!sig) return;
+  const cache = readCache(root);
+  writeCache(root, { ...cache, lastRunAt: { ...cache.lastRunAt, [sig]: now } });
 }
 
 // One entry per (reason, path) pair — a worktree's `removal-failed` and a run
@@ -163,7 +211,7 @@ function listResidueFailures(root) {
 }
 
 module.exports = {
-  readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS, cachePath,
+  readCache, writeCache, isFresh, checksSignature, isChecksFresh, recordChecksRun, CACHE_FILENAME, DEFAULT_TTL_MS, cachePath,
   RESIDUE_ESCALATE_THRESHOLD, residueKey, recordResidueFailure, recordResidueSuccess, listResidueFailures,
   trackResidue,
 };

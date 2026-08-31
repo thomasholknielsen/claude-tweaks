@@ -1274,7 +1274,7 @@ test('reconcile(): FAST_CHECKS runs the preflight and the shared fetch concurren
 test('reconcile(): skipIfFresh=true short-circuits entirely when the cache is within TTL (D7)', async () => {
   const { mainDir } = pairedFixture();
   const cache = require('../plugin/bin/lib/reconcile/cache');
-  cache.writeCache(mainDir, { lastRunAt: Date.now(), claimShas: {} });
+  cache.writeCache(mainDir, { lastRunAt: { mirror: Date.now() }, claimShas: {} });
   const r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipIfFresh: true });
   assert.deepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
   assert.equal(r.mirror, null);
@@ -1283,7 +1283,19 @@ test('reconcile(): skipIfFresh=true short-circuits entirely when the cache is wi
 test('reconcile(): skipIfFresh=true runs normally when the cache is stale (past TTL)', async () => {
   const { mainDir } = pairedFixture();
   const cache = require('../plugin/bin/lib/reconcile/cache');
-  cache.writeCache(mainDir, { lastRunAt: Date.now() - (60 * 60 * 1000), claimShas: {} });
+  cache.writeCache(mainDir, { lastRunAt: { mirror: Date.now() - (60 * 60 * 1000) }, claimShas: {} });
+  const r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipIfFresh: true });
+  assert.notDeepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
+});
+
+test('reconcile(): skipIfFresh=true runs normally when the cache is fresh for a DIFFERENT checks subset (#873)', async () => {
+  const { mainDir } = pairedFixture();
+  const cache = require('../plugin/bin/lib/reconcile/cache');
+  // Fresh under a differently-shaped signature (BACKGROUND_CHECKS-style) —
+  // must not satisfy a ['mirror']-keyed skipIfFresh gate. This is the exact
+  // cross-subset collision #820 Task 10's reverted single-scalar fix hit,
+  // now pinned against the per-signature map that replaced it.
+  cache.writeCache(mainDir, { lastRunAt: { 'archive,release': Date.now() }, claimShas: {} });
   const r = await reconcile({ cwd: mainDir, checks: ['mirror'], skipIfFresh: true });
   assert.notDeepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
 });
@@ -1291,7 +1303,7 @@ test('reconcile(): skipIfFresh=true runs normally when the cache is stale (past 
 test('reconcile(): skipIfFresh defaults to false — omitting it always runs, cache or not (back-compat for every existing caller)', async () => {
   const { mainDir } = pairedFixture();
   const cache = require('../plugin/bin/lib/reconcile/cache');
-  cache.writeCache(mainDir, { lastRunAt: Date.now(), claimShas: {} });
+  cache.writeCache(mainDir, { lastRunAt: { mirror: Date.now() }, claimShas: {} });
   const r = await reconcile({ cwd: mainDir, checks: ['mirror'] });
   assert.notDeepEqual(r.skipped, [{ check: 'all', reason: 'fresh-cache' }]);
 });
@@ -1325,7 +1337,78 @@ test('reconcile(): a real (non-short-circuited) pass stamps lastRunAt for the ne
   }
   assert.deepEqual(r.skipped, [], `expected a fully-completed pass, saw ${JSON.stringify(r.skipped)}`);
   const after = cache.readCache(mainDir);
-  assert.ok(after.lastRunAt >= before, 'lastRunAt must be stamped after a real pass');
+  assert.ok(after.lastRunAt.mirror >= before, "lastRunAt['mirror'] must be stamped after a real pass");
+});
+
+// #873 — end-to-end reproduction of the actual remaining gap #872 (concurrent
+// preflight+fetch for the FAST_CHECKS shape) left in place: before this fix,
+// `bin/hooks.js`'s `reconcile-background` subcommand calls `reconcile({
+// checks: BACKGROUND_CHECKS })` with no `skipCacheStamp`, so a completed
+// background pass stamped the ONE shared `lastRunAt` scalar — the exact same
+// key `session-start.js`'s FAST_CHECKS `skipIfFresh` gate reads. A background
+// pass completing at any point in a session's lifetime could therefore make
+// the NEXT SessionStart's inline mirror/red-tip/console pass believe it had
+// already run and silently skip it for up to DEFAULT_TTL_MS, even though
+// none of FAST_CHECKS' own checks ever ran — the mirror image of #820 Task
+// 10's reverted regression (there, a FAST_CHECKS-only stamp starved the
+// background pass instead). Reproduced here with two REAL, sequential
+// reconcile() calls against a real pr-first remote — not just the cache.js
+// unit-level checksSignature/isChecksFresh tests above — because this is the
+// actual call shape #873's Deliverables 2/3 name (`reconcile-background`'s
+// own checks subset never freshly ran, but the gate must not be fooled by an
+// unrelated subset's completion).
+test('reconcile(): a completed BACKGROUND_CHECKS pass does not starve a later FAST_CHECKS skipIfFresh pass (#873, mirror image of #820 Task 10)', async () => {
+  const { mainDir } = pairedFixture();
+  fs.mkdirSync(path.join(mainDir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(mainDir, '.claude-tweaks', 'policy.yml'), 'integration-model: pr-first\n');
+  git(['add', '.claude-tweaks/policy.yml'], mainDir);
+  git(['commit', '-q', '-m', 'policy'], mainDir);
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  const originalHealthAsync = preflight.ghHealthCheckAsync;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  preflight.ghHealthCheckAsync = async () => ({ ok: true, reason: null });
+
+  const { BACKGROUND_CHECKS } = require('../plugin/bin/hooks');
+  const FAST_CHECKS = require('../plugin/bin/lib/hooks/session-start').FAST_CHECKS;
+  const cache = require('../plugin/bin/lib/reconcile/cache');
+
+  try {
+    // The background pass — same call shape as `bin/hooks.js`'s
+    // `reconcile-background` subcommand (no skipCacheStamp). Individual
+    // gh-dependent background checks (release/archive/...) may themselves
+    // degrade to a per-check `gh-absent` skip in a `gh`-less test/CI
+    // environment (a real, expected outcome — see `_shared/integration-
+    // model.md`) — the preflight stub above only bypasses the UPFRONT
+    // reachability gate, not each check's own `gh` shell-out. What this test
+    // actually needs proven is that the pass reaches reconcile()'s
+    // end-of-function stamp at all (never short-circuited by a whole-subset
+    // preflight failure), which the BACKGROUND_CHECKS signature's own stamp
+    // below directly confirms.
+    await reconcile({ cwd: mainDir, checks: BACKGROUND_CHECKS });
+    const afterBg = cache.readCache(mainDir);
+    const bgSig = cache.checksSignature(BACKGROUND_CHECKS);
+    assert.strictEqual(
+      typeof afterBg.lastRunAt[bgSig],
+      'number',
+      'the background pass must have completed and stamped reconcile-cache.json under its own checks signature — otherwise this fixture is not reproducing the scenario',
+    );
+
+    // The very next FAST_CHECKS pass, gated by skipIfFresh — must still run
+    // for real: it must NOT report 'fresh-cache', and its own mirror check
+    // must actually have executed.
+    const fast = await reconcile({ cwd: mainDir, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: cache.DEFAULT_TTL_MS });
+    assert.notDeepEqual(
+      fast.skipped,
+      [{ check: 'all', reason: 'fresh-cache' }],
+      "FAST_CHECKS must not be starved by BACKGROUND_CHECKS' own completion stamp",
+    );
+    assert.equal(typeof fast.mirror, 'object', 'the mirror check itself must actually have run');
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+    preflight.ghHealthCheckAsync = originalHealthAsync;
+  }
 });
 
 // #644 review fix: `opts.skipCacheStamp` — `bin/hooks.js reconcile-summary`'s
@@ -1357,7 +1440,7 @@ test('reconcile(): skipCacheStamp=true completes a real pass without stamping la
   assert.deepEqual(r.skipped, [], `expected a fully-completed pass, saw ${JSON.stringify(r.skipped)}`);
   assert.equal(typeof r.mirror, 'object', 'the mirror check itself must still have run');
   const after = cache.readCache(mainDir);
-  assert.equal(after.lastRunAt, null, 'lastRunAt must stay unstamped when skipCacheStamp is set');
+  assert.equal(after.lastRunAt.mirror, undefined, "lastRunAt['mirror'] must stay unstamped when skipCacheStamp is set");
 });
 
 test('reconcile(): skipCacheStamp=true does not disturb a real pass\'s residueSummary field', async () => {

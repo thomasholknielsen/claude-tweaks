@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS,
+  readCache, writeCache, isFresh, checksSignature, isChecksFresh, recordChecksRun, CACHE_FILENAME, DEFAULT_TTL_MS,
   RESIDUE_ESCALATE_THRESHOLD, recordResidueFailure, recordResidueSuccess, listResidueFailures,
   trackResidue,
 } = require('../../../plugin/bin/lib/reconcile/cache');
@@ -16,25 +16,35 @@ function tmpRoot() {
 
 test('readCache: absent file reads as empty defaults, not a throw', () => {
   const root = tmpRoot();
-  assert.deepEqual(readCache(root), { lastRunAt: null, claimShas: {}, residueFailures: {} });
+  assert.deepEqual(readCache(root), { lastRunAt: {}, claimShas: {}, residueFailures: {} });
 });
 
 test('readCache: corrupt JSON fails closed to empty defaults, not a throw', () => {
   const root = tmpRoot();
   fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude-tweaks', CACHE_FILENAME), '{not json');
-  assert.deepEqual(readCache(root), { lastRunAt: null, claimShas: {}, residueFailures: {} });
+  assert.deepEqual(readCache(root), { lastRunAt: {}, claimShas: {}, residueFailures: {} });
+});
+
+// #873: a legacy cache file written before lastRunAt became a per-checks-
+// subset map carries it as a bare number — that shape must be rejected back
+// to the empty default rather than misread as a signature map.
+test('readCache: a legacy scalar lastRunAt (pre-#873 shape) falls back to the empty map default', () => {
+  const root = tmpRoot();
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', CACHE_FILENAME), JSON.stringify({ lastRunAt: 12345, claimShas: {} }));
+  assert.deepEqual(readCache(root), { lastRunAt: {}, claimShas: {}, residueFailures: {} });
 });
 
 test('writeCache then readCache round-trips', () => {
   const root = tmpRoot();
-  writeCache(root, { lastRunAt: 12345, claimShas: { 7: 'abc' }, residueFailures: {} });
-  assert.deepEqual(readCache(root), { lastRunAt: 12345, claimShas: { 7: 'abc' }, residueFailures: {} });
+  writeCache(root, { lastRunAt: { mirror: 12345 }, claimShas: { 7: 'abc' }, residueFailures: {} });
+  assert.deepEqual(readCache(root), { lastRunAt: { mirror: 12345 }, claimShas: { 7: 'abc' }, residueFailures: {} });
 });
 
 test('writeCache: a failure (unwritable dir) is swallowed, never throws', () => {
   const root = '/nonexistent-does-not-exist-820';
-  assert.doesNotThrow(() => writeCache(root, { lastRunAt: 1, claimShas: {} }));
+  assert.doesNotThrow(() => writeCache(root, { lastRunAt: { mirror: 1 }, claimShas: {} }));
 });
 
 test('isFresh: within TTL is fresh', () => {
@@ -47,6 +57,72 @@ test('isFresh: past TTL is not fresh', () => {
 
 test('isFresh: null lastRunAt (never run) is never fresh', () => {
   assert.equal(isFresh({ lastRunAt: null }, Date.now(), DEFAULT_TTL_MS), false);
+});
+
+// --- #873: per-checks-subset freshness (checksSignature / isChecksFresh / recordChecksRun) ---
+
+test('checksSignature: order-independent — same members in a different order share one signature', () => {
+  assert.equal(checksSignature(['mirror', 'red-tip', 'console']), checksSignature(['console', 'mirror', 'red-tip']));
+});
+
+test('checksSignature: different subsets produce different signatures', () => {
+  assert.notEqual(checksSignature(['mirror']), checksSignature(['archive', 'release']));
+});
+
+test('checksSignature: empty/missing checks signature to the empty string', () => {
+  assert.equal(checksSignature([]), '');
+  assert.equal(checksSignature(undefined), '');
+});
+
+test('isChecksFresh: fresh when THIS subset\'s own stamp is within TTL', () => {
+  const cache = { lastRunAt: { mirror: 1000 } };
+  assert.equal(isChecksFresh(cache, ['mirror'], 1000 + DEFAULT_TTL_MS - 1, DEFAULT_TTL_MS), true);
+});
+
+test('isChecksFresh: stale when THIS subset\'s own stamp is past TTL', () => {
+  const cache = { lastRunAt: { mirror: 1000 } };
+  assert.equal(isChecksFresh(cache, ['mirror'], 1000 + DEFAULT_TTL_MS + 1, DEFAULT_TTL_MS), false);
+});
+
+// The #820 Task 10 regression shape, reproduced against the new map: a
+// DIFFERENT checks subset's fresh stamp must never satisfy this subset's own
+// freshness check — this is the exact cross-subset collision the reverted
+// single-scalar fix hit (background checks silently starved by a
+// FAST_CHECKS-only stamp, and vice versa).
+test('isChecksFresh: never fresh from a DIFFERENT checks subset\'s stamp (#820 regression shape)', () => {
+  const cache = { lastRunAt: { mirror: Date.now() } };
+  assert.equal(isChecksFresh(cache, ['archive', 'release'], Date.now(), DEFAULT_TTL_MS), false);
+});
+
+test('isChecksFresh: never fresh with no stamp recorded for this subset at all', () => {
+  assert.equal(isChecksFresh({ lastRunAt: {} }, ['mirror'], Date.now(), DEFAULT_TTL_MS), false);
+});
+
+test('isChecksFresh: empty checks is never fresh, regardless of cache contents', () => {
+  assert.equal(isChecksFresh({ lastRunAt: { '': Date.now() } }, [], Date.now(), DEFAULT_TTL_MS), false);
+});
+
+test('recordChecksRun: stamps only this subset\'s own signature, leaving others untouched', () => {
+  const root = tmpRoot();
+  recordChecksRun(root, ['archive', 'release'], 5000);
+  recordChecksRun(root, ['mirror'], 6000);
+  const after = readCache(root);
+  assert.deepEqual(after.lastRunAt, { 'archive,release': 5000, mirror: 6000 });
+});
+
+test('recordChecksRun: a later stamp for the same subset overwrites only that subset\'s entry', () => {
+  const root = tmpRoot();
+  recordChecksRun(root, ['mirror'], 1000);
+  recordChecksRun(root, ['archive', 'release'], 2000);
+  recordChecksRun(root, ['mirror'], 3000);
+  const after = readCache(root);
+  assert.deepEqual(after.lastRunAt, { mirror: 3000, 'archive,release': 2000 });
+});
+
+test('recordChecksRun: a no-op for empty checks', () => {
+  const root = tmpRoot();
+  recordChecksRun(root, [], 1000);
+  assert.deepEqual(readCache(root).lastRunAt, {});
 });
 
 // #644 Deliverable 2 — per-path consecutive-failure counter + escalation.

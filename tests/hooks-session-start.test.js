@@ -526,7 +526,17 @@ test('SessionStart spawn gate: fires against a real pr-first remote even though 
     const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
     const reconcileCache = require('../plugin/bin/lib/reconcile/cache');
     const stampedCache = reconcileCache.readCache(fs.realpathSync(mainDir));
-    assert.strictEqual(typeof stampedCache.lastRunAt, 'number', 'the FAST_CHECKS pass must have completed and stamped reconcile-cache.json — otherwise this fixture is not reproducing the bug scenario');
+    // Whichever exact signature landed — the full FAST_CHECKS subset when gh
+    // is reachable, or a preflight-narrowed 'mirror'-only subset in a
+    // gh-absent/unreachable test environment (#873: the stamp is now keyed
+    // per-checks-subset, not one flat scalar) — what this fixture needs
+    // proven is only that the fast pass reached reconcile()'s own
+    // end-of-function stamp at all, i.e. it did not silently degrade to a
+    // no-remote skip that never reaches that line.
+    assert.ok(
+      stampedCache.lastRunAt && Object.keys(stampedCache.lastRunAt).length > 0,
+      'the FAST_CHECKS pass must have completed and stamped reconcile-cache.json — otherwise this fixture is not reproducing the bug scenario',
+    );
     assert.ok(out.json, 'a pr-first repo with no stale-run/policy signal still renders the worktree-always verdict banner');
     assert.ok(spawnedWith, 'the background pass must still spawn — the status file (not reconcile-cache.json) is what must gate this decision');
     assert.strictEqual(spawnedWith[0], process.execPath);
@@ -653,7 +663,11 @@ test('SessionStart: a second session start inside the TTL short-circuits the inl
     const cacheLib = require('../plugin/bin/lib/reconcile/cache');
     const root = fs.realpathSync(mainDir);
     const aged = cacheLib.readCache(root);
-    cacheLib.writeCache(root, { ...aged, lastRunAt: Date.now() - (cacheLib.DEFAULT_TTL_MS * 2) });
+    const fastChecksSig = cacheLib.checksSignature(sessionStart.FAST_CHECKS);
+    cacheLib.writeCache(root, {
+      ...aged,
+      lastRunAt: { ...aged.lastRunAt, [fastChecksSig]: Date.now() - (cacheLib.DEFAULT_TTL_MS * 2) },
+    });
     const third = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: mainDir });
     assert.notStrictEqual(git(['rev-parse', 'HEAD'], mainDir).trim(), afterFirst, 'past the TTL the inline pass must run again');
     assert.match(third.json.hookSpecificOutput.additionalContext, /reconciled.*fast-forwarded/i);

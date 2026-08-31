@@ -411,8 +411,11 @@ test('releaseMerged: does not revert a concurrent process\'s cache write made du
     }
     if (args[0].includes('/issues/13')) {
       // A concurrent process finishes and writes its own fresher lastRunAt
-      // WHILE this call is still awaiting its Phase 2 batch.
-      writeCache(root, { lastRunAt: CONCURRENT_LAST_RUN_AT, claimShas: {} });
+      // WHILE this call is still awaiting its Phase 2 batch. `lastRunAt` is a
+      // per-checks-subset map (#873) — the probe key name is arbitrary here,
+      // this test only needs SOME concurrent write under it to prove the
+      // final cache write preserves a sibling process's own update.
+      writeCache(root, { lastRunAt: { probe: CONCURRENT_LAST_RUN_AT }, claimShas: {} });
       return { stdout: 'OPEN\n', failure: null, status: null };
     }
     throw new Error(`unexpected ${args.join(' ')}`);
@@ -420,7 +423,7 @@ test('releaseMerged: does not revert a concurrent process\'s cache write made du
 
   await releaseMerged({ cwd: root, ghApi });
   assert.equal(
-    readCache(root).lastRunAt,
+    readCache(root).lastRunAt.probe,
     CONCURRENT_LAST_RUN_AT,
     'the concurrent write must survive — a stale entry-time snapshot must not overwrite it',
   );
