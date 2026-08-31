@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-29T160545-tidy-standalone",
-  "reason": "swept: stale claim",
-  "releasedAt": "2026-08-29T17:17:38.162Z"
+  "runId": "2026-08-31T081826-record-1425",
+  "sessionId": "0a17bece-e805-5d39-8fe5-3bab727731bc",
+  "claimedAt": "2026-08-31T08:23:51.890Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
