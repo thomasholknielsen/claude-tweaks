@@ -738,3 +738,42 @@ test('requesting nothing returns no selected groups and no notFound', () => {
   assert.deepStrictEqual(result.selectedGroups, []);
   assert.deepStrictEqual(result.notFound, []);
 });
+
+// #1557's incident shape, reproduced: ~70 otherwise-unrelated records, each
+// citing one item-specific file plus one of a handful of "core" files each
+// cited well above the hub-path threshold (#1365's HUB_PATH_MIN_COUNT=3) —
+// exactly the counts the original report measured (pre-tool-use.js in 8/68,
+// tests/ in 8/68, hooks.js in 7/68, context.js in 6/68, ...). Confirms BOTH
+// independent layers this record's investigation found already shipped:
+// hub-path exclusion keeps them from ever chaining into one group, and the
+// size guard would independently exclude such a group from headless `next`
+// selection even if grouping did merge it.
+test('#1557 reproduction: ~70 records sharing only above-hub-threshold core files never chain into one mega-group', () => {
+  const coreFiles = ['plugin/bin/lib/hooks/pre-tool-use.js', 'tests/', 'plugin/bin/hooks.js', 'plugin/bin/lib/hooks/context.js', 'docs/donts.md'];
+  const items = [];
+  for (let i = 0; i < 70; i += 1) {
+    // Two rotating core-file citations per item (not one) — a real record
+    // in the original incident typically cited several of these files at
+    // once, which is what bridges the 5 core files into ONE connected
+    // component via union-find. One citation per item would instead
+    // produce 5 disjoint clusters (each item only touching its own bucket),
+    // understating the actual failure mode.
+    items.push({
+      id: 1000 + i,
+      keyFiles: [`plugin/skills/unrelated-${i}.md`, coreFiles[i % coreFiles.length], coreFiles[(i + 1) % coreFiles.length]],
+    });
+  }
+  const groups = groupByFileOverlap(items);
+  const sizes = groups.map((g) => g.length).sort((a, b) => b - a);
+  assert.ok(sizes[0] <= 3, `hub-path exclusion must keep every group small — largest was ${sizes[0]}`);
+  assert.strictEqual(groups.flat().length, 70, 'every record still appears somewhere (as its own near-singleton), none silently dropped');
+
+  // Independent second layer: simulate hub exclusion NOT applying (e.g. a
+  // future change to the algorithm, or a batch shaped so no file clears the
+  // hub threshold) by disabling it outright — the size guard alone must
+  // still keep the resulting mega-group out of headless `next` selection.
+  const unhubbedGroups = groupByFileOverlap(items, { hubPathMinCount: Infinity, hubPathFraction: 0 });
+  const { withinGuard, oversized } = partitionGroupsBySizeGuard(unhubbedGroups);
+  assert.ok(oversized.some((g) => g.length >= 60), 'with hub exclusion disabled the records DO chain into one large group, confirming this test exercises the real merge path');
+  assert.ok(!withinGuard.some((g) => g.length >= 60), 'the size guard must exclude the oversized group from the within-guard (next-eligible) set');
+});

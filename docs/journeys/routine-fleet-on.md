@@ -26,7 +26,7 @@ files:
    - **Check:** A parity note names what was verified (or what could not be), per `fleet.md` Step 2.
 
 4. **Provisioning loop** — The skill walks the fleet composition table (four focus-scoped code-health finders at 15-minute offsets, the generalist sweeps, the shaping unit, the conditional grant unit, the dispatch drain, tidy weekly), running the existing CREATE/UPDATE procedure per row with fleet-resolved crons instead of the interactive cadence picker.
-   - **Check:** Row 10 (the backlog grant unit) provisions **only** when `autonomy: unattended` AND `grant-origination-enabled: true` were both already set — otherwise it is reported as skipped with the two-key reason. A repo missing a template gets a partial fleet with each skipped row named, never a refusal.
+   - **Check:** Row 10 (the conditional grant unit — `backlog refine`'s headless posture) provisions **only** when `autonomy: unattended` AND `grant-origination-enabled: true` were both already set — otherwise it is reported as skipped with the two-key reason. A repo missing a template gets a partial fleet with each skipped row named, never a refusal.
 
 5. **Summary** — One table: each row's PREFIXED_NAME, created vs adopted vs reconciled vs skipped, its cron, and every policy value the Manifesto wrote.
    - **Check:** A second `fleet on` run is an idempotent reconcile — existing routines (including any created earlier by standalone `create`) are adopted or re-synced, never duplicated.

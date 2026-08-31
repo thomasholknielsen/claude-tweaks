@@ -56,7 +56,7 @@ test('the directive keeps the prefix five existing tests assert on', () => {
 });
 
 const LINEAR_DIAGRAM_SKILLS = [
-  'capture', 'challenge', 'design-wrapper', 'feedback', 'init', 'review',
+  'capture', 'challenge', 'design-wrapper', 'feedback', 'init', 'intake', 'review',
   'specify', 'stories', 'test', 'wrap-up',
 ];
 

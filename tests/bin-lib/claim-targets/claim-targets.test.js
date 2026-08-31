@@ -158,7 +158,11 @@ test('(a) two absent targets: both claimed, create-only writes, label + comment 
   assert.equal(code, 0);
   const body = JSON.parse(io.out[0]);
   assert.deepEqual(body, {
-    claimed: [720, 721], alreadyOwned: [], skipped: [], labelFailures: [],
+    claimed: [720, 721],
+    alreadyOwned: [],
+    skipped: [],
+    labelFailures: [],
+    transportByIssue: { 720: 'contents-api', 721: 'contents-api' },
   });
   const w720 = apiCalls.find((a) => isWrite(a, '720'));
   const w721 = apiCalls.find((a) => isWrite(a, '721'));
@@ -169,6 +173,24 @@ test('(a) two absent targets: both claimed, create-only writes, label + comment 
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '720'));
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '721'));
   assert.ok(ghCalls.some((a) => a[0] === 'label' && a[1] === 'create'), 'label did not exist -> bootstrap create call made');
+});
+
+// (a5) #1486: a successful contents-API claim is permanently tagged as such
+// on the JSON envelope — no extra read, derived from write.commitSha's
+// absence on this transport.
+test('(a5) successful contents-API claims report transportByIssue: contents-api', () => {
+  const { ghApi } = makeGhApi({
+    reads: { 720: [readAbsent] },
+    writes: { 720: [writeOk] },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '720'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transportByIssue, { 720: 'contents-api' });
 });
 
 // (a2) the same absent target, but with a `gitRunner` dep (the real CLI's
@@ -209,6 +231,36 @@ test('(a2) absent target with a gitRunner: create-only claim goes through git-CA
   const push = gitCalls.find((a) => a[0] === 'push');
   assert.ok(push, 'a create-only claim must reach the git-CAS push');
   assert.ok(push.some((a) => String(a).startsWith(`--force-with-lease=refs/heads/claims-registry:${TIP}`)), 'the push must lease against the tip this run read');
+});
+
+// (a2b) #1486: the git-CAS counterpart to (a5) — a successful git-CAS claim
+// is tagged 'git', derived from write.commitSha being a real string on this
+// transport (never present on a contents-API success).
+test('(a2b) successful git-CAS claims report transportByIssue: git', () => {
+  const TIP = 'a'.repeat(40);
+  const gitRunner = (args) => {
+    if (args[0] === 'fetch') return '';
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') return `${TIP}\n`;
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
+    if (args[0] === 'show') throw new Error(`fatal: path 'claims/issue-720.json' does not exist in '${TIP}'`);
+    if (args[0] === 'hash-object') return 'deadbeef\n';
+    if (args[0] === 'read-tree') return '';
+    if (args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'newtree\n';
+    if (args[0] === 'commit-tree') return 'newcommit\n';
+    if (args[0] === 'push') return '';
+    throw new Error(`unexpected git ${args.join(' ')}`);
+  };
+  const ghApi = (args) => { throw new Error(`contents-API must not be called when git-CAS works: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = gitRunner;
+
+  const code = run(['--run-id', 'r1', '--targets', '720'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transportByIssue, { 720: 'git' });
 });
 
 // #1467: a fake git-CAS runner that tracks each call class separately (not

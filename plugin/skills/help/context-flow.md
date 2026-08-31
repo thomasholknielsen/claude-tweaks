@@ -27,6 +27,7 @@ Codebase                     ──→ Findings cache               ──→ Wo
 ```
 Backlog record         ──→ Design Doc          ──→ Ready record(s)    ──→ Code + Journey
 GitHub issue/local file    docs/superpowers/specs/*-design.md  GitHub issue/local file   src/ + docs/journeys/
+  intake ──► sorted fragments
   /capture               /superpowers:brainstorming            /specify              /build
                                                  ↓                     ↓
                                            (deletes design doc)     Blocked items → new
@@ -56,6 +57,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/journey-health` | `docs/journeys/*.md`, journey-story coverage data, `health-state` branch `journey-health/cursors.json` | A work record (`by:journey-health` label, or local file), `health-state` branch rotation cursor | — |
 | `/docs-health` | `docs/**`, `health-state` branch `docs-health/cursors.json` | A work record (`by:docs-health` label, or local file), `health-state` branch rotation cursor | — |
 | `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, CLAUDE.md (incl. `work-backend` under `## Work records`), `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
+| `/intake` | A pasted dump or `--file` | Nothing of its own — delegates filings to `/capture`, upstream learnings to `/feedback`, memory writes to learning-routing D4; returns a report with a Carry-over block | — |
 | `/capture` | — | A backlog work record — GitHub issue (`by:capture` label, no stage label) or local `specs/{id}-{slug}.md` file, per `work-backend` | — |
 | `/superpowers:brainstorming` | A backlog work record (GitHub issue or local file, per `work-backend`) | `docs/superpowers/specs/*-design.md` | — |
 | `/challenge` | `framing-check` mode: a work record reference, called inline by `/specify` (no separate fetch). Human-invoked `--lens=` mode: a topic or problem statement. Human-invoked bare `#N` mode: a `solution:unjustified` record reference | `framing-check` mode: `solution:unjustified` label + `## Gotchas` note, applied by `/specify`. `--lens=` mode: a rendered debiasing critique (not persisted). Bare `#N` mode: writes back to the record — evidence or acceptance bullets under `## Gotchas`, plus the label clear | — |
@@ -87,6 +89,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/help` | All pipeline artifacts (specs, ledger, PRs, backlog state), `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (installed version) — read-only status scan | — | — |
 | `/feedback` | A described defect or gap in a claude-tweaks skill | A GitHub issue against `thomasholknielsen/claude-tweaks` (human-invoked, after explicit scrub + confirmation) | — |
 | `/routine-kickoff` | Plugin cache listing, target SKILL.md (fallback path) | — (reconcile side effects belong to bin/lib/reconcile) | — |
+| `/sweep` | Open work-record queue (via its component steps' own fetches — no separate fetch of its own) | One shared run dir's `decisions.md`/`staged/`, plus whatever `/tidy`, `/specify`, and `/claude-tweaks:backlog refine` each write to records under `--source sweep`. Invokes those three in sequence; hands off to `/claude-tweaks:dispatch` as a recommendation only, never a call | — |
 
 ## Open Items Ledger
 

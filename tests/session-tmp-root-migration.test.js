@@ -35,7 +35,7 @@ const MIGRATED_FILES = [
   'backlog/overview-mode.md',
   'backlog/refine-mode.md',
   'backlog/refine-lanes.md',
-  'backlog/grant-mode.md',
+  'backlog/refine-headless.md',
   'backlog/attention-mode.md',
   'backlog/trust-signal.md',
   'assess-agent-autonomy/grant-check.md',
@@ -70,7 +70,17 @@ const MIGRATED_FILES = [
 // fallback (no literal '/tmp/' substring appears there at all) and the
 // unrelated session-snapshot path (ct-records-{session-id}.json, already
 // session-scoped by construction, not this record's concern).
-const LITERAL_TMP_RE = /\/tmp\/(?!ct-)[a-z][a-z0-9-]*-[a-z0-9-]*\.(json|md|txt|graphql|err|jsonl)/;
+//
+// #1511: each hyphen-joined segment also tolerates a `{placeholder}` token
+// (e.g. `{issue}`, `{n}`) via the `(?:[a-z0-9-]|\{[a-zA-Z0-9]+\})` alternation
+// -- a plain `[a-z0-9-]*` class can't span the `{`/`}` characters, so it broke
+// the match (and never re-synchronized to the extension past the token) on a
+// literal like `/tmp/backlog-needs-decision-{issue}.md`, letting it ship
+// undetected in a MIGRATED_FILES entry. The required literal `-` between the
+// two segments, the `(?!ct-)` exclusion, and the required leading `[a-z]` are
+// all unchanged, so this only widens what a segment's own characters can be,
+// not which paths qualify as candidates in the first place.
+const LITERAL_TMP_RE = /\/tmp\/(?!ct-)[a-z](?:[a-z0-9-]|\{[a-zA-Z0-9]+\})*-(?:[a-z0-9-]|\{[a-zA-Z0-9]+\})*\.(json|md|txt|graphql|err|jsonl)/;
 
 test('every migrated file cites _shared/session-tmp-root.md', () => {
   for (const rel of MIGRATED_FILES) {
@@ -94,6 +104,43 @@ test('no migrated file retains a literal unscoped /tmp/{prefix}-*.{ext} path', (
     if (m) offenders.push(`${rel}: ${m[0]}`);
   }
   assert.deepEqual(offenders, [], 'migrated files must carry zero literal unscoped /tmp paths');
+});
+
+// #1511: LITERAL_TMP_RE couldn't span a {placeholder} token, so a migrated
+// file could carry one indefinitely undetected -- the exact shape that
+// shipped (undetected) in backlog/refine-lanes.md's needs-decision and
+// flag-back lanes before #1488's review caught and fixed both by hand.
+// Proves detection against fixture file content mirroring the loop above's
+// own read-and-match mechanism, without polluting the real MIGRATED_FILES
+// corpus with a deliberate violation.
+test('LITERAL_TMP_RE catches a bare /tmp path containing a {placeholder} token (#1511 regression)', () => {
+  const os = require('node:os');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-session-tmp-migration-fixture-'));
+  try {
+    const cases = [
+      ['/tmp/backlog-needs-decision-{issue}.md', '/tmp/backlog-needs-decision-{issue}.md'],
+      ['/tmp/backlog-refine-flagback-{issue}.md', '/tmp/backlog-refine-flagback-{issue}.md'],
+      ['/tmp/some-thing-{placeholder}.md', '/tmp/some-thing-{placeholder}.md'],
+    ];
+    for (const [literal, expected] of cases) {
+      const fixturePath = path.join(tmpDir, 'fixture.md');
+      fs.writeFileSync(fixturePath, `See ${literal} for details.\n`);
+      const text = fs.readFileSync(fixturePath, 'utf8');
+      const m = text.match(LITERAL_TMP_RE);
+      assert.ok(m, `${literal} must be caught as a bare unscoped /tmp path`);
+      assert.equal(m[0], expected);
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// Negative controls alongside the positive fixture above: the widening must
+// not loosen what counts as a candidate path in the first place.
+test('LITERAL_TMP_RE still rejects legitimate session-scoped and ct-prefixed paths after the #1511 widening', () => {
+  assert.equal(LITERAL_TMP_RE.test('/tmp/ct-records-{session-id}.json'), false, 'ct-prefixed paths stay excluded');
+  assert.equal(LITERAL_TMP_RE.test('/tmp/${SESSION_TMP_ROOT}/foo-{n}.md'), false, '$VAR-based session-scoped paths stay excluded');
+  assert.equal(LITERAL_TMP_RE.test('See _shared/session-tmp-root.md for the scratchpad convention.'), false, 'ordinary prose with no /tmp literal stays excluded');
 });
 
 test('_shared/session-tmp-root.md documents the degrade rule and the record-suffix composition rule', () => {

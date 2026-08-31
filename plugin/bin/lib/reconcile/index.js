@@ -103,7 +103,17 @@ async function reconcile(opts = {}) {
     return result;
   }
 
-  const model = resolveIntegrationModel(root);
+  // #1558: forwards the caller's own already-confirmed MCP-reachability
+  // verdict into detectIntegrationModel's mcpReachable override (the same
+  // deps-seam bin/resolve-policy.js's --mcp-reachable flag already uses),
+  // so a gh-absent-but-GitHub-MCP-reachable sandbox doesn't silently
+  // downgrade to local-merge. Undefined/false by default — every internal,
+  // hook-context caller of reconcile() (session-start.js, pre-compact) has
+  // no agent turn to probe from and is unaffected, matching the same
+  // permanent, structural gap pre-tool-use.js's own PR-stamp branch already
+  // documents (IL-63) rather than working around it there.
+  const resolveModel = opts.resolveIntegrationModel || resolveIntegrationModel;
+  const model = resolveModel(root, { mcpReachable: opts.mcpReachable === true });
   if (model !== 'pr-first') {
     // local-merge / no-forge: only `reap` has a defined fallback here — the
     // long-standing content-identical ancestry check worktree-reap.js has

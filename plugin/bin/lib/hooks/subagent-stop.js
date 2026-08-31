@@ -60,13 +60,21 @@ function lastAssistantText(transcriptPath) {
 }
 
 function run(ctx) {
-  if (!ctx.runDir) return {};
+  // Scoped to ctx.ownedRun, NEVER ctx.runDir: the latter is the session-agnostic
+  // newest-non-terminal resolution, so with parallel sessions active a sibling
+  // session's Task-agent stop would stamp whichever run dir happens to be newest
+  // — polluting a foreign run's audit trail while the run that actually owned the
+  // violation records nothing. Same pattern and rationale as pre-tool-use.js's
+  // gate-denial breadcrumb ([IL-96]); degrades to a silent no-op when this
+  // session owns no run, matching skill-invocation.js's identical guard.
+  const ownedRun = ctx.ownedRun || {};
+  if (!ownedRun.dir) return {};
   const transcriptPath = ctx.input.agent_transcript_path || ctx.input.transcript_path;
   if (typeof transcriptPath !== 'string' || !transcriptPath) return {};
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
   if (STATUS_RE.test(text.trim())) return {};
-  ctxLib.appendEvent(ctx.runDir, 'contract-violation', { firstLine: text.trim().split('\n')[0].slice(0, 120) });
+  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: text.trim().split('\n')[0].slice(0, 120) }, ownedRun.attribution);
   return { json: { systemMessage: 'claude-tweaks: a subagent reply is missing the Subagent Contract status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED). Logged to events.jsonl.' } };
 }
 

@@ -1,6 +1,6 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (bare and `#N`/`#N,#M,...` still resolve them normally — a human present, explicitly picking or naming one, is itself the required surfacing); only the headless `next` ranking script (SKILL.md Step 3) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (`#N`/`#N,#M,...` still resolve them normally — a human present, explicitly naming one, is itself the required surfacing); only bare drain's auto-selection (SKILL.md Step 3, reusing the `next`-alias ranking script) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent.
 
 ```bash
 eval "$(node -e "
@@ -20,6 +20,7 @@ eval "$(node -e "
     DISPATCH_GROUPS: 'dispatch-groups.json',
     DISPATCH_BLOCKED_EXCLUDED: 'dispatch-blocked-excluded.json',
     DISPATCH_OVERSIZED_EXCLUDED: 'dispatch-oversized-excluded.json',
+    DISPATCH_DEP_FRESHNESS: 'dispatch-dep-freshness.json',
   };
   for (const [varName, filename] of Object.entries(files)) {
     const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
@@ -27,11 +28,60 @@ eval "$(node -e "
   }
 ")"
 
-gh issue list --label auto:build --state open --json number,title,body,labels,createdAt --limit 500 > "$DISPATCH_QUEUE_RAW"
+gh issue list --label auto:build --state open --json number,title,body,labels,createdAt,updatedAt,state --limit 500 > "$DISPATCH_QUEUE_RAW"
 QUEUE_RAW_COUNT=$(node -e "console.log(require(process.argv[1]).length)" "$DISPATCH_QUEUE_RAW")
 if [ "$QUEUE_RAW_COUNT" -ge 500 ]; then
   echo "Warning: the auto:build queue pull returned exactly the --limit cap (500) — this repo may have more open auto:build records than fetched. gh issue list returns newest-first, so any records beyond the cap are the OLDEST same-priority ones, exactly what next's own oldest-first tie-break (Step 3) exists to surface first. Consider raising the cap, or filing this as a signal to re-triage the queue down." >&2
 fi
+
+# #1571: cache-check prefix. `updatedAt,state` above (added to DISPATCH_QUEUE_RAW's
+# existing --json field list — no extra bulk call, per AC1's merged-call allowance)
+# plus this one targeted dependency-freshness call are the "at most two bulk calls"
+# AC1 requires. Comparison logic (buildFreshnessSignal/signalsMatch) and the
+# persisted-blob read/write live in bin/lib/dispatch/queue-order.js — a cache,
+# not a lock: two racing firings both attempt the write-back below; the CAS
+# loser's own in-memory groups/excluded (computed by its own full pull) stay
+# valid for its own firing regardless of whether its write landed.
+DISPATCH_DEP_NUMBERS=$(node -e "
+  const { mainCheckoutRoot } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/hooks/worktree-detect.js');
+  const { readOrder, buildFreshnessSignal } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/dispatch/queue-order.js');
+  const root = mainCheckoutRoot(process.cwd()) || process.cwd();
+  const persisted = readOrder(root);
+  if (!persisted) { console.log(''); process.exit(0); }
+  const autoBuildNumbers = new Set(require(process.argv[1]).map((i) => i.number));
+  const depOnly = (persisted.freshnessSignal.issues || []).filter((i) => !autoBuildNumbers.has(i.number));
+  console.log(depOnly.map((i) => i.number).join(','));
+" "$DISPATCH_QUEUE_RAW")
+echo '[]' > "$DISPATCH_DEP_FRESHNESS"
+if [ -n "$DISPATCH_DEP_NUMBERS" ]; then
+  gh issue list --search "$(echo "$DISPATCH_DEP_NUMBERS" | tr ',' ' ' | sed 's/[0-9][0-9]*/#&/g')" --state all --json number,updatedAt,state --limit 500 > "$DISPATCH_DEP_FRESHNESS" 2>/dev/null || echo '[]' > "$DISPATCH_DEP_FRESHNESS"
+fi
+CACHE_HIT=$(node -e "
+  const { mainCheckoutRoot } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/hooks/worktree-detect.js');
+  const { readOrder, buildFreshnessSignal, signalsMatch } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/dispatch/queue-order.js');
+  const fs = require('fs');
+  const root = mainCheckoutRoot(process.cwd()) || process.cwd();
+  const persisted = readOrder(root);
+  if (!persisted) { console.log('0'); process.exit(0); }
+  const autoBuild = require(process.argv[1]);
+  const depFreshness = require(process.argv[2]);
+  const current = buildFreshnessSignal([...autoBuild, ...depFreshness]);
+  if (!signalsMatch(persisted.freshnessSignal, current)) { console.log('0'); process.exit(0); }
+  fs.writeFileSync(process.argv[3], JSON.stringify(persisted.groups));
+  fs.writeFileSync(process.argv[4], JSON.stringify(persisted.excluded));
+  const groupSizeGuard = parseInt(process.argv[5], 10);
+  const { partitionGroupsBySizeGuard } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const { oversized, threshold } = partitionGroupsBySizeGuard(persisted.groups, { groupSizeGuard });
+  fs.writeFileSync(process.argv[6], JSON.stringify(oversized.map((g) => ({ records: g.map((i) => i.number), size: g.length, threshold }))));
+  console.log('1');
+" "$DISPATCH_QUEUE_RAW" "$DISPATCH_DEP_FRESHNESS" "$DISPATCH_GROUPS" "$DISPATCH_BLOCKED_EXCLUDED" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-group-size-guard)" "$DISPATCH_OVERSIZED_EXCLUDED")
+
+if [ "$CACHE_HIT" = "1" ]; then
+  echo "Queue-order cache hit — using persisted groups/excluded, skipping dependency verification and native blocker query (#1571)." >&2
+fi
+
+if [ "$CACHE_HIT" != "1" ]; then
+
 gh issue list --state open --json number --limit 200 > "$DISPATCH_OPEN_NUMBERS"
 WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
 DISPATCH_GROUP_SIZE_GUARD=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-group-size-guard)
@@ -107,13 +157,51 @@ node -e "
   // Size guard (#1228): flagged, never removed from DISPATCH_GROUPS -- bare
   // and #N/#N,#M still resolve an oversized group normally (a human present,
   // explicitly naming/picking it, is itself the required surfacing). Only
-  // the headless `next` ranking script (Step 3) reads this file to exclude
-  // an oversized group from its own candidate pool, since nobody is present
-  // there to see a table row or answer a prompt.
+  // the drain's ranking script (Step 3 — bare, or its deprecated `next`
+  // alias) reads this file to exclude an oversized group from its own
+  // candidate pool, since nobody is present there to see a table row or
+  // answer a prompt.
   const groupSizeGuard = parseInt(process.argv[6], 10);
   const { oversized, threshold } = partitionGroupsBySizeGuard(groups, { groupSizeGuard });
   fs.writeFileSync(process.argv[5], JSON.stringify(oversized.map((g) => ({ records: g.map((i) => i.number), size: g.length, threshold }))));
 " "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" "$DISPATCH_BLOCKED_EXCLUDED_BODY" "$DISPATCH_BLOCKED_EXCLUDED" "$DISPATCH_OVERSIZED_EXCLUDED" "$DISPATCH_GROUP_SIZE_GUARD" > "$DISPATCH_GROUPS"
+
+# #1571: write-back (cache-miss path only — a hit's persisted blob already
+# reflects current state, so re-persisting it would be a wasted, byte-
+# identical write). Best-effort: a failed write here never blocks or fails
+# this firing (this design's own Gotchas) — only the persisted cache misses
+# the update, exactly like a losing CAS writer's own in-memory groups/
+# excluded staying valid for its own firing (AC5).
+DISPATCH_ALL_DEP_NUMBERS=$(node -e "
+  const { parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const eligiblePreDep = require(process.argv[1]);
+  const deps = new Set(eligiblePreDep.flatMap((i) => parseDependencies(i.body)));
+  console.log([...deps].join(','));
+" "$DISPATCH_ELIGIBLE_PRE_DEP")
+echo '[]' > "$DISPATCH_DEP_FRESHNESS"
+if [ -n "$DISPATCH_ALL_DEP_NUMBERS" ]; then
+  gh issue list --search "$(echo "$DISPATCH_ALL_DEP_NUMBERS" | tr ',' ' ' | sed 's/[0-9][0-9]*/#&/g')" --state all --json number,updatedAt,state --limit 500 > "$DISPATCH_DEP_FRESHNESS" 2>/dev/null || echo '[]' > "$DISPATCH_DEP_FRESHNESS"
+fi
+node -e "
+  const { mainCheckoutRoot } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/hooks/worktree-detect.js');
+  const path = require('path');
+  const { writeOrder, buildFreshnessSignal, composeOrderBlob } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/dispatch/queue-order.js');
+  const root = mainCheckoutRoot(process.cwd()) || process.cwd();
+  const autoBuild = require(process.argv[1]);
+  const depFreshness = require(process.argv[2]);
+  const groups = require(process.argv[3]);
+  const excluded = require(process.argv[4]);
+  const freshnessSignal = buildFreshnessSignal([...autoBuild, ...depFreshness]);
+  const blob = composeOrderBlob({
+    computedAt: new Date().toISOString(),
+    runId: process.env.PIPELINE_RUN_DIR ? path.basename(process.env.PIPELINE_RUN_DIR) : null,
+    freshnessSignal, groups, excluded,
+  });
+  const result = writeOrder(root, blob);
+  if (!result.ok) console.error('Queue-order cache write-back failed (non-blocking): ' + result.error);
+" "$DISPATCH_QUEUE_RAW" "$DISPATCH_DEP_FRESHNESS" "$DISPATCH_GROUPS" "$DISPATCH_BLOCKED_EXCLUDED"
+
+fi
 ```
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
