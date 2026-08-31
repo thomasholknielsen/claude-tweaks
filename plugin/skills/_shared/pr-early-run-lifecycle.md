@@ -271,15 +271,21 @@ branch is already on origin from Step 2 either way.
 ### Step 4: Record the PR
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-pr {number} {url}
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-pr --run "$RUN_DIR" {number} {url}
 ```
 
 Writes `run-state.json`'s `pr: { number, url }` field through the sanctioned write path — the
 same `record-worktree`/`close-run` precedent (CLAUDE.md's Hooks section: run-state is written
-only through `hooks.js` verbs). Resolves the target run dir the same way `record-worktree` does
-(`--run "$RUN_DIR"` explicit, or the fallback resolver) — pass `--run` explicitly here too, for
-the same reason `build/worktree-setup.md` Step 4.5 already states: a stale never-closed run
-elsewhere in the project can otherwise win the fallback resolution.
+only through `hooks.js` verbs). `--run "$RUN_DIR"` is required (#1484 — `record-pr` no longer
+falls back to a guessed run dir, mirroring `record-worktree`'s #1124 hardening): resolve
+`$RUN_DIR` per `_shared/pipeline-run-dir.md` immediately before this command, the same way
+`build/worktree-setup.md` Step 4.5 already does for `record-worktree` — a Bash tool call does not
+inherit environment exports from an earlier, separate call, so `$RUN_DIR` must be re-resolved (or
+read back from wherever this run tracked it) in the same command that invokes `record-pr`. On
+failure the command prints `claude-tweaks: record-pr requires --run — PR not recorded` (or, if
+`--run`'s value doesn't resolve, `claude-tweaks: --run path rejected: ... — PR not recorded`);
+verify the confirmation line (`claude-tweaks: PR #{number} recorded for {run-id}`) before
+proceeding.
 
 ## Resume: reconcile a recorded PR
 

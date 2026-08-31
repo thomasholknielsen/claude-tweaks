@@ -103,7 +103,10 @@ test('gh-absent now has a documented MCP fallback for PR create/update, using th
 });
 
 test('record-pr is cited as the sanctioned run-state write path, not a direct write', () => {
-  assert.match(LIFECYCLE, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js" record-pr \{number\} \{url\}/);
+  // #1484: --run is now required (no implicit fallback), so the documented
+  // invocation must include it — a bare `record-pr {number} {url}` snippet
+  // would fail every time it's copied verbatim.
+  assert.match(LIFECYCLE, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js" record-pr --run "\$RUN_DIR" \{number\} \{url\}/);
   assert.match(LIFECYCLE, /run-state is written\s*\n?\s*only through `hooks\.js` verbs/);
 });
 
