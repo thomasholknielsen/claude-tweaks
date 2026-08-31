@@ -187,11 +187,10 @@ session-recall fallback, both above — stated once, run from either.
    `work-backend: local-files` → `facets.parent`; `github-issues` + `work-links: body-text` →
    this record's own `Parent: #N` body line; `github-issues` + `work-links: native` → one
    `buildNativeParentQuery([n])` call (`bin/lib/issues/record.js`), run via
-   `gh api graphql -F owner={owner} -F repo={repo} -f query="$(node -e "…buildNativeParentQuery([n])…")"`
-   — `-F` for `owner`/`repo` here, even though both bind `String!` GraphQL variables: `-f` sends
-   the literal brace text as a static string and never expands it, the same defect #608/#626
-   verified live on this identical `query($owner:String!,$repo:String!)` shape — only `-F`
-   substitutes gh's `{owner}`/`{repo}` placeholder (`gh-api-module-pattern` skill). **No parent
+   `gh api graphql -f owner="{owner}" -f repo="{repo}" -f query="$(node -e "…buildNativeParentQuery([n])…")"`
+   — `-f` for `owner`/`repo` here, not `-F`: both are `String!` GraphQL variables. `-F` is for
+   substituting gh's literal `{owner}`/`{repo}` placeholder syntax inside a field *value* — a
+   different mechanism a GraphQL variable never uses (`gh-api-module-pattern` skill). **No parent
    resolvable** — omit the block entirely; nothing renders.
 2. **Enumerate siblings and their state**, from the parent side — reusing
    `wrap-up/verification-brief-parent-gate.md`'s "Enumerate the parent's sub-issues"
