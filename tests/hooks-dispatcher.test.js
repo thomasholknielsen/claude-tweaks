@@ -330,6 +330,29 @@ test('close-run with no resolvable run dir and no --run given prints a not-close
   assert.ok(result.stdout.trim().length > 0, 'expected a diagnostic message, not silent success');
 });
 
+// #1484 Deliverable 2 (escape-valve branch): unlike record-worktree/record-pr,
+// close-run keeps its implicit fallback (a bare `close-run` is a legitimate,
+// documented caller — _shared/git-discipline.md's "clear the assignment with
+// `node hooks.js close-run`"). Since the fallback stays, it must now disclose
+// which run dir it landed on, loudly, in its own stdout — so a mismatch is at
+// least visible rather than silent.
+test('close-run without --run discloses which run dir the implicit fallback resolved to', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['close-run'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /no --run given; resolved via implicit fallback to/);
+  assert.match(result.stdout, new RegExp(run.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+});
+
+test('close-run WITH an explicit --run prints no implicit-fallback disclosure', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['close-run', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /no --run given; resolved via implicit fallback/);
+});
+
 test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and preserves it on env-less re-record', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
@@ -790,11 +813,49 @@ test('e2e: pre-tool-use CLI allows an Edit when worktree-always policy is not se
 test('record-pr writes run-state.pr and prints a confirmation line', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  const result = runHook(['record-pr', '42', 'https://github.com/o/r/pull/42'], { cwd: project });
+  const result = runHook(['record-pr', '--run', run, '42', 'https://github.com/o/r/pull/42'], { cwd: project });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /claude-tweaks: PR #42 recorded for 2026-07-01T090000-spec-1/);
   const state = readRunState(run);
   assert.deepStrictEqual(state.pr, { number: 42, url: 'https://github.com/o/r/pull/42' });
+});
+
+// #1484: mirrors record-worktree's #1124 "requires --run" hardening — a
+// bare record-pr (no --run) must never guess a target run dir, regardless of
+// whether resolveRunDir's own fallback would have found exactly one
+// unambiguous candidate. Every real caller already passes --run explicitly
+// (_shared/pr-early-run-lifecycle.md Step 4).
+test('record-pr without --run is a true no-op and exits non-zero, even with exactly one resolvable run dir', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const before = readRunState(run);
+
+  const result = runHook(['record-pr', '42', 'https://github.com/o/r/pull/42'], { cwd: project });
+  assert.notStrictEqual(result.code, 0, 'record-pr without --run must exit non-zero, not silently guess a target run');
+  assert.match(result.stdout, /record-pr requires --run/);
+  assert.doesNotMatch(result.stdout, /PR #42 recorded/);
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged');
+});
+
+// #1484 Deliverable 1 (consistency with record-worktree's identical guard):
+// a `--`-prefixed token must never be silently accepted as the number/url
+// positional value.
+test('record-pr with an explicit --run still rejects a flag-shaped number or url positional', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const before = readRunState(run);
+
+  const badNumber = runHook(['record-pr', '--run', run, '--bogus-flag', 'https://github.com/o/r/pull/7'], { cwd: project });
+  assert.notStrictEqual(badNumber.code, 0);
+  assert.match(badNumber.stdout, /unrecognized argument --bogus-flag/);
+  assert.doesNotMatch(badNumber.stdout, /PR #\d+ recorded/);
+
+  const badUrl = runHook(['record-pr', '--run', run, '7', '--bogus-flag'], { cwd: project });
+  assert.notStrictEqual(badUrl.code, 0);
+  assert.match(badUrl.stdout, /unrecognized argument --bogus-flag/);
+  assert.doesNotMatch(badUrl.stdout, /PR #\d+ recorded/);
+
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no flag-shaped value ever written');
 });
 
 test('record-pr --run pins the target run dir, same as record-worktree', () => {
@@ -819,18 +880,18 @@ test('record-pr with a non-existent --run path fails loudly instead of falling b
   assert.match(result.stdout, /--run path rejected/);
 });
 
-test('record-pr with no resolvable run dir prints a not-recorded notice instead of silent success', () => {
+test('record-pr with no --run at all prints the requires-run notice instead of silent success', () => {
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
   const result = runHook(['record-pr', '7', 'https://github.com/o/r/pull/7'], { cwd: bare });
-  assert.strictEqual(result.code, 0);
-  assert.ok(result.stdout.trim().length > 0, 'expected a diagnostic message, not silent success');
+  assert.notStrictEqual(result.code, 0);
+  assert.match(result.stdout, /record-pr requires --run/);
   assert.doesNotMatch(result.stdout, /PR #7 recorded/);
 });
 
 test('record-pr with a non-numeric or missing number/url prints a usage notice instead of writing garbage state', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  for (const args of [['record-pr'], ['record-pr', 'not-a-number', 'https://x'], ['record-pr', '7']]) {
+  for (const args of [['record-pr', '--run', run], ['record-pr', '--run', run, 'not-a-number', 'https://x'], ['record-pr', '--run', run, '7']]) {
     const result = runHook(args, { cwd: project });
     assert.strictEqual(result.code, 0);
     assert.match(result.stdout, /usage: record-pr/);
@@ -1007,8 +1068,11 @@ test('record-pr does not resolve against an ambient PIPELINE_RUN_DIR the call si
     else process.env.PIPELINE_RUN_DIR = savedAmbient;
   }
 
-  assert.match(result.stdout, /no pipeline run dir found/,
-    'a call site that never passed PIPELINE_RUN_DIR must not resolve one from the test runner\'s ambient env');
+  // #1484: --run is now required outright, so this refuses even earlier than
+  // before — before ever weighing the ambient PIPELINE_RUN_DIR at all, not
+  // just failing to resolve against it.
+  assert.match(result.stdout, /record-pr requires --run/,
+    'a call site that never passed --run must refuse outright, never resolve via the ambient env');
   const state = JSON.parse(fs.readFileSync(path.join(decoyRun, 'run-state.json'), 'utf8'));
   assert.strictEqual(state.pr, undefined, 'decoy run-state.json must gain no pr field from the ambient env leak');
 });

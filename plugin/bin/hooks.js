@@ -76,7 +76,7 @@ const USAGE = {
   'record-worktree': 'record-worktree --run <dir> <worktree-path>',
   'resolve-run-dir': 'resolve-run-dir [--spec-slug <slug>] [--mode <mode>] [--standalone <value>] [--create] [--root-only]',
   'sweep-shadow': 'sweep-shadow [--run <dir>] [--worktree <path>]',
-  'record-pr': 'record-pr [--run <dir>] <number> <url>',
+  'record-pr': 'record-pr --run <dir> <number> <url>',
   'spec-status': 'spec-status --run <parent-dir> --spec <n> --status <pending|running|complete|failed|not-run> --phase <phase>',
   'close-run': 'close-run [--run <dir>]',
   'teardown-run': 'teardown-run [--run <dir>] [--merged|--abandoned]',
@@ -429,21 +429,41 @@ async function main(argv) {
     return result.diagnostic ? 1 : 0;
   }
   if (cmd === 'record-pr') {
-    // Mirrors record-worktree's shape: --run <path> pins the target run dir
-    // explicitly (falls back to resolveRunDir's newest-non-terminal-run scan
-    // when absent), positional args after it are the PR number and URL.
-    // run-state.json is written only through hooks.js verbs (CLAUDE.md's
-    // write-ownership rule) — this is the sanctioned verb for the pr-early
-    // run lifecycle's { number, url } field (#409).
-    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
-    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
+    // #1484: mirrors record-worktree's #1124 hardening — --run <path> is now
+    // REQUIRED, never an implicit resolveRunDir "newest non-terminal run"
+    // guess. Every real caller already passes --run explicitly
+    // (_shared/pr-early-run-lifecycle.md Step 4's own prose: "pass --run
+    // explicitly here too, for the same reason build/worktree-setup.md Step
+    // 4.5 already states"), so closing the implicit fallback here costs no
+    // legitimate caller and removes the same cross-run-corruption shape
+    // #1124 closed for record-worktree. Positional args after --run are the
+    // PR number and URL. run-state.json is written only through hooks.js
+    // verbs (CLAUDE.md's write-ownership rule) — this is the sanctioned verb
+    // for the pr-early run lifecycle's { number, url } field (#409).
+    const {
+      runDir, invalidRunArg, rest, worktreeLocalFallback, explicit,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     const numberArg = rest[0];
     const urlArg = rest[1];
     const number = Number(numberArg);
+    if (!explicit) {
+      process.stdout.write('claude-tweaks: record-pr requires --run — PR not recorded\n');
+      return 1;
+    }
+    reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — PR not recorded\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — PR not recorded\n');
+    } else if ((numberArg && numberArg.startsWith('-') && !Number.isInteger(number)) || (urlArg && urlArg.startsWith('-'))) {
+      // #1484 Deliverable 1 (consistency with record-worktree's identical
+      // guard): a `--`-prefixed token landing in the number/url positional
+      // slot is never treated as a literal value, even though Number()
+      // already NaNs most flag-shaped number args below — this closes the
+      // gap for a URL-slot flag typo the numeric check can't see.
+      const badArg = (numberArg && numberArg.startsWith('-') && !Number.isInteger(number)) ? numberArg : urlArg;
+      process.stdout.write(`claude-tweaks: unrecognized argument ${badArg} — PR not recorded\n`);
+      return 1;
     } else if (!numberArg || !Number.isInteger(number) || number <= 0 || !urlArg) {
       process.stdout.write(`claude-tweaks: usage: ${USAGE['record-pr']} — PR not recorded\n`);
     } else {
@@ -511,6 +531,17 @@ async function main(argv) {
     const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(
       argv.slice(3), process.cwd(), process.env, { includeWorktreeForeign: true },
     );
+    // #1484 Deliverable 2 (escape-valve branch): unlike record-worktree/
+    // record-pr, close-run keeps its implicit resolveRunDir fallback — a
+    // bare `close-run` (no --run) is a legitimate, currently-documented
+    // caller (_shared/git-discipline.md's "clear the assignment with `node
+    // hooks.js close-run`"), so requiring --run here would break real usage.
+    // Instead, disclose which run dir an implicit resolution landed on, so a
+    // mismatch is at least visible in this command's own stdout rather than
+    // silent.
+    if (!explicit && runDir) {
+      process.stdout.write(`claude-tweaks: close-run — no --run given; resolved via implicit fallback to ${runDir} (newest non-terminal run). Pass --run explicitly if this is not the intended run.\n`);
+    }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);

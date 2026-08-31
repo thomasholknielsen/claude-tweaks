@@ -71,9 +71,10 @@ test('#1143: every USAGE-table verb honors -h identically to --help', () => {
 });
 
 test('#1143: --help anywhere in the argument list intercepts, not just as the first arg', () => {
-  // record-pr's real shape is `record-pr [--run <dir>] <number> <url>` — a
-  // --help buried after other-looking positionals must still intercept
-  // before record-pr's own numberArg/urlArg validation ever runs.
+  // record-pr's real shape is `record-pr --run <dir> <number> <url>` (--run
+  // required since #1484) — a --help buried after other-looking positionals
+  // must still intercept before record-pr's own numberArg/urlArg validation
+  // ever runs.
   const result = runHook(['record-pr', '--run', '/does/not/exist', '123', '--help']);
   assert.strictEqual(result.code, 0);
   assert.strictEqual(result.stdout, `claude-tweaks: usage: ${USAGE['record-pr']}\n`);
