@@ -22,11 +22,10 @@
 'use strict';
 
 const path = require('path');
-const { execFileSync } = require('child_process');
 const { repairClaim, defaultRunner: repairDefaultRunner } = require('./lib/repair-claim/repair');
 const { formatEntry, appendEntry, resolveTarget } = require('./lib/log-decision/append');
 const { defaultRunner: gitDefaultRunner } = require('./lib/issues/claims-git-cas');
-const { parseRepo } = require('./lib/repo-resolve');
+const { parseRepo, ghAvailable, remoteUrl } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: repair-claim.js <issue> --run <run-dir> --mode <release|reclaim> --reason <reason> [--link <url>] [--repo owner/name] [--section "/<skill>"] [--step <text>] [--help]\n';
 const EXIT = { repaired: 0, 'cas-rejected': 3, refused: 4, failed: 1 };
@@ -63,8 +62,8 @@ const realDeps = {
   repair: repairClaim,
   runner: repairDefaultRunner,
   gitRunner: gitDefaultRunner,
-  ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
-  remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  ghAvailable,
+  remoteUrl,
   now: () => Date.now(),
   cwd: () => process.cwd(),
   mainRoot: undefined,
