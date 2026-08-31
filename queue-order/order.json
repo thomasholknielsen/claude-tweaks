@@ -1,11 +1,46 @@
 {
-  "computedAt": "2026-08-31T17:47:08.321Z",
+  "computedAt": "2026-08-31T18:20:34.058Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
       {
         "number": 1726,
-        "updatedAt": "2026-08-31T17:41:56Z",
+        "updatedAt": "2026-08-31T18:00:28Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1725,
+        "updatedAt": "2026-08-31T17:58:36Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1684,
+        "updatedAt": "2026-08-31T17:58:39Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1679,
+        "updatedAt": "2026-08-31T17:58:42Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1678,
+        "updatedAt": "2026-08-31T18:00:44Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1675,
+        "updatedAt": "2026-08-31T17:58:48Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1670,
+        "updatedAt": "2026-08-31T17:58:50Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1664,
+        "updatedAt": "2026-08-31T18:00:40Z",
         "state": "OPEN"
       },
       {
@@ -15,7 +50,7 @@
       },
       {
         "number": 1633,
-        "updatedAt": "2026-08-29T16:18:08Z",
+        "updatedAt": "2026-08-31T17:56:55Z",
         "state": "OPEN"
       },
       {
@@ -104,6 +139,11 @@
         "state": "OPEN"
       },
       {
+        "number": 1452,
+        "updatedAt": "2026-08-31T17:59:00Z",
+        "state": "OPEN"
+      },
+      {
         "number": 1442,
         "updatedAt": "2026-08-29T22:30:12Z",
         "state": "OPEN"
@@ -116,6 +156,11 @@
       {
         "number": 1429,
         "updatedAt": "2026-08-27T00:20:23Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1407,
+        "updatedAt": "2026-08-31T17:59:03Z",
         "state": "OPEN"
       },
       {
@@ -204,13 +249,18 @@
         "state": "OPEN"
       },
       {
-        "number": 873,
-        "updatedAt": "2026-08-30T06:31:11Z",
+        "number": 883,
+        "updatedAt": "2026-08-31T17:59:05Z",
         "state": "OPEN"
       },
       {
-        "number": 833,
-        "updatedAt": "2026-08-31T06:55:03Z",
+        "number": 881,
+        "updatedAt": "2026-08-31T17:59:08Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 873,
+        "updatedAt": "2026-08-30T06:31:11Z",
         "state": "OPEN"
       },
       {
@@ -277,6 +327,12 @@
             "color": "F9D0C4"
           },
           {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
             "id": "LA_kwDORUwzVM8AAAACverRqw",
             "name": "by:docs-health",
             "description": "",
@@ -298,7 +354,7 @@
         "number": 1726,
         "state": "OPEN",
         "title": "Doc staleness: plans/2026-08-25-record-1094-ledger — Open Items",
-        "updatedAt": "2026-08-31T17:41:56Z",
+        "updatedAt": "2026-08-31T18:00:28Z",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
@@ -306,11 +362,567 @@
           "ceremony": null,
           "solutionUnjustified": false,
           "needsDefinition": false,
-          "priority": null,
+          "priority": "low",
           "stage": "ready",
           "grants": {
             "build": true,
             "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Skill:** skill-prose-conformance-tests | **Section:** Key Patterns | **Category:** best-practice | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 1cc2fc79b2f4ffa696ec279f205bddefa0e14180\n\n## Current State\n\nLive extraction via the fence/span regex documented in this same file (`codeRegions`) against plugin/skills/flow/multispec-freshness.md returns fences: 0, spans: 94 today — not the 95 spans the prose claims. This is the exact hand-typed-count-drift hazard Step 1 check 6 warns about: the file already tells readers elsewhere in this document to \"count it live\" instead of hardcoding a number (see the `grep -l 'skills/' tests/*.test.js | wc -l` example at the top of this same file); this claim should follow the same convention rather than staying a number that will drift again on the next edit to multispec-freshness.md.\n\n## Deliverables\n\n**Current:**\n```\nIt is live, not hypothetical: `multispec-freshness.md` today has 95 inline spans and **zero** fenced blocks, so the fence half of that helper is currently pinning nothing and a bug in it would not show.\n```\n\n**Proposed:**\n```\nIt is live, not hypothetical: `multispec-freshness.md` today has zero fenced blocks and dozens of inline spans (count live: `grep -oE '`[^`\\n]+`' plugin/skills/flow/multispec-freshness.md | wc -l`), so the fence half of that helper is currently pinning nothing and a bug in it would not show.\n```\n\n## Acceptance Criteria\n\nThe hand-typed span/fence count for multispec-freshness.md has drifted: the file now has 94 inline spans, not 95, while the fenced-block count (zero) is still correct.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-204bc704 -->",
+        "createdAt": "2026-08-31T05:23:18Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
+            "name": "by:harness-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
+            "name": "harness-health:additive",
+            "description": "",
+            "color": "ededed"
+          }
+        ],
+        "number": 1725,
+        "state": "OPEN",
+        "title": "Skill best-practice: skill-prose-conformance-tests — Key Patterns",
+        "updatedAt": "2026-08-31T17:58:36Z",
+        "facets": {
+          "origin": "harness-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Defer-reason: genuinely-larger\n\n## Current State\n\n`/flow`'s standard invocation shape runs `build,test` and `review,polish,wrap-up` as two separate Task calls, each a distinct `session_id`. `record-worktree` (the CLI verb at `plugin/bin/hooks.js`, stamping a `worktree` field into `run-state.json`) is meant to be called once per run during build's Common Step 1 (`plugin/skills/build/worktree-setup.md`, \"Record the assignment\" — marked non-skippable). In practice each Task call's attempt gets classified \"foreign\" by the ownership-stamp gate (`checkBookkeepingStampsGate` in `plugin/bin/lib/hooks/pre-tool-use.js`), which is warn-only — it logs a `wd-foreign-session` event and lets the write through, but never itself performs the stamp. The result: `run-state.json` can carry no `worktree` field for a run's entire life, even though a real worktree backed every phase.\n\n`plugin/bin/lib/reconcile/archive-merged.js`'s `archiveMerged` loop checks `if (!state || !state.worktree) { skipped.push({ reason: 'no-worktree' }); continue; }` (line 515) — before ever reading PR or console state. A run stuck this way never self-archives via the reconcile sweep, no matter how long after merge reconcile runs.\n\nReproduced live on run `2026-08-29T161123-record-1653` (record #1653, PR #1665): the merge succeeded and reconcile released the claim cleanly, but the run dir stayed skip-reason `no-worktree` across two further reconcile passes. `events.jsonl` for that run shows repeated `wd-foreign-session` warn events across the run's lifetime, never escalating into a forced remediation. Manual recovery worked: `node bin/hooks.js record-worktree --run <dir> <worktree-path>`, then `close-run`, then `archive-run` — all three succeeded once the stamp existed, confirming the workaround and pinpointing the missing automatic step.\n\nThis most likely affects every `/flow` run whose merge does not complete synchronously within the same session that ran build/test — i.e. any `needs-human`, parked, or otherwise resumed-later run, which is a routine occurrence, not an edge case.\n\n## Deliverables\n\nOne of:\n(a) Make the ownership-stamp gate recognize `/flow`'s known two-Task-call shape as same-run rather than foreign — e.g. treat a shared `PIPELINE_RUN_DIR`/run-id across sessions as authorization to stamp, rather than only warning.\n(b) Give `archive-merged.js`'s sweep a fallback branch that does not hard-require `state.worktree` when the run's `run-state.json` PR object shows the PR is confirmably `MERGED` — resolving the branch another way (e.g. `gh pr view --json headRefName`) instead of only via the worktree-list lookup.\n\nEither fix should also cover the archival precondition itself so a run stuck at `no-worktree` today does not require the three-command manual recovery sequence above.\n\n## Acceptance Criteria\n\nA `/flow` run structured as two separate Task-call sessions (build,test then review,polish,wrap-up) ends its life with a `worktree` field stamped in `run-state.json` without manual intervention, OR reconcile's `archive-merged.js` archives such a run once its PR is confirmed `MERGED`, without requiring `state.worktree` to be present. Existing reconcile/hooks test suites (`tests/bin-lib/reconcile/`, `tests/bin-lib/hooks/`) pass unchanged plus new coverage for whichever branch is chosen.\n\n_Filed by `capture` via specShapedBody._",
+        "createdAt": "2026-08-29T20:10:01Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 1684,
+        "state": "OPEN",
+        "title": "/flow's two-Task-call sessions never stamp record-worktree, permanently stalling reconcile's archival of runs whose merge is deferred",
+        "updatedAt": "2026-08-31T17:58:39Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Defer-reason: pre-existing-outside-diff\n\n## Current State\n\n#1652 (this session, in progress) deduped two hand-duplicated sync/async primitive wrapper pairs — `runGit`/`runGitAsync` (`plugin/bin/lib/hooks/git-exec.js`) and `ghHealthCheck`/`ghHealthCheckAsync` (`plugin/bin/lib/reconcile/preflight.js`) — by extracting a shared `runClassified`/`runClassifiedAsync` try/execute/catch scaffold into `plugin/bin/lib/shared-primitives.js`, with each pair's own `buildSuccess`/`buildFailure` shaping functions defined once and reused by both twins.\n\n#1652's own final whole-branch review (opus, 2026-08-29) independently found two more pairs following the exact same shape, in files #1652's diff never touches:\n- `ghApi` / `ghApiAsync` — `plugin/bin/lib/reconcile/release-merged.js:87` and `:138`. Retyped try/catch, retyped { stdout, failure } shaping, retyped `classifyGhExecError(e)` in both.\n- `resolvePrState` / `resolvePrStateAsync` — `plugin/bin/lib/reconcile/pr-state.js:73` and `:102`. Retyped try/catch -> `classifyExecError`, plus a second retyped `JSON.parse` -> 'network-failure' fallback in each.\n\nNote: `resolvePrStateAsync` has a deliberate, documented asymmetry from `resolvePrState` (no opts/preferOpen parameter) — this pair is not a pure mechanical dedup the way the first two were; the fix needs to preserve that asymmetry, not flatten it away.\n\nThe reviewer also suggested (as a nice-to-have, not required) a derived key-parity test — Object.keys() parity between a sync/async twin's success and failure results, computed from the two live results rather than a hard-coded literal list — added once for each pair this record touches, to convert AC clause 3's one identified residual (a maintainer widening buildSuccess's signature could update one twin's call site and leave the other silently passing undefined, since nothing currently compares the two twins' shapes to each other) into a red test rather than a silent gap.\n\n## Deliverables\n\nExtend the `runClassified`/`runClassifiedAsync` + per-pair `buildSuccess`/`buildFailure` pattern (already shipped by #1652 in `git-exec.js` and `preflight.js`) to:\n1. `ghApi`/`ghApiAsync` in `plugin/bin/lib/reconcile/release-merged.js`.\n2. `resolvePrState`/`resolvePrStateAsync` in `plugin/bin/lib/reconcile/pr-state.js` — preserving `resolvePrState`'s extra opts/preferOpen parameter that `resolvePrStateAsync` deliberately omits.\n\nOptionally, add one derived Object.keys() parity test per pair (covering all four pairs now unified under the scaffold, not just these two) as the reviewer's suggested hardening for AC clause 3's residual.\n\n## Acceptance Criteria\n\nNo behavioral change to any existing caller. Existing test suites for `release-merged.js` and `pr-state.js` (and any other suite exercising these two pairs) still pass. Same structural guarantee #1652 established: a future fix to one twin's contract cannot land without the shared code path enforcing it also applies to the other — for these two pairs too.\n\n_Filed by `capture` via specShapedBody. Discovered during #1652's whole-branch review._",
+        "createdAt": "2026-08-29T18:25:02Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1679,
+        "state": "OPEN",
+        "title": "reconcile: dedup remaining hand-duplicated sync/async primitive pairs (ghApi/ghApiAsync, resolvePrState/resolvePrStateAsync)",
+        "updatedAt": "2026-08-31T17:58:42Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "low",
+          "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Origin: wrap-up Upstream feedback row from #1321\n\nDefer-reason: tangential\n**Related:** #1664\n\n## Current State\n\nThe bookkeeping-stamps gate (`docs/hooks.md`) denies any Write under a pipeline run's scope until both `record-worktree` and PR-open have landed, and names the exact remediation in its denial. During #1321's wrap-up run, a `Write` targeting the *session scratchpad* (outside both the worktree and the run directory the gate exists to protect) was denied by the same rule while a PR body was being composed. The run recovered cleanly — `gh pr create --body '...'` inline, no temp file needed — so this was not blocking, but the gate's path-matching appears to reach beyond its own stated scope (the run directory) into unrelated scratch paths.\n\n## Deliverables\n\n- Confirm whether the bookkeeping-stamps gate's path-matching is meant to cover the session scratchpad, or only the pipeline run directory / worktree it documents.\n- If out of scope: narrow the gate's matcher so a scratchpad write is never denied by this rule.\n- If in scope: update `docs/hooks.md` to state that explicitly, so the denial message's remediation advice covers the scratchpad case too.\n\n## Acceptance Criteria\n\nA `Write` to a path under the session scratchpad directory succeeds regardless of `record-worktree`/PR-open bookkeeping-stamp state, verified by a regression test in the hooks gate suite; or `docs/hooks.md` explicitly documents the scratchpad as in-scope and the denial message names the correct remediation for that case.\n\n_Filed by `wrap-up` Upstream feedback row via specShapedBody — reclassified from a D5 upstream candidate: the self-reference check (`_shared/learning-routing.md`) collapsed because this project IS claude-tweaks._\n",
+        "createdAt": "2026-08-29T18:06:29Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          }
+        ],
+        "number": 1678,
+        "state": "OPEN",
+        "title": "bookkeeping-stamps gate may deny session-scratchpad writes outside its documented scope",
+        "updatedAt": "2026-08-31T18:00:44Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\nOrigin: ledger resolve gate\n\nDefer-reason: genuinely-larger\n\n## Current State\n\n#1276's build encoded the declined structural-isolation rationale into plugin/skills/challenge/SKILL.md and plugin/skills/_shared/untrusted-record-content.md, but AC 3 forbade touching plugin/skills/specify/. The whole-branch review found two sibling files still stating the pre-#1276 cost-only rationale for framing-check's inline invocation: plugin/skills/specify/next-mode-shape.md:46-48 (\"challenge/SKILL.md's own contract: the caller already holds the body, so a subagent would only pay to re-derive it\") and plugin/skills/assess-agent-autonomy/SKILL.md:96 (its Anti-Patterns row, \"a subagent only pays to re-derive it\"). Both cite the canonical home correctly (state-it-once holds), but a maintainer reading either call site sees only the cost argument, not the security case #1276 decided.\n\n## Deliverables\n\n- [ ] Update plugin/skills/specify/next-mode-shape.md:46-48 to cite challenge/SKILL.md's three-ground declined-isolation rationale (#1276) rather than restating the cost-only half.\n- [ ] Update plugin/skills/assess-agent-autonomy/SKILL.md:96's Anti-Patterns row the same way.\n- [ ] Sweep for any other restatement of the pre-#1276 cost-only phrasing across the repo (grep for \"only pay(s) to re-derive it\" outside challenge/SKILL.md).\n- [ ] Confirm no test pins the exact restated phrasing at either site before editing (re-derive the pin set fresh — a prior grep found none, but re-verify at build time).\n\n## Acceptance Criteria\n\n1. Neither cited call site restates the cost-only rationale without pointing at challenge/SKILL.md's declined-isolation paragraph.\n2. `npm test` passes.\n3. No file outside the two named sites plus any newly discovered sweep hits is touched.\n\n_Filed by `ledger resolve gate`. Close to resolve; label `wontfix` to suppress future reports of this finding._",
+        "createdAt": "2026-08-29T18:01:14Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1675,
+        "state": "OPEN",
+        "title": "Point next-mode-shape.md and assess-agent-autonomy/SKILL.md at #1276's declined-isolation rationale",
+        "updatedAt": "2026-08-31T17:58:48Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Defer-reason: genuinely-larger\n\n## Current State\n\n`plugin/bin/lib/verify/report.js`'s `writeReportAtomic()` (lines 55-59) hand-rolls a tmp-write-then-rename atomic write with a **non-pid-suffixed** tmp path (`${jsonPath}.tmp`) and no cleanup-on-failure — two concurrent `verify.js` processes writing the same `jsonPath` collide on that shared tmp filename, a real latent bug. `plugin/bin/lib/model-profiles/session-failures.js`'s `recordFailure()` (~lines 116-118) hand-rolls the same pattern with a pid-suffixed tmp path but likewise no cleanup-on-failure. Neither was migrated by #1653 (which extracted `plugin/bin/lib/atomic-write.js`'s `writeFileAtomic(filePath, content, deps)` from four other copies) because #1653's spec, filed from a pre-release review's findings #6-#8, named only those four sites — #1653's own final whole-branch review found these two afterward by grepping the repo for the `renameSync` pattern directly. `writeReportAtomic`'s current signature takes an `fsImpl` object rather than named deps (`tests/bin-lib/verify/report.test.js:79-85` asserts against that shape).\n\n## Deliverables\n\nMigrate both `writeReportAtomic` and `recordFailure` onto `writeFileAtomic`, giving `writeReportAtomic` a pid-suffixed tmp path in the process — a genuine behavior fix (fixes the concurrent-collision bug), not just a refactor, so it needs its own test. Reshape `writeReportAtomic`'s `fsImpl`-object signature to the injectable-deps convention the other four consumers use.\n\n## Acceptance Criteria\n\nBoth consumers call `writeFileAtomic` instead of hand-rolling tmp-write-rename. `writeReportAtomic`'s tmp path is pid-suffixed, with a test proving two different-pid writers no longer collide on the tmp filename. Existing test suites for both consumers pass (reshaped for `report.test.js` given its signature change, not just re-run unmodified). No new runtime dependency.\n\n_Filed by `capture` via specShapedBody._\n",
+        "createdAt": "2026-08-29T16:45:45Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          }
+        ],
+        "number": 1670,
+        "state": "OPEN",
+        "title": "Migrate verify/report.js and model-profiles/session-failures.js onto writeFileAtomic",
+        "updatedAt": "2026-08-31T17:58:50Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "low",
+          "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Origin: reflect light from #1216\nDefer-reason: tangential\n**Related:** #1678\n\n## Current State\n\nDuring run 2026-08-29T153753-spec-1216, the bookkeeping-stamps gate (docs/hooks.md) denied a Write to the session scratchpad (`.../scratchpad/pr-early-body-1216.md`, outside the repo) that was composing the draft-PR body for the exact PR the gate's own error message demanded (\"no PR is recorded for this run — open it now\"). The push had already succeeded; the very next action was `gh pr create --body-file` using that file. The workaround was composing the body inline via `gh pr create --body`, which the gate does not intercept.\n\n## Deliverables\n\n- The gate's covered-write set excludes paths outside the repository root (session scratchpad, system temp), OR `_shared/pr-early-run-lifecycle.md` Step 3 documents inline `--body` composition as the sanctioned path so the body-file idiom is never attempted between push and PR-record.\n\n## Acceptance Criteria\n\n- [ ] A run at the materialize-committed/no-PR-recorded stage can compose its PR body file in the session scratchpad without a gate denial, or the documented Step 3 procedure no longer writes a body file at that stage.\n- [ ] The gate still denies covered writes inside the repo at that stage (no weakening of [IL-131] protection).\n\n_Filed by `reflect` via specShapedBody._\n\n",
+        "createdAt": "2026-08-29T16:13:06Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
+            "name": "bug",
+            "description": "Something isn't working",
+            "color": "d73a4a"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          }
+        ],
+        "number": 1664,
+        "state": "OPEN",
+        "title": "bookkeeping-stamps gate: covered-write scope blocks composing the PR body it demands",
+        "updatedAt": "2026-08-31T18:00:40Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
           },
           "bot": {
             "inProgress": false,
@@ -462,7 +1074,7 @@
         "number": 1633,
         "state": "OPEN",
         "title": "validateShaped lacks the '## Original request' placeholder exemption that #1240 fixed elsewhere",
-        "updatedAt": "2026-08-29T16:18:08Z",
+        "updatedAt": "2026-08-31T17:56:55Z",
         "facets": {
           "origin": "code-health",
           "risk": "high",
@@ -1723,6 +2335,164 @@
     ],
     [
       {
+        "body": "Origin: ledger resolve gate\n\nDefer-reason: blocked-external\n\n## Current State\n\nresidue.js's blast-radius sweep found two un-archived pipeline run directories whose run-state.json already reads status: clean: .claude-tweaks/pipelines/2026-08-24T183144-record-1094 and .claude-tweaks/pipelines/2026-08-25T150921-record-1420. `node plugin/bin/hooks.js archive-run --run <dir>` refuses both with `archival refused - git-mv-failed` (bin/lib/reconcile/archive-merged.js's archiveRunDir, the git mv pass over the run dir's tracked work/ entries).\n\n## Deliverables\n\n- [ ] Reproduce archive-run's git-mv-failed for a status:clean run dir with a committed work/{n}-spec.md entry\n- [ ] Determine root cause (untracked non-work/ paths under the run dir confusing the git mv pass, a working-tree state git mv refuses, or a worktree-vs-main-checkout path mismatch)\n- [ ] Fix archiveRunDir so a clean run dir with a normal work/ layout archives successfully, or document why these two specifically cannot\n\n## Acceptance Criteria\n\n`node plugin/bin/hooks.js archive-run --run .claude-tweaks/pipelines/2026-08-24T183144-record-1094` (and the -1420 sibling) succeed and move the run dir under .claude-tweaks/pipelines/archive/\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
+        "createdAt": "2026-08-25T17:47:22Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
+            "name": "bug",
+            "description": "Something isn't working",
+            "color": "d73a4a"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACyWQCQw",
+            "name": "needs:decision",
+            "description": "a headless unit proposed an action it may not take alone — see the newest decision comment",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 1452,
+        "state": "OPEN",
+        "title": "archive-run refuses two clean pipeline run dirs with git-mv-failed",
+        "updatedAt": "2026-08-31T17:59:00Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Origin: spec #1072 review (architecture)\n\nDefer-reason: pre-existing-outside-diff\n\n## Current State\n\n`_shared/auto-decision-log.md`'s canonical STATUS vocabulary table (and `plugin/bin/lib/log-decision/append.js`'s `STATUSES` array) documents exactly five statuses: `AUTO`/`STAGED`/`KEPT-PROMPT`/`SCANNED`/`REFUSED`. `FAILED` decisions.md lines are not part of that vocabulary, but two independent hand-composed writers already emit them: `plugin/skills/backlog/refine-mode.md` Step 5's own `FAILED {time} — …` template (pre-existing, predates #1072) and, since #1072, `plugin/bin/apply-refine-labels.js`'s catch block (`deps.appendEntry` with a hand-built `- FAILED …` line, bypassing `append.js`'s `formatEntry`/`STATUSES` gate on purpose — #1072's review verified extending the enum would touch multiple consumers, so the CLI writes the line directly instead).\n\nTwo readers of `decisions.md` don't recognize `FAILED` as a kind:\n- `plugin/bin/lib/calibration/decisions-classifier.js`'s `KIND_RE` (`/^-\\s+(AUTO|STAGED|KEPT-PROMPT|REFUSED|SCANNED)\\b/`) — a `FAILED` line falls through to `{ kind: 'other' }` and is silently excluded from every calibration bucket `plugin/bin/lib/calibration/aggregate.js` computes (refusedCount, reversibilityDist, etc.). `plugin/bin/calibration-report.js` scans every archived run dir under `.claude-tweaks/pipelines/archive`, including refine-mode's own standalone-auto run dirs, so this is a real (if minor) undercount today, not hypothetical.\n- `tests/wrap-up-console-fast-path-scanned-exclusion.test.js`'s `DECISION_BEARING_STATUSES` list (`['AUTO', 'STAGED', 'KEPT-PROMPT', 'REFUSED']`), mirroring `plugin/skills/wrap-up/review-console.md`'s Empty-console fast path condition — also omits `FAILED`. Verified during #1072's review that this specific gap is currently unreachable in practice: `apply-refine-labels.js --run` is only ever invoked from `plugin/skills/backlog/refine-lanes.md` against refine-mode's own \"standalone-auto run dir\" (`_shared/pipeline-run-dir.md`), never against a `/flow` `$PIPELINE_RUN_DIR` that `review-console.md`'s fast path actually gates — so no live wrap-up console has silently skipped over a real failure yet. That separation is incidental, not enforced, so it's worth documenting rather than relying on.\n\nNeither reader crashes or misclassifies a `FAILED` line as some other status — the failure mode is silent non-attribution, not corruption.\n\n## Deliverables\n\n- [ ] Add `FAILED` to the documented status vocabulary in `_shared/auto-decision-log.md`'s STATUS table (with a short description: a batch write attempt that errored, kept separate from `AUTO`/`REFUSED` since it has no \"revert\" or \"no valid Defer-reason\" semantics).\n- [ ] Extend `plugin/bin/lib/calibration/decisions-classifier.js`'s `KIND_RE` to recognize `FAILED` and decide (with `aggregate.js`) whether/how a failed-count bucket should surface in calibration reports.\n- [ ] Extend `tests/wrap-up-console-fast-path-scanned-exclusion.test.js`'s `DECISION_BEARING_STATUSES` (and `review-console.md`'s prose condition) to include `FAILED` as decision-bearing, so the Empty-console fast path can't silently skip a run whose only content is an unresolved failure, even if today's only two writers happen not to reach it.\n- [ ] Decide whether `append.js`'s `formatEntry`/`STATUSES` should gate `FAILED` too (bringing both existing hand-composed writers onto the shared formatter) or whether hand-composition stays the documented pattern for this one status — either way, update the vocabulary doc to match reality.\n\n## Acceptance Criteria\n\nA `decisions.md` file containing only a `FAILED` line (no `AUTO`/`STAGED`/`KEPT-PROMPT`/`REFUSED`) is treated as decision-bearing by the wrap-up console's fast-path test, and `calibration-report.js`'s aggregate output visibly accounts for `FAILED` lines (a named bucket, not silent `'other'`) — both backed by a test.\n\n_Filed by `review` via specShapedBody._\n",
+        "createdAt": "2026-08-24T16:53:05Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1407,
+        "state": "OPEN",
+        "title": "decisions.md FAILED status: undocumented, uncounted by calibration and wrap-up console fast path",
+        "updatedAt": "2026-08-31T17:59:03Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
         "body": "Surface: backend\n\n## Current State\n\nRecord #649 added `_shared/subagent-output-contract.md`'s fan-out single-assistant-message-rule\nsentence and per-site citations (AC1, fully test-pinned in `tests/subagent-contract-clauses.test.js`,\n18/18 passing). AC2 — \"A `/specify` red-team over 2+ `ceremony:standard` sub-issues launches its\npersonas in ≤ (number of sub-issues) assistant messages, verified in the transcript by `Agent`\ntool_use blocks sharing a message id\" — is a live-behavior criterion that cannot be verified by a\nstatic `node --test` assertion; it can only be confirmed by observing an actual future `/specify`\ndecomposition run's transcript.\n\n## Deliverables\n\nConfirm, at the next `/specify` decomposition run over 2+ `ceremony:standard` sub-issues, that\npersona dispatch actually batches into ≤N assistant messages per `_shared/subagent-output-contract.md`'s\nfan-out single-assistant-message rule and `red-team.md`'s per-sub-issue batching unit. Record the\nobservation (transcript excerpt or note) against this item, or file a defect against\n`red-team.md`'s dispatch prose if it does not.\n\n## Acceptance Criteria\n\nA `/specify` run over 2+ `ceremony:standard` sub-issues is observed; its persona `Agent` tool_use\ncalls are confirmed (via transcript `tool_use` block message-id grouping) to arrive in ≤ (number of\nsub-issues) assistant messages.\n\n## Technical Approach\n\nWait for (or trigger) a `/claude-tweaks:specify` decomposition-mode run that produces 2 or more\n`ceremony:standard` sub-issue records — `ceremony-check` (`assess-agent-autonomy/ceremony-check.md`)\nresolves the tier per sub-issue during that run's own Step 3, so the tier isn't knowable until the\nrun happens. Once such a run occurs, inspect that session's stored transcript for the Step 5\nred-team dispatch (`specify/red-team.md`'s Parallel dispatch section): locate the `Agent` tool_use\nblocks for each dispatched persona and group them by the assistant message id each block belongs\nto. Confirm the number of distinct assistant message ids covering all persona dispatches for a\ngiven sub-issue is ≤ the number of sub-issues in that batch. Use the same read-only transcript\ninspection method `transcript-payload-verification` documents for reading this session's own\nlocally-stored transcript, rather than instrumenting or modifying `red-team.md` itself.\n\nIf the count exceeds the bound, file a defect issue against `red-team.md`'s dispatch prose\n(quoting the transcript grouping that violates the rule) instead of editing the file directly from\nthis record — this record's own deliverable is the observation, not the fix.\n\n### Key Files\n\n- `plugin/skills/specify/red-team.md` — the per-sub-issue persona dispatch procedure being observed\n- `plugin/skills/_shared/subagent-output-contract.md` — the fan-out single-assistant-message rule this observation verifies compliance with\n- `tests/subagent-contract-clauses.test.js` — AC1's existing static test coverage (unaffected by this record)\n\n## Gotchas\n\n- This record's acceptance criterion depends on an external event (a live `/specify` decomposition\n  run over 2+ `ceremony:standard` sub-issues happening) that this record cannot itself trigger on a\n  fixed schedule — it may sit open for some time until a qualifying run occurs naturally, or until\n  someone deliberately runs one to close it out.\n- A qualifying run must be observed via its own transcript at the time it happens; this record\n  cannot be resolved from historical data if no already-completed run's transcript is still\n  available.\n\n## Original request\n\nVerify /specify red-team fan-out batching at next live multi-sub-issue run (#649 AC2)\n\nOrigin: ledger resolve gate\n\nDefer-reason: needs-human-decision\n\n## Current State\n\nRecord #649 added `_shared/subagent-output-contract.md`'s fan-out single-assistant-message-rule sentence and per-site citations (AC1, fully test-pinned in `tests/subagent-contract-clauses.test.js`, 18/18 passing). AC2 — \"A `/specify` red-team over 2+ `ceremony:standard` sub-issues launches its personas in ≤ (number of sub-issues) assistant messages, verified in the transcript by `Agent` tool_use blocks sharing a message id\" — is a live-behavior criterion that cannot be verified by a static `node --test` assertion; it can only be confirmed by observing an actual future `/specify` decomposition run's transcript.\n\n## Deliverables\n\nConfirm, at the next `/specify` decomposition run over 2+ `ceremony:standard` sub-issues, that persona dispatch actually batches into ≤N assistant messages per `_shared/subagent-output-contract.md`'s fan-out single-assistant-message rule and `red-team.md`'s per-sub-issue batching unit. Record the observation (transcript excerpt or note) against this item, or file a defect against `red-team.md`'s dispatch prose if it does not.\n\n## Acceptance Criteria\n\nA `/specify` run over 2+ `ceremony:standard` sub-issues is observed; its persona `Agent` tool_use calls are confirmed (via transcript `tool_use` block message-id grouping) to arrive in ≤ (number of sub-issues) assistant messages.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
         "createdAt": "2026-08-24T03:21:25Z",
         "labels": [
@@ -2045,6 +2815,174 @@
     ],
     [
       {
+        "body": "Surface: backend\n\n## Current State\n\n`test/SKILL.md` is ~20.8KB and always-loaded; a bare `/test types` pays for the full QA argument surface, pipeline tables, and fix-mode prose it never uses.\n\n## Deliverables\n\n- An IL-72-style split arithmetic pass on `test/SKILL.md`, done at design time (not implementation time): measure sub-file headers + routing stubs against bytes skipped per hot path, and split only where the split is net-positive.\n\n## Acceptance Criteria\n\n- [ ] A measured comparison exists (per record) showing, for each candidate split point, the bytes a hot path (e.g. `/test types`) would skip versus the bytes added by sub-file headers and routing stubs.\n- [ ] Any split actually made is net-positive by that measurement — no split is made where the routing overhead would exceed the bytes saved.\n- [ ] `npm test` passes; `/test`'s existing modes are unaffected in behavior.\n\n## Technical Approach\n\nFollow this repo's existing IL-72 split-arithmetic precedent: measure `test/SKILL.md`'s current always-loaded size, identify candidate split points along its mode boundaries (types-only, pipeline, fix-mode, QA-story argument surface), and for each candidate compute bytes-skipped-per-hot-path against bytes-added-by-routing. Only implement splits that come out net-positive; document the arithmetic for any candidate rejected as not worth it, per this repo's \"no silent caps\" convention (log what was measured and dropped, not just what was done).\n\n### Key Files\n\n- `plugin/skills/test/SKILL.md` — the file being measured and potentially split\n- new sub-file(s) under `plugin/skills/test/`, if a split is implemented, following this repo's existing `plugin/skills/{name}/*.md` lazy-loading convention\n\n## Gotchas\n\n- Related to #657 — check its scope before starting to avoid overlapping work.\n- The deliverable is explicitly the measurement-then-conditional-split, not a split by default — a record that \"does the split\" without first showing the arithmetic is net-positive doesn't satisfy this record's own stated scope.\n\n## Original request\n\ntest: SKILL.md context overhead — measured mode-split pass\n\n**Related:** #657\n\nContext: test/SKILL.md is ~20.8KB always-loaded; a bare `/test types` pays for the full QA argument surface, pipeline tables, and fix-mode prose it never uses.\n\nScope: IL-72-style split arithmetic at design time (sub-file headers + routing stubs vs bytes skipped per hot path); split only where net-positive.\n",
+        "createdAt": "2026-08-18T13:05:56Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
+            "name": "ceremony:standard",
+            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
+            "color": "FEF2C0"
+          }
+        ],
+        "number": 883,
+        "state": "OPEN",
+        "title": "test: SKILL.md context overhead — measured mode-split pass",
+        "updatedAt": "2026-08-31T17:59:05Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": "standard",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      },
+      {
+        "body": "Surface: backend\n\n## Current State\n\nIL-84 documented that fifteen tests silently never ran under an enumerated-glob `npm test` configuration — under-coverage looked identical to success, since `/claude-tweaks:test` verifies exit codes but never verifies that the run actually examined what it should have (IL-78). Related: #250, #892.\n\n## Deliverables\n\n- [ ] Record the test count (number of tests actually executed) for every `/claude-tweaks:test` verification run.\n- [ ] Compare the current run's test count against the previous recorded run's count.\n- [ ] When the count drops, surface it as a caveat line in the test run's output — not a silent pass — rather than treating a lower count as equivalent to success.\n\n## Acceptance Criteria\n\n1. `/claude-tweaks:test` (or the underlying test-running procedure it invokes) records the executed test count after each run, persisted somewhere queryable by the next run (e.g., a small state file).\n2. A test-count drop between consecutive runs produces an explicit caveat line in the verification output, distinct from a normal pass/fail summary line.\n3. A fixture reproducing IL-84's exact shape (a glob silently excluding files, dropping the count) is covered by a new test, confirming the caveat fires.\n4. `npm test` passes with new coverage included.\n\n## Technical Approach\n\nMost test runners (including `node --test`'s own output) report a total test count in their summary; this feature just needs to capture that number, persist it between runs (a small JSON state file, similar to other lightweight state-tracking patterns already used in this repo, e.g. `reconcile-cache.json`), and diff against the previous value. The comparison and caveat-emission logic belongs in whatever wraps `npm test`'s invocation for `/claude-tweaks:test` — likely `plugin/skills/test/` prose plus a small helper in `plugin/bin/lib/`.\n\n### Key Files\n\n- `plugin/skills/test/SKILL.md` — invoke the count-capture and comparison\n- `plugin/bin/lib/` — new small module for persisting/comparing test counts\n- `tests/` — new fixture reproducing the IL-84 count-drop shape\n\n## Gotchas\n\n- A test count can legitimately drop when tests are deliberately removed (a refactor, a retired feature) — the caveat should flag the drop for human awareness, not treat every drop as an error to block on; this is a caveat/surfacing mechanism, not a hard gate.\n- Persisted state (the previous run's count) needs a sensible reset/bootstrap behavior for the very first run, where there's nothing to compare against yet.\n\n## Original request\n\ntest: suite-count regression stamp — flag when the suite gets quieter\n\n**Related:** #250, #892\n\nContext: IL-84 — fifteen tests silently never ran under an enumerated-glob npm test; under-coverage looks identical to success, and /test verifies exit codes but never that the run examined what it should (IL-78).\n\nScope: record the test count per verification run, compare against the previous run, and surface a drop as a caveat line instead of silence.\n",
+        "createdAt": "2026-08-18T13:05:52Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2oaA",
+            "name": "type:feature",
+            "description": "Type: new capability or enhancement",
+            "color": "FEF2C0"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
+            "name": "ceremony:standard",
+            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
+            "color": "FEF2C0"
+          }
+        ],
+        "number": 881,
+        "state": "OPEN",
+        "title": "test: suite-count regression stamp — flag when the suite gets quieter",
+        "updatedAt": "2026-08-31T17:59:08Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "low",
+          "size": "low",
+          "ceremony": "standard",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
         "body": "Surface: backend\n\n## Current State\n\nPre-release whole-branch code review (2026-08-18) found that `session-start.js`'s own inline `FAST_CHECKS` `reconcile()` pass and the detached `reconcile-background` child process it spawns each run their own separate GitHub-health preflight and `git fetch`, doubling `gh api rate_limit` calls and fetch round-trips per session start — reversing `reconcile/index.js`'s own D2 shared-fetch dedup rationale (one fetch per pass). A prior fix (#820 Task 10 review fix-up) tried sharing freshness state between the two processes via `reconcile-cache.json`'s `lastRunAt` stamp, and was reverted — that stamp fires on ANY completed pr-first pass regardless of which checks subset ran, so it made the background-pass spawn gate see a false-fresh signal from the FAST_CHECKS-only pass and never spawn at all, silently starving the background checks. Deferred rather than fixed at discovery time: the residual cost is background CPU/network after the interactive session-start has already returned (not user-facing latency), and `gh api rate_limit` does not consume GitHub API rate-limit quota, so the real-world cost today is small; the highest-value fix (#872, filed alongside this record by the same review) already removes `gh` from the mirror-only inline fetch path. Related: #872.\n\n## Deliverables\n\n- [ ] Confirm #872's landing status and whether it changes the shape of this record's remaining scope (it removes `gh` from the mirror-only inline fetch path, per the original report).\n- [ ] Design a freshness-sharing mechanism between the inline `FAST_CHECKS` pass and the detached `reconcile-background` process that distinguishes which checks subset ran — avoiding the exact failure mode #820's reverted `lastRunAt` stamp hit (a single timestamp that can't tell FAST_CHECKS-only from a full pass).\n- [ ] Implement the fix so the background pass still spawns when its own checks haven't freshly run, even if a FAST_CHECKS-only pass completed recently.\n\n## Acceptance Criteria\n\n1. The inline `FAST_CHECKS` pass and the detached `reconcile-background` process no longer both perform a redundant GitHub-health preflight + `git fetch` on the same session start when the background pass's own checks genuinely need to run.\n2. The background-pass spawn gate correctly distinguishes \"a FAST_CHECKS-only pass just ran\" from \"a full pass (covering the background checks too) just ran\" — reproducing and passing against #820's exact regression shape (background checks silently starved) as a test case.\n3. `npm test` passes with new coverage, including a test that would have caught #820's reverted fix's starvation bug.\n\n## Technical Approach\n\nThe prior #820 fix failed because `reconcile-cache.json`'s `lastRunAt` stamp was a single timestamp with no record of *which checks* ran. The fix here needs a per-checks-subset freshness record — e.g. `lastRunAt` becomes a map keyed by checks-subset (or a dedicated field per subset) rather than one scalar — so the background-pass spawn gate can ask \"did *my* checks run recently\" instead of \"did *any* pass run recently.\" Given #872 already removes `gh` from the mirror-only inline fetch path (reducing but not eliminating the duplication), re-scope this record's remaining work after confirming #872's actual landed shape.\n\n### Key Files\n\n- `plugin/bin/lib/hooks/session-start.js` — inline FAST_CHECKS reconcile pass + background process spawn\n- `plugin/bin/lib/reconcile/index.js` — `reconcile-cache.json`'s `lastRunAt` freshness stamp, needs to become checks-subset-aware\n- `tests/` — new test reproducing #820's starvation regression shape\n\n## Gotchas\n\n- This record explicitly carries `Defer-reason: needs-human-decision` — the original filer judged the residual cost low today and deferred rather than immediately fixing; re-confirm that judgment still holds (has #872 changed the cost/benefit?) before investing in the freshness-sharing redesign.\n- Must not reintroduce #820's exact regression (a single freshness stamp masking a checks-subset mismatch) — any new freshness mechanism needs an explicit test reproducing that shape.\n\n## Original request\n\nreconcile: inline FAST_CHECKS + detached reconcile-background each run their own gh-health-check + git fetch\n\n**Related:** #872\n\nContext: Pre-release whole-branch code review (2026-08-18) found that session-start.js own inline FAST_CHECKS reconcile() pass and the detached reconcile-background child process it spawns each run their own separate GitHub-health preflight and git fetch, doubling gh api rate_limit calls and fetch round-trips per session start. This reverses reconcile/index.js own D2 shared-fetch dedup rationale (one fetch per pass).\n\nScope: A prior fix (#820 Task 10 review fix-up) already tried sharing freshness state between the two processes via the reconcile-cache.json lastRunAt stamp, and reverted it — that stamp fires on ANY completed pr-first pass regardless of which checks subset ran, so it made the background-pass spawn gate see a false fresh from the FAST_CHECKS-only pass and never spawn at all, silently starving the background checks. Any future fix must avoid that exact failure mode. Deferred rather than fixed: the residual cost is background CPU/network after the interactive session-start has already returned (not user-facing latency), and gh api rate_limit does not consume GitHub API rate-limit quota, so the real-world cost today is small; the highest-value fix (#872, the sibling backlog item this review also filed) already removes gh from the mirror-only inline fetch path.\n\nDefer-reason: needs-human-decision\n",
         "createdAt": "2026-08-18T05:41:31Z",
         "labels": [
@@ -2109,82 +3047,6 @@
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Current State\n\n`plugin/skills/specify/design-pre-steps.md`'s Step 2.5b (shape pre-step) and Step 2.5c (design-intent) prescribe exact `AskUserQuestion` option labels, order, `(Recommended)` placement, and option counts, but nothing in the file marks that text as verbatim. In one observed run, Step 2.5b's prescribed Recommended option (\"Yes — run shape\") was rendered as the non-recommended alternative while \"Skip\" was relabeled Recommended with an invented justification, and Step 2.5c's six prescribed design-intent options rendered as only four (two silently dropped). The plugin already has a mechanism for the opposite case — `decomposition-mode.md`'s red-team Step 5 explicitly requires its Template A block to \"remain inlined verbatim in the dispatch prompt at runtime\" — but `design-pre-steps.md` has no equivalent instruction.\n\n## Deliverables\n\n- [ ] Add an explicit \"render this block verbatim — do not reorder, drop, or relabel options\" instruction to Step 2.5b's `AskUserQuestion` block in `design-pre-steps.md`.\n- [ ] Add the same explicit verbatim instruction to Step 2.5c's `AskUserQuestion` block (the six-option design-intent question).\n- [ ] Follow the same wording convention `decomposition-mode.md`'s red-team Step 5 already uses for its Template A verbatim requirement, so the two verbatim-instruction idioms in this plugin stay consistent.\n\n## Acceptance Criteria\n\n1. Step 2.5b's `AskUserQuestion` block in `design-pre-steps.md` carries an explicit instruction that its option labels, order, and `(Recommended)` placement must render verbatim.\n2. Step 2.5c's `AskUserQuestion` block carries the same explicit verbatim instruction, naming that all six options must render.\n3. The added instruction wording is consistent with (or explicitly cites) `decomposition-mode.md`'s existing Template A verbatim requirement.\n\n## Technical Approach\n\nA prose-only fix — add one sentence to each of the two `AskUserQuestion` block definitions in `design-pre-steps.md`, mirroring `decomposition-mode.md`'s existing verbatim-template instruction for Step 5's red-team Template A. No code changes; this is a skill-authoring reliability fix in line with `docs/skill-authoring.md`'s conventions for prescriptive interactive blocks.\n\n### Key Files\n\n- `plugin/skills/specify/design-pre-steps.md` — add the verbatim-rendering instruction to Step 2.5b and Step 2.5c's `AskUserQuestion` blocks\n\n## Gotchas\n\n- This is a reliability/instruction-following defect, not a logic bug — there's no code path to test; verification is by re-reading the prose for the explicit verbatim marker, and by prose-conformance test if the plugin's existing `skill-prose-conformance-tests` pattern can pin the added sentence.\n- Don't conflate this with red-team's Template A instruction itself — this record only needs `design-pre-steps.md`'s two blocks updated, not a rewrite of the red-team file.\n\n## Original request\n\nspecify: design-pre-steps.md's AskUserQuestion option text is prose the model can reorder or truncate, unlike red-team's verbatim template\n\n**Summary:** `design-pre-steps.md`'s Step 2.5b (shape pre-step) and Step 2.5c (design-intent) prescribe exact `AskUserQuestion` option labels, order, and counts, but nothing marks them as verbatim — in one run the shape pre-step's prescribed Recommended option (\"Yes — run shape\") was rendered as the non-recommended alternative while \"Skip\" was relabeled the Recommended choice with an invented justification, and the design-intent question's six prescribed options were rendered as only four (two silently dropped).\n\n**Kind:** Defect\n\n**Affected component:** `/claude-tweaks:specify` (`design-pre-steps.md` Step 2.5b/2.5c)\n\n**Objective:** Instruction efficacy\n\n**Repro steps:**\n1. Reach `/claude-tweaks:specify`'s Step 2.5 on a frontend-surfaced design doc in interactive mode.\n2. Render the Step 2.5b shape-pre-step question and the Step 2.5c design-intent question.\n3. Compare the rendered option labels, order, `(Recommended)` placement, and option count against `design-pre-steps.md`'s literal prescribed text.\n\n**Expected vs. actual:**\nExpected: prescribed option text renders as written, or the skill explicitly marks it as adaptable — the plugin already has a mechanism for the opposite case (`decomposition-mode.md`'s red-team Step 5 explicitly requires its \"Template A block must remain inlined verbatim in the dispatch prompt at runtime\").\nActual: nothing in `design-pre-steps.md` marks Step 2.5b/2.5c's option text as verbatim, and a real run both flipped which option carried \"(Recommended)\" and reduced the design-intent question from 6 options to 4.\n\n**Definition:** Clear\n\n**Plugin version:** 6.87.0\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-4cbfe16b -->\n",
-        "createdAt": "2026-08-17T17:13:10Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
-            "name": "bug",
-            "description": "Something isn't working",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
-            "name": "priority:high",
-            "description": "Priority: dispatch picks this band first",
-            "color": "FBCA04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 833,
-        "state": "OPEN",
-        "title": "specify: design-pre-steps.md's AskUserQuestion option text is prose the model can reorder or truncate, unlike red-team's verbatim template",
-        "updatedAt": "2026-08-31T06:55:03Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
           "stage": "ready",
           "grants": {
             "build": true,
