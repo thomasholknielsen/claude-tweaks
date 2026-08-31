@@ -110,5 +110,9 @@
   "plugin/bin/lib/declined-learning": {
     "lastSweptMs": 1788059403454,
     "lastHash": "091a3111c6758efe6a8ca31e5bc1dd88f37423bf"
+  },
+  "plugin/bin/lib/design-detect": {
+    "lastSweptMs": 1788145808300,
+    "lastHash": "9eb1d611069cc589c43f04e74210c589d7b70294"
   }
 }
