@@ -25,10 +25,11 @@ resolved disposition:
 - The second call's `OUTCOME` was `failed`/`blocked` — Settle already released the claim, so the
   label-based pre-filter would let the group right back in — append now.
 
-Do **not** append on `merged`/`armed`/`pending-review`/`ready-to-merge`: those hold a live claim
-(`bot:in-progress`) or are already resolved, so the ordinary claim/label mechanism already excludes
-them from the next queue pull. Appending there would be redundant, not wrong — but the point of
-this file is the two shapes that mechanism misses.
+Do **not** append on `merged`/`armed`/`pending-review` (`pr-first`) or `ready-to-merge`
+(`local-merge`'s own outcome vocabulary — see `_shared/integration-model.md`): those hold a live
+claim (`bot:in-progress`) or are already resolved, so the ordinary claim/label mechanism already
+excludes them from the next queue pull. Appending there would be redundant, not wrong — but the
+point of this file is the two shapes that mechanism misses.
 
 `next-ranking.md`'s script reads this file (absent treated as `[]`) and excludes any matching group
 from the candidate pool, the same way it already excludes an oversized group. `next`'s
