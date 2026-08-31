@@ -78,25 +78,38 @@ function installGhWrapper(prsJson) {
   return { restore: () => { process.env.PATH = originalPath; } };
 }
 
+// The "PR merged, worktree torn down" repo shape both fixtures below build
+// on: a feature branch committed in its own worktree, merged into main, then
+// the worktree removed (branch ref stays). The returned `featureSha` is that
+// branch's real tip commit, which a test hands back as the PR's
+// `mergeCommit.oid` — `git merge --no-edit` folds it into main, so
+// `merge-base --is-ancestor` (localHasMerge) sees it as an ancestor, same as
+// a genuine fast-forward/merge would. The root is realpath'd (unlike
+// makeRepo()'s own return) because mainCheckoutRoot resolves through realpath
+// internally (macOS's os.tmpdir() sits behind a /var -> /private/var
+// symlink) — archiveMerged's `root` would otherwise differ from a fixture's
+// own `runDir` string, and a plain string membership assertion against
+// `result.archived` would spuriously fail.
+function mergedFeatureBranchRepo(branch) {
+  const root = fs.realpathSync(makeRepo());
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-featwt-'));
+  git(root, 'worktree', 'add', '-q', wt, '-b', branch);
+  fs.writeFileSync(path.join(wt, 'feature.txt'), 'feature\n');
+  execFileSync('git', ['add', 'feature.txt'], { cwd: wt, encoding: 'utf8' });
+  execFileSync('git', ['commit', '-q', '-m', 'feature work'], { cwd: wt, encoding: 'utf8' });
+  const featureSha = execFileSync('git', ['rev-parse', branch], { cwd: root, encoding: 'utf8' }).trim();
+  git(root, 'merge', '-q', '--no-edit', branch);
+  git(root, 'worktree', 'remove', '--force', wt);
+  return { root, featureSha };
+}
+
 // #1544: a run dir close-run already marked `{status: 'clean', worktree:
 // null}` whose archive-run step never followed — the worktree is torn down
 // (or was never present in this fixture), so the only way to recover a
 // branch name is run-state.json's own `pr.branch` stamp (run-integrity.js's
-// fallbackBranch, same source #1672's own fixture uses). `mergeCommit.oid`
-// is the feature branch's real tip commit — `git merge --no-edit` folds it
-// into main, so `merge-base --is-ancestor` (localHasMerge) sees it as an
-// ancestor, same as a genuine fast-forward/merge would.
+// fallbackBranch, same source #1672's own fixture uses).
 function fixtureCleanUnarchivedRun({ runId, consoleResolved = true } = {}) {
-  const root = fs.realpathSync(makeRepo());
-  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-cleanwt-'));
-  git(root, 'worktree', 'add', '-q', wt, '-b', 'feat-clean-branch');
-  fs.writeFileSync(path.join(wt, 'feature.txt'), 'feature\n');
-  execFileSync('git', ['add', 'feature.txt'], { cwd: wt, encoding: 'utf8' });
-  execFileSync('git', ['commit', '-q', '-m', 'feature work'], { cwd: wt, encoding: 'utf8' });
-  const featureSha = execFileSync('git', ['rev-parse', 'feat-clean-branch'], { cwd: root, encoding: 'utf8' }).trim();
-  git(root, 'merge', '-q', '--no-edit', 'feat-clean-branch');
-  git(root, 'worktree', 'remove', '--force', wt);
-
+  const { root, featureSha } = mergedFeatureBranchRepo('feat-clean-branch');
   const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
   fs.mkdirSync(runDir, { recursive: true });
   fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({
@@ -1189,6 +1202,75 @@ test('lastOwnEventMs: excludes fallback-attributed lines, returns the newest non
 test('lastOwnEventMs: null when events.jsonl is absent', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-lastown2-'));
   assert.equal(lastOwnEventMs(path.join(root, 'no-such-run')), null);
+});
+
+// --- #1684: a non-'clean' (active) run dir whose record-worktree stamp
+// never landed — the exact shape a /flow run split across two Task-call
+// sessions leaves behind when the second session's write is classified
+// foreign — must still archive once its PR confirmably merges, via the same
+// fallbackBranch(state.pr.branch / decisions.md) source #1544's clean-status
+// sweep already uses, rather than being stuck at 'no-worktree' forever.
+
+function fixtureActiveUnstampedMergedRun({ runId, worktreeExplicitlyNull = false } = {}) {
+  const { root, featureSha } = mergedFeatureBranchRepo('feat-unstamped-branch');
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  const state = { status: 'active', pr: { branch: 'feat-unstamped-branch' } };
+  // record-worktree genuinely never ran — field absent OR null, both must fall back
+  if (worktreeExplicitlyNull) state.worktree = null;
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify(state));
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ resolved: true }));
+  return { root, runDir, featureSha };
+}
+
+test('archiveMerged: an active run dir with no worktree stamp but a merged PR is archived via fallbackBranch, not stuck at no-worktree', () => {
+  const runId = '2026-08-31T090000-spec-1684-unstamped';
+  const { root, runDir, featureSha } = fixtureActiveUnstampedMergedRun({ runId });
+  const wrapper = installGhWrapper([{
+    number: 101, state: 'MERGED', mergedAt: '2026-08-31T00:00:00Z', updatedAt: '2026-08-31T00:00:00Z',
+    mergeCommit: { oid: featureSha },
+  }]);
+  let result;
+  try {
+    result = archiveMerged({ cwd: root });
+  } finally {
+    wrapper.restore();
+  }
+  assert.ok(result.archived.includes(runDir), `expected ${runDir} in archived, got ${JSON.stringify(result)}`);
+  assert.ok(!result.skipped.some((s) => s.runDir === runDir), 'must not also appear in skipped');
+  assert.equal(fs.existsSync(runDir), false, 'original run dir must have been archived away');
+});
+
+test('archiveMerged: an active run dir with worktree explicitly null but a merged PR is still archived via fallbackBranch', () => {
+  const runId = '2026-08-31T090000-spec-1684-nullworktree';
+  const { root, runDir, featureSha } = fixtureActiveUnstampedMergedRun({ runId, worktreeExplicitlyNull: true });
+  const wrapper = installGhWrapper([{
+    number: 102, state: 'MERGED', mergedAt: '2026-08-31T00:00:00Z', updatedAt: '2026-08-31T00:00:00Z',
+    mergeCommit: { oid: featureSha },
+  }]);
+  let result;
+  try {
+    result = archiveMerged({ cwd: root });
+  } finally {
+    wrapper.restore();
+  }
+  assert.ok(result.archived.includes(runDir), `expected ${runDir} in archived, got ${JSON.stringify(result)}`);
+});
+
+test('archiveMerged: an active run dir with no worktree stamp AND no recoverable branch still skips no-worktree, not archive', () => {
+  const root = fs.realpathSync(makeRepo());
+  const runId = '2026-08-31T090000-spec-1684-nobranch';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveMerged({ cwd: root });
+
+  assert.ok(!result.archived.includes(runDir));
+  const skip = result.skipped.find((s) => s.runDir === runDir);
+  assert.ok(skip, `expected ${runDir} reported in skipped, got ${JSON.stringify(result)}`);
+  assert.equal(skip.reason, 'no-worktree', 'no worktree stamp and no fallback source must still read as no-worktree, unchanged');
+  assert.equal(fs.existsSync(runDir), true);
 });
 
 // --- #1544: archive a status:'clean' run dir with a confirmed merged PR ---
