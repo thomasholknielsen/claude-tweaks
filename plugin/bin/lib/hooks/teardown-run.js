@@ -109,7 +109,16 @@ function teardownRun(runDir, opts = {}) {
   // hooks.js's standalone close-run verb) is deliberately left unread here — Step 2 immediately
   // below calls archiveRunDir itself, so by the time a caller could see this value the content
   // it describes is already being archived. Do not wire up the same warning here too.
-  const state = closeRunState(runDir, { explicit: false, sessionId });
+  //
+  // `checkLiveWorktree: false` — the #1502 "worktree still exists on disk" heuristic assumes
+  // an implicit fallback resolution ("newest non-terminal run", no specific target named).
+  // teardown-run always operates on a run its own caller explicitly identified, and Step 3
+  // below removes that same worktree moments later in this same invocation — so the worktree
+  // is guaranteed present here regardless of ownership, making the check fire unconditionally
+  // (never a real signal) for any run whose sessionId was never recorded, permanently refusing
+  // a legitimate self-teardown. The foreignOwner check just above is teardown-run's actual
+  // protection and stays active.
+  const state = closeRunState(runDir, { explicit: false, sessionId, checkLiveWorktree: false });
 
   if (state.status === 'refused-foreign') {
     return { lines: ['state: refused — run recorded by another session; teardown-run does not override this'] };

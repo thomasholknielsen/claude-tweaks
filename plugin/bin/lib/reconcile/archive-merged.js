@@ -838,7 +838,13 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
     // returns false while the worktree still resolves, regardless of age.
     if (isAdHocStandaloneSuperseded(dir, state, worktrees)) {
       if (dryRun) { archived.push(dir); continue; }
-      const result = archiveOrphanedMint(root, dir);
+      // archiveRunDir, not archiveOrphanedMint: unlike a true orphaned mint, an
+      // ad-hoc-standalone dir is a real dev session that can have materialized a
+      // spec (a git-tracked work/ subtree) before being abandoned. archiveOrphanedMint
+      // is a bare fs.renameSync with no tracked-entry guard — archiveRunDir's #593
+      // guard (git-mv work/ + commit, refuse on any other tracked entry) is what this
+      // path actually needs; same (root, dir) signature and {ok, reason} contract.
+      const result = archiveRunDir(root, dir);
       trackArchiveResult(root, repoSlug, dir, result);
       if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
       archived.push(dir);
