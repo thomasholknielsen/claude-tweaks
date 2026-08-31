@@ -1,11 +1,11 @@
 {
-  "computedAt": "2026-08-31T17:39:24.323Z",
+  "computedAt": "2026-08-31T17:47:08.321Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
       {
-        "number": 1637,
-        "updatedAt": "2026-08-29T16:19:29Z",
+        "number": 1726,
+        "updatedAt": "2026-08-31T17:41:56Z",
         "state": "OPEN"
       },
       {
@@ -16,11 +16,6 @@
       {
         "number": 1633,
         "updatedAt": "2026-08-29T16:18:08Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1599,
-        "updatedAt": "2026-08-29T16:19:20Z",
         "state": "OPEN"
       },
       {
@@ -248,14 +243,26 @@
   "groups": [
     [
       {
-        "body": "**Doc:** plans/2026-08-16-spec-686-687-688-689-690-691-692-693-ledger | **Section:** Freshness | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** restructural | **Confidence:** high\n\nVerified-as-of: 91cd684cf66dc93dd91ca541b8b1fbe37f89179c\n\n## Current State\n\nThe doc's title ('Open Items — spec 686-693') and table imply an active pipeline ledger, but every one of its 4 rows carries a terminal status (fixed / accepted / deferred→backlog x2). Live-state verification confirms all four are actually closed: both referenced branches (worktree-flow-spec-697, worktree-flow-spec-686-687-688-689-690-691-692-693) are gone from origin (`git ls-remote --heads` returns nothing for both); PR #709 (row 2's 'stays open until... merged/closed via the Shared teardown') is merged and closed (merged_at 2026-08-17T13:20:05Z); issue #788 (row 4's deferred-to-backlog target) is closed with state_reason 'completed' (closed_at 2026-08-17T13:46:08Z). `plugin/skills/ledger/SKILL.md`'s own Delete section states: 'Delete the ledger file after all items are resolved... Only delete when the resolve gate has passed — all items must have terminal statuses.' This ledger cleared that bar in mid-August but is still present in docs/plans/ as of this audit (2026-08-29) — the wrap-up Phase 4 cleanup step that should have deleted it either wasn't run or didn't reach this file. A reader (human or an agent doing retrieval-style search over docs/plans/) encountering this file today is misled into thinking spec 686-693 has unresolved work.\n\n## Deliverables\n\n**Current:**\n```\n(N/A — new content)\n```\n\n**Proposed:**\n```\nDelete the file (git rm docs/plans/2026-08-16-spec-686-687-688-689-690-691-692-693-ledger.md) — all items are resolved and the ledger's own governing procedure calls for deletion once the resolve gate passes.\n```\n\n## Acceptance Criteria\n\nDelete docs/plans/2026-08-16-spec-686-687-688-689-690-691-692-693-ledger.md — the pipeline run it tracks is fully resolved and the file was never cleaned up per the ledger skill's own Delete procedure.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-38c05a58 -->",
-        "createdAt": "2026-08-29T06:14:36Z",
+        "body": "**Doc:** plans/2026-08-25-record-1094-ledger | **Section:** Open Items | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: e0d4adedacc8dd7b8ab2a0e23930b6353cfeb049\n\n## Current State\n\nLive code at plugin/bin/lib/feedback/file-feedback.js:168 already reads `'--limit', '10000'` with an adjacent comment block (lines 161-166) stating '#1094 review finding: `--limit 500` already truncated ~half of this repo's then-998 issues' as the rationale for the widened limit — introduced in commit d51e0863c ('Resolve run-ledger row 7 — both dispatch-descriptor halves landed', 2026-08-30, after this ledger's 2026-08-25 date). The ledger's row 1 still lists Status: open, Resolution: — even though the fix it describes has shipped.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | review | `findDuplicate`'s new list-then-filter query (`plugin/bin/lib/feedback/file-feedback.js:144`) has no `--label` scope, unlike the `by:{caller}`-scoped precedent it cites (`_shared/headless-self-report.md:43`) — an unscoped `--state all --limit 500` window can truncate away an older duplicate in this repo's 1400+-issue history, silently reintroducing dedup-miss via a different mechanism than the `--search` staleness this record fixes | open | — |\n```\n\n**Proposed:**\n```\n| 1 | review | `findDuplicate`'s new list-then-filter query (`plugin/bin/lib/feedback/file-feedback.js:144`) has no `--label` scope, unlike the `by:{caller}`-scoped precedent it cites (`_shared/headless-self-report.md:43`) — an unscoped `--state all --limit 500` window can truncate away an older duplicate in this repo's 1400+-issue history, silently reintroducing dedup-miss via a different mechanism than the `--search` staleness this record fixes | resolved | `--limit` widened to 10000 (label-scoping deliberately not applied — this caller has no reliable fixed label to scope by); see `plugin/bin/lib/feedback/file-feedback.js`'s `findDuplicate` comment |\n```\n\n## Acceptance Criteria\n\nUpdate row 1's Status/Resolution to reflect that the underlying finding was already fixed: `findDuplicate` in `plugin/bin/lib/feedback/file-feedback.js` now calls `gh issue list` with `--limit 10000` (not 500), and the surrounding comment explicitly cites this ledger's #1094 review finding as the reason, noting `--label` scoping was deliberately not applied because this caller has no reliable fixed label to scope by.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-b998cde1 -->",
+        "createdAt": "2026-08-31T06:27:34Z",
         "labels": [
           {
             "id": "LA_kwDORUwzVM8AAAACruyqXw",
             "name": "ready",
             "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
             "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
             "id": "LA_kwDORUwzVM8AAAACry2pJg",
@@ -270,58 +277,40 @@
             "color": "F9D0C4"
           },
           {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsDgIWw",
-            "name": "size:high",
-            "description": "Scoring: large change — consider decomposition before building",
-            "color": "BFD4F2"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
             "id": "LA_kwDORUwzVM8AAAACverRqw",
             "name": "by:docs-health",
             "description": "",
             "color": "ededed"
           },
           {
-            "id": "LA_kwDORUwzVM8AAAACyvI7Qw",
-            "name": "docs-health:restructural",
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
             "description": "",
             "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACy3OKFA",
+            "name": "auto:merge-pending",
+            "description": "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)",
+            "color": "C2E0C6"
           }
         ],
-        "number": 1637,
+        "number": 1726,
         "state": "OPEN",
-        "title": "Doc staleness: plans/2026-08-16-spec-686-687-688-689-690-691-692-693-ledger — Freshness",
-        "updatedAt": "2026-08-29T16:19:29Z",
+        "title": "Doc staleness: plans/2026-08-25-record-1094-ledger — Open Items",
+        "updatedAt": "2026-08-31T17:41:56Z",
         "facets": {
           "origin": "docs-health",
-          "risk": "medium",
-          "size": "high",
+          "risk": "low",
+          "size": "low",
           "ceremony": null,
           "solutionUnjustified": false,
           "needsDefinition": false,
-          "priority": "low",
+          "priority": null,
           "stage": "ready",
           "grants": {
             "build": true,
-            "merge": true
+            "merge": false
           },
           "bot": {
             "inProgress": false,
@@ -486,94 +475,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Doc:** plans/2026-08-16-spec-576-575-ledger | **Section:** Open Items table | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 0efccfdf294a15c7291f524203a6c00ae0ef3828\n\n## Current State\n\nAlso affects: `Open Items table (row 1)`, `Open Items table (row 2)`\n\nBoth rows' Resolution column presents deferral to #574 as a pending target ('Deferred to #574 by design', 'Belongs to #574's ... redesign — fold into its design doc'). Live GitHub state shows #574 closed with state_reason 'completed' on 2026-08-16, along with its sub-issues #654 and #655, both also closed as completed. Both deferred deliverables are verified present: docs/journeys/refine-the-backlog-through-decision-lanes.md exists (15,915 bytes), and plugin/skills/backlog/refine-mode.md line 85 requires refineWorklist from bin/lib/issues/backlog.js, replacing the embedded one-liner split/slice scripts the row describes as still needing consolidation. A reader treating this ledger as tracking open work — and especially a retrieval-style agent search hitting this doc — would be misled into thinking these two items are still outstanding when they have in fact shipped.\n\n## Deliverables\n\n**Current:**\n```\n| # | Phase | Item | Status | Resolution |\n|---|-------|------|--------|------------|\n| 1 | build/journeys | No journey documents refine's grant sweep; a one-line exclusion doesn't justify one. Create/refresh a refine journey when #574's redesign lands. | observation | Deferred to #574 by design — noted in #574's build scope via its spec's Gotchas cross-reference |\n| 2 | review/hindsight | refine-mode.md and grant-mode.md now express the bot:in-progress exclusion independently in embedded one-liners; a shared mechanical helper (funnelBuckets precedent) is the consolidation target. | observation | Belongs to #574's cheaper-fetch/mechanical-helper redesign — fold into its design doc, not this fix |\n```\n\n**Proposed:**\n```\n| # | Phase | Item | Status | Resolution |\n|---|-------|------|--------|------------|\n| 1 | build/journeys | No journey documents refine's grant sweep; a one-line exclusion doesn't justify one. Create/refresh a refine journey when #574's redesign lands. | resolved | #574 shipped and closed 2026-08-16 (sub-issue #655) — docs/journeys/refine-the-backlog-through-decision-lanes.md now exists |\n| 2 | review/hindsight | refine-mode.md and grant-mode.md now express the bot:in-progress exclusion independently in embedded one-liners; a shared mechanical helper (funnelBuckets precedent) is the consolidation target. | resolved | #574 shipped and closed 2026-08-16 (sub-issue #654) — refineWorklist in bin/lib/issues/backlog.js now provides the shared helper |\n```\n\n## Acceptance Criteria\n\nUpdate both Open Items rows' Status/Resolution columns to reflect that #574 (and its sub-issues #654, #655) shipped and closed 2026-08-16, with both deferred deliverables confirmed landed in the current codebase: docs/journeys/refine-the-backlog-through-decision-lanes.md exists, and plugin/skills/backlog/refine-mode.md now calls the refineWorklist helper from bin/lib/issues/backlog.js in place of the embedded one-liner exclusions.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-16c25831 -->",
-        "createdAt": "2026-08-28T06:18:39Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRqw",
-            "name": "by:docs-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRrA",
-            "name": "docs-health:additive",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 1599,
-        "state": "OPEN",
-        "title": "Doc staleness: plans/2026-08-16-spec-576-575-ledger — Open Items table",
-        "updatedAt": "2026-08-29T16:19:20Z",
-        "facets": {
-          "origin": "docs-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
