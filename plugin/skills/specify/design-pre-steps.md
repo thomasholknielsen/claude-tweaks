@@ -28,7 +28,7 @@ On `{skipped}` (Impeccable not installed, design integration disabled): note the
 
 **Interactive mode:** offer the shape pre-step:
 
-**Call `AskUserQuestion`:**
+**Call `AskUserQuestion`:** this block must render verbatim — do not reorder, drop, or relabel the options, and keep `(Recommended)` on Option 1 exactly as written, the same verbatim requirement `red-team.md`'s Template A block states for Step 5's dispatch prompt.
 
 - `question`: `"Frontend design detected. Run /impeccable:impeccable shape to plan UX/UI before decomposition?"`, `header`: `"Shape pre-step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Yes — run shape (Recommended)"`, `description`: `"Run /impeccable:impeccable shape and append output to the design doc."`
@@ -125,7 +125,7 @@ Sets the `Design-intent:` body-metadata line that Phase 3's `polish` mode will r
 
 **Interactive mode (or KEPT-PROMPT fallback):** ask the user:
 
-**Call `AskUserQuestion`:**
+**Call `AskUserQuestion`:** this block must render verbatim — all six options, in this order, exactly as labeled below; do not drop, reorder, or relabel any of them, the same verbatim requirement `red-team.md`'s Template A block states for Step 5's dispatch prompt.
 
 - `question`: `"Design vibe for this record? (sets the Design-intent body-metadata line — select one or more)"`, `header`: `"Design intent"`, `multiSelect`: `true`
 - Option 1 — `label`: `"Bold"`, `description`: `"Eye-catching, confident."`
