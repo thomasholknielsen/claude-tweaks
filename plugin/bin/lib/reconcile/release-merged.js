@@ -20,7 +20,7 @@ const { writeTombstone: writeTombstoneShared, GRANT_LABELS } = require('../relea
 const { resolveTarget, appendEntry, formatEntry } = require('../log-decision/append');
 const { readCache, writeCache } = require('./cache');
 const { runWithConcurrency } = require('./gh-pool');
-const { GH_TIMEOUT_MS } = require('../shared-primitives');
+const { GH_TIMEOUT_MS, runClassified, runClassifiedAsync } = require('../shared-primitives');
 
 const execFileAsync = promisify(execFile);
 
@@ -84,15 +84,25 @@ function classifyGhExecError(e) {
   return claimStore.classifyGhApiError(e).failure === 'gh-absent' ? 'gh-absent' : 'network-failure';
 }
 
+// Shared by both ghApi and ghApiAsync below — defined once so the two
+// twins' success/failure shape cannot silently drift (#1652, mirrors
+// git-exec.js's runGit/runGitAsync and preflight.js's ghHealthCheck/
+// ghHealthCheckAsync consolidation).
+function buildSuccess(stdout) {
+  return { stdout, failure: null };
+}
+
+function buildFailure(e) {
+  return { stdout: null, failure: classifyGhExecError(e) };
+}
+
 function ghApi(args) {
-  try {
-    const stdout = execFileSync('gh', ['api', ...args], {
+  return runClassified(
+    () => buildSuccess(execFileSync('gh', ['api', ...args], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, windowsHide: true,
-    });
-    return { stdout, failure: null };
-  } catch (e) {
-    return { stdout: null, failure: classifyGhExecError(e) };
-  }
+    })),
+    buildFailure,
+  );
 }
 
 // Raw `gh` runner for the shared write path below (ghApi prepends `api` and
@@ -136,12 +146,13 @@ function readClaim(repoSlug, name, api = ghApi) {
 // execFileSync, which blocks the whole event loop regardless of how the
 // calling code is structured.
 async function ghApiAsync(args) {
-  try {
-    const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true });
-    return { stdout, failure: null };
-  } catch (e) {
-    return { stdout: null, failure: classifyGhExecError(e) };
-  }
+  return runClassifiedAsync(
+    async () => {
+      const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true });
+      return buildSuccess(stdout);
+    },
+    buildFailure,
+  );
 }
 
 // Issue-state lookup, async — same contract/timeout as the rest of this
