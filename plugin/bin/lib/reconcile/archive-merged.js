@@ -864,14 +864,15 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
     // unchanged — 'no-worktree' when state itself carries no worktree stamp,
     // 'no-branch' when a stamped worktree just doesn't resolve to a live
     // entry — both still gated on the fallback also failing.
+    const stampedWorktree = state && state.worktree ? state.worktree : null;
     let branch = null;
-    if (state && state.worktree) {
-      const wtEntry = worktrees.find((w) => path.resolve(w.path) === path.resolve(state.worktree));
+    if (stampedWorktree) {
+      const wtEntry = worktrees.find((w) => path.resolve(w.path) === path.resolve(stampedWorktree));
       branch = wtEntry ? wtEntry.branch : null;
     }
     if (!branch) branch = fallbackBranch(root, dir, state);
     if (!branch) {
-      const reason = state && state.worktree ? 'no-branch' : 'no-worktree';
+      const reason = stampedWorktree ? 'no-branch' : 'no-worktree';
       skipped.push({ runDir: dir, reason });
       trackStuckSkip(root, repoSlug, dir, reason);
       continue;
