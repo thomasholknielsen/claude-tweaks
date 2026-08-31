@@ -41,7 +41,7 @@ function hasUnarchivedWork(runDir) {
 //     — the run-state write was attempted (and `writeOk` reports whether it
 //       succeeded); `foreignOwner`/`wrapupSeen`/`notYetArchived` let the
 //       caller render the same advisory lines close-run always has.
-function closeRunState(runDir, { explicit = false, sessionId = null } = {}) {
+function closeRunState(runDir, { explicit = false, sessionId = null, checkLiveWorktree = true } = {}) {
   const prev = ctxLib.readRunState(runDir);
   const foreignOwner = !!(prev && typeof prev.sessionId === 'string' && prev.sessionId && sessionId && prev.sessionId !== sessionId);
   if (foreignOwner && !explicit) {
@@ -60,16 +60,23 @@ function closeRunState(runDir, { explicit = false, sessionId = null } = {}) {
   // implicit close (no --run, landing on "the newest non-terminal run" by
   // the fallback resolver) could still close a run it does not own, with no
   // identity signal to catch it. Narrow and deliberate: fires ONLY when
-  // `prev.sessionId` is absent — teardown-run's own legitimate self-close
-  // (explicit: false, but a run whose Common Step 1.5 record-worktree
-  // already stamped ITS OWN sessionId, matching the caller) never reaches
-  // this branch, since the foreignOwner comparison above already passed. A
-  // run whose worktree directory still physically exists on disk, with no
-  // recorded owner to weigh against, is presumptively still in progress —
-  // refuse the implicit close on that independent signal instead of
-  // guessing. `explicit: true` (a caller who named `--run` themselves)
-  // always bypasses this, same as the foreign-owner check above.
-  const hasUnrecordedLiveWorktree = !!(prev && !prev.sessionId
+  // `prev.sessionId` is absent. `explicit: true` (a caller who named `--run`
+  // themselves) always bypasses this, same as the foreign-owner check above.
+  //
+  // `checkLiveWorktree` (default true) exists because this heuristic — "the
+  // worktree still exists on disk, so it's presumptively still in progress"
+  // — is only meaningful for close-run's own implicit fallback ("newest
+  // non-terminal run"), where the caller never named which run it meant.
+  // teardown-run's Step 1 call is never that: it always names a specific
+  // run its OWN caller identified, and its Step 3 (worktree removal) runs
+  // moments later in the same invocation — so the worktree is GUARANTEED
+  // to still exist at this point regardless of whether the run is actually
+  // foreign, making the check fire unconditionally (never a real signal)
+  // for any run whose sessionId was never recorded, permanently refusing a
+  // legitimate self-teardown with no override path. teardown-run passes
+  // `checkLiveWorktree: false` and relies on the foreignOwner check above
+  // (still active) for its actual protection.
+  const hasUnrecordedLiveWorktree = checkLiveWorktree && !!(prev && !prev.sessionId
     && typeof prev.worktree === 'string' && prev.worktree && fs.existsSync(prev.worktree));
   if (hasUnrecordedLiveWorktree && !explicit) {
     return { status: 'refused-live-worktree' };
