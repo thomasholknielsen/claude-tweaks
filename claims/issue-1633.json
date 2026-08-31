@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-08-31T201810-record-1633",
-  "sessionId": "6f13919a-3b4a-5eff-a52c-a89f4846edbf",
-  "claimedAt": "2026-08-31T20:22:24.198Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "reason": "failed: unresolved-placeholder (materialize.js shape gate — record #1633 not spec-shaped)",
+  "releasedAt": "2026-08-31T20:26:44.866Z"
 }
