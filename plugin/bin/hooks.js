@@ -116,6 +116,29 @@ function isInitializedRunDir(dir) {
     .some((marker) => fs.existsSync(path.join(dir, marker)));
 }
 
+// Shared by every #280/#1183/#1299/#1566 shape check below (whole-branch
+// review finding — this used to be hand-copied at each call site): true when
+// `resolved`, relative to `root`'s own .claude-tweaks/pipelines/, has a
+// run-id-shaped LEADING segment — either directly, or one level deeper under
+// archive/ (an archive/{id} shadow's run-id segment is relParts[1]; every
+// other shape's is relParts[0]). Deliberately leading-segment-only, not
+// length-exact: a multi-spec shadow (pipelines/{parent}/spec-N) is two
+// segments deep and is still a legitimate run-dir shape (#1183) — only the
+// leading segment needs to be run-id-shaped, whatever's nested beneath it.
+// `root` must already be realpath'd if `resolved` is (callers pass matching
+// pairs).
+function pipelinesRunIdShape(root, resolved) {
+  const relFromPipelines = path.relative(path.join(root, '.claude-tweaks', 'pipelines'), resolved);
+  const inPipelines = !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
+  const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
+  const isArchiveShape = relParts[0] === 'archive';
+  const runIdSegment = isArchiveShape ? relParts[1] : relParts[0];
+  const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
+  return {
+    relFromPipelines, inPipelines, isArchiveShape, runIdSegment, runIdShaped,
+  };
+}
+
 // Resolves an explicit `--run <path>` argument, validating it's a real
 // directory, or falls back to ctxLib.resolveRunDir when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
@@ -240,14 +263,13 @@ function resolveRunArg(args, cwd, env, resolveOpts) {
       const realResolved = wtDetect.safeReal(resolved) || resolved;
       const sameRepo = !candidateRepo.indeterminate && candidateRepo.repoRoot && candidateRepo.isLinkedWorktree
         && wtDetect.mainCheckoutRoot(candidateRepo.repoRoot) === mainRoot;
-      const relFromPipelines = sameRepo
-        ? path.relative(path.join(candidateRepo.repoRoot, '.claude-tweaks', 'pipelines'), realResolved)
-        : null;
-      const inPipelines = !!relFromPipelines && !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
-      const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
-      const isArchiveShape = relParts[0] === 'archive';
-      const runIdSegment = isArchiveShape ? relParts[1] : relParts[0];
-      const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
+      const {
+        relFromPipelines, inPipelines, isArchiveShape, runIdSegment, runIdShaped,
+      } = sameRepo
+        ? pipelinesRunIdShape(candidateRepo.repoRoot, realResolved)
+        : {
+          relFromPipelines: null, inPipelines: false, isArchiveShape: false, runIdSegment: null, runIdShaped: false,
+        };
       const mainCandidate = inPipelines ? path.join(mainRoot, '.claude-tweaks', 'pipelines', relFromPipelines) : null;
       // #1183 fix-wave: an archive/{id} shadow must also be checked against a LIVE
       // (non-archived) copy of the same run-id under the main checkout — a run can be
@@ -289,44 +311,45 @@ function resolveRunArg(args, cwd, env, resolveOpts) {
         explicit: true,
       };
     }
-    // #1566: a real, anchored directory is not necessarily a real run dir —
+    // #1566 whole-branch-review follow-up: every real run dir lives under
+    // .claude-tweaks/pipelines/ by construction, so this shape bar applies
+    // unconditionally — not just inside the allowUninitialized branch below.
+    // Without it, an anchored-but-arbitrary directory elsewhere under the
+    // main checkout that happened to carry a file literally named
+    // decisions.md/run-state.json/config.yml would satisfy isInitializedRunDir
+    // and sail straight through to the `return` below untouched, reopening a
+    // narrower variant of the exact vulnerability the isInitializedRunDir
+    // gate exists to close. mainRoot is realpath'd (mainCheckoutRoot's own
+    // safeReal), `resolved` is not — realpath it for this comparison only,
+    // mirroring the #1183 fix-wave's identical treatment of realResolved
+    // above, or a symlinked path component (macOS /tmp, most test sandboxes)
+    // produces a spurious `..` prefix and wrongly rejects a legitimate run dir.
+    const shape = pipelinesRunIdShape(mainRoot, wtDetect.safeReal(resolved) || resolved);
+    if (!shape.inPipelines || !shape.runIdShaped) {
+      return {
+        runDir: null,
+        invalidRunArg: `${candidate} (exists under the main checkout, but is not a run-id-shaped directory under .claude-tweaks/pipelines/ — refusing to treat an arbitrary anchored directory as a run dir; see resolve-run-dir)`,
+        rest,
+        explicit: true,
+      };
+    }
     // isInitializedRunDir is the same bar #280's fallback branch above
     // already applies to its own narrower case. Unlike that branch,
     // record-worktree's fresh-mint pattern (dispatch's mkdir-only mint,
     // adopted with no config.yml by flow's case 2) means an uninitialized
     // target is sometimes legitimate here — resolveOpts.allowUninitialized
     // is the caller's explicit opt-in for that (see this function's header).
-    if (!isInitializedRunDir(resolved)) {
-      if (!(resolveOpts && resolveOpts.allowUninitialized)) {
-        return {
-          runDir: null,
-          invalidRunArg: `${candidate} (exists under the main checkout, but is not an initialized run dir — carries none of decisions.md/run-state.json/config.yml; see resolve-run-dir)`,
-          rest,
-          explicit: true,
-        };
-      }
-      // allowUninitialized licenses ONLY a genuine fresh-mint pipeline run
-      // dir — never an arbitrary anchored directory. Without this shape
-      // check, a bare `--run .` at the main checkout root (#1566's exact
-      // repro) would sail through record-worktree's/archive-run's own
-      // exception, reopening the vulnerability the isInitializedRunDir gate
-      // above exists to close. Requires the same run-id-shaped-segment-under-
-      // pipelines/ bar the #280 branch already enforces for its own case —
-      // simpler here since `resolved` is already anchored directly under
-      // `mainRoot` (no cross-repo/worktree indirection to resolve first).
-      const relFromPipelines = path.relative(path.join(mainRoot, '.claude-tweaks', 'pipelines'), resolved);
-      const inPipelines = !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
-      const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
-      const runIdSegment = relParts[0] === 'archive' ? relParts[1] : relParts[0];
-      const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
-      if (!inPipelines || !runIdShaped) {
-        return {
-          runDir: null,
-          invalidRunArg: `${candidate} (uninitialized and not a run-id-shaped directory under .claude-tweaks/pipelines/ — refusing to treat an arbitrary directory as a fresh run-dir mint; see resolve-run-dir)`,
-          rest,
-          explicit: true,
-        };
-      }
+    // The pipelines-shape check above already confirmed this is a
+    // run-id-shaped directory, not an arbitrary anchored one (#1566's bare
+    // `--run .` repro), so allowUninitialized only ever licenses a genuine
+    // fresh-mint pipeline run dir.
+    if (!isInitializedRunDir(resolved) && !(resolveOpts && resolveOpts.allowUninitialized)) {
+      return {
+        runDir: null,
+        invalidRunArg: `${candidate} (exists under the main checkout, but is not an initialized run dir — carries none of decisions.md/run-state.json/config.yml; see resolve-run-dir)`,
+        rest,
+        explicit: true,
+      };
     }
     return { runDir: resolved, invalidRunArg: null, rest, explicit: true };
   }
