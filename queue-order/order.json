@@ -1,0 +1,2629 @@
+{
+  "computedAt": "2026-08-31T17:39:24.323Z",
+  "runId": null,
+  "freshnessSignal": {
+    "issues": [
+      {
+        "number": 1637,
+        "updatedAt": "2026-08-29T16:19:29Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1634,
+        "updatedAt": "2026-08-29T16:19:58Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1633,
+        "updatedAt": "2026-08-29T16:18:08Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1599,
+        "updatedAt": "2026-08-29T16:19:20Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1596,
+        "updatedAt": "2026-08-29T16:19:16Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1595,
+        "updatedAt": "2026-08-29T16:19:14Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1594,
+        "updatedAt": "2026-08-29T16:19:09Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1592,
+        "updatedAt": "2026-08-29T15:38:40Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1586,
+        "updatedAt": "2026-08-29T16:18:37Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1580,
+        "updatedAt": "2026-08-29T16:19:07Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1579,
+        "updatedAt": "2026-08-29T16:18:35Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1570,
+        "updatedAt": "2026-08-29T16:19:04Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1568,
+        "updatedAt": "2026-08-29T16:18:30Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1548,
+        "updatedAt": "2026-08-29T16:19:53Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1537,
+        "updatedAt": "2026-08-29T16:19:50Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1535,
+        "updatedAt": "2026-08-29T15:39:06Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1520,
+        "updatedAt": "2026-08-29T15:39:08Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1503,
+        "updatedAt": "2026-08-29T15:39:11Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1484,
+        "updatedAt": "2026-08-31T10:29:53Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1480,
+        "updatedAt": "2026-08-29T15:39:29Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1475,
+        "updatedAt": "2026-08-29T16:16:30Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1442,
+        "updatedAt": "2026-08-29T22:30:12Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1431,
+        "updatedAt": "2026-08-27T21:56:14Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1429,
+        "updatedAt": "2026-08-27T00:20:23Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1350,
+        "updatedAt": "2026-08-30T06:31:08Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1302,
+        "updatedAt": "2026-08-29T17:17:37Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1294,
+        "updatedAt": "2026-08-27T12:50:47Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1290,
+        "updatedAt": "2026-08-28T13:26:24Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1279,
+        "updatedAt": "2026-08-28T12:11:03Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1224,
+        "updatedAt": "2026-08-27T18:10:22Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1222,
+        "updatedAt": "2026-08-29T17:17:31Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1192,
+        "updatedAt": "2026-08-29T17:17:26Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1135,
+        "updatedAt": "2026-08-27T01:41:42Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1100,
+        "updatedAt": "2026-08-29T15:38:11Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1099,
+        "updatedAt": "2026-08-27T15:46:45Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1058,
+        "updatedAt": "2026-08-28T08:30:54Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1012,
+        "updatedAt": "2026-08-27T14:24:59Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 993,
+        "updatedAt": "2026-08-27T00:20:29Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 976,
+        "updatedAt": "2026-08-28T07:28:46Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 939,
+        "updatedAt": "2026-08-27T12:50:59Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 903,
+        "updatedAt": "2026-08-28T04:18:53Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 873,
+        "updatedAt": "2026-08-30T06:31:11Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 833,
+        "updatedAt": "2026-08-31T06:55:03Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 821,
+        "updatedAt": "2026-08-29T17:17:16Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 733,
+        "updatedAt": "2026-08-30T06:31:03Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 703,
+        "updatedAt": "2026-08-24T15:54:17Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 666,
+        "updatedAt": "2026-08-30T12:58:21Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 605,
+        "updatedAt": "2026-08-30T06:30:56Z",
+        "state": "OPEN"
+      }
+    ]
+  },
+  "groups": [
+    [
+      {
+        "body": "**Doc:** plans/2026-08-16-spec-686-687-688-689-690-691-692-693-ledger | **Section:** Freshness | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** restructural | **Confidence:** high\n\nVerified-as-of: 91cd684cf66dc93dd91ca541b8b1fbe37f89179c\n\n## Current State\n\nThe doc's title ('Open Items — spec 686-693') and table imply an active pipeline ledger, but every one of its 4 rows carries a terminal status (fixed / accepted / deferred→backlog x2). Live-state verification confirms all four are actually closed: both referenced branches (worktree-flow-spec-697, worktree-flow-spec-686-687-688-689-690-691-692-693) are gone from origin (`git ls-remote --heads` returns nothing for both); PR #709 (row 2's 'stays open until... merged/closed via the Shared teardown') is merged and closed (merged_at 2026-08-17T13:20:05Z); issue #788 (row 4's deferred-to-backlog target) is closed with state_reason 'completed' (closed_at 2026-08-17T13:46:08Z). `plugin/skills/ledger/SKILL.md`'s own Delete section states: 'Delete the ledger file after all items are resolved... Only delete when the resolve gate has passed — all items must have terminal statuses.' This ledger cleared that bar in mid-August but is still present in docs/plans/ as of this audit (2026-08-29) — the wrap-up Phase 4 cleanup step that should have deleted it either wasn't run or didn't reach this file. A reader (human or an agent doing retrieval-style search over docs/plans/) encountering this file today is misled into thinking spec 686-693 has unresolved work.\n\n## Deliverables\n\n**Current:**\n```\n(N/A — new content)\n```\n\n**Proposed:**\n```\nDelete the file (git rm docs/plans/2026-08-16-spec-686-687-688-689-690-691-692-693-ledger.md) — all items are resolved and the ledger's own governing procedure calls for deletion once the resolve gate passes.\n```\n\n## Acceptance Criteria\n\nDelete docs/plans/2026-08-16-spec-686-687-688-689-690-691-692-693-ledger.md — the pipeline run it tracks is fully resolved and the file was never cleaned up per the ledger skill's own Delete procedure.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-38c05a58 -->",
+        "createdAt": "2026-08-29T06:14:36Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsDgIWw",
+            "name": "size:high",
+            "description": "Scoring: large change — consider decomposition before building",
+            "color": "BFD4F2"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACyvI7Qw",
+            "name": "docs-health:restructural",
+            "description": "",
+            "color": "ededed"
+          }
+        ],
+        "number": 1637,
+        "state": "OPEN",
+        "title": "Doc staleness: plans/2026-08-16-spec-686-687-688-689-690-691-692-693-ledger — Freshness",
+        "updatedAt": "2026-08-29T16:19:29Z",
+        "facets": {
+          "origin": "docs-health",
+          "risk": "medium",
+          "size": "high",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Related:** #1537\n\n**CLAUDE.md:** CLAUDE | **Section:** claude-tweaks Pipeline | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 14952593f8d81f0bb3005a01fed83c75c96e3d4f\n\n## Current State\n\nVerified live against `skills/init/claude-md-template.md`'s `## claude-tweaks Pipeline` block (the origin template for this exact CLAUDE.md section) and `plugin/skills/_shared/auto-mode-contract.md` lines 29-30/41-44, which currently document this Manifesto-as-FYI behavior as live and correct. The template includes an 'Auto mode' paragraph verbatim in the same section that CLAUDE.md's own Pipeline block otherwise matches word-for-word; only this paragraph and the `specs/`-specific 'Spec close-out' paragraph (correctly omitted here since this project uses `work-backend: github-issues` with no `specs/` directory) differ.\n\n## Deliverables\n\n**Current:**\n```\n**`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.\n\n**Integration model** (`plugin/skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first`\n```\n\n**Proposed:**\n```\n**`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.\n\n**Auto mode:** in default `auto`, the Pipeline Config Manifesto renders as a read-only FYI — it computes and displays the policy levers, then proceeds without stopping — so the only user-facing stop is the Wrap-Up Review Console at the end. Pass `confirm` (or `hybrid`) to turn the Manifesto into a real approval gate; the rest of the pipeline still runs as `auto` once approved.\n\n**Integration model** (`plugin/skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first`\n```\n\n## Acceptance Criteria\n\nCLAUDE.md's `## claude-tweaks Pipeline` section is missing the 'Auto mode' paragraph that the currently installed claude-tweaks plugin's own CLAUDE.md-generation template includes verbatim in this section, describing real, current /flow behavior (the Manifesto renders as a read-only FYI under default `auto`, becomes a real approval gate under `confirm`/`hybrid`).\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-6b2c87b4 -->",
+        "createdAt": "2026-08-29T05:16:26Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
+            "name": "by:harness-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
+            "name": "harness-health:additive",
+            "description": "",
+            "color": "ededed"
+          }
+        ],
+        "number": 1634,
+        "state": "OPEN",
+        "title": "CLAUDE.md drift: CLAUDE — claude-tweaks Pipeline",
+        "updatedAt": "2026-08-29T16:19:58Z",
+        "facets": {
+          "origin": "harness-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Criterion:** review-quality | **Risk:** high | **Severity:** high | **Likelihood:** medium | **Effort:** low | **Confidence:** high | **Area:** plugin/bin/lib/compose-record\n\nVerified-as-of: 14952593f8d81f0bb3005a01fed83c75c96e3d4f\n\n## Current State\n\nAnchor: `plugin/bin/lib/compose-record/compose.js#validateShaped`\n\ncompose.js's validateShaped (plugin/bin/lib/compose-record/compose.js lines 38-50) scans the *entire* body text for TBD/TODO/<!-- ambiguity: markers via `text.includes(marker)`, with no exclusion for the '## Original request' section. Its own docstring (lines 4-6, 35-37) claims this check is 'reused verbatim from _shared/work-record.md's Spec-shaped body section' and 'the one check that composer does not make' by hand elsewhere, but it is not verbatim: work-record.md line 258 and specify/shaping-mode.md line 88 both state the preserved '## Original request' section (shaping-mode's byte-exact copy of the record's original title/body) is explicitly EXEMPT from the placeholder check, citing issue #1240 by name ('the preserved copy is exempt from the spec-shaped-body placeholder check (#1240), so preservation stays byte-exact even when the original text carries a literal TBD/TODO/ambiguity marker'). The sibling implementation bin/lib/issues/materialize-format.js already carries this exact fix: it defines ORIGINAL_REQUEST_RE, slices the body at that heading, and only tests the 'authored' (pre-heading) text against PLACEHOLDER_RE before flagging 'unresolved-placeholder' (materialize-format.js lines 12-18, 46-48). compose.js has no equivalent slice — it is the one caller of this canonical check that never received the #1240 fix. This is live: specify/record-creation.md line 204 invokes `bin/compose-record.js ... --require-shaped` for shaping-mode's sub-issue creation, the exact flow that appends '## Original request' per shaping-mode.md lines 78-88. If a user's originally captured idea (via /capture, explicitly meant for 'half-formed features' and 'brain dumps') contains a literal 'TBD', 'TODO', or '<!-- ambiguity:' anywhere in its title/body, /specify's shaping mode will preserve it verbatim in '## Original request' and compose-record.js will wrongly exit 4 ('body is not spec-shaped') even though the actually-authored shaped sections have no placeholders — blocking legitimate, compliant sub-issue creation in the automated pipeline.\n\n## Deliverables\n\nIn compose.js's validateShaped, mirror materialize-format.js's fix: before scanning for PLACEHOLDER_MARKERS, locate the '## Original request' heading (line-anchored, matching splitSections' own heading regex) and only scan the text before it — the same 'authored' vs. verbatim-preserved split materialize-format.js already implements. Keep the REQUIRED_SECTIONS presence/emptiness checks unchanged (they only ever look at the three named sections, which always precede '## Original request', so they are unaffected). Add a test mirroring the CLI-level scenario: a body with a compliant three-section shape followed by a '## Original request' section containing a literal TBD/TODO/ambiguity marker should validate as ok:true.\n\n## Acceptance Criteria\n\nvalidateShaped(body) returns {ok:true, gaps:[]} for a body whose three required sections are complete and placeholder-free, but whose '## Original request' section (or any content at/after that heading) contains a literal TBD, TODO, or <!-- ambiguity: marker. A marker in the same position for a body with no '## Original request' heading (or before it) still correctly fails as today. A new test in tests/bin-lib/compose-record/compose.test.js covers this case explicitly. `npm test` passes.\n\n_Filed by `/claude-tweaks:code-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: codehealth-3153e1ae -->",
+        "createdAt": "2026-08-29T03:09:50Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
+            "name": "priority:high",
+            "description": "Priority: dispatch picks this band first",
+            "color": "FBCA04"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMTcg",
+            "name": "risk:high",
+            "description": "Scoring: high blast radius — human review required",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACyuNSOA",
+            "name": "by:code-health",
+            "description": "",
+            "color": "ededed"
+          }
+        ],
+        "number": 1633,
+        "state": "OPEN",
+        "title": "validateShaped lacks the '## Original request' placeholder exemption that #1240 fixed elsewhere",
+        "updatedAt": "2026-08-29T16:18:08Z",
+        "facets": {
+          "origin": "code-health",
+          "risk": "high",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "high",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Doc:** plans/2026-08-16-spec-576-575-ledger | **Section:** Open Items table | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 0efccfdf294a15c7291f524203a6c00ae0ef3828\n\n## Current State\n\nAlso affects: `Open Items table (row 1)`, `Open Items table (row 2)`\n\nBoth rows' Resolution column presents deferral to #574 as a pending target ('Deferred to #574 by design', 'Belongs to #574's ... redesign — fold into its design doc'). Live GitHub state shows #574 closed with state_reason 'completed' on 2026-08-16, along with its sub-issues #654 and #655, both also closed as completed. Both deferred deliverables are verified present: docs/journeys/refine-the-backlog-through-decision-lanes.md exists (15,915 bytes), and plugin/skills/backlog/refine-mode.md line 85 requires refineWorklist from bin/lib/issues/backlog.js, replacing the embedded one-liner split/slice scripts the row describes as still needing consolidation. A reader treating this ledger as tracking open work — and especially a retrieval-style agent search hitting this doc — would be misled into thinking these two items are still outstanding when they have in fact shipped.\n\n## Deliverables\n\n**Current:**\n```\n| # | Phase | Item | Status | Resolution |\n|---|-------|------|--------|------------|\n| 1 | build/journeys | No journey documents refine's grant sweep; a one-line exclusion doesn't justify one. Create/refresh a refine journey when #574's redesign lands. | observation | Deferred to #574 by design — noted in #574's build scope via its spec's Gotchas cross-reference |\n| 2 | review/hindsight | refine-mode.md and grant-mode.md now express the bot:in-progress exclusion independently in embedded one-liners; a shared mechanical helper (funnelBuckets precedent) is the consolidation target. | observation | Belongs to #574's cheaper-fetch/mechanical-helper redesign — fold into its design doc, not this fix |\n```\n\n**Proposed:**\n```\n| # | Phase | Item | Status | Resolution |\n|---|-------|------|--------|------------|\n| 1 | build/journeys | No journey documents refine's grant sweep; a one-line exclusion doesn't justify one. Create/refresh a refine journey when #574's redesign lands. | resolved | #574 shipped and closed 2026-08-16 (sub-issue #655) — docs/journeys/refine-the-backlog-through-decision-lanes.md now exists |\n| 2 | review/hindsight | refine-mode.md and grant-mode.md now express the bot:in-progress exclusion independently in embedded one-liners; a shared mechanical helper (funnelBuckets precedent) is the consolidation target. | resolved | #574 shipped and closed 2026-08-16 (sub-issue #654) — refineWorklist in bin/lib/issues/backlog.js now provides the shared helper |\n```\n\n## Acceptance Criteria\n\nUpdate both Open Items rows' Status/Resolution columns to reflect that #574 (and its sub-issues #654, #655) shipped and closed 2026-08-16, with both deferred deliverables confirmed landed in the current codebase: docs/journeys/refine-the-backlog-through-decision-lanes.md exists, and plugin/skills/backlog/refine-mode.md now calls the refineWorklist helper from bin/lib/issues/backlog.js in place of the embedded one-liner exclusions.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-16c25831 -->",
+        "createdAt": "2026-08-28T06:18:39Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
+            "description": "",
+            "color": "ededed"
+          }
+        ],
+        "number": 1599,
+        "state": "OPEN",
+        "title": "Doc staleness: plans/2026-08-16-spec-576-575-ledger — Open Items table",
+        "updatedAt": "2026-08-29T16:19:20Z",
+        "facets": {
+          "origin": "docs-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Title: Harden or mechanically enforce the subagent-output-contract's status-line-first rule\nType: task\nLabels: risk:low, size:small\nDefer-reason: tangential\n\n# Ledger item 20 (from #903 review, reflect full-mode near-miss, CAUSAL: systemic)\n\n**Origin:** ledger resolve gate, spec #903 wrap-up reflect (full mode)\n**Defer-reason:** tangential\n\n## Current State\n\nDuring #903's review, 2 of 8 dispatched Step-3 lens agents violated\n`plugin/skills/_shared/subagent-output-contract.md`'s status-line-first rule — each led with a\nconfirmatory sentence before its `DONE_WITH_CONCERNS` status word, the exact \"WRONG\" example the\ncontract itself calls out. This was caught only via `friction-events.js`'s `contract-violation`\nlog (`bin/lib/hooks/`'s detection), not by the dispatching agent at the time — no re-prompt was\nissued, though the contract requires one on format violation. No actual harm resulted this run\n(findings were still extracted correctly downstream), but the rule currently has no mechanical\nenforcement at the point a dispatching agent consumes a subagent's reply — it relies entirely on\nthat agent's own per-notification vigilance, which failed twice in a single 8-agent dispatch here.\n\n## Deliverables\n\n- Either: strengthen the contract's own prompt language (a stronger negative example, or moving\n  the status-line instruction to be even more prominent), or add a mechanical check the dispatcher\n  is instructed to run against every subagent reply before treating its content as valid (does the\n  literal first line match the required vocabulary exactly).\n- Consider whether `friction-events.js`'s existing `contract-violation` detection could be\n  surfaced back to the dispatching agent in-run (rather than only visible via a later\n  Friction-lens reflect pass), closing the loop faster.\n\n## Acceptance Criteria\n\n1. A future dispatch of 8 similarly-prompted lens agents produces zero unremediated\n   `contract-violation` events, OR every violation triggers an actual re-prompt per the contract's\n   existing (but unenforced) rule.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
+        "createdAt": "2026-08-28T05:24:13Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1596,
+        "state": "OPEN",
+        "title": "Harden or mechanically enforce the subagent-output-contract's status-line-first rule",
+        "updatedAt": "2026-08-29T16:19:16Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Title: New skill or skill-section: deterministic checks parsing loose prose must signal parse failure, never a silent skip\nType: task\nLabels: risk:low, size:small\nDefer-reason: tangential\n\n# Ledger item 19 (from #903 review, reflect hindsight evaluation 5)\n\n**Origin:** ledger resolve gate, spec #903 review/hindsight\n**Defer-reason:** tangential\n\n## Current State\n\n`/claude-tweaks:reflect` hindsight mode (invoked during #903's review) surfaced a general,\nreusable pattern: a mechanized deterministic check that parses loose, real-world prose (not a\nformal grammar) needs an explicit could-not-parse signal, never a silent `null`/skip that\ncollapses into a false negative. This is the exact shape of #903's own ledger item 18 (Check C's\n`parseStep2`), but the lesson generalizes beyond plan-audit — any future \"mechanize a hand-run\nprose check\" work in this repo is at risk of the same failure mode. No existing project skill\nunder `.claude/skills/` obviously covers this general lesson (the closest, `gh-api-module-pattern`,\nis scoped to `gh`/`git`-shelling CLI conventions, not parser API design).\n\n## Deliverables\n\n- Either a new short section in an existing relevant skill, or a small new skill, stating the\n  rule: when mechanizing a prose heuristic into a deterministic check, the \"couldn't parse this\n  input\" case must be a distinguishable return value/signal, never silently identical to \"this\n  input legitimately doesn't apply.\"\n- Cite #903's `plugin/bin/lib/plan-audit/parser.js` `parseStep2` as the worked example.\n\n## Acceptance Criteria\n\n1. A reader of the target skill can find this guidance when writing a new mechanized/deterministic\n   check over free-form text.\n2. The guidance names the concrete anti-pattern (collapsing \"doesn't apply\" and \"couldn't parse\"\n   into one `null`/skip) and the concrete fix shape (a distinguishable signal + a surfaced warning).\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
+        "createdAt": "2026-08-28T05:24:09Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1595,
+        "state": "OPEN",
+        "title": "New skill or skill-section: deterministic checks parsing loose prose must signal parse failure, never a silent skip",
+        "updatedAt": "2026-08-29T16:19:14Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Title: plan-audit: Check C needs a \"Step 2 present but unparseable\" diagnostic signal\nType: task\nLabels: risk:low, size:small\nDefer-reason: tangential\n\n# Ledger item 18 (from #903 review)\n\n**Origin:** ledger resolve gate, spec #903 review\n**Defer-reason:** tangential\n\n## Current State\n\n`plugin/bin/lib/plan-audit/parser.js`'s `parseStep2` returns `null` both when a task genuinely\nhas no TDD Step 2 and when it has a Step 2 whose wording/Run: format didn't match the parser's\npatterns. `checks.js`'s `checkC` silently `continue`s either way with zero diagnostic output.\n#903's review fix broadened the wording match to also accept \"verify they fail\" but deliberately\ndid not chase the further \"confirm FAIL\" + fenced-code-block-Run: drift observed in a real,\ncurrent plan (`docs/superpowers/plans/2026-08-26-sweep-residue-needs-decision-marker.md`) — that\nis a moving target for regex matching, and the durable fix is structural.\n\n## Deliverables\n\n- `parseStep2` (or a sibling function) reports a distinct \"Step 2 present but unparseable\" signal\n  instead of collapsing into the same `null` as \"no Step 2 at all\".\n- `checkC` surfaces that signal as a warning (not a hard failure) in its JSON envelope, naming the\n  task and its raw Step 2 text so a human can judge whether the plan needs updating to the\n  canonical template or the parser needs to learn a legitimately new shape.\n\n## Acceptance Criteria\n\n1. A task with a Step 2 header matching no known wording variant, but bearing `- [ ]`/`- [x]`\n   checkbox syntax, produces a distinct signal (not silently indistinguishable from \"no Step 2\").\n2. `plan-audit.js`'s output surfaces this signal without failing the exit code on its own.\n3. Regression test against the real `2026-08-26-sweep-residue-needs-decision-marker.md` plan\n   shape (fenced-code-block Run:, \"confirm FAIL\" wording) demonstrating the new signal fires.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
+        "createdAt": "2026-08-28T05:24:03Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1594,
+        "state": "OPEN",
+        "title": "plan-audit: Check C needs a \"Step 2 present but unparseable\" diagnostic signal",
+        "updatedAt": "2026-08-29T16:19:09Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "## Current State\n\n`assess-agent-autonomy/merge-check.md` Step 1 resolves `INTEGRATION_BRANCH` per `_shared/integration-branch.md`, which (inside a worktree) correctly falls back to the bare GitHub-default branch name, e.g. `\"main\"`, and passes that bare name straight to `blast-radius.js --integration-branch`.\n\n`review/code-mode-steps.md` Step 2 already carries an explicit guard against exactly this class of hazard for its own `{base}` resolution: \"never trust a bare local branch name for `{base}`... resolve it via `git fetch origin {base}` then use `origin/{base}`.\" `merge-check.md`'s Step 1 has no equivalent instruction before invoking `blast-radius.js`.\n\nObserved live during a `/claude-tweaks:review` merge-check for record #897: the shared checkout's local `main` ref was stale (`b3962148`, well behind `origin/main` at `0efccfdf2`). `blast-radius.js --integration-branch main` resolved the merge base against the stale local ref and reported a wildly inflated blast radius (`implLines=1071`, `implFiles=35`, covering ~38 unrelated commits) instead of the record's actual 6-file/127-line diff. `blast-radius.js --integration-branch origin/main` gave the correct numbers. Caught only because the numbers looked implausible for the record's known scope — a less obviously-wrong stale-branch read could silently produce a false `needs-human` (or worse, a false `auto-merge`) verdict.\n\n## Deliverables\n\n- [ ] Either (a) `merge-check.md`'s Step 1 applies the same fetch-and-prefer-origin discipline `review/code-mode-steps.md` Step 2 already states before calling `blast-radius.js`, or (b) `blast-radius.js` itself resolves `--integration-branch {name}` against `origin/{name}` when that ref exists, falling back to the bare local ref only if it doesn't — the second option fixes every caller (`assess-agent-autonomy`, `residue.js` already defaults to `origin/main` per its own doc note, so this would make the two consistent) at once rather than just this one call site.\n\n## Acceptance Criteria\n\n1. A shared checkout with a stale local `main` (behind `origin/main`) produces the same blast-radius numbers whether `--integration-branch main` or `--integration-branch origin/main` is passed.\n2. A test pins the stale-local-branch scenario (fixture repo with local `main` behind a remote-tracking `origin/main`) and asserts the resolved merge base matches `origin/main`'s, not the stale local ref's.\n\nOrigin: reflect full mode (Near-misses lens), record #897 wrap-up.\nDefer-reason: tangential",
+        "createdAt": "2026-08-28T04:15:13Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          }
+        ],
+        "number": 1592,
+        "state": "OPEN",
+        "title": "assess-agent-autonomy merge-check: resolve stale local branch names against origin before blast-radius",
+        "updatedAt": "2026-08-29T15:38:40Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "# Reflect — staged finding 3\n\n**Category:** tangential\n\n## Current State\n\n`node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" log-decision --run ... --text ...` silently\nno-ops: exit 0, no stdout, no stderr, and no line appended to `decisions.md`. `log-decision`\nis not a recognized `bin/hooks.js` subcommand — the correct tool is the separate\n`bin/log-decision.js` CLI (a different script entirely, name-colliding with the intended\nsubcommand). This was only caught by re-reading `decisions.md` afterward and noticing the\nexpected entry was absent, in run `2026-08-27T235742-record-613` (refs #613) during\n`/claude-tweaks:flow #613 review,polish,wrap-up`.\n\n## Deliverables\n\n- [ ] `bin/hooks.js`'s subcommand dispatcher errors loudly (non-zero exit, clear stderr\n      message naming the unrecognized subcommand and pointing at the closest valid one or\n      at `bin/log-decision.js` specifically, given the name collision) on an unrecognized\n      subcommand, instead of exiting 0 with no output.\n\n## Acceptance Criteria\n\n- [ ] `node bin/hooks.js log-decision ...` (or any other unrecognized subcommand) exits\n      non-zero and prints a clear error to stderr.\n- [ ] A regression test pins this behavior.\n\n_Filed by `reflect` via specShapedBody._\n",
+        "createdAt": "2026-08-28T00:51:36Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          }
+        ],
+        "number": 1586,
+        "state": "OPEN",
+        "title": "hooks.js log-decision silently no-ops on unrecognized subcommand instead of erroring",
+        "updatedAt": "2026-08-29T16:18:37Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "# Reflect — staged finding 3\n\n**Category:** tangential\n\nOrigin: reflect light from #1410\nDefer-reason: tangential\n\n## Current State\n\n`bin/set-config.js` only accepts `--run <dir> --key <lever> --value <value>` — one config.yml\nlever per invocation. Recovering this run's inherited-but-uninitialized `PIPELINE_RUN_DIR`\n(`flow/steps-and-gates.md`'s case-3 recovery path) required computing all 13 canonical Manifesto\nlevers and writing them one at a time — 13 sequential `node bin/set-config.js` calls to produce\none `config.yml`. Every from-scratch Manifesto run (Step 3's normal, non-recovery path) pays the\nsame per-lever cost; this session's recovery path just made it visible as 13 back-to-back calls in\none place.\n\n## Deliverables\n\n- `set-config.js` gains a batch mode (e.g. `--run <dir> --from-json <path>` or `--set\n  key=value,key=value,...`) that writes every lever in one invocation, validating the full set\n  against the canonical lever list before writing any of them (all-or-nothing, matching the\n  existing single-key validation's error message).\n- `flow/manifesto.md`'s \"Approval flow\" section updated to call the batch form instead of one\n  `set-config.js` call per lever.\n\n## Acceptance Criteria\n\n- AC1: A single CLI call can write a complete Manifesto config.yml (all 13 canonical levers) in\n  one invocation, with the same fail-closed validation the single-key form already has.\n- AC2: The single-key form is kept as-is (used by the ceremony escape hatch and other one-lever\n  writers) — this is additive, not a replacement.\n\n_Filed by `reflect` via specShapedBody._\n",
+        "createdAt": "2026-08-27T21:46:11Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1580,
+        "state": "OPEN",
+        "title": "set-config.js: batch-write mode for a full Manifesto config.yml in one call",
+        "updatedAt": "2026-08-29T16:19:07Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "# Reflect — staged finding 2\n\n**Category:** tangential\n\nOrigin: reflect light from #1410\nDefer-reason: tangential\n\n## Current State\n\nRecord #1410 and record #1402 (PR #1577, parked/unmerged) both diagnose the exact same root\ncause in `plugin/bin/lib/hooks/context.js`'s `resolveRun` fallback branches — a missing\nworktree-binding check. #1402's build ran first but its PR never merged; #1410 was later\nauthorized and dispatched, and its own build necessarily re-implemented the identical fix from\nscratch (it had no way to build on top of #1402's unmerged branch). Direct diff comparison during\n#1410's review confirmed the two PRs' functional code is byte-identical in `context.js`, differing\nonly in explanatory-comment wording — a trivial, but real, merge conflict on second-merge (also\ntouching one `docs/hooks.md` line both PRs edit differently). Nothing detected this duplication\nbefore dispatch authorized and ran #1410's build; it only surfaced because this review call\nhappened to cross-reference the two PRs by hand at the operator's explicit request.\n\n## Deliverables\n\n- `/claude-tweaks:dispatch` (or `/claude-tweaks:backlog refine`, wherever authorization happens)\n  gains a check that flags — at authorization or dispatch time, not discovered post-hoc in review —\n  when two `ready`/`auto:build` records name overlapping file regions or an unmerged sibling PR\n  already claims to fix the same root cause, so a human can choose to serialize them (block #1410\n  on #1402's merge) rather than pay for two independent builds of the same fix.\n\n## Acceptance Criteria\n\n- AC1: A concrete detection signal is proposed (file-overlap on unmerged PR diffs, a shared\n  root-cause reference in each record's body, or similar) and evaluated for false-positive rate.\n- AC2: The chosen signal is wired into dispatch's authorization or claim path, with a documented\n  fallback for \"unclear,\" never a hard block on ambiguous evidence.\n\n_Filed by `reflect` via specShapedBody._\n",
+        "createdAt": "2026-08-27T21:45:43Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          }
+        ],
+        "number": 1579,
+        "state": "OPEN",
+        "title": "dispatch: detect concurrently-authorized records with overlapping unmerged root-cause fixes",
+        "updatedAt": "2026-08-29T16:18:35Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Origin: reflect light from #1143\nDefer-reason: tangential\n\n## Current State\n\n`skills/review/SKILL.md`'s Overview states: \"When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (code + visual).\" But the Input resolution section's actual mode-selection rules (1-8) are purely token-based — the literal word `full` appearing in `$ARGUMENTS` is the only thing that selects full mode. There is no rule that checks `$PIPELINE_RUN_DIR` (or any other flow-context signal) and defaults to full mode when no explicit mode token is present. A flow executor who invokes `/claude-tweaks:review {spec}` without typing `full` explicitly silently gets **code** mode instead — no warning, no divergence from the documented default surfaced anywhere. This run (#1143's own flow continuation) hit exactly this gap: `/claude-tweaks:review #1143` was invoked without the `full` token, resolving to code mode per the skill's own Input resolution rule 1. No actual harm occurred this run (the record's `surface: backend`, so visual review would have been skipped by Step 6's own detection regardless of mode) — but on a frontend record, the same omission would silently skip the browser visual-review pass in a context where the skill's own documentation promises it always runs.\n\n## Deliverables\n\n- [ ] Add a rule to `skills/review/SKILL.md`'s Input resolution (or its own note) that defaults to full mode when `$PIPELINE_RUN_DIR` is set (or an equivalent flow-context signal is present) and no explicit mode token (`full`/`visual`/`journey:`/`discover`) appears in `$ARGUMENTS` — making the documented \"flow invokes review in full mode by default\" promise self-enforcing rather than dependent on the flow executor remembering to type `full`.\n- [ ] Audit `skills/flow/SKILL.md`'s own Step 4 invocation prose for the same gap — it also just says \"Flow invokes `/claude-tweaks:review` in full mode by default\" without specifying the mechanism that makes this true.\n\n## Acceptance Criteria\n\n1. `/claude-tweaks:review {spec}` invoked with `$PIPELINE_RUN_DIR` set and no explicit mode token resolves to full mode (verifiable by reading the updated Input resolution rule).\n2. `/claude-tweaks:review {spec}` invoked standalone (no `$PIPELINE_RUN_DIR`) and no explicit mode token still resolves to code mode, unchanged — the fix must not alter standalone behavior.\n3. An explicit mode token (`full`/`visual`/`journey:`/`discover`) still always wins over the flow-context default, in either context.\n\n_Filed by `reflect` via specShapedBody._\n",
+        "createdAt": "2026-08-27T18:02:08Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1570,
+        "state": "OPEN",
+        "title": "/claude-tweaks:review's flow-context full-mode default isn't self-enforcing",
+        "updatedAt": "2026-08-29T16:19:04Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\nOrigin: build #1142\nDefer-reason: genuinely-larger\n\n## Current State\n\n`materialize.js`'s worktree write mode and the `pre-tool-use.js` shadow-guard carve-out (#959, commit 73478c8b5) fixed the writer going forward, but 26 root-level `work/{n}-spec.md` files remain committed at the repo root (not under any `.claude-tweaks/pipelines/{run-id}/work/` run dir) as of 2026-08-27 — pre-dating the fix, and at least one (`work/1124-spec.md`, committed 2026-08-27) landed *after* the fix shipped, via a direct commit on the integration branch outside any worktree/materialize.js invocation (root cause not yet diagnosed — likely a hand-authored write bypassing the documented CLI, not a defect in the CLI itself). #1142's own 2026-08-25 \"Absorbed\" addendum named this sweep as follow-up work once the writer was fixed; #1142 verified the writer fix but did not do the sweep (out of scope for that build — touching 26 files risked colliding with ~69 concurrent sibling records in the same drain).\n\n## Deliverables\n\n- [ ] For each of the 26 (check current count — more may have landed since) root-level `work/{n}-spec.md` files, determine its originating run dir under `.claude-tweaks/pipelines/` (live or `archive/`) and move the file there (`work/{n}-spec.md` if live, `archive/{run-dir}/work/{n}-spec.md` if archived); when no matching run dir can be found (already reaped/archived elsewhere), leave a decision trail for what happened to it rather than silently deleting.\n- [ ] Add a pin test (e.g. under `tests/`) asserting the repo-root `work/` directory contains no `{n}-spec.md` files going forward — catches a regression of this same class, whatever its root cause turns out to be.\n- [ ] Separately diagnose why `work/1124-spec.md` landed at the repo root on 2026-08-27, *after* #959's fix shipped (2026-08-21) — confirm whether this was a hand-authored bypass of `materialize.js`/the worktree-first flow, or a genuine residual gap the pin test above would also need to guard against structurally (not just via test coverage).\n\n## Acceptance Criteria\n\n1. Repo-root `work/` directory contains zero `{n}-spec.md` files (pinned by the new test).\n2. Every one of the swept files' content is preserved somewhere traceable (its run dir's `work/`, or `archive/{run-dir}/work/`) — no silent deletion.\n3. The 2026-08-27 `work/1124-spec.md` root-landing is explained; if it points to a code gap (not a one-off hand-authored write), that gap gets its own follow-up.\n4. `npm test` passes.\n\n## Gotchas\n\n- This repo has ~69 sibling drain records executing concurrently as of 2026-08-27 (Phase 2 of a large bundle) — the sweep should run once the bundle drains, not mid-drain, to avoid colliding with in-flight worktrees still writing to their own run dirs.\n- Some of the 26 run dirs may already be archived (`.claude-tweaks/pipelines/archive/`) or fully reaped — the sweep needs a reliable per-file provenance lookup (likely via git log / commit message matching \"Materialize spec for #{n}\"), not a guess.\n\n_Filed by `capture` via specShapedBody, deferred from #1142._\n",
+        "createdAt": "2026-08-27T17:22:33Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          }
+        ],
+        "number": 1568,
+        "state": "OPEN",
+        "title": "Sweep root-level work/{n}-spec.md files into their run dirs; pin root work/ empty",
+        "updatedAt": "2026-08-29T16:18:30Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "low",
+          "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Related:** #1456\n\nOrigin: reflect light from #1404\nDefer-reason: tangential\n\n## Current State\n\n`_shared/pr-early-run-lifecycle.md`'s \"Run start: push, then open (or reuse) the draft PR\" procedure is supposed to run once per pipeline run, from `build/worktree-setup.md` Step 6, immediately after the materialize commit — making every `pr-first` run \"born public\" (draft PR at run start, every phase pushes). On run `2026-08-27T061932-record-1404` (record #1404), the build/test phases completed two commits (materialize + fix) with no upstream branch configured and no PR opened at all — `decisions.md` had zero `PR-early run lifecycle` entries, and no `run-state.json` existed in the run directory until `/claude-tweaks:review`'s own phase-exit recovered it manually (pushed the branch, created draft PR #1547, recorded it via `hooks.js record-pr`). `pr-early-run-lifecycle.md`'s own \"Phase-checklist update\" section anticipates this exact degraded state (a `pr-first` run with no upstream configured) and documents a recovery path — which is what let review self-heal here — but the run-start step that should have prevented the gap in the first place did not fire.\n\n## Deliverables\n\nInvestigate why `build/worktree-setup.md` Step 6 did not invoke the PR-early run lifecycle for this run (or any systemic reason a `pr-first` build phase might skip it — e.g. ceremony-profile: fast-lane trimming a step it shouldn't, or a code path that silently no-ops when `gh` calls are slow/deferred). Fix the root cause so a fresh `pr-first` build phase reliably opens (or logs a degrade for) the draft PR at run start, per the file's own mandate. Add or strengthen a test that would have caught this specific gap (a build-phase run with `integration-model: pr-first` completing without a `run-state.json.pr` field and without a matching `decisions.md` degrade line).\n\n## Acceptance Criteria\n\n- A fresh `pr-first` build phase run either opens a draft PR at run start or logs one of `pr-early-run-lifecycle.md`'s documented degrade lines (push failure, `gh pr create` failure) — never silently neither.\n- A regression test exists that fails against the observed gap (no PR, no degrade log) and passes once fixed.\n- No change to the recovery path documented in `pr-early-run-lifecycle.md`'s Phase-checklist update section — it remains the correct fallback for a genuinely degraded run.\n\n## Evidence\n\n`decisions.md` for run `2026-08-27T061932-record-1404` had no `PR-early` entries before this review step; `git rev-parse --abbrev-ref --symbolic-full-name @{u}` failed (no upstream) at review's phase-exit; `gh pr list --head worktree-dispatch-record-1404 --state all` returned an empty list — confirming no PR was ever attempted, not merely one that failed and degraded silently (a degrade would still log).\n\n## Cost this session\n\nLow — one extra recovery pass (push, `gh pr create`, `record-pr`, retroactive checklist backfill across 3 `gh pr edit` calls) inside `/claude-tweaks:review`'s phase-exit, a few extra tool calls. Not blocking, but the same gap on an unattended dispatch run without a review-phase recovery path would leave a `pr-first` record silently running local-only for its entire lifecycle.\n\n_Filed by `reflect` via specShapedBody._\n",
+        "createdAt": "2026-08-27T06:56:29Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          }
+        ],
+        "number": 1548,
+        "state": "OPEN",
+        "title": "/build's worktree-setup does not reliably invoke pr-early-run-lifecycle's draft-PR-at-run-start step",
+        "updatedAt": "2026-08-29T16:19:53Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Related:** #1634\n\n**CLAUDE.md:** CLAUDE | **Section:** Auto-Mode Contract + Bookend Architecture (v4.6+) | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b3962148502d70e2970b7591c55634d62dc74162\n\n## Current State\n\n`plugin/skills/_shared/auto-mode-contract.md` line 30 states verbatim: \"Begin stop is opt-in under `auto`. `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** ... so the everyday auto pipeline has effectively **one** user-facing stop ... The 'at most two stops' promise is a ceiling, not a floor.\" CLAUDE.md's own paragraph omits this distinction entirely, leaving a reader (or an agent acting on CLAUDE.md alone) to assume the Manifesto is normally an interactive stop in default `auto`, which it is not.\n\n## Deliverables\n\n**Current:**\n```\nclaude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.\n```\n\n**Proposed:**\n```\nclaude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). The two-stop ceiling isn't a floor: in default `auto`, the Manifesto renders as a **read-only FYI** (displays levers, doesn't gate), so the everyday run has effectively **one** user-facing stop — the end Review Console. Pass `confirm` (or `hybrid`) to turn the Manifesto into a real approval gate. Everything in between is policy-driven automation logged to the auto-decision log.\n```\n\n## Acceptance Criteria\n\nCLAUDE.md's Auto-Mode Contract paragraph presents \"at most two stops\" as if both stops normally occur in `auto` mode, but the canonical `plugin/skills/_shared/auto-mode-contract.md` (the file this paragraph cites as single source of truth) now explicitly clarifies that the ceiling is not a floor: in default `auto`, the Manifesto renders as a read-only FYI and never gates, so the everyday auto run has effectively only one user-facing stop (the end Review Console) — the Manifesto only becomes a real stop under `confirm`/`hybrid`.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-1ee082ad -->",
+        "createdAt": "2026-08-27T05:23:55Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
+            "name": "by:harness-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
+            "name": "harness-health:additive",
+            "description": "",
+            "color": "ededed"
+          }
+        ],
+        "number": 1537,
+        "state": "OPEN",
+        "title": "CLAUDE.md drift: CLAUDE — Auto-Mode Contract + Bookend Architecture (v4.6+)",
+        "updatedAt": "2026-08-29T16:19:50Z",
+        "facets": {
+          "origin": "harness-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Defer-reason: pre-existing-outside-diff\n\n## Current State\n\nWhile performing #1313's final whole-branch review (fix compute-then-exit truncation risk in `plugin/bin/release.js` and `plugin/bin/review-coordination.js` — itself a follow-up to #1176's earlier sweep), the reviewer found that #1313's own sweep enumeration was incomplete. `plugin/bin/build-review-context.js:76` carries the identical idiom:\n\n```js\nprocess.exit(run(process.argv.slice(2)));\n```\n\n`run()`'s `build`/`mint` branches end with `deps.stdout(JSON.stringify(result) + '\\n'); return 0;` — the same shape #1176/#1313 already fixed elsewhere: a stdout write immediately before returning an integer that then feeds `process.exit()`, which can truncate the write for a piped consumer.\n\nThe enumeration was verified exact by the #1313 final reviewer: `process.exit(` appears in exactly three `plugin/bin/*.js` files — `build-review-context.js:76` (this idiom, unfixed), `hooks.js:779` (correctly excluded — uses synchronous `fs.writeSync(1, ...)` with no async flush to lose), and `wrap-up-engine.js:361` (a comment, not a call, not in scope). A GitHub search (`gh issue list --search \"build-review-context process.exit\"` and `--search \"truncation exit in:title\"`, both `--state all`) found no existing record for this file.\n\nThis matters more than the other two instances: `build-review-context.js` is what `/claude-tweaks:review` Step 3 shells out to for its context bundle, and skill prose parses its stdout JSON line.\n\n## Deliverables\n\n- In `plugin/bin/build-review-context.js`, change `process.exit(run(process.argv.slice(2)));` to `process.exitCode = run(process.argv.slice(2));`. The call sits inside an existing `try` block whose `catch` already sets `process.exitCode = 1` — that fallback is unaffected, since `process.exit()` never threw there anyway.\n- Read `main()`/`run()` in full first, per #1176's own safety rule, to confirm no code after the changed line assumes an immediate hard-stop (the same check #1313 performed for its two files).\n\n## Acceptance Criteria\n\n1. The file exits with the same status code as before for a representative success and failure case.\n2. `npm test` passes in full.\n\n## Original request\n\nDiscovered while performing #1313's final whole-branch review — see that record's review findings for the full verification trail (grep of `plugin/bin/*.js` for `process.exit(`, GitHub search for an existing record).",
+        "createdAt": "2026-08-27T04:53:28Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          }
+        ],
+        "number": 1535,
+        "state": "OPEN",
+        "title": "Fix compute-then-exit truncation risk in build-review-context.js",
+        "updatedAt": "2026-08-29T15:39:06Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect light from #815\nDefer-reason: tangential\n\n## Current State\nDuring record #815's `/build` phase (a prior, separate `/flow` invocation), `build/worktree-setup.md`'s `record-worktree` call was never made — `run-state.json` was never written for run `2026-08-26T215430-record-815`, even though two commits landed successfully in its worktree (`c963104b2`, `f6837385f`). The commit-tracking PostToolUse hook's event log for those two commits, and a `worktree-staleness` check, were instead appended into an unrelated, unrecorded run's `events.jsonl` (`2026-08-26T212441-record-769`) — the same session's previously-active run, matched by `sessionId` rather than by the worktree path the commits actually happened in. Because `run-state.json` was missing, `build/worktree-setup.md`'s \"non-skippable\" PR-early lifecycle (`[IL-131]`) also never ran: no branch was pushed and no PR was opened until a later `/flow review,polish,wrap-up` catch-up call (this run) diagnosed the gap, re-stamped the worktree assignment via `hooks.js record-worktree`, pushed the branch, and opened/recorded draft PR #1519 by hand.\n\n## Deliverables\n1. Root-cause why the `/build` phase's `record-worktree` call was skipped for this run (a build-side omission, a race, or a resolver bug) -- check whether other recent single-record dispatch runs show the same gap.\n2. Decide whether `bin/lib/hooks/context.js`'s commit-event/worktree-staleness logging should refuse the session-scoped `sessionId` fallback silently, and instead surface a loud warning (or hard-fail) when no run's `run-state.json.worktree` matches the cwd a commit actually happened in -- silent misattribution into an unrelated run's audit trail is worse than a visible gap.\n\n## Acceptance Criteria\nA fresh single-record `/dispatch` -> `/flow` run's `/build` phase reliably calls `record-worktree` before its first commit (verified via a new or existing test), and the commit-event/staleness hooks either match the owning run correctly or emit a diagnosable warning instead of silently attributing to the wrong run.\n\n## Original request\n\nInvestigate why record-worktree was skipped in a /build phase, and harden the commit-event run-attribution fallback\n\n_Filed by `reflect` via specShapedBody._\n",
+        "createdAt": "2026-08-26T22:14:50Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 1520,
+        "state": "OPEN",
+        "title": "Investigate why record-worktree was skipped in a /build phase, and harden the commit-event run-attribution fallback",
+        "updatedAt": "2026-08-29T15:39:08Z",
+        "facets": {
+          "origin": null,
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\n## Current State\n\nThe `qa-agent`/`browse` skill's agent-browser command reference (`plugin/skills/browse/agent-browser-reference.md`, cited by `plugin/skills/browse/SKILL.md` and `plugin/agents/qa-agent.md`) is pinned to agent-browser v0.27, but the documented command vocabulary doesn't reflect several real behaviors of that pinned version. Every QA story-generation and QA-execution session currently rediscovers these facts independently rather than reading them from the skill.\n\n## Deliverables\n\nUpdate `plugin/skills/browse/agent-browser-reference.md` (and `SKILL.md`/`qa-agent.md` if either restates the affected guidance locally) to document, for the pinned agent-browser v0.27:\n\n- `find`'s action argument only supports `click`/`fill`/`check`/`hover` — no `select`, `press`, or `type`. Document the fallback for a `select` interaction: a full `snapshot -i -c` followed by a separate top-level `select @eN value` call.\n- `find role <role> ... --name X` resolves the `button` role but not `link` or `heading` — locating a link or heading by role silently fails to match; QA prompts must use a different locator (text/testid/label) for those roles.\n- `click` does not auto-scroll the target into view — a below-the-fold click reports success but lands nowhere. Document the mitigation (pinning a tall viewport) so QA prompts guard against this explicitly.\n- `screenshot` can fail with an OS-level error under concurrent sessions, and appears to reject an output path containing a space — document both as known limitations.\n- The distinction between plain `snapshot` (for a static-text assertion) and `snapshot -i -c` (a different purpose — locating interactive refs) isn't called out anywhere the skill's prompts reference; document it explicitly.\n\n## Acceptance Criteria\n\n- [ ] `agent-browser-reference.md` documents the four action verbs `find` actually supports and the `snapshot -i -c` + top-level `select @eN value` fallback for a select interaction.\n- [ ] `agent-browser-reference.md`'s role-locator guidance states that only `button` reliably resolves via `find role`, not `link`/`heading`.\n- [ ] `agent-browser-reference.md` documents that `click` does not auto-scroll, with the tall-viewport mitigation QA prompts should apply.\n- [ ] `agent-browser-reference.md` documents `screenshot`'s concurrent-session OS-level failure mode and its rejection of paths containing spaces.\n- [ ] `agent-browser-reference.md` explicitly distinguishes plain `snapshot` (static-text assertions) from `snapshot -i -c` (interactive-ref lookup), and any prompt guidance elsewhere in the skill that conflates the two is corrected.\n- [ ] No other command-reference table in `SKILL.md`/`qa-agent.md` still restates the pre-fix guidance (single-source-of-truth check, matching the existing \"no local copy\" convention already noted in `agent-browser-reference.md`).\n\n## Technical Approach\n\nPure documentation change, scoped to the pinned agent-browser v0.27 command surface — no code, no new behavior. Edit the reference table(s) and any adjacent prose in `agent-browser-reference.md` to add the five facts above; cross-check `SKILL.md`'s own command-reference/Anti-Patterns tables and `qa-agent.md` for any restated guidance that would now be inconsistent, per the \"single source of truth, no local copy\" principle `agent-browser-reference.md` already states for its Anti-Patterns table.\n\n### Key Files\n\n- `plugin/skills/browse/agent-browser-reference.md` — add the five documented v0.27 command-surface facts (find action verbs + select fallback, role-locator button-only resolution, click no-auto-scroll, screenshot concurrent/space-path limitations, snapshot vs snapshot -i -c distinction)\n- `plugin/skills/browse/SKILL.md` — check for restated command-reference content that needs the same update\n- `plugin/agents/qa-agent.md` — check for restated command-reference content that needs the same update\n\n## Gotchas\n\n- These facts are version-pinned to agent-browser v0.27 specifically — if the plugin's pinned version changes later, this guidance needs re-verification against the new version rather than being assumed to still hold.\n- `find role button ... --name X` resolving but `link`/`heading` silently failing to match is easy to miss in testing — the command exits without an error, it just doesn't find the element, so verification of this fix should include a negative-case check (attempt a `link`/`heading` role find and confirm the doc's guidance to use a different locator is followed).\n\n## Original request\n\nqa-agent/browse skill's agent-browser guidance is stale against the pinned agent-browser v0.27\n\n**Summary:** Several agent-browser v0.27 command-surface facts aren't reflected in the qa-agent/browse skill guidance, so every QA story-writing and execution pass has to rediscover and work around them by hand.\n\n**Kind:** Gap\n\n**Affected component:** the `qa-agent`/`browse` skill's agent-browser command reference (story generation and QA execution prompts)\n\n**Use case:** Writing and running QA stories against a web app with agent-browser v0.27 pinned. The skill's documented command vocabulary doesn't mention several real limitations of that version, so each session has to discover them independently:\n- `find` only supports `click`/`fill`/`check`/`hover` as its action argument -- no `select`, `press`, or `type`. A `select` interaction has to fall back to a full `snapshot -i -c` plus a separate top-level `select @eN value` call.\n- `find role button ... --name X` resolves the `button` role but not `link` or `heading` -- locating a link or heading by role silently fails to match.\n- `click` does not auto-scroll the target into view -- a below-the-fold click reports success but lands nowhere, which QA prompts need to guard against explicitly (e.g. by pinning a tall viewport).\n- `screenshot` can fail with an OS-level error under concurrent sessions, and appears to reject an output path containing a space.\n- The plain `snapshot` command (no `-c`/`-i -c` flags) is what a static-text assertion should use; the `-i -c` variant is for a different purpose. This distinction isn't called out anywhere the skill's prompts reference.\n\n**Definition:** Clear\n\n**Plugin version:** 6.106.0\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-495504d4 -->\n",
+        "createdAt": "2026-08-26T17:41:17Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACYw9-KA",
+            "name": "enhancement",
+            "description": "New feature or request",
+            "color": "a2eeef"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 1503,
+        "state": "OPEN",
+        "title": "qa-agent/browse skill's agent-browser guidance is stale against the pinned agent-browser v0.27",
+        "updatedAt": "2026-08-29T15:39:11Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Origin: reflect full mode from #1228\nDefer-reason: tangential\n\n## Current State\n\n`plugin/bin/lib/hooks/subagent-stop.js` checks the last assistant text of a SubagentStop-triggering\nevent against `STATUS_RE` (`^(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\\b`) and logs a\n`contract-violation` event when it doesn't match. When the session receiving this check is itself\nrunning as a background job (dispatched via the Agent tool by an outer orchestrator — e.g. a\n`/claude-tweaks:dispatch` two-call handoff), every one of that session's own turn boundaries while\nwaiting on its own parallel Task-tool dispatches is independently checked, even though the\nsubagent-output-contract's status-line requirement applies only to a dispatched subagent's own\n*final* reply — never to the orchestrating session's legitimate interim narration turns. During\nrecord #1228's own review+polish+wrap-up dispatch, 8 lens-review agents plus a code-simplifier\nagent were dispatched in parallel; the orchestrating session narrated one line per completion\nnotification per its own \"Narrate\" convention. `friction-events.js --run <that run>` returned 15\n`contract-violation` events for the run — all 15 are verbatim excerpts of the orchestrating\nsession's own narration text, not any dispatched agent's reply. All 9 real dispatched Task agents\nthat run correctly emitted a valid status line as their first reply line; zero genuine violations\noccurred. The file's own header comment already documents one known false-positive source (\"a\ndispatch whose own template specifies a different first-line contract\") but not this second class.\n\n## Deliverables\n\n- Extend `subagent-stop.js`'s existing \"Known false-positive source\" header comment to name this\n  second class: a background-job session's own interim narration turns, checked independently of\n  its dispatched subagents' replies. Documenting the limitation is sufficient given the hook is\n  warn-tier/best-effort and never blocks — no behavioral change required.\n\n## Acceptance Criteria\n\n- The false-positive comment block names both known sources.\n- A future reader of `events.jsonl`'s `contract-violation` entries for a background-job-orchestrated\n  run understands why a high count there does not necessarily indicate genuine subagent contract\n  violations.\n\n_Filed by `reflect` via specShapedBody._\n",
+        "createdAt": "2026-08-26T08:37:40Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACxTu0eA",
+            "name": "by:reflect",
+            "description": "Origin: filed via /reflect (wrap-up Phase 1)",
+            "color": "ededed"
+          }
+        ],
+        "number": 1480,
+        "state": "OPEN",
+        "title": "subagent-stop.js contract-violation check false-fires against an orchestrating background-job session's own interim narration turns",
+        "updatedAt": "2026-08-29T15:39:29Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Doc:** plans/2026-08-16-spec-276-528-529-530-ledger | **Section:** Open Items — Flow run: #276, #528, #529, #530 (routine fleet status/off + routine prompt indirection) | **Category:** staleness | **Misleads:** coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: a2cec1b585337dc767e2dcce96b84c6f6332ed28\n\n## Current State\n\nRow 3 states the AC4 off→on round-trip half cannot be exercised because 'no pause verb exists (#213 open)', with Status='open'. Live GitHub state (mcp__github__issue_read) shows #213 is closed with state_reason='completed', closed_at 2026-08-20T04:35:51Z — six days before this audit. The cited blocker no longer holds; a reader or retrieval-style agent trusting this row as current status would wrongly conclude the pause verb still doesn't exist.\n\n## Deliverables\n\n**Current:**\n```\n| 3 | build | #276 AC4's live off→on round-trip half cannot be exercised — no pause verb exists (#213 open); only the marker-semantics half is verified | open | — |\n```\n\n**Proposed:**\n```\n| 3 | build | #276 AC4's live off→on round-trip half cannot be exercised — no pause verb exists (#213 open); only the marker-semantics half is verified | open | #213 closed 2026-08-20 (completed) — a pause verb now exists via `/claude-tweaks:routine pause`; the AC4 live round-trip itself has not been re-verified against it |\n```\n\n## Acceptance Criteria\n\nUpdate row 3's Status/Resolution to reflect that #213 is now closed (completed, 2026-08-20) and a pause verb exists, so the row no longer asserts a blocker that has since been resolved.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-98b9b125 -->",
+        "createdAt": "2026-08-26T06:07:01Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
+            "description": "",
+            "color": "ededed"
+          }
+        ],
+        "number": 1475,
+        "state": "OPEN",
+        "title": "Doc staleness: plans/2026-08-16-spec-276-528-529-530-ledger — Open Items — Flow run: #276, #528, #529, #530 (routine fleet status/off + routine prompt indirection)",
+        "updatedAt": "2026-08-29T16:16:30Z",
+        "facets": {
+          "origin": "docs-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\n## Current State\n\nRecord #649 added `_shared/subagent-output-contract.md`'s fan-out single-assistant-message-rule\nsentence and per-site citations (AC1, fully test-pinned in `tests/subagent-contract-clauses.test.js`,\n18/18 passing). AC2 — \"A `/specify` red-team over 2+ `ceremony:standard` sub-issues launches its\npersonas in ≤ (number of sub-issues) assistant messages, verified in the transcript by `Agent`\ntool_use blocks sharing a message id\" — is a live-behavior criterion that cannot be verified by a\nstatic `node --test` assertion; it can only be confirmed by observing an actual future `/specify`\ndecomposition run's transcript.\n\n## Deliverables\n\nConfirm, at the next `/specify` decomposition run over 2+ `ceremony:standard` sub-issues, that\npersona dispatch actually batches into ≤N assistant messages per `_shared/subagent-output-contract.md`'s\nfan-out single-assistant-message rule and `red-team.md`'s per-sub-issue batching unit. Record the\nobservation (transcript excerpt or note) against this item, or file a defect against\n`red-team.md`'s dispatch prose if it does not.\n\n## Acceptance Criteria\n\nA `/specify` run over 2+ `ceremony:standard` sub-issues is observed; its persona `Agent` tool_use\ncalls are confirmed (via transcript `tool_use` block message-id grouping) to arrive in ≤ (number of\nsub-issues) assistant messages.\n\n## Technical Approach\n\nWait for (or trigger) a `/claude-tweaks:specify` decomposition-mode run that produces 2 or more\n`ceremony:standard` sub-issue records — `ceremony-check` (`assess-agent-autonomy/ceremony-check.md`)\nresolves the tier per sub-issue during that run's own Step 3, so the tier isn't knowable until the\nrun happens. Once such a run occurs, inspect that session's stored transcript for the Step 5\nred-team dispatch (`specify/red-team.md`'s Parallel dispatch section): locate the `Agent` tool_use\nblocks for each dispatched persona and group them by the assistant message id each block belongs\nto. Confirm the number of distinct assistant message ids covering all persona dispatches for a\ngiven sub-issue is ≤ the number of sub-issues in that batch. Use the same read-only transcript\ninspection method `transcript-payload-verification` documents for reading this session's own\nlocally-stored transcript, rather than instrumenting or modifying `red-team.md` itself.\n\nIf the count exceeds the bound, file a defect issue against `red-team.md`'s dispatch prose\n(quoting the transcript grouping that violates the rule) instead of editing the file directly from\nthis record — this record's own deliverable is the observation, not the fix.\n\n### Key Files\n\n- `plugin/skills/specify/red-team.md` — the per-sub-issue persona dispatch procedure being observed\n- `plugin/skills/_shared/subagent-output-contract.md` — the fan-out single-assistant-message rule this observation verifies compliance with\n- `tests/subagent-contract-clauses.test.js` — AC1's existing static test coverage (unaffected by this record)\n\n## Gotchas\n\n- This record's acceptance criterion depends on an external event (a live `/specify` decomposition\n  run over 2+ `ceremony:standard` sub-issues happening) that this record cannot itself trigger on a\n  fixed schedule — it may sit open for some time until a qualifying run occurs naturally, or until\n  someone deliberately runs one to close it out.\n- A qualifying run must be observed via its own transcript at the time it happens; this record\n  cannot be resolved from historical data if no already-completed run's transcript is still\n  available.\n\n## Original request\n\nVerify /specify red-team fan-out batching at next live multi-sub-issue run (#649 AC2)\n\nOrigin: ledger resolve gate\n\nDefer-reason: needs-human-decision\n\n## Current State\n\nRecord #649 added `_shared/subagent-output-contract.md`'s fan-out single-assistant-message-rule sentence and per-site citations (AC1, fully test-pinned in `tests/subagent-contract-clauses.test.js`, 18/18 passing). AC2 — \"A `/specify` red-team over 2+ `ceremony:standard` sub-issues launches its personas in ≤ (number of sub-issues) assistant messages, verified in the transcript by `Agent` tool_use blocks sharing a message id\" — is a live-behavior criterion that cannot be verified by a static `node --test` assertion; it can only be confirmed by observing an actual future `/specify` decomposition run's transcript.\n\n## Deliverables\n\nConfirm, at the next `/specify` decomposition run over 2+ `ceremony:standard` sub-issues, that persona dispatch actually batches into ≤N assistant messages per `_shared/subagent-output-contract.md`'s fan-out single-assistant-message rule and `red-team.md`'s per-sub-issue batching unit. Record the observation (transcript excerpt or note) against this item, or file a defect against `red-team.md`'s dispatch prose if it does not.\n\n## Acceptance Criteria\n\nA `/specify` run over 2+ `ceremony:standard` sub-issues is observed; its persona `Agent` tool_use calls are confirmed (via transcript `tool_use` block message-id grouping) to arrive in ≤ (number of sub-issues) assistant messages.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
+        "createdAt": "2026-08-24T03:21:25Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 1350,
+        "state": "OPEN",
+        "title": "Verify /specify red-team fan-out batching at next live multi-sub-issue run (#649 AC2)",
+        "updatedAt": "2026-08-30T06:31:08Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: infra\n\n## Current State\n\nRefs #211. `RemoteTrigger` exposes a `create_webhook_trigger` action (`POST /v1/code/webhook-triggers`) attaching a GitHub event source to an existing routine, with a filter grammar covering author, title, body, base branch, head branch, labels, is-draft, and is-merged. `/claude-tweaks:routine`'s body-assembly logic (`skills/routine/create-and-update.md`) only ever populates `cron_expression` today — `create_webhook_trigger` is unused anywhere in the plugin. The public routines documentation separately states GitHub triggers are 'configured from the web UI only', which the tool surface appears to contradict; that contradiction is unresolved.\n\n**Shaping-time fact-check (2026-08-23):** two prior build sessions (the original build and a ledger-resolution session, both on 2026-08-23) confirmed `RemoteTrigger` unavailable via `ToolSearch select:RemoteTrigger`, and this record was filed as `Defer-reason: blocked-dependency` on that basis. The same probe in this shaping session **succeeded** — `RemoteTrigger` is now available, with `create_webhook_trigger` in its action enum and a documented required-fields shape: the request body names a `source`/`scope` (e.g. a repository), an event list, a structured filter, and the `routine_trigger_id` of the routine to fire. The blocking dependency this record was deferred on appears resolved, at least in this session's environment — this may be a rollout that has now reached this account/environment, or may vary by session type (interactive vs. cloud/routine); the build session should re-verify via the same `ToolSearch` probe before assuming it holds unconditionally.\n\n## Deliverables\n\n- Call `create_webhook_trigger` against a real (or documented dry-run) routine and record its actual required fields, response shape, and any App-not-installed error behavior — the tool's own description now documents the required body shape (source/scope, events, filter, `routine_trigger_id`), so this deliverable is verification against a live call, not blind discovery.\n- Resolve the doc-vs-tool contradiction: correct whichever of the public routines doc's \"web UI only\" claim or the tool surface itself is stale, cross-referenced from every place that repeated the old claim.\n- Extend `skills/routine/create-and-update.md` with a webhook-trigger creation path parallel to the existing cron path, exposing the filter grammar's fields and operators rather than one hardcoded filter shape.\n- Update `skills/_shared/routine-template-schema.md` (or the instantiated-record schema) if tracking a trigger's type/filter needs a new field, so `status`/`fleet status` can report on webhook-triggered routines.\n- Surface both preconditions (Claude GitHub App install state; hourly event cap's drop-not-queue behavior) to the user at trigger-creation time.\n\n## Acceptance Criteria\n\n- The \"web UI only\" claim and the `create_webhook_trigger` tool surface no longer contradict each other in the shipped docs.\n- `/claude-tweaks:routine` can create a GitHub event trigger via `create_webhook_trigger`, verified against a real (or explicitly documented dry-run) call, with the filter grammar's fields and operators exposed to the caller.\n- Attempting to create a webhook trigger on a repo without the Claude GitHub App installed produces a clear, distinct message rather than a silent failure.\n- The hourly event cap and its drop-not-queue behavior are documented somewhere a user configuring a webhook trigger will see before creating one.\n\n## Technical Approach\n\nThe build session should re-run `ToolSearch select:RemoteTrigger` first to confirm tool availability holds in its own environment (interactive vs. cloud/routine sessions may differ) before proceeding. With the tool available, follow `create_webhook_trigger`'s documented body shape (`source`/`scope`, event list, structured filter, `routine_trigger_id`) to add a webhook-trigger creation path in `skills/routine/create-and-update.md`, parallel to the existing `cron_expression` path — expose the filter grammar's fields (author, title, body, base branch, head branch, labels, is-draft, is-merged) and operators to the caller rather than hardcoding one filter shape. Resolve the doc contradiction by checking which claim is actually current — the tool's existence suggests the \"web UI only\" doc line is stale, but confirm rather than assume. Extend the routine schema only if tracking trigger type/filter requires a new field for `status`/`fleet status` reporting.\n\n### Key Files\n\n- `plugin/skills/routine/create-and-update.md` — body-assembly logic; needs the new webhook-trigger path\n- `plugin/skills/_shared/routine-template-schema.md` — instantiated-record schema; may need a trigger-type/filter field\n- Public routines documentation — the \"web UI only\" claim to correct or confirm\n- Any doc/skill file that repeats the \"web UI only\" claim (sweep before landing)\n\n## Gotchas\n\n- Tool availability was confirmed only in this shaping session, not the build session that will actually implement this — re-verify with `ToolSearch select:RemoteTrigger` before assuming the blocker is fully resolved; it may be environment-dependent (interactive vs. cloud/routine).\n- The filter grammar's fields (author, title, body, base branch, head branch, labels, is-draft, is-merged) should be exposed generically per the tool's own grammar, not hardcoded to one filter shape, so future filter fields don't require another change here.\n- Two precondition behaviors (GitHub App install state; hourly event cap drop-not-queue) must be surfaced to the user, not just handled silently — a dropped event with no visible signal is worse than a documented cap.\n\n## Original request\n\nImplement create_webhook_trigger integration for /claude-tweaks:routine (#211 core deliverable)\n\nOrigin: ledger resolve gate\n\nDefer-reason: blocked-dependency\n\n## Current State\n\nRefs #211. `RemoteTrigger` exposes a `create_webhook_trigger` action (`POST /v1/code/webhook-triggers`) attaching a GitHub event source to an existing routine, with a filter grammar covering author, title, body, base branch, head branch, labels, is-draft, and is-merged. `/claude-tweaks:routine`'s body-assembly logic (`skills/routine/create-and-update.md`) only ever populates `cron_expression` today — `create_webhook_trigger` is unused anywhere in the plugin. The public routines documentation separately states GitHub triggers are 'configured from the web UI only', which the tool surface appears to contradict; that contradiction is unresolved. This build session (`2026-08-23T135002-record-68-211`) could not implement any part of this record's core deliverable because the `RemoteTrigger` tool was not available — confirmed via `ToolSearch select:RemoteTrigger` returning no match in both the original build session and this ledger-resolution session.\n\n## Deliverables\n\n- [ ] Call `create_webhook_trigger` against a real (or documented dry-run) routine and record its actual required fields, response shape, and any App-not-installed error behavior.\n- [ ] Resolve the doc-vs-tool contradiction: correct whichever of the public routines doc's \"web UI only\" claim or the tool surface itself is stale, cross-referenced from every place that repeated the old claim.\n- [ ] Extend `skills/routine/create-and-update.md` with a webhook-trigger creation path parallel to the existing cron path, exposing the filter grammar's fields and operators rather than one hardcoded filter shape.\n- [ ] Update `skills/_shared/routine-template-schema.md` (or the instantiated-record schema) if tracking a trigger's type/filter needs a new field, so `status`/`fleet status` can report on webhook-triggered routines.\n- [ ] Surface both preconditions (Claude GitHub App install state; hourly event cap's drop-not-queue behavior) to the user at trigger-creation time.\n\n## Acceptance Criteria\n\n1. The \"web UI only\" claim and the `create_webhook_trigger` tool surface no longer contradict each other in the shipped docs.\n2. `/claude-tweaks:routine` can create a GitHub event trigger via `create_webhook_trigger`, verified against a real (or explicitly documented dry-run) call, with the filter grammar's fields and operators exposed to the caller.\n3. Attempting to create a webhook trigger on a repo without the Claude GitHub App installed produces a clear, distinct message rather than a silent failure.\n4. The hourly event cap and its drop-not-queue behavior are documented somewhere a user configuring a webhook trigger will see before creating one.\n\n_Filed by `ledger resolve gate` via specShapedBody. Refs #211 — routed from that record's ledger item #2 (`docs/plans/2026-08-23-record-68-211-ledger.md`)._\n",
+        "createdAt": "2026-08-23T14:22:21Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2oaA",
+            "name": "type:feature",
+            "description": "Type: new capability or enhancement",
+            "color": "FEF2C0"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
+            "name": "ceremony:standard",
+            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
+            "color": "FEF2C0"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
+            "name": "shaped:headless",
+            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACyTuzig",
+            "name": "fix-on-worktree-dispatch-record-1302",
+            "description": "Fixed on worktree-dispatch-record-1302, not yet on the default branch",
+            "color": "FBCA04"
+          }
+        ],
+        "number": 1302,
+        "state": "OPEN",
+        "title": "Implement create_webhook_trigger integration for /claude-tweaks:routine (#211 core deliverable)",
+        "updatedAt": "2026-08-29T17:17:37Z",
+        "facets": {
+          "origin": null,
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": "standard",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": true
+        }
+      }
+    ],
+    [
+      {
+        "body": "Origin: record #900's wrap-up verify verb (plugin/bin/lib/wrap-up/engine-verify.js), whole-branch re-review finding #3, 2026-08-21.\nDefer-reason: genuinely-larger\n\n## Current State\n\n`plans-ledger` and `design-caches` (plugin/bin/lib/wrap-up/engine-verify.js) resolve their scan directories against `repoRoot` (the main checkout, via `git rev-parse --git-common-dir`), reused from `run-dir-archived`'s need for `.claude-tweaks/pipelines/` (which genuinely only exists in the main checkout, gitignored, never in a worktree). But `docs/superpowers/plans/`, `docs/plans/`, and `.superpowers/sdd/` are ordinary tracked-repo paths that exist independently in every checkout, and an execution-plan or SDD-ledger file created during a `worktree`/`pr-first` run (this project's default integration model) lives as untracked content in the WORKTREE's own working tree — invisible from the main checkout's working tree even though both share one git object store. Verified live: this very run's own leftover plan file and SDD ledger directory (created in the worktree) were both invisible to a verify run pointed at the main checkout's copy of the run directory, while an unrelated prior session's leftover `.superpowers/sdd/` content in the main checkout was flagged instead.\n\n## Deliverables\n\n- [ ] Thread a separate `cwd` parameter through `runVerify`'s check-argument object (distinct from `repoRoot`, which must stay the main checkout for `run-dir-archived`'s pipeline-directory lookups), defaulting to `process.cwd()` in production (`wrap-up-engine.js`'s `runVerifyVerb`).\n- [ ] Switch `plans-ledger`/`design-caches` to read `cwd` instead of `repoRoot`.\n- [ ] Rework the test suite's isolation convention for these two checks (currently `makeCleanRepoRoot()`, deliberately isolating `repoRoot` from this worktree's own live/churning content) to pass an isolated `cwd` fixture at every `runVerify()` call site in `tests/bin-lib/wrap-up/engine-verify.test.js` that doesn't already isolate `repoRoot` — otherwise every test in the suite implicitly depends on this worktree's live, churning `.superpowers/sdd/`/`docs/superpowers/plans/` state.\n\n## Acceptance Criteria\n\n1. A `plans-ledger`/`design-caches` leftover created in a worktree is caught by a verify run invoked from that same worktree, matching how the CLI is actually invoked in production under the default `worktree`/`pr-first` mode.\n2. The existing `npm test` suite stays fully green and no longer depends on this worktree's own live filesystem state for any `plans-ledger`/`design-caches` assertion.\n3. `run-dir-archived`'s existing `repoRoot`-based (main-checkout) resolution is unchanged — this fix must not regress that check, which genuinely needs the main checkout.\n\n---\n_Filed by `capture` via specShapedBody._\n",
+        "createdAt": "2026-08-21T17:43:25Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 1222,
+        "state": "OPEN",
+        "title": "wrap-up verify verb: plans-ledger/design-caches structurally blind to worktree-local leftovers under default pr-first mode",
+        "updatedAt": "2026-08-29T17:17:31Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\n## Current State\n\n`tests/bin-lib/declined-learning/store-concurrency.test.js`'s \"recordDecline serializes concurrent writers under an effectively-unbounded lock budget — no lost entries under real cross-process concurrency\" test fails intermittently (~2/3 runs observed) even when run in isolation, not just under concurrent sibling-session machine load:\n\n```\nerror: \"worker 1's decline entry must not be lost to a concurrent writer's stale snapshot\"\n```\n\nDiscovered while running the full suite after merging origin/main into an unrelated `/flow` batch branch (worktree-flow-9record-batch) — this test file was never touched by that batch, and the failure reproduces on a clean re-run of the file alone (2 fail / 1 pass across 3 isolated runs).\n\n## Deliverables\n\n- [ ] Investigate `recordDecline`'s lock-then-write path (`plugin/bin/lib/declined-learning/store.js`) for a real race that loses a concurrent writer's entry, not just a timing-sensitive test assertion.\n- [ ] Fix the underlying race if one exists, or widen/restructure the test's concurrency assertion if the race is test-harness-only (spawned worker timing), following the same self-calibration approach used for a similar flake in #1127.\n\n## Acceptance Criteria\n\n- `node --test tests/bin-lib/declined-learning/store-concurrency.test.js` passes reliably across multiple consecutive isolated runs (not just once).\n\n## Technical Approach\n\nStart with `plugin/bin/lib/declined-learning/store.js`'s `recordDecline` and its lock-acquisition/write-then-release sequence — confirm whether two workers can both read a stale snapshot before either writes (a lost-update race), or whether the test's own worker-spawn/timing assumptions are the actual source of flakiness.\n\n## Gotchas\n\n- Reproduce first with several isolated `node --test` runs of just this file before concluding root cause — the observed 2/3 failure rate in isolation argues against pure machine-load flake, but confirm before assuming a real lock bug.\n\n## Original request\n\nrecordDecline concurrency test flakes ~2/3 runs even in isolation\n\nSurface: backend\n\n## Current State\n\n`tests/bin-lib/declined-learning/store-concurrency.test.js`'s \"recordDecline serializes concurrent writers under an effectively-unbounded lock budget — no lost entries under real cross-process concurrency\" test fails intermittently (~2/3 runs observed) even when run in isolation, not just under concurrent sibling-session machine load:\n\n```\nerror: \"worker 1's decline entry must not be lost to a concurrent writer's stale snapshot\"\n```\n\nDiscovered while running the full suite after merging origin/main into an unrelated `/flow` batch branch (worktree-flow-9record-batch) — this test file was never touched by that batch, and the failure reproduces on a clean re-run of the file alone (2 fail / 1 pass across 3 isolated runs).\n\n## Deliverables\n\n- [ ] Investigate `recordDecline`'s lock-then-write path (`plugin/bin/lib/declined-learning/store.js`) for a real race that loses a concurrent writer's entry, not just a timing-sensitive test assertion.\n- [ ] Fix the underlying race if one exists, or widen/restructure the test's concurrency assertion if the race is test-harness-only (spawned worker timing), following the same self-calibration approach used for a similar flake in #1127.\n\n## Acceptance Criteria\n\n- `node --test tests/bin-lib/declined-learning/store-concurrency.test.js` passes reliably across multiple consecutive isolated runs (not just once).\n\n## Technical Approach\n\nStart with `plugin/bin/lib/declined-learning/store.js`'s `recordDecline` and its lock-acquisition/write-then-release sequence — confirm whether two workers can both read a stale snapshot before either writes (a lost-update race), or whether the test's own worker-spawn/timing assumptions are the actual source of flakiness.\n\n## Gotchas\n\n- Reproduce first with several isolated `node --test` runs of just this file before concluding root cause — the observed 2/3 failure rate in isolation argues against pure machine-load flake, but confirm before assuming a real lock bug.\n",
+        "createdAt": "2026-08-21T05:51:00Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 1192,
+        "state": "OPEN",
+        "title": "recordDecline concurrency test flakes ~2/3 runs even in isolation",
+        "updatedAt": "2026-08-29T17:17:26Z",
+        "facets": {
+          "origin": null,
+          "risk": "medium",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\n## Current State\n\nPre-release whole-branch code review (2026-08-18) found that `session-start.js`'s own inline `FAST_CHECKS` `reconcile()` pass and the detached `reconcile-background` child process it spawns each run their own separate GitHub-health preflight and `git fetch`, doubling `gh api rate_limit` calls and fetch round-trips per session start — reversing `reconcile/index.js`'s own D2 shared-fetch dedup rationale (one fetch per pass). A prior fix (#820 Task 10 review fix-up) tried sharing freshness state between the two processes via `reconcile-cache.json`'s `lastRunAt` stamp, and was reverted — that stamp fires on ANY completed pr-first pass regardless of which checks subset ran, so it made the background-pass spawn gate see a false-fresh signal from the FAST_CHECKS-only pass and never spawn at all, silently starving the background checks. Deferred rather than fixed at discovery time: the residual cost is background CPU/network after the interactive session-start has already returned (not user-facing latency), and `gh api rate_limit` does not consume GitHub API rate-limit quota, so the real-world cost today is small; the highest-value fix (#872, filed alongside this record by the same review) already removes `gh` from the mirror-only inline fetch path. Related: #872.\n\n## Deliverables\n\n- [ ] Confirm #872's landing status and whether it changes the shape of this record's remaining scope (it removes `gh` from the mirror-only inline fetch path, per the original report).\n- [ ] Design a freshness-sharing mechanism between the inline `FAST_CHECKS` pass and the detached `reconcile-background` process that distinguishes which checks subset ran — avoiding the exact failure mode #820's reverted `lastRunAt` stamp hit (a single timestamp that can't tell FAST_CHECKS-only from a full pass).\n- [ ] Implement the fix so the background pass still spawns when its own checks haven't freshly run, even if a FAST_CHECKS-only pass completed recently.\n\n## Acceptance Criteria\n\n1. The inline `FAST_CHECKS` pass and the detached `reconcile-background` process no longer both perform a redundant GitHub-health preflight + `git fetch` on the same session start when the background pass's own checks genuinely need to run.\n2. The background-pass spawn gate correctly distinguishes \"a FAST_CHECKS-only pass just ran\" from \"a full pass (covering the background checks too) just ran\" — reproducing and passing against #820's exact regression shape (background checks silently starved) as a test case.\n3. `npm test` passes with new coverage, including a test that would have caught #820's reverted fix's starvation bug.\n\n## Technical Approach\n\nThe prior #820 fix failed because `reconcile-cache.json`'s `lastRunAt` stamp was a single timestamp with no record of *which checks* ran. The fix here needs a per-checks-subset freshness record — e.g. `lastRunAt` becomes a map keyed by checks-subset (or a dedicated field per subset) rather than one scalar — so the background-pass spawn gate can ask \"did *my* checks run recently\" instead of \"did *any* pass run recently.\" Given #872 already removes `gh` from the mirror-only inline fetch path (reducing but not eliminating the duplication), re-scope this record's remaining work after confirming #872's actual landed shape.\n\n### Key Files\n\n- `plugin/bin/lib/hooks/session-start.js` — inline FAST_CHECKS reconcile pass + background process spawn\n- `plugin/bin/lib/reconcile/index.js` — `reconcile-cache.json`'s `lastRunAt` freshness stamp, needs to become checks-subset-aware\n- `tests/` — new test reproducing #820's starvation regression shape\n\n## Gotchas\n\n- This record explicitly carries `Defer-reason: needs-human-decision` — the original filer judged the residual cost low today and deferred rather than immediately fixing; re-confirm that judgment still holds (has #872 changed the cost/benefit?) before investing in the freshness-sharing redesign.\n- Must not reintroduce #820's exact regression (a single freshness stamp masking a checks-subset mismatch) — any new freshness mechanism needs an explicit test reproducing that shape.\n\n## Original request\n\nreconcile: inline FAST_CHECKS + detached reconcile-background each run their own gh-health-check + git fetch\n\n**Related:** #872\n\nContext: Pre-release whole-branch code review (2026-08-18) found that session-start.js own inline FAST_CHECKS reconcile() pass and the detached reconcile-background child process it spawns each run their own separate GitHub-health preflight and git fetch, doubling gh api rate_limit calls and fetch round-trips per session start. This reverses reconcile/index.js own D2 shared-fetch dedup rationale (one fetch per pass).\n\nScope: A prior fix (#820 Task 10 review fix-up) already tried sharing freshness state between the two processes via the reconcile-cache.json lastRunAt stamp, and reverted it — that stamp fires on ANY completed pr-first pass regardless of which checks subset ran, so it made the background-pass spawn gate see a false fresh from the FAST_CHECKS-only pass and never spawn at all, silently starving the background checks. Any future fix must avoid that exact failure mode. Deferred rather than fixed: the residual cost is background CPU/network after the interactive session-start has already returned (not user-facing latency), and gh api rate_limit does not consume GitHub API rate-limit quota, so the real-world cost today is small; the highest-value fix (#872, the sibling backlog item this review also filed) already removes gh from the mirror-only inline fetch path.\n\nDefer-reason: needs-human-decision\n",
+        "createdAt": "2026-08-18T05:41:31Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
+            "name": "ceremony:standard",
+            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
+            "color": "FEF2C0"
+          }
+        ],
+        "number": 873,
+        "state": "OPEN",
+        "title": "reconcile: inline FAST_CHECKS + detached reconcile-background each run their own gh-health-check + git fetch",
+        "updatedAt": "2026-08-30T06:31:11Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": "standard",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\n## Current State\n\n`plugin/skills/specify/design-pre-steps.md`'s Step 2.5b (shape pre-step) and Step 2.5c (design-intent) prescribe exact `AskUserQuestion` option labels, order, `(Recommended)` placement, and option counts, but nothing in the file marks that text as verbatim. In one observed run, Step 2.5b's prescribed Recommended option (\"Yes — run shape\") was rendered as the non-recommended alternative while \"Skip\" was relabeled Recommended with an invented justification, and Step 2.5c's six prescribed design-intent options rendered as only four (two silently dropped). The plugin already has a mechanism for the opposite case — `decomposition-mode.md`'s red-team Step 5 explicitly requires its Template A block to \"remain inlined verbatim in the dispatch prompt at runtime\" — but `design-pre-steps.md` has no equivalent instruction.\n\n## Deliverables\n\n- [ ] Add an explicit \"render this block verbatim — do not reorder, drop, or relabel options\" instruction to Step 2.5b's `AskUserQuestion` block in `design-pre-steps.md`.\n- [ ] Add the same explicit verbatim instruction to Step 2.5c's `AskUserQuestion` block (the six-option design-intent question).\n- [ ] Follow the same wording convention `decomposition-mode.md`'s red-team Step 5 already uses for its Template A verbatim requirement, so the two verbatim-instruction idioms in this plugin stay consistent.\n\n## Acceptance Criteria\n\n1. Step 2.5b's `AskUserQuestion` block in `design-pre-steps.md` carries an explicit instruction that its option labels, order, and `(Recommended)` placement must render verbatim.\n2. Step 2.5c's `AskUserQuestion` block carries the same explicit verbatim instruction, naming that all six options must render.\n3. The added instruction wording is consistent with (or explicitly cites) `decomposition-mode.md`'s existing Template A verbatim requirement.\n\n## Technical Approach\n\nA prose-only fix — add one sentence to each of the two `AskUserQuestion` block definitions in `design-pre-steps.md`, mirroring `decomposition-mode.md`'s existing verbatim-template instruction for Step 5's red-team Template A. No code changes; this is a skill-authoring reliability fix in line with `docs/skill-authoring.md`'s conventions for prescriptive interactive blocks.\n\n### Key Files\n\n- `plugin/skills/specify/design-pre-steps.md` — add the verbatim-rendering instruction to Step 2.5b and Step 2.5c's `AskUserQuestion` blocks\n\n## Gotchas\n\n- This is a reliability/instruction-following defect, not a logic bug — there's no code path to test; verification is by re-reading the prose for the explicit verbatim marker, and by prose-conformance test if the plugin's existing `skill-prose-conformance-tests` pattern can pin the added sentence.\n- Don't conflate this with red-team's Template A instruction itself — this record only needs `design-pre-steps.md`'s two blocks updated, not a rewrite of the red-team file.\n\n## Original request\n\nspecify: design-pre-steps.md's AskUserQuestion option text is prose the model can reorder or truncate, unlike red-team's verbatim template\n\n**Summary:** `design-pre-steps.md`'s Step 2.5b (shape pre-step) and Step 2.5c (design-intent) prescribe exact `AskUserQuestion` option labels, order, and counts, but nothing marks them as verbatim — in one run the shape pre-step's prescribed Recommended option (\"Yes — run shape\") was rendered as the non-recommended alternative while \"Skip\" was relabeled the Recommended choice with an invented justification, and the design-intent question's six prescribed options were rendered as only four (two silently dropped).\n\n**Kind:** Defect\n\n**Affected component:** `/claude-tweaks:specify` (`design-pre-steps.md` Step 2.5b/2.5c)\n\n**Objective:** Instruction efficacy\n\n**Repro steps:**\n1. Reach `/claude-tweaks:specify`'s Step 2.5 on a frontend-surfaced design doc in interactive mode.\n2. Render the Step 2.5b shape-pre-step question and the Step 2.5c design-intent question.\n3. Compare the rendered option labels, order, `(Recommended)` placement, and option count against `design-pre-steps.md`'s literal prescribed text.\n\n**Expected vs. actual:**\nExpected: prescribed option text renders as written, or the skill explicitly marks it as adaptable — the plugin already has a mechanism for the opposite case (`decomposition-mode.md`'s red-team Step 5 explicitly requires its \"Template A block must remain inlined verbatim in the dispatch prompt at runtime\").\nActual: nothing in `design-pre-steps.md` marks Step 2.5b/2.5c's option text as verbatim, and a real run both flipped which option carried \"(Recommended)\" and reduced the design-intent question from 6 options to 4.\n\n**Definition:** Clear\n\n**Plugin version:** 6.87.0\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-4cbfe16b -->\n",
+        "createdAt": "2026-08-17T17:13:10Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
+            "name": "bug",
+            "description": "Something isn't working",
+            "color": "d73a4a"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
+            "name": "priority:high",
+            "description": "Priority: dispatch picks this band first",
+            "color": "FBCA04"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 833,
+        "state": "OPEN",
+        "title": "specify: design-pre-steps.md's AskUserQuestion option text is prose the model can reorder or truncate, unlike red-team's verbatim template",
+        "updatedAt": "2026-08-31T06:55:03Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "high",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\n**Related:** #781, #783, #784 (already closed, orphaned claims released safely — no data lost)\n\n## Current State\n\n`/claude-tweaks:tidy`'s Step 4.7 claims sweep on 2026-08-17 found 3 claims-registry blobs (`issue-781.json`, `issue-783.json`, `issue-784.json`) holding the literal string `\"undefined\"` instead of valid JSON. The three issue numbers are consecutive and shipped together, pointing at a single call site rather than three independent failures.\n\n## Deliverables\n\n- Find which call site wrote these blobs — likely a batch/multi-record claim-acquisition path, given the three consecutive issue numbers.\n- Fix the serialization bug: either a value evaluating to `undefined` before `JSON.stringify` (which produces the string `\"undefined\"` when concatenated/templated rather than throwing), or a shell template producing the literal token `undefined`.\n\n## Acceptance Criteria\n\n- The call site that wrote the three malformed blobs is identified and named.\n- The fix prevents a claims-registry blob from ever being written as the literal string `\"undefined\"` — either the write is rejected before it lands, or the value that would produce it is caught upstream.\n- A regression test reproduces the exact condition (an `undefined` value reaching the write path) and asserts the fix catches it.\n\n## Technical Approach\n\nTrace the batch/multi-record claim-acquisition path's write call for the claims-registry blob, looking specifically for a value (likely an id, timestamp, or run reference) that can be `undefined` at that point — e.g. an array index or lookup that fails silently for one record in a batch while the loop continues writing for the others. Fix at the source of the `undefined` value, not by adding a downstream guard that merely refuses to write it.\n\n## Gotchas\n\n- No data was lost — the three affected issues (#781, #783, #784) are already closed and their orphaned claims were released safely by the tidy sweep that found this. This is a latent-bug fix, not a data-recovery task.\n- Since the three issue numbers are consecutive, check whether the bug reproduces reliably on any batch write or was specific to that one run's conditions — a single reproduction that doesn't recur on retry is a weaker signal than one that does.\n\n## Original request\n\nclaim-write bug: claims-registry blobs written as literal \"undefined\" instead of JSON\n\n**Related:** #781, #783, #784 (already closed, orphaned claims released safely — no data lost)\n\nContext: /claude-tweaks:tidy's Step 4.7 claims sweep on 2026-08-17 found 3 claims-registry blobs (issue-781.json, issue-783.json, issue-784.json) holding the literal string \"undefined\" instead of valid JSON.\n\nScope: find which call site wrote these blobs (likely a batch/multi-record claim-acquisition path — the three issue numbers are consecutive and shipped together) and fix the serialization bug (a value evaluating to undefined before JSON.stringify, or a shell template producing the literal token \"undefined\").\n",
+        "createdAt": "2026-08-17T15:47:44Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: a defect in existing behavior",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 821,
+        "state": "OPEN",
+        "title": "claim-write bug: claims-registry blobs written as literal \"undefined\" instead of JSON",
+        "updatedAt": "2026-08-29T17:17:16Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "medium",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\nOrigin: /claude-tweaks:wrap-up Review Console (record #685, run 2026-08-16T205523-spec-685) — staged/reflect-4.md\n\n## Current State\n\n`categoriseReproduction` (`bin/lib/coordination.js`) requires severity-bucket agreement (`high`/`critical` vs `medium`/`low`/`info`) between two reviewers before treating a finding as reproduced. A run's own lens-3c reproduction pair agreed on location and substance for the digest-vs-Approve finding (`step-6-auto.md:154`) but rated it high (B) vs medium (A) — straddling that bucket boundary. Because of the strict bucket-agreement rule, a substantively reproduced finding came back `unconfirmed` and needed a direct-verification override to be rescued. A pair that agrees on the defect but straddles the high/medium line is a common shape; the bucket rule turns it into a false negative that only a source-reading reviewer catches.\n\n## Deliverables\n\nChange `categoriseReproduction` so a location+substance agreement with a straddled severity bucket is treated as reproduced (severity contested) rather than dropped to `unconfirmed` — e.g. take the lower of the two severities as the confirmed value, or flag the finding explicitly as \"reproduced, severity contested\" rather than silently downgrading it.\n\n## Acceptance Criteria\n\n- A reproduction pair that agrees on location and substance but rates severity in different buckets (e.g. high vs medium) is classified as reproduced, not `unconfirmed`.\n- The confirmed severity for such a pair is deterministic (e.g. the lower of the two) or the \"contested\" state is surfaced explicitly to whatever consumes `categoriseReproduction`'s output.\n- Existing reproduction-pair test cases that both agree on severity bucket keep their current classification (`reproduced` when they agree, `unconfirmed` for genuine location/substance disagreement) — this is a narrowing of the false-negative case only, not a general loosening.\n- `npm test` green.\n\n## Technical Approach\n\nLocate `categoriseReproduction` in `bin/lib/coordination.js` and its severity-bucket comparison logic. Add a location+substance-agreement check that, when true, short-circuits the strict bucket-equality requirement and instead resolves severity via the lower-of-two rule (or an explicit \"contested\" flag), consumed by `skills/review/step3-lens-dispatch.md`'s reproduction-pair handling.\n\n### Key Files\n\n- `bin/lib/coordination.js` — `categoriseReproduction`\n- `plugin/skills/review/step3-lens-dispatch.md` — reproduction-pair handling\n\n## Gotchas\n\n- Don't loosen the rule for pairs that disagree on *location or substance* — only the specific case of agreement on both with a straddled severity bucket.\n\n## Original request\n\nReproduction pairs — treat location+substance agreement with a straddled severity bucket as reproduced (severity contested), not unconfirmed\n\n# Reflect — staged finding 4\n\n**Category:** tangential\n**Severity:** low\n**Reversibility:** high\n**Source:** full mode, lens \"Surprises\"\n**Files:** bin/lib/coordination.js, skills/review/step3-lens-dispatch.md\n\n## Finding\n\nThe lens-3c reproduction pair agreed on location and substance for the digest-vs-Approve finding (step-6-auto.md:154) but rated it high (B) vs medium (A). `categoriseReproduction` requires severity-bucket agreement (`high`/`critical` vs `medium`/`low`/`info`), so a substantively reproduced finding came back `unconfirmed` and needed the direct-verification override. A pair that agrees on the defect but straddles the high/medium line is a common shape; the bucket rule turns it into a false negative that only a source-reading reviewer rescues. Routed D5 (names a `bin/lib` behavior; holds in any project) — self-reference: this repo owns it, so it becomes a project record, not an upstream issue.\n\n## Suggested resolution\n\nConsider a location-only match with the confirmed severity taken as the lower of the two (or flag \"reproduced, severity contested\") rather than dropping to unconfirmed — a record for `bin/lib/coordination.js` + `step3-lens-dispatch.md`'s reproduction rule.\n\n## Decision-log reference\n\nSTAGED — Step 3: pattern observation \"reproduction pair severity-bucket false negative\" (self-reference: this repo owns the component → project record). Stage path: staged/reflect-4.md.\n\n\nOrigin: /claude-tweaks:wrap-up Review Console (record #685, run 2026-08-16T205523-spec-685) — staged/reflect-4.md\n",
+        "createdAt": "2026-08-17T05:04:22Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 733,
+        "state": "OPEN",
+        "title": "Reproduction pairs — treat location+substance agreement with a straddled severity bucket as reproduced (severity contested), not unconfirmed",
+        "updatedAt": "2026-08-30T06:31:03Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\n## Current State\n\n#647's expand phase shipped per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` in `bin/lib/issues/autonomy.js` (`permittedGrants`), fixing a bug where the flat top-level `reason` string could pair a granted `bornReady` with the other grant's denial text. The flat `bornReady`/`bornAuthorized`/`reason` keys were kept as a transitional twin, with the module header (`bin/lib/issues/autonomy.js`, lines ~10-15) recording a removal condition: delete the flat keys at the first release on or after 2026-11-16 (ship date + 3 months, per `policy-deprecations.md`'s dated-backstop shape).\n\nTwo skill-text consumers carry a matching read-side fallback, tagged with the same removal condition: `skills/capture/SKILL.md` (line ~144) and `skills/backlog/refine-mode.md` (line ~223), both doing `(permitted.grants || {}).bornReady || { granted: permitted.bornReady, reason: permitted.reason }`.\n\nConfirmed at shaping time (2026-08-17): the module header text, both fallback call sites, and `skills/backlog/refine-lanes.md`'s rendered trust-consequence line (`↳ trust: {provenance} / {band} — {verdict}{, {coverage}% coverage}`) all reproduce exactly as described — the trust-table snippet's `bornReady`/`reason` output fields (written to `/tmp/backlog-refine-trust.json`) are genuinely dead: nothing downstream reads or renders them.\n\nThe removal date (2026-11-16) has **not** yet passed as of this record's shaping (2026-08-17) — it is roughly three months out. This record documents and prepares the contract phase; it does not authorize building the removal before that date.\n\n## Deliverables\n\n- [ ] Verify, at build time, that the current date is on or after 2026-11-16 (the first release on/after that date) before making any of the changes below. If built before that date, stop without editing anything and report the record as not yet actionable — see Acceptance Criteria #1, a hard gate.\n- [ ] Re-run `grep -rn \"permittedGrants\" skills/ bin/` to confirm every consumer still reads only `grants.*` shapes (no new flat-key consumer introduced since shaping).\n- [ ] Remove the flat `bornReady`/`bornAuthorized`/`reason` keys from `permittedGrants`'s return value in `bin/lib/issues/autonomy.js`, and delete the module-header comment block documenting the now-resolved removal condition.\n- [ ] Remove the matching read-side fallback in `skills/capture/SKILL.md` (the `(permitted.grants || {}).bornReady || { granted: permitted.bornReady, reason: permitted.reason }` pattern and its explanatory comment), reading `permitted.grants.bornReady` directly.\n- [ ] Remove the matching read-side fallback in `skills/backlog/refine-mode.md` (same pattern, same treatment).\n- [ ] Drop the dead `bornReady`/`reason` output fields from `skills/backlog/refine-mode.md`'s trust-table snippet (the `node -e` block that writes `/tmp/backlog-refine-trust.json`) — confirmed nothing downstream (`skills/backlog/refine-lanes.md`'s rendered trust-consequence line) reads them.\n- [ ] Decide, and record the decision inline as a code/skill-text comment, how to handle the two disclosed conflation residues before deleting the flat keys:\n  1. Withheld grants share one reason string today — `grants.bornAuthorized.reason` can carry born-ready's rationale on the human-filed path. Decide whether this stays as-is (the per-grant shape already fixes the *granted*-path pairing bug; the withheld-grant sharing is a separate, lower-severity residue) or gets its own follow-up record.\n  2. The granted path's flat `reason` today carries positive rationale text (\"class is clean, ceiling is unattended, grant origination opted in\") that no per-grant key reproduces. Decide whether to populate that positive rationale into the granted per-grant `reason` field, or record explicitly (in a code comment) that it is intentionally dropped as noise once the grant itself is visible via `granted: true`.\n- [ ] Update or remove the flat-key compat tests in the `bin-lib/issues` test suite to match the per-grant-only shape.\n\n## Acceptance Criteria\n\n1. **Hard precondition, checked first:** the build only proceeds once the current date is on or after 2026-11-16. A build attempted before that date stops without modifying any file and reports the record as not yet actionable — this is not a normal \"build failed\" outcome, it is the record's own documented gate.\n2. `permittedGrants` (`bin/lib/issues/autonomy.js`) returns only the per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` shape — no flat `bornReady`/`bornAuthorized`/`reason` keys at the top level.\n3. No consumer (code or skill text, across `skills/` and `bin/`) reads the flat keys or carries a fallback for them — confirmed via `grep -rn \"permittedGrants\" skills/ bin/` read against every hit.\n4. `skills/backlog/refine-mode.md`'s trust-table snippet no longer computes or emits `bornReady`/`reason` fields.\n5. The two conflation-residue decisions are recorded (as a comment near the code they affect, or in this record's own close-out note) — not silently dropped.\n6. `npm test` passes with the flat-key compat tests updated or removed.\n\n## Technical Approach\n\nStart with the grep re-verification (Deliverables item 2) — the module header itself calls this out as the first step, since a consumer could have appeared between #647 shipping and this record's execution.\n\n`bin/lib/issues/autonomy.js`: delete the flat keys from `permittedGrants`'s two return objects (denied-path and granted-path, around current lines 128-155) and the header comment block (lines 10-15) documenting the removal condition — the condition is satisfied, not evergreen.\n\n`skills/capture/SKILL.md` (~line 144) and `skills/backlog/refine-mode.md` (~line 223): drop the `|| { granted: permitted.bornReady, reason: permitted.reason }` fallback half of each destructure, reading `permitted.grants.bornReady` directly; delete the accompanying \"older installed build\" comment.\n\n`skills/backlog/refine-mode.md`'s trust-table `node -e` block (~lines 219-234): remove `bornReady`/`reason` from the `out[issue.number]` object literal.\n\nFold the two conflation-residue decisions into the same edit pass — they're small text/comment changes, not separate work.\n\nGrep the `bin-lib/issues` test directory for `bornReady`/`bornAuthorized` flat-key assertions on `permittedGrants`'s return value and update/remove them alongside the source change, in the same commit.\n\n## Gotchas\n\n- **Date gate is load-bearing, not advisory.** This record was shaped on 2026-08-17, roughly three months before the 2026-11-16 backstop. Confirmed by reading `bin/lib/issues/autonomy.js`'s own module header, which states the removal condition explicitly and cites `policy-deprecations.md`'s dated-backstop shape as precedent for this pattern (see also #628/#629, which apply the same shape to `policy.yml` key retirements). Marking this record `ready` reflects that it is *shaped* and *queued*, not that it is *buildable today* — `/specify` has no mechanism to hold a record out of `ready` pending a future calendar date (only `parked` + `Trigger:` does that, and only `/tidy`/`/wrap-up`/`/reflect`/`/review`'s Defer paths can add it), so this Gotcha and Acceptance Criterion 1 are the only gate. Whoever dispatches this record (`/flow`, `/build`, or a human) must re-check the date before touching code.\n- **Information loss is real if the conflation residues are skipped.** Deleting the flat keys without deciding the two residues (the Deliverables item above them) silently drops the granted-path's positive rationale text — no per-grant key reproduces it today. This isn't a formatting nit; a human reading a future trust/grant explanation loses the \"why\" for a clean grant unless this is deliberately decided and recorded.\n- **Verified against live code at shaping time**, not taken on faith from the issue text: read `bin/lib/issues/autonomy.js` lines 1-40 (module header and `permittedGrants`), `skills/capture/SKILL.md` line ~144, `skills/backlog/refine-mode.md` lines ~203-235, and `skills/backlog/refine-lanes.md` lines ~75-100 (the rendered trust-consequence template, confirming it never references `bornReady`/`reason`). All three deliverables reproduce exactly as the original request states — no false premise to correct here.\n\n## Original request\n\npermittedGrants contract phase — remove flat bornReady/bornAuthorized/reason at the 2026-11-16 backstop\n\nTitle: permittedGrants contract phase — remove flat bornReady/bornAuthorized/reason at the 2026-11-16 backstop\nType: task\nLabels: none\n\n# Staged work-record proposal — #647 contract phase (remove permittedGrants flat keys)\n\n**Related:** #647\n\n## Current State\n\n#647's expand phase shipped per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` in `bin/lib/issues/autonomy.js` with the flat keys kept as a transitional twin; the removal condition is dated 2026-11-16 in the module header. The skill-text consumers (`skills/capture/SKILL.md`, `skills/backlog/refine-mode.md`) carry read-side fallbacks for installed-build skew, tagged with the same removal condition.\n\n## Deliverables\n\n- [ ] Remove the flat `bornReady`/`bornAuthorized`/`reason` keys and the skill-text fallback reads at the first release on or after 2026-11-16; re-run `grep -rn \"permittedGrants\" skills/ bin/` first to confirm every consumer reads `grants.*`.\n- [ ] Drop the dead `bornReady`/`reason` fields from `skills/backlog/refine-mode.md`'s trust-table snippet output (nothing renders them — the table spec forbids rendering `reason`), retiring the compatibility fallback with them (folded from the batch curation pass's staged dead-field cleanup, wrap-up-skill-refine-trust-dead-fields.md).\n- [ ] Decide the two disclosed conflation residues at contract time: (1) withheld grants share one reason string — `grants.bornAuthorized.reason` can carry born-ready's rationale on the human-filed path; (2) the granted path's flat `reason` carries positive text (\"class is clean, ceiling is unattended, grant origination opted in\") that no per-grant key reproduces — deleting the flat keys is information-lossy unless the positive rationale is populated into granted per-grant reasons or recorded as intentionally dropped.\n\n## Acceptance Criteria\n\n1. `permittedGrants` returns only the per-grant shape; `npm test` passes with the flat-key compat tests updated or removed.\n2. No consumer (code or skill text) reads the flat keys or carries a fallback.\n\nOrigin: whole-branch review of run 2026-08-16T164927-spec-647-648 (Important finding #1 + Minor #2 + Recommendation).\n",
+        "createdAt": "2026-08-16T18:22:45Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
+            "name": "ceremony:standard",
+            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
+            "color": "FEF2C0"
+          }
+        ],
+        "number": 666,
+        "state": "OPEN",
+        "title": "permittedGrants contract phase — remove flat bornReady/bornAuthorized/reason at the 2026-11-16 backstop",
+        "updatedAt": "2026-08-30T12:58:21Z",
+        "facets": {
+          "origin": null,
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": "standard",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\nOrigin: /claude-tweaks:review Step 4 hindsight (Capture) — spec 560, run 2026-08-16T101528-spec-559-560\n\n## Current State\n\n#560 gave `bot:blocked` a second meaning: the merge-verification gate parks a run on a red/timed-out PR check WITHOUT revoking `auto:*` (a CI park is not a failure — no Settle classification, no retry increment), while the retry ceiling still applies the same label WITH grant revocation. The definition and consumer sites were migrated (label description, work-record writer table, `github-pr-scan.md`, tidy step-1 Shape 5, backlog refine-mode), and the two states are distinguishable by \"grants intact vs removed\" — but a distinct label (e.g. `bot:parked`) would make the state legible at a glance and let the `[pr-unarmed]` sweep, `/backlog refine`, and `/tidy` route on it directly instead of inferring it from grant presence.\n\n## Deliverables\n\n- Add `bot:parked` to `_shared/label-bootstrap.md` and `_shared/work-record.md` (Bot state axis).\n- Migrate `_shared/pr-first-merge.md` Step 2.5's red path to write `bot:parked` instead of `bot:blocked`.\n- Extend the `[pr-unarmed]` sweep exclusion, `/backlog refine`'s re-triage row, `/tidy` Shape 5, and dispatch's queue-pull filters to route on `bot:parked` directly.\n- Keep `bot:blocked` for the retry-ceiling case only.\n- Update the conformance test that pins the label taxonomy.\n\n## Acceptance Criteria\n\n- A merge-verification park (red/timed-out PR check) writes `bot:parked`, not `bot:blocked`, and leaves `auto:*` grants intact.\n- A retry-ceiling park still writes `bot:blocked` and still revokes grants — unchanged behavior.\n- `[pr-unarmed]`, `/backlog refine`, `/tidy` Shape 5, and dispatch's queue-pull filters route each state correctly without inferring it from grant presence.\n- The label-taxonomy conformance test is updated and green.\n\n## Technical Approach\n\nThis is a `_shared/work-record.md` contract change (a label-taxonomy addition) consumed by many skills — follow the project's expand-contract discipline: add `bot:parked` everywhere it's needed before migrating `pr-first-merge.md`'s write path, migrate every listed consumer site, and only then treat `bot:blocked` as retry-ceiling-only. Files: `skills/_shared/label-bootstrap.md`, `skills/_shared/work-record.md`, `skills/_shared/pr-first-merge.md`, `skills/_shared/github-pr-scan.md`, `skills/backlog/refine-mode.md`, `skills/tidy/step-1-records.md`, `skills/dispatch/*`.\n\n## Gotchas\n\n- This is explicitly not a hindsight fix inside #560 — it's a separate record because a label-taxonomy change is a contract change with many consumers, not a same-spec tweak.\n- Bootstrap `bot:parked` per `_shared/label-bootstrap.md` before any write path uses it.\n\n## Original request\n\nDistinct bot:parked label for merge-verification parks (split from bot:blocked)\n\nOrigin: /claude-tweaks:review Step 4 hindsight (Capture) — spec 560, run 2026-08-16T101528-spec-559-560\n\n## Idea\n\n#560 gave `bot:blocked` a second meaning: the merge-verification gate parks a run on a red/timed-out PR check WITHOUT revoking `auto:*` (a CI park is not a failure — no Settle classification, no retry increment), while the retry ceiling still applies the same label WITH grant revocation. The definition and consumer sites were migrated (label description, work-record writer table, github-pr-scan.md, tidy step-1 Shape 5, backlog refine-mode), and the two states are distinguishable by \"grants intact vs removed\" — but a distinct label (e.g. `bot:parked`) would make the state legible at a glance and let the `[pr-unarmed]` sweep, `/backlog refine`, and `/tidy` route on it directly.\n\n## Why not now\n\nA label-taxonomy change is a `_shared/work-record.md` contract change consumed by many skills (expand-contract discipline: add, migrate every consumer, remove) — a separate record, not a hindsight fix inside #560.\n\n## Scope sketch\n\n- Add `bot:parked` to `_shared/label-bootstrap.md` + `_shared/work-record.md` (Bot state axis), migrate `_shared/pr-first-merge.md` Step 2.5 red path to write it, extend the `[pr-unarmed]` sweep exclusion, `/backlog refine` re-triage row, `/tidy` Shape 5, dispatch queue-pull filters; keep `bot:blocked` for the retry ceiling only; conformance test update.\n\nFiles: skills/_shared/label-bootstrap.md, skills/_shared/work-record.md, skills/_shared/pr-first-merge.md, skills/_shared/github-pr-scan.md, skills/backlog/refine-mode.md, skills/tidy/step-1-records.md, skills/dispatch/*.\n",
+        "createdAt": "2026-08-16T12:58:23Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Scoring: moderate change, may span several files",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2oaA",
+            "name": "type:feature",
+            "description": "Type: new capability or enhancement",
+            "color": "FEF2C0"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Scoring: moderate blast radius — review before merge recommended",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
+            "name": "ceremony:standard",
+            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
+            "color": "FEF2C0"
+          }
+        ],
+        "number": 605,
+        "state": "OPEN",
+        "title": "Distinct bot:parked label for merge-verification parks (split from bot:blocked)",
+        "updatedAt": "2026-08-30T06:30:56Z",
+        "facets": {
+          "origin": null,
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": "standard",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ]
+  ],
+  "excluded": [
+    {
+      "number": 1100,
+      "blockedBy": [
+        1099,
+        1012
+      ]
+    }
+  ]
+}
