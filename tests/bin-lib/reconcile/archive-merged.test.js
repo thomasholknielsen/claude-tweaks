@@ -90,9 +90,9 @@ function installGhWrapper(prsJson) {
 // symlink) — archiveMerged's `root` would otherwise differ from a fixture's
 // own `runDir` string, and a plain string membership assertion against
 // `result.archived` would spuriously fail.
-function mergedFeatureBranchRepo({ branch, wtPrefix }) {
+function mergedFeatureBranchRepo(branch) {
   const root = fs.realpathSync(makeRepo());
-  const wt = fs.mkdtempSync(path.join(os.tmpdir(), wtPrefix));
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-featwt-'));
   git(root, 'worktree', 'add', '-q', wt, '-b', branch);
   fs.writeFileSync(path.join(wt, 'feature.txt'), 'feature\n');
   execFileSync('git', ['add', 'feature.txt'], { cwd: wt, encoding: 'utf8' });
@@ -109,9 +109,7 @@ function mergedFeatureBranchRepo({ branch, wtPrefix }) {
 // branch name is run-state.json's own `pr.branch` stamp (run-integrity.js's
 // fallbackBranch, same source #1672's own fixture uses).
 function fixtureCleanUnarchivedRun({ runId, consoleResolved = true } = {}) {
-  const { root, featureSha } = mergedFeatureBranchRepo({
-    branch: 'feat-clean-branch', wtPrefix: 'archive-merged-cleanwt-',
-  });
+  const { root, featureSha } = mergedFeatureBranchRepo('feat-clean-branch');
   const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
   fs.mkdirSync(runDir, { recursive: true });
   fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({
@@ -1214,9 +1212,7 @@ test('lastOwnEventMs: null when events.jsonl is absent', () => {
 // sweep already uses, rather than being stuck at 'no-worktree' forever.
 
 function fixtureActiveUnstampedMergedRun({ runId, worktreeExplicitlyNull = false } = {}) {
-  const { root, featureSha } = mergedFeatureBranchRepo({
-    branch: 'feat-unstamped-branch', wtPrefix: 'archive-merged-unstampedwt-',
-  });
+  const { root, featureSha } = mergedFeatureBranchRepo('feat-unstamped-branch');
   const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
   fs.mkdirSync(runDir, { recursive: true });
   const state = { status: 'active', pr: { branch: 'feat-unstamped-branch' } };
