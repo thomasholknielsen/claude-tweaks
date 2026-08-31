@@ -276,6 +276,73 @@ test('record-worktree reports a distinct failure when the run-state write itself
   }
 });
 
+// #1566: resolveRunArg's plain anchored branch used to accept ANY real
+// anchored directory as --run, never checking it was actually an
+// initialized run dir (decisions.md/run-state.json/config.yml) — a
+// malformed-but-real --run (a stray `--run .`, a caller bug interpolating
+// $RUN_ROOT) was silently accepted and written to. record-worktree is the
+// one deliberate exception: it's the sole first-writer in the dispatch
+// mint-then-claim handoff (dispatch/SKILL.md Step 4 mkdir-only mints a run
+// dir, flow/steps-and-gates.md case 2 adopts it with no config.yml yet,
+// worktree-setup.md Step 4.5's record-worktree call is what performs the
+// actual first write) — so it alone may target a freshly-minted,
+// completely uninitialized run-id-shaped directory.
+test('record-worktree accepts a freshly-minted, completely uninitialized --run dir (dispatch mint-then-claim pattern)', () => {
+  const project = gitRepo();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true }); // bare mkdir only — no decisions.md/run-state.json/config.yml
+  const result = runHook(['record-worktree', '--run', run, '/tmp/wt-mint'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /worktree recorded for 2026-07-01T090000-spec-1/);
+  assert.strictEqual(readRunState(run).worktree, path.resolve('/tmp/wt-mint'));
+});
+
+// The exact reproduction from #1566's Current State: `--run .` from a bare
+// git repo root wrote run-state.json directly into the repo root, with a
+// false-success message and exit 0. The repo root carries none of the three
+// markers, so it's rejected the same as any other uninitialized target —
+// record-worktree's mint exception (above) only ever fires for a
+// genuinely-empty directory, and this repo root has real content (.git) but
+// no run markers, so it fails both the record-worktree exception and every
+// other verb's default gate.
+test('record-worktree rejects the main checkout root itself as --run when it carries no run markers (#1566 repro)', () => {
+  const project = gitRepo();
+  const result = runHook(['record-worktree', '--run', '.', '/tmp/wt-evil'], { cwd: project });
+  assert.strictEqual(result.code, 0, 'record-worktree always exits 0, even on a rejected --run — see the other --run-rejection tests above');
+  assert.match(result.stdout, /--run path rejected/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.strictEqual(fs.existsSync(path.join(project, 'run-state.json')), false,
+    'a rejected --run must never write run-state.json into the repo root');
+});
+
+// The other 7 verbs sharing resolveRunArg have no legitimate "first write to
+// a fresh dir" pattern of their own — by the time any of them runs in a real
+// pipeline, record-worktree (or the Manifesto) has already initialized the
+// target. Each must reject a freshly-minted, uninitialized --run target
+// (record-worktree's own exception does not extend to them) rather than
+// silently accepting a malformed or wrong-but-real path. archive-run is
+// deliberately excluded from this list — see archive-run-verb.test.js's
+// "refuses a run dir with no run-state.json, naming archiveOrphanedMint",
+// its own documented exception for reporting a stale, never-claimed mint.
+test('record-pr, spec-status, close-run, teardown-run, check-resume-freshness, and check-staged-inventory each reject an uninitialized --run target', () => {
+  const verbs = [
+    ['record-pr', '7', 'https://github.com/o/r/pull/7'],
+    ['spec-status', '--spec', '1', '--status', 'running', '--phase', 'build'],
+    ['close-run'],
+    ['teardown-run'],
+    ['check-resume-freshness'],
+    ['check-staged-inventory'],
+  ];
+  for (const [verb, ...rest] of verbs) {
+    const project = gitRepo();
+    const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+    fs.mkdirSync(run, { recursive: true }); // bare mkdir only — no markers at all
+    const result = runHook([verb, '--run', run, ...rest], { cwd: project });
+    assert.strictEqual(result.code, 0, `${verb}: unexpected exit code`);
+    assert.match(result.stdout, /--run path rejected/, `${verb}: expected a rejected---run diagnostic, got: ${result.stdout}`);
+  }
+});
+
 test('close-run with a non-existent --run path fails loudly instead of falling back', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
@@ -804,6 +871,12 @@ test('record-pr --run pins the target run dir, same as record-worktree', () => {
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(ownDir, { recursive: true });
+  // #1566: record-pr has no first-write exception the way record-worktree
+  // does — its own target must already be an initialized run dir. This test
+  // is about --run PINNING (own dir vs. a stale sibling), not about
+  // uninitialized-dir acceptance, so seed the one marker record-worktree
+  // would already have written in a real pipeline.
+  fs.writeFileSync(path.join(ownDir, 'decisions.md'), '');
 
   const result = runHook(['record-pr', '--run', ownDir, '7', 'https://github.com/o/r/pull/7'], { cwd: project });
   assert.strictEqual(result.code, 0);

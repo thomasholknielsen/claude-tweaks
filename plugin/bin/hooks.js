@@ -125,12 +125,25 @@ function isInitializedRunDir(dir) {
 // when --run is found, its two-element span is spliced out of the returned
 // `rest` so a caller with its own positional args (record-worktree's
 // worktree path) can still find them regardless of flag placement. `resolveOpts`
-// forwards unchanged to the implicit-fallback ctxLib.resolveRunDir call only
-// (an explicit --run below never consults it) — close-run passes
+// forwards unchanged to the implicit-fallback ctxLib.resolveRunDir call
+// (used by every caller) — close-run passes
 // { includeWorktreeForeign: true } so its fallback can still find and report
 // a run bound to a different, still-live worktree (whole-branch review
 // finding, pre-v6.110.0); every other caller omits it and keeps #1410's
 // worktree-safe fallback.
+// `resolveOpts.allowUninitialized` (#1566) is consulted by the plain
+// anchored-directory branch below only (not the #280 worktree-local-fallback
+// branch, which already requires initialization unconditionally): a real,
+// anchored `--run` directory carrying none of decisions.md/run-state.json/
+// config.yml is rejected unless the caller opts in. record-worktree is the
+// sole legitimate first-writer in the dispatch mint-then-claim handoff
+// (dispatch/SKILL.md Step 4 mkdir-only mints a run dir, flow/steps-and-gates.md
+// case 2 adopts it with no config.yml yet, worktree-setup.md Step 4.5's
+// record-worktree call performs the actual first write) — it opts in.
+// archive-run also opts in: its own downstream logic gives a specific,
+// more useful diagnostic (archiveOrphanedMint) for a stale, never-claimed
+// mint than a generic rejection here would. Every other of the 8 shared
+// callers always targets an already-initialized run dir in real use.
 function resolveRunArg(args, cwd, env, resolveOpts) {
   const flagIdx = args.indexOf('--run');
   if (flagIdx === -1) {
@@ -276,6 +289,45 @@ function resolveRunArg(args, cwd, env, resolveOpts) {
         explicit: true,
       };
     }
+    // #1566: a real, anchored directory is not necessarily a real run dir —
+    // isInitializedRunDir is the same bar #280's fallback branch above
+    // already applies to its own narrower case. Unlike that branch,
+    // record-worktree's fresh-mint pattern (dispatch's mkdir-only mint,
+    // adopted with no config.yml by flow's case 2) means an uninitialized
+    // target is sometimes legitimate here — resolveOpts.allowUninitialized
+    // is the caller's explicit opt-in for that (see this function's header).
+    if (!isInitializedRunDir(resolved)) {
+      if (!(resolveOpts && resolveOpts.allowUninitialized)) {
+        return {
+          runDir: null,
+          invalidRunArg: `${candidate} (exists under the main checkout, but is not an initialized run dir — carries none of decisions.md/run-state.json/config.yml; see resolve-run-dir)`,
+          rest,
+          explicit: true,
+        };
+      }
+      // allowUninitialized licenses ONLY a genuine fresh-mint pipeline run
+      // dir — never an arbitrary anchored directory. Without this shape
+      // check, a bare `--run .` at the main checkout root (#1566's exact
+      // repro) would sail through record-worktree's/archive-run's own
+      // exception, reopening the vulnerability the isInitializedRunDir gate
+      // above exists to close. Requires the same run-id-shaped-segment-under-
+      // pipelines/ bar the #280 branch already enforces for its own case —
+      // simpler here since `resolved` is already anchored directly under
+      // `mainRoot` (no cross-repo/worktree indirection to resolve first).
+      const relFromPipelines = path.relative(path.join(mainRoot, '.claude-tweaks', 'pipelines'), resolved);
+      const inPipelines = !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
+      const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
+      const runIdSegment = relParts[0] === 'archive' ? relParts[1] : relParts[0];
+      const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
+      if (!inPipelines || !runIdShaped) {
+        return {
+          runDir: null,
+          invalidRunArg: `${candidate} (uninitialized and not a run-id-shaped directory under .claude-tweaks/pipelines/ — refusing to treat an arbitrary directory as a fresh run-dir mint; see resolve-run-dir)`,
+          rest,
+          explicit: true,
+        };
+      }
+    }
     return { runDir: resolved, invalidRunArg: null, rest, explicit: true };
   }
   return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };
@@ -312,7 +364,7 @@ async function main(argv) {
     // could win over the run genuinely making this call.
     const {
       runDir, invalidRunArg, rest, worktreeLocalFallback, explicit,
-    } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { allowUninitialized: true });
     const worktreeArg = rest[0];
     // #1124: every real caller already passes --run explicitly (build's
     // worktree-setup.md Step 4.5, the run-resume-freshness re-stamp, the
@@ -571,7 +623,9 @@ async function main(argv) {
   if (cmd === 'archive-run') {
     const { archiveRunDir, readConsoleState } = require('./lib/reconcile/archive-merged');
     const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
-    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(
+      argv.slice(3), process.cwd(), process.env, { allowUninitialized: true },
+    );
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not archived\n`);
