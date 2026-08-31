@@ -12,6 +12,7 @@ const path = require('path');
 const {
   archiveRunDir, listSpecDirs, decideArchive, readConsoleState, isOrphanedMint, trackArchiveResult,
   archiveMerged, lastOwnEventMs, isAbandonedInterrupted, archiveOrphanedMint,
+  isStructurallyStuck, trackStuckSkip, STRUCTURALLY_STUCK_TTL_MS,
 } = require('../../../plugin/bin/lib/reconcile/archive-merged');
 const { RESIDUE_ESCALATE_THRESHOLD, listResidueFailures } = require('../../../plugin/bin/lib/reconcile/cache');
 
@@ -923,6 +924,114 @@ test('trackArchiveResult: a success clears a prior failure streak for the same d
   assert.equal(listResidueFailures(root).length, 1);
   trackArchiveResult(root, 'o/r', dir, { ok: true, movedEntries: [] });
   assert.deepEqual(listResidueFailures(root), []);
+});
+
+// --- #1613: isStructurallyStuck / trackStuckSkip — visibility for a run dir
+// stuck in no-worktree/no-branch/no-pr with no escalation path, without
+// changing archiveMerged's own skip-in-place behavior ---
+
+function mkDirWithMtime(ageMs) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-stuck-'));
+  if (ageMs) {
+    const backdated = new Date(Date.now() - ageMs);
+    fs.utimesSync(dir, backdated, backdated);
+  }
+  return dir;
+}
+
+test('isStructurallyStuck: false for a non-qualifying reason regardless of age', () => {
+  const dir = mkDirWithMtime(STRUCTURALLY_STUCK_TTL_MS * 2);
+  assert.equal(isStructurallyStuck(dir, 'console-unresolved'), false);
+  assert.equal(isStructurallyStuck(dir, 'pr-open'), false);
+  assert.equal(isStructurallyStuck(dir, 'local-behind-merge'), false);
+});
+
+test('isStructurallyStuck: false for no-worktree/no-branch/no-pr while still within the TTL', () => {
+  const dir = mkDirWithMtime(60 * 60 * 1000);
+  assert.equal(isStructurallyStuck(dir, 'no-worktree'), false);
+  assert.equal(isStructurallyStuck(dir, 'no-branch'), false);
+  assert.equal(isStructurallyStuck(dir, 'no-pr'), false);
+});
+
+test('isStructurallyStuck: true for no-worktree/no-branch/no-pr once the TTL has elapsed', () => {
+  const dir = mkDirWithMtime(STRUCTURALLY_STUCK_TTL_MS * 2);
+  assert.equal(isStructurallyStuck(dir, 'no-worktree'), true);
+  assert.equal(isStructurallyStuck(dir, 'no-branch'), true);
+  assert.equal(isStructurallyStuck(dir, 'no-pr'), true);
+});
+
+test('trackStuckSkip: escalates exactly once at the threshold for a genuinely stuck dir, never for a fresh one', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-stuckskip-'));
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+  const stuckDir = mkDirWithMtime(STRUCTURALLY_STUCK_TTL_MS * 2);
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    trackStuckSkip(root, 'o/r', stuckDir, 'no-branch', { escalate });
+  }
+  assert.equal(calls.length, 1, `expected exactly one escalation call, got ${calls.length}`);
+  assert.equal(calls[0].reason, 'structurally-stuck');
+  assert.equal(calls[0].targetPath, stuckDir);
+
+  trackStuckSkip(root, 'o/r', stuckDir, 'no-branch', { escalate });
+  assert.equal(calls.length, 1, 'must not re-escalate on a later still-stuck call');
+});
+
+test('trackStuckSkip: never escalates an ordinary in-flight dir, no matter how many passes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-notstuck-'));
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+  const freshDir = mkDirWithMtime(60 * 60 * 1000);
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD * 5; i++) {
+    trackStuckSkip(root, 'o/r', freshDir, 'no-pr', { escalate });
+  }
+  assert.equal(calls.length, 0, 'an ordinary mid-flight dir must never be escalated by this path');
+  assert.deepEqual(listResidueFailures(root), [], 'a non-stuck dir must not even enter the residue counter');
+});
+
+// One real archiveMerged() pass, well under the 3-pass escalation threshold
+// (so the real, non-injectable escalateResidue is never actually invoked) —
+// proves the trackStuckSkip wiring doesn't alter archiveMerged's own skip
+// behavior (AC3: skip-in-place is unchanged), and that the residue cache
+// correctly starts tracking a stuck-shaped dir but not a fresh one.
+test('archiveMerged: still skips in place on a single pass, but only starts tracking a genuinely stuck dir (not a fresh one)', () => {
+  const root = fs.realpathSync(makeRepo());
+
+  const stuckId = '2026-01-01T000000-stuck-spec-1613';
+  const stuckDir = path.join(root, '.claude-tweaks', 'pipelines', stuckId);
+  fs.mkdirSync(stuckDir, { recursive: true });
+  // config.yml marks this dir as adopted (flow's Manifesto ran) — without
+  // it, isOrphanedMint's own 24h mtime sweep would archive this dir first,
+  // before ever reaching the no-worktree skip this test means to exercise.
+  fs.writeFileSync(path.join(stuckDir, 'config.yml'), 'x: 1\n');
+  fs.writeFileSync(path.join(stuckDir, 'run-state.json'), JSON.stringify({
+    status: 'active', worktree: path.join(root, 'long-gone-worktree'), sessionId: 'sess-1',
+  }));
+  const stuckBackdated = new Date(Date.now() - STRUCTURALLY_STUCK_TTL_MS * 2);
+  fs.utimesSync(stuckDir, stuckBackdated, stuckBackdated);
+
+  const freshId = '2026-01-01T010000-fresh-spec-1614';
+  const freshDir = path.join(root, '.claude-tweaks', 'pipelines', freshId);
+  fs.mkdirSync(freshDir, { recursive: true });
+  fs.writeFileSync(path.join(freshDir, 'config.yml'), 'x: 1\n');
+  fs.writeFileSync(path.join(freshDir, 'run-state.json'), JSON.stringify({
+    status: 'active', worktree: path.join(root, 'also-gone-worktree'), sessionId: 'sess-2',
+  }));
+
+  const result = archiveMerged({ cwd: root });
+
+  // state.worktree is set (a torn-down path), so isOrphanedMint/no-worktree
+  // don't apply — worktrees.find() fails to match it against `git worktree
+  // list`, landing on the no-branch skip (archive-merged.js:827-832).
+  assert.ok(result.skipped.some((s) => s.runDir === stuckDir && s.reason === 'no-branch'));
+  assert.ok(result.skipped.some((s) => s.runDir === freshDir && s.reason === 'no-branch'));
+  assert.ok(!result.archived.includes(stuckDir));
+  assert.ok(!result.archived.includes(freshDir));
+
+  const failures = listResidueFailures(root);
+  assert.ok(failures.some((f) => f.reason === 'structurally-stuck' && f.path === stuckDir), 'the stuck dir must start accumulating a residue count');
+  assert.ok(!failures.some((f) => f.reason === 'structurally-stuck' && f.path === freshDir), 'the fresh (just-created) dir must not enter the counter at all');
 });
 
 // --- #1673: auto-close an abandoned `interrupted` run whose work shipped ---

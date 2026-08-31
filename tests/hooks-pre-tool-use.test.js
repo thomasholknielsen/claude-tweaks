@@ -137,6 +137,39 @@ test('missing or malformed session identity on either side falls back to deny (s
   assert.strictEqual(corruptOut.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+// #1563: this gate's own ownership check (owner && caller && owner !== caller
+// -> foreign-allow-warn, else deny) is deliberately NOT classifyOwnership
+// (#1098) — unlike context.js's resolveRun fallback (#1410), which does use
+// it, this gate has no worktree-binding "foreign" bypass. The scenario above
+// ("missing or malformed session identity... falls back to deny") uses the
+// MAIN checkout as the caller's cwd, which classifyOwnership would ALSO
+// classify 'indeterminate' (not 'foreign') via its own !isLinkedWorktree
+// check — so it doesn't actually distinguish the two behaviors. THIS test
+// puts the caller in a genuinely different LINKED worktree (not main, not
+// the run's own assigned worktree) — the one case where classifyOwnership's
+// binding comparison alone would return 'foreign' regardless of session id.
+// Pinned here so #1099 (still open at the time this test was added), if it
+// ever swaps this gate onto classifyOwnership, cannot silently regress an
+// owner-absent + different-live-worktree caller from "denied" to "allowed
+// with a warning" without this test forcing that decision to be made
+// explicitly.
+test('#1563: commit from a genuinely different LIVE worktree, run has no recorded owner, is still denied — with and without a caller session_id', () => {
+  const { main, wt: assignedWt } = mainAndWorktree();
+  const callerWt = linkedWorktreeOf(main); // a second, genuinely different live worktree of the same repo
+  const { run, state } = mkRun(assignedWt); // no sessionId recorded
+
+  const withoutSessionId = pre.run({
+    input: bashInput('git commit -m "x"', callerWt), runDir: run, runState: state, cwd: callerWt,
+  });
+  assert.strictEqual(withoutSessionId.json.hookSpecificOutput.permissionDecision, 'deny');
+
+  const withSessionId = pre.run({
+    input: { ...bashInput('git commit -m "x"', callerWt), session_id: 'caller-session' },
+    runDir: run, runState: state, cwd: callerWt,
+  });
+  assert.strictEqual(withSessionId.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 test('git -C into the assigned worktree from elsewhere is allowed', () => {
   const wt = gitRepo();
   const other = gitRepo();
@@ -1030,4 +1063,54 @@ test('hasMaterializeCommit: a resolvable-but-nonexistent integration-branch poli
   const runDir = runDirForId(MATERIALIZE_RUN_ID);
   assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
     'a bad integration-branch value must fall back to the unbounded walk, not silently disarm the gate');
+});
+
+// #1501: the #989 exemption's repro-resistant failure needs a byte-for-byte
+// diff between a real hook invocation and a synthetic replay to pin down —
+// this is the debug-capture instrumentation added for that, not a fix for
+// the failure itself (unreproducible from static analysis; see the record's
+// Investigation Findings).
+test('CT_HOOKS_DEBUG_CAPTURE: unset by default, no file is written', () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-capture-'));
+  const captureFile = path.join(scratch, 'capture.jsonl');
+  delete process.env.CT_HOOKS_DEBUG_CAPTURE;
+  pre.run({ input: bashInput('ls', scratch), cwd: scratch });
+  assert.strictEqual(fs.existsSync(captureFile), false, 'no CT_HOOKS_DEBUG_CAPTURE set -> no capture file written');
+});
+
+test('CT_HOOKS_DEBUG_CAPTURE: when set, appends one JSON line per call with input/cwd/runDir/runState/ownedRun', () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-capture-'));
+  const captureFile = path.join(scratch, 'capture.jsonl');
+  const { run, state } = mkRun(scratch, 'sess-1');
+  process.env.CT_HOOKS_DEBUG_CAPTURE = captureFile;
+  try {
+    pre.run({
+      input: bashInput('git push origin feature-x', scratch), cwd: scratch, runDir: run, runState: state, ownedRun: { dir: run },
+    });
+    pre.run({ input: bashInput('ls', scratch), cwd: scratch });
+  } finally {
+    delete process.env.CT_HOOKS_DEBUG_CAPTURE;
+  }
+  const lines = fs.readFileSync(captureFile, 'utf8').trim().split('\n');
+  assert.strictEqual(lines.length, 2, 'one capture line per pre.run() call, including calls with no runDir');
+  const first = JSON.parse(lines[0]);
+  assert.strictEqual(first.input.tool_name, 'Bash');
+  assert.match(first.input.tool_input.command, /git push origin feature-x/);
+  assert.strictEqual(first.cwd, scratch);
+  assert.strictEqual(first.runDir, run);
+  assert.strictEqual(first.runState.sessionId, 'sess-1');
+  assert.deepStrictEqual(first.ownedRun, { dir: run });
+  assert.ok(first.at, 'each line carries a capture timestamp');
+  const second = JSON.parse(lines[1]);
+  assert.strictEqual(second.runDir, undefined, 'a call with no runDir captures it as absent, not fabricated');
+});
+
+test('CT_HOOKS_DEBUG_CAPTURE: an unwritable target never breaks the real gate call', () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-capture-'));
+  process.env.CT_HOOKS_DEBUG_CAPTURE = path.join(scratch, 'no-such-parent-dir', 'capture.jsonl');
+  try {
+    assert.doesNotThrow(() => pre.run({ input: bashInput('ls', scratch), cwd: scratch }));
+  } finally {
+    delete process.env.CT_HOOKS_DEBUG_CAPTURE;
+  }
 });

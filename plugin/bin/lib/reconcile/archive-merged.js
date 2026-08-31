@@ -41,17 +41,57 @@ const ORPHAN_MINT_TTL_MS = 24 * 60 * 60 * 1000;
 // (#1117). Unlike a genuine orphaned mint (mkdir-only, no worktree, no
 // branch, no PR — see this file's top comment), an ad-hoc dir's
 // run-state.json always carries a real `worktree`, so its correct lifecycle
-// answer is the ordinary merged-PR path below (`decideArchive`), not this
-// blind mtime heuristic: exempt it here, permanently, rather than giving it
-// a longer TTL that just moves the same race further out.
+// answer is the eventual-supersession path below (isAdHocStandaloneSuperseded),
+// not this blind mtime heuristic: exempt it here, permanently, rather than
+// giving it a longer TTL that just moves the same race further out.
+//
+// #1604: the suffix match alone is not sufficient corroboration — a
+// malformed or mkdir-only dir sharing the suffix would also fall through
+// isOrphanedMint (exempt) and decideArchive (no-worktree/no-branch skip),
+// leaking the same way a genuine ad-hoc mint used to before this fix.
+// Require the invariant the comment above actually asserts: a real
+// run-state.json with a non-empty `worktree` field. A dir that merely
+// carries the suffix without that is NOT treated as ad-hoc here — it falls
+// through to the ordinary isOrphanedMint mtime sweep instead, same as any
+// other malformed mint.
 function isAdHocStandaloneMint(dir) {
-  return path.basename(dir).endsWith('-adhoc-standalone');
+  if (!path.basename(dir).endsWith('-adhoc-standalone')) return false;
+  const state = readRunState(dir);
+  return !!(state && typeof state.worktree === 'string' && state.worktree);
+}
+
+// #1604: the "swept once genuinely superseded" half of #1117's own design
+// that never shipped. A genuine ad-hoc mint (isAdHocStandaloneMint already
+// corroborated) whose recorded worktree no longer resolves in a fresh
+// `git worktree list` — the session has definitively ended — is pure
+// clutter once ADHOC_SUPERSEDED_TTL_MS has passed since the dir was last
+// touched. A still-live one (worktree still registered) is NEVER swept here,
+// regardless of age — that is #1117's own invariant, unchanged. Longer than
+// ORPHAN_MINT_TTL_MS by two orders of magnitude: a torn-down worktree is
+// unambiguous "session over" evidence (unlike a bare mtime heuristic on a
+// never-adopted mint), so this window exists only to give wrap-up's own
+// reflect pass (or a human) a wide margin to consume the friction record
+// before this backstop claims it, not to guard against a false positive.
+const ADHOC_SUPERSEDED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isAdHocStandaloneSuperseded(dir, state, worktrees, now = Date.now()) {
+  if (!isAdHocStandaloneMint(dir)) return false;
+  if (!state || typeof state.worktree !== 'string' || !state.worktree) return false;
+  const stillLive = worktrees.some((w) => path.resolve(w.path) === path.resolve(state.worktree));
+  if (stillLive) return false;
+  let mtimeMs;
+  try {
+    mtimeMs = fs.statSync(dir).mtimeMs;
+  } catch {
+    return false;
+  }
+  return (now - mtimeMs) > ADHOC_SUPERSEDED_TTL_MS;
 }
 
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
-// is what writes it), not an ad-hoc-standalone mint (see above), and older
-// than the grace window. Pure — no I/O beyond the two stats already needed
-// to answer the question.
+// is what writes it), not an ad-hoc-standalone mint (see above — that check
+// now reads run-state.json for corroboration, #1604), and older than the
+// grace window. No I/O beyond what answering the question requires.
 function isOrphanedMint(dir, now = Date.now()) {
   if (fs.existsSync(path.join(dir, 'config.yml'))) return false;
   if (isAdHocStandaloneMint(dir)) return false;
@@ -592,6 +632,58 @@ function archiveRunDir(root, runDir) {
   return { ok: true, movedEntries };
 }
 
+// #1613: how long a run dir can sit in a "structurally stuck" skip reason
+// (no-worktree/no-branch/no-pr) before this sweep starts tracking it toward
+// escalation. Deliberately NOT ORPHAN_MINT_TTL_MS (24h — tuned for a
+// pre-Manifesto mint that should resolve same-day or is abandoned) or
+// ADHOC_SUPERSEDED_TTL_MS (30 days — tuned for "worktree gone, session
+// definitely over"). This case sits between the two: the dir IS adopted
+// (has config.yml) and no-worktree/no-branch/no-pr is the ordinary state
+// for every run dir between mint and PR-merge — flagging it too eagerly
+// would flood escalateResidue with false positives on perfectly healthy,
+// still-in-review work (Deliverable 2's own warning). What actually gates
+// this, though, isn't "how long can a build take" but the dir's own
+// mtime — a run genuinely being worked (commits, decisions.md appends,
+// work/ materializations) keeps touching its own directory, so a dir that
+// has sat completely untouched for a full week is a much safer signal of
+// abandonment than a build-duration estimate would be. A week also gives
+// #1290's own archive-twin shape (still unbuilt as of this record — see
+// this file's `isOrphanedMint`, which has no twin check yet) ample margin
+// once that lands, without needing its own separate constant.
+const STRUCTURALLY_STUCK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Skip reasons that might indicate a run dir stuck without external help,
+// as opposed to a benign, transient in-flight state. 'console-unresolved'/
+// 'console-never-rendered'/'local-behind-merge'/'merge-commit-unknown' are
+// deliberately excluded — each already has its own clear resolution path
+// (a human answering a console, a local fetch catching up) that doesn't
+// need this generic staleness backstop.
+const STRUCTURALLY_STUCK_REASONS = new Set(['no-worktree', 'no-branch', 'no-pr']);
+
+// Pure except for the one mtime stat — no I/O beyond answering the question.
+function isStructurallyStuck(dir, reason, now = Date.now()) {
+  if (!STRUCTURALLY_STUCK_REASONS.has(reason)) return false;
+  let mtimeMs;
+  try {
+    mtimeMs = fs.statSync(dir).mtimeMs;
+  } catch {
+    return false;
+  }
+  return (now - mtimeMs) > STRUCTURALLY_STUCK_TTL_MS;
+}
+
+// #1613: visibility only — never changes what archiveMerged does with the
+// directory (still just skip; the existing archive-twin "leave it in place"
+// test keeps passing unmodified). Reuses the same consecutive-count +
+// escalate-once machinery move-failed already uses (cache.js's trackResidue),
+// under its own 'structurally-stuck' key so the two failure classes never
+// blur together. A no-op below the staleness gate above — most skips, on
+// most passes, are perfectly healthy in-flight runs and never reach here.
+function trackStuckSkip(root, repoSlug, dir, reason, { escalate = escalateResidue } = {}) {
+  if (!isStructurallyStuck(dir, reason)) return;
+  trackResidue(root, repoSlug, 'structurally-stuck', dir, { failed: true, lastError: `stuck at ${reason}` }, { escalate });
+}
+
 // #644 Deliverable 2 — every archive attempt's outcome, whichever of the two
 // archival paths (mint vs. full run dir) produced it, flows through this one
 // choke point so the consecutive-failure counter and escalation live in
@@ -609,6 +701,11 @@ function archiveRunDir(root, runDir) {
 function trackArchiveResult(root, repoSlug, dir, result, { escalate = escalateResidue } = {}) {
   if (result.ok) {
     recordResidueSuccess(root, 'move-failed', dir);
+    // #1613: a dir that just successfully archived can no longer be
+    // structurally stuck — clear any prior tracking so a future, unrelated
+    // reuse of this path (unlikely — paths are timestamp-uniqued, but cheap
+    // to guard) starts a fresh count rather than resuming a stale one.
+    recordResidueSuccess(root, 'structurally-stuck', dir);
     return;
   }
   // Archive-specific vocabulary — not part of the shared branching cache.js's
@@ -731,15 +828,44 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
       continue;
     }
 
-    if (!state || !state.worktree) { skipped.push({ runDir: dir, reason: 'no-worktree' }); continue; }
+    // #1604: a genuine ad-hoc-standalone dir whose worktree is definitively
+    // gone (session over) is otherwise permanently stuck below — it never
+    // gets a console.json (decideArchive's console-never-rendered skip) and
+    // its worktree lookup fails the moment the ordinary reap sweep tears it
+    // down (no-worktree/no-branch skip). Intercept it here, ahead of both,
+    // once ADHOC_SUPERSEDED_TTL_MS has passed — #1117's own invariant (never
+    // sweep a still-live ad-hoc session) is unchanged: isAdHocStandaloneSuperseded
+    // returns false while the worktree still resolves, regardless of age.
+    if (isAdHocStandaloneSuperseded(dir, state, worktrees)) {
+      if (dryRun) { archived.push(dir); continue; }
+      const result = archiveOrphanedMint(root, dir);
+      trackArchiveResult(root, repoSlug, dir, result);
+      if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
+      archived.push(dir);
+      continue;
+    }
+
+    if (!state || !state.worktree) {
+      skipped.push({ runDir: dir, reason: 'no-worktree' });
+      trackStuckSkip(root, repoSlug, dir, 'no-worktree');
+      continue;
+    }
     const wtEntry = worktrees.find((w) => path.resolve(w.path) === path.resolve(state.worktree));
     const branch = wtEntry ? wtEntry.branch : null;
-    if (!branch) { skipped.push({ runDir: dir, reason: 'no-branch' }); continue; }
+    if (!branch) {
+      skipped.push({ runDir: dir, reason: 'no-branch' });
+      trackStuckSkip(root, repoSlug, dir, 'no-branch');
+      continue;
+    }
 
     const prState = resolvePrState(root, branch);
     const consoleState = readConsoleState(dir);
     const decision = decideArchive(prState, consoleState);
-    if (decision.action === 'skip') { skipped.push({ runDir: dir, reason: decision.reason }); continue; }
+    if (decision.action === 'skip') {
+      skipped.push({ runDir: dir, reason: decision.reason });
+      trackStuckSkip(root, repoSlug, dir, decision.reason);
+      continue;
+    }
 
     const hasMerge = localHasMerge(root, prState.mergeCommit);
     if (hasMerge !== true) {
@@ -790,4 +916,6 @@ module.exports = {
   archiveMerged, decideArchive, readConsoleState, archiveRunDir, listSpecDirs,
   isOrphanedMint, isAdHocStandaloneMint, archiveOrphanedMint, ORPHAN_MINT_TTL_MS, trackArchiveResult,
   localHasMerge, lastOwnEventMs, isAbandonedInterrupted, STALE_INTERRUPTED_TTL_MS,
+  isAdHocStandaloneSuperseded, ADHOC_SUPERSEDED_TTL_MS,
+  isStructurallyStuck, trackStuckSkip, STRUCTURALLY_STUCK_TTL_MS, STRUCTURALLY_STUCK_REASONS,
 };
