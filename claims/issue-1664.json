@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-01T123248-record-1664",
-  "sessionId": "76ffb1eb-875c-4bc4-b1df-f212ed4b6240",
-  "claimedAt": "2026-09-01T12:36:23.243Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "duplicate: superseded by #1678 (PR #1759), a more thorough fix for the same bookkeeping-stamps gate bug (same file, same test file, PR #1762's isStampsGateExemptTarget patch is a strict subset of #1759's broader file-tool foreign-target scoping + symlink safety)",
+  "releasedAt": "2026-09-01T12:57:49.834Z"
 }
