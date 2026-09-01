@@ -538,6 +538,30 @@ test('bookkeeping-stamps gate (I2.1): the PR-stamp deny message names bin/log-de
   assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /--run "/);
 });
 
+test('bookkeeping-stamps gate (#1664): a write target resolving outside any git repository (session scratchpad) is exempt', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const { run } = mkRunDir(main, null, undefined);
+  // A scratchpad-style path that is NOT inside `main` or `wt` and carries no
+  // .git anywhere in its ancestry — the exact shape of #1664's repro
+  // (composing a draft-PR body outside the repo, between push and PR-record).
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const target = path.join(scratch, 'pr-early-body-991.md');
+  const exempt = pre.run({ input: editInput(target), runDir: run, runState: { status: 'active' }, cwd: wt });
+  assert.deepStrictEqual(exempt, {}, 'a write target outside any git repository must not be denied by this gate');
+});
+
+test('bookkeeping-stamps gate (#1664): control — a target INSIDE the worktree repo (not pipeline bookkeeping) still denies', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const { run } = mkRunDir(main, null, undefined);
+  const denied = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
+  assert.ok(denied.json && denied.json.hookSpecificOutput, 'control: an in-repo, non-bookkeeping target must still be denied');
+  assert.strictEqual(denied.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 test('bookkeeping-stamps gate (I2.2): a Bash git commit targeting an unrelated repository is not this run\'s business -> allow', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
