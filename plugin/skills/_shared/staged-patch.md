@@ -13,7 +13,13 @@ cite this file rather than restating it.
 A patch is staged mid-pipeline, in a worktree whose HEAD advances several more times before the
 console runs — `/simplify`, polish, `/test` fix waves, later specs in a multi-spec run. Staleness
 is therefore structural, not an edge case: the literal diff bytes are the least durable part of
-the proposal. This is `_shared/reverify-before-write.md`'s pattern applied to a staged diff
+the proposal. Staleness isn't only a cross-phase, cross-run concern — `/claude-tweaks:review`'s own
+`review/code-mode-steps.md` Step 5 (`/claude-tweaks:simplify`) runs after Step 3 Routing within the
+same review pass, over the same diff scope a Step 3 patch may have just staged; a patch staged at
+Step 3 can go stale before the console ever sees it. Re-validate any patch staged this run with
+`git apply --check` after Step 5 runs, and re-derive it (same procedure as the console's own stale-diff
+fallback below) if it no longer applies — cheaper to catch here, against the diff still in this
+review's own context, than to leave it for the console's cold re-derivation later. This is `_shared/reverify-before-write.md`'s pattern applied to a staged diff
 specifically: the console is a long-lived human-confirmation gate, so the console apply step
 below never trusts the diff bytes as still-true — it re-derives from the `Invariant:` line
 against the current tree instead of assuming the snapshot staging captured still holds. Two things went wrong in run 2026-08-16T164927 that this contract closes: a staged

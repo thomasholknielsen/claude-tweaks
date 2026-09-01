@@ -1087,8 +1087,11 @@ function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText, isF
 //      run), or the call site is outside a linked worktree.
 //   2. Scoping — a Bash git target in an unrelated repository is not this
 //      run's business (mirrors E1's own mainRoot/actualMainRoot foreign-repo
-//      check below), and a write to the pipeline-bookkeeping tree or
-//      policy.yml is exempt (isStampsGateExemptTarget above).
+//      check below), an Edit/Write/NotebookEdit whose own target resolves
+//      outside this run's repository entirely is likewise not this run's
+//      business (the file-tool branch's own foreign-target scoping, #1678),
+//      and a write to the pipeline-bookkeeping tree or policy.yml is exempt
+//      (isStampsGateExemptTarget above).
 //   3. This run's materialize commit hasn't landed yet (hasMaterializeCommit
 //      above) — Common Step 1 is still legitimately in progress.
 //   4. The two stamp checks themselves — record-worktree unconditionally,
@@ -1177,6 +1180,70 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
       if (!ownsATarget) return {};
     }
   }
+
+  // Foreign-target scoping for the file-tool branch (#1678): an
+  // Edit/Write/NotebookEdit whose OWN target path resolves outside any git
+  // repository at all (a session scratchpad, e.g. under
+  // /private/tmp/claude-*/.../scratchpad/**) — or inside an unrelated repo
+  // entirely — is not this run's implementation work, mirroring the
+  // Foreign-repos rule the isGitWrite branch already applies above. The
+  // isFileTool branch previously gated on `ctx.cwd` (the calling session)
+  // being inside a linked worktree, with no check that the write's own
+  // TARGET was anywhere near that worktree — this closes that gap. Fails
+  // CLOSED on an unprovable target (`indeterminate: true`), matching every
+  // other file-tool exemption in this file (isPipelineBookkeeping,
+  // isStampsGateExemptTarget): only a DEFINITIVE "not a repo" or "different
+  // repo" answer exempts; an unresolvable target falls through to the
+  // existing (denying) checks below, unchanged. Two more fail-closed layers
+  // (whole-branch review findings 1+2, #1678):
+  //   - `fileTargetPath` must be ABSOLUTE, mirroring isPipelineBookkeeping /
+  //     realTarget / isUntrackedOrIgnored's own guard above — a relative
+  //     path resolves against the HOOK PROCESS's cwd (repoInfo's internal
+  //     path.resolve), not the calling session's `ctx.cwd`, so a relative
+  //     target is unprovable here and must fall through unchanged, exactly
+  //     like an indeterminate one.
+  //   - `mainCheckoutRoot` returning null is NOT itself a "different repo"
+  //     signal — it also means "the answer is unknown" (an EACCES/ELOOP/EIO
+  //     stat, an unreadable/unparseable .git file, a gitdir outside
+  //     .git/worktrees/ — see that function's own header). Only a
+  //     resolved-AND-different targetMainRoot exempts; an unresolvable one
+  //     falls through. A target that repoInfo itself already proved has NO
+  //     repo root at all (the scratchpad case, targetRoot null but NOT
+  //     indeterminate) still exempts on its own, unconditionally.
+  if (isFileTool) {
+    const fileTargetPath = fileToolTargetPath(toolName, ctx.input && ctx.input.tool_input);
+    if (fileTargetPath && path.isAbsolute(fileTargetPath)) {
+      // Resolve a symlink AT THE LEAF before asking repoInfo where the target
+      // lives -- otherwise a symlink whose own location sits outside any repo
+      // (e.g. a session scratchpad) but whose target resolves inside this
+      // run's protected worktree would let the write bypass this gate
+      // entirely, the same bypass class `realTarget()` (above) already
+      // exists to close for `isPolicyFile`. A path with nothing at the leaf
+      // yet (an ordinary new-file Write) is passed through UNRESOLVED on
+      // purpose -- repoInfo's own nearestExistingDir already walks up to the
+      // nearest existing ancestor correctly for that case, and resolving
+      // only the parent here too would narrow that walk-up to one level.
+      let resolvedTargetPath = fileTargetPath;
+      let danglingSymlink = false;
+      try {
+        if (fs.lstatSync(fileTargetPath).isSymbolicLink()) {
+          const real = safeReal(fileTargetPath);
+          if (real) resolvedTargetPath = real;
+          else danglingSymlink = true; // exists but unresolvable -> unprovable, fail closed
+        }
+      } catch { /* nothing at this path yet -- ordinary new-file case, use the literal path */ }
+      if (!danglingSymlink) {
+        const { repoRoot: targetRoot, indeterminate: targetIndeterminate } = wtDetect.repoInfo(resolvedTargetPath);
+        if (!targetIndeterminate) {
+          if (!targetRoot) return {}; // provably not a repo at all -- unconditional, matches the comment above
+          const mainRoot = safeReal(wtDetect.mainCheckoutRoot(wtRoot));
+          const targetMainRoot = mainRoot && safeReal(wtDetect.mainCheckoutRoot(targetRoot));
+          if (targetMainRoot && targetMainRoot !== mainRoot) return {}; // provably a different repo
+        }
+      }
+    }
+  }
+
   if (isStampsGateExemptTarget(ctx)) return {};
 
   if (!hasMaterializeCommit(wtRoot, ctx.runDir)) return {};

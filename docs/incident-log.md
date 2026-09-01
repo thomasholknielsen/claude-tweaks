@@ -1281,3 +1281,56 @@ Cost on the #900 run: significant interruption/attention burden — repeated no-
 prompts throughout what should have been a hands-off `auto`-mode run, with no corresponding
 decision made at any of them. No code defect and no incorrect output; the cost was entirely to the
 human's attention and to the hands-off contract itself.
+
+## IL-149 — A conclusive exemption nested under an inconclusive sibling resolution
+
+During record #1678's build (narrowing the bookkeeping-stamps gate's file-tool branch to not deny
+a write whose own target is outside the run's repo, 2026-09-01), the new "provably not a repo at
+all" exemption in `checkBookkeepingStampsGate` (`plugin/bin/lib/hooks/pre-tool-use.js`) was written
+as `if (mainRoot) { if (!targetRoot) return {}; ... }` — nesting a conclusive answer (`repoInfo`
+had already proved the target has no repo root at all, `indeterminate: false`) inside a check on an
+unrelated value (`mainCheckoutRoot(wtRoot)`, this worktree's OWN root, which can fail transiently
+on an EACCES/ELOOP/EIO stat or an unreadable `.git` file). A transient failure on the unrelated
+value would deny a target the code had already conclusively proved was out of scope — silently
+reintroducing, under a narrower trigger, the exact scoping bug #1678 was filed to fix. Caught at
+review (lens 3c, low-tier single-read dispatch, confirmed via direct-verification override reading
+the actual source) — no shipped defect. `docs/donts.md` already carried a related rule, `[IL-83]`
+("don't place a special-case exemption after an early return that can claim the same value"), but
+it names ordering relative to an early return, not the more general shape: gating one value's
+conclusive answer on a different value's resolution succeeding at all.
+
+Fixed by hoisting the `if (!targetRoot) return {}` check out of the `if (mainRoot)` block so it
+fires whenever the target is provably not a repo, regardless of whether the worktree's own
+main-checkout root resolves (`d61f2c2e5`). A regression test forces `mainCheckoutRoot(wtRoot)` to
+fail (module-level monkey-patch, the same pattern this test file already uses for `repoInfo`) while
+the target itself genuinely resolves outside any repo; independently verified by reverting only the
+code fix and confirming that one test — and only that one, 41/42 still pass — fails, then restoring
+it (42/42 green again).
+
+Cost on the #1678 run: low — caught cleanly at review, one fix cycle plus one regression test, no
+re-verify failures. Fails toward deny either way (the safe direction), so this was a correctness
+gap, not a live security exposure.
+
+## IL-150 — A path-based gate exemption decided on the literal path, without resolving a leaf symlink
+
+During the same #1678 review pass, a second finding on the same new exemption (lens 3b, Security):
+`checkBookkeepingStampsGate`'s file-tool foreign-target check called
+`wtDetect.repoInfo(fileTargetPath)` on the raw literal write-target path, never following a symlink
+at the leaf. A symlink located outside any git repo (a session scratchpad) but whose target
+resolves inside this run's own protected worktree would resolve as "provably not a repo at all" and
+exempt the write from the gate entirely — even though the write's real bytes land inside the
+worktree the gate exists to protect. The same file already carries a purpose-built helper,
+`realTarget()`, used by `isPolicyFile` specifically to close this bypass class (its own comment:
+"stops an attacker from replacing X with a symlink to somewhere writable") — the new exemption did
+not reuse it, reopening the exact class of bug the sibling code already defends against, in the
+same file, at the same review. Caught at review (lens 3b, low-tier single-read dispatch, confirmed
+via direct-verification override reading `realTarget()`'s own comment against the new code) — no
+shipped defect; as of this entry the fix is staged (`staged/review-2.patch`) awaiting the Wrap-Up
+Review Console, not yet applied.
+
+Cost on the #1678 run: low so far — caught cleanly at review; two regression tests written (a
+symlink whose target resolves inside the worktree, and a dangling symlink) and independently
+verified to fail red on the pre-fix code (42/44, only the two new tests failing) before the fix was
+restored (44/44 green). The recurring-pattern cost is that this project's own `pre-tool-use.js`
+already has one hardened precedent (`realTarget()`) for exactly this bypass class, and it still had
+to be independently rediscovered rather than reused when a new exemption was authored nearby.
