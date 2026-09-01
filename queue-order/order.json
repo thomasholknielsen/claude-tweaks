@@ -1,28 +1,8 @@
 {
-  "computedAt": "2026-08-31T18:20:34.058Z",
+  "computedAt": "2026-09-01T04:46:57.512Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
-      {
-        "number": 1726,
-        "updatedAt": "2026-08-31T18:00:28Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1725,
-        "updatedAt": "2026-08-31T17:58:36Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1684,
-        "updatedAt": "2026-08-31T17:58:39Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1679,
-        "updatedAt": "2026-08-31T17:58:42Z",
-        "state": "OPEN"
-      },
       {
         "number": 1678,
         "updatedAt": "2026-08-31T18:00:44Z",
@@ -50,7 +30,7 @@
       },
       {
         "number": 1633,
-        "updatedAt": "2026-08-31T17:56:55Z",
+        "updatedAt": "2026-08-31T20:27:50Z",
         "state": "OPEN"
       },
       {
@@ -100,7 +80,7 @@
       },
       {
         "number": 1548,
-        "updatedAt": "2026-08-29T16:19:53Z",
+        "updatedAt": "2026-08-31T18:32:32Z",
         "state": "OPEN"
       },
       {
@@ -291,340 +271,6 @@
     ]
   },
   "groups": [
-    [
-      {
-        "body": "**Doc:** plans/2026-08-25-record-1094-ledger | **Section:** Open Items | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: e0d4adedacc8dd7b8ab2a0e23930b6353cfeb049\n\n## Current State\n\nLive code at plugin/bin/lib/feedback/file-feedback.js:168 already reads `'--limit', '10000'` with an adjacent comment block (lines 161-166) stating '#1094 review finding: `--limit 500` already truncated ~half of this repo's then-998 issues' as the rationale for the widened limit — introduced in commit d51e0863c ('Resolve run-ledger row 7 — both dispatch-descriptor halves landed', 2026-08-30, after this ledger's 2026-08-25 date). The ledger's row 1 still lists Status: open, Resolution: — even though the fix it describes has shipped.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | review | `findDuplicate`'s new list-then-filter query (`plugin/bin/lib/feedback/file-feedback.js:144`) has no `--label` scope, unlike the `by:{caller}`-scoped precedent it cites (`_shared/headless-self-report.md:43`) — an unscoped `--state all --limit 500` window can truncate away an older duplicate in this repo's 1400+-issue history, silently reintroducing dedup-miss via a different mechanism than the `--search` staleness this record fixes | open | — |\n```\n\n**Proposed:**\n```\n| 1 | review | `findDuplicate`'s new list-then-filter query (`plugin/bin/lib/feedback/file-feedback.js:144`) has no `--label` scope, unlike the `by:{caller}`-scoped precedent it cites (`_shared/headless-self-report.md:43`) — an unscoped `--state all --limit 500` window can truncate away an older duplicate in this repo's 1400+-issue history, silently reintroducing dedup-miss via a different mechanism than the `--search` staleness this record fixes | resolved | `--limit` widened to 10000 (label-scoping deliberately not applied — this caller has no reliable fixed label to scope by); see `plugin/bin/lib/feedback/file-feedback.js`'s `findDuplicate` comment |\n```\n\n## Acceptance Criteria\n\nUpdate row 1's Status/Resolution to reflect that the underlying finding was already fixed: `findDuplicate` in `plugin/bin/lib/feedback/file-feedback.js` now calls `gh issue list` with `--limit 10000` (not 500), and the surrounding comment explicitly cites this ledger's #1094 review finding as the reason, noting `--label` scoping was deliberately not applied because this caller has no reliable fixed label to scope by.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-b998cde1 -->",
-        "createdAt": "2026-08-31T06:27:34Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRqw",
-            "name": "by:docs-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRrA",
-            "name": "docs-health:additive",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACy3OKFA",
-            "name": "auto:merge-pending",
-            "description": "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)",
-            "color": "C2E0C6"
-          }
-        ],
-        "number": 1726,
-        "state": "OPEN",
-        "title": "Doc staleness: plans/2026-08-25-record-1094-ledger — Open Items",
-        "updatedAt": "2026-08-31T18:00:28Z",
-        "facets": {
-          "origin": "docs-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Skill:** skill-prose-conformance-tests | **Section:** Key Patterns | **Category:** best-practice | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 1cc2fc79b2f4ffa696ec279f205bddefa0e14180\n\n## Current State\n\nLive extraction via the fence/span regex documented in this same file (`codeRegions`) against plugin/skills/flow/multispec-freshness.md returns fences: 0, spans: 94 today — not the 95 spans the prose claims. This is the exact hand-typed-count-drift hazard Step 1 check 6 warns about: the file already tells readers elsewhere in this document to \"count it live\" instead of hardcoding a number (see the `grep -l 'skills/' tests/*.test.js | wc -l` example at the top of this same file); this claim should follow the same convention rather than staying a number that will drift again on the next edit to multispec-freshness.md.\n\n## Deliverables\n\n**Current:**\n```\nIt is live, not hypothetical: `multispec-freshness.md` today has 95 inline spans and **zero** fenced blocks, so the fence half of that helper is currently pinning nothing and a bug in it would not show.\n```\n\n**Proposed:**\n```\nIt is live, not hypothetical: `multispec-freshness.md` today has zero fenced blocks and dozens of inline spans (count live: `grep -oE '`[^`\\n]+`' plugin/skills/flow/multispec-freshness.md | wc -l`), so the fence half of that helper is currently pinning nothing and a bug in it would not show.\n```\n\n## Acceptance Criteria\n\nThe hand-typed span/fence count for multispec-freshness.md has drifted: the file now has 94 inline spans, not 95, while the fenced-block count (zero) is still correct.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-204bc704 -->",
-        "createdAt": "2026-08-31T05:23:18Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
-            "name": "by:harness-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
-            "name": "harness-health:additive",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 1725,
-        "state": "OPEN",
-        "title": "Skill best-practice: skill-prose-conformance-tests — Key Patterns",
-        "updatedAt": "2026-08-31T17:58:36Z",
-        "facets": {
-          "origin": "harness-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Defer-reason: genuinely-larger\n\n## Current State\n\n`/flow`'s standard invocation shape runs `build,test` and `review,polish,wrap-up` as two separate Task calls, each a distinct `session_id`. `record-worktree` (the CLI verb at `plugin/bin/hooks.js`, stamping a `worktree` field into `run-state.json`) is meant to be called once per run during build's Common Step 1 (`plugin/skills/build/worktree-setup.md`, \"Record the assignment\" — marked non-skippable). In practice each Task call's attempt gets classified \"foreign\" by the ownership-stamp gate (`checkBookkeepingStampsGate` in `plugin/bin/lib/hooks/pre-tool-use.js`), which is warn-only — it logs a `wd-foreign-session` event and lets the write through, but never itself performs the stamp. The result: `run-state.json` can carry no `worktree` field for a run's entire life, even though a real worktree backed every phase.\n\n`plugin/bin/lib/reconcile/archive-merged.js`'s `archiveMerged` loop checks `if (!state || !state.worktree) { skipped.push({ reason: 'no-worktree' }); continue; }` (line 515) — before ever reading PR or console state. A run stuck this way never self-archives via the reconcile sweep, no matter how long after merge reconcile runs.\n\nReproduced live on run `2026-08-29T161123-record-1653` (record #1653, PR #1665): the merge succeeded and reconcile released the claim cleanly, but the run dir stayed skip-reason `no-worktree` across two further reconcile passes. `events.jsonl` for that run shows repeated `wd-foreign-session` warn events across the run's lifetime, never escalating into a forced remediation. Manual recovery worked: `node bin/hooks.js record-worktree --run <dir> <worktree-path>`, then `close-run`, then `archive-run` — all three succeeded once the stamp existed, confirming the workaround and pinpointing the missing automatic step.\n\nThis most likely affects every `/flow` run whose merge does not complete synchronously within the same session that ran build/test — i.e. any `needs-human`, parked, or otherwise resumed-later run, which is a routine occurrence, not an edge case.\n\n## Deliverables\n\nOne of:\n(a) Make the ownership-stamp gate recognize `/flow`'s known two-Task-call shape as same-run rather than foreign — e.g. treat a shared `PIPELINE_RUN_DIR`/run-id across sessions as authorization to stamp, rather than only warning.\n(b) Give `archive-merged.js`'s sweep a fallback branch that does not hard-require `state.worktree` when the run's `run-state.json` PR object shows the PR is confirmably `MERGED` — resolving the branch another way (e.g. `gh pr view --json headRefName`) instead of only via the worktree-list lookup.\n\nEither fix should also cover the archival precondition itself so a run stuck at `no-worktree` today does not require the three-command manual recovery sequence above.\n\n## Acceptance Criteria\n\nA `/flow` run structured as two separate Task-call sessions (build,test then review,polish,wrap-up) ends its life with a `worktree` field stamped in `run-state.json` without manual intervention, OR reconcile's `archive-merged.js` archives such a run once its PR is confirmed `MERGED`, without requiring `state.worktree` to be present. Existing reconcile/hooks test suites (`tests/bin-lib/reconcile/`, `tests/bin-lib/hooks/`) pass unchanged plus new coverage for whichever branch is chosen.\n\n_Filed by `capture` via specShapedBody._",
-        "createdAt": "2026-08-29T20:10:01Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 1684,
-        "state": "OPEN",
-        "title": "/flow's two-Task-call sessions never stamp record-worktree, permanently stalling reconcile's archival of runs whose merge is deferred",
-        "updatedAt": "2026-08-31T17:58:39Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Defer-reason: pre-existing-outside-diff\n\n## Current State\n\n#1652 (this session, in progress) deduped two hand-duplicated sync/async primitive wrapper pairs — `runGit`/`runGitAsync` (`plugin/bin/lib/hooks/git-exec.js`) and `ghHealthCheck`/`ghHealthCheckAsync` (`plugin/bin/lib/reconcile/preflight.js`) — by extracting a shared `runClassified`/`runClassifiedAsync` try/execute/catch scaffold into `plugin/bin/lib/shared-primitives.js`, with each pair's own `buildSuccess`/`buildFailure` shaping functions defined once and reused by both twins.\n\n#1652's own final whole-branch review (opus, 2026-08-29) independently found two more pairs following the exact same shape, in files #1652's diff never touches:\n- `ghApi` / `ghApiAsync` — `plugin/bin/lib/reconcile/release-merged.js:87` and `:138`. Retyped try/catch, retyped { stdout, failure } shaping, retyped `classifyGhExecError(e)` in both.\n- `resolvePrState` / `resolvePrStateAsync` — `plugin/bin/lib/reconcile/pr-state.js:73` and `:102`. Retyped try/catch -> `classifyExecError`, plus a second retyped `JSON.parse` -> 'network-failure' fallback in each.\n\nNote: `resolvePrStateAsync` has a deliberate, documented asymmetry from `resolvePrState` (no opts/preferOpen parameter) — this pair is not a pure mechanical dedup the way the first two were; the fix needs to preserve that asymmetry, not flatten it away.\n\nThe reviewer also suggested (as a nice-to-have, not required) a derived key-parity test — Object.keys() parity between a sync/async twin's success and failure results, computed from the two live results rather than a hard-coded literal list — added once for each pair this record touches, to convert AC clause 3's one identified residual (a maintainer widening buildSuccess's signature could update one twin's call site and leave the other silently passing undefined, since nothing currently compares the two twins' shapes to each other) into a red test rather than a silent gap.\n\n## Deliverables\n\nExtend the `runClassified`/`runClassifiedAsync` + per-pair `buildSuccess`/`buildFailure` pattern (already shipped by #1652 in `git-exec.js` and `preflight.js`) to:\n1. `ghApi`/`ghApiAsync` in `plugin/bin/lib/reconcile/release-merged.js`.\n2. `resolvePrState`/`resolvePrStateAsync` in `plugin/bin/lib/reconcile/pr-state.js` — preserving `resolvePrState`'s extra opts/preferOpen parameter that `resolvePrStateAsync` deliberately omits.\n\nOptionally, add one derived Object.keys() parity test per pair (covering all four pairs now unified under the scaffold, not just these two) as the reviewer's suggested hardening for AC clause 3's residual.\n\n## Acceptance Criteria\n\nNo behavioral change to any existing caller. Existing test suites for `release-merged.js` and `pr-state.js` (and any other suite exercising these two pairs) still pass. Same structural guarantee #1652 established: a future fix to one twin's contract cannot land without the shared code path enforcing it also applies to the other — for these two pairs too.\n\n_Filed by `capture` via specShapedBody. Discovered during #1652's whole-branch review._",
-        "createdAt": "2026-08-29T18:25:02Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          }
-        ],
-        "number": 1679,
-        "state": "OPEN",
-        "title": "reconcile: dedup remaining hand-duplicated sync/async primitive pairs (ghApi/ghApiAsync, resolvePrState/resolvePrStateAsync)",
-        "updatedAt": "2026-08-31T17:58:42Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
     [
       {
         "body": "Origin: wrap-up Upstream feedback row from #1321\n\nDefer-reason: tangential\n**Related:** #1664\n\n## Current State\n\nThe bookkeeping-stamps gate (`docs/hooks.md`) denies any Write under a pipeline run's scope until both `record-worktree` and PR-open have landed, and names the exact remediation in its denial. During #1321's wrap-up run, a `Write` targeting the *session scratchpad* (outside both the worktree and the run directory the gate exists to protect) was denied by the same rule while a PR body was being composed. The run recovered cleanly — `gh pr create --body '...'` inline, no temp file needed — so this was not blocking, but the gate's path-matching appears to reach beyond its own stated scope (the run directory) into unrelated scratch paths.\n\n## Deliverables\n\n- Confirm whether the bookkeeping-stamps gate's path-matching is meant to cover the session scratchpad, or only the pipeline run directory / worktree it documents.\n- If out of scope: narrow the gate's matcher so a scratchpad write is never denied by this rule.\n- If in scope: update `docs/hooks.md` to state that explicitly, so the denial message's remediation advice covers the scratchpad case too.\n\n## Acceptance Criteria\n\nA `Write` to a path under the session scratchpad directory succeeds regardless of `record-worktree`/PR-open bookkeeping-stamp state, verified by a regression test in the hooks gate suite; or `docs/hooks.md` explicitly documents the scratchpad as in-scope and the denial message names the correct remediation for that case.\n\n_Filed by `wrap-up` Upstream feedback row via specShapedBody — reclassified from a D5 upstream candidate: the self-reference check (`_shared/learning-routing.md`) collapsed because this project IS claude-tweaks._\n",
@@ -1074,7 +720,7 @@
         "number": 1633,
         "state": "OPEN",
         "title": "validateShaped lacks the '## Original request' placeholder exemption that #1240 fixed elsewhere",
-        "updatedAt": "2026-08-31T17:56:55Z",
+        "updatedAt": "2026-08-31T20:27:50Z",
         "facets": {
           "origin": "code-health",
           "risk": "high",
@@ -1810,7 +1456,7 @@
         "number": 1548,
         "state": "OPEN",
         "title": "/build's worktree-setup does not reliably invoke pr-early-run-lifecycle's draft-PR-at-run-start step",
-        "updatedAt": "2026-08-29T16:19:53Z",
+        "updatedAt": "2026-08-31T18:32:32Z",
         "facets": {
           "origin": null,
           "risk": "low",
