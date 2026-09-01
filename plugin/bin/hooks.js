@@ -666,7 +666,7 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'archive-run') {
-    const { archiveRunDir, readConsoleState } = require('./lib/reconcile/archive-merged');
+    const { archiveRunDir, readConsoleState, listSpecDirs } = require('./lib/reconcile/archive-merged');
     const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
     const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(
       argv.slice(3), process.cwd(), process.env, { allowUninitialized: true },
@@ -721,10 +721,8 @@ async function main(argv) {
     // the transient condition self-resolves once this run's branch merges
     // and the content becomes reachable from mainRoot's own working tree.
     if (worktreeLocalFallback) {
-      const { listSpecDirs } = require('./lib/reconcile/archive-merged');
-      const specDirs = listSpecDirs(runDir);
       const hasTrackedWork = fs.existsSync(path.join(runDir, 'work'))
-        || specDirs.some((s) => fs.existsSync(path.join(runDir, s, 'work')));
+        || listSpecDirs(runDir).some((spec) => fs.existsSync(path.join(runDir, spec, 'work')));
       if (hasTrackedWork) {
         process.stdout.write(
           `claude-tweaks: archival deferred — ${path.basename(runDir)}'s tracked work/ content lives only in ` +
