@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   listClaimNames, readClaimBlob, writeClaimBlob, defaultGhApi, classifyGhApiError, tombstoneInFlightPr,
+  isWellFormedClaimContent,
 } = require('../../../plugin/bin/lib/issues/claim-store');
 
 // Fake ghApi functions mirror release-merged.js's own ghApi shape: a
@@ -93,6 +94,70 @@ test('writeClaimBlob: failure propagates, ok:false', () => {
   };
   const r = writeClaimBlob({ ghApi }, 'acme/w', 7, { content: '{}', message: 'x' });
   assert.deepEqual(r, { ok: false, failure: 'network-failure' });
+});
+
+// ---- #821 regression: a claim/release write must never land the literal
+// string "undefined" (or any other malformed value) in the registry ----
+//
+// The exact condition: a batch/multi-record caller computes each issue's
+// payload into a map or array, then reaches one record whose lookup silently
+// resolves to `undefined` (an off-by-one index, a key that never got
+// populated) while the loop keeps going for the others. `JSON.stringify`
+// itself never throws on that — it returns the JS value `undefined`, not a
+// string — but the instant that return value is concatenated or templated
+// (a heredoc build, a `` `${...}` `` around it) it coerces to the literal
+// 9-character string "undefined", which is what actually reaches the write.
+
+test('isWellFormedClaimContent: the literal string "undefined" (the exact #821 defect shape) is rejected', () => {
+  assert.equal(isWellFormedClaimContent('undefined'), false);
+});
+
+test('isWellFormedClaimContent: reproduces the exact template-literal coercion that produces "undefined"', () => {
+  // Mirrors a batch caller keying a payload map by issue number and missing
+  // one entry — `payloadMap[782]` is `undefined`, and templating it (rather
+  // than assigning the object directly) coerces it to the literal string.
+  const payloadMap = { 781: { runId: 'r', claimedAt: 'x' }, 783: { runId: 'r', claimedAt: 'x' } };
+  const missingIssue = 782;
+  const content = `${JSON.stringify(payloadMap[missingIssue])}`;
+  assert.equal(content, 'undefined', 'precondition: this is genuinely how the literal string arises, not a contrived value');
+  assert.equal(isWellFormedClaimContent(content), false);
+});
+
+test('isWellFormedClaimContent: undefined itself, unparseable JSON, an array, and null all reject', () => {
+  assert.equal(isWellFormedClaimContent(undefined), false);
+  assert.equal(isWellFormedClaimContent(''), false);
+  assert.equal(isWellFormedClaimContent('not json'), false);
+  assert.equal(isWellFormedClaimContent('[1,2,3]'), false);
+  assert.equal(isWellFormedClaimContent('null'), false);
+  assert.equal(isWellFormedClaimContent(42), false);
+});
+
+test('isWellFormedClaimContent: a well-formed claim/tombstone marker accepts', () => {
+  assert.equal(isWellFormedClaimContent('{"runId":"r1","claimedAt":"2026-01-01T00:00:00.000Z","ttlHours":72}'), true);
+  assert.equal(isWellFormedClaimContent('{"released":true,"runId":"r1","reason":"x","releasedAt":"2026-01-01T00:00:00.000Z"}'), true);
+});
+
+test('writeClaimBlob: content "undefined" is refused before EITHER transport is attempted — no git-CAS, no contents-API PUT', () => {
+  const gitRunner = () => { throw new Error('git must never be reached for malformed content'); };
+  const ghApi = () => { throw new Error('gh api must never be reached for malformed content'); };
+  const r = writeClaimBlob({ ghApi, gitRunner }, 'acme/w', 782, {
+    content: 'undefined', sha: 'deadbeef', message: 'Claim issue #782',
+  });
+  assert.deepEqual(r, { ok: false, failure: 'invalid-content' });
+});
+
+test('writeClaimBlob: content "undefined" is refused on the create-only path too (no gitRunner/sha)', () => {
+  const ghApi = () => { throw new Error('gh api must never be reached for malformed content'); };
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 782, {
+    content: 'undefined', createOnly: true, message: 'Claim issue #782',
+  });
+  assert.deepEqual(r, { ok: false, failure: 'invalid-content' });
+});
+
+test('writeClaimBlob: content that is not even a string (the caller forgot to serialize) is refused the same way', () => {
+  const ghApi = () => { throw new Error('gh api must never be reached for malformed content'); };
+  const r = writeClaimBlob({ ghApi }, 'acme/w', 782, { content: undefined, message: 'Claim issue #782' });
+  assert.deepEqual(r, { ok: false, failure: 'invalid-content' });
 });
 
 test('listClaimNames: happy path extracts names from the {name,sha} entries listClaimEntries returns', () => {
