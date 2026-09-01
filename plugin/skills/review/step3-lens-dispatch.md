@@ -93,6 +93,8 @@ When in doubt: would a calibrated senior engineer block a PR on this finding alo
 OUTPUT FORMAT (required):
 First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED — nothing before it, not even a lead-in sentence.
 WRONG: "Based on my review, DONE" — narration before the status word still violates this.
+WRONG: "I reviewed the diff and found two issues worth flagging. DONE_WITH_CONCERNS" — same violation even when the narration states real content instead of filler; the rule is about position, not about whether the lead-in is empty.
+Self-check before sending: is the very first token of your reply literally one of the four status words? If you were about to write a summary, transition, or acknowledgment first, delete it and start the reply with the status word instead.
 Then return ONLY a markdown table, no preamble:
 
 | Severity | Path:Line | Finding | Evidence |
