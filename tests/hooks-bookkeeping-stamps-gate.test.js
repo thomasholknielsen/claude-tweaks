@@ -654,6 +654,38 @@ test('bookkeeping-stamps gate (I2.3, #1678): an UNPROVABLE target answer (indete
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+test('bookkeeping-stamps gate (I2.3, #1678, review finding): the "provably not a repo at all" exemption fires even when this worktree\'s OWN mainCheckoutRoot transiently fails to resolve -> still allows', () => {
+  // Regression for a review finding on #1678's own file-tool scoping fix: the
+  // exemption for a target repoInfo already proved has no repo root at all
+  // must not depend on `mainCheckoutRoot(wtRoot)` (a separate, unrelated
+  // fs read) resolving successfully — an EACCES/ELOOP/EIO on the worktree's
+  // own `.git` file must not turn a genuinely-outside-any-repo target
+  // (the scratchpad case) into a deny.
+  const wtDetect = require('../plugin/bin/lib/hooks/worktree-detect');
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const scratchpad = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const realMainCheckoutRoot = wtDetect.mainCheckoutRoot;
+  wtDetect.mainCheckoutRoot = (p, ...rest) => {
+    if (p === wt) return null; // simulate the worktree's OWN mainCheckoutRoot failing to resolve
+    return realMainCheckoutRoot(p, ...rest);
+  };
+  let out;
+  try {
+    out = pre.run({
+      input: editInput(path.join(scratchpad, 'pr-body.md')),
+      runDir: run,
+      runState: { status: 'active' },
+      cwd: wt,
+    });
+  } finally {
+    wtDetect.mainCheckoutRoot = realMainCheckoutRoot;
+  }
+  assert.deepStrictEqual(out, {}, 'a target repoInfo already proved is not a repo at all must exempt unconditionally, even when this worktree\'s own mainCheckoutRoot fails to resolve');
+});
+
 // --- I3: integration-model comes from the run's own pin, not a fresh detection ---
 
 test('bookkeeping-stamps gate (I3): the run\'s config.yml pin is read — pinned pr-first denies even with no forge detectable', () => {
