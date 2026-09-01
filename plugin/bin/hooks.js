@@ -104,6 +104,25 @@ function isDirectory(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
 
+// #1452: `mainArchivedCandidate` below is only ever the run's OWN
+// archive/{run-id} path — the one location archive-merged.js's archiveRunDir
+// writes a `{status: 'archiving'}` claim stub to (writeRunState, before it
+// ever attempts the git mv that can fail and leave that stub behind with
+// nothing to clean it up). A plain `isDirectory` twin check can't tell that
+// stub apart from a genuinely completed archive, so a single failed archival
+// attempt on a worktree-local-fallback-eligible run dir permanently defeats
+// this file's own #280/#1183/#1299 twin check afterward — every later retry
+// reads the stub as "already archived elsewhere" and is refused as a shadow,
+// even long after the claim's own TTL (context.js's ARCHIVE_CLAIM_TTL_MS)
+// would let archive-merged.js's own decideArchive treat it as abandoned and
+// retry. Mirrors that exact staleness rule here so the two callers agree.
+function isLiveArchiveTwin(p) {
+  if (!isDirectory(p)) return false;
+  const state = ctxLib.readRunState(p);
+  if (state && state.status === 'archiving' && ctxLib.isStaleClaim(state)) return false;
+  return true;
+}
+
 // #280: the one signal that distinguishes "harness-isolation left a real run
 // dir trapped in this worktree" from "an ordinary stray directory that
 // happens to sit under .claude-tweaks/pipelines/". A bare `mkdir` produces a
@@ -288,12 +307,15 @@ function resolveRunArg(args, cwd, env, resolveOpts) {
       const mainArchivedCandidate = (inPipelines && !isArchiveShape && runIdSegment)
         ? path.join(mainRoot, '.claude-tweaks', 'pipelines', 'archive', runIdSegment)
         : null;
-      // isDirectory already fails closed (try/catch) on a null path, so no
-      // separate truthiness guard is needed for mainLiveCandidate/
-      // mainArchivedCandidate — mirrors how mainCandidate above is passed
-      // through unguarded.
+      // isDirectory/isLiveArchiveTwin already fail closed (try/catch) on a
+      // null path, so no separate truthiness guard is needed for
+      // mainLiveCandidate/mainArchivedCandidate — mirrors how mainCandidate
+      // above is passed through unguarded. mainArchivedCandidate uses the
+      // staleness-aware check (see isLiveArchiveTwin above, #1452) — the
+      // other two are never where archiveRunDir writes its 'archiving' claim
+      // stub, so a plain existence check is correct for them.
       const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate)
-        || isDirectory(mainArchivedCandidate);
+        || isLiveArchiveTwin(mainArchivedCandidate);
       // `inPipelines` is provably implied by `runIdShaped` here (relParts, and so
       // runIdSegment, is only ever populated when inPipelines is true) — kept explicit
       // anyway as a self-documenting invariant a future edit to relParts/runIdSegment's
@@ -685,6 +707,33 @@ async function main(argv) {
     if (!mainRoot) {
       process.stdout.write('claude-tweaks: could not resolve the main checkout root — run not archived\n');
       return 0;
+    }
+    // #1452: a worktree-local-fallback resolved runDir has no anchored copy
+    // under mainRoot (reportWorktreeLocalFallback's own message says so).
+    // archiveRunDir's work/ move is a `git -C mainRoot mv <src> <dest>` —
+    // src pointing at a path inside a *different* worktree's working tree is
+    // structurally invisible to that git invocation (separate index, separate
+    // working directory, same object store), so the mv deterministically
+    // fails every time work/ is git-tracked (materialize.md: always, for any
+    // real pipeline run). Detecting that in advance and refusing here with a
+    // distinct, correctly-scoped message avoids running (and reporting) a
+    // doomed git mv as if it were a genuine, actionable 'git-mv-failed' —
+    // the transient condition self-resolves once this run's branch merges
+    // and the content becomes reachable from mainRoot's own working tree.
+    if (worktreeLocalFallback) {
+      const { listSpecDirs } = require('./lib/reconcile/archive-merged');
+      const specDirs = listSpecDirs(runDir);
+      const hasTrackedWork = fs.existsSync(path.join(runDir, 'work'))
+        || specDirs.some((s) => fs.existsSync(path.join(runDir, s, 'work')));
+      if (hasTrackedWork) {
+        process.stdout.write(
+          `claude-tweaks: archival deferred — ${path.basename(runDir)}'s tracked work/ content lives only in ` +
+          'this worktree, not yet reachable from the main checkout; `git mv` cannot move it across worktree ' +
+          'boundaries. Merge this run\'s branch first — reconcile\'s routine sweep (or a direct archive-run from ' +
+          'the main checkout, once merged) will archive it automatically.\n',
+        );
+        return 0;
+      }
     }
     // Output below is informational human text, never parsed by any caller
     // (skills/flow/multispec-review-console.md's parent-dir archival is a
