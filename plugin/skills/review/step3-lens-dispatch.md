@@ -127,6 +127,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 - Authentication/authorization checks present where needed?
 - No secrets or sensitive data in code?
 - OWASP top 10 considerations?
+- Does every path-based allow/exemption decision resolve the real path (leaf symlink followed, `..` normalized) before deciding, and fail closed when the path is unprovable? (#1678: a file-tool gate exemption decided on the raw literal path let a symlink located outside any repo but pointing inside a protected worktree bypass the check entirely — see `docs/donts.md`'s matching rule, `[IL-150]`.)
 
 ### 3c: Error Handling
 
