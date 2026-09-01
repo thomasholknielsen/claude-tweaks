@@ -619,6 +619,41 @@ test('bookkeeping-stamps gate (I2.3, #1678): control — an Edit whose target is
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+test('bookkeeping-stamps gate (I2.3, #1678): an UNPROVABLE target answer (indeterminate: true) never exempts — fails closed, still denies', () => {
+  // The single safety-critical property the whole file-tool scoping block
+  // depends on: an unresolvable target answer must fall through to the
+  // existing (denying) checks, exactly like a target inside this run's own
+  // worktree — never be read as a definitive "not a repo"/"different repo"
+  // exemption. Path-conditional stub: only the call for the file-tool
+  // TARGET is forced indeterminate; every other wtDetect.repoInfo call
+  // (including the one against ctx.cwd for the worktree/session-linkage
+  // check) resolves for real.
+  const wtDetect = require('../plugin/bin/lib/hooks/worktree-detect');
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const targetPath = path.join(wt, 'src', 'x.js');
+  const real = wtDetect.repoInfo;
+  wtDetect.repoInfo = (p, ...rest) => {
+    if (p === targetPath) return { repoRoot: null, isLinkedWorktree: false, indeterminate: true };
+    return real(p, ...rest);
+  };
+  let out;
+  try {
+    out = pre.run({
+      input: editInput(targetPath),
+      runDir: run,
+      runState: { status: 'active' },
+      cwd: wt,
+    });
+  } finally {
+    wtDetect.repoInfo = real;
+  }
+  assert.ok(out.json, 'expected a deny — an unprovable target must never be exempted by the new scoping check');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 // --- I3: integration-model comes from the run's own pin, not a fresh detection ---
 
 test('bookkeeping-stamps gate (I3): the run\'s config.yml pin is read — pinned pr-first denies even with no forge detectable', () => {
