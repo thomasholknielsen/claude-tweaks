@@ -1213,12 +1213,33 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   if (isFileTool) {
     const fileTargetPath = fileToolTargetPath(toolName, ctx.input && ctx.input.tool_input);
     if (fileTargetPath && path.isAbsolute(fileTargetPath)) {
-      const { repoRoot: targetRoot, indeterminate: targetIndeterminate } = wtDetect.repoInfo(fileTargetPath);
-      if (!targetIndeterminate) {
-        if (!targetRoot) return {}; // provably not a repo at all -- unconditional, matches the comment above
-        const mainRoot = safeReal(wtDetect.mainCheckoutRoot(wtRoot));
-        const targetMainRoot = mainRoot && safeReal(wtDetect.mainCheckoutRoot(targetRoot));
-        if (targetMainRoot && targetMainRoot !== mainRoot) return {}; // provably a different repo
+      // Resolve a symlink AT THE LEAF before asking repoInfo where the target
+      // lives -- otherwise a symlink whose own location sits outside any repo
+      // (e.g. a session scratchpad) but whose target resolves inside this
+      // run's protected worktree would let the write bypass this gate
+      // entirely, the same bypass class `realTarget()` (above) already
+      // exists to close for `isPolicyFile`. A path with nothing at the leaf
+      // yet (an ordinary new-file Write) is passed through UNRESOLVED on
+      // purpose -- repoInfo's own nearestExistingDir already walks up to the
+      // nearest existing ancestor correctly for that case, and resolving
+      // only the parent here too would narrow that walk-up to one level.
+      let resolvedTargetPath = fileTargetPath;
+      let danglingSymlink = false;
+      try {
+        if (fs.lstatSync(fileTargetPath).isSymbolicLink()) {
+          const real = safeReal(fileTargetPath);
+          if (real) resolvedTargetPath = real;
+          else danglingSymlink = true; // exists but unresolvable -> unprovable, fail closed
+        }
+      } catch { /* nothing at this path yet -- ordinary new-file case, use the literal path */ }
+      if (!danglingSymlink) {
+        const { repoRoot: targetRoot, indeterminate: targetIndeterminate } = wtDetect.repoInfo(resolvedTargetPath);
+        if (!targetIndeterminate) {
+          if (!targetRoot) return {}; // provably not a repo at all -- unconditional, matches the comment above
+          const mainRoot = safeReal(wtDetect.mainCheckoutRoot(wtRoot));
+          const targetMainRoot = mainRoot && safeReal(wtDetect.mainCheckoutRoot(targetRoot));
+          if (targetMainRoot && targetMainRoot !== mainRoot) return {}; // provably a different repo
+        }
       }
     }
   }

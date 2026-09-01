@@ -686,6 +686,52 @@ test('bookkeeping-stamps gate (I2.3, #1678, review finding): the "provably not a
   assert.deepStrictEqual(out, {}, 'a target repoInfo already proved is not a repo at all must exempt unconditionally, even when this worktree\'s own mainCheckoutRoot fails to resolve');
 });
 
+test('bookkeeping-stamps gate (I2.3, #1678, review finding): a symlink located outside any repo whose TARGET resolves inside this run\'s own worktree is NOT exempted -> still denies', () => {
+  // Regression for a review finding (security, lens 3b) on #1678's own
+  // file-tool scoping fix: the "provably not a repo at all" exemption must
+  // resolve a symlink AT THE LEAF before asking where the target lives --
+  // otherwise a symlink whose own location sits outside any repo (a session
+  // scratchpad) but whose target resolves inside the protected worktree
+  // would bypass this gate entirely, even though the write's real bytes
+  // land inside the worktree the gate exists to protect.
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const realFile = path.join(wt, 'src', 'x.js');
+  fs.mkdirSync(path.dirname(realFile), { recursive: true });
+  fs.writeFileSync(realFile, 'existing content\n');
+  const scratchpad = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const link = path.join(scratchpad, 'link.js');
+  fs.symlinkSync(realFile, link);
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(link),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.ok(out.json, 'expected a deny — a symlink located outside any repo but pointing INTO this run\'s own worktree must not bypass the gate');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678, review finding): a dangling symlink located outside any repo is unprovable -> fails closed, still denies', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const scratchpad = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const link = path.join(scratchpad, 'dangling-link.js');
+  fs.symlinkSync(path.join(scratchpad, 'nothing-here.js'), link);
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(link),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.ok(out.json, 'expected a deny — a dangling symlink is unprovable and must fail closed');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 // --- I3: integration-model comes from the run's own pin, not a fresh detection ---
 
 test('bookkeeping-stamps gate (I3): the run\'s config.yml pin is read — pinned pr-first denies even with no forge detectable', () => {
