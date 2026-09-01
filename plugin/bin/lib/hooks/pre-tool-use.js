@@ -1032,17 +1032,15 @@ function hasDistinctOwnedRun(ctx) {
 // The target's OWN repo root is resolved per-target rather than assumed to be
 // the worktree: run dirs are anchored to the MAIN checkout
 // (_shared/pipeline-run-dir.md's Anchoring section), so decisions.md normally
-// sits outside the worktree this gate is enforcing in. `indeterminate` (git
-// never answered — timeout, missing git, unreadable realpath) stays fail-closed
-// and falls through to "not exempt", the same posture isPipelineBookkeeping
-// keeps for anything unprovable. A confirmed `!repoRoot` (#1664 — git DID
-// answer, definitively "not a git repository at all", e.g. a session
-// scratchpad path or /tmp) is a different, provable fact: nothing inside this
-// run's worktree or its run dir could have produced that target, so it is
-// exempt outright. This mirrors checkWorktreeRequired's own split for the
-// identical repoInfo() outcome (`if (!repoRoot) continue; // git answered:
-// not a git repo at all -> allow`, above in this file) rather than
-// re-deriving the distinction independently.
+// sits outside the worktree this gate is enforcing in. The two repoInfo()
+// non-answers are NOT the same fact, and split the way checkWorktreeRequired
+// above in this file already splits them: `indeterminate` (git never answered —
+// timeout, missing git, unreadable realpath) is unprovable and stays
+// fail-closed, the posture isPipelineBookkeeping keeps; a confirmed `!repoRoot`
+// (#1664 — git DID answer, definitively "not a git repository at all", e.g. a
+// session scratchpad path or /tmp) is provable, and nothing inside this run's
+// worktree or its run dir could have produced such a target, so it is exempt
+// outright.
 function isStampsGateExemptTarget(ctx) {
   const targetPath = fileToolTargetPath(
     ctx.input && ctx.input.tool_name,
@@ -1050,8 +1048,8 @@ function isStampsGateExemptTarget(ctx) {
   );
   if (!targetPath) return false;
   const { repoRoot, indeterminate } = wtDetect.repoInfo(targetPath);
-  if (indeterminate) return false;
-  if (!repoRoot) return true;
+  if (indeterminate) return false; // git never answered: unprovable -> not exempt
+  if (!repoRoot) return true; // git answered: not a git repo at all -> exempt
   return isPipelineBookkeeping(repoRoot, targetPath) || isPolicyFile(repoRoot, targetPath);
 }
 

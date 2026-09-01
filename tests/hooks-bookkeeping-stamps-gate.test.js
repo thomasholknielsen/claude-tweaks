@@ -550,13 +550,8 @@ test('bookkeeping-stamps gate (#1664): a write target resolving outside any git 
   const target = path.join(scratch, 'pr-early-body-991.md');
   const exempt = pre.run({ input: editInput(target), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.deepStrictEqual(exempt, {}, 'a write target outside any git repository must not be denied by this gate');
-});
-
-test('bookkeeping-stamps gate (#1664): control — a target INSIDE the worktree repo (not pipeline bookkeeping) still denies', () => {
-  const main = gitRepo();
-  const wt = linkedWorktreeOf(main);
-  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
-  const { run } = mkRunDir(main, null, undefined);
+  // Control: the same fixture with an in-repo, non-bookkeeping target still
+  // denies, so the allow above is the exemption and not a broken fixture.
   const denied = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: { status: 'active' }, cwd: wt });
   assert.ok(denied.json && denied.json.hookSpecificOutput, 'control: an in-repo, non-bookkeeping target must still be denied');
   assert.strictEqual(denied.json.hookSpecificOutput.permissionDecision, 'deny');
