@@ -5,8 +5,8 @@
 // is why dirty rides alongside it.
 'use strict';
 
-const fs = require('fs');
 const { execFileSync } = require('child_process');
+const { writeFileAtomic } = require('../atomic-write');
 
 function gitInfo(execImpl = execFileSync) {
   let sha = null;
@@ -52,10 +52,8 @@ function composeReport({ checks, startedAt, durationMs, git }) {
   };
 }
 
-function writeReportAtomic(report, jsonPath, fsImpl = fs) {
-  const tmpPath = `${jsonPath}.tmp`;
-  fsImpl.writeFileSync(tmpPath, `${JSON.stringify(report, null, 2)}\n`);
-  fsImpl.renameSync(tmpPath, jsonPath);
+function writeReportAtomic(report, jsonPath, deps = {}) {
+  writeFileAtomic(jsonPath, `${JSON.stringify(report, null, 2)}\n`, deps);
 }
 
 module.exports = { gitInfo, composeReport, writeReportAtomic };
