@@ -96,6 +96,8 @@ function renderText(result, ceiling) {
   lines.push('');
   lines.push(`### Refused proposals: ${result.refusedCount}`);
   lines.push('');
+  lines.push(`### Failed writes: ${result.failedCount}`);
+  lines.push('');
   if (result.narrowingSignal && result.narrowingSignal.length) {
     for (const rowId of result.narrowingSignal) {
       lines.push(`Consider narrowing the gate for row "${rowId}" (0 findings, ${result.perRow[rowId].appearances} runs).`);

@@ -21,6 +21,7 @@ function aggregate({ tsv, runs, rowIds, windowN }) {
   const reversibilityDist = { high: 0, med: 0, low: 0, 'n/a': 0 };
   const frictionCounts = {};
   let refusedCount = 0;
+  let failedCount = 0;
   let consoleStops = 0;
 
   for (const run of windowRuns) {
@@ -34,6 +35,7 @@ function aggregate({ tsv, runs, rowIds, windowN }) {
       }
       if (c.reversibility) reversibilityDist[c.reversibility] = (reversibilityDist[c.reversibility] || 0) + 1;
       if (c.kind === 'REFUSED') refusedCount++;
+      if (c.kind === 'FAILED') failedCount++;
     }
     if (!sawTerminal) consoleDist.unlogged++;
     for (const [kind, n] of Object.entries((run.events && run.events.counts) || {})) {
@@ -58,6 +60,7 @@ function aggregate({ tsv, runs, rowIds, windowN }) {
     reversibilityDist,
     frictionCounts,
     refusedCount,
+    failedCount,
     narrowingSignal,
     suppressions: { narrowing: narrowingSuppressed, ceiling },
   };
