@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-01T12:32:20.823Z",
+  "computedAt": "2026-09-01T14:20:01.356Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -11,11 +11,6 @@
       {
         "number": 1670,
         "updatedAt": "2026-09-01T06:43:55Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1664,
-        "updatedAt": "2026-08-31T18:00:40Z",
         "state": "OPEN"
       },
       {
@@ -115,7 +110,7 @@
       },
       {
         "number": 1452,
-        "updatedAt": "2026-08-31T17:59:00Z",
+        "updatedAt": "2026-09-01T13:36:12Z",
         "state": "OPEN"
       },
       {
@@ -266,88 +261,6 @@
     ]
   },
   "groups": [
-    [
-      {
-        "body": "Origin: reflect light from #1216\nDefer-reason: tangential\n**Related:** #1678\n\n## Current State\n\nDuring run 2026-08-29T153753-spec-1216, the bookkeeping-stamps gate (docs/hooks.md) denied a Write to the session scratchpad (`.../scratchpad/pr-early-body-1216.md`, outside the repo) that was composing the draft-PR body for the exact PR the gate's own error message demanded (\"no PR is recorded for this run — open it now\"). The push had already succeeded; the very next action was `gh pr create --body-file` using that file. The workaround was composing the body inline via `gh pr create --body`, which the gate does not intercept.\n\n## Deliverables\n\n- The gate's covered-write set excludes paths outside the repository root (session scratchpad, system temp), OR `_shared/pr-early-run-lifecycle.md` Step 3 documents inline `--body` composition as the sanctioned path so the body-file idiom is never attempted between push and PR-record.\n\n## Acceptance Criteria\n\n- [ ] A run at the materialize-committed/no-PR-recorded stage can compose its PR body file in the session scratchpad without a gate denial, or the documented Step 3 procedure no longer writes a body file at that stage.\n- [ ] The gate still denies covered writes inside the repo at that stage (no weakening of [IL-131] protection).\n\n_Filed by `reflect` via specShapedBody._\n\n",
-        "createdAt": "2026-08-29T16:13:06Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
-            "name": "bug",
-            "description": "Something isn't working",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          }
-        ],
-        "number": 1664,
-        "state": "OPEN",
-        "title": "bookkeeping-stamps gate: covered-write scope blocks composing the PR body it demands",
-        "updatedAt": "2026-08-31T18:00:40Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
     [
       {
         "body": "**Related:** #1537\n\n**CLAUDE.md:** CLAUDE | **Section:** claude-tweaks Pipeline | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 14952593f8d81f0bb3005a01fed83c75c96e3d4f\n\n## Current State\n\nVerified live against `skills/init/claude-md-template.md`'s `## claude-tweaks Pipeline` block (the origin template for this exact CLAUDE.md section) and `plugin/skills/_shared/auto-mode-contract.md` lines 29-30/41-44, which currently document this Manifesto-as-FYI behavior as live and correct. The template includes an 'Auto mode' paragraph verbatim in the same section that CLAUDE.md's own Pipeline block otherwise matches word-for-word; only this paragraph and the `specs/`-specific 'Spec close-out' paragraph (correctly omitted here since this project uses `work-backend: github-issues` with no `specs/` directory) differ.\n\n## Deliverables\n\n**Current:**\n```\n**`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.\n\n**Integration model** (`plugin/skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first`\n```\n\n**Proposed:**\n```\n**`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.\n\n**Auto mode:** in default `auto`, the Pipeline Config Manifesto renders as a read-only FYI — it computes and displays the policy levers, then proceeds without stopping — so the only user-facing stop is the Wrap-Up Review Console at the end. Pass `confirm` (or `hybrid`) to turn the Manifesto into a real approval gate; the rest of the pipeline still runs as `auto` once approved.\n\n**Integration model** (`plugin/skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first`\n```\n\n## Acceptance Criteria\n\nCLAUDE.md's `## claude-tweaks Pipeline` section is missing the 'Auto mode' paragraph that the currently installed claude-tweaks plugin's own CLAUDE.md-generation template includes verbatim in this section, describing real, current /flow behavior (the Manifesto renders as a read-only FYI under default `auto`, becomes a real approval gate under `confirm`/`hybrid`).\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-6b2c87b4 -->",
@@ -1730,94 +1643,6 @@
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: ledger resolve gate\n\nDefer-reason: blocked-external\n\n## Current State\n\nresidue.js's blast-radius sweep found two un-archived pipeline run directories whose run-state.json already reads status: clean: .claude-tweaks/pipelines/2026-08-24T183144-record-1094 and .claude-tweaks/pipelines/2026-08-25T150921-record-1420. `node plugin/bin/hooks.js archive-run --run <dir>` refuses both with `archival refused - git-mv-failed` (bin/lib/reconcile/archive-merged.js's archiveRunDir, the git mv pass over the run dir's tracked work/ entries).\n\n## Deliverables\n\n- [ ] Reproduce archive-run's git-mv-failed for a status:clean run dir with a committed work/{n}-spec.md entry\n- [ ] Determine root cause (untracked non-work/ paths under the run dir confusing the git mv pass, a working-tree state git mv refuses, or a worktree-vs-main-checkout path mismatch)\n- [ ] Fix archiveRunDir so a clean run dir with a normal work/ layout archives successfully, or document why these two specifically cannot\n\n## Acceptance Criteria\n\n`node plugin/bin/hooks.js archive-run --run .claude-tweaks/pipelines/2026-08-24T183144-record-1094` (and the -1420 sibling) succeed and move the run dir under .claude-tweaks/pipelines/archive/\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
-        "createdAt": "2026-08-25T17:47:22Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
-            "name": "bug",
-            "description": "Something isn't working",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACyWQCQw",
-            "name": "needs:decision",
-            "description": "a headless unit proposed an action it may not take alone — see the newest decision comment",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 1452,
-        "state": "OPEN",
-        "title": "archive-run refuses two clean pipeline run dirs with git-mv-failed",
-        "updatedAt": "2026-08-31T17:59:00Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
           "stage": "ready",
           "grants": {
             "build": true,
