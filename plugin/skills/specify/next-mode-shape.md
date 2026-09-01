@@ -50,9 +50,11 @@ framing-check mode" for `{callee step}`) — the markers, the
 escapable-`---` rationale, and the only-the-literal-closing-marker rule
 live there, never restated here.
 
-Invoke inline via the `Skill` tool — never as a Task-agent dispatch
-(`challenge/SKILL.md`'s own contract: the caller already holds the body,
-so a subagent would only pay to re-derive it):
+Invoke inline via the `Skill` tool — never as a Task-agent dispatch.
+`challenge/SKILL.md`'s framing-check mode declined structural (Task-agent)
+isolation on three grounds, not cost alone (#1276) — see its Called-from
+paragraph for the full declined-isolation rationale rather than restating
+it here:
 
 ```
 Skill(claude-tweaks:challenge, "framing-check #{n}")
