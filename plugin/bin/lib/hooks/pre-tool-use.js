@@ -1215,9 +1215,9 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
     if (fileTargetPath && path.isAbsolute(fileTargetPath)) {
       const { repoRoot: targetRoot, indeterminate: targetIndeterminate } = wtDetect.repoInfo(fileTargetPath);
       if (!targetIndeterminate) {
+        if (!targetRoot) return {}; // provably not a repo at all -- unconditional, matches the comment above
         const mainRoot = safeReal(wtDetect.mainCheckoutRoot(wtRoot));
         if (mainRoot) {
-          if (!targetRoot) return {}; // provably not a repo at all
           const targetMainRoot = safeReal(wtDetect.mainCheckoutRoot(targetRoot));
           if (targetMainRoot && targetMainRoot !== mainRoot) return {}; // provably a different repo
         }
