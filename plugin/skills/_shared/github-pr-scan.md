@@ -35,7 +35,7 @@ Deep scan of the current branch's PR only, plus one cheap repo-wide count. Every
 2. **Unresolved review threads** — resolve `{owner}` and `{repo}` via `gh repo view --json owner,name -q '.owner.login + " " + .name'`, `{number}` from item 1, then run exactly:
 
    ```bash
-   gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{isResolved}}}}}' -f owner='{owner}' -f repo='{repo}' -F pr={number} --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)] | length'
+   gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{isResolved}}}}}' -F owner={owner} -F repo={repo} -F pr={number} --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not)] | length'
    ```
 
 3. **CI checks** — `gh pr checks {number}` → count failing / pending / passing. Exit code 8 means checks are still pending; a non-zero exit that still lists checks is valid output, not a scan failure.
@@ -51,7 +51,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
 > **Parallel execution:** Use parallel tool calls aggressively — items 1, 3, 4, 5, 6, 7, 8, and the initial fetches of items 9 and 10 below, plus each open PR's own review-thread query in item 2, are independent gh/bash calls with no dependency on one another and should run concurrently. Item 9's per-candidate thread/link fetches and item 10's per-issue claim-blob reads depend on their own item's earlier filter step, so only those later sub-steps are sequential.
 
-1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url --limit 100` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below. A PR with failing/pending CI (`gh pr checks`) or `reviewDecision: CHANGES_REQUESTED` instead gets its own finding, regardless of staleness: `[pr] PR #{n}: {title} — CI failing/pending or changes requested — CI {status}, review {reviewDecision}`. This is `high` severity per the Severity mapping below, not informational — see the Findings and recommendations table below.
+1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url --limit 100` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding, carrying a per-PR command rather than landing as summary-only: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads — gh pr view {n} --web`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below — but "informational" describes the *severity*, not whether the row carries a command: the trailing `gh pr view {n} --web` is what a human runs to actually look at the PR, and its absence was a confirmed gap (a bare summary sentence with zero per-PR follow-up), not a deliberate no-command finding. A PR with failing/pending CI (`gh pr checks`) or `reviewDecision: CHANGES_REQUESTED` instead gets its own finding, regardless of staleness: `[pr] PR #{n}: {title} — CI failing/pending or changes requested — CI {status}, review {reviewDecision}`. This is `high` severity per the Severity mapping below, not informational — see the Findings and recommendations table below.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
 3. **Code-health issues** — `gh issue list --label by:code-health --state open --json number,title,labels,updatedAt,url --limit 100`.
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName` AND `gh pr list --state closed --limit 50 --json number,headRefName` (GitHub's PR `state` is `OPEN`/`CLOSED`/`MERGED` — mutually exclusive — so `--state closed` never overlaps `--state merged`; both queries are needed to cover "merged or closed without merging"); cross-check each `headRefName` from either result against `git -C "{REPO_ROOT}" branch --list` output.
@@ -92,6 +92,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PR_SCAN_UNARMED=pr-scan-unarmed.json PR_SCAN_UNARMED_CANDIDATES=pr-scan-unarmed-candidates.json)"
    UNARMED_AGE=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values pr-unarmed-age-hours)
    HOUSEKEEPING_GRANT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values housekeeping-auto-merge)
+   ALLOW_AUTO_MERGE=$(gh api repos/{owner}/{repo} -q .allow_auto_merge 2>/dev/null)
    gh pr list --state open --json number,title,updatedAt,isDraft,body,autoMergeRequest,statusCheckRollup,closingIssuesReferences,url --limit 100 \
      > "$PR_SCAN_UNARMED"
 
@@ -138,9 +139,13 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
    ```bash
    eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PR_SCAN_UNARMED_CANDIDATES=pr-scan-unarmed-candidates.json PR_SCAN_UNARMED_LINKS=pr-scan-unarmed-links.jsonl)"
-   HOUSEKEEPING_GRANT="$HOUSEKEEPING_GRANT" node -e "
+   HOUSEKEEPING_GRANT="$HOUSEKEEPING_GRANT" ALLOW_AUTO_MERGE="$ALLOW_AUTO_MERGE" node -e "
      const fs = require('fs');
      const HOUSEKEEPING = process.env.HOUSEKEEPING_GRANT === 'true';
+     const ALLOW_AUTO_MERGE = process.env.ALLOW_AUTO_MERGE; // 'true' | 'false' | '' (probe failed — unknown)
+     const armNote = ALLOW_AUTO_MERGE === 'false'
+       ? ' (repo setting Allow auto-merge is OFF — arm will degrade per _shared/pr-first-merge.md Step 3, not fail)'
+       : '';
      const candidates = require('$PR_SCAN_UNARMED_CANDIDATES');
      const links = fs.existsSync('$PR_SCAN_UNARMED_LINKS')
        ? fs.readFileSync('$PR_SCAN_UNARMED_LINKS', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse)
@@ -158,15 +163,15 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
            && !linked.some((n) => (labelsByIssue.get(n) || []).includes('bot:blocked'));
        }
        if (granted) {
-         console.log('[pr-unarmed] PR #' + pr.number + ': ' + pr.title + ' — green and granted, --auto never armed — arm per _shared/pr-first-merge.md');
+         console.log('[pr-unarmed] PR #' + pr.number + ': ' + pr.title + ' — green and granted, --auto never armed — arm per _shared/pr-first-merge.md' + armNote);
        } else {
-         console.log('[pr-unarmed] PR #' + pr.number + ': ' + pr.title + ' — green but ungranted — needs auto:merge on every linked record (or housekeeping-auto-merge for a tidy PR) before it can arm');
+         console.log('[pr-unarmed] PR #' + pr.number + ': ' + pr.title + ' — green but ungranted — needs auto:merge on every linked record (or housekeeping-auto-merge for a tidy PR) before it can arm' + armNote);
        }
      });
    "
    ```
 
-   Both outcomes share the `[pr-unarmed]` prefix — the row content, not the prefix, distinguishes granted (recommends arming now) from ungranted (recommends granting first). **The list-time snapshot above is never trusted for the actual write**: grant labels, the `bot:blocked` exclusion (a record parked between the scan and the arm — or one whose labels the classifier's `gh issue view` loop failed to fetch and defaulted to `[]` — must still block the arm), `housekeeping-auto-merge`, and gate status (CI/draft/threads) are all re-read immediately before `gh pr merge --auto` runs, whether that arm happens interactively or via `/claude-tweaks:tidy`'s own Step 6/7 batch approval.
+   Both outcomes share the `[pr-unarmed]` prefix — the row content, not the prefix, distinguishes granted (recommends arming now) from ungranted (recommends granting first). Every row also carries the repo's `allow_auto_merge` state (`ALLOW_AUTO_MERGE`, read once above via `gh api repos/{owner}/{repo} -q .allow_auto_merge`) whenever it's `false`, so a recommendation to "arm" never implies a live `--auto` arm will succeed on a repo where it structurally can't — the degrade path still applies. **The list-time snapshot above is never trusted for the actual write**: grant labels, the `bot:blocked` exclusion (a record parked between the scan and the arm — or one whose labels the classifier's `gh issue view` loop failed to fetch and defaulted to `[]` — must still block the arm), `housekeeping-auto-merge`, and gate status (CI/draft/threads) are all re-read immediately before `gh pr merge --auto` runs, whether that arm happens interactively or via `/claude-tweaks:tidy`'s own Step 6/7 batch approval.
 
 10. **Unsettled run** — a claimed or `bot:in-progress`-labeled issue whose pipeline shows no evidence of progress since it was claimed, past a threshold. Detected purely GitHub-side, in three fetches:
 
@@ -264,6 +269,7 @@ Findings and recommendations (tidy Action Vocabulary):
 
 | Finding | Recommendation |
 |---------|---------------|
+| Open PR awaiting review, nothing wrong (item 1's first finding) | `gh pr view {n} --web` — informational, optional human look, no action required |
 | Open PR has failing/pending CI or `CHANGES_REQUESTED` (item 1's second finding) | Investigate the CI failure or address the requested changes — local action |
 | Open PR stale (>4 weeks, no updates) | Close (GitHub) or Resume — judgment call |
 | Open PR superseded (related spec complete, equivalent changes merged) | Close (GitHub) |

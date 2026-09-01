@@ -1,7 +1,7 @@
 # Core Bootstrap Version Check (detailed procedure)
 
 Runs before Step 1, on every `/init` invocation regardless of scope — **except** when
-`$ARGUMENTS` explicitly names the `bootstrap` Phase scope, which always runs Steps 1-8 fully
+`$ARGUMENTS` explicitly names the `bootstrap` Phase scope, which always runs Steps 1-8.5 fully
 regardless of the marker (see the Exception in `SKILL.md`'s "Core Bootstrap Version Check").
 
 **Read the marker and extract its version:**
@@ -39,11 +39,11 @@ node -e "
 Prints `-1` (marker older than installed), `0` (match), or `1` (marker newer — shouldn't happen
 in practice, treat identically to a match). If `compareVersions` throws (e.g. `$MARKER_VERSION`
 extracted to something that still isn't valid semver), treat it the same as marker-missing —
-run Steps 1-8 fully, skip the changelog notice.
+run Steps 1-8.5 fully, skip the changelog notice.
 
-- `$MARKER_VERSION` empty (missing or malformed) → run Steps 1-8 fully, skip the changelog notice.
-- Result `0` or `1` → skip Steps 1-8 (except under the `bootstrap`-scope Exception above, which always runs them); print `"Core bootstrap already verified at v$MARKER_VERSION on {verified date from the marker} — skipping Steps 1-8. Delete .claude-tweaks/init-state.yml to force a full re-check."`
-- Result `-1` → run Steps 1-8 fully, then run the changelog notice below.
+- `$MARKER_VERSION` empty (missing or malformed) → run Steps 1-8.5 fully, skip the changelog notice.
+- Result `0` or `1` → skip Steps 1-8.5 (except under the `bootstrap`-scope Exception above, which always runs them); print `"Core bootstrap already verified at v$MARKER_VERSION on {verified date from the marker} — skipping Steps 1-8.5. Delete .claude-tweaks/init-state.yml to force a full re-check."`
+- Result `-1` → run Steps 1-8.5 fully, then run the changelog notice below.
 
 **Changelog notice:**
 
@@ -80,7 +80,7 @@ core-bootstrap:
 EOF
 ```
 
-Write this only after Steps 1-8 have actually run (or been skipped) — not before.
+Write this only after Steps 1-8.5 have actually run (or been skipped) — not before.
 `init-state.yml` only ever has this one key today — a full overwrite is safe. If a future
 change adds other top-level keys to this file, switch to a merge instead of an overwrite.
 
@@ -88,9 +88,9 @@ change adds other top-level keys to this file, switch to a merge instead of an o
 
 | Marker state | Action |
 |---|---|
-| Missing | Run Steps 1-8 fully. No changelog notice — nothing to diff against yet. |
-| Present, versions match, or marker newer than installed (shouldn't happen in practice, treat identically) | Skip Steps 1-8 entirely; print a one-line confirmation naming the marker's own recorded version and date, and mentioning that deleting `.claude-tweaks/init-state.yml` forces a full re-check. |
-| Present, marker version older than installed | Run Steps 1-8 fully, then surface the changelog notice below. |
+| Missing | Run Steps 1-8.5 fully. No changelog notice — nothing to diff against yet. |
+| Present, versions match, or marker newer than installed (shouldn't happen in practice, treat identically) | Skip Steps 1-8.5 entirely; print a one-line confirmation naming the marker's own recorded version and date, and mentioning that deleting `.claude-tweaks/init-state.yml` forces a full re-check. |
+| Present, marker version older than installed | Run Steps 1-8.5 fully, then surface the changelog notice below. |
 
 ## Changelog notice policy
 
@@ -101,4 +101,4 @@ change adds other top-level keys to this file, switch to a merge instead of an o
 The `worktree-always` contrast drawn below names `SKILL.md`'s "Finalizing the worktree-always
 Decision" section, whose own procedure lives in `../worktree-policy-finalization.md`.
 
-**Write the marker** after Steps 1-8 have run (or been skipped) — i.e. as the last step of this whole Core Bootstrap Version Check, not before Steps 1-8 execute — regardless of which branch ran. Unlike the `worktree-always` decision (see "Finalizing the worktree-always Decision" below), this write creates no new gate that could deny this same invocation's own remaining steps, so there is no need to defer it further than that. Create `.claude-tweaks/` if it doesn't exist yet.
+**Write the marker** after Steps 1-8.5 have run (or been skipped) — i.e. as the last step of this whole Core Bootstrap Version Check, not before Steps 1-8.5 execute — regardless of which branch ran. Unlike the `worktree-always` decision (see "Finalizing the worktree-always Decision" below), this write creates no new gate that could deny this same invocation's own remaining steps, so there is no need to defer it further than that. Create `.claude-tweaks/` if it doesn't exist yet.

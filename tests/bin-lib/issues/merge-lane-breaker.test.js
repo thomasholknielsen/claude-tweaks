@@ -195,23 +195,24 @@ test('#311 AC4: a human-granted record (never in watched.json) is out of scope f
     { sha: 'revert-sha', message: 'Revert "refs #209 done"\n\nThis reverts commit closer-sha.' },
   ];
   // Reverted -> trips, exactly the same as AC1 — the ONLY gate on whether this
-  // classification ever runs at all is whether grant-mode.md's Step 0.5 chose
+  // classification ever runs at all is whether refine-headless.md's Step 0.5 chose
   // to read this record out of watched.json in the first place.
   const result = classifyWatchedRecord(entry, gitLog, NOW, WINDOW_DAYS);
   assert.deepEqual(result, { action: 'trip', reason: 'revert' });
 });
 
 // --- #311 AC7 (structural half): the reset write path exists in exactly one
-// place — grant-mode.md's Step 0.5 and Phase A-C never write `tripped:
-// false` anywhere in their own procedure text. A live read of the shipped
-// skill prose (not a frozen fixture): this pins a structural invariant about
-// the skill's own text, which is exactly what would regress if a future edit
-// ever taught grant-mode.md to clear a trip itself. ---
+// place — refine-headless.md's (formerly grant-mode.md's) Step 0.5 and Phase
+// A-C never write `tripped: false` anywhere in their own procedure text. A
+// live read of the shipped skill prose (not a frozen fixture): this pins a
+// structural invariant about the skill's own text, which is exactly what
+// would regress if a future edit ever taught refine-headless.md to clear a
+// trip itself. ---
 
-test('#311 AC7: grant-mode.md never writes tripped:false — the reset write path lives only in refine-mode.md', () => {
-  const grantModePath = path.join(__dirname, '../../../plugin/skills/backlog/grant-mode.md');
+test('#311 AC7: refine-headless.md never writes tripped:false — the reset write path lives only in refine-mode.md', () => {
+  const grantModePath = path.join(__dirname, '../../../plugin/skills/backlog/refine-headless.md');
   const src = fs.readFileSync(grantModePath, 'utf8');
-  assert.ok(!/tripped:\s*false/.test(src), 'grant-mode.md (Step 0.5 + Phase A-C) must never write tripped: false — only refine-mode.md\'s grant sub-stage reset offer may');
+  assert.ok(!/tripped:\s*false/.test(src), 'refine-headless.md (Step 0.5 + Phase A-C) must never write tripped: false — only refine-mode.md\'s grant sub-stage reset offer may');
 });
 
 test('#311 AC7: refine-mode.md\'s grant sub-stage cites merge-lane-reset.md, the one place that writes tripped:false (the reset path)', () => {

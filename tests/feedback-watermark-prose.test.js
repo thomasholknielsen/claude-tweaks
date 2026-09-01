@@ -163,6 +163,20 @@ test("step-04-gitignore-suggestions.md's fenced suggestion block contains the ge
   assert.match(gitignoreSuggestionBlock(), /^\.claude-tweaks\/\*\/watermarks\/\*\.json$/m);
 });
 
+// #1561: this repo's own root .gitignore has ignored the wrap-up outcome
+// telemetry file since before this template line existed — a consumer
+// project seeded from an out-of-date template never got it, so `close-run`/
+// wrap-up telemetry can end up tracked and, under `worktree-always`,
+// permanently uncommittable. Pin both the template line itself and its
+// presence in the .gitignore/step-04 parity this file already checks above.
+test("step-04-gitignore-suggestions.md's fenced suggestion block contains the wrap-up-outcomes.tsv line (#1561)", () => {
+  assert.match(gitignoreSuggestionBlock(), /^\.claude-tweaks\/wrap-up-outcomes\.tsv$/m);
+});
+
+test('.gitignore contains the literal line .claude-tweaks/wrap-up-outcomes.tsv', () => {
+  assert.match(GITIGNORE, /^\.claude-tweaks\/wrap-up-outcomes\.tsv$/m);
+});
+
 // #856 deliberately makes these two lines diverge: root .gitignore keeps the
 // feedback-specific blanket line (existing on-disk state, unmigrated), while
 // step-04's suggestion for *new* projects is generalized to cover every

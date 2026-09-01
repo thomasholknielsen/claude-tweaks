@@ -161,5 +161,15 @@ test('wrap-up does not duplicate the Fixes lines already carried by the draft PR
 
 test('bin/hooks.js record-pr verb writes run-state.json.pr through writeRunState, mirroring record-worktree', () => {
   assert.match(HOOKS_JS, /if \(cmd === 'record-pr'\)/);
-  assert.match(HOOKS_JS, /ctxLib\.writeRunState\(runDir, \{ pr: \{ number, url: urlArg \} \}\)/);
+  // Anchored on the property this test is named for — run-state reaches disk
+  // only through the sanctioned `writeRunState` writer (CLAUDE.md's
+  // write-ownership rule), and the field it writes is `pr` — rather than on the
+  // byte-literal object that used to follow it. #1672 added an optional
+  // `branch` member to that object, and the old literal pin failed only at
+  // full-suite time on a branch whose own targeted suites were green, which is
+  // the byte-pin hazard `docs/incident-log.md` already records. The two
+  // original members are asserted separately below, so dropping either still
+  // goes red.
+  assert.match(HOOKS_JS, /ctxLib\.writeRunState\(runDir, \{ pr: /);
+  assert.match(HOOKS_JS, /\{ number, url: urlArg \}/);
 });

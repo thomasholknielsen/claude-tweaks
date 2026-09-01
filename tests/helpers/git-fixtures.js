@@ -40,9 +40,12 @@ const FIXTURE_TIMEOUT_MS = 30000;
 // execFileSync's own timeout kill surfaces as an opaque error. Wrap it so a
 // bound that fires says which fixture command hit it, rather than leaving a
 // bare ETIMEDOUT for a future reader to trace back.
-function fixtureGit(args) {
+// `opts` is spread into execFileSync's options AFTER the timeout, so a caller
+// can pin `env` (e.g. GIT_AUTHOR_DATE/GIT_COMMITTER_DATE for a fixture whose
+// assertions must not depend on the wall clock) without losing the bound.
+function fixtureGit(args, opts = {}) {
   try {
-    return execFileSync('git', args, { timeout: FIXTURE_TIMEOUT_MS });
+    return execFileSync('git', args, { timeout: FIXTURE_TIMEOUT_MS, ...opts });
   } catch (err) {
     if (err.killed || err.code === 'ETIMEDOUT' || err.signal === 'SIGTERM') {
       throw new Error(

@@ -213,6 +213,11 @@ function cliDeps({ ghView, ghAvailable = true, remoteUrl = 'https://github.com/a
       ghView, ghAvailable: () => ghAvailable, remoteUrl: () => remoteUrl,
       cwd: () => process.cwd(), mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
       isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
+      isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
+      cwdWorktreeRoot: (cwd) => {
+        const info = wtDetect.repoInfo(cwd);
+        return info.isLinkedWorktree ? info.repoRoot : null;
+      },
       mkdirp: () => {}, writeFile: (p, c) => { written[p] = c; },
       stdout: (s) => out.push(s), stderr: (s) => err.push(s),
     },

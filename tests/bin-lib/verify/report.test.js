@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 
-const { gitInfo, composeReport } = require(path.join(
+const { gitInfo, composeReport, writeReportAtomic } = require(path.join(
   __dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'report.js'));
 
 const PASSING = {
@@ -90,4 +90,35 @@ test('testCountRegression is carried on the report when non-null (#881)', () => 
     testCountRegression: regression,
   });
   assert.deepStrictEqual(report.testCountRegression, regression);
+});
+
+test('writeReportAtomic writes a pid-suffixed temp file then renames it over the target (AC3)', () => {
+  const calls = [];
+  const writeFile = (p, content) => calls.push(['write', p, content]);
+  const rename = (from, to) => calls.push(['rename', from, to]);
+  writeReportAtomic({ pass: true }, '/out/report.json', { writeFile, rename });
+  assert.strictEqual(calls[0][0], 'write');
+  assert.ok(calls[0][1].startsWith('/out/report.json.tmp-'), 'tmp path is pid-suffixed, not a fixed name');
+  assert.deepStrictEqual(JSON.parse(calls[0][2]), { pass: true });
+  assert.deepStrictEqual(calls[1], ['rename', calls[0][1], '/out/report.json']);
+});
+
+test('writeReportAtomic: two different-pid writers no longer collide on the tmp filename (fixes the shared `.tmp` bug)', () => {
+  const writePaths = [];
+  const writeFile = (p) => writePaths.push(p);
+  const rename = () => {};
+
+  const originalPid = process.pid;
+  try {
+    Object.defineProperty(process, 'pid', { value: 111, configurable: true });
+    writeReportAtomic({ pass: true }, '/out/report.json', { writeFile, rename });
+    Object.defineProperty(process, 'pid', { value: 222, configurable: true });
+    writeReportAtomic({ pass: true }, '/out/report.json', { writeFile, rename });
+  } finally {
+    Object.defineProperty(process, 'pid', { value: originalPid, configurable: true });
+  }
+
+  assert.notStrictEqual(writePaths[0], writePaths[1], 'two different-pid writers use two different tmp paths');
+  assert.ok(writePaths[0].endsWith('.tmp-111'));
+  assert.ok(writePaths[1].endsWith('.tmp-222'));
 });

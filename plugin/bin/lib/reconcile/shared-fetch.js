@@ -35,7 +35,7 @@
 // reconcile()'s own overall wall-clock budget (~18s, #820 D4) stays the
 // backstop against a pathologically slow fetch under either shape.
 'use strict';
-const { runGit } = require('../hooks/git-exec');
+const { runGit, runGitAsync } = require('../hooks/git-exec');
 const { FETCH_TIMEOUT_MS } = require('./classify');
 
 // opts: { integration: string, mirror?: boolean, remotePrune?: boolean }
@@ -46,4 +46,16 @@ function sharedFetch(root, opts = {}) {
   return runGit(['fetch', '--prune', 'origin'], root);
 }
 
-module.exports = { sharedFetch };
+// Async, mirror-only twin of sharedFetch — used by reconcile/index.js's
+// FAST_CHECKS dispatch (mirror requested, remote-prune not — the "mirror
+// only" shape documented above), which runs this concurrently with
+// ghHealthCheckAsync via Promise.all instead of paying for both serially
+// (#872). No --prune branch: the remote-prune and mirror+remote-prune
+// shapes stay on the sync sharedFetch above, unchanged — this twin exists
+// solely for the one shape that actually needs to run concurrently with the
+// preflight.
+async function sharedFetchAsync(root, opts = {}) {
+  return runGitAsync(['fetch', 'origin', opts.integration], root, { timeoutMs: FETCH_TIMEOUT_MS });
+}
+
+module.exports = { sharedFetch, sharedFetchAsync };

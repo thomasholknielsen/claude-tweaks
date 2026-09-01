@@ -53,7 +53,19 @@ never a hard stop, never a flag written to `run-state.json` that would suppress 
 phase's own push attempt. The next phase exit's push naturally catches up whatever the failed
 one didn't, so a single transient failure self-heals without any retry logic of its own.
 
-`local-merge` runs keep today's behavior: no phase-exit push, one push at finish.
+`local-merge` runs keep today's behavior: no phase-exit push, one push at finish. So does
+`current-branch` mode (no worktree branch to push mid-run). Either condition is `build/SKILL.md`
+Common Step 7's documented conditional action — write one `SKIP` entry per
+`_shared/auto-decision-log.md`'s degrade-trace rule (the existing failure-degrade warning above is
+unaffected — that already logs on a genuine push failure, a distinct case from this clean no-op):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status SKIP \
+  --section "/build" --step "Common Step 7 phase-exit push (skipped)" \
+  --text "condition: integration-model=local-merge or current-branch mode → fallback: no phase-exit push, one push at finish" --reversibility n/a
+```
+
+Standalone `/build` (no run dir): list the skip in the Step 7 handoff instead (`build/handoff-template.md`'s inline-skip listing).
 
 ## Catching a branch up with `main`
 

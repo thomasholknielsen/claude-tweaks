@@ -95,8 +95,16 @@ test('POLICY_KEYS entries are unique', () => {
   // 61 -> 62, #309 (veto-window maturation): grant-veto-window-hours — how
   // long a machine-granted auto:merge-pending grant must sit unvetoed before
   // /claude-tweaks:dispatch's Auto-merge gate matures it to auto:merge.
-  assert.strictEqual(POLICY_KEYS.length, 62);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 62);
+  // 62 -> 63, #1654 (dispatch group-size guard lever): dispatch-group-size-guard
+  // — headless `next` selection's file-overlap group-size exclusion threshold,
+  // wired through the same policy.yml precedence chain as its dispatch-batch-size
+  // sibling; grouping.js's GROUP_SIZE_GUARD_DEFAULT stays the unset fallback.
+  // 63 -> 64, #1491 (specify drain budget): specify-budget — default
+  // attempt-count budget for a bare /specify drain invocation, sibling of
+  // dispatch-batch-size; the shared n/all --budget semantics are canonical in
+  // _shared/record-batch-input.md, not restated here.
+  assert.strictEqual(POLICY_KEYS.length, 64);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 64);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -600,6 +608,28 @@ test('trust-revert-window-days is a recognized integer key with a floor of 1, de
   assert.strictEqual(auditPolicy(negative).invalidValues.length, 1, 'a negative value must be flagged too');
 });
 
+test('grant-veto-window-hours is a recognized integer key with a floor of 1, defaulting to 24', () => {
+  const key = POLICY_KEYS.find((k) => k.key === 'grant-veto-window-hours');
+  assert.ok(key, 'grant-veto-window-hours missing from POLICY_KEYS');
+  assert.strictEqual(key.type, 'integer');
+  assert.strictEqual(key.min, 1);
+  assert.strictEqual(key.default, 24);
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'grant-veto-window-hours: 48\n');
+  assert.deepStrictEqual(auditPolicy(repo).invalidValues, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'grant-veto-window-hours: 0\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, '0 is below the floor of 1 and must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'grant-veto-window-hours');
+
+  const negative = tmpRepo();
+  writePolicy(negative, 'grant-veto-window-hours: -5\n');
+  assert.strictEqual(auditPolicy(negative).invalidValues.length, 1, 'a negative value must be flagged too');
+});
+
 test('model-stance, frontier-run-cap, model-ceiling, model-profiles, research-mode are registered', () => {
   const byKey = new Map(POLICY_KEYS.map((k) => [k.key, k]));
 
@@ -771,6 +801,26 @@ test('resolveValue passes an unrecognized key through unchanged', () => {
 test('resolveValue never throws on a malformed value of any type', () => {
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', {}));
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', ['x']));
+});
+
+test('specify-budget is registered as an integer defaulting to 5, sibling of dispatch-batch-size (#1491)', () => {
+  const key = POLICY_KEYS.find((k) => k.key === 'specify-budget');
+  assert.ok(key, 'specify-budget missing from POLICY_KEYS');
+  assert.strictEqual(key.type, 'integer');
+  assert.strictEqual(key.default, 5);
+  assert.strictEqual(key.category, 'pipeline-behavior');
+  assert.strictEqual(key.tier, 'advanced');
+  assert.strictEqual(typeof key.summary, 'string');
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'specify-budget: 7\n');
+  assert.deepStrictEqual(auditPolicy(repo).invalidValues, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'specify-budget: not-a-number\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, 'a non-integer value must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'specify-budget');
 });
 
 test('design-critique is registered as an enum off|auto|full defaulting to auto (#595)', () => {

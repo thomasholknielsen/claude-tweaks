@@ -20,7 +20,7 @@ const { archiveMerged } = require('./archive-merged');
 const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
-const { sharedFetch } = require('./shared-fetch');
+const { sharedFetch, sharedFetchAsync } = require('./shared-fetch');
 const { readCache, writeCache, isFresh } = require('./cache');
 const { formatReconcileSummary, archivedCountFromRunsResult } = require('./residue-summary');
 
@@ -34,8 +34,13 @@ const { formatReconcileSummary, archivedCountFromRunsResult } = require('./resid
 // determine dispatch order.
 const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'];
 
-// opts: { dryRun?: boolean, checks?: string[], cwd?: string }
+// opts: { dryRun?: boolean, checks?: string[], cwd?: string, sessionId?: string }
 // -> { mirror, worktrees, claims, runs, branches, console, skipped }
+// `sessionId`, when the caller has one, threads through to archiveMerged's
+// own `isAbandonedInterrupted` ownership check (archive-merged.js) — omitted
+// (undefined), archiveMerged falls back to its own
+// `process.env.CLAUDE_CODE_SESSION_ID` default, unchanged from before this
+// option existed.
 // This module is gh-CLI-only by design (a Node subprocess cannot reach an
 // agent session's MCP tools), so a gh-absent environment reports that reason
 // per-check rather than attempting an MCP fallback (see
@@ -45,6 +50,18 @@ async function reconcile(opts = {}) {
   let checks = Array.isArray(opts.checks) && opts.checks.length ? opts.checks : ALL_CHECKS;
   const cwd = opts.cwd || process.cwd();
   const result = { mirror: null, redTip: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [] };
+
+  // Declined-learning store prune (#1399) — local, gitignored bookkeeping unrelated to git/
+  // GitHub reachability, so it runs unconditionally on every reconcile pass regardless of
+  // `checks`, the integration model, or whether this even resolves to a repo — the store's own
+  // path is process.cwd()-relative (no root param on this module today, matching every existing
+  // caller: /feedback and /reflect never pass one either), so this deliberately does not thread
+  // `root` through. Best-effort: a prune failure never blocks the rest of the pass.
+  try {
+    require('../declined-learning/store').pruneDeclines();
+  } catch {
+    /* best-effort — never break reconcile over declined-learning maintenance */
+  }
 
   const root = mainCheckoutRoot(cwd);
   if (!root) {
@@ -86,7 +103,17 @@ async function reconcile(opts = {}) {
     return result;
   }
 
-  const model = resolveIntegrationModel(root);
+  // #1558: forwards the caller's own already-confirmed MCP-reachability
+  // verdict into detectIntegrationModel's mcpReachable override (the same
+  // deps-seam bin/resolve-policy.js's --mcp-reachable flag already uses),
+  // so a gh-absent-but-GitHub-MCP-reachable sandbox doesn't silently
+  // downgrade to local-merge. Undefined/false by default — every internal,
+  // hook-context caller of reconcile() (session-start.js, pre-compact) has
+  // no agent turn to probe from and is unaffected, matching the same
+  // permanent, structural gap pre-tool-use.js's own PR-stamp branch already
+  // documents (IL-63) rather than working around it there.
+  const resolveModel = opts.resolveIntegrationModel || resolveIntegrationModel;
+  const model = resolveModel(root, { mcpReachable: opts.mcpReachable === true });
   if (model !== 'pr-first') {
     // local-merge / no-forge: only `reap` has a defined fallback here — the
     // long-standing content-identical ancestry check worktree-reap.js has
@@ -127,13 +154,36 @@ async function reconcile(opts = {}) {
   // so a test's `require('./preflight').ghHealthCheck = fn` monkeypatch
   // actually reaches this call site.
   const ghDependentChecks = checks.filter((c) => c !== 'mirror');
+  // #872: the FAST_CHECKS shape (mirror requested, remote-prune not — the
+  // same "mirror only" shape shared-fetch.js's own header names) runs this
+  // preflight and the shared git fetch below concurrently via Promise.all,
+  // instead of paying for both serially — sibling code in the same diff
+  // (pr-state.js's resolvePrStateAsync) already established the async
+  // execFile pattern this reuses (ghHealthCheckAsync, sharedFetchAsync).
+  // Computed from `checks` BEFORE the narrowing below, so a request that
+  // ever included remote-prune stays on the sequential path even if a
+  // preflight failure later narrows `checks` down to mirror-only —
+  // ALL_CHECKS/mixed and BACKGROUND_CHECKS are explicitly out of scope for
+  // this concurrency and must not gain it incidentally through narrowing.
+  const fastChecksShape = checks.includes('mirror') && !checks.includes('remote-prune');
+  let health = null;
+  // Set only by the concurrent branch below — the sequential fetch dispatch
+  // further down reuses it instead of fetching a second time.
+  let concurrentFetch = null;
   if (ghDependentChecks.length) {
-    const health = require('./preflight').ghHealthCheck();
-    if (!health.ok) {
-      result.skipped.push({ check: ghDependentChecks.join(','), reason: `preflight-${health.reason}` });
-      checks = checks.filter((c) => c === 'mirror');
-      if (!checks.length) return result;
+    if (fastChecksShape) {
+      [health, concurrentFetch] = await Promise.all([
+        require('./preflight').ghHealthCheckAsync(),
+        sharedFetchAsync(root, { integration }),
+      ]);
+    } else {
+      health = require('./preflight').ghHealthCheck();
     }
+  }
+  if (health && !health.ok) {
+    result.skipped.push({ check: ghDependentChecks.join(','), reason: `preflight-${health.reason}` });
+    checks = checks.filter((c) => c === 'mirror');
+    if (!checks.length) return result;
   }
 
   // Overall wall-clock ceiling for the rest of this pass (#820, D4) — bounds
@@ -167,7 +217,10 @@ async function reconcile(opts = {}) {
   // below: red-tip is included even though it triggers no fetch itself,
   // because it reads the ref this fetch (formerly mirror's own) just
   // refreshed — see the ordering comment on red-tip's dispatch below. A
-  // failed fetch is recorded once here rather than once per check.
+  // failed fetch is recorded once here rather than once per check. For the
+  // FAST_CHECKS shape (#872), `concurrentFetch` already carries this
+  // fetch's result — it ran above, concurrently with the preflight, rather
+  // than being dispatched here a second time.
   let sharedFetchOk = true;
   const wantsMirror = checks.includes('mirror');
   const wantsRemotePrune = checks.includes('remote-prune');
@@ -181,7 +234,7 @@ async function reconcile(opts = {}) {
   // gate should say so rather than rely on that pairing holding forever).
   const fetchRan = wantsMirror || wantsRemotePrune;
   if (fetchRan) {
-    const fetched = sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
+    const fetched = concurrentFetch || sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
     if (fetched.failure) {
       sharedFetchOk = false;
       const affected = ['mirror', 'red-tip', 'remote-prune'].filter((c) => checks.includes(c));
@@ -254,7 +307,7 @@ async function reconcile(opts = {}) {
 
   if (overBudget(DISPATCH_ORDER.slice(4))) return result;
   if (checks.includes('archive')) {
-    const r = archiveMerged({ cwd: root, dryRun });
+    const r = archiveMerged({ cwd: root, dryRun, sessionId: opts.sessionId });
     result.runs = r.archived.map((d) => ({ runDir: d, action: 'archived' }))
       .concat(r.skipped.map((s) => ({ runDir: s.runDir, action: 'skipped', reason: s.reason })));
   }

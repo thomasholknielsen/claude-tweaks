@@ -39,6 +39,15 @@ const { withLock } = require('../file-lock');
 const STORE_PATH = path.join('.claude-tweaks', 'declined-learning', 'store.json');
 const LOCK_PATH = path.join('.claude-tweaks', 'declined-learning', '.store.lock');
 
+// Age-based pruning default (#1399): the store has no expiry, so every decline ever recorded
+// (across /feedback and /wrap-up reflect) accumulates forever. 180 days is a generous window —
+// long enough that an active decline never lapses mid-project, short enough to bound growth for
+// a store that otherwise never shrinks. No count-based cap: age alone is sufficient to bound
+// growth for a file that only ever gains one entry per declined finding/insight, and a count cap
+// would need its own eviction-order policy (oldest-first? — reintroducing the same "stale entry
+// suppresses a live finding" risk this file's header already documents) for no added benefit.
+const DEFAULT_PRUNE_MAX_AGE_DAYS = 180;
+
 // Pure — the store has exactly one on-disk location; no per-transcript/per-consumer derivation.
 function storePath() {
   return STORE_PATH;
@@ -130,6 +139,32 @@ function clearDecline(fingerprint, deps = {}) {
   });
 }
 
+// Removes every entry older than `maxAgeDays` (#1399), read-modify-write through
+// readStore/writeStore under the same lock recordDecline/clearDecline use. Age is measured from
+// each entry's own `declinedAt` against `now` (injectable for deterministic tests, defaulting to
+// the real clock). An entry whose `declinedAt` is missing or unparseable is KEPT, never treated
+// as infinitely old and swept — this module's own degrade-open contract (header) never silently
+// discards data it can't judge the age of. Mirrors clearDecline's idempotent-no-write behavior:
+// a clean sweep (nothing to remove) never touches disk. Returns the number of entries removed.
+function pruneDeclines({ maxAgeDays = DEFAULT_PRUNE_MAX_AGE_DAYS, now = Date.now() } = {}, deps = {}) {
+  return withLock(LOCK_PATH, () => {
+    const current = readStore(deps);
+    const cutoffMs = now - maxAgeDays * 24 * 60 * 60 * 1000;
+    const next = {};
+    let removed = 0;
+    for (const [fingerprint, entry] of Object.entries(current)) {
+      const declinedAtMs = entry && entry.declinedAt ? Date.parse(entry.declinedAt) : NaN;
+      if (Number.isFinite(declinedAtMs) && declinedAtMs < cutoffMs) {
+        removed += 1;
+      } else {
+        next[fingerprint] = entry;
+      }
+    }
+    if (removed > 0) writeStore(next, deps);
+    return removed;
+  });
+}
+
 module.exports = {
   storePath,
   readStore,
@@ -139,4 +174,6 @@ module.exports = {
   listDeclinedFingerprints,
   listDeclined,
   clearDecline,
+  pruneDeclines,
+  DEFAULT_PRUNE_MAX_AGE_DAYS,
 };

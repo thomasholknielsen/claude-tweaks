@@ -89,6 +89,26 @@ test('malformed --limit is rejected — exit 2', () => {
   assert.strictEqual(run(['--limit', 'abc'], d), 2);
 });
 
+test('--repo owner/.. under work-links: native is rejected before any REST call (#1443: parseRepo accepts ".." segments)', () => {
+  const d = deps({
+    readPolicyRaw: () => 'autonomy: unattended\ngrant-origination-enabled: true\nwork-links: native\nintegration-branch: main\n',
+    runner: () => { throw new Error('should not be called'); },
+  });
+  assert.strictEqual(run(['--repo', 'owner/..'], d), 2);
+  assert.match(d.err.join(''), /invalid --repo value/);
+  assert.deepStrictEqual(d.calls, []);
+});
+
+test('--repo ../evil under work-links: native is rejected before any REST call', () => {
+  const d = deps({
+    readPolicyRaw: () => 'autonomy: unattended\ngrant-origination-enabled: true\nwork-links: native\nintegration-branch: main\n',
+    runner: () => { throw new Error('should not be called'); },
+  });
+  assert.strictEqual(run(['--repo', '../evil'], d), 2);
+  assert.match(d.err.join(''), /invalid --repo value/);
+  assert.deepStrictEqual(d.calls, []);
+});
+
 test('a required gh fetch failure exits 1 and names the error', () => {
   const d = deps({
     runner: () => { throw new Error('gh: connection reset'); },

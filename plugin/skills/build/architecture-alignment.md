@@ -51,6 +51,20 @@ Apply the `Architecture alignment (/build Common Step 4.5)` row from the silence
 - The plan was trivial (< 3 tasks, single-file changes)
 - `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a deliberate bet on `ceremony-check`'s upfront judgment, not an oversight; the safety net for "this was gnarlier than it looked" is `/claude-tweaks:review` and `/claude-tweaks:reflect`'s safety-regression check, both unaffected by `ceremony-profile` and both evaluated against the real, finished diff (the escape hatch itself is `wrap-up/SKILL.md`'s Phase 1 ceremony escape hatch, which downgrades `ceremony-profile` to `standard` for the rest of the run when either fires). Standalone `/build` (no `config.yml`) always falls back to the first two conditions alone.
 
+## On skip (write the trace)
+
+**Which branch counts as "skipped":** only when one of the three bullets above fires — this step never runs at all. A run where the step *does* execute and finds zero deviations is a normal partial run, not a skip — the no-op rule applies (`_shared/auto-decision-log.md`'s degrade-trace rule: a step that runs writes nothing when it finds nothing). Do not write a `SKIP` entry for "ran, found no deviations."
+
+When one of the three bullets fires, write one `SKIP` entry:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status SKIP \
+  --section "/build" --step "Common Step 4.5 (skipped)" \
+  --text "condition: {design mode, no spec | trivial plan | ceremony-profile=fast-lane} → fallback: no alignment check run" --reversibility n/a
+```
+
+Standalone `/build` (no run dir): list the skip in the Step 7 handoff instead (`handoff-template.md`'s inline-skip listing).
+
 ## Skill Observation
 
 **Classify, then tag — never withhold.** Run the observation through `skills/_shared/learning-routing.md`. Append the ledger entry below **in every case**; suppressing it would leave the observation with no reader at all, since nothing else in `/claude-tweaks:build` writes to a channel `/claude-tweaks:wrap-up` reads. When the outcome is D4 or D5, additionally tag the entry body `[route: D4]` or `[route: D5]`, which `/claude-tweaks:wrap-up`'s Skills curation row uses to hand it to the Memory or Upstream feedback row rather than seeding it as a project-skill update.

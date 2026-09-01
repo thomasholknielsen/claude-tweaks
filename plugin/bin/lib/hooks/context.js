@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const wtDetect = require('./worktree-detect');
+const { writeFileAtomic } = require('../atomic-write');
 
 function readStdin() {
   try { return fs.readFileSync(0, 'utf8'); } catch { return ''; }
@@ -42,7 +43,8 @@ function isStaleClaim(archiveState, now = Date.now()) {
 // run-state.json is still an adopted run, and readRunState's null covers
 // both cases), never on config.yml — standalone run dirs legitimately carry
 // decisions.md but no config.yml. Consequence: hooks.js CLI verbs that rely
-// on this fallback with no --run (record-worktree, record-pr, close-run) now
+// on this fallback with no --run (record-pr, close-run — record-worktree no
+// longer does, #1124: it now hard-requires an explicit --run, never guessing)
 // only ever resolve an adopted run — safe because every sanctioned caller
 // runs after flow Step 3 has already initialized the run dir (decisions.md
 // or run-state.json already exists by then).
@@ -215,7 +217,35 @@ function listRunDirs(cwd) {
 // to the run dir and the PR regardless of this resolution, the same way
 // `bin/lib/reconcile/*` already reads and writes runs regardless of session
 // ownership. Do not "fix" this by tightening the ownership check.
-function resolveRun(cwd, env, sessionId) {
+//
+// #1410: a fallback candidate is also filtered on WORKTREE binding, via
+// classifyOwnership (#1098) — an axis orthogonal to the session-ownership
+// filtering the two comments below deliberately skip. A candidate whose
+// recorded `worktree` provably belongs to a different, still-live worktree
+// than the caller's own `cwd` classifies 'foreign' regardless of session id
+// (classifyOwnership degrades to 'indeterminate', never 'foreign', whenever
+// the caller's own repo/worktree can't be determined, so this never narrows
+// the fallback beyond what #62's original "newest non-terminal, not
+// session-foreign" guess already allowed for a candidate lacking a provable
+// worktree binding). This is what stops a concurrent sibling worktree's
+// event (e.g. an AskUserQuestion answered in one session) from landing in an
+// unrelated run's events.jsonl, without touching the 'env'/'session' arms
+// above, or #413's console-execution exception, at all.
+function isForeignWorktreeCandidate(cwd, sessionId, state) {
+  return classifyOwnership({ sessionId, cwd }, state) === 'foreign';
+}
+// Shared by both resolveRun fallback arms below: a candidate is never
+// eligible to be guessed into if it's an unadopted mint (#721). It is also
+// skipped as provably worktree-foreign (#1410) UNLESS `includeWorktreeForeign`
+// is set — the opt-out close-run's own fallback resolution passes (see the
+// resolveRun doc comment below), so the mint check still applies regardless
+// of the caller's own session id, but the worktree-binding axis does not.
+function isSkippableFallbackCandidate(cwd, sessionId, dir, state, includeWorktreeForeign) {
+  if (isUnadoptedMint(dir, state)) return true;
+  if (includeWorktreeForeign) return false;
+  return isForeignWorktreeCandidate(cwd, sessionId, state);
+}
+function resolveRun(cwd, env, sessionId, opts = {}) {
   if (env && env.PIPELINE_RUN_DIR) {
     try {
       if (fs.statSync(env.PIPELINE_RUN_DIR).isDirectory()) {
@@ -224,29 +254,50 @@ function resolveRun(cwd, env, sessionId) {
     } catch { /* fall through */ }
   }
   const me = typeof sessionId === 'string' && sessionId ? sessionId : null;
+  // includeWorktreeForeign (whole-branch review finding, pre-v6.110.0):
+  // close-run's implicit (no --run) fallback resolution passes this so it can
+  // still find and report on a run bound to a different, still-live worktree
+  // — closeRunState's own sessionId comparison is the actual safety net that
+  // decides whether it's safe to act on what's found, so filtering the
+  // worktree axis out here only hides the run from that check entirely,
+  // regressing close-run's "belongs to another session" report into a false
+  // "no run found." Every other caller (in particular post-tool-use.js's
+  // event-attribution fallback, which is what #1410 was written for) omits
+  // this and keeps the worktree filter.
+  const includeWorktreeForeign = opts.includeWorktreeForeign === true;
+  // Resolve once, up front, so the worktree-binding check below always sees
+  // the same cwd the candidate scan itself uses — iterRunDirsWithState falls
+  // back to process.cwd() internally on a falsy cwd, but isForeignWorktreeCandidate
+  // (via classifyOwnership) treats a falsy cwd as 'indeterminate', never
+  // 'foreign' — passing the raw, unresolved cwd there would silently no-op
+  // the filter for any falsy-cwd caller.
+  const resolvedCwd = cwd || process.cwd();
   if (!me) {
     // Caller identity unknown — behave exactly as before #62. Filtering by an
     // owner we cannot compare against would just be the old guess with fewer
     // candidates, and `record-worktree`/`close-run` deliberately resolve runs
-    // they do NOT own so they can report that fact (see bin/hooks.js).
-    for (const { dir, state } of iterRunDirsWithState(cwd)) {
-      if (isUnadoptedMint(dir, state)) continue;
+    // they do NOT own so they can report that fact (see bin/hooks.js). The
+    // worktree-binding check above is a different axis and applies here too,
+    // unless the caller opted out via includeWorktreeForeign.
+    for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
+      if (isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) continue;
       return { dir, attribution: 'fallback' };
     }
     return { dir: null, attribution: null };
   }
   let unowned = null;
-  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+  for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
     if (owner === me) return { dir, attribution: 'session' };
-    // Newest-first, so the first unowned run is the one the old code returned.
-    if (!owner && !unowned && !isUnadoptedMint(dir, state)) unowned = dir;
+    // Newest-first, so the first unowned, worktree-compatible run is the one
+    // the old code returned unconditionally.
+    if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) unowned = dir;
   }
   return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
 }
 
-function resolveRunDir(cwd, env, sessionId) {
-  return resolveRun(cwd, env, sessionId).dir;
+function resolveRunDir(cwd, env, sessionId, opts) {
+  return resolveRun(cwd, env, sessionId, opts).dir;
 }
 
 // Ownership classification (#1098): composite identity — session id AND
@@ -450,19 +501,16 @@ function releaseRunStateLock(lockPath) {
 function writeRunState(runDir, patch) {
   const lock = acquireRunStateLock(runDir);
   const finalPath = path.join(runDir, 'run-state.json');
-  // Write to a per-process tmp file, then atomically rename over the real
-  // path. fs.renameSync is atomic on every platform Node supports (same
-  // dir, same filesystem), so a reader or a racing unlocked writer can
-  // never observe a torn/partial JSON file, and a crash mid-write leaves
-  // the previous state intact instead of a half-written file.
-  const tmpPath = path.join(runDir, `run-state.json.tmp-${process.pid}`);
   try {
     const next = { ...(readRunState(runDir) || {}), ...patch, updatedAt: new Date().toISOString() };
-    fs.writeFileSync(tmpPath, JSON.stringify(next, null, 2) + '\n');
-    fs.renameSync(tmpPath, finalPath);
+    // bin/lib/atomic-write.js's writeFileAtomic (#1653): writes a per-process
+    // tmp file then fs.renameSync's atomically over the real path, so a
+    // reader or a racing unlocked writer can never observe a torn/partial
+    // JSON file, and a crash mid-write leaves the previous state intact
+    // instead of a half-written file.
+    writeFileAtomic(finalPath, JSON.stringify(next, null, 2) + '\n');
     return next;
   } catch {
-    try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
     return null;
   } finally {
     releaseRunStateLock(lock);
@@ -513,5 +561,5 @@ function appendEvent(runDir, type, data, attribution) {
 module.exports = {
   readStdin, parseInput, resolveRun, resolveRunDir, classifyOwnership, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
   readRunState, writeRunState, appendEvent, scanWrapupEvents, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
-  rollbackMint,
+  rollbackMint, isStaleClaim,
 };

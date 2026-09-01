@@ -108,6 +108,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { registerGenerator } = require('./focus-generators');
+const { escapeRegExp } = require('../shared-primitives');
 
 const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 
@@ -299,10 +300,6 @@ function extractModuleExports(text) {
     startRe.lastIndex = closeIdx;
   }
   return results;
-}
-
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Wraps an already-escaped symbol in identifier boundaries. Deliberately not

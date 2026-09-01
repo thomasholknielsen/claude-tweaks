@@ -13,6 +13,18 @@ Before dispatching implementation, invoke the design wrapper to lazy-load Impecc
 - The build is in design mode with no spec or materialized record to inspect (the wrapper needs that context for surface detection — pure design-mode builds proceed without pre-load)
 - The plan is trivial (< 3 file references, no UI files in the plan)
 
+## On skip (write the trace)
+
+When this step is skipped for any reason above — surface not routed to pre-build (`surface` outside `web`/`mobile`/`desktop`/`terminal`, checked by SKILL.md's own Common Step 1.7 gate before this file is even loaded), design mode with no record, or a trivial plan — write one `SKIP` entry per `_shared/auto-decision-log.md`'s degrade-trace rule:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status SKIP \
+  --section "/build" --step "Common Step 1.7 (skipped)" \
+  --text "condition: {surface not routed | design mode, no record | trivial plan} → fallback: no design pre-load" --reversibility n/a
+```
+
+Standalone `/build` (no run dir): list the skip in the Step 7 handoff instead (`handoff-template.md`'s inline-skip listing).
+
 ## Invocation
 
 Invoke `/claude-tweaks:design-wrapper pre-build <spec>`. Pass the record reference — the wrapper resolves it to the materialized header the same way Common Step 1.7's own surface check does — or the design doc path as a fallback.

@@ -3,8 +3,8 @@
 The canonical `ceremony-check` invocation pattern every call site in this codebase uses: read
 `facets.ceremony` when it's already stamped, else invoke `/claude-tweaks:assess-agent-autonomy`
 in `ceremony-check` mode and use (and, where the call site owns writeback, stamp) the verdict.
-Referenced by `specify/shaping-mode.md`, `specify/record-creation.md`, and
-`flow/materialize.md`. Consumers reference this file; do not restate the invocation prose
+Referenced by `specify/shaping-mode-stamping.md`, `specify/record-creation-subissues.md`
+(#1346's split of `shaping-mode.md`/`record-creation.md`), and `flow/materialize.md`. Consumers reference this file; do not restate the invocation prose
 inline — mirrors `_shared/label-bootstrap.md`'s "canonical snippet cited by multiple skills"
 convention.
 
@@ -39,7 +39,7 @@ cite that contract, never restate its markers. The verdict is the first line mat
 never from any line inside the wrapped block. Rendered output with no such line is a callee
 failure for that record — the caller stops that record's stamp and reports it through its own
 existing failure reporting (shaping mode: the record's failure row in Actions Performed, no
-write; `record-creation.md`: the sub-issue is not created, reported with the same
+write; `record-creation-subissues.md`: the sub-issue is not created, reported with the same
 per-sub-issue isolation as a write-path failure (the rest of the decomposition continues) —
 the local-store fallback does not apply, since there is no verdict to write;
 `materialize.md`: the run stops for that record with the same stop semantics as a

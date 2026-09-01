@@ -23,6 +23,7 @@ const { execFileSync, execFile } = require('child_process');
 const { promisify } = require('util');
 const { classifyGhApiError } = require('../issues/claim-store');
 const { repoSlugOf } = require('../hooks/git-exec');
+const { runClassified, runClassifiedAsync } = require('../shared-primitives');
 
 const execFileAsync = promisify(execFile);
 
@@ -68,27 +69,38 @@ function pickGoverningPr(prs, opts) {
   return prs.slice().sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
 }
 
+// Shared by both resolvePrState and resolvePrStateAsync below — defined once
+// so the two twins' success shaping cannot silently drift (#1652, mirrors
+// git-exec.js's runGit/runGitAsync and preflight.js's ghHealthCheck/
+// ghHealthCheckAsync consolidation). `opts` is optional and threaded through
+// to pickGoverningPr — resolvePrStateAsync deliberately never passes it (see
+// its own comment below), so it resolves to `undefined` there, same as
+// pickGoverningPr's own no-opts default.
+function buildSuccess(prs, opts) {
+  return pickGoverningPr(prs, opts);
+}
+
 // Never use `gh pr list --search` — GitHub's search index lags fresh writes.
 // `--head {branch}` resolves against the REST list, which does not.
+//
+// A malformed/unparseable `gh pr list` response and an exec-level failure
+// (ENOENT, timeout, non-zero exit) both reach classifyExecError as the
+// runClassified mapError below — it only ever distinguishes gh-absent from
+// everything else, so a JSON.parse failure classifies identically to the
+// previous hard-coded 'network-failure' return, just via the shared path.
 function resolvePrState(repoRoot, branch, opts) {
   if (!branch) return null;
-  let stdout;
-  try {
-    stdout = execFileSync(
-      'gh',
-      ['pr', 'list', '--head', branch, ...PR_LIST_ARGS.slice(2)],
-      { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: FETCH_TIMEOUT_MS, windowsHide: true },
-    );
-  } catch (e) {
-    return classifyExecError(e);
-  }
-  let prs;
-  try {
-    prs = JSON.parse(stdout);
-  } catch {
-    return 'network-failure';
-  }
-  return pickGoverningPr(prs, opts);
+  return runClassified(
+    () => {
+      const stdout = execFileSync(
+        'gh',
+        ['pr', 'list', '--head', branch, ...PR_LIST_ARGS.slice(2)],
+        { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: FETCH_TIMEOUT_MS, windowsHide: true },
+      );
+      return buildSuccess(JSON.parse(stdout), opts);
+    },
+    classifyExecError,
+  );
 }
 
 // Deliberately no opts/preferOpen here — no destructive async caller exists (#664); add it only when one does.
@@ -101,24 +113,17 @@ function resolvePrState(repoRoot, branch, opts) {
 // evidence — fully serial).
 async function resolvePrStateAsync(repoRoot, branch) {
   if (!branch) return null;
-  let stdout;
-  try {
-    const r = await execFileAsync(
-      'gh',
-      ['pr', 'list', '--head', branch, ...PR_LIST_ARGS.slice(2)],
-      { cwd: repoRoot, encoding: 'utf8', timeout: FETCH_TIMEOUT_MS, windowsHide: true },
-    );
-    stdout = r.stdout;
-  } catch (e) {
-    return classifyExecError(e);
-  }
-  let prs;
-  try {
-    prs = JSON.parse(stdout);
-  } catch {
-    return 'network-failure';
-  }
-  return pickGoverningPr(prs);
+  return runClassifiedAsync(
+    async () => {
+      const { stdout } = await execFileAsync(
+        'gh',
+        ['pr', 'list', '--head', branch, ...PR_LIST_ARGS.slice(2)],
+        { cwd: repoRoot, encoding: 'utf8', timeout: FETCH_TIMEOUT_MS, windowsHide: true },
+      );
+      return buildSuccess(JSON.parse(stdout));
+    },
+    classifyExecError,
+  );
 }
 
 const BULK_TIMEOUT_MS = 15000; // one chunked call covers many branches — roomier than FETCH_TIMEOUT_MS's per-branch 5s

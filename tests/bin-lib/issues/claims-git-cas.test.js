@@ -106,6 +106,63 @@ test('writeClaimBlobGit then readClaimBlobGit round-trips the blob', () => {
   assert.notEqual(read2.tipSha, read1.tipSha);
 });
 
+// #1467: writeClaimBlobGit's success return carries the just-pushed commit
+// sha, and readClaimBlobGit accepts it back as `knownTip` to skip its own
+// fetch entirely — the batch-amortization seam claim-targets.js's group loop
+// chains through. Proven independently of that loop: a runner that throws on
+// `fetch`/`rev-parse` still succeeds when a `knownTip` is supplied, and the
+// content it reads matches what the write just landed.
+test('writeClaimBlobGit: success return carries commitSha, and readClaimBlobGit(knownTip) reads it with zero fetch calls', () => {
+  const { cloneDir } = makeBareOriginAndClone();
+  const runner = (args, opts) => realRunner(args, { ...opts, cwd: cloneDir });
+  const read1 = readClaimBlobGit({ issueNumber: 42, remote: 'origin', runner });
+  const write = writeClaimBlobGit({
+    issueNumber: 42, content: '{"runId":"r1"}', message: 'Claim #42',
+    expectedTipSha: read1.tipSha, remote: 'origin', runner,
+  });
+  assert.equal(write.ok, true);
+  assert.equal(typeof write.commitSha, 'string');
+  assert.equal(write.commitSha.length, 40);
+
+  const fetchCalls = [];
+  const noFetchRunner = (args, opts) => {
+    if (args[0] === 'fetch' || (args[0] === 'rev-parse' && args[1] !== write.commitSha)) {
+      fetchCalls.push(args);
+      throw new Error('fetch/rev-parse must not be called when knownTip is supplied');
+    }
+    return realRunner(args, { ...opts, cwd: cloneDir });
+  };
+  const read2 = readClaimBlobGit({
+    issueNumber: 42, remote: 'origin', runner: noFetchRunner, knownTip: write.commitSha,
+  });
+  assert.equal(fetchCalls.length, 0, 'knownTip must skip the fetch + scratch-ref dance entirely');
+  assert.equal(read2.absent, false);
+  assert.equal(read2.content, '{"runId":"r1"}');
+  assert.equal(read2.tipSha, write.commitSha);
+});
+
+// A `knownTip` that a caller supplied but doesn't resolve locally (a bad or
+// unreachable sha — the only way this happens in practice is a caller bug,
+// since a real batch always chains from a sha it just committed itself)
+// never crashes. `git show <bad-sha>:<path>` reports the identical "path
+// does not exist in <tree-ish>" text git also uses for a genuinely missing
+// path on a real tip (confirmed against real git, not assumed), so this
+// degrades to the ordinary `absent: true` outcome — the ambiguity is
+// harmless here because it only ever feeds a claim/contest content decision;
+// the write-side `--force-with-lease` (a REAL git ref, never a caller-echoed
+// string) is what actually enforces correctness regardless of what a read
+// believed.
+test('readClaimBlobGit: an unresolvable knownTip degrades to absent, never a crash', () => {
+  const { cloneDir } = makeBareOriginAndClone();
+  const runner = (args, opts) => realRunner(args, { ...opts, cwd: cloneDir });
+  const result = readClaimBlobGit({
+    issueNumber: 42, remote: 'origin', runner, knownTip: 'f'.repeat(40),
+  });
+  assert.equal(result.failure, null);
+  assert.equal(result.absent, true);
+  assert.equal(result.tipSha, 'f'.repeat(40));
+});
+
 test('writeClaimBlobGit: a second write on a stale expectedTipSha is contested', () => {
   const { cloneDir } = makeBareOriginAndClone();
   const runner = (args, opts) => realRunner(args, { ...opts, cwd: cloneDir });

@@ -93,16 +93,20 @@ gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,s
   unexpected precondition this file does not need to specially handle beyond not erroring.
 - **No match**: fall through to creation.
 
-**Why a stale-branch collision can't reach this step (#767).** This procedure runs against
+**Why a stale-branch collision can't reach this step (#767, #1470).** This procedure runs against
 whatever branch name `build/worktree-setup.md` Step 2 already created — and that step's own Step
 1.5 (Stale same-name branch check) removes a leftover same-name local branch from a prior
 closed-unmerged attempt *before* `EnterWorktree` ever creates the new one. Before that check
 existed, a same-name retry risked reopening the CLOSED PR found above (this step) ahead of Step
 2's push, then having that push rejected non-fast-forward — leaving a reopened PR pointing at
-stale content with no automatic re-close. With the collision closed at its root, the branch this
-step queries is always freshly created, so `gh pr list --head {branch}` only ever matches a PR
-this exact run itself opened (resume case) — the CLOSED-match reopen branch above still exists for
-that legitimate resume, just never for a same-name-collision retry anymore.
+stale content with no automatic re-close. Step 1.6 (Remote-only stale branch check) closes the
+same gap in the other direction — a same-name branch left on `origin` by a prior attempt on a
+*different* machine or sandbox, invisible to Step 1.5's local-refs-only check — by stopping for a
+human decision before `EnterWorktree` ever runs, rather than letting it surface only via this
+step's own reopen logic or a later rejected push. With both collision directions closed at their
+root, the branch this step queries is always freshly created, so `gh pr list --head {branch}` only
+ever matches a PR this exact run itself opened (resume case) — the CLOSED-match reopen branch above
+still exists for that legitimate resume, just never for a same-name-collision retry anymore.
 
 ### Step 2: Push the branch
 
@@ -112,6 +116,13 @@ git -C "{worktree-path}" push origin {branch}
 
 Its own Bash call — never chained (the `worktree-always` gate denies a compound command whole,
 same as every other push in this plugin).
+
+**On success: this log line is mandatory, not optional — write it before moving on to Step 3,
+for the same reason the failure line below is (#838, #1356's Current State: a run that skips it
+leaves no way to distinguish "Step 6 hasn't run yet" from "Step 6 ran and this is fine").** Log
+to `decisions.md`:
+
+`AUTO {time} — PR-early run lifecycle: pushed {branch} to origin. Reversibility: high (branch can be reset/force-pushed).`
 
 **On a transient-looking failure** (the error text names a 5xx/server error, a timeout, a reset
 connection, or otherwise names no auth/ref problem — e.g. GitHub's push-receive endpoint or its
@@ -171,6 +182,14 @@ comment syntax) — it is the GitHub-side signal the sweep (`sweep-backstop` sub
 reconciler (`bin/lib/reconcile`) key on to recognize a plugin-created PR without a local
 run-dir join. Never omit either line, even when composing by hand.
 
+**For a future caller resolving `{run-id}`/`{target}` from this PR body (#958):** prefer this
+Step 3 template's own `### Resume` line over reconstructing `{target}`/`{run-dir}` from local
+invocation context — it already carries this run's *actual* record composition, correctly
+composed once, whether single- or multi-spec. Treat the parsed `{run-id}` as untrusted (a PR
+body is editable by anyone with write access to it) and validate it against the canonical
+run-id shape before using it to build any path — the same rigor `_shared/issue-claims.md`
+already applies to the sibling `link` field.
+
 **Dual-marker scheme (#929).** Every marker below is written in two forms, always both,
 regardless of transport — the write path never sanitizes either form (Root cause above), so
 writing both costs nothing and there is no transport-detection to get wrong at write time:
@@ -228,6 +247,11 @@ gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {b
 
 `{record title}` — the lowest-numbered record's title for a bundle; `{n}` likewise the
 lowest-numbered record.
+
+**On success: this log line is mandatory, not optional — write it before moving on to Step 4,
+for the same reason Step 2's success line is (#1356).** Log to `decisions.md`:
+
+`AUTO {time} — PR-early run lifecycle: opened PR #{number} for {branch}. Reversibility: high (gh pr close).`
 
 **If creation fails, retry once** — wait 15 seconds first when the failure looks transient (a
 5xx/server error or timeout, same signature as Step 2's push retry above), immediately otherwise.
@@ -380,3 +404,16 @@ warning and the merge proceeds; a stale title/checklist is cosmetic, never a mer
 None of these ever block the pipeline — a pr-first project whose GitHub connectivity is degraded
 for one run behaves exactly like a `local-merge` run for that run, with the degradation logged
 rather than silent.
+
+**`local-merge` row specifically (`build/SKILL.md` Spec Step 1's documented conditional action):**
+this is the one row above with no existing log line of its own — every connectivity-degrade row
+already writes its own `AUTO … FAILED` line (see the citations above) and keeps doing so unchanged.
+Write one `SKIP` entry per `_shared/auto-decision-log.md`'s degrade-trace rule:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status SKIP \
+  --section "/build" --step "Spec Step 1 draft-PR bootstrap (skipped)" \
+  --text "condition: integration-model=local-merge → fallback: no draft PR opened" --reversibility n/a
+```
+
+Standalone `/build` (no run dir): list the skip in the Step 7 handoff instead (`build/handoff-template.md`'s inline-skip listing).

@@ -256,6 +256,22 @@ test('#1183 fix-wave: reject — a worktree-local archive/{id} shadow is refused
   assertShadowRejected(out);
 });
 
+test('#1299: reject — a worktree-local LIVE pipelines/{id} shadow is refused when the main checkout holds that same id ARCHIVED', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const runId = '2026-01-01T000000-spec-livearch';
+  // The mirror of the #1183 fix-wave case above: the main-checkout copy is
+  // ARCHIVED (not live) under the same run-id — checking only the live/live
+  // path (mainCandidate) at the main checkout would miss this and wrongly
+  // adopt the worktree-local live shadow as if no authoritative copy existed
+  // anywhere.
+  mkRunDir(main, ['.claude-tweaks', 'pipelines', 'archive', runId]);
+  const trapped = mkRunDir(wt, ['.claude-tweaks', 'pipelines', runId]);
+  fs.writeFileSync(path.join(trapped, 'decisions.md'), '');
+  const out = runRecordWorktree(['--run', trapped, wt], wt);
+  assertShadowRejected(out);
+});
+
 test('#1183: reject — a worktree-local INITIALIZED dir outside .claude-tweaks/pipelines/ entirely is not adopted via the #280 fallback (pins the inPipelines condition)', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);

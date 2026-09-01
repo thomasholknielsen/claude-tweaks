@@ -720,6 +720,8 @@ Why it stayed invisible: nothing about a stale base looks wrong. The worktree ha
 
 The generalizable rule: treat a newly created worktree's base as unknown rather than current, and merge the integration branch into it as the first action — a fetch beforehand is not equivalent, because the worktree's base is not resolved from the ref the fetch updated.
 
+Independently reported again in #1464 (`EnterWorktree`'s `fresh` baseRef branching from a stale ref across 4 consecutive calls in one session) — same pattern, same remedy; see that record for the defensive-coverage hardening it drove around the plugin's own `checkWorktreeStaleness` backstop.
+
 ## IL-107 — A finished nine-task implementation was nearly redone from scratch
 
 A session picked up record #185 (worktree reaping), read its plan, created a worktree, wrote the SDD ledger, and began the pre-flight scan before discovering — incidentally, in `git worktree list --porcelain` output gathered for an unrelated safety question — a sibling worktree named `worktree-reaping-impl` holding eleven commits that implemented all nine of the plan's tasks, including a fix its own review had already caught. The owning session (pid 30559) was still alive, 15h22m in. Its branch was unpushed and unmerged, so `origin/main`, the record's labels, and the claim refs all showed the work as untouched.
@@ -947,6 +949,8 @@ The generalizable rule: an instruction sequenced correctly in a skill file — a
 **Recurrence (record #893, 2026-08-20):** the same failure reproduced against the identical trigger — build judged #893's Acceptance Criteria already satisfied by prior work (#902, `08098fe7`) — despite #525's bolded non-skippable language already being live in the installed `build/SKILL.md` text at the time. Both the `record-worktree` stamp and the PR-early draft-PR open were silently skipped again, with no `decisions.md` log entry either way; `/claude-tweaks:review`/`/claude-tweaks:wrap-up` discovered and backfilled both by hand. This shows the #525 prose fix did not hold under a second live occurrence of the same trigger — see the backlog candidate staged from this run's reflect pass proposing a structural (hook- or engine-level) enforcement instead of a third prose iteration.
 
 **Resolution (record #991, 2026-08-22):** the second recurrence's own backlog candidate — investigate structural, hook-level enforcement rather than a third prose iteration — was built as `pre-tool-use.js`'s `checkBookkeepingStampsGate` (`docs/hooks.md`'s bookkeeping-stamps-gate bullet): a covered Edit/Write/NotebookEdit/commit/push is now denied once a materialize commit has landed but `record-worktree` and (under `integration-model: pr-first`) `record-pr` weren't stamped, with a decisions.md degrade-log exemption preserving the legitimate push/PR-create-failure path. This closes the loop IL-131's own generalizable rule named: a sub-step whose failure mode is silent needed enforcement at the point of use, not correct sequencing or bolded prose alone.
+
+**Correction (record #1674, 2026-08-29):** #991's `hasMaterializeCommit` sentinel walked all of `HEAD`'s reachable history for the run-id pathspec with no range bound, which produced a second, distinct false-positive class from the one it fixed: once a run's materialize commit shipped and merged into the integration branch, that commit became part of every *later* worktree's inherited history, and the unbounded walk armed the gate against those later runs even though none of them had ever materialized a commit of their own — denying real work in a fresh worktree that had done nothing wrong. Fixed by bounding the `git log` range to `{integration}..HEAD` (`resolveIntegrationBranch`, the same helper `run-integrity.js` already used), so only commits unique to the worktree count. #1674's own acceptance criteria specified that an unresolvable integration branch should return `false`, reading "fail open" as "never a false denial" — that was wrong for this function and was caught by its own build: `false` means *the gate is not armed*, so it disabled IL-131 outright for every repo with no resolvable integration branch (any no-remote / `local-merge` project, a permanently supported configuration), turning 20 pre-existing gate tests red. The shipped behavior falls back to the pre-`#1674` unbounded walk instead — strictly non-regressive, and applied to both ways the bound can be unusable (an unresolvable name, and a resolvable-but-nonexistent one from a stale `integration-branch:` key, which would otherwise fail the git call and disarm the gate on a config typo). A first draft of this entry also claimed the fallback "forfeits nothing", on the reasoning that the false positive needs an integration branch and so cannot arise where none exists; the record's own review refuted that by reproduction. A no-remote repo still *has* a local integration branch that materialize commits merge into — it is merely unresolvable — so the false positive genuinely persists there. The fallback is therefore the least-bad option (keep the protection, accept the pre-existing false positive) rather than a complete fix, and extending the bound to those repos is tracked separately. The general lesson: in a module whose convention is "ambiguity resolves to allow", check whether the ambiguous value disables a **protection** before calling that direction fail-open. The regression risk was getting the range direction backwards — `HEAD..{integration}` silently breaks both this fix and #991's original protection with no test failure until a real regression — so the fix's own test suite asserts both directions explicitly (inherited history must not arm the gate; a worktree's own unmerged materialize commit still must).
 
 ## IL-132 — A spec renamed a contract surface and its Key Files listed only the files the work would write
 
@@ -1253,3 +1257,80 @@ defect had already cost a live incident during #893's wrap-up before this run ex
 it — a fix that closes one instance of a TOCTOU hazard in a function is not the same as closing
 the hazard in that function, if the function still has another step racing the same kind of
 concurrent write.
+
+## IL-148 — AskUserQuestion narrating a wait on a background dispatch
+
+During a live `/claude-tweaks:flow` run (spec-343-900, `subagent-driven-development` execution of
+record #900, 2026-08-21), the executing agent repeatedly called `AskUserQuestion` with a single
+option — "Acknowledged (Recommended)" — purely to narrate "waiting for background agent X" between
+implementer/reviewer dispatches, many times in a row, with no real decision for the user to make.
+This directly undermined `auto` mode's own hands-off contract (`flow/SKILL.md`: auto "silences ...
+all path-selection prompts mid-pipeline") and created significant interruption/attention burden
+during what should have been a hands-off run. Nothing in `flow/SKILL.md` or
+`subagent-driven-development`'s own guidance instructed this pattern — it was the executing
+agent's own judgment error, and the `AskUserQuestion` tool's own description already states a
+question needs at least two genuinely distinct choices, which "acknowledge that I'm waiting" never
+has.
+
+Fixed by adding an explicit rule to `docs/donts.md` — inherited by every dispatched subagent's
+system prompt (this file's own header) — naming the two things a wait on a background/async
+dispatch is never grounds for: it is not a decision point, and it does not satisfy
+`AskUserQuestion`'s own two-distinct-options requirement.
+
+Cost on the #900 run: significant interruption/attention burden — repeated no-op confirmation
+prompts throughout what should have been a hands-off `auto`-mode run, with no corresponding
+decision made at any of them. No code defect and no incorrect output; the cost was entirely to the
+human's attention and to the hands-off contract itself.
+
+## IL-149 — A conclusive exemption nested under an inconclusive sibling resolution
+
+During record #1678's build (narrowing the bookkeeping-stamps gate's file-tool branch to not deny
+a write whose own target is outside the run's repo, 2026-09-01), the new "provably not a repo at
+all" exemption in `checkBookkeepingStampsGate` (`plugin/bin/lib/hooks/pre-tool-use.js`) was written
+as `if (mainRoot) { if (!targetRoot) return {}; ... }` — nesting a conclusive answer (`repoInfo`
+had already proved the target has no repo root at all, `indeterminate: false`) inside a check on an
+unrelated value (`mainCheckoutRoot(wtRoot)`, this worktree's OWN root, which can fail transiently
+on an EACCES/ELOOP/EIO stat or an unreadable `.git` file). A transient failure on the unrelated
+value would deny a target the code had already conclusively proved was out of scope — silently
+reintroducing, under a narrower trigger, the exact scoping bug #1678 was filed to fix. Caught at
+review (lens 3c, low-tier single-read dispatch, confirmed via direct-verification override reading
+the actual source) — no shipped defect. `docs/donts.md` already carried a related rule, `[IL-83]`
+("don't place a special-case exemption after an early return that can claim the same value"), but
+it names ordering relative to an early return, not the more general shape: gating one value's
+conclusive answer on a different value's resolution succeeding at all.
+
+Fixed by hoisting the `if (!targetRoot) return {}` check out of the `if (mainRoot)` block so it
+fires whenever the target is provably not a repo, regardless of whether the worktree's own
+main-checkout root resolves (`d61f2c2e5`). A regression test forces `mainCheckoutRoot(wtRoot)` to
+fail (module-level monkey-patch, the same pattern this test file already uses for `repoInfo`) while
+the target itself genuinely resolves outside any repo; independently verified by reverting only the
+code fix and confirming that one test — and only that one, 41/42 still pass — fails, then restoring
+it (42/42 green again).
+
+Cost on the #1678 run: low — caught cleanly at review, one fix cycle plus one regression test, no
+re-verify failures. Fails toward deny either way (the safe direction), so this was a correctness
+gap, not a live security exposure.
+
+## IL-150 — A path-based gate exemption decided on the literal path, without resolving a leaf symlink
+
+During the same #1678 review pass, a second finding on the same new exemption (lens 3b, Security):
+`checkBookkeepingStampsGate`'s file-tool foreign-target check called
+`wtDetect.repoInfo(fileTargetPath)` on the raw literal write-target path, never following a symlink
+at the leaf. A symlink located outside any git repo (a session scratchpad) but whose target
+resolves inside this run's own protected worktree would resolve as "provably not a repo at all" and
+exempt the write from the gate entirely — even though the write's real bytes land inside the
+worktree the gate exists to protect. The same file already carries a purpose-built helper,
+`realTarget()`, used by `isPolicyFile` specifically to close this bypass class (its own comment:
+"stops an attacker from replacing X with a symlink to somewhere writable") — the new exemption did
+not reuse it, reopening the exact class of bug the sibling code already defends against, in the
+same file, at the same review. Caught at review (lens 3b, low-tier single-read dispatch, confirmed
+via direct-verification override reading `realTarget()`'s own comment against the new code) — no
+shipped defect; as of this entry the fix is staged (`staged/review-2.patch`) awaiting the Wrap-Up
+Review Console, not yet applied.
+
+Cost on the #1678 run: low so far — caught cleanly at review; two regression tests written (a
+symlink whose target resolves inside the worktree, and a dangling symlink) and independently
+verified to fail red on the pre-fix code (42/44, only the two new tests failing) before the fix was
+restored (44/44 green). The recurring-pattern cost is that this project's own `pre-tool-use.js`
+already has one hardened precedent (`realTarget()`) for exactly this bypass class, and it still had
+to be independently rediscovered rather than reused when a new exemption was authored nearby.

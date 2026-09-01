@@ -174,24 +174,86 @@ function run(argv, deps) {
   const alreadyOwned = [];
   const skipped = [];
   const labelFailures = [];
+  const transportByIssue = {};
+
+  // #1467: amortizes this loop's git-CAS fetch across the whole batch instead
+  // of one `git fetch` per issue. `null` means "no trusted tip — fetch fresh
+  // on the next read" (the starting state, and the state after anything that
+  // makes the previous tip untrustworthy). Set unconditionally right after
+  // every read (git success -> that read's own tip; anything else -> null),
+  // then re-set after any write attempt outcome for this same issue (git-CAS
+  // success -> the just-pushed commit sha, chainable as the next issue's
+  // known tip with zero fetch; anything else -> null, per the Gotchas below).
+  // Discarding on ANY non-git outcome — not just this one item's — is
+  // deliberate: a contents-API write can move the same `claims-registry`
+  // branch tip without producing a git commit sha this loop can chain from,
+  // and a contested/transient outcome means this run's belief about the tip
+  // was already wrong. Trusting a stale tip for the next item's READ is never
+  // a correctness hazard either way — it only ever informs a claim/contest
+  // decision from content; the actual compare-and-swap enforcement happens at
+  // `writeClaimBlobGit`'s `--force-with-lease` push, which fails closed (and
+  // gets re-verified with a fresh read — claim-store.js's writeClaimBlob) the
+  // instant the real remote tip has moved.
+  let knownTip = null;
 
   // Every non---keep-going stop shares one shape: release everything this run
   // claimed (all-or-abort), then report the stop alongside what was released
-  // and what could not be. Stated once so the four stop sites below cannot
-  // drift from each other. `exitCode` is 3 for a `contested` envelope, 4 for
-  // a `transient` one.
+  // and what could not be. Called only from `stopOrSkip()` below, which is
+  // in turn the single call site every stop below shares — so this cannot
+  // drift from any of them. `exitCode` is 3 for a `contested`/`inFlight`
+  // envelope, 4 for a `transient` one.
   function abort(envelope, exitCode) {
     const { released, releaseFailed } = releaseClaimedThisRun(deps, repoSlug, opts.runId, claimedThisRun);
     deps.stdout(JSON.stringify({ ...envelope, released, releaseFailed }));
     return exitCode;
   }
 
+  // The one shape every stop site below shares: with `--keep-going`, record
+  // `{issue, reason: skipReason, ...extra}` in `skipped` and keep looping
+  // (signaled by returning `null` — `abort()`'s exit codes are always 3 or 4,
+  // never null/0, so callers can tell the two outcomes apart with `!== null`);
+  // otherwise abort the whole run via the envelope `{[envelopeKey]: [{issue,
+  // ...extra}]}`. `extra` is exactly what differs between call sites (an
+  // `error`, a `link`, or a `holder`) and is identical between the skipped
+  // record and the envelope entry at every site — stated once here instead of
+  // 5 times so the sites cannot drift from each other (#977).
+  function stopOrSkip(issue, skipReason, envelopeKey, exitCode, extra) {
+    if (opts.keepGoing) { skipped.push({ issue, reason: skipReason, ...extra }); return null; }
+    return abort({ [envelopeKey]: [{ issue, ...extra }] }, exitCode);
+  }
+
+  // Per-`$LINK` memoization of `tombstoneInFlightPr`'s `gh pr view` call,
+  // scoped to this one `run()` invocation (a fresh Map every call — never a
+  // cross-invocation cache). Issues released together from one multi-spec
+  // build commonly tombstone with the identical `link`, so this collapses
+  // what would otherwise be one `gh pr view` per tombstoned target down to
+  // one per distinct link (#977). Wraps only this call site's `gh`, not
+  // `deps.gh` itself, so every other `deps.gh` call (label list/create, issue
+  // edit, issue comment) is untouched. Only successful calls are cached — a
+  // thrown failure is left uncached and re-thrown so `tombstoneInFlightPr`'s
+  // own fail-open catch still applies per-target, exactly as before.
+  const prViewCache = new Map();
+  function cachedGhForPrView(args) {
+    const key = JSON.stringify(args);
+    if (prViewCache.has(key)) return prViewCache.get(key);
+    const result = deps.gh(args);
+    prViewCache.set(key, result);
+    return result;
+  }
+
   for (const issue of targets) {
-    const read = claimStore.readClaimBlob(deps, repoSlug, issue);
+    const read = claimStore.readClaimBlob(deps, repoSlug, issue, knownTip);
     if (read.failure) {
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: read.failure }); continue; }
-      return abort({ transient: [{ issue, error: read.failure }] }, 4);
+      knownTip = null;
+      const stop = stopOrSkip(issue, 'transient', 'transient', 4, { error: read.failure });
+      if (stop !== null) return stop;
+      continue;
     }
+    // A git-CAS success carries a chainable commit-sha tip; anything else
+    // (contents-API, whether via a `gitRunner`-absent run or a git-side
+    // fallback) is a blob sha and must not be chained (see the `knownTip`
+    // comment above `claimedThisRun`).
+    knownTip = read.via === 'git' ? read.sha : null;
 
     const content = read.absent ? null : read.content;
     const classified = classifyClaimBlob(content, deps.now());
@@ -204,10 +266,11 @@ function run(argv, deps) {
     // the check itself, falls straight through unchanged (fail open) —
     // see `tombstoneInFlightPr`'s own doc comment in claim-store.js.
     if (classified.state === 'tombstone') {
-      const inFlight = tombstoneInFlightPr(content, deps.gh, repoOwner, repoName);
+      const inFlight = tombstoneInFlightPr(content, cachedGhForPrView, repoOwner, repoName);
       if (inFlight) {
-        if (opts.keepGoing) { skipped.push({ issue, reason: 'in-flight', link: inFlight.link }); continue; }
-        return abort({ inFlight: [{ issue, link: inFlight.link }] }, 3);
+        const stop = stopOrSkip(issue, 'in-flight', 'inFlight', 3, { link: inFlight.link });
+        if (stop !== null) return stop;
+        continue;
       }
     }
 
@@ -223,8 +286,9 @@ function run(argv, deps) {
 
     if (classified.state === 'live' || classified.state === 'unreadable') {
       const holder = classified.state === 'live' ? identity : null;
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
-      return abort({ contested: [{ issue, holder }] }, 3);
+      const stop = stopOrSkip(issue, 'contested', 'contested', 3, { holder });
+      if (stop !== null) return stop;
+      continue;
     }
 
     // Reclaimable: 'absent' (create-only) or 'tombstone'/'stale' not self-owned
@@ -262,10 +326,14 @@ function run(argv, deps) {
       // A secondary/abuse rate limit is transient, never contested — a
       // throttle must not masquerade as another agent holding the claim
       // (record-697's incident read exactly that way before diagnosis,
-      // #787's amendment).
+      // #787's amendment). Either way this issue's write never confirmed a
+      // git tip — discard the chain (see the `knownTip` comment above
+      // `claimedThisRun`).
+      knownTip = null;
       const reason = write.secondaryRateLimit ? 'secondary-rate-limit' : write.failure;
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'transient', error: reason }); continue; }
-      return abort({ transient: [{ issue, error: reason }] }, 4);
+      const stop = stopOrSkip(issue, 'transient', 'transient', 4, { error: reason });
+      if (stop !== null) return stop;
+      continue;
     }
     if (!write.ok) {
       // Rejected (race lost between this read and this write) — contested,
@@ -277,10 +345,30 @@ function run(argv, deps) {
       // lands here too and is handled the same way. Holder identity is
       // unknown from the write response itself, so re-read the blob once,
       // best-effort, to name the winner in the contested report.
+      // A genuine contest proves this run's belief about the tip was wrong —
+      // discard the chain, same as the transient branch above.
+      knownTip = null;
       const holder = holderFromFreshRead(deps, repoSlug, issue);
-      if (opts.keepGoing) { skipped.push({ issue, reason: 'contested', holder }); continue; }
-      return abort({ contested: [{ issue, holder }] }, 3);
+      const stop = stopOrSkip(issue, 'contested', 'contested', 3, { holder });
+      if (stop !== null) return stop;
+      continue;
     }
+    // write.ok === true. A git-CAS success carries `commitSha` — the just-
+    // pushed commit is the new branch tip, chainable into the next issue's
+    // read with zero fetch. A contents-API success (git-CAS never attempted,
+    // or fell back after a transport failure/exhausted retries) has no
+    // commit sha to chain — discard, forcing the next issue's read to fetch
+    // fresh (see the `knownTip` comment above `claimedThisRun`).
+    knownTip = typeof write.commitSha === 'string' ? write.commitSha : null;
+
+    // #1486: a permanent, zero-extra-cost record of which transport this
+    // claim actually went through — `write.commitSha` is a string only on a
+    // genuine git-CAS push success (claims-git-cas.js's writeClaimBlobGit);
+    // every contents-API-success path (direct PUT, or the self-write
+    // recheck after a rejected git-CAS/PUT) never sets it. This answers the
+    // "trace which transport actually wrote" question a future incident
+    // investigation would otherwise need temporary logging to answer.
+    transportByIssue[issue] = typeof write.commitSha === 'string' ? 'git' : 'contents-api';
 
     claimedThisRun.push(issue);
 
@@ -302,7 +390,7 @@ function run(argv, deps) {
   }
 
   deps.stdout(JSON.stringify({
-    claimed: claimedThisRun, alreadyOwned, skipped, labelFailures,
+    claimed: claimedThisRun, alreadyOwned, skipped, labelFailures, transportByIssue,
   }));
   return 0;
 }

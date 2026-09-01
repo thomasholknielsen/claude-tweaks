@@ -15,6 +15,19 @@ node_modules/
 .claude-tweaks/pipelines/*/spec-*/*
 !.claude-tweaks/pipelines/*/spec-*/work/
 !.claude-tweaks/pipelines/*/spec-*/work/**
+# Tidy standalone runs commit their own audit files (#1493) — top-level pipelines
+# depth only, never spec-*/-nested (a tidy standalone run is never spec-nested).
+!.claude-tweaks/pipelines/*-tidy-standalone*/decisions.md
+!.claude-tweaks/pipelines/*-tidy-standalone*/report.md
+!.claude-tweaks/pipelines/*-tidy-standalone*/staged/
+!.claude-tweaks/pipelines/*-tidy-standalone*/staged/**
+# Sweep standalone runs share the same shape (#1494) — its Step 1 runs tidy
+# inside a `*-sweep-standalone*` run dir, whose Step 7.5 commits the same
+# decisions.md/report.md/staged/** residue there instead.
+!.claude-tweaks/pipelines/*-sweep-standalone*/decisions.md
+!.claude-tweaks/pipelines/*-sweep-standalone*/report.md
+!.claude-tweaks/pipelines/*-sweep-standalone*/staged/
+!.claude-tweaks/pipelines/*-sweep-standalone*/staged/**
 !.claude-tweaks/pipelines/archive/*/
 .claude-tweaks/pipelines/archive/*/*
 !.claude-tweaks/pipelines/archive/*/work/

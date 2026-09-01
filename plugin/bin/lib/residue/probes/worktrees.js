@@ -52,7 +52,9 @@ function defaultIsPidAlive(pid) {
 
 // Renders the locked-worktree evidence string, distinguishing a live
 // session from a stale/abandoned lock (or one whose pid can't be confirmed
-// either way) rather than reporting every lock identically.
+// either way) rather than reporting every lock identically. Exported so
+// ./pipeline-runs.js's own locked-worktree cross-check (#1328) can reuse
+// the exact same wording/shape instead of re-deriving it.
 function lockedEvidence(wt, isPidAlive) {
   const branch = wt.branch || 'unknown';
   const pid = extractPid(wt.lockReason);
@@ -151,4 +153,4 @@ function probeWorktrees({ scope, isPidAlive = defaultIsPidAlive, isDirty = defau
   return { ran: true, reason: null, findings };
 }
 
-module.exports = { probeWorktrees, REAPER_DOMAIN, extractPid, defaultIsPidAlive, defaultIsDirty };
+module.exports = { probeWorktrees, REAPER_DOMAIN, extractPid, defaultIsPidAlive, defaultIsDirty, lockedEvidence };

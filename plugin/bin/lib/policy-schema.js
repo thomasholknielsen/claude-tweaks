@@ -59,6 +59,7 @@ const POLICY_KEYS = [
   // project's existing policy.yml validates; removal condition in
   // skills/dispatch/deprecated-aliases.md.
   { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence — an older name for the same cap, kept for migration.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'dispatch-group-size-guard', type: 'integer', default: 10, summary: "Caps how large a file-overlap dispatch group may be before headless `next` selection excludes it.", category: 'merge-safety', tier: 'advanced' },
   { key: 'auto-merge-max-lines', type: 'integer', default: 40, summary: "Bounds how large a diff an unattended merge will accept before a human is required — a weighted guideline, not a hard cutoff.", category: 'merge-safety', tier: 'core' },
   { key: 'auto-merge-max-files', type: 'integer', default: 2, summary: "Bounds how many changed files an unattended merge will accept before a human is required — the same weighted guideline, by file count.", category: 'merge-safety', tier: 'core' },
   { key: 'merge-sensitive-paths', type: 'list', default: [], summary: "Lists path patterns that always require a human to sign off on a merge, no matter how small the change looks.", category: 'merge-safety', tier: 'advanced' },
@@ -68,7 +69,7 @@ const POLICY_KEYS = [
   // 'unarmed ready PR' and 'unsettled run' checks.
   { key: 'pr-unarmed-age-hours', type: 'integer', default: 24, summary: "Sets how long a ready, passing pull request may sit without being armed to merge before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
   { key: 'unsettled-age-hours', type: 'integer', default: 24, summary: "Sets how long a claimed piece of work may sit with no visible progress before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
-  { key: 'grant-veto-window-hours', type: 'integer', default: 24, summary: "Sets how long a machine-granted auto:merge-pending grant must sit unvetoed before the merge gate matures it to auto:merge.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'grant-veto-window-hours', type: 'integer', min: 1, default: 24, summary: "Sets how long a machine-granted auto:merge-pending grant must sit unvetoed before the merge gate matures it to auto:merge.", category: 'merge-safety', tier: 'advanced' },
   // The row default (false) is the `supervised` base only: the EFFECTIVE
   // unset default is derived in resolvePolicyKeys from the resolved autonomy
   // ceiling — trusted/unattended derive true (#580; was opt-in-only, #414).
@@ -106,6 +107,10 @@ const POLICY_KEYS = [
   // true) — the old name collided with assess-agent-autonomy's merge-check
   // verdict mode, a different concept that keeps its name.
   { key: 'branch-divergence-check', type: 'boolean', default: true, summary: "Whether a build or pipeline run checks the current branch against its upstream and offers a rebase before starting.", category: 'pipeline-behavior', tier: 'advanced' },
+  // Default attempt-count budget for a bare /specify drain invocation (#1491).
+  // Sibling of dispatch-batch-size, same shape; the shared n/all --budget
+  // semantics live in _shared/record-batch-input.md, not restated here.
+  { key: 'specify-budget', type: 'integer', default: 5, summary: "Caps how many eligible backlog records one bare /specify drain attempts before stopping.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised', summary: "Caps how much the pipeline may do without a human — trust that classes earn can never exceed this ceiling.", category: 'autonomy-trust', tier: 'core' },
   { key: 'trust-revert-window-days', type: 'integer', min: 1, default: 14, summary: "Sets how many days a closed record must age before its outcome counts as proven-good evidence toward earned trust.", category: 'autonomy-trust', tier: 'advanced' },
   // The reserved second opt-in named by skills/_shared/autonomy-ceiling.md —
@@ -120,7 +125,7 @@ const POLICY_KEYS = [
   { key: 'risk-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high', summary: "The risk tier at which machine-originated grants and demo fast-paths stop and require human review.", category: 'autonomy-trust', tier: 'core' },
   { key: 'size-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high', summary: "The size tier at which machine-originated grants and demo fast-paths stop and require human review.", category: 'autonomy-trust', tier: 'core' },
   // Positive integer counting machine grants issued today (audit-comment
-  // markers dated today, UTC) — /claude-tweaks:backlog grant mode's own floor.
+  // markers dated today, UTC) — /claude-tweaks:backlog refine's headless posture's own floor.
   // Absent = uncapped (optional-when-absent, see #269's Deliverables).
   { key: 'fleet-daily-grant-cap', type: 'integer', min: 1, summary: "Caps how many machine-issued grants may be handed out across one calendar day; leave it unset for no cap.", category: 'autonomy-trust', tier: 'advanced' },
   // Sampling floor (#310): counts machine-granted merged records in closedAt
@@ -523,15 +528,29 @@ function extractMapEntry(raw, topKey) {
 // Never throws — fails open to 'local-merge' on any error, including no git
 // remote at all (checked first, so a local-files project with no remote never
 // shells out to gh). Each check runs under a 5s timeout.
-function detectIntegrationModel(repoRoot) {
-  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8', windowsHide: true };
+//
+// `opts.mcpReachable` (optional, default undefined/falsy) is a caller-supplied
+// override — never resolved inside this function, per docs/incident-log.md
+// IL-63: a spawned-subprocess-style module cannot invoke MCP tools itself, so
+// this function can only accept the answer, never derive it. When true AND a
+// git remote exists, short-circuits straight to 'pr-first', skipping the `gh`
+// probe entirely — a remote is still required, since an MCP reachability
+// signal is meaningless with nothing to integrate through. The one caller
+// positioned to supply this (bin/resolve-policy.js's CLI, invoked inside an
+// agent turn) is documented in that file; pre-tool-use.js's hook call site
+// runs with no agent turn active and can never supply it (see
+// resolveRunPinnedIntegrationModel's own comment).
+function detectIntegrationModel(repoRoot, opts = {}) {
+  const { mcpReachable } = opts;
+  const execOpts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8', windowsHide: true };
   try {
-    execFileSync('git', ['remote', 'get-url', 'origin'], opts);
+    execFileSync('git', ['remote', 'get-url', 'origin'], execOpts);
   } catch {
     return 'local-merge';
   }
+  if (mcpReachable === true) return 'pr-first';
   try {
-    execFileSync('gh', ['repo', 'view', '--json', 'owner,name'], opts);
+    execFileSync('gh', ['repo', 'view', '--json', 'owner,name'], execOpts);
   } catch {
     return 'local-merge';
   }
@@ -547,12 +566,14 @@ function detectIntegrationModel(repoRoot) {
 // key isn't cleanly set (absent, or set-but-invalid — a typo'd value still
 // gets a usable default here, unlike the raw resolvePolicyKeys/CLI path,
 // which surfaces `invalid: true` for a caller that wants to report it).
-function resolveIntegrationModel(repoRoot) {
+// `opts` (optional) forwards unchanged to detectIntegrationModel — see that
+// function's own comment for the mcpReachable override contract.
+function resolveIntegrationModel(repoRoot, opts = {}) {
   const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
   const resolved = resolvePolicyKeys(['integration-model'], { policyRaw, runConfigRaw: null });
   const entry = resolved['integration-model'];
   if (entry && entry.source !== 'default') return entry.value;
-  return detectIntegrationModel(repoRoot);
+  return detectIntegrationModel(repoRoot, opts);
 }
 
 // Shared root-resolution + policy.yml/config.yml read + resolvePolicyKeys

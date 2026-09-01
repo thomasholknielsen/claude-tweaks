@@ -69,6 +69,11 @@ function runDirWithManifest(specs) {
   execFileSync('git', ['-C', project, 'init', '-q']);
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-22T011331-spec-157-159-160');
   fs.mkdirSync(run, { recursive: true });
+  // #1566: resolveRunArg now requires an initialized run dir (a real
+  // multi-spec parent already carries this from the Manifesto, before
+  // manifest.yml itself is ever written) — spec-status has no first-write
+  // exception of its own, so this fixture needs a marker too.
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
   const lines = ['multispec:', '  parent: x/', '  specs:'];
   for (const s of specs) {
     lines.push(`    - id: ${s.id}`, `      status: ${s.status}`, `      subdir: spec-${s.id}/`);

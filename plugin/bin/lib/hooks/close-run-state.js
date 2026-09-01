@@ -34,11 +34,14 @@ function hasUnarchivedWork(runDir) {
 //   { status: 'refused-foreign' }
 //     — an implicit (`explicit: false`) run resolution landed on a run
 //       recorded by a different, still-active session; nothing was written.
+//   { status: 'refused-live-worktree' }
+//     — an implicit close landed on a run whose worktree directory still
+//       physically exists; nothing was written (see #1502 comment below).
 //   { status: 'closed', foreignOwner, wrapupSeen, writeOk, notYetArchived }
 //     — the run-state write was attempted (and `writeOk` reports whether it
 //       succeeded); `foreignOwner`/`wrapupSeen`/`notYetArchived` let the
 //       caller render the same advisory lines close-run always has.
-function closeRunState(runDir, { explicit = false, sessionId = null } = {}) {
+function closeRunState(runDir, { explicit = false, sessionId = null, checkLiveWorktree = true } = {}) {
   const prev = ctxLib.readRunState(runDir);
   const foreignOwner = !!(prev && typeof prev.sessionId === 'string' && prev.sessionId && sessionId && prev.sessionId !== sessionId);
   if (foreignOwner && !explicit) {
@@ -49,6 +52,34 @@ function closeRunState(runDir, { explicit = false, sessionId = null } = {}) {
     // than act; pass an explicit --run if closing someone else's run is
     // genuinely intended.
     return { status: 'refused-foreign' };
+  }
+  // #1502: the foreign-owner check above only catches a PROVABLE session
+  // mismatch — a run whose run-state.json never recorded ANY sessionId
+  // (distinct from one recording a DIFFERENT session, already handled
+  // above) reads as `foreignOwner: false` no matter who calls, so an
+  // implicit close (no --run, landing on "the newest non-terminal run" by
+  // the fallback resolver) could still close a run it does not own, with no
+  // identity signal to catch it. Narrow and deliberate: fires ONLY when
+  // `prev.sessionId` is absent. `explicit: true` (a caller who named `--run`
+  // themselves) always bypasses this, same as the foreign-owner check above.
+  //
+  // `checkLiveWorktree` (default true) exists because this heuristic — "the
+  // worktree still exists on disk, so it's presumptively still in progress"
+  // — is only meaningful for close-run's own implicit fallback ("newest
+  // non-terminal run"), where the caller never named which run it meant.
+  // teardown-run's Step 1 call is never that: it always names a specific
+  // run its OWN caller identified, and its Step 3 (worktree removal) runs
+  // moments later in the same invocation — so the worktree is GUARANTEED
+  // to still exist at this point regardless of whether the run is actually
+  // foreign, making the check fire unconditionally (never a real signal)
+  // for any run whose sessionId was never recorded, permanently refusing a
+  // legitimate self-teardown with no override path. teardown-run passes
+  // `checkLiveWorktree: false` and relies on the foreignOwner check above
+  // (still active) for its actual protection.
+  const hasUnrecordedLiveWorktree = checkLiveWorktree && !!(prev && !prev.sessionId
+    && typeof prev.worktree === 'string' && prev.worktree && fs.existsSync(prev.worktree));
+  if (hasUnrecordedLiveWorktree && !explicit) {
+    return { status: 'refused-live-worktree' };
   }
 
   // Warn-tier check (#373): closing a run whose ledger never recorded a wrap-up

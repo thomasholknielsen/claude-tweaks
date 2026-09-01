@@ -94,6 +94,34 @@ function groupByFileOverlap(items, options = {}) {
   return [...groups.values()];
 }
 
+// A group whose member count exceeds this threshold is oversized — a second,
+// independent line of defense alongside the hub-path/bare-directory bridging
+// exclusions above (#1228). Those two prevent most false unions at the
+// source; this catches whatever still slips through (a batch of genuinely
+// overlapping records that's just large, or a bridging rule this file
+// doesn't yet anticipate) before a caller commits to running it as one
+// build/test/review/wrap-up flow. Tuned the same way HUB_PATH_MIN_COUNT is
+// tuned above: the reported incident was a 52-record group against a queue
+// where a real bundle is size 2-3, so 10 comfortably separates "large but
+// plausible" from "clearly a false union."
+const GROUP_SIZE_GUARD_DEFAULT = 10;
+
+// Splits groups into those at-or-under the size guard and those over it.
+// Pure -- takes no action itself. `dispatch`'s queue-pull script (Step 2)
+// uses this to exclude an oversized group from `next`'s headless
+// auto-selection while still surfacing it, the same shape its existing
+// blocked-exclusion report already uses (#1228's Acceptance Criteria: never
+// auto-select a group above the guard without at least surfacing it).
+function partitionGroupsBySizeGuard(groups, options = {}) {
+  const threshold = options.groupSizeGuard ?? GROUP_SIZE_GUARD_DEFAULT;
+  const withinGuard = [];
+  const oversized = [];
+  for (const group of groups) {
+    (group.length > threshold ? oversized : withinGuard).push(group);
+  }
+  return { withinGuard, oversized, threshold };
+}
+
 const ANCHOR_RE = /Anchor:\s*`([^`#]+)/;
 const FILES_LINE_RE = /^Files:\s*(.+)$/m;
 // Matches the first bold "**Label:** value" field of a spec-shaped issue
@@ -241,12 +269,40 @@ function extractKeyFiles(issue) {
 // explicit-list dispatch form, e.g. "#123, #124,#130") into an array of
 // issue numbers. Non-numeric entries are dropped, not thrown — a malformed
 // entry in an otherwise-valid list shouldn't abort the whole parse.
+// Parses a dispatch `#N[,#M...]` explicit-list argument per
+// `_shared/record-batch-input.md`'s grammar: split on comma, trim each
+// element, classify. Returns `{ numbers, invalid }` — `numbers` is every
+// element that classified as a record reference (parsed to a positive
+// integer; the `#` sigil is optional), in list order; `invalid` is every
+// element that did not, also in list order, each `{ token, reason }` —
+// `token` the trimmed (possibly empty) element as typed, `reason` the
+// contract's canonical naming ("'{element}' is not a record reference" /
+// "empty element after #{prev}"). This function performs classification
+// only — whether dispatch reports `invalid` and proceeds with `numbers`
+// anyway, or aborts entirely, is dispatch's own execution semantics
+// (`_shared/record-batch-input.md`'s Out-of-scope section), decided by the
+// caller, never by this function.
 function parseExplicitIssueList(argString) {
-  return (argString || '')
-    .split(',')
-    .map((s) => s.trim().replace(/^#/, ''))
-    .map(Number)
-    .filter((n) => Number.isInteger(n) && n > 0);
+  const trimmedArg = (argString || '').trim();
+  if (trimmedArg === '') return { numbers: [], invalid: [] };
+  const numbers = [];
+  const invalid = [];
+  let prev = null;
+  for (const raw of trimmedArg.split(',')) {
+    const el = raw.trim();
+    if (el === '') {
+      invalid.push({ token: el, reason: prev !== null ? `empty element after #${prev}` : 'empty element' });
+      continue;
+    }
+    const n = Number(el.replace(/^#/, ''));
+    if (Number.isInteger(n) && n > 0) {
+      numbers.push(n);
+      prev = n;
+    } else {
+      invalid.push({ token: el, reason: `'${el}' is not a record reference` });
+    }
+  }
+  return { numbers, invalid };
 }
 
 // Given a set of requested issue numbers and dispatch Step 2's already-
@@ -269,4 +325,4 @@ function selectGroupsForExplicitList(requestedNumbers, groups) {
   return { selectedGroups, notFound };
 }
 
-module.exports = { groupByFileOverlap, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin };
+module.exports = { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin };

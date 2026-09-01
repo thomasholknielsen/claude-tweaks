@@ -9,6 +9,7 @@ const { reapMerged, isOwnCwd, decideReap, trackReapResidue } = require('../../..
 const { writeRunState } = require('../../../plugin/bin/lib/hooks/context');
 const { listResidueFailures, RESIDUE_ESCALATE_THRESHOLD } = require('../../../plugin/bin/lib/reconcile/cache');
 const { reconcile } = require('../../../plugin/bin/lib/reconcile');
+const { residueBody } = require('../../../plugin/bin/lib/reconcile/escalate-residue');
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -196,6 +197,28 @@ test('reapMerged: removal-failed tracks a consecutive-failure streak and escalat
   }
 });
 
+// #1341 — reapMerged's removal-failed branch used to thread the bare
+// FAILURE.* category string ('git-error') through as lastError, discarding
+// git's actual stderr. This pins that the residue cache now carries git's
+// real message instead.
+test('reapMerged: removal-failed threads git\'s real stderr through as lastError, not the bare "git-error" category', () => {
+  const { root, wtPath } = buildReapableFixture();
+  const wrapper = installGhWrapper([{ number: 9, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]);
+  execFileSync('git', ['worktree', 'lock', wtPath, '--reason', 'stuck'], { cwd: root, stdio: 'ignore' });
+  try {
+    const result = reapMerged({ cwd: root });
+    assert.equal(result.skipped[0].reason, 'removal-failed', `expected removal-failed, got: ${JSON.stringify(result)}`);
+
+    const stuck = listResidueFailures(root);
+    assert.equal(stuck.length, 1, `expected exactly one tracked residue entry, got: ${JSON.stringify(stuck)}`);
+    assert.notEqual(stuck[0].lastError, 'git-error', 'lastError must not be the bare category string');
+    assert.match(stuck[0].lastError, /lock/i,
+      `expected git's real "cannot remove a locked working tree" message, got: ${JSON.stringify(stuck[0].lastError)}`);
+  } finally {
+    wrapper.restore();
+  }
+});
+
 test('trackReapResidue: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'reap-merged-track-'));
   const calls = [];
@@ -217,6 +240,36 @@ test('trackReapResidue: escalates exactly once at the threshold via an injected 
   // part of that clear.
   trackReapResidue(root, 'o/r', '/x/wt', { failed: false }, { escalate });
   assert.equal(calls.length, 1);
+});
+
+// #1341 acceptance criterion — trackReapResidue's `escalate` call must carry
+// real captured stderr as `lastError`, not the literal string 'git-error'.
+test('trackReapResidue: escalate\'s lastError carries real captured stderr, not the literal string "git-error"', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'reap-merged-track3-'));
+  const calls = [];
+  const escalate = (args) => { calls.push(args); return { status: 'filed', number: 1 }; };
+  const realStderr = 'fatal: cannot remove a locked working tree, lock reason: stuck\nuse \'remove -f -f\' to override or unlock first';
+
+  for (let i = 0; i < RESIDUE_ESCALATE_THRESHOLD; i++) {
+    trackReapResidue(root, 'o/r', '/x/wt', { failed: true, lastError: realStderr }, { escalate });
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].lastError, realStderr);
+  assert.notEqual(calls[0].lastError, 'git-error', 'escalate must receive git\'s real message, not the bare category');
+});
+
+// #1341 acceptance criterion — the resulting escalation body's "Last error"
+// line must contain actual git output, not a bare category name.
+test('residueBody: the rendered "Last error" line carries actual git output, not a bare category name', () => {
+  const realStderr = 'fatal: cannot remove a locked working tree, lock reason: stuck';
+  const { body } = residueBody({
+    reason: 'removal-failed', targetPath: '/x/wt', count: RESIDUE_ESCALATE_THRESHOLD,
+    firstFailedAt: Date.now(), lastError: realStderr,
+  });
+  const lastErrorLine = body.split('\n').find((l) => l.startsWith('**Last error:**'));
+  assert.ok(lastErrorLine, `expected a "Last error" line, got body: ${body}`);
+  assert.equal(lastErrorLine, `**Last error:** ${realStderr}`);
+  assert.notEqual(lastErrorLine, '**Last error:** git-error', 'must not regress to the bare category string');
 });
 
 test('trackReapResidue: never throws when escalate itself throws (best-effort)', () => {

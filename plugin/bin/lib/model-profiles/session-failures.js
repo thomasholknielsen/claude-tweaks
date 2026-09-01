@@ -13,6 +13,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { writeFileAtomic } = require('../atomic-write');
 
 // A session id is required for the blacklist to mean anything — without
 // one, concurrent unrelated invocations (no session context at all, e.g. a
@@ -95,11 +96,14 @@ function releaseLock(lockDir) {
 // layer (Task 3) is what decides whether that no-op should be reported to
 // the caller as a failure.
 //
-// Writes via a same-directory temp file + rename rather than a direct
-// writeFileSync: rename is atomic on POSIX, so a concurrent readFailedModels
-// call (a sibling Task dispatch's own read, per this repo's parallel
-// fan-out dispatch pattern) always sees either the old complete file or the
-// new complete file, never a torn/truncated one mid-write. The mkdir lock
+// Writes via bin/lib/atomic-write.js's writeFileAtomic (a pid-suffixed
+// same-directory temp file + rename) rather than a direct writeFileSync:
+// rename is atomic on POSIX, so a concurrent readFailedModels call (a
+// sibling Task dispatch's own read, per this repo's parallel fan-out
+// dispatch pattern) always sees either the old complete file or the new
+// complete file, never a torn/truncated one mid-write — and a failed write
+// or rename is now cleaned up (best-effort tmp-file unlink) before
+// rethrowing, rather than leaving a stray tmp file behind. The mkdir lock
 // above additionally serializes the read-modify-write against a concurrent
 // recordFailure, closing the lost-update race the rename alone did not.
 //
@@ -114,9 +118,7 @@ function recordFailure(sessionId, model, opts = {}) {
   try {
     const current = readFailedModels(sessionId);
     current.add(model);
-    const tmp = `${p}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify([...current]));
-    fs.renameSync(tmp, p);
+    writeFileAtomic(p, JSON.stringify([...current]));
   } finally {
     if (locked) releaseLock(lockDir);
   }

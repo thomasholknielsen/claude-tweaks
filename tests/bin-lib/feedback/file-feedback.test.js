@@ -1,6 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const feedback = require('../../../plugin/bin/lib/feedback/file-feedback');
 const { run, parseArgs, parseRepo, validateDraft, realDeps } = require('../../../plugin/bin/file-feedback');
 
@@ -73,6 +74,20 @@ test('embedFingerprint: appends the fingerprint line when none exists', () => {
   const body = 'Body text with no fingerprint comment.';
   const result = feedback.embedFingerprint(body, 'feedback-cafef00d');
   assert.match(result, /Body text with no fingerprint comment\.\n<!-- fingerprint: feedback-cafef00d -->\n$/);
+});
+
+test('#1435: a replacement line containing $` survives composition intact (function replacer, not string replacer)', () => {
+  // Regression for the String.replace self-splicing bug: a raw `$`-prefixed
+  // sequence in a *string* replacement argument is a splice directive, not
+  // literal text ('abc'.replace('b', '$`') === 'aac', not 'a$`c'). fingerprint
+  // values are always hex today, so this can't fire in practice yet — but the
+  // fix (a function replacer) must hold regardless of what embedFingerprint is
+  // ever called with.
+  const body = 'Some preceding text.\n<!-- fingerprint: placeholder -->\nMore text.';
+  const hostileFingerprint = '$`$&$$';
+  const result = feedback.embedFingerprint(body, hostileFingerprint);
+  assert.match(result, /<!-- fingerprint: \$`\$&\$\$ -->/, 'a string replacer would corrupt $-pattern sequences ($` splices preceding text, $& inserts the match)');
+  assert.doesNotMatch(result, /Some preceding text\.\s*Some preceding text\./, 'the preceding text must not be spliced back in');
 });
 
 // ---- fileDraft: argv-safe title -------------------------------------------
@@ -186,6 +201,38 @@ test('findDuplicate: an unrelated marker present in the list does not count as a
   ]);
   const result = feedback.findDuplicate({ repo: 'acme/w', marker, runner });
   assert.equal(result, null);
+});
+
+// #1564: findDuplicate's unscoped `--state all --limit 10000` list pulls
+// full issue bodies for every issue in the repo; on a repo with 1,500+
+// issues the combined body text alone exceeds execFileSync's default 1MB
+// maxBuffer, so `gh` output never reaches findByMarker at all — every
+// filing dies with `spawnSync gh ENOBUFS` before dedup can even run.
+// Fixture below shapes a 1,500-issue, multi-KB-body list (~4.5MB) —
+// at or above the observed failure threshold.
+function largeIssueListScript(count, bodyBytes) {
+  return `const a=[];for(let i=0;i<${count};i++){a.push({number:i,title:'t'+i,body:'x'.repeat(${bodyBytes}),createdAt:'2026-01-01T00:00:00Z'});}process.stdout.write(JSON.stringify(a));`;
+}
+
+test('#1564: a 1,500-issue full-body list reproduces ENOBUFS at Node\'s default maxBuffer', () => {
+  assert.throws(() => {
+    execFileSync('node', ['-e', largeIssueListScript(1500, 3000)], { encoding: 'utf8' });
+  }, /ENOBUFS|maxBuffer/);
+});
+
+test('#1564: GH_MAX_BUFFER comfortably covers the same 1,500-issue full-body list', () => {
+  // Pin the export's presence/adequacy first — execFileSync treats an
+  // explicit `maxBuffer: undefined` as "no limit" (not "use the 1MB
+  // default"), so without this guard the call below would still succeed
+  // even if GH_MAX_BUFFER were removed, silently defeating the test.
+  assert.equal(typeof feedback.GH_MAX_BUFFER, 'number');
+  assert.ok(feedback.GH_MAX_BUFFER > 5 * 1024 * 1024, `GH_MAX_BUFFER (${feedback.GH_MAX_BUFFER}) must exceed the ~4.5MB fixture size`);
+  const out = execFileSync('node', ['-e', largeIssueListScript(1500, 3000)], {
+    encoding: 'utf8',
+    maxBuffer: feedback.GH_MAX_BUFFER,
+  });
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.length, 1500);
 });
 
 test('fileOne: read-back title mismatch surfaces filing-failure with a mismatch reason', () => {

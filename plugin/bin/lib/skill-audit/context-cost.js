@@ -30,7 +30,18 @@ const CEILING_BYTES = 40 * 1024;
 // already-tight description means dropping a Keywords token — the one thing
 // this ceiling must never cost (a lost keyword can stop a skill from firing).
 const DESCRIPTION_CEILING_CHARS = 260;
-const DESCRIPTION_TOTAL_CEILING_CHARS = 7500;
+// 7500 -> 7700, #1704 (new `/claude-tweaks:intake` skill, 116 chars). By the
+// time this landed the corpus had already grown to 7497/7500 (recent
+// unrelated merges — #1489/#1490/#1492/#1494's sweep orchestrator and
+// friends), leaving 3 chars of headroom — not enough for a legitimate new
+// skill's description, and every existing description was already near its
+// own 260-char per-skill ceiling (per this file's own comment above: trimming
+// an already-tight description costs a Keywords token, the one thing this
+// looser corpus ceiling exists to avoid). Raising the ceiling, not shaving
+// unrelated skills' tuned trigger phrases, is the correct fix here. Bumped
+// to 7700 (not the bare 7613 minimum) to leave the next legitimate addition
+// some room too.
+const DESCRIPTION_TOTAL_CEILING_CHARS = 7700;
 
 function skillsDir(repoRoot) {
   return path.join(repoRoot, 'skills');

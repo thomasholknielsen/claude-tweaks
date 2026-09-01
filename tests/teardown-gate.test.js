@@ -9,6 +9,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { findRunByWorktreePath, readRunState } = require('../plugin/bin/lib/hooks/context');
 const { fixtureGit } = require('./helpers/git-fixtures');
+const preToolUse = require('../plugin/bin/lib/hooks/pre-tool-use');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
@@ -295,6 +296,41 @@ test('whole-branch review: Bash `git --no-pager worktree remove <abs-path>` on a
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+// #1308: teardownTargets used to check toks[0] !== 'git' directly, so a
+// command-wrapper prefix (env, and whatever else #590's findGitLead
+// normalizes) defeated the parser and let the raw removal through
+// completely ungated.
+test('#1308: Bash `env git worktree remove <abs-path>` on an active run\'s worktree is denied', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  makeRun(root, JSON.stringify({ status: 'active', worktree: wt }));
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: `env git worktree remove ${wt}` }, cwd: root });
+  const r = runHook(['pre-tool-use'], { input: payload, cwd: root });
+  const out = JSON.parse(r.stdout);
+  assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+// #1308: env-prefixed and bare forms must resolve to the identical
+// teardown target from teardownTargets() itself, not merely both deny —
+// a direct unit-level check against the function the spec names.
+test('#1308: teardownTargets() resolves `env git worktree remove <path>` to the same target as the bare form', () => {
+  const root = fixtureRoot();
+  const wt = addWorktree(root);
+  const bareCtx = {
+    input: { tool_name: 'Bash', tool_input: { command: `git worktree remove ${wt}` } },
+    cwd: root,
+  };
+  const envCtx = {
+    input: { tool_name: 'Bash', tool_input: { command: `env git worktree remove ${wt}` } },
+    cwd: root,
+  };
+  const bare = preToolUse.teardownTargets(bareCtx);
+  const withEnv = preToolUse.teardownTargets(envCtx);
+  assert.deepStrictEqual(withEnv, bare);
+  assert.strictEqual(bare.length, 1);
+  assert.strictEqual(bare[0].source, 'bash');
+});
+
 // IMPORTANT 4 (whole-branch review): teardownTargets must track `cd` across
 // shell segments (via git-command.js's forEachCommandSegment), not just
 // inspect each segment against the ORIGINAL cwd — otherwise `cd <dir> && git
@@ -364,8 +400,8 @@ test('MINOR 6: a run recording the main checkout as its worktree does not deny a
 test('AC5: a foreign-owned run warns instead of denying, and logs wd-foreign-teardown', () => {
   const root = fixtureRoot();
   const wt = addWorktree(root);
-  makeRun(root); // empty run dir (no run-state.json yet) for record-worktree to claim
-  const recorded = runHook(['record-worktree', wt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root); // empty run dir (no run-state.json yet) for record-worktree to claim
+  const recorded = runHook(['record-worktree', '--run', emptyRun, wt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   assert.match(recorded.stdout, /worktree recorded/);
   const runDir = findRunByWorktreePath(root, wt).runDir;
@@ -393,6 +429,44 @@ test('AC5: an unowned run with a payload carrying no session_id is denied', () =
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+// #1563: this gate's own ownership check (owner && caller && owner !== caller
+// -> foreign, else deny) is deliberately NOT classifyOwnership (#1098) —
+// unlike context.js's resolveRun fallback (#1410), which does use it, this
+// gate has no worktree-binding "foreign" bypass. Pinned here so #1099 (still
+// open at the time this test was added), if it ever swaps this gate onto
+// classifyOwnership, cannot silently regress an owner-absent + different-
+// live-worktree caller from "denied" to "allowed with a warning" without this
+// test forcing that decision to be made explicitly.
+test('#1563: an unowned run targeted via Bash from a DIFFERENT live worktree is still denied, not foreign-allowed', () => {
+  const root = fixtureRoot();
+  const targetWt = addWorktree(root); // the run's own recorded binding — the removal target
+  const callerWt = addWorktree(root); // a genuinely different, live worktree — where the caller stands
+  makeRun(root, JSON.stringify({ status: 'active', worktree: targetWt })); // no sessionId recorded
+  // The Bash form (unlike ExitWorktree, which always targets ctx.cwd's own
+  // toplevel) lets the caller's cwd and the removal target genuinely differ
+  // — callerWt/targetWt are both live, distinct worktrees of the same repo,
+  // exactly the shape classifyOwnership's worktree-binding branch would
+  // compare (and, from that mismatch alone, classify 'foreign' regardless of
+  // session id). This gate's own check never reaches that comparison.
+  // Exercise both with and without a caller session_id, per the record's own
+  // AC — neither should change the outcome, since this gate's check requires
+  // BOTH sides present to ever classify anything other than deny.
+  const command = `git worktree remove ${targetWt}`;
+  const withoutSessionId = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command }, cwd: callerWt }),
+    cwd: callerWt,
+  });
+  assert.strictEqual(JSON.parse(withoutSessionId.stdout).hookSpecificOutput.permissionDecision, 'deny');
+
+  const withSessionId = runHook(['pre-tool-use'], {
+    input: JSON.stringify({
+      tool_name: 'Bash', tool_input: { command }, cwd: callerWt, session_id: 'caller-session',
+    }),
+    cwd: callerWt,
+  });
+  assert.strictEqual(JSON.parse(withSessionId.stdout).hookSpecificOutput.permissionDecision, 'deny');
+});
+
 // IMPORTANT 3 (whole-branch review): the foreign-owner WARN path must not
 // short-circuit runInner — previously, `git worktree remove <foreign-wt> &&
 // git commit -m x` returned on the warn and never reached the trailing
@@ -401,8 +475,8 @@ test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktr
   const root = fixtureRoot();
   withPolicy(root, 'worktree-always: true\n');
   const foreignWt = addWorktree(root);
-  makeRun(root); // empty run dir for record-worktree to claim
-  const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root); // empty run dir for record-worktree to claim
+  const recorded = runHook(['record-worktree', '--run', emptyRun, foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   const payload = JSON.stringify({
     tool_name: 'Bash',
@@ -426,8 +500,8 @@ test('IMPORTANT 3: a compound worktree-remove + commit is still denied by worktr
 test('IMPORTANT 3: a lone foreign-owned `git worktree remove` (no compound command) still allows and warns', () => {
   const root = fixtureRoot();
   const foreignWt = addWorktree(root);
-  makeRun(root);
-  const recorded = runHook(['record-worktree', foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
+  const emptyRun = makeRun(root);
+  const recorded = runHook(['record-worktree', '--run', emptyRun, foreignWt], { cwd: root, env: { CLAUDE_CODE_SESSION_ID: 'owner-1' } });
   assert.strictEqual(recorded.code, 0);
   const payload = JSON.stringify({
     tool_name: 'Bash', tool_input: { command: `git worktree remove ${foreignWt}` }, cwd: root, session_id: 'bystander-2',

@@ -12,6 +12,19 @@
 // `_shared/github-write-transport.md` path — gh-absent here is a normal,
 // best-effort miss, not a hard failure, and the next `/tidy` sweep or a
 // human reading `reconcile`'s JSON is the backstop.
+//
+// Label posture (#1216, decided 2026-08-29): filing with `--label bug` only
+// is a deliberate choice, not a gap — never add `by:*`/`type:*`/`risk:*`/
+// `size:*`/`ready` here. Risk/size are content judgments, and this module
+// runs in the no-LLM contexts named above, which cannot score them; a
+// mechanical always-low default fails independently (`ready` requires a
+// spec-shaped body, which reconcile's terse auto-report is not). Enrichment
+// belongs to the downstream path that demonstrably picks these issues up: a
+// plain open issue IS a backlog-stage record, the scheduled bare `/specify`
+// drain (its deprecated `next` alias, historically) shapes it headlessly,
+// and `/backlog` grants route it to an autonomous build. No `by:reconcile`
+// origin value, no scoring heuristic — closed #1216 is the recorded
+// decision.
 'use strict';
 const { fingerprintFromBasis, normalizeText } = require('../health-core/fingerprint');
 // #644 review fix — defaultRunner/errorText were a byte-for-byte duplicate
@@ -21,7 +34,7 @@ const { fingerprintFromBasis, normalizeText } = require('../health-core/fingerpr
 // diverges deliberately (no readBack/verify round trip, `--body` inline
 // rather than `--body-file`) — that's a real behavioral difference, not
 // duplication, and stays local to this module.
-const { defaultRunner, errorText } = require('../feedback/file-feedback');
+const { defaultRunner, errorText, findDuplicate } = require('../feedback/file-feedback');
 
 function residueFingerprint(reason, targetPath) {
   return fingerprintFromBasis('reconcile-residue', [reason, normalizeText(targetPath)]);
@@ -54,14 +67,12 @@ function escalateResidue({ repo, reason, targetPath, count, firstFailedAt, lastE
   const { body, marker } = residueBody({ reason, targetPath, count, firstFailedAt, lastError });
   const title = `reconcile: ${reason} stuck on ${targetPath}`;
 
-  let dup;
   try {
-    const out = runner(['issue', 'list', '--repo', repo, '--search', marker, '--state', 'all', '--json', 'number']);
-    dup = JSON.parse(out);
+    const hit = findDuplicate({ repo, marker, runner });
+    if (hit) return { status: 'dedup-hit', number: hit.number };
   } catch (err) {
     return { status: 'escalation-failed', reason: errorText(err) };
   }
-  if (Array.isArray(dup) && dup.length > 0) return { status: 'dedup-hit', number: dup[0].number };
 
   try {
     const out = runner(['issue', 'create', '--repo', repo, '--title', title, '--body', body, '--label', 'bug']);

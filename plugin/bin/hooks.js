@@ -19,6 +19,7 @@ const stagedInventory = require('./lib/hooks/staged-inventory');
 const wtDetect = require('./lib/hooks/worktree-detect');
 const { closeRunState } = require('./lib/hooks/close-run-state');
 const { teardownRun } = require('./lib/hooks/teardown-run');
+const { deriveBranch, repoRootOf } = require('./lib/hooks/run-integrity');
 
 const EVENTS = ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop'];
 
@@ -59,6 +60,37 @@ function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
 }
 
+// #1143: usage strings for every documented `hooks.js` subcommand (the
+// dispatch table's own record-worktree/close-run/teardown-run/archive-run/
+// resolve-run-dir/record-pr/spec-status/check-resume-freshness/check-staged-
+// inventory/check-sibling-sessions/sweep-shadow/reconcile/reconcile-
+// background/reconcile-summary set — see docs/plugin-structure.md's hooks.js
+// line). Doubles as the membership table for the `--help`/`-h` intercept
+// below: a verb absent from this map gets no guard, by design — the six
+// EVENTS names are invoked by the harness via stdin JSON, never probed with
+// a `--help` flag, and never fell through to the implicit-run-dir-guess
+// hazard this record closes. record-pr's and spec-status's own internal
+// "usage:" error strings (printed on malformed non-help args) reuse these
+// same entries rather than a second, driftable copy of the same text.
+const USAGE = {
+  'record-worktree': 'record-worktree --run <dir> <worktree-path>',
+  'resolve-run-dir': 'resolve-run-dir [--spec-slug <slug>] [--mode <mode>] [--standalone <value>] [--create] [--root-only]',
+  'sweep-shadow': 'sweep-shadow [--run <dir>] [--worktree <path>]',
+  'record-pr': 'record-pr [--run <dir>] <number> <url>',
+  'spec-status': 'spec-status --run <parent-dir> --spec <n> --status <pending|running|complete|failed|not-run> --phase <phase>',
+  'close-run': 'close-run [--run <dir>]',
+  'teardown-run': 'teardown-run [--run <dir>] [--merged|--abandoned]',
+  'archive-run': 'archive-run [--run <dir>]',
+  'check-resume-freshness': 'check-resume-freshness [--run <dir>]',
+  'check-staged-inventory': 'check-staged-inventory [--run <dir>]',
+  'check-sibling-sessions': 'check-sibling-sessions --record <id-or-slug>',
+  reconcile: 'reconcile [--dry-run] [--json] [--mcp-reachable] [--checks <c1,c2,...>]',
+  'reconcile-summary': 'reconcile-summary',
+  'reconcile-background': 'reconcile-background',
+};
+
+const HELP_FLAGS = new Set(['--help', '-h']);
+
 // Shared by the resolve-run-dir and spec-status subcommands below — each
 // previously defined its own identical `--flag value` lookup closure over a
 // different local array (`args` vs `rest`); one function taking the array
@@ -70,6 +102,25 @@ function flagVal(args, name) {
 
 function isDirectory(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}
+
+// #1452: `mainArchivedCandidate` below is only ever the run's OWN
+// archive/{run-id} path — the one location archive-merged.js's archiveRunDir
+// writes a `{status: 'archiving'}` claim stub to (writeRunState, before it
+// ever attempts the git mv that can fail and leave that stub behind with
+// nothing to clean it up). A plain `isDirectory` twin check can't tell that
+// stub apart from a genuinely completed archive, so a single failed archival
+// attempt on a worktree-local-fallback-eligible run dir permanently defeats
+// this file's own #280/#1183/#1299 twin check afterward — every later retry
+// reads the stub as "already archived elsewhere" and is refused as a shadow,
+// even long after the claim's own TTL (context.js's ARCHIVE_CLAIM_TTL_MS)
+// would let archive-merged.js's own decideArchive treat it as abandoned and
+// retry. Mirrors that exact staleness rule here so the two callers agree.
+function isLiveArchiveTwin(p) {
+  if (!isDirectory(p)) return false;
+  const state = ctxLib.readRunState(p);
+  if (state && state.status === 'archiving' && ctxLib.isStaleClaim(state)) return false;
+  return true;
 }
 
 // #280: the one signal that distinguishes "harness-isolation left a real run
@@ -84,6 +135,29 @@ function isInitializedRunDir(dir) {
     .some((marker) => fs.existsSync(path.join(dir, marker)));
 }
 
+// Shared by every #280/#1183/#1299/#1566 shape check below (whole-branch
+// review finding — this used to be hand-copied at each call site): true when
+// `resolved`, relative to `root`'s own .claude-tweaks/pipelines/, has a
+// run-id-shaped LEADING segment — either directly, or one level deeper under
+// archive/ (an archive/{id} shadow's run-id segment is relParts[1]; every
+// other shape's is relParts[0]). Deliberately leading-segment-only, not
+// length-exact: a multi-spec shadow (pipelines/{parent}/spec-N) is two
+// segments deep and is still a legitimate run-dir shape (#1183) — only the
+// leading segment needs to be run-id-shaped, whatever's nested beneath it.
+// `root` must already be realpath'd if `resolved` is (callers pass matching
+// pairs).
+function pipelinesRunIdShape(root, resolved) {
+  const relFromPipelines = path.relative(path.join(root, '.claude-tweaks', 'pipelines'), resolved);
+  const inPipelines = !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
+  const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
+  const isArchiveShape = relParts[0] === 'archive';
+  const runIdSegment = isArchiveShape ? relParts[1] : relParts[0];
+  const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
+  return {
+    relFromPipelines, inPipelines, isArchiveShape, runIdSegment, runIdShaped,
+  };
+}
+
 // Resolves an explicit `--run <path>` argument, validating it's a real
 // directory, or falls back to ctxLib.resolveRunDir when --run is absent.
 // Shared by record-worktree and close-run below so a future change to what
@@ -92,11 +166,30 @@ function isInitializedRunDir(dir) {
 // once. `args` is the command's own argument list (cmd already stripped);
 // when --run is found, its two-element span is spliced out of the returned
 // `rest` so a caller with its own positional args (record-worktree's
-// worktree path) can still find them regardless of flag placement.
-function resolveRunArg(args, cwd, env) {
+// worktree path) can still find them regardless of flag placement. `resolveOpts`
+// forwards unchanged to the implicit-fallback ctxLib.resolveRunDir call
+// (used by every caller) — close-run passes
+// { includeWorktreeForeign: true } so its fallback can still find and report
+// a run bound to a different, still-live worktree (whole-branch review
+// finding, pre-v6.110.0); every other caller omits it and keeps #1410's
+// worktree-safe fallback.
+// `resolveOpts.allowUninitialized` (#1566) is consulted by the plain
+// anchored-directory branch below only (not the #280 worktree-local-fallback
+// branch, which already requires initialization unconditionally): a real,
+// anchored `--run` directory carrying none of decisions.md/run-state.json/
+// config.yml is rejected unless the caller opts in. record-worktree is the
+// sole legitimate first-writer in the dispatch mint-then-claim handoff
+// (dispatch/SKILL.md Step 4 mkdir-only mints a run dir, flow/steps-and-gates.md
+// case 2 adopts it with no config.yml yet, worktree-setup.md Step 4.5's
+// record-worktree call performs the actual first write) — it opts in.
+// archive-run also opts in: its own downstream logic gives a specific,
+// more useful diagnostic (archiveOrphanedMint) for a stale, never-claimed
+// mint than a generic rejection here would. Every other of the 8 shared
+// callers always targets an already-initialized run dir in real use.
+function resolveRunArg(args, cwd, env, resolveOpts) {
   const flagIdx = args.indexOf('--run');
   if (flagIdx === -1) {
-    return { runDir: ctxLib.resolveRunDir(cwd, env), invalidRunArg: null, rest: args, explicit: false };
+    return { runDir: ctxLib.resolveRunDir(cwd, env, undefined, resolveOpts), invalidRunArg: null, rest: args, explicit: false };
   }
   const rest = args.slice();
   const rawCandidate = rest[flagIdx + 1];
@@ -163,7 +256,9 @@ function resolveRunArg(args, cwd, env) {
       //       archive/{id} shadow specifically, no LIVE (non-archived) run
       //       dir exists under that same id either, since a run can be live
       //       under one id while a worktree-local session independently
-      //       archived its own local copy under the same id (#1183 fix-wave).
+      //       archived its own local copy under the same id (#1183 fix-wave);
+      //       the mirror also holds for a LIVE-shape shadow: no ARCHIVED run
+      //       dir exists under that same id at the main checkout either (#1299).
       // #1183: (d) used to join only path.basename(resolved), so a nested
       // multi-spec shadow (pipelines/{parent}/spec-N) or an archived shadow
       // (pipelines/archive/{id}) computed the wrong main-checkout candidate
@@ -187,14 +282,13 @@ function resolveRunArg(args, cwd, env) {
       const realResolved = wtDetect.safeReal(resolved) || resolved;
       const sameRepo = !candidateRepo.indeterminate && candidateRepo.repoRoot && candidateRepo.isLinkedWorktree
         && wtDetect.mainCheckoutRoot(candidateRepo.repoRoot) === mainRoot;
-      const relFromPipelines = sameRepo
-        ? path.relative(path.join(candidateRepo.repoRoot, '.claude-tweaks', 'pipelines'), realResolved)
-        : null;
-      const inPipelines = !!relFromPipelines && !relFromPipelines.startsWith('..') && !path.isAbsolute(relFromPipelines);
-      const relParts = inPipelines ? relFromPipelines.split(path.sep) : [];
-      const isArchiveShape = relParts[0] === 'archive';
-      const runIdSegment = isArchiveShape ? relParts[1] : relParts[0];
-      const runIdShaped = !!runIdSegment && ctxLib.RUN_ID_RE.test(runIdSegment);
+      const {
+        relFromPipelines, inPipelines, isArchiveShape, runIdSegment, runIdShaped,
+      } = sameRepo
+        ? pipelinesRunIdShape(candidateRepo.repoRoot, realResolved)
+        : {
+          relFromPipelines: null, inPipelines: false, isArchiveShape: false, runIdSegment: null, runIdShaped: false,
+        };
       const mainCandidate = inPipelines ? path.join(mainRoot, '.claude-tweaks', 'pipelines', relFromPipelines) : null;
       // #1183 fix-wave: an archive/{id} shadow must also be checked against a LIVE
       // (non-archived) copy of the same run-id under the main checkout — a run can be
@@ -203,10 +297,25 @@ function resolveRunArg(args, cwd, env) {
       const mainLiveCandidate = (inPipelines && isArchiveShape && runIdSegment)
         ? path.join(mainRoot, '.claude-tweaks', 'pipelines', runIdSegment)
         : null;
-      // isDirectory already fails closed (try/catch) on a null path, so no
-      // separate truthiness guard is needed for mainLiveCandidate — mirrors
-      // how mainCandidate above is passed through unguarded.
-      const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate);
+      // #1299: the mirror direction — a LIVE-shape shadow (relParts[0] !==
+      // 'archive') must also be checked against an ARCHIVED copy of the same
+      // run-id under the main checkout. A run can be archived under one id at
+      // the main checkout while a worktree-local session independently kept
+      // (or re-created) a live copy under the same id; checking only the
+      // live/live path (mainCandidate) would miss that, mirroring the exact
+      // gap #1183 closed for the opposite (archive-shape) direction above.
+      const mainArchivedCandidate = (inPipelines && !isArchiveShape && runIdSegment)
+        ? path.join(mainRoot, '.claude-tweaks', 'pipelines', 'archive', runIdSegment)
+        : null;
+      // isDirectory/isLiveArchiveTwin already fail closed (try/catch) on a
+      // null path, so no separate truthiness guard is needed for
+      // mainLiveCandidate/mainArchivedCandidate — mirrors how mainCandidate
+      // above is passed through unguarded. mainArchivedCandidate uses the
+      // staleness-aware check (see isLiveArchiveTwin above, #1452) — the
+      // other two are never where archiveRunDir writes its 'archiving' claim
+      // stub, so a plain existence check is correct for them.
+      const twinExists = isDirectory(mainCandidate) || isDirectory(mainLiveCandidate)
+        || isLiveArchiveTwin(mainArchivedCandidate);
       // `inPipelines` is provably implied by `runIdShaped` here (relParts, and so
       // runIdSegment, is only ever populated when inPipelines is true) — kept explicit
       // anyway as a self-documenting invariant a future edit to relParts/runIdSegment's
@@ -220,6 +329,46 @@ function resolveRunArg(args, cwd, env) {
       return {
         runDir: null,
         invalidRunArg: `${candidate} (exists, but not anchored under the main checkout at ${mainRoot} — refusing a worktree-relative shadow run dir; see resolve-run-dir)`,
+        rest,
+        explicit: true,
+      };
+    }
+    // #1566 whole-branch-review follow-up: every real run dir lives under
+    // .claude-tweaks/pipelines/ by construction, so this shape bar applies
+    // unconditionally — not just inside the allowUninitialized branch below.
+    // Without it, an anchored-but-arbitrary directory elsewhere under the
+    // main checkout that happened to carry a file literally named
+    // decisions.md/run-state.json/config.yml would satisfy isInitializedRunDir
+    // and sail straight through to the `return` below untouched, reopening a
+    // narrower variant of the exact vulnerability the isInitializedRunDir
+    // gate exists to close. mainRoot is realpath'd (mainCheckoutRoot's own
+    // safeReal), `resolved` is not — realpath it for this comparison only,
+    // mirroring the #1183 fix-wave's identical treatment of realResolved
+    // above, or a symlinked path component (macOS /tmp, most test sandboxes)
+    // produces a spurious `..` prefix and wrongly rejects a legitimate run dir.
+    const shape = pipelinesRunIdShape(mainRoot, wtDetect.safeReal(resolved) || resolved);
+    if (!shape.inPipelines || !shape.runIdShaped) {
+      return {
+        runDir: null,
+        invalidRunArg: `${candidate} (exists under the main checkout, but is not a run-id-shaped directory under .claude-tweaks/pipelines/ — refusing to treat an arbitrary anchored directory as a run dir; see resolve-run-dir)`,
+        rest,
+        explicit: true,
+      };
+    }
+    // isInitializedRunDir is the same bar #280's fallback branch above
+    // already applies to its own narrower case. Unlike that branch,
+    // record-worktree's fresh-mint pattern (dispatch's mkdir-only mint,
+    // adopted with no config.yml by flow's case 2) means an uninitialized
+    // target is sometimes legitimate here — resolveOpts.allowUninitialized
+    // is the caller's explicit opt-in for that (see this function's header).
+    // The pipelines-shape check above already confirmed this is a
+    // run-id-shaped directory, not an arbitrary anchored one (#1566's bare
+    // `--run .` repro), so allowUninitialized only ever licenses a genuine
+    // fresh-mint pipeline run dir.
+    if (!isInitializedRunDir(resolved) && !(resolveOpts && resolveOpts.allowUninitialized)) {
+      return {
+        runDir: null,
+        invalidRunArg: `${candidate} (exists under the main checkout, but is not an initialized run dir — carries none of decisions.md/run-state.json/config.yml; see resolve-run-dir)`,
         rest,
         explicit: true,
       };
@@ -240,18 +389,57 @@ function reportWorktreeLocalFallback(runDir, worktreeLocalFallback) {
 
 async function main(argv) {
   const cmd = argv[2];
+  // #1143: dumb, verb-agnostic --help/-h intercept — ahead of every branch
+  // below, before any lib call or resolveRunArg scan. Every subcommand here
+  // (other than record-worktree, hardened separately by #1124) previously
+  // fell through to its normal dispatch on a stray --help, and several of
+  // those paths implicitly guess a target run dir (resolveRunDir's "newest
+  // non-terminal run") when --run is absent — the exact cross-session
+  // corruption hazard observed 2026-08-20 (see the now-removed docs/donts.md
+  // bridging rule). Checked against the USAGE table, not a hardcoded verb
+  // list, so a verb with no usage entry gets no guard by design.
+  if (USAGE[cmd] && argv.slice(3).some((a) => HELP_FLAGS.has(a))) {
+    process.stdout.write(`claude-tweaks: usage: ${USAGE[cmd]}\n`);
+    return 0;
+  }
   if (cmd === 'record-worktree') {
     // --run <path> pins the target run dir explicitly, mirroring close-run
     // below — without it, this always fell through to resolveRunDir's
     // "newest non-terminal run" fallback, which a stale never-closed run
     // could win over the run genuinely making this call.
     const {
-      runDir, invalidRunArg, rest, worktreeLocalFallback,
-    } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+      runDir, invalidRunArg, rest, worktreeLocalFallback, explicit,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { allowUninitialized: true });
     const worktreeArg = rest[0];
+    // #1124: every real caller already passes --run explicitly (build's
+    // worktree-setup.md Step 4.5, the run-resume-freshness re-stamp, the
+    // subagent-output-contract re-stamp) — nothing legitimate depends on the
+    // implicit fallback below. An invocation that omits --run previously fell
+    // through to resolveRunDir's "newest non-terminal run" GUESS and could
+    // silently clobber a DIFFERENT live session's run-state.json (reproduced
+    // 3x independently on 2026-08-20, across three different dispatched
+    // subagents). Never guess here: refuse loudly, before this handler ever
+    // gets a chance to WRITE anything — a true no-op, non-zero exit. (A bare
+    // or malformed `--help` no longer reaches this branch at all — #1143's
+    // dedicated guard above intercepts it first, before `resolveRunArg` ever
+    // runs. `resolveRunArg` itself still runs unconditionally on every other
+    // no-`--run` path below, and still calls `ctxLib.resolveRunDir` — a real
+    // scan of sibling run-state.json files — whose result this branch simply
+    // discards; the guarantee here is "no write," not "no read.")
+    if (!explicit) {
+      process.stdout.write('claude-tweaks: record-worktree requires --run — worktree not recorded\n');
+      return 1;
+    }
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — worktree not recorded\n`);
+    } else if (worktreeArg && worktreeArg.startsWith('-')) {
+      // An unrecognized flag landing in the worktree-path position must
+      // never be treated as a literal path — this is the exact shape every
+      // observed incident hit (a stray --help specifically no longer reaches
+      // this far — #1143's dedicated guard above intercepts it first).
+      process.stdout.write(`claude-tweaks: unrecognized argument ${worktreeArg} — worktree not recorded\n`);
+      return 1;
     } else if (runDir && worktreeArg) {
       // Stamp the owning session so E1 can scope enforcement to it. Absent env
       // var: omit the key rather than write null — an env-less re-record must
@@ -264,12 +452,13 @@ async function main(argv) {
       } else {
         process.stdout.write(`claude-tweaks: failed to record worktree for ${path.basename(runDir)} — run-state.json could not be written\n`);
       }
-    } else if (!runDir) {
-      process.stdout.write('claude-tweaks: no pipeline run dir found — worktree not recorded\n');
     } else {
       // runDir resolved but worktreeArg is falsy — the only remaining case
-      // in this chain. Without this branch, a call that omits the worktree
-      // positional (e.g. "record-worktree --run <dir>" with nothing after)
+      // in this chain (with --run now required above, invalidRunArg is
+      // falsy here only when runDir already resolved to a real directory —
+      // see resolveRunArg: runDir is null iff invalidRunArg is truthy).
+      // Without this branch, a call that omits the worktree positional
+      // (e.g. "record-worktree --run <dir>" with nothing after)
       // printed nothing and exited 0, indistinguishable from success.
       process.stdout.write(`claude-tweaks: no worktree path given for ${path.basename(runDir)} — worktree not recorded\n`);
     }
@@ -353,9 +542,26 @@ async function main(argv) {
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — PR not recorded\n');
     } else if (!numberArg || !Number.isInteger(number) || number <= 0 || !urlArg) {
-      process.stdout.write(`claude-tweaks: usage: record-pr [--run <dir>] <number> <url> — PR not recorded\n`);
+      process.stdout.write(`claude-tweaks: usage: ${USAGE['record-pr']} — PR not recorded\n`);
     } else {
-      const result = ctxLib.writeRunState(runDir, { pr: { number, url: urlArg } });
+      // Record the branch alongside the PR while the worktree is still live —
+      // this is the one moment it is reliably knowable. run-integrity.js's
+      // torn-down-worktree fallback (#1672) reads it back later, when
+      // `git worktree list` no longer has an entry to derive it from.
+      // Best-effort: a run with no recorded worktree, or a derivation that
+      // comes back null, simply records {number, url} as before.
+      // Guarded because this is the first external-process call in a verb that
+      // previously had none: main()'s own `.catch(() => process.exit(0))` would
+      // swallow a throw here and skip writeRunState entirely, exiting 0 with no
+      // output — the PR silently never recorded, while every other failure
+      // branch in this verb prints a "not recorded" notice. Degrading to the
+      // pre-#1672 {number, url} write is the correct best-effort outcome.
+      let prBranch = null;
+      try {
+        prBranch = deriveBranch(repoRootOf(runDir), ctxLib.readRunState(runDir)?.worktree || null);
+      } catch { prBranch = null; }
+      const prField = prBranch ? { number, url: urlArg, branch: prBranch } : { number, url: urlArg };
+      const result = ctxLib.writeRunState(runDir, { pr: prField });
       if (result) {
         process.stdout.write(`claude-tweaks: PR #${number} recorded for ${path.basename(runDir)}\n`);
       } else {
@@ -383,7 +589,7 @@ async function main(argv) {
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — spec status not recorded\n');
     } else if (!specArg || !statusArg || !phaseArg) {
-      process.stdout.write('claude-tweaks: usage: spec-status --run <parent-dir> --spec <n> --status <pending|running|complete|failed|not-run> --phase <phase> — spec status not recorded\n');
+      process.stdout.write(`claude-tweaks: usage: ${USAGE['spec-status']} — spec status not recorded\n`);
     } else {
       const result = specStatusLib.transitionSpec({
         runDir, specId: specArg, status: statusArg, phase: phaseArg,
@@ -399,7 +605,9 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'close-run') {
-    const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(
+      argv.slice(3), process.cwd(), process.env, { includeWorktreeForeign: true },
+    );
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);
@@ -407,6 +615,10 @@ async function main(argv) {
       const r = closeRunState(runDir, { explicit, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
       if (r.status === 'refused-foreign') {
         process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session — refusing to close it without an explicit --run\n`);
+        return 0;
+      }
+      if (r.status === 'refused-live-worktree') {
+        process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} still has a live worktree on disk — refusing to close it without an explicit --run\n`);
         return 0;
       }
       if (r.foreignOwner) {
@@ -454,9 +666,11 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'archive-run') {
-    const { archiveRunDir, readConsoleState } = require('./lib/reconcile/archive-merged');
+    const { archiveRunDir, readConsoleState, listSpecDirs } = require('./lib/reconcile/archive-merged');
     const { NON_TERMINAL } = require('./lib/hooks/run-integrity');
-    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(
+      argv.slice(3), process.cwd(), process.env, { allowUninitialized: true },
+    );
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not archived\n`);
@@ -493,6 +707,31 @@ async function main(argv) {
     if (!mainRoot) {
       process.stdout.write('claude-tweaks: could not resolve the main checkout root — run not archived\n');
       return 0;
+    }
+    // #1452: a worktree-local-fallback resolved runDir has no anchored copy
+    // under mainRoot (reportWorktreeLocalFallback's own message says so).
+    // archiveRunDir's work/ move is a `git -C mainRoot mv <src> <dest>` —
+    // src pointing at a path inside a *different* worktree's working tree is
+    // structurally invisible to that git invocation (separate index, separate
+    // working directory, same object store), so the mv deterministically
+    // fails every time work/ is git-tracked (materialize.md: always, for any
+    // real pipeline run). Detecting that in advance and refusing here with a
+    // distinct, correctly-scoped message avoids running (and reporting) a
+    // doomed git mv as if it were a genuine, actionable 'git-mv-failed' —
+    // the transient condition self-resolves once this run's branch merges
+    // and the content becomes reachable from mainRoot's own working tree.
+    if (worktreeLocalFallback) {
+      const hasTrackedWork = fs.existsSync(path.join(runDir, 'work'))
+        || listSpecDirs(runDir).some((spec) => fs.existsSync(path.join(runDir, spec, 'work')));
+      if (hasTrackedWork) {
+        process.stdout.write(
+          `claude-tweaks: archival deferred — ${path.basename(runDir)}'s tracked work/ content lives only in ` +
+          'this worktree, not yet reachable from the main checkout; `git mv` cannot move it across worktree ' +
+          'boundaries. Merge this run\'s branch first — reconcile\'s routine sweep (or a direct archive-run from ' +
+          'the main checkout, once merged) will archive it automatically.\n',
+        );
+        return 0;
+      }
     }
     // Output below is informational human text, never parsed by any caller
     // (skills/flow/multispec-review-console.md's parent-dir archival is a
@@ -592,7 +831,31 @@ async function main(argv) {
     // so both surfaces are guaranteed to behave identically by construction
     // rather than by a parity test re-deriving the same logic twice.
     const args = argv.slice(3);
-    const opts = { dryRun: args.includes('--dry-run'), cwd: process.cwd() };
+    // #1558: --mcp-reachable asserts the CALLER (an agent, inside its own
+    // turn) has already confirmed GitHub reachability via its own MCP probe
+    // (mcp-transport.md's Preflight probe) — same contract as
+    // resolve-policy.js's own --mcp-reachable flag. Forwards into
+    // reconcile()'s integration-model resolution so a gh-absent-but-MCP-
+    // reachable sandbox doesn't silently downgrade to local-merge.
+    // #1543: --checks narrows the sweep to a caller-chosen subset of
+    // ALL_CHECKS (a full sweep dominated by remote-prune's --prune all-refs
+    // fetch is what tripped the harness's default command timeout twice per
+    // dispatch firing) — a thin pass-through to reconcile()'s existing
+    // `opts.checks` seam (already used internally, e.g. reconcile-summary's
+    // own `checks: ['mirror']` call). A missing/empty/all-whitespace value
+    // yields `undefined`, and reconcile() itself already falls back to
+    // ALL_CHECKS on any non-array or empty array — no validation needed here
+    // beyond producing that safe shape.
+    const checksRaw = flagVal(args, '--checks');
+    const checksList = typeof checksRaw === 'string'
+      ? checksRaw.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+    const opts = {
+      dryRun: args.includes('--dry-run'),
+      cwd: process.cwd(),
+      mcpReachable: args.includes('--mcp-reachable'),
+      checks: checksList.length ? checksList : undefined,
+    };
     const jsonOut = args.includes('--json');
     let out;
     try {
@@ -779,4 +1042,7 @@ if (require.main === module) {
   main(process.argv).then((code) => process.exit(code)).catch(() => process.exit(0));
 }
 
-module.exports = { main, BACKGROUND_CHECKS };
+// USAGE exported so tests/hooks-help-guard.test.js's table-driven suite
+// iterates the SAME verb list this dispatcher's --help/-h guard checks
+// membership against, rather than a second, driftable copy of it.
+module.exports = { main, BACKGROUND_CHECKS, USAGE };

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // bin/materialize.js — record-to-build-time-file materialization in one command.
-//   node bin/materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--help]
+//   node bin/materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--record-json <path>] [--help]
 // Implements skills/flow/materialize.md's Resolution + Materialization hard
 // gate + header composition + write, for `work-backend: github-issues`
 // records — the CLI both `/flow` and `/build` invoke instead of hand-
@@ -15,7 +15,21 @@
 // determinable git repository root; #959 — a --run-dir resolving INSIDE the
 // current linked worktree is anchored-equivalent and accepted, since this
 // CLI only ever writes to that worktree's own work/{n}-spec.md), an
-// unresolved record, or when `gh` is absent.
+// unresolved record, or when `gh` is absent. #1210: when cwd is itself
+// inside a linked worktree but --run-dir resolves somewhere else — the main
+// checkout (the standard $PIPELINE_RUN_DIR shape every other --run/--run-dir
+// consumer expects, passed unmodified from inside a worktree) or a DIFFERENT
+// linked worktree — the write target is rewritten to cwd's own worktree-local
+// equivalent (same run-id, same relative structure) rather than trusting the
+// caller, with an informational (non-fatal) stderr note naming both roots.
+// #1459: --record-json <path> lets a gh-absent caller (one with MCP
+// issue_read access instead) supply an already-fetched record — same JSON
+// shape `gh issue view <n> --json number,title,body,labels,url` returns —
+// in place of this CLI shelling out to `gh` itself. When passed,
+// deps.ghAvailable()/deps.ghView() are never consulted; everything
+// downstream (shapeGate, drift, liftMetadata, composeHeader, composeFile)
+// is unchanged, since it already operates on the parsed `record` object
+// regardless of how it arrived.
 'use strict';
 
 const fs = require('fs');
@@ -28,7 +42,7 @@ const { shapeGate, liftMetadata, composeHeader, composeFile } = require('./lib/i
 const wtDetect = require('./lib/hooks/worktree-detect');
 const { parseRepo } = require('./lib/repo-resolve');
 
-const USAGE = 'usage: materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--help]\n';
+const USAGE = 'usage: materialize.js <n> --run-dir <dir> [--repo owner/name] [--ceremony fast-lane|standard] [--multi-record-slug <n>] [--record-json <path>] [--help]\n';
 
 const isPos = (n) => Number.isInteger(n) && n > 0;
 
@@ -66,7 +80,9 @@ function computeDrift(sha, deps) {
 }
 
 function parseArgs(argv) {
-  const opts = { n: null, runDir: null, repo: null, ceremony: null, multiRecordSlug: null, help: false };
+  const opts = {
+    n: null, runDir: null, repo: null, ceremony: null, multiRecordSlug: null, recordJson: null, help: false,
+  };
   if (argv[0] === '--help' || argv[0] === '-h') { opts.help = true; return opts; }
   if (argv[0] === undefined || argv[0].startsWith('--')) return { error: 'missing <n> argument' };
   opts.n = Number(argv[0]);
@@ -85,6 +101,7 @@ function parseArgs(argv) {
     else if (a === '--repo') opts.repo = next();
     else if (a === '--ceremony') opts.ceremony = next();
     else if (a === '--multi-record-slug') opts.multiRecordSlug = next();
+    else if (a === '--record-json') opts.recordJson = next();
     else return { error: `unknown argument: ${a}` };
   }
   return opts;
@@ -109,8 +126,32 @@ const realDeps = {
   // answer this itself: it requires the nearest `.git` to be a DIRECTORY,
   // which a linked worktree's `.git` FILE pointer never is by construction.
   isInsideLinkedWorktree: (resolvedPath) => wtDetect.repoInfo(resolvedPath).isLinkedWorktree,
+  // #1210: cwd's OWN worktree membership — distinct from isInsideLinkedWorktree
+  // above, which classifies the resolved --run-dir, not cwd. Returns the
+  // linked worktree's own root (repoInfo's --show-toplevel of cwd, which for
+  // a linked worktree is that worktree's root, never the main checkout) when
+  // cwd sits inside one, or null when cwd is the main checkout itself (or
+  // worktree membership can't be determined).
+  cwdWorktreeRoot: (cwd) => {
+    const info = wtDetect.repoInfo(cwd);
+    return info.isLinkedWorktree ? info.repoRoot : null;
+  },
+  // #1210 follow-up (review finding): the run-dir counterpart of
+  // cwdWorktreeRoot above — the resolved --run-dir's own worktree root. Lets
+  // the guard below tell "run-dir points at cwd's own worktree" (correct, no
+  // rewrite) apart from "run-dir points at a DIFFERENT worktree entirely"
+  // (the same silent stray write as the main-checkout case, just lateral).
+  // Returns null on the same terms as cwdWorktreeRoot.
+  runDirWorktreeRoot: (resolvedPath) => {
+    const info = wtDetect.repoInfo(resolvedPath);
+    return info.isLinkedWorktree ? info.repoRoot : null;
+  },
   mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
   writeFile: (file, content) => fs.writeFileSync(file, content),
+  // #1459: the --record-json read. A plain UTF-8 file read, seamed through
+  // deps like every other filesystem/process touch in this file so tests
+  // never hit the real filesystem for it either.
+  readFile: (file) => fs.readFileSync(file, 'utf8'),
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
 };
@@ -141,26 +182,78 @@ function run(argv, deps = realDeps) {
     // #959: a --run-dir resolving inside a linked worktree is not a shadow —
     // it's the documented route for this CLI's own write (work/{n}-spec.md),
     // which only ever lands under here. See isInsideLinkedWorktree above.
-    if (!deps.isAnchored(resolvedRunDir, mainRoot) && !deps.isInsideLinkedWorktree(resolvedRunDir)) {
+    const anchoredToMain = deps.isAnchored(resolvedRunDir, mainRoot);
+    // Lazy, matching the original short-circuit: anchoredToMain and "inside
+    // a linked worktree" are mutually exclusive by construction (a resolved
+    // path is under the main checkout OR under some worktree, never both),
+    // so isInsideLinkedWorktree is never called when anchoredToMain is
+    // already true — preserves every existing fixture/deps object that,
+    // like this file's own pre-#1210 shape, only ever defines
+    // isInsideLinkedWorktree for the anchoredToMain:false path.
+    const insideLinkedWorktree = anchoredToMain ? false : deps.isInsideLinkedWorktree(resolvedRunDir);
+    if (!anchoredToMain && !insideLinkedWorktree) {
       deps.stderr(`materialize.js: ${wtDetect.unanchoredRunDirShadowMessage(opts.runDir, mainRoot)}\n`);
       return 2;
     }
+    // #1210 (+ follow-up, same review pass): both checks above pass without
+    // ever asking whether the run-dir points at cwd's OWN worktree. When cwd
+    // sits inside a linked worktree and the run-dir resolves anywhere else —
+    // the main checkout (a caller passing the ordinary $PIPELINE_RUN_DIR
+    // shape unmodified from inside a worktree) or a different worktree (a
+    // stale/foreign run dir from another worktree session) — writing there is
+    // exactly the silent stray write materialize.md's own worktree-first-
+    // ordering prose warns against; that ordering requires the write to land
+    // on the feature branch instead. Rewrite the target to cwd's own
+    // worktree-local equivalent (same run-id, same relative structure).
+    const cwdWorktreeRoot = deps.cwdWorktreeRoot(cwd);
+    if (cwdWorktreeRoot) {
+      // Past the guard above, !anchoredToMain implies insideLinkedWorktree,
+      // so the run-dir is anchored under exactly one of these two roots.
+      const sourceRoot = anchoredToMain ? mainRoot : deps.runDirWorktreeRoot(resolvedRunDir);
+      if (sourceRoot && sourceRoot !== cwdWorktreeRoot) {
+        const rewritten = path.join(cwdWorktreeRoot, path.relative(sourceRoot, resolvedRunDir));
+        const whereItResolves = anchoredToMain
+          ? `resolves to the main checkout (${sourceRoot})`
+          : `resolves inside a different worktree (${sourceRoot})`;
+        deps.stderr(
+          `materialize.js: --run-dir ${opts.runDir} ${whereItResolves} but cwd is `
+          + `inside worktree ${cwdWorktreeRoot} — writing to the worktree-local equivalent (${rewritten}) instead.\n`,
+        );
+        opts.runDir = rewritten;
+      }
+    }
   }
   if (opts.ceremony && opts.ceremony !== 'fast-lane' && opts.ceremony !== 'standard') { deps.stderr('--ceremony must be fast-lane or standard\n' + USAGE); return 2; }
-  if (!deps.ghAvailable()) { deps.stderr('materialize.js: `gh` is required (work-backend: github-issues)\n'); return 2; }
-
-  let remote = null;
-  if (!opts.repo) { try { remote = deps.remoteUrl(); } catch { remote = null; } }
-  const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(remote);
-  if (!repoSpec) { deps.stderr('materialize.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
-  const { owner, repo } = repoSpec;
 
   let record;
-  try {
-    record = JSON.parse(deps.ghView(owner, repo, opts.n));
-  } catch (err) {
-    deps.stderr(`materialize.js: Record #${opts.n} could not be resolved (\`gh issue view ${opts.n}\` failed — check the issue exists in this repo). ${err && err.message ? err.message : ''}\n`);
-    return 2;
+  if (opts.recordJson) {
+    // #1459: the gh-absent path — deps.ghAvailable()/deps.ghView() are never
+    // consulted here, and no owner/repo resolution is needed since nothing
+    // downstream of this branch calls gh.
+    try {
+      record = JSON.parse(deps.readFile(opts.recordJson));
+    } catch (err) {
+      deps.stderr(`materialize.js: Record #${opts.n} could not be resolved (--record-json ${opts.recordJson} could not be read or parsed). ${err && err.message ? err.message : ''}\n`);
+      return 2;
+    }
+  } else {
+    if (!deps.ghAvailable()) {
+      deps.stderr('materialize.js: `gh` is required (work-backend: github-issues) — or pass --record-json <path> to supply an already-fetched record\n');
+      return 2;
+    }
+
+    let remote = null;
+    if (!opts.repo) { try { remote = deps.remoteUrl(); } catch { remote = null; } }
+    const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(remote);
+    if (!repoSpec) { deps.stderr('materialize.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
+    const { owner, repo } = repoSpec;
+
+    try {
+      record = JSON.parse(deps.ghView(owner, repo, opts.n));
+    } catch (err) {
+      deps.stderr(`materialize.js: Record #${opts.n} could not be resolved (\`gh issue view ${opts.n}\` failed — check the issue exists in this repo). ${err && err.message ? err.message : ''}\n`);
+      return 2;
+    }
   }
 
   const gate = shapeGate(record.body);

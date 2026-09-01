@@ -35,7 +35,7 @@ If a spec number was provided, read the spec file and verify the implementation 
    spec (the same materialized file this step already reads — no separate fetch) for unresolved
    risk markers left over from `/claude-tweaks:specify`: Gotchas bullets whose validation status
    is not "validated" (contains "unvalidated," "assumed," or "unconfirmed" —
-   `shaping-mode.md`'s framing-check fold), inline `<!-- ambiguity: ... -->` markers
+   `shaping-mode-stamping.md`'s framing-check fold, #1346's split of `shaping-mode.md`), inline `<!-- ambiguity: ... -->` markers
    (`red-team.md`'s per-sentence write-back), and `## Open Questions` rows (`red-team.md`'s
    general-finding table). For each marker found, independently verify it against the artifact's
    real external validator/schema/tool — **a structural or syntax check alone (e.g. "the config
@@ -258,7 +258,7 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 
 **When this step runs:**
 - **Code mode:** Delegate to `/claude-tweaks:visual-review --mode=recommendation` — it detects UI changes via `git diff` and identifies affected journeys, returning a structured recommendation without opening a browser (no `agent-browser` dependency). Do not stop to ask; note any recommendation in the summary (Step 7). This is `recommendation` mode, not `discover` mode — `discover` actually opens a browser and walks the app, which would contradict this step's "recommendation only, non-blocking" design.
-- **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications.
+- **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications. When the diff has zero UI-file matches (the same trigger-extension check `/claude-tweaks:visual-review` already uses for its own detection), fall back to `--mode=recommendation` instead — same as code mode above — rather than opening a full browser mode on a diff with nothing to visually review.
 
 **Routing (optional):** actionable full-mode visual findings the user wants to action inline route through Step 6.7 below, in one consolidated pass with Step 6.5's design findings — Step 3 Routing has already completed by this point. When the user opts not to action a finding inline, it remains in the Step 7 summary's "Visual Review" section as informational. (`/claude-tweaks:visual-review`'s own Step 5 Boost fix/defer/accept flow does not apply here — it runs only when `/claude-tweaks:visual-review` is standalone and interactive, never when invoked BY `/claude-tweaks:review`.)
 

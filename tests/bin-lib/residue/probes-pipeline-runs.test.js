@@ -153,3 +153,54 @@ test('the flagged remedy is mechanically applicable: archiveRunDir moves a flagg
   const after = probePipelineRuns({ cwd: root });
   assert.deepStrictEqual(after.findings, [], 'the archived dir must no longer be flagged');
 });
+
+// #1328: a status: clean finding must not be auto-archived while a live
+// sibling session still holds its recorded worktree — cross-check against
+// scope.worktrees (git worktree list --porcelain, already resolved by
+// ../scope.js) rather than blindly assigning remedy: 'auto'. Both fixture
+// scope values are constructed directly, per the record's own Acceptance
+// Criteria, rather than shelling out to real git.
+test('#1328: a clean run dir whose recorded worktree is currently locked downgrades to remedy record', () => {
+  const root = makeFixture();
+  const worktreePath = path.join(root, 'locked-worktree');
+  fs.mkdirSync(worktreePath);
+  writeRun(root, '2026-01-01T000000-spec-10', { status: 'clean', worktree: worktreePath });
+
+  const scope = {
+    ran: true,
+    reason: null,
+    worktrees: [
+      { path: worktreePath, branch: 'worktree-dispatch-record-1328', locked: true, lockReason: 'claude session foo (pid 999999999)' },
+    ],
+  };
+  const { findings } = probePipelineRuns({ cwd: root, scope });
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].remedy, 'record');
+  assert.match(findings[0].evidence, /locked/);
+});
+
+test('#1328: a clean run dir whose worktree is null keeps remedy auto (no scope)', () => {
+  const root = makeFixture();
+  writeRun(root, '2026-01-01T000000-spec-11', { status: 'clean' });
+  const { findings } = probePipelineRuns({ cwd: root });
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].remedy, 'auto');
+});
+
+test('#1328: a clean run dir whose worktree does not match any locked scope entry keeps remedy auto', () => {
+  const root = makeFixture();
+  const worktreePath = path.join(root, 'unlocked-worktree');
+  fs.mkdirSync(worktreePath);
+  writeRun(root, '2026-01-01T000000-spec-12', { status: 'clean', worktree: worktreePath });
+
+  const scope = {
+    ran: true,
+    reason: null,
+    worktrees: [
+      { path: worktreePath, branch: 'worktree-dispatch-record-1328', locked: false, lockReason: null },
+    ],
+  };
+  const { findings } = probePipelineRuns({ cwd: root, scope });
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].remedy, 'auto');
+});

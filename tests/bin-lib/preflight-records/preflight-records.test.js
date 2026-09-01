@@ -65,8 +65,8 @@ test('fetchNativeDependencies: one batched aliased GraphQL call, -f owner/repo/q
   assert.doesNotMatch(q, /-F owner=/);
   assert.match(q, /i720: issue\(number:720\)/);
   assert.match(q, /i721: issue\(number:721\)/);
-  assert.deepEqual(deps.get(720), { blockedBy: [700], openBlocker: true });
-  assert.deepEqual(deps.get(721), { blockedBy: [], openBlocker: false });
+  assert.deepEqual(deps.get(720), { blockedBy: [700], openBlocker: true, openBlockerIds: [700] });
+  assert.deepEqual(deps.get(721), { blockedBy: [], openBlocker: false, openBlockerIds: [] });
 });
 
 test('fetchNativeDependencies: a closed-only blockedBy list still reports the numbers, openBlocker false', () => {
@@ -74,7 +74,7 @@ test('fetchNativeDependencies: a closed-only blockedBy list still reports the nu
     data: { repository: { i720: { number: 720, blockedBy: { nodes: [{ number: 700, state: 'CLOSED' }] } } } },
   });
   const deps = fetchNativeDependencies({ numbers: [720], owner: 'a', repo: 'b', runner });
-  assert.deepEqual(deps.get(720), { blockedBy: [700], openBlocker: false });
+  assert.deepEqual(deps.get(720), { blockedBy: [700], openBlocker: false, openBlockerIds: [] });
 });
 
 // A missing `data.repository` (null, or the key absent entirely) must never

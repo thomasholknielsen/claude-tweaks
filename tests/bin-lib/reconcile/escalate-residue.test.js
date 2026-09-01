@@ -39,9 +39,10 @@ test('escalateResidue: no prior issue -> files one via the injected runner, retu
 
 test('escalateResidue: a prior matching issue already exists -> dedup-hit, never files a second one', () => {
   const calls = [];
+  const marker = `<!-- fingerprint: ${residueFingerprint('move-failed', '/x/run-1')} -->`;
   const runner = (args) => {
     calls.push(args);
-    return JSON.stringify([{ number: 42 }]);
+    return JSON.stringify([{ number: 42, title: 'reconcile: move-failed stuck on /x/run-1', body: `body\n${marker}`, createdAt: '2024-01-01T00:00:00Z' }]);
   };
   const result = escalateResidue({ repo: 'o/r', reason: 'move-failed', targetPath: '/x/run-1', count: 3, runner });
   assert.deepEqual(result, { status: 'dedup-hit', number: 42 });

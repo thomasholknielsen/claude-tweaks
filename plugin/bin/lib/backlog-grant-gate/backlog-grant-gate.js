@@ -1,6 +1,6 @@
 // bin/lib/backlog-grant-gate/backlog-grant-gate.js
 //
-// Behind bin/backlog-grant-gate.js — mechanizes skills/backlog/grant-mode.md's
+// Behind bin/backlog-grant-gate.js — mechanizes skills/backlog/refine-headless.md's
 // Step 0 (ceiling gate) through Step 2 Phase A (gates 1-3, pure) as one
 // invocation, reusing evaluateGrantGate/trustRows/machineGrantOutlook
 // directly instead of requiring an agent to hand-compose the ~40-step Bash
@@ -32,7 +32,7 @@ function jsonOut(runner, args) {
 }
 
 // { limit, runner } -> the ready-labeled candidate pool, gh issue view shape
-// (grant-mode.md Step 1's ready fetch). A dedicated, server-side-filtered
+// (refine-headless.md Step 1's ready fetch). A dedicated, server-side-filtered
 // `--label` fetch — deliberately outside the session-scoped snapshot below,
 // the same "stays a dedicated call" exemption `_shared/record-queue-fetch.md`
 // documents for every other `--label`-filtered consumer.
@@ -40,7 +40,7 @@ function fetchReadyCandidates({ limit, runner }) {
   return jsonOut(runner, ['issue', 'list', '--label', 'ready', '--state', 'open', '--json', CANDIDATE_FIELDS, '--limit', String(limit)]);
 }
 
-// (issues, openNumbers) -> candidates surviving grant-mode.md Step 1's cheap
+// (issues, openNumbers) -> candidates surviving refine-headless.md Step 1's cheap
 // pre-pass: agent-filed origin, no existing grant, not already claimed, no
 // open 'Blocked by #N'. Each candidate carries its own parsed `facets`.
 function filterCandidates(issues, openNumbers) {
@@ -120,7 +120,7 @@ function fetchGitLog({ integrationBranch, gitRunner }) {
 }
 
 // candidates (each already carrying `facets`) + policy + trustRowsArray ->
-// [{ number, result }] — grant-mode.md Step 2 Phase A's exact per-candidate
+// [{ number, result }] — refine-headless.md Step 2 Phase A's exact per-candidate
 // evaluateGrantGate call (gates 1-3, pure — grantCheck omitted).
 function computePhaseA({ candidates, policy, trustRowsArray }) {
   const trustVerdicts = new Map((trustRowsArray || []).map((row) => [row.key, row]));
@@ -145,7 +145,7 @@ function computePhaseA({ candidates, policy, trustRowsArray }) {
 //   every call fetches live, same as before this cache existed.
 //
 // Returns the full envelope the CLI prints, and the exact shape
-// skills/backlog/grant-mode.md's Step 1 / Step 2 Phase A tmp files need
+// skills/backlog/refine-headless.md's Step 1 / Step 2 Phase A tmp files need
 // (candidates, trustRows, phaseA) plus the machineGrantOutlook-derived
 // eligible/refused breakdown and a `shortcut` verdict:
 //   - shortcut: 'ceiling-gate'   — Step 0 never cleared; nothing else ran.
@@ -175,7 +175,7 @@ function computeOutlook(policy, fetch) {
 
   // One `--state all` fetch (session-cached) supplies both this run's
   // open-issue set (for the Blocked-by filter below) and the historical
-  // record set trustRows grades — the same single-fetch shape grant-mode.md
+  // record set trustRows grades — the same single-fetch shape refine-headless.md
   // originally derived openNumbers from, never a second bare `--state open`
   // call of its own.
   const allRecords = fetchAllRecords({ limit, runner, sessionId, ttlSeconds });

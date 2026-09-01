@@ -26,6 +26,55 @@ rank shadows a tracked branch's real `@{upstream}` (false-positive divergence wa
 ordinary feature branches), while the narrower policy-then-upstream resolution has no fallback
 for a branch that was never pushed and carries no upstream at all.
 
+## Adopt-or-create
+
+Before any worktree-creation call site decides whether to invoke `EnterWorktree(name=...)` at
+all, resolve whether the session is already inside a linked worktree — superpowers Step 0's own
+check: `GIT_DIR != GIT_COMMON` (via `git rev-parse --git-dir` / `--git-common-dir`), guarded
+against the submodule false-positive (`git rev-parse --show-superproject-working-tree` returning
+a path means "submodule, not worktree" — treat as not-isolated). Every top-level
+worktree-creation call site in this plugin needs this decision, not only this section's callers —
+`EnterWorktree(name=...)` refuses outright when the session is already in a worktree ("Already in
+a worktree session. Pass `path` to switch into another existing worktree, or use `ExitWorktree` to
+leave this one before creating a new worktree."), so any call site that skips this check and
+invokes it anyway from inside an existing worktree fails every time it runs under a
+`worktree-always` project (`docs/incident-log.md`).
+
+**Already isolated:** do not call `EnterWorktree(name=...)` — it will refuse. First run a
+clean-tree precondition check: `git status --porcelain`. Non-empty (dirty) → do not adopt; fall
+through to **Not isolated** below, but via `ExitWorktree(action: "keep")` first (leave the dirty
+worktree on disk untouched — it may hold unrelated in-progress work from earlier in the same
+session) rather than `EnterWorktree(name=...)` alone, since the harness's own "must not already
+be in a worktree session" precondition for `name`-creation still applies until the session
+actually leaves. Empty (clean) → **adopt** the current worktree as this run's workspace: no
+`EXPECTED_BASE` capture applies (there is no separate "branch this worktree starts from" distinct
+from what's already checked out — see Post-creation catch-up's own "no `EXPECTED_BASE` to
+capture" case, which already documents skipping just the `EXPECTED_BASE`-specific merge below
+while the origin-relative fetch+merge still runs on its own). The adopt path still runs
+Post-creation catch-up's `git fetch origin {integration-branch}` / `git merge
+origin/{integration-branch}` unconditionally — that half protects the "worktree fell behind"
+direction regardless of how old the adopted worktree is, exactly as this file's own text already
+states ("never assumed already-satisfied just because the worktree is brand new" applies with
+equal force to a worktree that is *not* brand new). The caller records the actual current branch
+name for anything downstream that reports or acts on it — never assume its own naming convention
+(e.g. a call site that would otherwise mint `flow/spec-{N1}-{N2}...`) was applied; nothing renames
+the branch, since a rename could break an already-open PR on a worktree left over from unrelated
+prior work in the same session.
+
+**Not isolated:** create normally — proceed to Pre-creation reconcile and Post-creation catch-up
+below, unchanged (`EnterWorktree(name=...)`).
+
+**Idempotent.** The adopt branch is a pure detection-plus-skip with no state mutation beyond
+recording the current branch name, so re-invoking this gate a second time within the same session
+(e.g. a later step in the same pipeline re-checking) produces the same outcome both times.
+
+**Not the same problem as `dispatch/sequential-execution.md`'s `#447` handling.** `#447` covers a
+dispatching session that is itself a Task-tool subagent, cwd-*pinned* by its own launcher — it
+cannot move its cwd at all, so it falls back to a raw `git worktree add` plus explicit
+`cd`-prefixed commands for every downstream call, since cwd inheritance is unavailable there. This
+section is for a session that *could* move its cwd via `EnterWorktree` but is already elsewhere
+when the decision point is reached. The two stay separate procedures — do not merge them.
+
 ## Pre-creation reconcile
 
 Before any worktree-creation call (`EnterWorktree` or `git worktree add`), fast-forward the

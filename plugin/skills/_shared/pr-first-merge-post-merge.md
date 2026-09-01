@@ -96,12 +96,22 @@ unavailable — {reason}`; it is never a reason to report anything other than `m
 ### Step 4.2: Reconcile
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile --checks mirror,release,archive
 ```
 
-Fast-forwards the mirror (the local integration branch — "mirror" and "local main" name the same
-object; this file uses "mirror" throughout since that is `bin/lib/reconcile`'s own term),
-releases the claim, and archives the run dir. This is convergent cleanup, not owed — a failure
+Run with an explicit, generous timeout (150000ms+) so it stays foreground rather than
+auto-backgrounding on the harness's default command timeout (#1543 — a full unscoped sweep here
+was observed taking ~2 minutes, at or past that default, twice tripping it in one dispatch
+firing and once stranding a firing whose one-shot turn ended waiting on the backgrounded call).
+
+`--checks mirror,release,archive` scopes the sweep to exactly what this step needs — the full
+`ALL_CHECKS` default also runs `red-tip`/`reap`/`archive-branches`/`remote-prune`/`console`, none
+of which this step's own next paragraph describes needing, and `remote-prune`'s inclusion is what
+forces the full `--prune all-refs` fetch (`shared-fetch.js`) instead of the single-ref fetch a
+`mirror`-only request uses. Fast-forwards the mirror (the local integration branch — "mirror" and
+"local main" name the same object; this file uses "mirror" throughout since that is
+`bin/lib/reconcile`'s own term), releases the claim, and archives the run dir. This is convergent
+cleanup, not owed — a failure
 here (network, `gh` blip) is logged and left for the next trigger point, never retried inline and
 never a reason to report anything other than `merged`. **No `git merge`, `git commit`, or
 `git push` runs in the main checkout anywhere in this procedure** — the reconciler's own

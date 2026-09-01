@@ -22,8 +22,14 @@ const { execFileSync } = require('child_process');
 const { normalizeText, fingerprintFromBasis } = require('../health-core/fingerprint');
 const { findByMarker } = require('../issues/dedup-lookup');
 
+// Node's execFileSync default maxBuffer (1MB) overflows on findDuplicate's
+// unscoped `--state all` full-body list against a repo with 1,500+ issues
+// (#1564) — every gh call here shares this raised ceiling since the create/
+// view calls' own output is always small.
+const GH_MAX_BUFFER = 64 * 1024 * 1024;
+
 function defaultRunner(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: GH_MAX_BUFFER });
 }
 
 // Same shape as bin/lib/issues/link.js's errorText — a runner may throw a
@@ -130,10 +136,15 @@ function fingerprintMarker(fingerprint) {
 // placeholder line as part of the human-readable preview — possibly the
 // literal `[object Object]` bug text if drafted before this fix. Never trust
 // that incoming value: replace the line wholesale if present, else append it.
+// #1435: the replacement must be a function, not the literal `line` string —
+// String.replace's string-replacement grammar treats a raw `$`-prefixed
+// sequence in that argument as a splice directive ($` = "everything before
+// the match"), not literal text. `line` is always a hex fingerprint today
+// (no `$`), but the function form costs nothing and removes the trap.
 function embedFingerprint(body, fingerprint) {
   const line = fingerprintMarker(fingerprint);
   const marker = /<!-- fingerprint:[^\n]*-->/;
-  if (marker.test(String(body))) return String(body).replace(marker, line);
+  if (marker.test(String(body))) return String(body).replace(marker, () => line);
   const sep = String(body).endsWith('\n') ? '' : '\n';
   return `${body}${sep}${line}\n`;
 }
@@ -236,6 +247,7 @@ function fileOne({ repo, draft, runner = defaultRunner, bodyFile, writeFile = fs
 
 module.exports = {
   defaultRunner,
+  GH_MAX_BUFFER,
   errorText,
   isTransientFailure,
   withTransientRetry,

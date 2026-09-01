@@ -78,6 +78,20 @@ until a real instance is found: a live run directory under `.claude-tweaks/pipel
 issue via `gh issue view`, or this session's own transcript per the procedure above. A fixture
 built to satisfy the code is worth less than one sampled from the world.
 
+**The sharpest form: a fixture standing in for the producer the bug lives in.** A hand-built
+stand-in for one component's output is a claim about how that *producer* behaves — so when the
+defect is in the producer, the test cannot see it: it passes identically before and after the
+fix. Record #1410's `resolveRun` fix (`plugin/bin/lib/hooks/context.js`) is the instance. The
+contaminated `events.jsonl` entry came from `resolveRun` guessing a concurrent sibling
+worktree's run dir, and the obvious test for it — hand-build a `ctx.ownedRun` and feed it to
+`post-tool-use.js`'s `logAskUserQuestion` — would have exercised only the consumer and stayed
+green through the entire bug. The shipped test in
+`tests/hooks-post-tool-use-ask-user-question.test.js` instead calls the real `resolveRun`
+against real `gitRepo()`/`linkedWorktreeOf()` worktrees and pipes its actual return value into
+the consumer, reproducing the full path the bad entry travelled. So before hand-building any
+input, ask which component produced it in the incident being pinned — if that component is the
+suspect, the fixture must be its real output, not your model of it.
+
 ## When to use
 
 - Implementing a hook handler, integration, or any code that parses a tool's input/output payload

@@ -17,6 +17,13 @@ const DECOMPOSITION_MODE = 'plugin/skills/specify/decomposition-mode.md';
 const DECOMPOSITION_CLOSEOUT = 'plugin/skills/specify/decomposition-mode-closeout.md';
 const COLLAPSE_DECISION = 'plugin/skills/specify/collapse-decision.md';
 const RECORD_CREATION = 'plugin/skills/specify/record-creation.md';
+// #1346 split record-creation.md at the Step 3 Parent record/Sub-issues boundary and the
+// Step 3/Step 4 boundary. Sub-issues content (Origin-set carve-out, the sub-issue `Parent:`
+// line, Type derivation) landed in record-creation-subissues.md; Step 4 content (Related:
+// cross-link format, Decision Rationale, Cross-Spec Promises) landed in
+// record-creation-linking.md.
+const RECORD_CREATION_SUBISSUES = 'plugin/skills/specify/record-creation-subissues.md';
+const RECORD_CREATION_LINKING = 'plugin/skills/specify/record-creation-linking.md';
 const SKILL = 'plugin/skills/specify/SKILL.md';
 
 // --- decomposition-mode.md: the collapse step itself ---
@@ -77,7 +84,7 @@ test('Step 9 summary template names the collapse outcome', () => {
 // --- the retired "exactly one parent every run" premise ---
 
 test('the "exactly one parent" premise sentence is gone from every specify file', () => {
-  for (const rel of [DECOMPOSITION_MODE, DECOMPOSITION_CLOSEOUT, COLLAPSE_DECISION, RECORD_CREATION, SKILL]) {
+  for (const rel of [DECOMPOSITION_MODE, DECOMPOSITION_CLOSEOUT, COLLAPSE_DECISION, RECORD_CREATION, RECORD_CREATION_SUBISSUES, RECORD_CREATION_LINKING, SKILL]) {
     assert.doesNotMatch(read(rel), /exactly one parent/i, `${rel} still contains "exactly one parent"`);
   }
 });
@@ -90,6 +97,8 @@ test('the spec\'s AC#2 phrase-absence check: "one parent per decomposition" is g
   // drafted `/exactly one parent/i` pattern (which never matched record-creation.md's actual
   // wording in the first place).
   assert.doesNotMatch(read(RECORD_CREATION), /one parent per decomposition/i);
+  assert.doesNotMatch(read(RECORD_CREATION_SUBISSUES), /one parent per decomposition/i);
+  assert.doesNotMatch(read(RECORD_CREATION_LINKING), /one parent per decomposition/i);
 });
 
 // --- record-creation.md: conditional Parent record section ---
@@ -99,13 +108,13 @@ test('record-creation.md\'s Parent record section is conditional on the collapse
   assert.match(text, /[Ss]kip this whole section entirely when Step 2\.6/);
 });
 
-test('record-creation.md\'s sub-issue Parent: line is conditional', () => {
-  const text = read(RECORD_CREATION);
+test('record-creation-subissues.md\'s sub-issue Parent: line is conditional', () => {
+  const text = read(RECORD_CREATION_SUBISSUES);
   assert.match(text, /only when Step 2\.6 kept the parent, also prefix `Parent: #\$PARENT_NUM`/);
 });
 
-test('record-creation.md defines the uniform Related: cross-link format for independent 2-unit collapse', () => {
-  const text = read(RECORD_CREATION);
+test('record-creation-linking.md defines the uniform Related: cross-link format for independent 2-unit collapse', () => {
+  const text = read(RECORD_CREATION_LINKING);
   // The repo-canonical form is BOLDED (`capture/SKILL.md`'s body template,
   // `/backlog refine`'s in-place replace) — an unbolded line would fork the
   // convention and make refine append a competing second Related line.
@@ -117,7 +126,7 @@ test('record-creation.md defines the uniform Related: cross-link format for inde
 test('the Related: cross-link is written as a post-create edit in Step 4, not before the create call', () => {
   // Finding 1: each line names the other record's number, which does not exist
   // until that record is created — a pre-create append is unexecutable.
-  const text = read(RECORD_CREATION);
+  const text = read(RECORD_CREATION_LINKING);
   assert.match(text, /post-create edit inside this Step 4 pass/);
   assert.doesNotMatch(text, /before its create call/, 'the impossible pre-create instruction must be gone');
 });
@@ -171,18 +180,21 @@ test('Step 2.6 Collapse Decision appears between Implicit Dependency Detection a
 // --- the conditional "parent-first" sentences (Tasks 2-3's core deliverable) ---
 
 test('both files state parent-first ordering conditionally on the collapse decision', () => {
-  const dm = read(DECOMPOSITION_MODE);
+  // Step 3 ("Create the records") moved from decomposition-mode.md to
+  // decomposition-mode-closeout.md as part of #832's interactive/mechanical
+  // split — this sentence is Step 3's own opening line, so it moved with it.
+  const dc = read(DECOMPOSITION_CLOSEOUT);
   const rc = read(RECORD_CREATION);
-  assert.match(dm, /When Step 2\.6 kept the parent, records are created \*\*parent-first\*\*/);
-  assert.match(dm, /Under collapse \(Step 2\.6\), there is no parent — every produced record is created independently/);
+  assert.match(dc, /When Step 2\.6 kept the parent, records are created \*\*parent-first\*\*/);
+  assert.match(dc, /Under collapse \(Step 2\.6\), there is no parent — every produced record is created independently/);
   assert.match(rc, /When `decomposition-mode\.md`'s Step 2\.6 kept the parent, records are created \*\*parent-first\*\*/);
   assert.match(rc, /Under collapse, there is no parent — every produced record is created independently/);
 });
 
 // --- the 1-unit origin-set write point (finding 2: the write lands at Step 3) ---
 
-test('record-creation.md carries the origin-set carve-out: a 1-unit collapse shapes the origin in place instead of creating', () => {
-  const text = read(RECORD_CREATION);
+test('record-creation-subissues.md carries the origin-set carve-out: a 1-unit collapse shapes the origin in place instead of creating', () => {
+  const text = read(RECORD_CREATION_SUBISSUES);
   assert.match(text, /\*\*Origin-set carve-out \(1-unit collapse\)\.\*\*/);
   assert.match(text, /that unit gets \*\*no fresh create\*\*/);
   assert.match(text, /Treat `\$ORIGIN_RECORD_NUM` as this unit's `\$SUB_ISSUE_NUM`\/`\$SUB_ISSUE_ID`/);
@@ -197,16 +209,16 @@ test('decomposition-mode-closeout.md Step 9\'s 1-unit branch only skips the clos
 
 // --- Type derivation with no parent (finding 3) ---
 
-test('record-creation.md\'s Type derivation has a no-parent branch', () => {
-  const text = read(RECORD_CREATION);
+test('record-creation-subissues.md\'s Type derivation has a no-parent branch', () => {
+  const text = read(RECORD_CREATION_SUBISSUES);
   assert.match(text, /Under collapse there is no parent to match: derive the type from the unit itself/);
   assert.match(text, /keep the origin record's existing type/);
 });
 
 // --- Cross-Spec Promises is unreachable under collapse (spec Deliverable 3) ---
 
-test('record-creation.md notes Cross-Spec Promises is unreachable under collapse by arithmetic', () => {
-  const text = read(RECORD_CREATION);
+test('record-creation-linking.md notes Cross-Spec Promises is unreachable under collapse by arithmetic', () => {
+  const text = read(RECORD_CREATION_LINKING);
   assert.match(text, /unreachable under collapse by arithmetic/);
   assert.match(text, /collapses at most 2 units and this threshold is 4/);
 });
@@ -229,8 +241,8 @@ test('the Actions Performed template has a row for every collapse outcome, inclu
   assert.match(text, /\{2-unit collapse: "Created 2 independent records \(no parent\)/);
 });
 
-test('record-creation.md\'s Decision Rationale has a no-parent fallback', () => {
-  const text = read(RECORD_CREATION);
+test('record-creation-linking.md\'s Decision Rationale has a no-parent fallback', () => {
+  const text = read(RECORD_CREATION_LINKING);
   assert.match(text, /Under collapse, no parent exists to hold it: fold it into each produced record's own body/);
 });
 
@@ -242,7 +254,7 @@ test('the origin-set carve-out preserves the origin body as `## Original request
   // verifies it on read-back; without this clause the 1-unit collapse is the ONE
   // /specify path that destroys the human's original ask — and Step 7 then deletes
   // the design doc, so nothing else retains it.
-  const text = read(RECORD_CREATION);
+  const text = read(RECORD_CREATION_SUBISSUES);
   assert.match(text, /This write replaces the origin's own body, so preserve that body as a `## Original request` block/);
   // The Framing bullet's blanket "sub-issues have no Original request block" claim
   // must not contradict the carve-out it now shares a file with.
@@ -262,7 +274,7 @@ test('spec-template.md\'s canonical `Parent:` field reference is conditional on 
 
 test('every touched specify file remains within the context-cost ceiling', () => {
   const CEILING_BYTES = 40960;
-  for (const rel of [DECOMPOSITION_MODE, DECOMPOSITION_CLOSEOUT, COLLAPSE_DECISION, RECORD_CREATION, SKILL]) {
+  for (const rel of [DECOMPOSITION_MODE, DECOMPOSITION_CLOSEOUT, COLLAPSE_DECISION, RECORD_CREATION, RECORD_CREATION_SUBISSUES, RECORD_CREATION_LINKING, SKILL]) {
     const bytes = fs.statSync(path.join(REPO_ROOT, rel)).size;
     assert.ok(bytes <= CEILING_BYTES, `${rel} is ${bytes} bytes, over the ${CEILING_BYTES} ceiling`);
   }

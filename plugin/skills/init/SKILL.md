@@ -82,13 +82,13 @@ Fast, idempotent structural setup. Creates directories, starter files, and verif
 
 ### Core Bootstrap Version Check (runs before Step 1)
 
-Before running Steps 1-8, read `.claude-tweaks/init-state.yml` (treat as absent if missing or malformed) and compare its `core-bootstrap.plugin-version` against `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `version` field (the same field `/claude-tweaks:help` treats as the sole source of truth) via `bin/lib/changelog.js`'s `compareVersions`. Read `bootstrap/version-check.md` for the exact commands.
+Before running Steps 1-8.5, read `.claude-tweaks/init-state.yml` (treat as absent if missing or malformed) and compare its `core-bootstrap.plugin-version` against `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `version` field (the same field `/claude-tweaks:help` treats as the sole source of truth) via `bin/lib/changelog.js`'s `compareVersions`. Read `bootstrap/version-check.md` for the exact commands.
 
-Marker missing or unreadable → run Steps 1-8 fully, no changelog notice. Marker version equal to (or newer than) the installed version → skip Steps 1-8 entirely and print a one-line confirmation. Marker older → run Steps 1-8 fully, then surface a filtered changelog notice for the version range. The marker-state table, the changelog-notice procedure, and the rule for when the marker itself is written all live in `bootstrap/version-check.md` alongside the commands above — one read covers the whole check.
+Marker missing or unreadable → run Steps 1-8.5 fully, no changelog notice. Marker version equal to (or newer than) the installed version → skip Steps 1-8.5 entirely and print a one-line confirmation. Marker older → run Steps 1-8.5 fully, then surface a filtered changelog notice for the version range. The marker-state table, the changelog-notice procedure, and the rule for when the marker itself is written all live in `bootstrap/version-check.md` alongside the commands above — one read covers the whole check.
 
-**Exception:** an explicitly-named `bootstrap` Phase scope (see `## Input`) always runs Steps 1-8 fully, regardless of the marker — `bootstrap` documents itself as "run Phase 0 only (structure + deps)," and a version-match skip would silently turn an explicit request for exactly that into a near no-op.
+**Exception:** an explicitly-named `bootstrap` Phase scope (see `## Input`) always runs Steps 1-8.5 fully, regardless of the marker — `bootstrap` documents itself as "run Phase 0 only (structure + deps)," and a version-match skip would silently turn an explicit request for exactly that into a near no-op.
 
-**Core Bootstrap (Steps 1–8):**
+**Core Bootstrap (Steps 1–8.5):**
 
 ### Step 1: Check Plugin Dependencies
 
@@ -120,13 +120,17 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 ### Step 8: Statusline & Dependencies
 
-Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap/step-08-statusline-and-dependencies.md` for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
+Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap/step-08-statusline-and-dependencies.md` for the full procedure.
+
+### Step 8.5: Dependency Read-Only Permissions
+
+Seeds a read-only `Read`/`Grep` allowlist for the project's `node_modules` (plus `.pnpm/**` on pnpm workspaces) in `.claude/settings.json`, idempotently — also repairs a missing entry on re-run. Read `bootstrap/step-08-5-dependency-read-permissions.md` for the full procedure.
 
 **Optional Enhancements (Steps 9 onward):** Skipped when `--core-only` is set — every offer below is treated as declined, no prompt shown, and the invocation proceeds straight to whatever runs after Phase 0 (Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset by Enhancement filter tokens — see `## Input`'s token list for the full set and each token's ordering/hard-depends notes.
 
 ### Step 9: Establish GitHub Remote (Optional)
 
-Interactive-only — never runs in `auto`/non-interactive mode. When no git remote is configured at all (any existing remote, GitHub or not, skips this step), offers to get the `gh` CLI installed and authenticated, then offers to create a GitHub repository (personal/org account, confirmed name, private/public) and link it as `origin`. Establishes the remote that Steps 10/14/16/17/20 below each independently check for — declining falls through to existing behavior. Read `bootstrap/step-09-establish-github-remote.md` for the full procedure.
+Interactive-only — never runs in `auto`/non-interactive mode. When no git remote is configured at all (any existing remote, GitHub or not, skips this step), offers to get the `gh` CLI installed and authenticated, then offers to create a GitHub repository and link it as `origin`. Establishes the remote that Steps 10/14/16/17/20 below each independently check for — declining falls through to existing behavior. Read `bootstrap/step-09-establish-github-remote.md` for the full procedure.
 
 ### Step 10: GitHub Issue Form Template (Optional)
 
@@ -146,7 +150,7 @@ When frontend signals are detected and `components.json` doesn't exist (or exist
 
 ### Step 14: Cloud/Routine Parity Setup (Optional)
 
-Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9). Warns on a current-vs-default branch mismatch, declares the plugin set in `.claude/settings.json#enabledPlugins` (what a cloud sandbox may load — not what installs it), generates the committed `scripts/claude-cloud-setup.sh` that actually materializes plugins in a fresh sandbox, and writes the `## Cloud parity` CLAUDE.md section (the dedicated-environment attach offer is deferred to Step 15, once routine selection is known). Runs before Step 15 deliberately — a Routine created first would silently fail its first cloud firing. Idempotent ("already configured"; the branch check itself still runs every time). Read `bootstrap/step-14-cloud-routine-parity.md` for the full procedure.
+Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9). Warns on a current-vs-default branch mismatch, declares the plugin set in `.claude/settings.json#enabledPlugins` (what a cloud sandbox may load — not what installs it), generates the committed `scripts/claude-cloud-setup.sh` that actually materializes plugins in a fresh sandbox, and writes the `## Cloud parity` CLAUDE.md section. Idempotent ("already configured"; the branch check itself still runs every time). Read `bootstrap/step-14-cloud-routine-parity.md` for the full procedure.
 
 ### Step 15: Routine Installation (Optional Companion)
 

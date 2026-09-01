@@ -57,9 +57,16 @@ contains a name matching `/^needs:/`. `work-backend: local-files`: exclude any r
 `needs:decision` is a `github-issues`-only label in this record's scope, with no local-files facet
 to check. Shapes 5.5 and 6 are exempt — 5.5 never mutates anything (it only surfaces a rename
 recommendation), and 6 is a stub pointing at Step 4.8. This is the first of the worklist rule's two
-checks; the narrower same-unit dedup check (skip a record already carrying `/tidy`'s own unresolved
-`needs-decision` comment for an identical proposal) is Phase 6's own scope, once `/tidy` writes
-that marker — out of scope here.
+checks. The second, narrower one — same shape list, `work-backend: github-issues` only (the local
+driver carries no comment mechanism to check): before collecting a finding, read the record's
+`<!-- needs-decision: tidy -->` comments (`_shared/work-record.md`'s Decision-comment template) and
+skip collecting this finding when an UNRESOLVED one (no `**Resolved:**` line) has a `Proposed:` line
+matching this finding's own proposed action, word for word. A comment whose `Proposed:` text names a
+different action never suppresses this finding — only an identical proposal already awaiting the
+same decision does. Only `needs-decision: tidy`-tagged comments are consulted; a comment another
+unit wrote (`backlog-refine`, `backlog-grant`) never suppresses a `/tidy` finding. Writing the
+marker itself — the comment-then-label ordering and the repair rule for a label with no matching
+comment — is `decision-markers.md`'s scope, cited from Phase 6, not restated here.
 
 ### Shape 1 — backlog record stale
 

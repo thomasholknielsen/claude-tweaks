@@ -6,6 +6,7 @@
 'use strict';
 
 const { execFileSync } = require('child_process');
+const { writeFileAtomic } = require('../atomic-write');
 
 function gitInfo(execImpl = execFileSync) {
   let sha = null;
@@ -55,4 +56,8 @@ function composeReport({ checks, startedAt, durationMs, git, testCountRegression
   return report;
 }
 
-module.exports = { gitInfo, composeReport };
+function writeReportAtomic(report, jsonPath, deps = {}) {
+  writeFileAtomic(jsonPath, `${JSON.stringify(report, null, 2)}\n`, deps);
+}
+
+module.exports = { gitInfo, composeReport, writeReportAtomic };

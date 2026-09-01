@@ -1,11 +1,25 @@
-# Specify — Decomposition Mode, Steps 5-9 (red-team through completion)
+# Specify — Decomposition Mode, Steps 3-9 (record creation through completion)
 
-Continues `decomposition-mode.md` in this same directory — that file's Steps 1-4 create the
-parent and sub-issue records and wire their relationships; this file picks up from there: the
-multi-persona red-team pass, self-review, deletion of the consumed design doc, and the Step 9
-summary/commit. Step numbering matches `decomposition-mode.md`'s own numbering exactly (Steps
-1-9 together, unchanged across the split — #611), so a cross-reference naming a step by number
-still resolves regardless of which of the two files it lands in.
+Continues `decomposition-mode.md` in this same directory — that file's interactive Steps 1, 2,
+2.6, 2.5, and 2.5d resolve the decomposition shape, the collapse decision, and (for frontend
+specs) design intent. This file picks up from there: record creation, linking, the multi-persona
+red-team pass, self-review, deletion of the consumed design doc, and the Step 9 summary/commit —
+every step from here on is mechanical, safe for a subagent dispatched via `mechanical-handoff.md`'s
+canonical dispatch prompt to run unattended having read only this file. Step numbering matches
+`decomposition-mode.md`'s own numbering exactly (Steps 1-9 together, unchanged across the split —
+originally #611's Step 4/5 boundary, moved to the interactive/mechanical boundary at #832), so a
+cross-reference naming a step by number still resolves regardless of which of the two files it
+lands in.
+
+---
+
+## Step 3: Create the records
+
+When Step 2.6 kept the parent, records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Under collapse (Step 2.6), there is no parent — every produced record is created independently, using deterministic fingerprints for idempotent resume across partial or concurrent runs exactly as today. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the Idempotency (resume path) map and Parent record creation (skipped under collapse), then `record-creation-subissues.md` (#1346's split) for Sub-issue creation — including the origin-set carve-out where a 1-unit collapse's "create" is an in-place write onto the origin record (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
+
+## Step 4: Link and order
+
+Every record this run is going to create now has a number (a parent's, under a kept parent; every unit's own, under collapse). This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it. Read `record-creation-linking.md` in this skill's directory (#1346's split of `record-creation.md`) for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
 
 ---
 
@@ -85,6 +99,9 @@ Present a summary. The `Collapse outcome` line below renders in every decomposit
 ### Artifacts Removed
 - Design doc: `docs/superpowers/specs/{filename}` (absorbed into the records this run produced)
 
+### Teardown (optional — render only when the check below finds the branch net-empty)
+{one paste-ready line, see below}
+
 ### Diagram suggestions (optional — render only when Step 2.5d emitted any)
 - {one or two `**Diagram suggestion:** …` blocks emitted by Step 2.5d}
 ```
@@ -94,7 +111,7 @@ Present a summary. The `Collapse outcome` line below renders in every decomposit
 **`needs:definition` origin closure.** When `$ORIGIN_RECORD_NUM` is set (this run was reached via the `needs:definition` redirect — `specify/SKILL.md`'s Resolve-the-input case 1), what happens to the origin record depends on this run's collapse decision (Step 2.6):
 
 - **Parent kept, or 2-unit collapse** — every unit this run produced is a record distinct from the origin. Close the origin now, using the same number list the Work Units Created table above already assembled: post a comment on `$ORIGIN_RECORD_NUM` in that table's own list format, "Superseded by decomposition: #{ref1}, #{ref2}, ..." (`work-backend: github-issues`: `gh issue comment "$ORIGIN_RECORD_NUM" --body "..."` then `gh issue close "$ORIGIN_RECORD_NUM"`; `local-files`: append the note to the record body and mark it closed via `local-store.js`). This is unchanged from before collapse existed, for the parent-kept case; the 2-unit-collapse case closes the origin the identical way, just naming two ordinary records instead of a parent plus two leaves.
-- **1-unit collapse** — the single work unit and the origin are the same thing, so there is no second record to point the origin at and **this step closes nothing**. Step 3 already ran its origin-set carve-out to shape the origin record in place as that unit's own create — body plus `{design-doc-slug}:{unit-slug}` fingerprint, `record-creation.md`'s Sub-issues section — so Steps 4-7 all ran against a real, existing record. The origin is never closed in this branch; it lives on, now shaped.
+- **1-unit collapse** — the single work unit and the origin are the same thing, so there is no second record to point the origin at and **this step closes nothing**. Step 3 already ran its origin-set carve-out to shape the origin record in place as that unit's own create — body plus `{design-doc-slug}:{unit-slug}` fingerprint, `record-creation-subissues.md`'s Sub-issues section (#1346's split of `record-creation.md`) — so Steps 4-7 all ran against a real, existing record. The origin is never closed in this branch; it lives on, now shaped.
 
 When `$ORIGIN_RECORD_NUM` is unset (every other entry path — cases 2-5), this whole paragraph is a no-op, unchanged from before.
 
@@ -115,3 +132,5 @@ git log --oneline -1   # verify it landed when a commit was made (see _shared/gi
 ```
 
 By the time Next Actions renders, any commit from this step has already happened.
+
+**Net-empty teardown line (#613).** Once the commit above lands (or confirms nothing to stage), check whether this run's own design-doc deletion left the current branch net-empty vs. its own fork point — the canonical shape when a scratch worktree/branch existed only to carry the design doc through decomposition, invisible to `/tidy`'s merged-only worktree scan (`tidy/scan-procedures.md`'s net-empty override, `tidy/step-6-auto.md`'s Delete row). Run the same check `tidy/step-6-auto.md`'s "Net-empty branches (#613)" section defines, canonically, for the paired case — that section, not this one, is the statement of record for the procedure (`_shared/integration-branch.md`-resolved `{base}`, `git diff --quiet "$(git merge-base {base} HEAD)" HEAD`, and a `merge-base` failure falling through as non-zero, never mistaken for net-empty) — applied here with `HEAD` standing in for `{branch}`. Exit 0 (no diff) → render the Teardown section above with one paste-ready line: `git branch -D {branch}` when this run ran directly on the checkout, or `git worktree remove {worktree-path} && git branch -D {branch}` when it ran inside a linked worktree (detect via `worktree-detect.js`'s `isLinkedWorktree`, `_shared/integration-branch.md` rank 5's snippet). Never run this line — Step 9 only prints it. Non-zero (real content) → omit the Teardown section entirely.

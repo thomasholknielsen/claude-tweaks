@@ -7,6 +7,8 @@ const path = require('node:path');
 const CONTRACT = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'visual-decision.md');
 const TEMPLATE = path.join(__dirname, '..', 'plugin', 'skills', 'design-wrapper', 'compare-shell', 'template.html');
 const EXPLORE = path.join(__dirname, '..', 'plugin', 'skills', 'design-wrapper', 'modes', 'explore.md');
+const DEMO = path.join(__dirname, '..', 'plugin', 'skills', 'demo', 'SKILL.md');
+const BROWSER_REVIEW = path.join(__dirname, '..', 'plugin', 'skills', 'visual-review', 'browser-review.md');
 
 const EVENT_SHAPES = ['pick', 'reroll', 'steer', 'tweak', 'exit'];
 
@@ -85,6 +87,30 @@ test('AC5/AC1: modes/explore.md cites the contract and never restates the event 
   }
 });
 
+test('#1208 AC3: demo/SKILL.md cites the contract and never restates the event JSON shapes', () => {
+  const demoText = readNonTombstone(DEMO);
+  assert.match(demoText, /_shared\/visual-decision\.md/);
+  for (const shape of EVENT_SHAPES) {
+    assert.equal(
+      demoText.includes(`"type":"${shape}"`),
+      false,
+      `demo/SKILL.md restates the "${shape}" event shape literal — it must only cite the contract`,
+    );
+  }
+});
+
+test('#1208 AC3: visual-review/browser-review.md cites the contract and never restates the event JSON shapes', () => {
+  const browserReviewText = readNonTombstone(BROWSER_REVIEW);
+  assert.match(browserReviewText, /_shared\/visual-decision\.md/);
+  for (const shape of EVENT_SHAPES) {
+    assert.equal(
+      browserReviewText.includes(`"type":"${shape}"`),
+      false,
+      `browser-review.md restates the "${shape}" event shape literal — it must only cite the contract`,
+    );
+  }
+});
+
 test('AC2: explore.md no longer cites dev-url-detection\'s Ephemeral server start for Compare serving', () => {
   const exploreText = readNonTombstone(EXPLORE);
   assert.equal(exploreText.includes('dev-url-detection'), false);
@@ -144,11 +170,15 @@ test('#1207 finding 1: explore.md documents a fifth Verdict branch for tweak, wi
   assert.equal(exploreText.includes('"type":"tweak"'), false);
 });
 
-test('#1207 finding 2: the contract states the judged candidate is deliberately never restyled (sandboxed iframe), not merely "only how it renders"', () => {
+test('#1207 finding 2 (superseded by #1336): the contract still names the sandboxed-iframe boundary; restyling the judged candidate is now opt-in rather than never', () => {
   const text = readNonTombstone(CONTRACT);
   assert.match(text, /allow-scripts/);
   assert.match(text, /allow-same-origin/);
-  assert.match(text, /deliberate scope\s*\n?\s*boundary, not a gap/);
+  // #1336 replaced the old absolute "never restyles the judged candidate
+  // itself" claim with a postMessage opt-in convention — the sandbox
+  // boundary itself (no allow-same-origin) is still asserted above; only
+  // the "restyled or not" claim changed from absolute to conditional.
+  assert.match(text, /opt-in per candidate/i);
   assert.equal(
     text.includes('it never changes which variant is selected, only how the currently-focused one renders'),
     false,

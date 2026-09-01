@@ -49,7 +49,7 @@ test('dispatch/SKILL.md argument-hint drops --claim-only', () => {
     .find((l) => l.startsWith('argument-hint:'));
   assert.ok(hintLine, 'argument-hint line should exist');
   assert.doesNotMatch(hintLine, /claim-only/);
-  assert.match(hintLine, /--batch-size/);
+  assert.match(hintLine, /--budget/);
 });
 
 test('task-prompt.md first template no longer claims "already-claimed"; second still does', () => {
@@ -59,8 +59,14 @@ test('task-prompt.md first template no longer claims "already-claimed"; second s
   assert.match(content, /Execute claude-tweaks review\+polish\+wrap-up for this already-claimed/);
 });
 
-test('task-prompt.md documents DISPATCH_HEADLESS for next-form firings', () => {
+test('task-prompt.md documents DISPATCH_HEADLESS for headless firings', () => {
   assert.match(read('plugin/skills/dispatch/task-prompt.md'), /DISPATCH_HEADLESS/);
+});
+
+test('task-prompt.md keys DISPATCH_HEADLESS on Routine-fired presence, not the next form (refs #1492)', () => {
+  const content = read('plugin/skills/dispatch/task-prompt.md');
+  assert.match(content, /Add it when this firing came from a scheduled Routine/);
+  assert.doesNotMatch(content, /Add it only when the dispatching session's own firing was `next`-form/);
 });
 
 test('_shared/headless-self-report.md documents the Step 2.8 contest trigger', () => {
@@ -72,6 +78,54 @@ test('settle-and-merge.md documents the claim-contest special case', () => {
   const content = read('plugin/skills/dispatch/settle-and-merge.md');
   assert.match(content, /Claim-contest special case/);
   assert.match(content, /DISPATCH_HEADLESS/);
+});
+
+test('issue-claims.md "The lock" step 4 checks for an in-flight PR before a tombstone/stale reclaim (#315, #974)', () => {
+  const content = read('plugin/skills/_shared/issue-claims.md');
+  const step4Start = content.indexOf("4. **`state: 'tombstone'` or `'stale'`**");
+  assert.ok(step4Start !== -1, 'step 4 heading should exist');
+  const step5Start = content.indexOf("5. **`state: 'live'`**", step4Start);
+  assert.ok(step5Start !== -1, "step 5 heading should exist after step 4");
+  const step4 = content.slice(step4Start, step5Start);
+  assert.match(step4, /pr-opened:/);
+  assert.match(step4, /mcp__github__pull_request_read/);
+  assert.match(step4, /OPEN/);
+  assert.match(step4, /fail-open/);
+});
+
+test('claim-targets.md in-flight card routes into resume-confirmation.md, gated on DISPATCH_HEADLESS (#958)', () => {
+  const content = read('plugin/skills/flow/claim-targets.md');
+  const cardStart = content.indexOf('## Flow: Claim in-flight');
+  assert.ok(cardStart !== -1, 'in-flight card region should exist');
+  const sectionEnd = content.indexOf('\n- **4** —', cardStart);
+  assert.ok(sectionEnd !== -1, 'in-flight section should end before the exit-4 bullet');
+  const section = content.slice(cardStart, sectionEnd);
+  // The stale "Known gap ... unimplemented" framing must be gone, replaced by an actual route.
+  assert.doesNotMatch(section, /Known gap/);
+  assert.doesNotMatch(section, /hook-in is unimplemented/);
+  assert.match(section, /DISPATCH_HEADLESS/);
+  assert.match(section, /dispatch\/resume-confirmation\.md/);
+  assert.match(section, /claude-tweaks-run: \{run-id\}/);
+  assert.match(section, /check-resume-freshness/);
+});
+
+test('resume-confirmation.md documents claim-targets.md as a second caller (#958)', () => {
+  const content = read('plugin/skills/dispatch/resume-confirmation.md');
+  assert.match(content, /flow\/claim-targets\.md/);
+  assert.match(content, /#958/);
+});
+
+test('settle-and-merge.md Claim-contest special case also covers the Claim in-flight stop, with a distinct failing-check-name (review finding, #958)', () => {
+  const content = read('plugin/skills/dispatch/settle-and-merge.md');
+  const sectionStart = content.indexOf('**Claim-contest special case');
+  assert.ok(sectionStart !== -1, 'Claim-contest special case section should exist');
+  const sectionEnd = content.indexOf('\n1. The CLI in step 2', sectionStart);
+  assert.ok(sectionEnd !== -1, 'special-case section should end before the numbered steps');
+  const section = content.slice(sectionStart, sectionEnd);
+  assert.match(section, /Claim in-flight/);
+  assert.match(section, /flow-step-2\.8-claim-in-flight/);
+  // both failing-check-names must be distinct and both present
+  assert.match(section, /flow-step-2\.8-claim-contest/);
 });
 
 test('mcp-transport.md no longer carries claim-write sections', () => {
