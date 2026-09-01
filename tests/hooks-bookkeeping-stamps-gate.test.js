@@ -571,6 +571,54 @@ test('bookkeeping-stamps gate (I2.2): one in-project git target is enough to kee
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+test('bookkeeping-stamps gate (I2.3, #1678): an Edit to a path outside any git repo at all (a session scratchpad) is not this run\'s business -> allow', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  // A plain mkdtemp dir with no `git init` — provably outside any git repo,
+  // the same shape as a Claude Code session scratchpad directory
+  // (/private/tmp/claude-<uid>/<slug>/<session-id>/scratchpad/**).
+  const scratchpad = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(path.join(scratchpad, 'pr-body.md')),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.deepStrictEqual(out, {}, 'a Write whose target is outside any git repo must not be denied by this run\'s bookkeeping gate');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678): an Edit to a path inside an unrelated repository is not this run\'s business -> allow', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const foreign = gitRepo();
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(path.join(foreign, 'notes.md')),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.deepStrictEqual(out, {}, 'a Write whose target is inside an unrelated repository must not be denied by this run\'s bookkeeping gate');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678): control — an Edit whose target is inside THIS run\'s own worktree still denies (scoping narrows, it does not disable, the gate)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.ok(out.json, 'expected a deny — the target is this run\'s own worktree, unchanged from existing behavior');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 // --- I3: integration-model comes from the run's own pin, not a fresh detection ---
 
 test('bookkeeping-stamps gate (I3): the run\'s config.yml pin is read — pinned pr-first denies even with no forge detectable', () => {

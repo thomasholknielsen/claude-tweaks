@@ -1177,6 +1177,33 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
       if (!ownsATarget) return {};
     }
   }
+
+  // Foreign-target scoping for the file-tool branch (#1678): an
+  // Edit/Write/NotebookEdit whose OWN target path resolves outside any git
+  // repository at all (a session scratchpad, e.g. under
+  // /private/tmp/claude-*/.../scratchpad/**) — or inside an unrelated repo
+  // entirely — is not this run's implementation work, mirroring the
+  // Foreign-repos rule the isGitWrite branch already applies above. The
+  // isFileTool branch previously gated on `ctx.cwd` (the calling session)
+  // being inside a linked worktree, with no check that the write's own
+  // TARGET was anywhere near that worktree — this closes that gap. Fails
+  // CLOSED on an unprovable target (`indeterminate: true`), matching every
+  // other file-tool exemption in this file (isPipelineBookkeeping,
+  // isStampsGateExemptTarget): only a DEFINITIVE "not a repo" or "different
+  // repo" answer exempts; an unresolvable target falls through to the
+  // existing (denying) checks below, unchanged.
+  if (isFileTool) {
+    const fileTargetPath = fileToolTargetPath(toolName, ctx.input && ctx.input.tool_input);
+    if (fileTargetPath) {
+      const { repoRoot: targetRoot, indeterminate: targetIndeterminate } = wtDetect.repoInfo(fileTargetPath);
+      if (!targetIndeterminate) {
+        const mainRoot = safeReal(wtDetect.mainCheckoutRoot(wtRoot));
+        const targetMainRoot = targetRoot ? safeReal(wtDetect.mainCheckoutRoot(targetRoot)) : null;
+        if (mainRoot && targetMainRoot !== mainRoot) return {};
+      }
+    }
+  }
+
   if (isStampsGateExemptTarget(ctx)) return {};
 
   if (!hasMaterializeCommit(wtRoot, ctx.runDir)) return {};
