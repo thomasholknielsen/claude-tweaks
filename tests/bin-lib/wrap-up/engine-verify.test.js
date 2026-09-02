@@ -532,6 +532,50 @@ test('plans-ledger check does not count .superpowers/sdd/.gitignore itself as a 
   }
 });
 
+test('plans-ledger check scans `cwd`, not `repoRoot`, for untracked plan-file leftovers', () => {
+  const cwd = makeTmpDir('verify-plans-ledger-cwd-clean-');
+  const repoRoot = makeTmpDir('verify-plans-ledger-cwd-reporoot-dirty-');
+  const calls = [];
+  const fakeGit = (args, dir) => {
+    calls.push({ args, dir });
+    if (args[0] === 'status' && dir === repoRoot) return '?? docs/superpowers/plans/leftover-at-reporoot.md\n';
+    return '';
+  };
+  try {
+    const result = runVerify({ runDir: '/tmp/verify-cwd-scoping-does-not-matter', base: 'main', repoRoot, cwd, deps: { git: fakeGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(row.result, 'pass', row.detail);
+    const statusCall = calls.find((c) => c.args[0] === 'status');
+    assert.strictEqual(statusCall.dir, cwd, 'plans-ledger must scan cwd, not repoRoot');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('design-caches check scans `cwd`, not `repoRoot`, for untracked cache-file leftovers', () => {
+  const cwd = makeTmpDir('verify-design-caches-cwd-dirty-');
+  const repoRoot = makeTmpDir('verify-design-caches-cwd-reporoot-clean-');
+  fs.mkdirSync(path.join(cwd, 'docs', 'plans'), { recursive: true });
+  const calls = [];
+  const fakeGit = (args, dir) => {
+    calls.push({ args, dir });
+    if (args[0] === 'status' && dir === cwd) return '?? docs/plans/some-topic-audit.json\n';
+    return '';
+  };
+  try {
+    const result = runVerify({ runDir: '/tmp/verify-cwd-scoping-does-not-matter', base: 'main', repoRoot, cwd, deps: { git: fakeGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'design-caches');
+    assert.strictEqual(row.result, 'fail', row.detail);
+    assert.match(row.detail, /some-topic-audit\.json/);
+    const statusCall = calls.find((c) => c.args[0] === 'status');
+    assert.strictEqual(statusCall.dir, cwd, 'design-caches must scan cwd, not repoRoot');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
 function writeSpecFile(runDir, specId, record) {
   const workDir = path.join(runDir, 'work');
   fs.mkdirSync(workDir, { recursive: true });
