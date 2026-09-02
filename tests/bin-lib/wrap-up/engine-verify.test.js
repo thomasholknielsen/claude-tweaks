@@ -575,7 +575,12 @@ test('design-caches check scans `cwd`, not `repoRoot`, for untracked cache-file 
     const row = result.rows.find((r) => r.check === 'design-caches');
     assert.strictEqual(row.result, 'fail', row.detail);
     assert.match(row.detail, /some-topic-audit\.json/);
-    const statusCall = calls.find((c) => c.args[0] === 'status');
+    // plans-ledger (registered before design-caches) also issues a `status`
+    // call in this same runVerify(), so a bare args[0] === 'status' find()
+    // would silently grab its call instead -- design-caches's own status
+    // call has a single `docs/plans` pathspec (5 args); plans-ledger's has
+    // two pathspecs (6 args). Match on length to target design-caches alone.
+    const statusCall = calls.find((c) => c.args[0] === 'status' && c.args.length === 5);
     assert.strictEqual(statusCall.dir, cwd, 'design-caches must scan cwd, not repoRoot');
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });

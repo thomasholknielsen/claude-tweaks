@@ -145,10 +145,16 @@ function expectationsUnknownDetail(expectations) {
 // `repoRoot`-scoped scanning was blind to a run's own leftovers under the
 // default mode and could only ever catch leftovers left directly in the main
 // checkout (record #900 whole-branch re-review, finding #3; fixed here,
-// record #1222). `run-dir-archived` still needs `repoRoot` for its
-// `.claude-tweaks/pipelines/` lookups (that path genuinely only exists in the
-// main checkout, gitignored, never in a worktree) -- this check alone reads
-// `cwd`.
+// record #1222). Residual: in the mainline single-spec `worktree`/`pr-first`
+// flow this verb's own cleanup (including worktree removal) runs BEFORE
+// verify, so by the time this check runs there `cwd` has already collapsed
+// back to the main checkout anyway -- the fix's real value is realized on
+// the `MULTISPEC_REVIEW_DEFER=1` path (parent `/flow` console defers
+// worktree removal) and standalone/manual `wrap-up` invocations run from
+// inside a still-live worktree. `run-dir-archived` still needs `repoRoot`
+// for its `.claude-tweaks/pipelines/` lookups (that path genuinely only
+// exists in the main checkout, gitignored, never in a worktree) -- this
+// check alone reads `cwd`.
 // `--porcelain=v1 -uall` (not the default `-uno`) so a wholly-untracked
 // directory reports every file inside it individually instead of collapsing
 // to one `?? {dir}/` line the suffix/name filters below could never match.
