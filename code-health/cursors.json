@@ -118,5 +118,9 @@
   "plugin/bin/lib/dispatch": {
     "lastSweptMs": 1788318453638,
     "lastHash": "59b7f578a6ad74c5af2cda85d6d0bdd2247b52c1"
+  },
+  "plugin/bin/lib/doc-conventions": {
+    "lastSweptMs": 1788318735433,
+    "lastHash": "7e5ef4ff9b350ba657791c1e6bb5ab54cde1c671"
   }
 }
