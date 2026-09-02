@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList } = require('../../../plugin/bin/lib/issues/grouping');
+const { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, detectCrossPRFileOverlap } = require('../../../plugin/bin/lib/issues/grouping');
 
 // ── groupByFileOverlap ──────────────────────────────────────────────────────
 
@@ -776,4 +776,111 @@ test('#1557 reproduction: ~70 records sharing only above-hub-threshold core file
   const { withinGuard, oversized } = partitionGroupsBySizeGuard(unhubbedGroups);
   assert.ok(oversized.some((g) => g.length >= 60), 'with hub exclusion disabled the records DO chain into one large group, confirming this test exercises the real merge path');
   assert.ok(!withinGuard.some((g) => g.length >= 60), 'the size guard must exclude the oversized group from the within-guard (next-eligible) set');
+});
+
+// ── detectCrossPRFileOverlap (#1579) ──────────────────────────────────────────
+// Distinct from PR #1572/#1224's own-linked-PR exclusion: that one is
+// issue-scoped (a candidate whose OWN linked PR is open). This one is
+// cross-issue -- a candidate whose key files overlap an UNRELATED open PR's
+// changed files, the #1410/#1402 scenario this record documents.
+
+test('no open PRs -> no overlaps', () => {
+  const overlaps = detectCrossPRFileOverlap(
+    [{ number: 1410, keyFiles: ['plugin/bin/lib/hooks/context.js'] }],
+    [],
+  );
+  assert.deepStrictEqual(overlaps, []);
+});
+
+test('candidate overlapping an unrelated open PR on a real (non-hub) file is flagged', () => {
+  const overlaps = detectCrossPRFileOverlap(
+    [{ number: 1410, keyFiles: ['plugin/bin/lib/hooks/context.js'] }],
+    [{ number: 1577, files: ['plugin/bin/lib/hooks/context.js', 'docs/hooks.md'], closingIssueNumbers: [1402] }],
+  );
+  assert.strictEqual(overlaps.length, 1);
+  assert.deepStrictEqual(overlaps[0], { candidate: 1410, pr: 1577, files: ['plugin/bin/lib/hooks/context.js'] });
+});
+
+test('a PR that already closes/links the candidate itself is excluded (that is #1224s own signal, not this one)', () => {
+  const overlaps = detectCrossPRFileOverlap(
+    [{ number: 1410, keyFiles: ['plugin/bin/lib/hooks/context.js'] }],
+    [{ number: 1500, files: ['plugin/bin/lib/hooks/context.js'], closingIssueNumbers: [1410] }],
+  );
+  assert.deepStrictEqual(overlaps, []);
+});
+
+test('no shared files -> no overlap reported', () => {
+  const overlaps = detectCrossPRFileOverlap(
+    [{ number: 1, keyFiles: ['a.js'] }],
+    [{ number: 2, files: ['b.js'], closingIssueNumbers: [] }],
+  );
+  assert.deepStrictEqual(overlaps, []);
+});
+
+test('a bare directory-level entry never counts as a signal file', () => {
+  const overlaps = detectCrossPRFileOverlap(
+    [{ number: 1, keyFiles: ['plugin/skills/'] }],
+    [{ number: 2, files: ['plugin/skills/'], closingIssueNumbers: [] }],
+  );
+  assert.deepStrictEqual(overlaps, []);
+});
+
+test('a hub path shared across many open PRs is excluded from the signal', () => {
+  const openPRs = Array.from({ length: 10 }, (_, i) => ({ number: 100 + i, files: ['docs/donts.md'], closingIssueNumbers: [] }));
+  const overlaps = detectCrossPRFileOverlap(
+    [{ number: 1, keyFiles: ['docs/donts.md'] }],
+    openPRs,
+  );
+  assert.deepStrictEqual(overlaps, [], 'a file touched by most of the open-PR pool is generic churn, not a root-cause overlap signal');
+});
+
+test('below the hub threshold, a file shared by only a couple of PRs still counts as signal', () => {
+  const openPRs = [
+    { number: 100, files: ['plugin/bin/lib/hooks/context.js'], closingIssueNumbers: [] },
+    { number: 101, files: ['unrelated.js'], closingIssueNumbers: [] },
+  ];
+  const overlaps = detectCrossPRFileOverlap(
+    [{ number: 1, keyFiles: ['plugin/bin/lib/hooks/context.js'] }],
+    openPRs,
+  );
+  assert.strictEqual(overlaps.length, 1);
+  assert.strictEqual(overlaps[0].pr, 100);
+});
+
+test('a candidate with no keyFiles is never flagged (nothing to compare)', () => {
+  const overlaps = detectCrossPRFileOverlap(
+    [{ number: 1, keyFiles: [] }],
+    [{ number: 2, files: ['a.js'], closingIssueNumbers: [] }],
+  );
+  assert.deepStrictEqual(overlaps, []);
+});
+
+test('multiple candidates and multiple PRs each report independently', () => {
+  const overlaps = detectCrossPRFileOverlap(
+    [
+      { number: 1, keyFiles: ['a.js'] },
+      { number: 2, keyFiles: ['b.js'] },
+    ],
+    [
+      { number: 10, files: ['a.js'], closingIssueNumbers: [] },
+      { number: 11, files: ['b.js'], closingIssueNumbers: [] },
+      { number: 12, files: ['z.js'], closingIssueNumbers: [] },
+    ],
+  );
+  assert.strictEqual(overlaps.length, 2);
+  assert.ok(overlaps.some((o) => o.candidate === 1 && o.pr === 10));
+  assert.ok(overlaps.some((o) => o.candidate === 2 && o.pr === 11));
+});
+
+test('a custom hubPathMinCount/hubPathFraction can tighten or loosen the threshold deterministically', () => {
+  const openPRs = [
+    { number: 100, files: ['shared.js'], closingIssueNumbers: [] },
+    { number: 101, files: ['shared.js'], closingIssueNumbers: [] },
+  ];
+  // Default threshold (min 3) does not exclude a 2-PR count.
+  const defaultOverlaps = detectCrossPRFileOverlap([{ number: 1, keyFiles: ['shared.js'] }], openPRs);
+  assert.strictEqual(defaultOverlaps.length, 2);
+  // Tightened threshold (min 2) excludes it.
+  const tightenedOverlaps = detectCrossPRFileOverlap([{ number: 1, keyFiles: ['shared.js'] }], openPRs, { hubPathMinCount: 2 });
+  assert.deepStrictEqual(tightenedOverlaps, []);
 });

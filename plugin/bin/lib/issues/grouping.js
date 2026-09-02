@@ -122,6 +122,75 @@ function partitionGroupsBySizeGuard(groups, options = {}) {
   return { withinGuard, oversized, threshold };
 }
 
+// A path touched by this large a fraction of the *open-PR pool* is generic
+// churn (a re-edited SKILL.md, docs/donts.md, a shared test fixture) rather
+// than evidence two records fix the same root cause — the same rationale as
+// HUB_PATH_MIN_COUNT/HUB_PATH_FRACTION above (#1365), computed over open PRs
+// instead of over the candidate batch, since the pools being compared here
+// are different (an eligible dispatch candidate's keyFiles vs. an unrelated
+// open PR's changed files, not candidate-to-candidate).
+const CROSS_PR_HUB_MIN_COUNT = 3;
+const CROSS_PR_HUB_FRACTION = 0.2;
+
+// candidates: [{number, keyFiles}], openPRs: [{number, files, closingIssueNumbers}]
+// -> [{candidate, pr, files}], one entry per (candidate, PR) pair whose file
+// sets share at least one non-hub, non-directory path (#1579's AC1 signal).
+//
+// This is deliberately NOT the same check PR #1572 (fixing #1224) already
+// shipped: that one excludes a candidate from eligibility when its OWN linked
+// PR (a closing-keyword or "Development" reference to that same issue number)
+// is still open — a re-dispatch guard, issue-scoped and self-referential. It
+// says nothing about two DIFFERENT issues independently diagnosing the same
+// root cause (the #1410/#1402 case this record documents), where the open PR
+// in question belongs to the *other* issue, not the candidate. A PR that
+// already closes/links the candidate itself is excluded here via
+// `closingIssueNumbers` — that pair is #1224's exclusion to make, not a
+// cross-issue duplicate for this function to also flag.
+//
+// Pure and read-only. Per #1579's AC2, this never removes a candidate from
+// eligibility — it only reports a same-file overlap for a human (or a
+// headless firing's decisions.md) to see and choose to serialize. False-
+// positive sources evaluated: (1) generic/hub paths, excluded by the
+// hub-path threshold above; (2) bare directory-level entries (no filename
+// component), excluded the same way groupByFileOverlap excludes them (#1420);
+// (3) a candidate's own linked PR, excluded via closingIssueNumbers so this
+// never doubles up on #1224's own signal. What's left — two independent
+// records whose declared/inferred key files hit the same specific,
+// non-generic path while an unrelated PR referencing neither of them is
+// still open — is a small, deliberately noisy-favoring residual: a real
+// coincidence (two unrelated fixes to one busy-but-not-hub file) still
+// surfaces, but only as an informational line, never a block, exactly what
+// AC2 asks for ("a documented fallback for 'unclear'").
+function detectCrossPRFileOverlap(candidates, openPRs, options = {}) {
+  const hubMinCount = options.hubPathMinCount ?? CROSS_PR_HUB_MIN_COUNT;
+  const hubFraction = options.hubPathFraction ?? CROSS_PR_HUB_FRACTION;
+
+  const fileCounts = new Map();
+  for (const pr of openPRs || []) {
+    for (const file of new Set(pr.files || [])) {
+      fileCounts.set(file, (fileCounts.get(file) || 0) + 1);
+    }
+  }
+  const hubThreshold = Math.max(hubMinCount, Math.ceil((openPRs || []).length * hubFraction));
+  const hubPaths = new Set();
+  for (const [file, count] of fileCounts) {
+    if (count >= hubThreshold) hubPaths.add(file);
+  }
+  const isSignal = (file) => typeof file === 'string' && file.length > 0 && !file.endsWith('/') && !hubPaths.has(file);
+
+  const overlaps = [];
+  for (const candidate of candidates || []) {
+    const keySet = new Set((candidate.keyFiles || []).filter(isSignal));
+    if (keySet.size === 0) continue;
+    for (const pr of openPRs || []) {
+      if ((pr.closingIssueNumbers || []).includes(candidate.number)) continue;
+      const shared = (pr.files || []).filter((file) => isSignal(file) && keySet.has(file));
+      if (shared.length > 0) overlaps.push({ candidate: candidate.number, pr: pr.number, files: shared });
+    }
+  }
+  return overlaps;
+}
+
 const ANCHOR_RE = /Anchor:\s*`([^`#]+)/;
 const FILES_LINE_RE = /^Files:\s*(.+)$/m;
 // Matches the first bold "**Label:** value" field of a spec-shaped issue
@@ -325,4 +394,4 @@ function selectGroupsForExplicitList(requestedNumbers, groups) {
   return { selectedGroups, notFound };
 }
 
-module.exports = { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin };
+module.exports = { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin, detectCrossPRFileOverlap, CROSS_PR_HUB_MIN_COUNT, CROSS_PR_HUB_FRACTION };
