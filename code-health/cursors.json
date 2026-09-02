@@ -114,5 +114,9 @@
   "plugin/bin/lib/design-detect": {
     "lastSweptMs": 1788145918614,
     "lastHash": "48e25a509e3b022e9d0daed85f3174f0de6d4a5c"
+  },
+  "plugin/bin/lib/dispatch": {
+    "lastSweptMs": 1788318453638,
+    "lastHash": "59b7f578a6ad74c5af2cda85d6d0bdd2247b52c1"
   }
 }
