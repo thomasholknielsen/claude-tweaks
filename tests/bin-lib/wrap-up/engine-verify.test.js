@@ -12,14 +12,21 @@ function makeTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-// plans-ledger's sdd-leftover check reads repoRoot's own filesystem directly
+// plans-ledger's sdd-leftover check reads `cwd`'s own filesystem directly
 // (not via deps.git), so any test whose assertions depend on an exact
 // failing-row set or a specific exitCode -- but isn't itself exercising
-// plans-ledger/design-caches -- must pass an isolated repoRoot rather than
-// let it default to process.cwd(). This repo's own worktree legitimately has
-// real leftover docs/superpowers/plans and .superpowers/sdd entries at any
-// given time (that's the exact vacuous-check bug this fix round closes), so
-// relying on the default would make those tests depend on live repo state.
+// plans-ledger/design-caches -- must pass an isolated `cwd` (record #1222:
+// plans-ledger/design-caches read `cwd`, distinct from `repoRoot`, which
+// stays reserved for run-dir-archived's main-checkout lookups) rather than
+// let it default to process.cwd(). This worktree's own working tree
+// legitimately has real leftover docs/superpowers/plans and .superpowers/sdd
+// entries at any given time (that's the exact vacuous-check bug the original
+// #900 fix round closed for the main checkout, and #1222 closes for a
+// worktree), so relying on the default would make those tests depend on live
+// worktree state. Tests below that need only isolation (not a real
+// cwd-vs-repoRoot divergence) pass this same tmp dir as both `repoRoot` and
+// `cwd` -- the two params diverge only in the dedicated "scans `cwd`, not
+// `repoRoot`" tests above, which prove the switch itself.
 function makeCleanRepoRoot() {
   return makeTmpDir('verify-clean-reporoot-');
 }
@@ -125,14 +132,14 @@ test('AC1: fixture run-dir with one unexecuted approved action exits 3 naming th
       if (args[0] === 'worktree') return `worktree /repo/.claude/worktrees/flow-${runId}\nbranch refs/heads/worktree-flow-${runId}\n\n`;
       return '';
     };
-    const dirtyResult = runVerify({ runDir: originalPath, base: 'main', repoRoot, deps: { git: fakeGitDirty, gh: () => 'gh version 2.0.0' } });
+    const dirtyResult = runVerify({ runDir: originalPath, base: 'main', repoRoot, cwd: repoRoot, deps: { git: fakeGitDirty, gh: () => 'gh version 2.0.0' } });
     assert.strictEqual(dirtyResult.exitCode, 3);
     const failingRows = dirtyResult.rows.filter((r) => r.result === 'fail');
     assert.strictEqual(failingRows.length, 1, `expected exactly one failing check, got: ${failingRows.map((r) => r.check).join(', ')}`);
     assert.strictEqual(failingRows[0].check, 'worktree-removed');
 
     const fakeGitClean = () => '';
-    const cleanResult = runVerify({ runDir: originalPath, base: 'main', repoRoot, deps: { git: fakeGitClean, gh: () => 'gh version 2.0.0' } });
+    const cleanResult = runVerify({ runDir: originalPath, base: 'main', repoRoot, cwd: repoRoot, deps: { git: fakeGitClean, gh: () => 'gh version 2.0.0' } });
     assert.strictEqual(cleanResult.exitCode, 0);
   } finally {
     fs.rmSync(originalPath, { recursive: true, force: true });
@@ -150,7 +157,7 @@ test('AC2: gh absent renders acceptance-labeling unknown, exit code reflects onl
   try {
     const throwingGh = () => { throw new Error('command not found: gh'); };
     const cleanGit = (args) => (args[0] === 'log' ? 'abc1234 fix\n' : '');
-    const result = runVerify({ runDir: originalPath, base: 'main', repoRoot, deps: { git: cleanGit, gh: throwingGh } });
+    const result = runVerify({ runDir: originalPath, base: 'main', repoRoot, cwd: repoRoot, deps: { git: cleanGit, gh: throwingGh } });
     const acceptanceRow = result.rows.find((r) => r.check === 'acceptance-labeling');
     assert.strictEqual(acceptanceRow.result, 'unknown');
     assert.match(acceptanceRow.detail, /gh absent/);
@@ -191,7 +198,7 @@ test('plans-ledger check passes when git status reports no untracked entries and
   const runDir = makeTmpDir('verify-plans-ledger-clean-');
   const repoRoot = makeCleanRepoRoot();
   try {
-    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd: repoRoot, deps: { git: () => '', gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'plans-ledger');
     assert.strictEqual(row.result, 'pass');
   } finally {
@@ -209,7 +216,7 @@ test('plans-ledger check fails when git status reports an untracked plan file, n
     return '';
   };
   try {
-    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: fakeGit, gh: () => '' } });
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd: repoRoot, deps: { git: fakeGit, gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'plans-ledger');
     assert.strictEqual(row.result, 'fail');
     assert.match(row.detail, /2099-01-01-some-topic\.md/);
@@ -219,7 +226,7 @@ test('plans-ledger check fails when git status reports an untracked plan file, n
     // the suffix/name filters could never match (record #900 whole-branch
     // re-review, finding #2).
     assert.deepStrictEqual(statusCall.args, ['status', '--porcelain=v1', '-uall', '--', 'docs/superpowers/plans', 'docs/plans']);
-    assert.strictEqual(statusCall.cwd, repoRoot, 'git status must run against repoRoot, not process.cwd()');
+    assert.strictEqual(statusCall.cwd, repoRoot, 'git status must run against cwd (the isolated fixture), not process.cwd()');
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
@@ -231,7 +238,7 @@ test('plans-ledger check fails when a .superpowers/sdd/ leftover directory is pr
   const sddDir = path.join(repoRoot, '.superpowers', 'sdd', '2026-08-21-some-topic');
   fs.mkdirSync(sddDir, { recursive: true });
   try {
-    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd: repoRoot, deps: { git: () => '', gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'plans-ledger');
     assert.strictEqual(row.result, 'fail');
     assert.match(row.detail, /2026-08-21-some-topic/);
@@ -244,7 +251,7 @@ test('design-caches check passes when cache dir does not exist', () => {
   const runDir = makeTmpDir('verify-design-caches-clean-');
   const repoRoot = makeCleanRepoRoot();
   try {
-    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd: repoRoot, deps: { git: () => '', gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'design-caches');
     assert.strictEqual(row.result, 'pass');
   } finally {
@@ -261,7 +268,7 @@ test('design-caches check fails when an untracked *-audit.json cache file remain
     return '';
   };
   try {
-    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: fakeGit, gh: () => '' } });
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd: repoRoot, deps: { git: fakeGit, gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'design-caches');
     assert.strictEqual(row.result, 'fail');
     assert.match(row.detail, /some-topic-audit\.json/);
@@ -279,7 +286,7 @@ test('design-caches check does not fail on a TRACKED file matching a cache suffi
   // cache-suffixed file looks like to this check.
   const fakeGit = (args) => (args[0] === 'status' ? '' : '');
   try {
-    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: fakeGit, gh: () => '' } });
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd: repoRoot, deps: { git: fakeGit, gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'design-caches');
     assert.strictEqual(row.result, 'pass');
   } finally {
@@ -508,7 +515,7 @@ test('design-caches check catches an untracked *-audit.json inside a WHOLLY-untr
     fs.writeFileSync(path.join(repo, 'docs', 'plans', 'some-topic-audit.json'), '{}');
     const realGit = (args, cwd) => realExecFileSync('git', args, { cwd, encoding: 'utf8' });
     const runDir = makeTmpDir('verify-design-caches-realgit-');
-    const result = runVerify({ runDir, base: 'main', repoRoot: repo, deps: { git: realGit, gh: () => '' } });
+    const result = runVerify({ runDir, base: 'main', repoRoot: repo, cwd: repo, deps: { git: realGit, gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'design-caches');
     assert.strictEqual(row.result, 'fail', row.detail);
     assert.match(row.detail, /some-topic-audit\.json/);
@@ -524,7 +531,7 @@ test('plans-ledger check does not count .superpowers/sdd/.gitignore itself as a 
   fs.mkdirSync(sddDir, { recursive: true });
   fs.writeFileSync(path.join(sddDir, '.gitignore'), '*\n');
   try {
-    const result = runVerify({ runDir, base: 'main', repoRoot, deps: { git: () => '', gh: () => '' } });
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd: repoRoot, deps: { git: () => '', gh: () => '' } });
     const row = result.rows.find((r) => r.check === 'plans-ledger');
     assert.strictEqual(row.result, 'pass', row.detail);
   } finally {
