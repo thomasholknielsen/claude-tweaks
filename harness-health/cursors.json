@@ -106,5 +106,9 @@
   "skill:backlog": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1787933147741
+  },
+  "skill:pre-tool-use-gate-exemptions": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1788326154651
   }
 }
