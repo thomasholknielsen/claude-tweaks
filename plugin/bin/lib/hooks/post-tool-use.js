@@ -620,6 +620,20 @@ function run(ctx) {
   // guessed attribution the line is tagged so it stays filterable rather than
   // reading as this run's own work.
   const ownedRun = ctx.ownedRun || {};
+  // #1520: resolveRun (context.js) rejected a session-owned candidate whose
+  // recorded worktree binding provably differs from ctx.cwd — logged to the
+  // discarded run itself (its run-state.json always exists, unlike whatever
+  // this call resolved instead, which may be null) so the mismatch is a
+  // diagnosable trace rather than a silent misattribution or a swallowed gap.
+  // Log tier, unconditional on hasCommand — mirrors this file's own EnterWorktree
+  // staleness backstop below, which is also not gated on a Bash command.
+  if (ownedRun.foreignSessionMatch) {
+    ctxLib.appendEvent(ownedRun.foreignSessionMatch.dir, 'session-worktree-mismatch', {
+      cwd: ctx.cwd,
+      expectedWorktree: ownedRun.foreignSessionMatch.worktree,
+      resolvedDir: ownedRun.dir || null,
+    });
+  }
   if (ownedRun.dir && hasCommand) {
     for (const target of targets) {
       const commit = target.action === 'commit' ? nextCommitFor(target.dir) : null;

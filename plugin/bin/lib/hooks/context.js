@@ -286,14 +286,37 @@ function resolveRun(cwd, env, sessionId, opts = {}) {
     return { dir: null, attribution: null };
   }
   let unowned = null;
+  // #1520: a session-owned run whose recorded `worktree` binding provably
+  // points at a DIFFERENT, still-live worktree than resolvedCwd — rejected
+  // below rather than trusted as a certain 'session' match. CLAUDE_CODE_SESSION_ID
+  // is shared across every pipeline run a session starts in sequence (#965), so
+  // "owner === me" alone proves only that this session touched that run at some
+  // point, not that it's the run for THIS commit's location. Recorded here (not
+  // just discarded) so a caller can log a diagnosable trace instead of the event
+  // silently landing in whichever run wins next — the exact cross-contamination
+  // #815's build hit: a prior run this session still owned absorbed two commits
+  // and a worktree-staleness check that belonged to a newer, correctly-unowned
+  // sibling run whose own `record-worktree` call never happened.
+  let foreignSessionMatch = null;
   for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
-    if (owner === me) return { dir, attribution: 'session' };
+    if (owner === me) {
+      if (includeWorktreeForeign || classifyOwnership({ sessionId: me, cwd: resolvedCwd }, state) !== 'foreign') {
+        return { dir, attribution: 'session' };
+      }
+      if (!foreignSessionMatch) foreignSessionMatch = { dir, worktree: state && state.worktree };
+      continue;
+    }
     // Newest-first, so the first unowned, worktree-compatible run is the one
     // the old code returned unconditionally.
     if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) unowned = dir;
   }
-  return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
+  // foreignSessionMatch is spread in only when set (#815/#1520's regression pin
+  // relies on the plain `{dir, attribution}` shape for every pre-existing case
+  // — deepStrictEqual would fail against an added `foreignSessionMatch: null`).
+  const mismatch = foreignSessionMatch ? { foreignSessionMatch } : null;
+  if (unowned) return { dir: unowned, attribution: 'fallback', ...mismatch };
+  return { dir: null, attribution: null, ...mismatch };
 }
 
 function resolveRunDir(cwd, env, sessionId, opts) {

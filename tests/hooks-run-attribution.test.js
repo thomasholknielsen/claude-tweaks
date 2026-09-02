@@ -300,3 +300,64 @@ test('includeWorktreeForeign lets an unknown-session fallback still find a candi
   );
   assert.strictEqual(ctxLib.resolveRunDir(callerWt, {}, null, { includeWorktreeForeign: true }), foreign);
 });
+
+// ─── a session-owned run bound to a different live worktree (#815, #1520) ──
+//
+// #815's build: CLAUDE_CODE_SESSION_ID is shared across every run a session
+// starts in sequence (#965). A prior run this same session owned (and whose
+// worktree binding is nothing like the current commit's cwd) used to win
+// resolveRun's session-match branch unconditionally — it never consulted the
+// worktree axis the unowned/fallback branch had already been filtering on
+// since #1410. These pin the fix: the session match is now rejected when
+// classifyOwnership can PROVE the caller's cwd resolves to a different, still-
+// live worktree than the recorded binding, exactly like a foreign-owned
+// fallback candidate already was.
+
+test('a session-owned run bound to a different live worktree is rejected, in favor of an unowned run in the caller\'s own worktree (#1520)', () => {
+  const main = gitRepo();
+  const staleWt = linkedWorktreeOf(main);
+  const callerWt = linkedWorktreeOf(main);
+  // The correct run for this commit: newer, unowned (record-worktree never ran for it).
+  const correct = mkRun(main, '2026-08-26T215430-record-815', { status: 'active' });
+  fs.writeFileSync(path.join(correct, 'decisions.md'), ''); // adopted, not an unadopted mint
+  // The stale run: older, but still owned by this same session, bound elsewhere.
+  mkRun(main, '2026-08-26T212441-record-769', { status: 'active', sessionId: 'me', worktree: staleWt });
+
+  const owned = ctxLib.resolveRun(callerWt, {}, 'me');
+  assert.strictEqual(owned.dir, correct, 'must resolve the run that actually owns this cwd, not the session-owned stale one');
+  assert.strictEqual(owned.attribution, 'fallback');
+  assert.ok(owned.foreignSessionMatch, 'the rejected session match must be surfaced for diagnostics, not silently dropped');
+  assert.strictEqual(owned.foreignSessionMatch.worktree, staleWt);
+});
+
+test('a session-owned run bound to a different live worktree resolves null (with the mismatch surfaced) when no compatible run exists (#1520)', () => {
+  const main = gitRepo();
+  const staleWt = linkedWorktreeOf(main);
+  const callerWt = linkedWorktreeOf(main);
+  mkRun(main, '2026-08-26T212441-record-769', { status: 'active', sessionId: 'me', worktree: staleWt });
+
+  const owned = ctxLib.resolveRun(callerWt, {}, 'me');
+  assert.deepStrictEqual(owned.dir, null);
+  assert.strictEqual(owned.attribution, null);
+  assert.ok(owned.foreignSessionMatch, 'even with nothing else to fall back to, the rejected match must still be surfaced');
+});
+
+test('a session-owned run with no worktree binding at all is unaffected — the #1520 check only fires on a PROVABLE mismatch', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const mine = mkRun(main, '2026-08-26T212441-unbound', { status: 'active', sessionId: 'me' });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: mine, attribution: 'session' });
+});
+
+test('includeWorktreeForeign preserves close-run\'s own need to still find a session-owned run bound elsewhere (#1520)', () => {
+  const main = gitRepo();
+  const staleWt = linkedWorktreeOf(main);
+  const callerWt = linkedWorktreeOf(main);
+  const stale = mkRun(main, '2026-08-26T212441-record-769', { status: 'active', sessionId: 'me', worktree: staleWt });
+
+  assert.deepStrictEqual(
+    ctxLib.resolveRun(callerWt, {}, 'me', { includeWorktreeForeign: true }),
+    { dir: stale, attribution: 'session' },
+  );
+});

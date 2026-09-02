@@ -63,6 +63,38 @@ test('post-tool-use without run dir or without git targets is a no-op', () => {
   assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
 });
 
+// #1520: resolveRun rejected a session-owned candidate as worktree-foreign and
+// surfaced it as ownedRun.foreignSessionMatch — post-tool-use must log this to
+// the DISCARDED run (its run-state.json is guaranteed to exist), diagnosably,
+// rather than silently doing nothing just because ownedRun.dir ended up null.
+test('post-tool-use logs a session-worktree-mismatch event to the discarded run when resolveRun surfaces one (#1520)', () => {
+  const repo = gitRepoWithCommit();
+  const discarded = mkRun();
+  post.run({
+    input: { tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo },
+    runDir: null,
+    runState: null,
+    ownedRun: { dir: null, attribution: null, foreignSessionMatch: { dir: discarded, worktree: '/some/stale/worktree' } },
+    cwd: repo,
+  });
+  const ev = readEvents(discarded);
+  assert.strictEqual(ev.length, 1);
+  assert.strictEqual(ev[0].type, 'session-worktree-mismatch');
+  assert.strictEqual(ev[0].cwd, repo);
+  assert.strictEqual(ev[0].expectedWorktree, '/some/stale/worktree');
+  assert.strictEqual(ev[0].resolvedDir, null);
+});
+
+test('post-tool-use does not log a session-worktree-mismatch event when resolveRun found no such conflict', () => {
+  const repo = gitRepoWithCommit();
+  const run = mkRun();
+  post.run({
+    input: { tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo },
+    runDir: run, runState: { status: 'active' }, ownedRun: { dir: run, attribution: 'session' }, cwd: repo,
+  });
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
+});
+
 function transcript(lastText) {
   const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e3-')), 'agent.jsonl');
   const lines = [
