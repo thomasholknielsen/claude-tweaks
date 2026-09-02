@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-02T11:31:08.005Z",
+  "computedAt": "2026-09-02T12:57:51.764Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -61,11 +61,6 @@
       {
         "number": 1568,
         "updatedAt": "2026-08-29T16:18:30Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1548,
-        "updatedAt": "2026-08-31T18:32:32Z",
         "state": "OPEN"
       },
       {
@@ -146,11 +141,6 @@
       {
         "number": 1224,
         "updatedAt": "2026-09-02T11:16:03Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1222,
-        "updatedAt": "2026-09-02T07:30:39Z",
         "state": "OPEN"
       },
       {
@@ -1141,76 +1131,6 @@
           "origin": "capture",
           "risk": "low",
           "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Related:** #1456\n\nOrigin: reflect light from #1404\nDefer-reason: tangential\n\n## Current State\n\n`_shared/pr-early-run-lifecycle.md`'s \"Run start: push, then open (or reuse) the draft PR\" procedure is supposed to run once per pipeline run, from `build/worktree-setup.md` Step 6, immediately after the materialize commit — making every `pr-first` run \"born public\" (draft PR at run start, every phase pushes). On run `2026-08-27T061932-record-1404` (record #1404), the build/test phases completed two commits (materialize + fix) with no upstream branch configured and no PR opened at all — `decisions.md` had zero `PR-early run lifecycle` entries, and no `run-state.json` existed in the run directory until `/claude-tweaks:review`'s own phase-exit recovered it manually (pushed the branch, created draft PR #1547, recorded it via `hooks.js record-pr`). `pr-early-run-lifecycle.md`'s own \"Phase-checklist update\" section anticipates this exact degraded state (a `pr-first` run with no upstream configured) and documents a recovery path — which is what let review self-heal here — but the run-start step that should have prevented the gap in the first place did not fire.\n\n## Deliverables\n\nInvestigate why `build/worktree-setup.md` Step 6 did not invoke the PR-early run lifecycle for this run (or any systemic reason a `pr-first` build phase might skip it — e.g. ceremony-profile: fast-lane trimming a step it shouldn't, or a code path that silently no-ops when `gh` calls are slow/deferred). Fix the root cause so a fresh `pr-first` build phase reliably opens (or logs a degrade for) the draft PR at run start, per the file's own mandate. Add or strengthen a test that would have caught this specific gap (a build-phase run with `integration-model: pr-first` completing without a `run-state.json.pr` field and without a matching `decisions.md` degrade line).\n\n## Acceptance Criteria\n\n- A fresh `pr-first` build phase run either opens a draft PR at run start or logs one of `pr-early-run-lifecycle.md`'s documented degrade lines (push failure, `gh pr create` failure) — never silently neither.\n- A regression test exists that fails against the observed gap (no PR, no degrade log) and passes once fixed.\n- No change to the recovery path documented in `pr-early-run-lifecycle.md`'s Phase-checklist update section — it remains the correct fallback for a genuinely degraded run.\n\n## Evidence\n\n`decisions.md` for run `2026-08-27T061932-record-1404` had no `PR-early` entries before this review step; `git rev-parse --abbrev-ref --symbolic-full-name @{u}` failed (no upstream) at review's phase-exit; `gh pr list --head worktree-dispatch-record-1404 --state all` returned an empty list — confirming no PR was ever attempted, not merely one that failed and degraded silently (a degrade would still log).\n\n## Cost this session\n\nLow — one extra recovery pass (push, `gh pr create`, `record-pr`, retroactive checklist backfill across 3 `gh pr edit` calls) inside `/claude-tweaks:review`'s phase-exit, a few extra tool calls. Not blocking, but the same gap on an unattended dispatch run without a review-phase recovery path would leave a `pr-first` record silently running local-only for its entire lifecycle.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-08-27T06:56:29Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          }
-        ],
-        "number": 1548,
-        "state": "OPEN",
-        "title": "/build's worktree-setup does not reliably invoke pr-early-run-lifecycle's draft-PR-at-run-start step",
-        "updatedAt": "2026-08-31T18:32:32Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
           "ceremony": null,
           "solutionUnjustified": false,
           "needsDefinition": false,
