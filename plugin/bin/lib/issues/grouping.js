@@ -26,6 +26,28 @@ const { normalizeLabelNames } = require('./record');
 const HUB_PATH_MIN_COUNT = 3;
 const HUB_PATH_FRACTION = 0.1;
 
+// Shared by groupByFileOverlap and detectCrossPRFileOverlap: a path referenced
+// by at least `minCount` items in `items`, OR at least `fraction` of `items`
+// (whichever is larger), is a "hub" -- generic churn rather than a real
+// coupling/overlap signal. `getFiles(item)` extracts each item's file list;
+// counted once per item (a duplicate path within one item's own list must not
+// inflate its count) so hub detection reflects how many *distinct items* cite
+// it. Pure; returns a Set of hub paths.
+function computeHubPaths(items, getFiles, minCount, fraction) {
+  const fileCounts = new Map();
+  for (const item of items) {
+    for (const file of new Set(getFiles(item) || [])) {
+      fileCounts.set(file, (fileCounts.get(file) || 0) + 1);
+    }
+  }
+  const threshold = Math.max(minCount, Math.ceil(items.length * fraction));
+  const hubPaths = new Set();
+  for (const [file, count] of fileCounts) {
+    if (count >= threshold) hubPaths.add(file);
+  }
+  return hubPaths;
+}
+
 // Partitions items into groups whose keyFiles overlap, directly or
 // transitively (union-find over shared file paths). Items with no overlap
 // to anything else in the batch are singleton groups. A file path referenced
@@ -54,20 +76,7 @@ function groupByFileOverlap(items, options = {}) {
 
   for (const item of items) parent.set(item.id, item.id);
 
-  // Count each file's references across the batch — once per item (a
-  // duplicate path within one item's own keyFiles list must not inflate its
-  // count), so hub detection reflects how many *distinct items* cite it.
-  const fileCounts = new Map();
-  for (const item of items) {
-    for (const file of new Set(item.keyFiles || [])) {
-      fileCounts.set(file, (fileCounts.get(file) || 0) + 1);
-    }
-  }
-  const hubThreshold = Math.max(hubPathMinCount, Math.ceil(items.length * hubPathFraction));
-  const hubPaths = new Set();
-  for (const [file, count] of fileCounts) {
-    if (count >= hubThreshold) hubPaths.add(file);
-  }
+  const hubPaths = computeHubPaths(items, (item) => item.keyFiles, hubPathMinCount, hubPathFraction);
 
   // Two independent, additive exclusions from bridging. Neither removes a file
   // from an item's keyFiles — only its eligibility to bridge two items here:
@@ -164,27 +173,25 @@ const CROSS_PR_HUB_FRACTION = 0.2;
 function detectCrossPRFileOverlap(candidates, openPRs, options = {}) {
   const hubMinCount = options.hubPathMinCount ?? CROSS_PR_HUB_MIN_COUNT;
   const hubFraction = options.hubPathFraction ?? CROSS_PR_HUB_FRACTION;
+  const pool = openPRs || [];
+  const hubPaths = computeHubPaths(pool, (pr) => pr.files, hubMinCount, hubFraction);
 
-  const fileCounts = new Map();
-  for (const pr of openPRs || []) {
-    for (const file of new Set(pr.files || [])) {
-      fileCounts.set(file, (fileCounts.get(file) || 0) + 1);
-    }
+  // A path specific enough to carry the signal: a real filename (not a bare
+  // directory entry, #1420) that isn't generic open-PR churn (a hub path).
+  function isSignal(file) {
+    if (typeof file !== 'string' || file === '' || file.endsWith('/')) return false;
+    return !hubPaths.has(file);
   }
-  const hubThreshold = Math.max(hubMinCount, Math.ceil((openPRs || []).length * hubFraction));
-  const hubPaths = new Set();
-  for (const [file, count] of fileCounts) {
-    if (count >= hubThreshold) hubPaths.add(file);
-  }
-  const isSignal = (file) => typeof file === 'string' && file.length > 0 && !file.endsWith('/') && !hubPaths.has(file);
 
   const overlaps = [];
   for (const candidate of candidates || []) {
-    const keySet = new Set((candidate.keyFiles || []).filter(isSignal));
-    if (keySet.size === 0) continue;
-    for (const pr of openPRs || []) {
+    // Every member is already a signal path, so the PR-side filter below needs
+    // no second isSignal check.
+    const keyFiles = new Set((candidate.keyFiles || []).filter(isSignal));
+    if (keyFiles.size === 0) continue;
+    for (const pr of pool) {
       if ((pr.closingIssueNumbers || []).includes(candidate.number)) continue;
-      const shared = (pr.files || []).filter((file) => isSignal(file) && keySet.has(file));
+      const shared = (pr.files || []).filter((file) => keyFiles.has(file));
       if (shared.length > 0) overlaps.push({ candidate: candidate.number, pr: pr.number, files: shared });
     }
   }
