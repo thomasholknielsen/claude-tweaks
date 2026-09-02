@@ -25,13 +25,18 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 
-function defaultGit(args, cwd) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 });
+// Shared factory (not two hand-duplicated functions) so defaultGit and
+// defaultGh can never again drift on their execFileSync options the way
+// #1230 found them to (defaultGit missing the `timeout` defaultGh already
+// had) -- one options object, reused by construction.
+function makeDefaultRunner(cmd) {
+  return function run(args, cwd) {
+    return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 });
+  };
 }
 
-function defaultGh(args, cwd) {
-  return execFileSync('gh', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 });
-}
+const defaultGit = makeDefaultRunner('git');
+const defaultGh = makeDefaultRunner('gh');
 
 // Registry of check functions, populated by Tasks 2-5. Each entry:
 // { name: string, fn: ({runDir, originalRunDir, base, repoRoot, cwd, expectations, deps}) => {result, detail} }.
