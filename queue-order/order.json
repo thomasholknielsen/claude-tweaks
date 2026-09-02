@@ -1,8 +1,18 @@
 {
-  "computedAt": "2026-09-02T07:19:08.689Z",
+  "computedAt": "2026-09-02T10:31:38.178Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
+      {
+        "number": 1776,
+        "updatedAt": "2026-09-02T08:33:58Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1775,
+        "updatedAt": "2026-09-02T08:33:56Z",
+        "state": "OPEN"
+      },
       {
         "number": 1634,
         "updatedAt": "2026-08-29T16:19:58Z",
@@ -140,7 +150,7 @@
       },
       {
         "number": 1222,
-        "updatedAt": "2026-08-29T17:17:31Z",
+        "updatedAt": "2026-09-02T07:30:39Z",
         "state": "OPEN"
       },
       {
@@ -221,6 +231,182 @@
     ]
   },
   "groups": [
+    [
+      {
+        "body": "**Doc:** plans/2026-08-26-record-327-ledger | **Section:** Open Items | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 4c18d38c7acd13c08fdc36bff84ae99cc88b954e\n\n## Current State\n\nThe row states PR #1506 was 'still open at residue-sweep time' with the item deferred to backlog #1507 (defer-reason: blocked-external). Live GitHub state contradicts this: PR #1506 is closed/merged (merged_at 2026-08-30T17:44:03Z, confirmed via mcp__github__pull_request_read), and issue #1507 is closed with state_reason 'completed' (closed_at 2026-08-31T05:34:17Z, confirmed via mcp__github__issue_read). git log also shows merge commit e49a8cef 'Merge PR #1506 with user approval, resolving the merge-decision gate (refs #1507)'. Both facts the row asserts are now stale.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | wrap-up | pr — PR #1506 (this work's own draft PR, head worktree-dispatch-record-327) still open at residue-sweep time, pending this run's own Phase 4 merge decision (merge-authorization: ask; no auto:merge grant) | deferred | → backlog #1507 (defer-reason: blocked-external) |\n```\n\n**Proposed:**\n```\n| 1 | wrap-up | pr — PR #1506 (this work's own draft PR, head worktree-dispatch-record-327) still open at residue-sweep time, pending this run's own Phase 4 merge decision (merge-authorization: ask; no auto:merge grant) | resolved | PR #1506 merged 2026-08-30; backlog #1507 closed (completed) 2026-08-31 |\n```\n\n## Acceptance Criteria\n\nRow 1's Status column is updated from 'deferred' to 'resolved', and the Resolution column is updated to state that PR #1506 was merged on 2026-08-30 and backlog issue #1507 was closed (completed) on 2026-08-31, rather than still pointing to an open backlog item.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-42947263 -->",
+        "createdAt": "2026-09-02T06:16:37Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACy3OKFA",
+            "name": "auto:merge-pending",
+            "description": "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)",
+            "color": "C2E0C6"
+          }
+        ],
+        "number": 1776,
+        "state": "OPEN",
+        "title": "Doc staleness: plans/2026-08-26-record-327-ledger — Open Items",
+        "updatedAt": "2026-09-02T08:33:58Z",
+        "facets": {
+          "origin": "docs-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Doc:** plans/2026-08-25-record-1424-ledger | **Section:** Freshness | **Category:** staleness | **Misleads:** coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 4c18d38c7acd13c08fdc36bff84ae99cc88b954e\n\n## Current State\n\nAlso affects: `Freshness`\n\nLive check: GitHub API shows PR #1448 state=closed merged=true (merged_at 2026-08-25T19:33:21Z) and issue #1424 state=closed state_reason=completed, closed by PR #1448. `ls .claude-tweaks/pipelines/` shows neither `.claude-tweaks/pipelines/2026-08-24T183144-record-1094` nor `.claude-tweaks/pipelines/2026-08-25T150921-record-1420` at the path the ledger cites; both exist only under `.claude-tweaks/pipelines/archive/`, confirming the archived state each row was waiting on. All three rows still read Status: open, contradicting all three checks.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | wrap-up | pr — PR #1448 — `gh pr list`: open, head `worktree-dispatch-record-1424` (this run's own PR) — expected: parked pending-review by the merge-verification gate's Red path (`test` check FAILURE, ceiling overflow — see item 2); `bot:blocked` applied to #1424 with an explanatory comment; stays open by design until a human fixes the check or it re-runs green | open | — |\n| 2 | wrap-up | pipeline-run — `.claude-tweaks/pipelines/2026-08-24T183144-record-1094` — `run-state.json` status: clean, not archived (remedy: auto per the residue CLI — unrelated to #1424's own diff, incidentally caught by this run's repo-wide un-archived-run probe; a pre-existing condition outside this build's diff) | open | — |\n| 3 | wrap-up | pipeline-run — `.claude-tweaks/pipelines/2026-08-25T150921-record-1420` — `run-state.json` status: clean, not archived (remedy: auto per the residue CLI — unrelated to #1424's own diff, incidentally caught by this run's repo-wide un-archived-run probe; a pre-existing condition outside this build's diff) | open | — |\n```\n\n**Proposed:**\n```\n| 1 | wrap-up | pr — PR #1448 — `worktree-dispatch-record-1424` | resolved | Merged 2026-08-25T19:33:21Z; closed issue #1424 |\n| 2 | wrap-up | pipeline-run — `.claude-tweaks/pipelines/2026-08-24T183144-record-1094` | resolved | Archived — now under `.claude-tweaks/pipelines/archive/2026-08-24T183144-record-1094` |\n| 3 | wrap-up | pipeline-run — `.claude-tweaks/pipelines/2026-08-25T150921-record-1420` | resolved | Archived — now under `.claude-tweaks/pipelines/archive/2026-08-25T150921-record-1420` |\n\nAll items terminal — per `plugin/skills/ledger/SKILL.md`'s Delete operation, delete this file.\n```\n\n## Acceptance Criteria\n\nAll three rows in `docs/plans/2026-08-25-record-1424-ledger.md`'s Open Items table are stale: each reached a terminal state outside this ledger's own tracking. Update the Status/Resolution columns to reflect that, then delete the file per `plugin/skills/ledger/SKILL.md`'s Delete operation (a ledger is deleted once every item reaches a terminal status; this repo's own history follows that convention for other resolved `*-ledger.md` files).\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-5370965b -->",
+        "createdAt": "2026-09-02T06:06:55Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACy3OKFA",
+            "name": "auto:merge-pending",
+            "description": "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)",
+            "color": "C2E0C6"
+          }
+        ],
+        "number": 1775,
+        "state": "OPEN",
+        "title": "Doc staleness: plans/2026-08-25-record-1424-ledger — Freshness",
+        "updatedAt": "2026-09-02T08:33:56Z",
+        "facets": {
+          "origin": "docs-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
     [
       {
         "body": "**Related:** #1537\n\n**CLAUDE.md:** CLAUDE | **Section:** claude-tweaks Pipeline | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 14952593f8d81f0bb3005a01fed83c75c96e3d4f\n\n## Current State\n\nVerified live against `skills/init/claude-md-template.md`'s `## claude-tweaks Pipeline` block (the origin template for this exact CLAUDE.md section) and `plugin/skills/_shared/auto-mode-contract.md` lines 29-30/41-44, which currently document this Manifesto-as-FYI behavior as live and correct. The template includes an 'Auto mode' paragraph verbatim in the same section that CLAUDE.md's own Pipeline block otherwise matches word-for-word; only this paragraph and the `specs/`-specific 'Spec close-out' paragraph (correctly omitted here since this project uses `work-backend: github-issues` with no `specs/` directory) differ.\n\n## Deliverables\n\n**Current:**\n```\n**`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.\n\n**Integration model** (`plugin/skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first`\n```\n\n**Proposed:**\n```\n**`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.\n\n**Auto mode:** in default `auto`, the Pipeline Config Manifesto renders as a read-only FYI — it computes and displays the policy levers, then proceeds without stopping — so the only user-facing stop is the Wrap-Up Review Console at the end. Pass `confirm` (or `hybrid`) to turn the Manifesto into a real approval gate; the rest of the pipeline still runs as `auto` once approved.\n\n**Integration model** (`plugin/skills/_shared/integration-model.md`): GitHub-backed projects default to `pr-first`\n```\n\n## Acceptance Criteria\n\nCLAUDE.md's `## claude-tweaks Pipeline` section is missing the 'Auto mode' paragraph that the currently installed claude-tweaks plugin's own CLAUDE.md-generation template includes verbatim in this section, describing real, current /flow behavior (the Manifesto renders as a read-only FYI under default `auto`, becomes a real approval gate under `confirm`/`hybrid`).\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-6b2c87b4 -->",
@@ -1710,82 +1896,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: record #900's wrap-up verify verb (plugin/bin/lib/wrap-up/engine-verify.js), whole-branch re-review finding #3, 2026-08-21.\nDefer-reason: genuinely-larger\n\n## Current State\n\n`plans-ledger` and `design-caches` (plugin/bin/lib/wrap-up/engine-verify.js) resolve their scan directories against `repoRoot` (the main checkout, via `git rev-parse --git-common-dir`), reused from `run-dir-archived`'s need for `.claude-tweaks/pipelines/` (which genuinely only exists in the main checkout, gitignored, never in a worktree). But `docs/superpowers/plans/`, `docs/plans/`, and `.superpowers/sdd/` are ordinary tracked-repo paths that exist independently in every checkout, and an execution-plan or SDD-ledger file created during a `worktree`/`pr-first` run (this project's default integration model) lives as untracked content in the WORKTREE's own working tree — invisible from the main checkout's working tree even though both share one git object store. Verified live: this very run's own leftover plan file and SDD ledger directory (created in the worktree) were both invisible to a verify run pointed at the main checkout's copy of the run directory, while an unrelated prior session's leftover `.superpowers/sdd/` content in the main checkout was flagged instead.\n\n## Deliverables\n\n- [ ] Thread a separate `cwd` parameter through `runVerify`'s check-argument object (distinct from `repoRoot`, which must stay the main checkout for `run-dir-archived`'s pipeline-directory lookups), defaulting to `process.cwd()` in production (`wrap-up-engine.js`'s `runVerifyVerb`).\n- [ ] Switch `plans-ledger`/`design-caches` to read `cwd` instead of `repoRoot`.\n- [ ] Rework the test suite's isolation convention for these two checks (currently `makeCleanRepoRoot()`, deliberately isolating `repoRoot` from this worktree's own live/churning content) to pass an isolated `cwd` fixture at every `runVerify()` call site in `tests/bin-lib/wrap-up/engine-verify.test.js` that doesn't already isolate `repoRoot` — otherwise every test in the suite implicitly depends on this worktree's live, churning `.superpowers/sdd/`/`docs/superpowers/plans/` state.\n\n## Acceptance Criteria\n\n1. A `plans-ledger`/`design-caches` leftover created in a worktree is caught by a verify run invoked from that same worktree, matching how the CLI is actually invoked in production under the default `worktree`/`pr-first` mode.\n2. The existing `npm test` suite stays fully green and no longer depends on this worktree's own live filesystem state for any `plans-ledger`/`design-caches` assertion.\n3. `run-dir-archived`'s existing `repoRoot`-based (main-checkout) resolution is unchanged — this fix must not regress that check, which genuinely needs the main checkout.\n\n---\n_Filed by `capture` via specShapedBody._\n",
-        "createdAt": "2026-08-21T17:43:25Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 1222,
-        "state": "OPEN",
-        "title": "wrap-up verify verb: plans-ledger/design-caches structurally blind to worktree-local leftovers under default pr-first mode",
-        "updatedAt": "2026-08-29T17:17:31Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
         }
       }
     ],
