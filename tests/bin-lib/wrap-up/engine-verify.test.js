@@ -6,7 +6,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { execFileSync: realExecFileSync } = require('node:child_process');
 const { renderVerifyTable, runVerify, registerCheck, resolvePrNumber, resolveArchivedRunDir } = require('../../../plugin/bin/lib/wrap-up/engine-verify');
-const { gitRepo } = require('../../helpers/git-fixtures');
+const { gitRepo, linkedWorktreeOf } = require('../../helpers/git-fixtures');
 
 function makeTmpDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -573,6 +573,34 @@ test('design-caches check scans `cwd`, not `repoRoot`, for untracked cache-file 
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
     fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('AC1 (live git): a plans-ledger leftover created in a worktree is caught by a verify run invoked from that same worktree, and is invisible from the main checkout', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  try {
+    fs.mkdirSync(path.join(wt, 'docs', 'superpowers', 'plans'), { recursive: true });
+    fs.writeFileSync(path.join(wt, 'docs', 'superpowers', 'plans', '2026-09-02-leftover-plan.md'), '# leftover\n');
+    const realGit = (args, cwd) => realExecFileSync('git', args, { cwd, encoding: 'utf8' });
+    const runDir = makeTmpDir('verify-ac1-livewt-');
+
+    // Sanity check first: the main checkout's own git status must not see
+    // the worktree-local leftover at all -- proving the pre-fix repoRoot-only
+    // scan really was structurally blind to it, not just untested.
+    const mainStatus = realExecFileSync(
+      'git', ['status', '--porcelain=v1', '-uall', '--', 'docs/superpowers/plans', 'docs/plans'],
+      { cwd: main, encoding: 'utf8' },
+    );
+    assert.strictEqual(mainStatus.trim(), '', 'sanity: the main checkout must not see the worktree-local leftover');
+
+    const result = runVerify({ runDir, base: 'main', repoRoot: main, cwd: wt, deps: { git: realGit, gh: () => '' } });
+    const row = result.rows.find((r) => r.check === 'plans-ledger');
+    assert.strictEqual(row.result, 'fail', row.detail);
+    assert.match(row.detail, /2026-09-02-leftover-plan\.md/);
+  } finally {
+    fs.rmSync(wt, { recursive: true, force: true });
+    fs.rmSync(main, { recursive: true, force: true });
   }
 });
 

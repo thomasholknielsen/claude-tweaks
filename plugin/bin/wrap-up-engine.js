@@ -355,8 +355,9 @@ function runRender(args) {
 function runVerifyVerb(args) {
   if (!args.runDir || !args.base) { usageExit(); return; }
   const repoRoot = resolveRepoRoot(process.cwd());
+  const cwd = process.cwd();
   const resolvedDir = resolveArchivedRunDir(args.runDir, repoRoot);
-  const { rows, exitCode } = runVerify({ runDir: resolvedDir, originalRunDir: args.runDir, base: args.base, repoRoot, deps: {} });
+  const { rows, exitCode } = runVerify({ runDir: resolvedDir, originalRunDir: args.runDir, base: args.base, repoRoot, cwd, deps: {} });
   process.stdout.write(`${renderVerifyTable(rows)}\n`);
   // Never process.exit() right after a large write -- can truncate stdout on
   // a pipe (see MEMORY.md's async-write-vs-process-exit-race incident).
