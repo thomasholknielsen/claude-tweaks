@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-02T15:43:01.419Z",
+  "computedAt": "2026-09-02T17:42:02.955Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -46,11 +46,6 @@
       {
         "number": 1580,
         "updatedAt": "2026-08-29T16:19:07Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1579,
-        "updatedAt": "2026-08-29T16:18:35Z",
         "state": "OPEN"
       },
       {
@@ -923,76 +918,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "# Reflect — staged finding 2\n\n**Category:** tangential\n\nOrigin: reflect light from #1410\nDefer-reason: tangential\n\n## Current State\n\nRecord #1410 and record #1402 (PR #1577, parked/unmerged) both diagnose the exact same root\ncause in `plugin/bin/lib/hooks/context.js`'s `resolveRun` fallback branches — a missing\nworktree-binding check. #1402's build ran first but its PR never merged; #1410 was later\nauthorized and dispatched, and its own build necessarily re-implemented the identical fix from\nscratch (it had no way to build on top of #1402's unmerged branch). Direct diff comparison during\n#1410's review confirmed the two PRs' functional code is byte-identical in `context.js`, differing\nonly in explanatory-comment wording — a trivial, but real, merge conflict on second-merge (also\ntouching one `docs/hooks.md` line both PRs edit differently). Nothing detected this duplication\nbefore dispatch authorized and ran #1410's build; it only surfaced because this review call\nhappened to cross-reference the two PRs by hand at the operator's explicit request.\n\n## Deliverables\n\n- `/claude-tweaks:dispatch` (or `/claude-tweaks:backlog refine`, wherever authorization happens)\n  gains a check that flags — at authorization or dispatch time, not discovered post-hoc in review —\n  when two `ready`/`auto:build` records name overlapping file regions or an unmerged sibling PR\n  already claims to fix the same root cause, so a human can choose to serialize them (block #1410\n  on #1402's merge) rather than pay for two independent builds of the same fix.\n\n## Acceptance Criteria\n\n- AC1: A concrete detection signal is proposed (file-overlap on unmerged PR diffs, a shared\n  root-cause reference in each record's body, or similar) and evaluated for false-positive rate.\n- AC2: The chosen signal is wired into dispatch's authorization or claim path, with a documented\n  fallback for \"unclear,\" never a hard block on ambiguous evidence.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-08-27T21:45:43Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          }
-        ],
-        "number": 1579,
-        "state": "OPEN",
-        "title": "dispatch: detect concurrently-authorized records with overlapping unmerged root-cause fixes",
-        "updatedAt": "2026-08-29T16:18:35Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
