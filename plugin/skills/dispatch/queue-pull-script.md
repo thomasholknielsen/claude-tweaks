@@ -21,6 +21,8 @@ eval "$(node -e "
     DISPATCH_BLOCKED_EXCLUDED: 'dispatch-blocked-excluded.json',
     DISPATCH_OVERSIZED_EXCLUDED: 'dispatch-oversized-excluded.json',
     DISPATCH_DEP_FRESHNESS: 'dispatch-dep-freshness.json',
+    DISPATCH_OPEN_PRS: 'dispatch-open-prs.json',
+    DISPATCH_CROSSPR_OVERLAP: 'dispatch-crosspr-overlap.json',
   };
   for (const [varName, filename] of Object.entries(files)) {
     const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
@@ -202,6 +204,40 @@ node -e "
 " "$DISPATCH_QUEUE_RAW" "$DISPATCH_DEP_FRESHNESS" "$DISPATCH_GROUPS" "$DISPATCH_BLOCKED_EXCLUDED"
 
 fi
+
+# #1579: cross-PR root-cause overlap report. Runs unconditionally (both the
+# cache-hit and cache-miss branches above leave $DISPATCH_GROUPS populated),
+# read-only, and never removes anything from $DISPATCH_GROUPS or gates
+# eligibility (AC2) -- SKILL.md Step 3's Cross-PR overlap report is what
+# surfaces this file's contents, the same non-gating convention the
+# Blocked-exclusion/Oversized-group reports already use. Fetches every open
+# PR's changed files and the issue(s) it already closes/links -- a candidate
+# whose key files overlap an UNRELATED open PR (one that does not already
+# close/link that same candidate -- that pair is a re-dispatch guard, not
+# this signal's job, see grouping.js's detectCrossPRFileOverlap doc comment)
+# is a possible duplicate root-cause fix. `--limit 100` caps this to the 100
+# most-recently-updated open PRs, same truncation posture as the queue pulls
+# above (queue-pull-notes.md) -- a real risk on a repo with a large open-PR
+# backlog, accepted for the same reason: this is one informational signal
+# among several, not a correctness-critical filter.
+gh pr list --state open --json number,files,closingIssuesReferences --limit 100 > "$DISPATCH_OPEN_PRS" 2>/dev/null || echo '[]' > "$DISPATCH_OPEN_PRS"
+OPEN_PR_COUNT=$(node -e "console.log(require(process.argv[1]).length)" "$DISPATCH_OPEN_PRS")
+if [ "$OPEN_PR_COUNT" -ge 100 ]; then
+  echo "Warning: the open-PR pull for the cross-PR overlap report (#1579) returned exactly the --limit cap (100) — overlap detection may be missing older open PRs. Informational only; never blocks dispatch." >&2
+fi
+node -e "
+  const { extractKeyFiles, detectCrossPRFileOverlap } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const groups = require(process.argv[1]);
+  const openPrsRaw = require(process.argv[2]);
+  const candidates = groups.flat().map((c) => ({ number: c.number, keyFiles: extractKeyFiles(c) }));
+  const openPRs = openPrsRaw.map((pr) => ({
+    number: pr.number,
+    files: (pr.files || []).map((f) => f.path),
+    closingIssueNumbers: (pr.closingIssuesReferences || []).map((i) => i.number),
+  }));
+  const overlaps = detectCrossPRFileOverlap(candidates, openPRs);
+  require('fs').writeFileSync(process.argv[3], JSON.stringify(overlaps));
+" "$DISPATCH_GROUPS" "$DISPATCH_OPEN_PRS" "$DISPATCH_CROSSPR_OVERLAP"
 ```
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
