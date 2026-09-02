@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-29T160545-tidy-standalone",
-  "reason": "swept: stale claim",
-  "releasedAt": "2026-08-29T17:17:32.919Z"
+  "runId": "2026-09-02T103225-record-1302",
+  "sessionId": "028e45da-29cc-48fb-ac57-2d494098e0cc",
+  "claimedAt": "2026-09-02T10:34:31.756Z",
+  "ttlHours": 72,
+  "host": "Djoef-PC-WE8Swd"
 }
