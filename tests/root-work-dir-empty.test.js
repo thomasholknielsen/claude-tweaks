@@ -18,14 +18,9 @@ const SPEC_FILE_RE = /^\d+-spec\.md$/;
 
 test('repo-root work/ directory carries no {n}-spec.md files', () => {
   const workDir = path.join(REPO_ROOT, 'work');
-  let entries;
-  try {
-    entries = fs.readdirSync(workDir);
-  } catch (err) {
-    if (err.code === 'ENOENT') return; // no work/ dir at all is also a pass
-    throw err;
-  }
-  const offenders = entries.filter((e) => SPEC_FILE_RE.test(e));
+  if (!fs.existsSync(workDir)) return; // no work/ dir at all is also a pass
+
+  const offenders = fs.readdirSync(workDir).filter((entry) => SPEC_FILE_RE.test(entry));
   assert.deepEqual(
     offenders,
     [],
