@@ -46,6 +46,24 @@ When running inside a `/claude-tweaks:flow` pipeline and the previous step alrea
 
 In a multi-spec `/flow` run, `flow/multi-spec.md`'s pre-flight verify sweep runs this procedure once against the unmodified base, before spec 1's build begins, and records any failures to the parent run directory's ledger (phase `test`, status `open`). Before diagnosing a verification failure for an individual spec, check that ledger for an existing entry describing the same failure — if found, cite it (`Pre-existing — see ledger #{N}, batch pre-flight sweep`) instead of independently re-deriving the same root cause. Only diagnose failures not already covered by the sweep.
 
+### Isolating pre-existing failures by file, not by keyword grep
+
+A failure count that falls within a documented baseline range (e.g. "239-241 fail on this host")
+is not, by itself, proof that none of those failures are new. Confirm it by extracting each
+failing test's **source file path** — node's test runner prints one in the stack trace
+(`at TestContext.<anonymous> (path/to/file.test.js:N)`) — and checking that none of those paths
+are files this build's diff changes or adds, never by grepping the failure summary text for a
+component-name or path-fragment substring. A test's assertion message has no obligation to
+mention the file or component it protects: a real CI-visible regression from record #1579
+(`dispatch/SKILL.md` exceeding the 40 KB per-invocation ceiling) surfaced in local output as
+`no SKILL.md exceeds the 40 KB per-invocation ceiling` with an actual array entry
+`['dispatch 41.4 KB']` — a keyword grep for `dispatch-SKILL` (a plausible-looking but wrong
+guess at the failure's own vocabulary) found zero hits and let the regression through a run that
+otherwise reported `TEST_PASSED=true`, undetected until the hosted CI check caught it
+independently. Diff the **set of failing file paths** against a baseline run's own set (or,
+absent a baseline run, against this build's own changed/added test files) — a substring search
+over free-text failure messages is not a substitute.
+
 ## Step 2.5: Verification pass stamp
 
 When the runner exits 0 for the full resolved check set (the full procedure, regardless of which skill called it — a targeted or partial run must not stamp), record the pass before reporting:
