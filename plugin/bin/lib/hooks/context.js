@@ -229,8 +229,25 @@ function listRunDirs(cwd) {
 // session-foreign" guess already allowed for a candidate lacking a provable
 // worktree binding). This is what stops a concurrent sibling worktree's
 // event (e.g. an AskUserQuestion answered in one session) from landing in an
-// unrelated run's events.jsonl, without touching the 'env'/'session' arms
-// above, or #413's console-execution exception, at all.
+// unrelated run's events.jsonl, without touching the 'env' arm above, or
+// #413's console-execution exception, at all.
+//
+// #1520: the SAME check now also applies to the 'session' arm (#62's
+// original design returned on a bare sessionId match, worktree binding
+// notwithstanding). #965: CLAUDE_CODE_SESSION_ID is shared across every
+// subagent of a session, so "this session already owns run X" is not proof
+// the commit that just landed in THIS cwd belongs to X — X may be a
+// DIFFERENT run this same session started earlier (or a worktree-pool
+// slot's leftover run from a previous, unrelated occupant — see
+// docs/incident-log.md's account of #815, where two commits in one worktree
+// were logged into a different, sessionId-matched run's events.jsonl
+// because the 'session' arm never checked worktree binding at all). A
+// worktree-foreign session-owned candidate is now skipped here too, letting
+// a worktree-compatible unowned run (or an older worktree-compatible
+// session-owned run) win instead — and, if nothing else matches, resolveRun
+// remembers it as `ownedElsewhere` so a caller that ends up with no dir can
+// still say "this session owns a run, it's just bound elsewhere" instead of
+// silently logging nothing (post-tool-use.js's commit-breadcrumb block).
 function isForeignWorktreeCandidate(cwd, sessionId, state) {
   return classifyOwnership({ sessionId, cwd }, state) === 'foreign';
 }
@@ -286,14 +303,25 @@ function resolveRun(cwd, env, sessionId, opts = {}) {
     return { dir: null, attribution: null };
   }
   let unowned = null;
+  // #1520: the first session-owned-but-worktree-foreign candidate hit,
+  // newest-first — remembered only for diagnosability (see the doc comment
+  // above); it never itself becomes the resolved dir.
+  let ownedElsewhere = null;
   for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
-    if (owner === me) return { dir, attribution: 'session' };
+    if (owner === me) {
+      if (includeWorktreeForeign || !isForeignWorktreeCandidate(resolvedCwd, me, state)) {
+        return { dir, attribution: 'session' };
+      }
+      if (!ownedElsewhere) ownedElsewhere = dir;
+      continue; // worktree-foreign — not a valid claim on THIS cwd's event; keep scanning
+    }
     // Newest-first, so the first unowned, worktree-compatible run is the one
     // the old code returned unconditionally.
     if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) unowned = dir;
   }
-  return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
+  if (unowned) return { dir: unowned, attribution: 'fallback' };
+  return ownedElsewhere ? { dir: null, attribution: null, ownedElsewhere } : { dir: null, attribution: null };
 }
 
 function resolveRunDir(cwd, env, sessionId, opts) {

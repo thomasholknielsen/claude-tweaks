@@ -631,6 +631,27 @@ function run(ctx) {
     }
   }
 
+  // Ownership-mismatch nudge (warn tier, #1520) — deliberately NOT gated on
+  // ctx.runDir. context.js's resolveRun sets `ownedElsewhere` exactly when
+  // this session owns SOME pipeline run, but that run's recorded worktree
+  // doesn't match this cwd — so the commit breadcrumb above was silently
+  // skipped (`ownedRun.dir` is falsy here) rather than misattributed into
+  // the wrong run's events.jsonl. #815 is the incident this replaces: two
+  // real commits were logged into a same-session run bound to a different
+  // worktree, with no visible sign anything had gone wrong. Loud-but-
+  // non-blocking beats silent, in either direction.
+  if (hasCommand && !ownedRun.dir && ownedRun.ownedElsewhere && targets.some((t) => t.action === 'commit')) {
+    return {
+      json: {
+        systemMessage:
+          `claude-tweaks: a commit just landed in this worktree, but this session's own pipeline run ` +
+          `(${path.basename(ownedRun.ownedElsewhere)}) is bound to a different worktree — the commit was not ` +
+          'logged to any run rather than being attributed to the wrong one. If this IS that run\'s work, run ' +
+          '`hooks.js record-worktree --run <that run\'s dir> <this worktree>` to fix the assignment.',
+      },
+    };
+  }
+
   // Closing-keyword check (warn tier) — deliberately NOT gated on ctx.runDir.
   if (hasCommand) {
     const warning = checkClosingKeyword(recentByDir);

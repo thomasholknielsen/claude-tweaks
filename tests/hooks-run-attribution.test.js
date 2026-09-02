@@ -278,6 +278,66 @@ test('a foreign-owned run is still never resolved for another session, worktree 
   assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: null, attribution: null });
 });
 
+// ─── session-owned but worktree-foreign candidates (#1520) ────────────────
+//
+// #815: two real commits landed in one worktree but were logged into a
+// DIFFERENT, same-session run bound to a different worktree — the 'session'
+// arm returned on a bare sessionId match and never checked worktree binding
+// at all, unlike the 'fallback' arm's #1410 fix above. These pin that the
+// 'session' arm now applies the identical check, and that a caller left with
+// no dir can still tell "my own run exists, it's just bound elsewhere" apart
+// from "nothing is mine" via the new `ownedElsewhere` field.
+
+test('a session-owned run bound to a different live worktree is skipped, in favor of an older worktree-compatible unowned run', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const compatible = mkRun(main, '2026-07-01T090000-mine-here', { status: 'active', worktree: callerWt });
+  mkRun(main, '2026-07-02T090000-mine-elsewhere', { status: 'active', sessionId: 'me', worktree: otherWt });
+
+  // Newest-first, session-owned would have won unconditionally pre-#1520.
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: compatible, attribution: 'fallback' });
+});
+
+test('a session-owned run bound to a different live worktree is skipped, in favor of an OLDER session-owned run bound to this one', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const compatible = mkRun(main, '2026-07-01T090000-mine-here', { status: 'active', sessionId: 'me', worktree: callerWt });
+  mkRun(main, '2026-07-02T090000-mine-elsewhere', { status: 'active', sessionId: 'me', worktree: otherWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: compatible, attribution: 'session' });
+});
+
+test('a session-owned run bound to a different live worktree, with nothing else to fall back to, resolves no dir but names itself as ownedElsewhere', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const elsewhere = mkRun(main, '2026-07-01T090000-mine-elsewhere', { status: 'active', sessionId: 'me', worktree: otherWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: null, attribution: null, ownedElsewhere: elsewhere });
+});
+
+test('a session-owned run with no worktree binding at all still wins as \'session\' (the asymmetry is preserved)', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const unbound = mkRun(main, '2026-07-01T090000-mine-unbound', { status: 'active', sessionId: 'me' });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: unbound, attribution: 'session' });
+});
+
+test('includeWorktreeForeign lets a session-owned run bound to a different worktree still win as \'session\' (close-run\'s need)', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const elsewhere = mkRun(main, '2026-07-01T090000-mine-elsewhere', { status: 'active', sessionId: 'me', worktree: otherWt });
+
+  assert.deepStrictEqual(
+    ctxLib.resolveRun(callerWt, {}, 'me', { includeWorktreeForeign: true }),
+    { dir: elsewhere, attribution: 'session' },
+  );
+});
+
 // close-run's own regression (whole-branch review finding, pre-v6.110.0): its
 // implicit (no --run) fallback shares resolveRun's unknown-session arm with
 // post-tool-use.js's event attribution, but needs the OPPOSITE answer for a
