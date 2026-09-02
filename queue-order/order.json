@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-02T12:57:51.764Z",
+  "computedAt": "2026-09-02T15:43:01.419Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -60,7 +60,7 @@
       },
       {
         "number": 1568,
-        "updatedAt": "2026-08-29T16:18:30Z",
+        "updatedAt": "2026-09-02T13:06:13Z",
         "state": "OPEN"
       },
       {
@@ -1059,82 +1059,6 @@
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\nOrigin: build #1142\nDefer-reason: genuinely-larger\n\n## Current State\n\n`materialize.js`'s worktree write mode and the `pre-tool-use.js` shadow-guard carve-out (#959, commit 73478c8b5) fixed the writer going forward, but 26 root-level `work/{n}-spec.md` files remain committed at the repo root (not under any `.claude-tweaks/pipelines/{run-id}/work/` run dir) as of 2026-08-27 — pre-dating the fix, and at least one (`work/1124-spec.md`, committed 2026-08-27) landed *after* the fix shipped, via a direct commit on the integration branch outside any worktree/materialize.js invocation (root cause not yet diagnosed — likely a hand-authored write bypassing the documented CLI, not a defect in the CLI itself). #1142's own 2026-08-25 \"Absorbed\" addendum named this sweep as follow-up work once the writer was fixed; #1142 verified the writer fix but did not do the sweep (out of scope for that build — touching 26 files risked colliding with ~69 concurrent sibling records in the same drain).\n\n## Deliverables\n\n- [ ] For each of the 26 (check current count — more may have landed since) root-level `work/{n}-spec.md` files, determine its originating run dir under `.claude-tweaks/pipelines/` (live or `archive/`) and move the file there (`work/{n}-spec.md` if live, `archive/{run-dir}/work/{n}-spec.md` if archived); when no matching run dir can be found (already reaped/archived elsewhere), leave a decision trail for what happened to it rather than silently deleting.\n- [ ] Add a pin test (e.g. under `tests/`) asserting the repo-root `work/` directory contains no `{n}-spec.md` files going forward — catches a regression of this same class, whatever its root cause turns out to be.\n- [ ] Separately diagnose why `work/1124-spec.md` landed at the repo root on 2026-08-27, *after* #959's fix shipped (2026-08-21) — confirm whether this was a hand-authored bypass of `materialize.js`/the worktree-first flow, or a genuine residual gap the pin test above would also need to guard against structurally (not just via test coverage).\n\n## Acceptance Criteria\n\n1. Repo-root `work/` directory contains zero `{n}-spec.md` files (pinned by the new test).\n2. Every one of the swept files' content is preserved somewhere traceable (its run dir's `work/`, or `archive/{run-dir}/work/`) — no silent deletion.\n3. The 2026-08-27 `work/1124-spec.md` root-landing is explained; if it points to a code gap (not a one-off hand-authored write), that gap gets its own follow-up.\n4. `npm test` passes.\n\n## Gotchas\n\n- This repo has ~69 sibling drain records executing concurrently as of 2026-08-27 (Phase 2 of a large bundle) — the sweep should run once the bundle drains, not mid-drain, to avoid colliding with in-flight worktrees still writing to their own run dirs.\n- Some of the 26 run dirs may already be archived (`.claude-tweaks/pipelines/archive/`) or fully reaped — the sweep needs a reliable per-file provenance lookup (likely via git log / commit message matching \"Materialize spec for #{n}\"), not a guess.\n\n_Filed by `capture` via specShapedBody, deferred from #1142._\n",
-        "createdAt": "2026-08-27T17:22:33Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          }
-        ],
-        "number": 1568,
-        "state": "OPEN",
-        "title": "Sweep root-level work/{n}-spec.md files into their run dirs; pin root work/ empty",
-        "updatedAt": "2026-08-29T16:18:30Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
           "stage": "ready",
           "grants": {
             "build": true,
