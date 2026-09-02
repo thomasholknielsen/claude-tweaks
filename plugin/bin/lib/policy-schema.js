@@ -146,6 +146,14 @@ const POLICY_KEYS = [
   // Read from /claude-tweaks:research's own `## Input` --mode= flag (IL-24:
   // that file is authoritative for the vocabulary, not this schema).
   { key: 'research-mode', type: 'enum', values: ['quick', 'standard', 'deep', 'ultradeep'], summary: "Sets the default depth of a research run — quick, standard, deep, or ultradeep — when nothing else specifies one.", category: 'pipeline-behavior', tier: 'advanced' },
+  // Port isolation (#1791/#1792): not an auto-mode lever — read directly by
+  // SessionStart (bin/lib/hooks/session-start.js), never surfaced as a
+  // Manifesto question. Per _shared/auto-mode-contract.md's "Adding a new
+  // policy lever" checklist: no Manifesto row (not an auto-mode behavior),
+  // no CLI arg (nothing about port allocation is per-invocation), no
+  // reversibility/confidence-floor entry (it writes .env.local, not code or
+  // history). It IS a POLICY_KEYS row (this one) and a policy-schema.md row.
+  { key: 'port-services', type: 'list', default: [], summary: "Names the services that get a port from this checkout's leased block; empty keeps port isolation off.", category: 'pipeline-behavior', tier: 'advanced' },
 ];
 
 const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));

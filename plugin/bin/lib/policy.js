@@ -94,4 +94,41 @@ function readListKey(repoRoot, key) {
   return value.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
-module.exports = { isWorktreeAlwaysOn, resolveWorktreeAlways, readIntegrationBranch, readListKey };
+const SERVICE_NAME_RE = /^[a-z][a-z0-9-]*$/;
+
+// `port-services` (#1792): the list-key convention above, plus per-entry
+// name validation and a block-capacity check session-start.js needs to
+// render as user-visible lines — kept here rather than folded into
+// readListKey since no other list-key caller needs either check.
+// Returns { services, invalidNames, overCapacity }: `services` is the
+// validated, in-bound-capacity list to actually activate port isolation
+// with (empty when overCapacity, so a caller can just check `.length`
+// without also checking the flag); `invalidNames` lists entries dropped for
+// failing SERVICE_NAME_RE (still dropped even when overCapacity, since a
+// malformed name is invalid regardless of how many other entries there
+// are); `overCapacity` is true when the validated list is longer than the
+// registry's BLOCK_SIZE and therefore cannot fit any one block.
+function resolvePortServices(repoRoot) {
+  // Required here, not at module top: bin/lib/ports/registry.js pulls in
+  // bin/lib/hooks/worktree-detect.js -> bin/lib/hooks/git-exec.js, and this
+  // module has no other dependency on anything under hooks/ — a top-level
+  // require would add that whole chain to every consumer of policy.js
+  // (including pre-tool-use.js's hot path) just for one constant.
+  // eslint-disable-next-line global-require
+  const { BLOCK_SIZE } = require('./ports/registry');
+  const raw = readListKey(repoRoot, 'port-services');
+  const services = [];
+  const invalidNames = [];
+  for (const name of raw) {
+    if (SERVICE_NAME_RE.test(name)) services.push(name);
+    else invalidNames.push(name);
+  }
+  if (services.length > BLOCK_SIZE) {
+    return { services: [], invalidNames, overCapacity: true, requestedCount: services.length };
+  }
+  return { services, invalidNames, overCapacity: false, requestedCount: services.length };
+}
+
+module.exports = {
+  isWorktreeAlwaysOn, resolveWorktreeAlways, readIntegrationBranch, readListKey, resolvePortServices,
+};

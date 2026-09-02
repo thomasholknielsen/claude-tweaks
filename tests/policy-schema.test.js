@@ -79,8 +79,11 @@ test('POLICY_KEYS entries are unique', () => {
   // 52 -> 53, #310 (sampling floor): grant-sampling-every — every Nth
   // machine-granted merged record is flagged for a real /demo verdict, so
   // human calibration evidence keeps entering the trust table.
-  assert.strictEqual(POLICY_KEYS.length, 53);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 53);
+  // 53 -> 54, #1792 (port isolation): port-services — names the services
+  // that get a port from this checkout's leased block; read directly by
+  // SessionStart, not an auto-mode lever.
+  assert.strictEqual(POLICY_KEYS.length, 54);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 54);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

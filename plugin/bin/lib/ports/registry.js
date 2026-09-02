@@ -93,6 +93,44 @@ function projectName(realPath) {
   return path.basename(root || realPath);
 }
 
+// Finds the first free candidate block, claims it for `realPath`/`services`,
+// and persists the write — the shared core of allocate's "no existing lease"
+// branch and reallocate's "existing lease is being replaced" branch. Must
+// run inside the registry lock (see allocate's header comment on why the
+// write cannot happen outside it). Throws PORTS_EXHAUSTED when no candidate
+// probes free.
+async function claimFreeBase(registry, regPath, realPath, services, probe) {
+  for (const base of candidateBases()) {
+    if (Object.prototype.hasOwnProperty.call(registry.leases, String(base))) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const free = await probe(base, { size: BLOCK_SIZE });
+    if (!free) continue;
+    const lease = { path: realPath, project: projectName(realPath), services, leased: new Date().toISOString() };
+    const updated = { ...registry, leases: { ...registry.leases, [base]: lease } };
+    writeJsonFile(regPath, updated);
+    return { base, lease };
+  }
+  const err = new Error('PORTS_EXHAUSTED');
+  err.code = 'PORTS_EXHAUSTED';
+  throw err;
+}
+
+function finishAllocation(realPath, result) {
+  const vars = serviceVars(result.lease.services, result.base);
+  let envWriteError = null;
+  try {
+    writeEnvFiles(realPath, vars);
+  } catch (err) {
+    envWriteError = err && err.message ? err.message : String(err);
+  }
+  return {
+    base: result.base,
+    ports: Array.from({ length: BLOCK_SIZE }, (_, i) => result.base + i),
+    vars,
+    envWriteError,
+  };
+}
+
 // (checkoutPath, { services, home, probe }) -> Promise<{ base, ports, vars, envWriteError }>
 // Idempotent: a second call for the same path returns the existing lease
 // without re-probing or changing its recorded services list.
@@ -117,7 +155,7 @@ async function allocate(checkoutPath, { services = [], home = os.homedir(), prob
   const result = await withLock(lockPath, async () => {
     const { registry: loaded } = loadOrInit(regPath);
     const { registry: pruned, changed: pruneChanged } = gc(loaded);
-    let registry = pruned;
+    const registry = pruned;
 
     for (const [base, lease] of Object.entries(registry.leases)) {
       if (lease.path === realPath) {
@@ -126,36 +164,40 @@ async function allocate(checkoutPath, { services = [], home = os.homedir(), prob
       }
     }
 
-    for (const base of candidateBases()) {
-      if (Object.prototype.hasOwnProperty.call(registry.leases, String(base))) continue;
-      // eslint-disable-next-line no-await-in-loop
-      const free = await probe(base, { size: BLOCK_SIZE });
-      if (!free) continue;
-      const lease = { path: realPath, project: projectName(realPath), services, leased: new Date().toISOString() };
-      registry = { ...registry, leases: { ...registry.leases, [base]: lease } };
-      writeJsonFile(regPath, registry);
-      return { base, lease };
-    }
-
-    const err = new Error('PORTS_EXHAUSTED');
-    err.code = 'PORTS_EXHAUSTED';
-    throw err;
+    return claimFreeBase(registry, regPath, realPath, services, probe);
   }, { failClosed: true });
 
-  const vars = serviceVars(result.lease.services, result.base);
-  let envWriteError = null;
-  try {
-    writeEnvFiles(realPath, vars);
-  } catch (err) {
-    envWriteError = err && err.message ? err.message : String(err);
-  }
+  return finishAllocation(realPath, result);
+}
 
-  return {
-    base: result.base,
-    ports: Array.from({ length: BLOCK_SIZE }, (_, i) => result.base + i),
-    vars,
-    envWriteError,
-  };
+// (checkoutPath, { services, home, probe }) -> Promise<{ base, ports, vars, envWriteError }>
+// Unlike allocate, never returns an existing lease for this path — it drops
+// one first (inside the same lock) and claims a fresh candidate block. For
+// #1792/ensure.js's "a foreign process now holds this checkout's block, and
+// nothing proves the block is still ours" case: the dropped block is
+// excluded from consideration by construction (claimFreeBase only offers
+// bases with no current lease entry), so a still-bound former block is never
+// re-offered — probe() would reject it anyway, but dropping the stale entry
+// first also stops a THIRD allocator from reading it as taken.
+async function reallocate(checkoutPath, { services = [], home = os.homedir(), probe = blockFree } = {}) {
+  const regPath = registryPath({ home });
+  const lockPath = `${regPath}.lock`;
+  const realPath = fs.realpathSync(checkoutPath);
+
+  fs.mkdirSync(path.dirname(regPath), { recursive: true });
+
+  const result = await withLock(lockPath, async () => {
+    const { registry: loaded } = loadOrInit(regPath);
+    const { registry: pruned } = gc(loaded);
+    const leases = {};
+    for (const [base, lease] of Object.entries(pruned.leases)) {
+      if (lease.path !== realPath) leases[base] = lease;
+    }
+    const registry = { ...pruned, leases };
+    return claimFreeBase(registry, regPath, realPath, services, probe);
+  }, { failClosed: true });
+
+  return finishAllocation(realPath, result);
 }
 
 // path -> void. Removes the lease for `path` from the registry only — it
@@ -204,5 +246,5 @@ function status({ home = os.homedir() } = {}) {
 
 module.exports = {
   POOL_BASE, POOL_END, BLOCK_SIZE,
-  registryPath, allocate, release, status, gc, freshRegistry,
+  registryPath, allocate, reallocate, release, status, gc, freshRegistry,
 };

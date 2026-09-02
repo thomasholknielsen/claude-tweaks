@@ -29,11 +29,18 @@ function listenOn(port) {
   });
 }
 
+// A fake probe reporting every block free, for tests whose assertion is
+// about registry bookkeeping rather than bind detection — avoids real
+// socket use in the shared 20000+ pool range, which otherwise contends with
+// this file's own bind-detection tests (and ensure.test.js's) when multiple
+// test FILES run concurrently under one `node --test` invocation.
+const alwaysFree = async () => true;
+
 // AC1: fresh registry -> allocate returns base 20000 and writes the shape.
 test('allocate: fresh registry returns POOL_BASE and writes {path, project, services, leased}', async () => {
   const home = tmpHome();
   const checkout = tmpCheckout(home, 'proj-a');
-  const result = await allocate(checkout, { services: ['web', 'api'], home });
+  const result = await allocate(checkout, { services: ['web', 'api'], home, probe: alwaysFree });
   assert.equal(result.base, POOL_BASE);
   assert.deepEqual(result.ports, Array.from({ length: BLOCK_SIZE }, (_, i) => POOL_BASE + i));
 
@@ -61,8 +68,8 @@ test('allocate: skips a block with a bound port, moves to the next candidate', a
 test('allocate: idempotent for the same path', async () => {
   const home = tmpHome();
   const checkout = tmpCheckout(home, 'proj-c');
-  const first = await allocate(checkout, { services: ['web'], home });
-  const second = await allocate(checkout, { services: ['other'], home });
+  const first = await allocate(checkout, { services: ['web'], home, probe: alwaysFree });
+  const second = await allocate(checkout, { services: ['other'], home, probe: alwaysFree });
   assert.equal(second.base, first.base);
   const raw = JSON.parse(fs.readFileSync(registryPath({ home }), 'utf8'));
   assert.equal(Object.keys(raw.leases).length, 1);
@@ -74,12 +81,12 @@ test('allocate: idempotent for the same path', async () => {
 test('allocate: gc drops a lease whose checkout path is gone', async () => {
   const home = tmpHome();
   const goneCheckout = tmpCheckout(home, 'gone');
-  const first = await allocate(goneCheckout, { services: ['web'], home });
+  const first = await allocate(goneCheckout, { services: ['web'], home, probe: alwaysFree });
   assert.equal(first.base, POOL_BASE);
   fs.rmSync(goneCheckout, { recursive: true, force: true });
 
   const other = tmpCheckout(home, 'still-here');
-  const second = await allocate(other, { services: ['web'], home });
+  const second = await allocate(other, { services: ['web'], home, probe: alwaysFree });
   assert.equal(second.base, POOL_BASE, 'the dead lease\'s block became allocatable again');
 });
 
@@ -96,7 +103,7 @@ test('allocate: two concurrent child-process allocators never receive the same b
   // path is argv[1] and home is argv[2], not argv[2]/argv[3].
   const script = `
     const { allocate } = require(${JSON.stringify(registryModulePath)});
-    allocate(process.argv[1], { services: ['web'], home: process.argv[2] })
+    allocate(process.argv[1], { services: ['web'], home: process.argv[2], probe: async () => true })
       .then((r) => { process.stdout.write(String(r.base)); })
       .catch((e) => { process.stderr.write(String(e && e.message)); process.exitCode = 1; });
   `;
@@ -124,7 +131,7 @@ test('allocate: two concurrent child-process allocators never receive the same b
 test('release: removes the lease for a known path; no-op for an unknown path', async () => {
   const home = tmpHome();
   const checkout = tmpCheckout(home, 'proj-d');
-  await allocate(checkout, { services: ['web'], home });
+  await allocate(checkout, { services: ['web'], home, probe: alwaysFree });
 
   release(path.join(home, 'checkouts', 'never-allocated'), { home });
   let raw = JSON.parse(fs.readFileSync(registryPath({ home }), 'utf8'));
@@ -143,7 +150,7 @@ test('allocate: a corrupt ports.json is renamed aside and a fresh registry is wr
   fs.writeFileSync(regPath, '{ this is not json');
 
   const checkout = tmpCheckout(home, 'proj-e');
-  const result = await allocate(checkout, { services: ['web'], home });
+  const result = await allocate(checkout, { services: ['web'], home, probe: alwaysFree });
   assert.equal(result.base, POOL_BASE);
 
   const dir = fs.readdirSync(path.dirname(regPath));
@@ -168,7 +175,7 @@ test('allocate: pool exhausted throws PORTS_EXHAUSTED and leaves the registry un
 test('status: prunes dead leases as a side effect and returns the pruned view', async () => {
   const home = tmpHome();
   const gone = tmpCheckout(home, 'status-gone');
-  await allocate(gone, { services: ['web'], home });
+  await allocate(gone, { services: ['web'], home, probe: alwaysFree });
   fs.rmSync(gone, { recursive: true, force: true });
 
   const view = status({ home });

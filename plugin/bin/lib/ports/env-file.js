@@ -58,6 +58,28 @@ function mergeManagedRegion(existingText, lines) {
   return merged.join(eol) + eol;
 }
 
+// The inverse of buildRegionLines: parses `KEY=value` pairs out of an
+// existing managed region. Returns null when no (well-formed) region is
+// present — a caller (ensure.js's staleness check) treats that the same as
+// "nothing to compare against." A line inside the markers that isn't
+// `KEY=value` is skipped rather than failing the whole parse.
+function readManagedRegion(existingText) {
+  if (!existingText) return null;
+  const eol = detectEOL(existingText);
+  const lines = existingText.split(eol);
+  const beginIdx = lines.indexOf(BEGIN_MARKER);
+  const endIdx = lines.indexOf(END_MARKER);
+  if (beginIdx === -1 || endIdx === -1 || endIdx < beginIdx) return null;
+
+  const vars = [];
+  for (const line of lines.slice(beginIdx + 1, endIdx)) {
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    vars.push([line.slice(0, eq), line.slice(eq + 1)]);
+  }
+  return vars;
+}
+
 function hasComposeFile(checkoutPath) {
   return COMPOSE_FILES.some((f) => fs.existsSync(path.join(checkoutPath, f)));
 }
@@ -84,5 +106,5 @@ function writeEnvFiles(checkoutPath, vars) {
 }
 
 module.exports = {
-  BEGIN_MARKER, END_MARKER, serviceVars, mergeManagedRegion, hasComposeFile, writeEnvFiles,
+  BEGIN_MARKER, END_MARKER, serviceVars, mergeManagedRegion, readManagedRegion, hasComposeFile, writeEnvFiles,
 };
