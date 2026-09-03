@@ -522,6 +522,11 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
       // Provably foreign-owned: allow + warn, event to the TARGET run's dir
       // (the wd-foreign-session precedent — enforcement-target, not
       // ownedRun). Collected, not returned — see the function header.
+      // #1431 audit: `hit.runDir` is neither ctx.runDir's session-agnostic
+      // newest-non-terminal GUESS nor ctx.ownedRun — it's the specific run
+      // findRunByWorktreePath just proved is bound to `target`, an
+      // unambiguous match, not an attribution guess. Not the #1431 hazard
+      // (a guessed run absorbing a foreign event); left as-is.
       ctxLib.appendEvent(hit.runDir, 'wd-foreign-teardown', { path: target });
       teardownWarnings.push(
         `claude-tweaks: worktree ${target} is assigned to run ${path.basename(hit.runDir)}, recorded by a different session — ` +
@@ -1062,6 +1067,17 @@ function isStampsGateExemptTarget(ctx) {
 // returns the value the caller returns directly. A provably foreign-owned
 // run (isForeignSessionCall above) downgrades the deny to an allow + warning;
 // otherwise it denies. Only the stamp name and the two message bodies vary.
+// #1431 audit: both appendEvent calls below deliberately use ctx.runDir, not
+// ctx.ownedRun — checkBookkeepingStampsGate is entirely about "does the run
+// assigned to THIS checkout carry its required stamps yet," a fact about the
+// checkout/worktree, not about which run this session happens to own; every
+// other signal in this function (ctx.runState, hasMaterializeCommit, the
+// prExempt cache) is already scoped to ctx.runDir the same way. This is the
+// session-agnostic worktree-bookkeeping comparison AC2 carves out, not the
+// #1431 attribution-guess hazard (which is specific to resolveRun's
+// 'fallback' arm guessing at an UNRELATED run with no worktree binding at
+// all — ctx.runDir here is never that: it's the run this checkout's own
+// binding names).
 function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText, isForeign) {
   if (isForeign) {
     ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { stamp, worktree: wtRoot });
@@ -1393,6 +1409,18 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
   // it denied one in the wrong in-project checkout.
   const mainRoot = safeReal(wtDetect.mainCheckoutRoot(assigned));
 
+  // #1431 audit: every appendEvent call in this loop (wd-ambiguous,
+  // wd-push-mismatch, wd-foreign-session, wd-deny below) deliberately uses
+  // ctx.runDir, not ctx.ownedRun. E1 is, by this whole function's own header
+  // comment, about "this checkout['s]" assigned pipeline run — a fact of the
+  // WORKTREE, resolved the same session-agnostic way regardless of who is
+  // calling (bin/hooks.js's own resolveRunDir(cwd, env) call for `runDir`
+  // carries no session id at all, deliberately — see main()'s comment on
+  // `runDir`/`runState`). Every event here documents what E1 decided about
+  // THAT run, not an audit trail belonging to this session's own work — the
+  // session-agnostic worktree-bookkeeping comparison AC2 carves out, not the
+  // #1431 attribution-guess hazard (resolveRun's 'fallback' arm guessing at
+  // an unrelated, unbound run — not what E1 resolves against here).
   for (const target of commandGitTargets || []) {
     const top = toplevel(target.dir);
     if (!top) continue; // cannot prove the target -> allow
