@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.114.1 — Hotfix: subagent Working Directory Discipline forbids the `cd` form that trips the harness's permission checker (IL-151)
+
+Hotfix: subagent Working Directory Discipline forbids the `cd` form that trips the harness's permission checker (IL-151).
+
 ## v6.114.0 — Adopt-or-create worktree gate for flow multi-spec + dispatch/init/routine reuse (#1711); dispatch bare-drain firing-scoped re-selection exclusion for claim-contest/build-fail non-terminal stops (refs #833); flow multi-spec shared-worktree refusal fix + inherited-run-dir sanctioned-writer cross-reference (refs #1457); backlog-grant-gate 30s timeout concern resolved upstream, no code change (#1669); run-ledger row 1 resolved -- findDuplicate --limit widening already shipped (#1726). Plus a whole-branch pre-release review pass: hooks.js --run anchoring gap closed for an initialized-but-arbitrary directory outside .claude-tweaks/pipelines/ (refs #1566), docs/skill-graph.md missing _shared/worktree-setup.md row added -- #1751/#1752/#1753 filed as backlog for the review's remaining non-blocking findings.
 
 Adopt-or-create worktree gate for flow multi-spec + dispatch/init/routine reuse (#1711); dispatch bare-drain firing-scoped re-selection exclusion for claim-contest/build-fail non-terminal stops (refs #833); flow multi-spec shared-worktree refusal fix + inherited-run-dir sanctioned-writer cross-reference (refs #1457); backlog-grant-gate 30s timeout concern resolved upstream, no code change (#1669); run-ledger row 1 resolved -- findDuplicate --limit widening already shipped (#1726). Plus a whole-branch pre-release review pass: hooks.js --run anchoring gap closed for an initialized-but-arbitrary directory outside .claude-tweaks/pipelines/ (refs #1566), docs/skill-graph.md missing _shared/worktree-setup.md row added -- #1751/#1752/#1753 filed as backlog for the review's remaining non-blocking findings..

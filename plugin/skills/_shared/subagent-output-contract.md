@@ -46,10 +46,12 @@ When in doubt, give less context. If the agent comes back with `NEEDS_CONTEXT`, 
 
 ## Working Directory Discipline
 
-Agents do not inherit the dispatcher's CWD reliably. When a dispatch will run `git`, `node --test`, or any path-sensitive command, **anchor the working directory explicitly** in the prompt. Both forms work; pick one and use it consistently:
+Agents do not inherit the dispatcher's CWD reliably. When a dispatch will run `git`, `node --test`, or any path-sensitive command, **anchor the working directory explicitly** in the prompt — and do it **without a preceding `cd`**:
 
-- **Explicit cd**: every shell step begins with `cd "/absolute/path/to/worktree" && ...`
-- **`git -C` form**: every git command is `git -C "/absolute/path/to/worktree" <subcommand>`
+- **`git` commands**: `git -C "/absolute/path/to/worktree" <subcommand>` for every invocation, never `cd "..." && git ...`.
+- **Non-`git` commands** (`grep`, `node --test`, etc.): pass the absolute path as the command's own argument (e.g. `grep -rn "pattern" "/absolute/path/to/worktree/tests/"`) rather than `cd`-ing first.
+
+**Never precede a path-sensitive command with `cd`, even in a `&&` chain.** The harness's Bash permission checker statically scans a command for paths it might read before running it; a `cd "<dir>" && <command>` shape asks it to resolve `<command>`'s target relative to a `cd` argument it cannot always evaluate (an interpolated variable, worktree-relative form, or platform path rewriting), and a git revision range like `origin/master...HEAD` gets misread as a path token on top of that because it contains a slash. When the checker cannot resolve where a command reads from, and any `Read()` deny rule is configured anywhere in the session's settings — common baseline hardening (`.env`, `.ssh/**`, `*.pem`, and similar), unrelated to the file actually being read — it cannot prove the read avoids that rule and escalates to the user instead of auto-approving, even under `--dangerously-skip-permissions` (a deny rule is a hard block that bypass mode does not lift). The `git -C` / absolute-path forms above are the actual fix: a self-contained command with no `cd` gives the checker a target it can resolve on the first line, so it clears without a prompt. See `docs/incident-log.md` `[IL-151]`.
 
 **Substitute the path before dispatching.** The prompt must carry the resolved absolute path, never an unexpanded placeholder like `$WORKTREE` — the agent's shell does not share the dispatcher's variables. A brief that says "verify `cd "$WORKTREE"`" while also forbidding the agent from creating worktrees leaves it no legal move when the substitution didn't happen: `BLOCKED` is then the correct response, and the round-trip is pure waste. If the dispatch template interpolates a path, check one rendered prompt before sending the batch.
 
