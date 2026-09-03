@@ -126,5 +126,9 @@
   "plugin/bin/lib/docs-health": {
     "lastSweptMs": 1788404984421,
     "lastHash": "8b35643c8773495b4041ec70353f291494f0ad5e"
+  },
+  "plugin/bin/lib/feedback": {
+    "lastSweptMs": 1788405148398,
+    "lastHash": "960cd8bbce85a6dc6c4644a14b03dea9531ea702"
   }
 }
