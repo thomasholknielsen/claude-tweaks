@@ -79,11 +79,35 @@ test('POLICY_KEYS entries are unique', () => {
   // 52 -> 53, #310 (sampling floor): grant-sampling-every — every Nth
   // machine-granted merged record is flagged for a real /demo verdict, so
   // human calibration evidence keeps entering the trust table.
-  // 53 -> 54, #1792 (port isolation): port-services — names the services
+  // 53 -> 54, #660 (review prose-exemption lever): review-auto-apply-prose-exempt
+  // — lets a prose-only fix auto-apply one severity tier above the resolved
+  // review-auto-apply-ceiling, see skills/review/step3-routing.md.
+  // 54 -> 59, #194 (Phase 2 doc-convention wiring): doc-convention-tutorial,
+  // doc-convention-how-to, doc-convention-reference, doc-convention-explanation,
+  // doc-convention-journey — one enum key per newly-wired Diátaxis/Journey genre,
+  // same shape as doc-convention-adr.
+  // 59 -> 60, #357 (ui-stack decision point): ui-stack — free-form string
+  // naming the UI component library/styling approach a frontend build should
+  // use, mirrors integration-branch's no-static-default shape.
+  // 60 -> 61, #1137 (brainstorming auto-continue): specify-auto-continue —
+  // lets a session invoke /claude-tweaks:specify on an approved brainstorming
+  // design doc immediately, see skills/specify/SKILL.md's Auto-continue section.
+  // 61 -> 62, #309 (veto-window maturation): grant-veto-window-hours — how
+  // long a machine-granted auto:merge-pending grant must sit unvetoed before
+  // /claude-tweaks:dispatch's Auto-merge gate matures it to auto:merge.
+  // 62 -> 63, #1654 (dispatch group-size guard lever): dispatch-group-size-guard
+  // — headless `next` selection's file-overlap group-size exclusion threshold,
+  // wired through the same policy.yml precedence chain as its dispatch-batch-size
+  // sibling; grouping.js's GROUP_SIZE_GUARD_DEFAULT stays the unset fallback.
+  // 63 -> 64, #1491 (specify drain budget): specify-budget — default
+  // attempt-count budget for a bare /specify drain invocation, sibling of
+  // dispatch-batch-size; the shared n/all --budget semantics are canonical in
+  // _shared/record-batch-input.md, not restated here.
+  // 64 -> 65, #1792 (port isolation): port-services — names the services
   // that get a port from this checkout's leased block; read directly by
   // SessionStart, not an auto-mode lever.
-  assert.strictEqual(POLICY_KEYS.length, 54);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 54);
+  assert.strictEqual(POLICY_KEYS.length, 65);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 65);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -112,6 +136,13 @@ test('integration-branch is a recognized string key with no default', () => {
   assert.ok(branch, 'integration-branch missing from POLICY_KEYS');
   assert.strictEqual(branch.type, 'string');
   assert.strictEqual(branch.default, undefined, 'unset must mean "resolve the default branch per firing"');
+});
+
+test('ui-stack is registered with no static default (mirrors integration-branch)', () => {
+  const uiStack = POLICY_KEYS.find((k) => k.key === 'ui-stack');
+  assert.ok(uiStack, 'ui-stack missing from POLICY_KEYS');
+  assert.equal(uiStack.type, 'string');
+  assert.equal('default' in uiStack, false, 'ui-stack must carry no static default — KEPT-PROMPT depends on unset resolving to null');
 });
 
 test('routine.branch is gone — renamed before it ever shipped, with no alias', () => {
@@ -316,7 +347,7 @@ test('invalidValues entries no longer carry a source field', () => {
 
 test('missing policy.yml and missing CLAUDE.md -> all-empty result', () => {
   const result = auditPolicy(tmpRepo());
-  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [], renamedKeys: [] });
+  assert.deepStrictEqual(result, { unrecognizedKeys: [], invalidValues: [], migratableKeys: [], renamedKeys: [], sourceExcludedKeys: [] });
 });
 
 test('a stray unattended-tier: on with no autonomy key -> renamedKeys entry, and never also unrecognizedKeys', () => {
@@ -509,6 +540,29 @@ test('doc-convention-adr is an enum with no default — unset means "detect and 
   assert.strictEqual(result.invalidValues[0].key, 'doc-convention-adr');
 });
 
+test('doc-convention-{tutorial,how-to,reference,explanation,journey} are enums with no default, mirroring doc-convention-adr', () => {
+  const genres = ['tutorial', 'how-to', 'reference', 'explanation', 'journey'];
+  for (const genre of genres) {
+    const key = POLICY_KEYS.find((k) => k.key === `doc-convention-${genre}`);
+    assert.ok(key, `doc-convention-${genre} missing from POLICY_KEYS`);
+    assert.strictEqual(key.type, 'enum');
+    assert.deepStrictEqual(key.values, ['plugin', 'project']);
+    assert.strictEqual(key.default, undefined, 'unset is a meaningful third state: the question has not been asked yet');
+  }
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'doc-convention-how-to: project\n');
+  const ok = auditPolicy(repo);
+  assert.deepStrictEqual(ok.invalidValues, []);
+  assert.deepStrictEqual(ok.unrecognizedKeys, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'doc-convention-journey: whatever-the-repo-does\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, 'a value outside the enum must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'doc-convention-journey');
+});
+
 test('superpowers-plans-retention is an enum defaulting to keep-forever', () => {
   const key = POLICY_KEYS.find((k) => k.key === 'superpowers-plans-retention');
   assert.ok(key, 'superpowers-plans-retention missing from POLICY_KEYS');
@@ -554,6 +608,28 @@ test('trust-revert-window-days is a recognized integer key with a floor of 1, de
 
   const negative = tmpRepo();
   writePolicy(negative, 'trust-revert-window-days: -5\n');
+  assert.strictEqual(auditPolicy(negative).invalidValues.length, 1, 'a negative value must be flagged too');
+});
+
+test('grant-veto-window-hours is a recognized integer key with a floor of 1, defaulting to 24', () => {
+  const key = POLICY_KEYS.find((k) => k.key === 'grant-veto-window-hours');
+  assert.ok(key, 'grant-veto-window-hours missing from POLICY_KEYS');
+  assert.strictEqual(key.type, 'integer');
+  assert.strictEqual(key.min, 1);
+  assert.strictEqual(key.default, 24);
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'grant-veto-window-hours: 48\n');
+  assert.deepStrictEqual(auditPolicy(repo).invalidValues, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'grant-veto-window-hours: 0\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, '0 is below the floor of 1 and must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'grant-veto-window-hours');
+
+  const negative = tmpRepo();
+  writePolicy(negative, 'grant-veto-window-hours: -5\n');
   assert.strictEqual(auditPolicy(negative).invalidValues.length, 1, 'a negative value must be flagged too');
 });
 
@@ -646,6 +722,52 @@ test('model-profiles: an unrecognized sub-field inside a valid row is accepted �
   assert.deepStrictEqual(result.invalidValues, []);
 });
 
+test('auditPolicy flags a valid policy.yml value for a source-excluded lever as sourceExcludedKeys, not silently accepted (#839)', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'merge-authorization: pre-authorized\n');
+  const result = auditPolicy(repo);
+  assert.deepStrictEqual(result.invalidValues, [], 'a valid enum value must not also be reported as invalid');
+  assert.deepStrictEqual(result.unrecognizedKeys, [], 'a recognized key must not also be reported as unrecognized');
+  assert.deepStrictEqual(result.sourceExcludedKeys, [{ key: 'merge-authorization', value: 'pre-authorized' }]);
+});
+
+test('auditPolicy reports no sourceExcludedKeys when merge-authorization is unset', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'autonomy: trusted\n');
+  assert.deepStrictEqual(auditPolicy(repo).sourceExcludedKeys, []);
+});
+
+test('an invalid value for a source-excluded key reports as invalidValues, never double-reported as sourceExcludedKeys', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'merge-authorization: sometimes\n');
+  const result = auditPolicy(repo);
+  assert.strictEqual(result.invalidValues.length, 1);
+  assert.strictEqual(result.invalidValues[0].key, 'merge-authorization');
+  assert.deepStrictEqual(result.sourceExcludedKeys, []);
+});
+
+test('the policy.yml value is still discarded at resolve time (unchanged behavior) when a lever is flagged sourceExcludedKeys', () => {
+  const result = resolvePolicyKeys(['merge-authorization'], {
+    policyRaw: 'merge-authorization: pre-authorized\n',
+    runConfigRaw: null,
+  });
+  assert.deepStrictEqual(result['merge-authorization'], { value: 'ask', source: 'default' }, 'auditPolicy surfacing the finding must not change resolvePolicyKeys\' own discard behavior');
+});
+
+test('the source-excluded special case is keyed on the generic policySourceExcluded flag, not a hardcoded key name (#839)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'plugin', 'bin', 'lib', 'policy-schema.js'), 'utf8');
+  assert.ok(
+    !/canonical === 'merge-authorization'/.test(src),
+    'the resolver must not special-case merge-authorization by name — a second excluded lever needs zero code changes here, only registering policySourceExcluded on its POLICY_KEYS row',
+  );
+  assert.ok(/policySourceExcluded/.test(src), 'the resolver and auditPolicy must both consult the generic policySourceExcluded flag');
+});
+
+test('merge-authorization is the one POLICY_KEYS entry currently flagged policySourceExcluded', () => {
+  const flagged = POLICY_KEYS.filter((k) => k.policySourceExcluded === true).map((k) => k.key);
+  assert.deepStrictEqual(flagged, ['merge-authorization']);
+});
+
 test('mixed policy.yml + CLAUDE.md content is read independently, both audited together', () => {
   const repo = tmpRepo();
   writePolicy(repo, 'dispatch-retry-ceiling: 5\nmade-up-lever: 1\n');
@@ -682,6 +804,26 @@ test('resolveValue passes an unrecognized key through unchanged', () => {
 test('resolveValue never throws on a malformed value of any type', () => {
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', {}));
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', ['x']));
+});
+
+test('specify-budget is registered as an integer defaulting to 5, sibling of dispatch-batch-size (#1491)', () => {
+  const key = POLICY_KEYS.find((k) => k.key === 'specify-budget');
+  assert.ok(key, 'specify-budget missing from POLICY_KEYS');
+  assert.strictEqual(key.type, 'integer');
+  assert.strictEqual(key.default, 5);
+  assert.strictEqual(key.category, 'pipeline-behavior');
+  assert.strictEqual(key.tier, 'advanced');
+  assert.strictEqual(typeof key.summary, 'string');
+
+  const repo = tmpRepo();
+  writePolicy(repo, 'specify-budget: 7\n');
+  assert.deepStrictEqual(auditPolicy(repo).invalidValues, []);
+
+  const bad = tmpRepo();
+  writePolicy(bad, 'specify-budget: not-a-number\n');
+  const result = auditPolicy(bad);
+  assert.strictEqual(result.invalidValues.length, 1, 'a non-integer value must be flagged');
+  assert.strictEqual(result.invalidValues[0].key, 'specify-budget');
 });
 
 test('design-critique is registered as an enum off|auto|full defaulting to auto (#595)', () => {

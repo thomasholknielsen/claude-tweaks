@@ -98,6 +98,38 @@ test('needs:definition refuses even with no trustVerdicts/grantCheck passed at a
   assert.equal(result.needsGrantCheck, undefined);
 });
 
+test('needs:decision (a different needs:* label) refuses under a new needs-label failedKey, not needs-definition', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:decision'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'needs-label');
+  assert.match(result.reason, /needs:decision/);
+});
+
+test('needs:decision refuses even with no trustVerdicts/grantCheck passed at all (same posture as needs:definition)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:decision'] }),
+    policy: basePolicy(),
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'needs-label');
+  assert.equal(result.needsGrantCheck, undefined);
+});
+
+test('a record carrying both needs:definition and needs:decision denies under needs-definition (checked first)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'needs:definition', 'needs:decision'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.failedKey, 'needs-definition');
+});
+
 test('AC2 key 3: no cell at all for this class refuses (distinct from a present insufficient-evidence row)', () => {
   const result = evaluateGrantGate({
     record: baseRecord(),
@@ -217,6 +249,67 @@ test('#366: riskFloor/sizeFloor default to \'high\' when policy omits them (medi
   assert.equal(result.failedKey, null);
 });
 
+test('#969 AC1: shaped:headless + risk:medium denies with shaped-headless-floor', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:medium', 'size:low', 'shaped:headless'] }),
+    policy: basePolicy(),
+    trustVerdicts: new Map([['producer:code-health|elevated', { verdict: 'clean', kind: 'producer' }]]),
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'shaped-headless-floor');
+  assert.equal(result.snapshot.risk, 'medium');
+  assert.equal(result.snapshot.size, 'low');
+  assert.equal(result.snapshot.floorReason, 'risk');
+});
+
+test('#969 AC1: shaped:headless + size:medium denies with shaped-headless-floor', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:medium', 'shaped:headless'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'shaped-headless-floor');
+  assert.equal(result.snapshot.risk, 'low');
+  assert.equal(result.snapshot.size, 'medium');
+  assert.equal(result.snapshot.floorReason, 'size');
+});
+
+test('#969 AC2: shaped:headless + risk:low + size:low is not denied by this rule (later gates still apply)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'shaped:headless'] }),
+    policy: basePolicy(),
+    trustVerdicts: cleanVerdict,
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, true);
+  assert.equal(result.failedKey, null);
+});
+
+test('#969 AC3: no shaped:headless, same facets as the medium-risk case above, still grants (human-shaped path byte-identical)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:medium', 'size:low'] }),
+    policy: basePolicy(),
+    trustVerdicts: new Map([['producer:code-health|elevated', { verdict: 'clean', kind: 'producer' }]]),
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, true);
+  assert.equal(result.failedKey, null);
+});
+
+test('#969 AC4: shaped:headless + risk:high denies with oversight-floor, not shaped-headless-floor (existing key wins deny-fast)', () => {
+  const result = evaluateGrantGate({
+    record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:high', 'size:low', 'shaped:headless'] }),
+    policy: basePolicy(),
+    trustVerdicts: new Map([['producer:code-health|elevated', { verdict: 'clean', kind: 'producer' }]]),
+    grantCheck: clearGrantCheck,
+  });
+  assert.equal(result.grant, false);
+  assert.equal(result.failedKey, 'oversight-floor');
+});
+
 test('AC2 key 8: fleet daily grant cap spent refuses', () => {
   const result = evaluateGrantGate({
     record: baseRecord(),
@@ -314,7 +407,7 @@ test('re-authorization (bot:blocked) path is unaffected by this module — it is
   // grant-gate itself doesn't special-case bot:blocked records; the mode's own
   // prose treats a passing gate result on a bot:blocked record as
   // "re-authorize" rather than "first grant" (auto:merge withheld regardless
-  // of autoMerge, per grant-mode.md). Confirm the gate's own output shape does
+  // of autoMerge, per refine-headless.md). Confirm the gate's own output shape does
   // not vary by bot state so that distinction is safe to layer on top.
   const result = evaluateGrantGate({
     record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'bot:blocked'] }),

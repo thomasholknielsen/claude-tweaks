@@ -1,4 +1,4 @@
-// bin/lib/model-profiles/tests/profiles.test.js
+// tests/bin-lib/model-profiles/profiles.test.js
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');

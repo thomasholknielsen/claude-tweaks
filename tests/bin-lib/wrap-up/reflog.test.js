@@ -1,4 +1,4 @@
-// bin/lib/wrap-up/tests/reflog.test.js
+// tests/bin-lib/wrap-up/reflog.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { parseLine, classify, historyOps } = require('../../../plugin/bin/lib/wrap-up/reflog');

@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot } = require('../plugin/bin/lib/hooks/worktree-detect');
+const { nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot, checkRunDirAnchoredOrOutside, unanchoredRunDirShadowMessage } = require('../plugin/bin/lib/hooks/worktree-detect');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 test('nearestExistingDir: existing directory returns itself', () => {
@@ -174,4 +174,89 @@ test('mainCheckoutRoot: a stat failure that is NOT ENOENT returns null instead o
   } finally {
     fs.chmodSync(blocked, 0o755);
   }
+});
+
+test('checkRunDirAnchoredOrOutside: anchored under main checkout accepts, from main cwd and from linked-worktree cwd', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const target = path.join(main, '.claude-tweaks', 'pipelines', 'r1');
+  assert.strictEqual(checkRunDirAnchoredOrOutside(target, main).ok, true);
+  assert.strictEqual(checkRunDirAnchoredOrOutside(target, wt).ok, true, 'production shape: worktree cwd + main-anchored run dir');
+});
+
+test('checkRunDirAnchoredOrOutside: path outside any checkout accepts (existence-independent)', () => {
+  const main = gitRepo();
+  const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wtd-outside-')), 'mp-journey');
+  const r = checkRunDirAnchoredOrOutside(outside, main);
+  assert.strictEqual(r.ok, true);
+});
+
+test('checkRunDirAnchoredOrOutside: bare relative path from linked-worktree cwd rejects as foreign-checkout', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const r = checkRunDirAnchoredOrOutside(path.join('.claude-tweaks', 'pipelines', 'r1'), wt);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'foreign-checkout');
+  assert.strictEqual(r.mainRoot, safeReal(main));
+});
+
+test('checkRunDirAnchoredOrOutside: absolute path inside a linked worktree rejects as foreign-checkout', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const r = checkRunDirAnchoredOrOutside(path.join(wt, '.claude-tweaks', 'pipelines', 'r1'), main);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'foreign-checkout');
+});
+
+test('checkRunDirAnchoredOrOutside: path inside an unrelated second repo rejects as foreign-checkout', () => {
+  const main = gitRepo();
+  const other = gitRepo();
+  const r = checkRunDirAnchoredOrOutside(path.join(other, 'run'), main);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'foreign-checkout');
+});
+
+test('checkRunDirAnchoredOrOutside: submodule-style .git FILE ancestor counts as inside a checkout, not outside', () => {
+  const main = gitRepo();
+  const fake = fs.mkdtempSync(path.join(os.tmpdir(), 'wtd-subm-'));
+  fs.writeFileSync(path.join(fake, '.git'), 'gitdir: ../somewhere/.git/modules/x\n'); // unparseable as worktree admin — mainCheckoutRoot(fake) is null
+  const r = checkRunDirAnchoredOrOutside(path.join(fake, 'run'), main);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'foreign-checkout');
+});
+
+test('checkRunDirAnchoredOrOutside: no-repo-root cwd with path inside some checkout rejects with the distinct reason', () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'wtd-norepo-'));
+  const repo = gitRepo();
+  const r = checkRunDirAnchoredOrOutside(path.join(repo, 'run'), bare);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'no-repo-root');
+});
+
+test('checkRunDirAnchoredOrOutside: symlinked alias of the main checkout classifies by real location (accepts)', () => {
+  const main = gitRepo();
+  const aliasParent = fs.mkdtempSync(path.join(os.tmpdir(), 'wtd-alias-'));
+  const alias = path.join(aliasParent, 'alias');
+  fs.symlinkSync(main, alias);
+  const r = checkRunDirAnchoredOrOutside(path.join(alias, '.claude-tweaks', 'pipelines', 'r1'), main);
+  assert.strictEqual(r.ok, true, 'realpath normalization: alias resolves into the anchored main checkout');
+});
+
+test('checkRunDirAnchoredOrOutside: unreadable ancestor fails closed (rejects), never classifies outside', () => {
+  const main = gitRepo();
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'wtd-eacces-'));
+  const blocked = path.join(base, 'blocked');
+  fs.mkdirSync(blocked);
+  fs.chmodSync(blocked, 0o000);
+  try {
+    const r = checkRunDirAnchoredOrOutside(path.join(blocked, 'inner', 'run'), main);
+    assert.strictEqual(r.ok, false);
+  } finally {
+    fs.chmodSync(blocked, 0o755);
+  }
+});
+
+test('unanchoredRunDirShadowMessage: default flag spelling unchanged; explicit flag substitutes', () => {
+  assert.match(unanchoredRunDirShadowMessage('x', '/root'), /^--run-dir x resolves outside the main checkout/);
+  assert.match(unanchoredRunDirShadowMessage('x', '/root', '--run'), /^--run x resolves outside the main checkout/);
 });

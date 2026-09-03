@@ -1,4 +1,4 @@
-// bin/lib/residue/tests/render.test.js
+// tests/bin-lib/residue/render.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { renderOutstanding } = require('../../../plugin/bin/lib/residue/render');

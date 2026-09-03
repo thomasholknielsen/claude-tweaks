@@ -41,19 +41,23 @@ At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatch
 > node "${CLAUDE_PLUGIN_ROOT}/bin/build-review-context.js" build --base {base} --branch {branch}
 > ```
 >
-> Append `--run "$PIPELINE_RUN_DIR"` when a pipeline run directory exists (the scratch dir then lives under `{run}/tmp/review-ctx`, per-run unique); without it the CLI mints a fresh unique directory under the system temp dir — never a fixed shared path. When Step 2.5's record-label read already minted `{ctx-dir}` (`review-effort-derivation.md`), pass `--dir {ctx-dir}` to reuse it instead of minting a second dir. When Step 2's Merge-Provenance Check produced an own-work file set, write that list to a file (one path per line) and add `--files-from {path}`. The CLI prints one JSON line — `{dir, contextPath, bytes, files, emptySections}` — and only that line enters this thread. Carry the printed `dir` (written `{ctx-dir}` below) through Steps 3-3.6: every scratch file this skill writes (`lens-*.json`, `findings-by-lens.json`) lives there, so concurrent reviews can never clobber each other's files.
+> Append `--run "$PIPELINE_RUN_DIR"` when a pipeline run directory exists (the scratch dir then lives under `{run}/review-ctx`, per-run unique — no `tmp/` path segment, since a common `Read(**/tmp/**)` permissions.deny glob matches any `tmp/` segment and blocked lens agents from reading this bundle, refs #1213); without it the CLI mints a fresh unique directory under the system temp dir — never a fixed shared path. When Step 2.5's record-label read already minted `{ctx-dir}` (`review-effort-derivation.md`), pass `--dir {ctx-dir}` to reuse it instead of minting a second dir. When Step 2's Merge-Provenance Check produced an own-work file set, write that list to a file (one path per line) and add `--files-from {path}`. The CLI prints one JSON line — `{dir, contextPath, bytes, files, emptySections}` — and only that line enters this thread. Carry the printed `dir` (written `{ctx-dir}` below) through Steps 3-3.6: every scratch file this skill writes (`lens-*.json`, `findings-by-lens.json`) lives there, so concurrent reviews can never clobber each other's files.
 >
 > A section can legitimately come out empty (`emptySections` names them) — a deleted file, or an unreadable path. That degrades safely rather than silently: the full diff sits at the top of the same bundle, so the agent still sees that file's change either way.
 >
+> **`Path:Line` must be file-native, never bundle-relative.** The bundle concatenates every changed file's diff content under one running line count, which does not match any target file's own line numbering. Tell each dispatched agent explicitly: when reporting a `Path:Line` finding, re-read that location in the live target file (`Read`/`grep -n`, not the bundle's own line count) and report the line number from there. Two reproduction-pair agents that independently found the identical real issue but each reported a different numbering scheme (bundle vs. file) will not satisfy the `line ±2` reproduction-match rule even though the finding is the same — observed on record #1488's review, where one agent reported line 37 and the other line 2739 for the same ~90-line file. This instruction goes in the dispatch prompt alongside the scope, not inside the byte-identical Calibration/Output-template block below.
+>
 > Do **not** `Read` the changed files into this thread to "front-load" them. `Read` places their full content in main-thread context, and each dispatched agent still reads its own copy regardless — so the front-load saves no I/O and costs the entire diff plus every touched file, the exact cost Step 2 exists to avoid. An agent needing more than the bundle (imports, schemas, callers) reads those itself, in its own context window.
 
-> **Parallel execution (conditional):** At `medium` and above, when the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. At `low`, dispatch single agents per the Low-tier single-read rule above instead. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i).
+> **Parallel execution (conditional):** At `medium` and above, when the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. At `low`, dispatch single agents per the Low-tier single-read rule above instead. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i). Dispatch shape: single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) applies.
 >
 > **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model profile). Independent runs — no agent sees the other's output. After both return, write each agent's `findings` array to `{ctx-dir}/lens-{LENS}-agentA.json` / `{ctx-dir}/lens-{LENS}-agentB.json` and call:
 > ```bash
 > node "${CLAUDE_PLUGIN_ROOT}/bin/review-coordination.js" categorise-reproduction {ctx-dir}/lens-{LENS}-agentA.json {ctx-dir}/lens-{LENS}-agentB.json
 > ```
 > A dispatched lens agent that fails mid-flight is a different case from one that completes — see `_shared/subagent-output-contract.md`'s "Failed-agent retrieval" section for how to read its result cheaply, without blocking on the full envelope.
+>
+> **Reproduction-pair partner dies to a session/usage limit.** When one agent in a reproduction pair terminates early on an account session/usage limit (the `Agent terminated early due to an API error: You've hit your session limit` signature), retry that one agent once. If the retry also terminates the same way, treat the surviving partner as a Low-tier single read for that lens only — its findings enter `unconfirmed` unless elevated via the Direct-verification override below, never auto-promoted to `confirmed` on the strength of one agent alone. Log `STAGED {HH:MM:SS} — Reproduction: lens "{lens}" partner agent terminated on a session limit twice; single-read coverage. Reversibility: high.` to `decisions.md`, and carry a one-line coverage-caveat into the Step 7 summary and the PR verdict comment naming the affected lens.
 >
 > - Findings present in both agents' outputs (path exact, line ±2, matching severity bucket) → emit as `confirmed`. Write to `decisions.md`: `AUTO {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} reproduced. Confirmed. Reversibility: high.`
 > - Findings present in only one agent's output → emit as `unconfirmed`. Write: `STAGED {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.` Unconfirmed findings do **not** enter Step 3 Routing — they route directly to the Wrap-Up Console's Low-confidence subsection.
@@ -89,6 +93,8 @@ When in doubt: would a calibrated senior engineer block a PR on this finding alo
 OUTPUT FORMAT (required):
 First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED — nothing before it, not even a lead-in sentence.
 WRONG: "Based on my review, DONE" — narration before the status word still violates this.
+WRONG: "I reviewed the diff and found two issues worth flagging. DONE_WITH_CONCERNS" — same violation even when the narration states real content instead of filler; the rule is about position, not about whether the lead-in is empty.
+Self-check before sending: is the very first token of your reply literally one of the four status words? If you were about to write a summary, transition, or acknowledgment first, delete it and start the reply with the status word instead.
 Then return ONLY a markdown table, no preamble:
 
 | Severity | Path:Line | Finding | Evidence |
@@ -102,7 +108,7 @@ Return at most 15 rows, highest severity first; if more were found, append a fin
 Do not add narration, headers, or summaries before or after the table.
 ```
 
-Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table (`step3-routing.md`) — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation.
+Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table (`step3-routing.md`) — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation — check the status word's **position**, not merely its presence: a reply that opens with narration and states the status word only later (e.g. "Based on my review... DONE") is a violation even though the literal token appears somewhere in the reply. Verify line 1 of the reply is exactly the status word before accepting it as compliant (#606's wrap-up: a lens agent's narration-then-DONE reply was initially accepted on token presence alone, caught only by the Friction lens's `contract-violation` event).
 
 **Pass diff scope, not diff text.** When composing each prompt, give the agent the shared context bundle's path (built above) plus the base/branch refs (or the own-work file set when Step 2's Merge-Provenance Check found merge commits). Do not paste diff content into the prompt: Step 2 deliberately keeps only `--stat`/`--name-only` in the main thread, and inlining the diff into N lens prompts would pull the full diff back into main-thread context to compose them.
 
@@ -123,6 +129,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 - Authentication/authorization checks present where needed?
 - No secrets or sensitive data in code?
 - OWASP top 10 considerations?
+- Does every path-based allow/exemption decision resolve the real path (leaf symlink followed, `..` normalized) before deciding, and fail closed when the path is unprovable? (#1678: a file-tool gate exemption decided on the raw literal path let a symlink located outside any repo but pointing inside a protected worktree bypass the check entirely — see `docs/donts.md`'s matching rule, `[IL-150]`.)
 
 ### 3c: Error Handling
 
@@ -130,7 +137,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 - Edge cases handled (null, empty, malformed input)?
 - Errors logged with sufficient context for debugging?
 - User-facing errors safe (no internal details leaked)?
-- No `fs.existsSync(...)`-then-`fs.readFileSync(...)` TOCTOU races — read directly and catch, treating a read failure the same as "absent," rather than checking existence first? (#901's hindsight: this exact pattern recurred independently 3 times within one record's own fresh code, in a project where concurrent sibling sessions routinely archive/prune the exact directories these readers walk.)
+- No `fs.existsSync(...)`-then-`fs.readFileSync(...)` TOCTOU races — read directly and catch, treating a read failure the same as "absent," rather than checking existence first? (#901's hindsight: this exact pattern has recurred independently 4 times within fresh code, most recently #1269 (`[IL-146]`), in a project where concurrent sibling sessions routinely archive/prune the exact directories these readers walk. See `docs/donts.md`'s matching rule for the write-time version of this callout.)
 
 ### 3d: Performance
 
@@ -153,6 +160,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 
 - Tests verify behavior through the public interface, not implementation details? (No asserting on private methods, spying on internal collaborators, or checking intermediate data shapes that exist only because of the current implementation.)
 - **Refactor-coupling diagnostic:** would this test break if you renamed an internal function or restructured the implementation *without changing behavior*? If yes, it's testing implementation, not behavior — flag it. The point of a test is to survive refactors and fail only when behavior breaks.
+- **Discrimination diagnostic (new regression tests):** would this test still pass with the fix it was written for reverted? A fixture whose size or count incidentally clears an *unrelated* pre-existing threshold (a hub-path count, a batch-size cutoff) passes either way and proves nothing about the new rule — flag it, and require the fixture to neutralize that unrelated threshold (e.g. an options override) so only the rule under test decides the outcome. A green suite is not evidence here; the revert is. (#1420: 3 of 4 new `groupByFileOverlap` regression tests were green but non-discriminating until each pinned `{ hubPathMinCount: Infinity }`.)
 - **Test names read as specifications?** A good name states a capability ("user can checkout with a valid cart"), not an implementation path ("returns 200 when cart items quantity > 0 and user authed"). Flag names that describe internals.
 - Edge cases and error paths tested?
 - Test data is realistic and follows schemas?

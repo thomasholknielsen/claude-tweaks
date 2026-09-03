@@ -239,8 +239,19 @@ function forEachCommandSegment(command, cwd, handler) {
     if (!rawT.length) continue;
     if (updateAssignment(vars, rawT)) continue;
     const t = substituteVars(rawT, vars, singleQuoted);
-    if (t[0] === 'cd') {
-      effCwd = resolveCd(effCwd, t[1]);
+    // `FOO=1 cd /path` really does change the shell's cwd — a preceding
+    // assignment on a regular (non-special) builtin like `cd` is scoped only
+    // to that command's own execution environment, but `cd` has no
+    // subprocess to scope the env change to, so it still runs and changes
+    // the CURRENT shell's cwd (verified empirically; #590). `env cd /path`
+    // is the opposite case and deliberately NOT normalized here: `env` execs
+    // an external `cd` binary that does not exist on a normal system, so it
+    // errors and never changes cwd — normalizing it would fabricate a target
+    // for a shape that has no real effect.
+    let cdLead = 0;
+    while (cdLead < t.length && SIMPLE_ASSIGNMENT_RE.test(t[cdLead])) cdLead += 1;
+    if (t[cdLead] === 'cd') {
+      effCwd = resolveCd(effCwd, t[cdLead + 1]);
       continue;
     }
     handler(t, effCwd);
@@ -290,15 +301,92 @@ function skipGlobalFlags(t, i, dir) {
   return { index: i, dir, unprovable };
 }
 
+// Finds the real `git` command word in a segment's raw token array, looking
+// past three equivalent shapes a real shell treats identically to a bare
+// `git` invocation (#590):
+//   - leading `NAME=value` assignment tokens: `FOO=1 git commit -m x`
+//   - the `env` builtin, plus ITS OWN leading flags/assignments, ahead of the
+//     real command: `env git commit -m x`, `env -i git commit -m x`,
+//     `env FOO=1 git commit -m x`
+//   - a directory-qualified executable ending in `/git`: `/usr/bin/git commit`
+// (any combination of the three also resolves, e.g. `FOO=1 /usr/bin/git …`
+// or `env FOO=1 /usr/bin/git …`.)
+//
+// Returns `{ index, dir, unprovable }` — `index` is -1 when, after
+// normalization, the leading token still isn't `git` (ambiguity resolves to
+// "not git", the same never-fabricate-a-target posture as the rest of this
+// module). `dir` starts at the caller's effective cwd and moves when env's
+// own `-C <dir>` / `--chdir[=]<dir>` flag changes where the command runs —
+// skipping those flags without consuming their value made
+// `env -C <main-checkout> git commit` read as not-git at all (the dir token
+// became the presumed lead) and `env --chdir=/x git commit` resolve its
+// target against the wrong directory. `-u`/`--unset <name>` likewise
+// consumes its value so the name is never mistaken for the command word.
+// Still not full env(1) parsing (see #590's Gotchas): `-S`/`--split-string`
+// re-splits an opaque program string, which is statically unknowable — the
+// same deliberately-uncovered class as `sh -c`/`python -c` (see
+// fileWriteTargets' header) — so it falls through to the not-git default.
+function findGitLead(t, dir) {
+  let unprovable = false;
+  let i = 0;
+  while (i < t.length && SIMPLE_ASSIGNMENT_RE.test(t[i])) i += 1;
+  if (t[i] === 'env') {
+    i += 1;
+    while (i < t.length) {
+      const tok = t[i];
+      if (SIMPLE_ASSIGNMENT_RE.test(tok)) { i += 1; continue; }
+      if (tok === '-' || !tok.startsWith('-')) break;
+      // Both spellings env accepts: separate value (`-C <dir>`, `--chdir <dir>`)
+      // and attached value (`-C<dir>`, `--chdir=<dir>`). Skipping the attached
+      // short form as a generic flag left the resolved dir at the caller's cwd
+      // while git was still detected as lead — the same silent-allow bypass as
+      // the separate form, one spelling over.
+      if (tok === '-C' || tok === '--chdir' || tok.startsWith('--chdir=') || (tok.startsWith('-C') && tok.length > 2)) {
+        const attached = tok.startsWith('--chdir=') ? tok.slice('--chdir='.length)
+          : tok.startsWith('-C') && tok.length > 2 ? tok.slice(2)
+          : null;
+        const raw = attached !== null ? attached : t[i + 1];
+        const resolved = resolveCd(dir, raw);
+        if (resolved === null) unprovable = true;
+        else dir = resolved;
+        i += attached !== null ? 1 : 2;
+        continue;
+      }
+      if (tok === '-u' || tok === '--unset') { i += 2; continue; }
+      i += 1;
+    }
+  }
+  if (i >= t.length) return { index: -1, dir, unprovable };
+  const lead = t[i];
+  if (lead === 'git' || lead.endsWith('/git')) return { index: i, dir, unprovable };
+  return { index: -1, dir, unprovable };
+}
+
+// Shared findGitLead -> skipGlobalFlags preamble: resolves one command
+// segment's real git lead and the subcommand position/dir past any global
+// flags, in the one index/unprovable/dir-null check sequence both gitTargets
+// and teardownTargets (pre-tool-use.js) need. Returns `{ index, dir }` (index
+// is the resolved SUBCOMMAND token position) or null when the segment isn't
+// git, or the target is unprovable / cwd-unknown-with-no-provable--C. A
+// single shared point so a future fix to this preamble lands once for both
+// callers instead of drifting between two hand-kept copies — the exact gap
+// #1308 closed for teardownTargets, which used to skip this preamble
+// entirely and check a bare `toks[0] !== 'git'` instead.
+function resolveGitCommand(t, effCwd) {
+  const lead = findGitLead(t, effCwd);
+  if (lead.index === -1) return null;
+  const { index, dir, unprovable } = skipGlobalFlags(t, lead.index + 1, lead.dir);
+  if (lead.unprovable || unprovable || dir === null) return null;
+  return { index, dir };
+}
+
 function gitTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
-    if (t[0] !== 'git') return;
-    const { index: i, dir, unprovable } = skipGlobalFlags(t, 1, effCwd);
-    if (unprovable) return;
-    if (dir === null) return; // cwd UNKNOWN and no provable -C — no target
-    const sub = t[i];
-    if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir });
+    const resolved = resolveGitCommand(t, effCwd);
+    if (!resolved) return;
+    const sub = t[resolved.index];
+    if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir: resolved.dir });
   });
   return targets;
 }
@@ -563,4 +651,6 @@ function mkdirTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, fileWriteTargets, mkdirTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, WRITE_SHAPES };
+module.exports = {
+  gitTargets, fileWriteTargets, mkdirTargets, splitSegments, tokenize, forEachCommandSegment, skipGlobalFlags, findGitLead, resolveGitCommand, WRITE_SHAPES,
+};

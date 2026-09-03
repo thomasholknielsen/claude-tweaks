@@ -1,14 +1,46 @@
 # Dispatch Step 5 — Task() Prompt Template
 
-Referenced by `skills/dispatch/SKILL.md` Step 5. Unlike `sequential-execution.md` and `deprecated-aliases.md` (background detail, read for understanding), **each of this file's two templates must be inlined verbatim into its own `Task()` tool call** when dispatching a group — they are the operative templates, not supplementary reading. Never inline both into one call. Copy each fenced block below exactly, substituting `{issue list}`, `{minted-run-dir}`, etc. as SKILL.md's Step 5 directs.
+Referenced by `skills/dispatch/SKILL.md` Step 5. Unlike `sequential-execution.md` and `deprecated-aliases.md` (background detail, read for understanding), **each of this file's two templates must be inlined verbatim into its own `Task()` tool call** when dispatching a group — they are the operative templates, not supplementary reading. Never inline both into one call. Copy each fenced block below exactly, substituting `{issue list}`, `{minted-run-dir}`, `{plugin-root}`, `{context-pack}`, etc. as SKILL.md's Step 5 directs.
 
-Each group is dispatched as **two sequential `Task()` calls**, not one (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history):
+Each group is dispatched as **two sequential `Task()` calls**, not one (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history). The single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) creates no batching decision here — these two calls are sequential by design, never emitted together.
+
+## Context pack (#1542 — resolve once, substitute into both calls)
+
+A dispatched Task agent inherits no shell environment (`_shared/subagent-output-contract.md`'s
+Input Discipline) — so every `${CLAUDE_PLUGIN_ROOT}`-style env-var reference embedded literally
+in a template resolves to nothing inside the dispatched agent's own shell, forcing it to
+rediscover the value from scratch (`--help` probes, `find` searches, trial-and-error against CLI
+argument enums — the exact rediscovery this section eliminates). The dispatching session already
+resolved all four of these facts earlier in the same firing (Steps 1-4); it resolves them **once
+more here, as literals**, before composing either call:
+
+1. **`{plugin-root}`** — this session's own already-resolved `$CLAUDE_PLUGIN_ROOT` value,
+   substituted as a literal absolute path everywhere this file used to embed the env-var
+   reference `${CLAUDE_PLUGIN_ROOT}` — never left as `${CLAUDE_PLUGIN_ROOT}` for the dispatched
+   agent's shell to expand.
+2. **`{minted-run-dir}`** — unchanged from before this section existed (Step 4's mint).
+3. **Resolved policy values** — one call, before either dispatch: `node "{plugin-root}/bin/resolve-policy.js" --values autonomy,integration-model,merge-verification,risk-floor,size-floor`. The four values this call's own Settle/Auto-merge procedures need downstream.
+4. **Canonical CLI invocation table** — the argument shapes and enums a dispatched call has
+   historically had to rediscover by trial and error:
+
+   | CLI | Canonical shape |
+   |---|---|
+   | `log-decision.js` | `node "{plugin-root}/bin/log-decision.js" --run "{minted-run-dir}" --reversibility high\|med\|low\|n/a --text "..."` |
+   | `claim-targets.js` | `node "{plugin-root}/bin/claim-targets.js" --run-id "{run-id}" --targets {n}[,{m}...] [--keep-going]` |
+   | `materialize.js` | `node "{plugin-root}/bin/materialize.js" <n> --run-dir "{minted-run-dir}" [--multi-record-slug <n>]` |
+   | claims-registry read | `_shared/issue-claims.md`'s "Reading claim state" git-trees path (`claims/issue-{n}.json` on the `claims-registry` branch) — never `gh api ...?ref=` query-string quoting, never `-f ref=` on a GET |
+
+Substitute this whole block, filled in with this firing's actual resolved values, as
+`{context-pack}` immediately after each call's opening `Task scope:` paragraph below. This is
+environment facts and tool signatures only — never a prior call's conclusions (test results,
+verdicts) — so it does not weaken the two-call gate's fresh-context independence property (see
+each template's own "CRITICAL"/re-derive-from-artifacts language, unchanged by this section).
 
 ## First call — build,test
 
 **No handoff to capture from this call's report.** Dispatch Step 4 already minted this group's run directory before either call — `{minted-run-dir}` below is that same directory, substituted literally, on both calls. There is nothing to parse out of this call's prose report to construct the second call's input; the gate between calls (`two-call-gate.md`) reduces to reading the status line and `OUTCOME`.
 
-**Before substituting this template**, the dispatching session decides whether to add `DISPATCH_HEADLESS=1 ` immediately before `/claude-tweaks:flow` on the invocation line below — a decision made once, here, never left in the copy-pasted text for the dispatched agent to reason about. Add it only when the dispatching session's own firing was `next`-form; omit it entirely (no `{headless-marker}` placeholder, no trailing space) for bare/`#N`/explicit-list forms, which have a human present per `SKILL.md`'s Input table. When set, it tells this call's Settle procedure (`settle-and-merge.md`) that nobody is present to read a Step 2.8 claim-contest stop, so a contest there should self-report via `headless-self-report.md` instead of just failing silently to whoever isn't watching. This is exactly why the marker must not live inside the fenced block below: the block is copied verbatim into every dispatch regardless of firing form, and the dispatched agent itself has no way to know which form the dispatching session used — only the dispatching session can make this call, before substitution.
+**Before substituting this template**, the dispatching session decides whether to add `DISPATCH_HEADLESS=1 ` immediately before `/claude-tweaks:flow` on the invocation line below — a decision made once, here, never left in the copy-pasted text for the dispatched agent to reason about. Add it when this firing came from a scheduled Routine — a bare drain, or its deprecated `next` alias — with nobody present; omit it entirely (no `{headless-marker}` placeholder, no trailing space) when a human typed the command directly, in any form (bare, `next`, `#N`, or explicit-list) — the same human-present/Routine discriminator `SKILL.md`'s Next Actions render rule already uses. When set, it tells this call's Settle procedure (`settle-and-merge.md`) that nobody is present to read a Step 2.8 claim-contest stop, so a contest there should self-report via `_shared/headless-self-report.md` instead of just failing silently to whoever isn't watching. This is exactly why the marker must not live inside the fenced block below: the block is copied verbatim into every dispatch regardless of firing form, and the dispatched agent itself has no way to know which form the dispatching session used — only the dispatching session can make this call, before substitution.
 
 ```
 Task scope: Execute claude-tweaks build+test for this file-overlap group of
@@ -20,6 +52,8 @@ once, comma-joined. Stop after the test gate -- do not proceed to review, polish
 a separate Task call handles those. If you reference any of these issue numbers in an
 intermediate commit message, write "refs #N" -- never "closes #N" or "fixes #N".
 
+{context-pack}
+
 If the build or test step hits a HARD-GATE, handle it per
 skills/dispatch/settle-and-merge.md's Settle procedure (claim ownership check against
 basename($PIPELINE_RUN_DIR), release, assess-agent-autonomy failure classification, retry
@@ -27,8 +61,13 @@ counting, failure comment) before finishing -- that procedure runs inside this a
 this group's own record(s), not in the dispatching session's thread, and this call's own
 failure is exactly the failure it settles. Do not leave a failed record's claim or label
 state unresolved. Do NOT tear the worktree down yourself, and do not run ExitWorktree or
-`git worktree remove` -- worktree teardown is the dispatching session's, routed through
-wrap-up's own cleanup.
+`git worktree remove` -- a Task call that inherited this worktree without entering it can
+never tear it down, on any outcome (the outcome-independent constraint at the top of
+settle-and-merge.md). Who does tear it down depends on the path, never on this call: on a
+build/test failure, the dispatching session's own `/claude-tweaks:flow {target} wrap-up
+cleanup-only` call (two-call-gate.md section 5); on a successful run, the second call's own
+integration path -- under pr-first the reconciler, on merged-PR evidence; under local-merge
+the dispatching session, after it merges.
 
 Working directory: the dispatching session has ALREADY entered this group's worktree; you
 inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
@@ -37,7 +76,7 @@ commit and verify both resolve to that inherited worktree; if they resolve to th
 checkout instead, STOP and report BLOCKED rather than committing.
 If your first commit is denied by the working-directory hook even though `pwd` and
 `git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
-assignment once with `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
+assignment once with `node "{plugin-root}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
 and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
@@ -55,7 +94,7 @@ One line per issue in this group that hit a HARD-GATE (omit if none):
 ISSUE #{n}: failed:{gate}
 
 [Use: Standard] -- this dispatch wraps build+test execution, not analysis; the pipeline's own
-steps select their own models as usual. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard`
+steps select their own models as usual. Resolve via `node "{plugin-root}/bin/resolve-profile.js" standard`
 (contract § Model Selection).
 ```
 
@@ -80,6 +119,8 @@ _shared/pipeline-run-dir.md's resolution order step 1 (the env var, its document
 path) feeding flow/SKILL.md Step 3's adopt-if-set branch. You need no other input about what
 the prior call did or found.
 
+{context-pack}
+
 CRITICAL: your review step must re-derive its verdict from raw artifacts -- the actual diff,
 the actual test-output log in the run directory -- never from a prior claim, whether that
 claim lives in conversation (you have none from the first call) or in a file the first call
@@ -93,23 +134,52 @@ numbers in an intermediate commit message, write "refs #N" -- never "closes #N" 
 #N". The real closing keyword is stamped once, at the end, by wrap-up's carrier commit or the
 merge commit (close-via-merge, `_shared/issue-claims.md`).
 
+On `failed`/`blocked`, Settle's own procedure releases the claim in this call (its step 2,
+unconditional); run-dir archival does not run here — the run stays parked for a human to resume
+or for the retry ceiling to escalate it, the same disposition `dispatch/SKILL.md`'s Reporting
+section already describes for ordinary `pending-review` parking.
+
 Working directory: the dispatching session is still in this group's worktree (unchanged since
 the first call) -- you inherit it. Do NOT create, enter, or switch worktrees, and do not invoke
-/superpowers:using-git-worktrees. Echo `pwd` and `git rev-parse --show-toplevel` before any
+/superpowers:using-git-worktrees. Worktree removal and run-dir archival are the dispatching
+session's responsibility, not yours -- do NOT call `ExitWorktree` or `git worktree remove`,
+and do NOT archive the run directory yourself, on any outcome (merged, armed, pending-review,
+ready-to-merge, failed, or blocked): this call inherited the worktree without ever entering it
+(no `EnterWorktree` of its own), so it structurally cannot tear it down, and the run dir's
+fate is settled by whichever integration path your OUTCOME resolves to below, never by an
+explicit teardown step here. Echo `pwd` and `git rev-parse --show-toplevel` before any
 commit and verify both resolve to that inherited worktree; if they resolve to the main
 checkout instead, STOP and report BLOCKED.
 If your first commit is denied by the working-directory hook even though `pwd` and
 `git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
-assignment once with `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
+assignment once with `node "{plugin-root}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
 and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
 
+This state-check applies when choosing among `merged`/`armed`/`pending-review`/`ready-to-merge` --
+`failed`/`blocked` are already decided by the HARD-GATE outcome above, and Settle's own step 2 has
+already released the claim for those two by the time you reach this paragraph, so finding it
+non-`live` there is expected, not a signal to re-derive the outcome. For the other four values,
+check the record's actual state rather than inferring it from what this call itself did earlier:
+read the claim blob (`claims/issue-{n}.json` on the `claims-registry` branch, not a working-tree
+file -- fetch it the same way `_shared/issue-claims.md` describes) to see whether the claim's
+`runId` still matches this run and is `live`; check the record's current labels
+(`bot:in-progress`, `auto:merge`); and read `run-state.json`'s `pr` object for a recorded
+`number`/`url` -- when one is recorded, resolve its live state with
+`gh pr view {number} --repo {owner}/{repo} --json state,isDraft,url` rather than assuming from the
+recorded object alone, since it carries no state field. A completed hand-off (a live PR already
+recorded, or `state: MERGED`) is not the same state as a genuinely still-open run awaiting a
+human -- report `pending-review` only for the latter. If the claim's `runId` no longer matches
+this run, or is not `live`, or `bot:in-progress` is already gone -- another session has taken over
+this record since your run started; report `pending-review` and note the discrepancy rather than
+reporting `merged`/`armed`/`ready-to-merge` against a claim you no longer hold.
+
 OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
 
 GROUP: {comma-joined issue numbers}
-OUTCOME: {merged | armed | pending-review | failed | blocked}
+OUTCOME: {merged | armed | pending-review | ready-to-merge | failed | blocked}
 MANIFEST: {path to this group's run-dir manifest.yml/decisions.md -- a human-readable trace
   only; the dispatching session already holds this run's identity as {minted-run-dir} and
   derives nothing from this line}
@@ -121,8 +191,12 @@ ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
 `pending-review` are `_shared/pr-first-merge.md`'s own outcome vocabulary, reported verbatim: you
 run the merge procedure yourself, in this same call, whichever file's Auto-merge gate you reach
 (`dispatch/settle-and-merge.md` for a bundle, `wrap-up/review-console.md`'s dispatch-claim branch
-for a singleton). `merged` means you also completed worktree removal, claim release, and run-dir
-archival (that procedure's Step 4) — nothing is deferred to the dispatching session on this path.
+for a singleton). `merged` means you also completed claim release and run-dir archival directly
+(that procedure's Step 4) — but not worktree removal: this call inherited the worktree and never
+itself `EnterWorktree`'d it, so `ExitWorktree` is a no-op for it, the same structural constraint
+`settle-and-merge.md` states at the top of that file. Worktree removal defers to the reconciler
+on merged-PR evidence instead — the same mechanism the next sentence already describes for
+`armed`/`pending-review`.
 `armed`/`pending-review` complete none of those three; the reconciler finishes them later, on
 merged-PR evidence, whichever trigger point observes it first. There is no `ready-to-merge` value
 under this model — the merge already happened, or didn't, by the time you report.
@@ -130,9 +204,12 @@ under this model — the merge already happened, or didn't, by the time you repo
 **`integration-model: local-merge`** — report `ready-to-merge` when the group's Auto-merge gate
 passed both layers and you already applied acceptance labeling for every member -- never
 `merged`. You do not merge yourself on this path: a Task-tool subagent cannot reach the main
-checkout. Stop right after labeling -- do not run worktree removal, claim release, or run-dir
-archival; the dispatching session completes all three after it merges, per
-`settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
+checkout, and for the same structural reason (`settle-and-merge.md`'s outcome-independent
+constraint) you cannot run worktree removal either. Stop right after labeling. Claim release and
+run-dir archival stay deferred too, but for a distinct reason: the merge that would make them
+safe hasn't happened yet -- not because they inherit the worktree constraint. The dispatching
+session completes all three (worktree removal, claim release, run-dir archival) after it merges,
+per `settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
 
 `pending-review` also covers what `pr-opened` used to name separately: under pr-first the PR
 already exists from run start (`_shared/pr-early-run-lifecycle.md`), so there is no longer a
@@ -142,7 +219,7 @@ how long the PR has already existed.
 
 [Use: Standard] -- this dispatch wraps review+polish+wrap-up execution, not analysis; the
 pipeline's own steps select their own models as usual. Resolve via
-`node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection).
+`node "{plugin-root}/bin/resolve-profile.js" standard` (contract § Model Selection).
 ```
 
 None of Templates A/B/C in `_shared/subagent-output-contract.md` fit an agent that executes pipeline stages rather than returning findings/locations/a yes-no, so these are their own minimal templates, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.

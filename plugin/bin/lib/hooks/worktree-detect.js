@@ -182,9 +182,59 @@ function isAnchoredUnderRoot(p, root) {
   return false;
 }
 
+// Anchored-or-outside classification for a --run-dir/--run CLI argument
+// (#1065, the resolver-CLI half of the [IL-127] CLI-argument-boundary guard;
+// the pipeline-owned binaries above use the stricter main-checkout-only rule).
+// A resolved candidate lying inside ANY git checkout must be anchored under
+// the main checkout resolved from `cwd`; a candidate outside any checkout
+// (journey/demo dirs under /tmp, tmp-root test fixtures) is accepted as-is.
+//
+// The inside-a-checkout test is "the walk-up found any `.git` entry, file or
+// directory, regardless of parseability" — deliberately NOT
+// `mainCheckoutRoot(resolved) !== null`, whose null conflates "no repo" with
+// "unparseable .git" (submodule pointer, unreadable ancestor) and would
+// silently ACCEPT a shadow path. "Outside" requires a completed walk to the
+// filesystem root finding no .git and no error; any walk error fails closed
+// to a rejection. The candidate is realpath'd via its nearest existing
+// ancestor first, so a symlinked alias (macOS /tmp -> /private/tmp) is
+// classified by its real location.
+function scanForGitAncestor(p) {
+  let dir = nearestExistingDir(p);
+  if (!dir) return 'error';
+  while (dir) {
+    let st = null;
+    try {
+      st = fs.statSync(path.join(dir, '.git'));
+    } catch (e) {
+      if (!e || e.code !== 'ENOENT') return 'error';
+    }
+    if (st) return 'found';
+    const parent = path.dirname(dir);
+    if (parent === dir) return 'none';
+    dir = parent;
+  }
+  return 'none';
+}
+
+function checkRunDirAnchoredOrOutside(candidate, cwd) {
+  const resolvedRaw = path.resolve(cwd, candidate);
+  const near = nearestExistingDir(resolvedRaw);
+  const nearReal = near ? safeReal(near) : null;
+  if (!nearReal) return { ok: false, reason: 'no-repo-root', resolved: resolvedRaw };
+  const resolved = path.join(nearReal, path.relative(near, resolvedRaw));
+  const mainRoot = mainCheckoutRoot(cwd);
+  if (mainRoot && isAnchoredUnderRoot(resolved, mainRoot)) return { ok: true, resolved };
+  const scan = scanForGitAncestor(resolved);
+  if (scan === 'none') return { ok: true, resolved };
+  if (scan === 'found' && mainRoot) return { ok: false, reason: 'foreign-checkout', resolved, mainRoot };
+  return { ok: false, reason: 'no-repo-root', resolved };
+}
+
 // The two --run-dir/--run anchoring-guard error strings, shared by every call
 // site that pairs a mainCheckoutRoot()/isAnchoredUnderRoot() check with a
-// diagnostic (hooks.js's resolveRunArg, materialize.js, wrap-up-engine.js) —
+// diagnostic (hooks.js's resolveRunArg, materialize.js, wrap-up-engine.js,
+// apply-refine-labels.js, and — via checkRunDirAnchoredOrOutside's
+// anchored-or-outside rule — resolve-profile.js and resolve-policy.js) —
 // extracted after the same two strings were verbatim-duplicated across all
 // three, a drift risk this project's own IL-93 already names for guards of
 // this shape (review finding). Pure — no I/O of their own, so each caller's
@@ -194,11 +244,11 @@ function isAnchoredUnderRoot(p, root) {
 function unanchoredRunDirNoRepoMessage(cwd) {
   return `could not determine the git repository root from ${cwd} — not a git repo, or git/the .git file could not be read`;
 }
-function unanchoredRunDirShadowMessage(runDirArg, mainRoot) {
-  return `--run-dir ${runDirArg} resolves outside the main checkout (${mainRoot}) — refusing a worktree-relative shadow run dir; see resolve-run-dir`;
+function unanchoredRunDirShadowMessage(runDirArg, mainRoot, flag = '--run-dir') {
+  return `${flag} ${runDirArg} resolves outside the main checkout (${mainRoot}) — refusing a worktree-relative shadow run dir; see resolve-run-dir`;
 }
 
 module.exports = {
   nearestExistingDir, repoInfo, findPolicyFile, safeReal, mainCheckoutRoot, isAnchoredUnderRoot,
-  unanchoredRunDirNoRepoMessage, unanchoredRunDirShadowMessage,
+  checkRunDirAnchoredOrOutside, unanchoredRunDirNoRepoMessage, unanchoredRunDirShadowMessage,
 };

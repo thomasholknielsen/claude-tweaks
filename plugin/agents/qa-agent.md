@@ -20,7 +20,7 @@ The full agent-browser operation vocabulary lives in `skills/browse/agent-browse
 ## Variables
 
 - **SCREENSHOTS_DIR:** base directory for this story's screenshots, passed via the prompt's `**SCREENSHOT_PATH**` field. Each step writes `00_<step-name>.png`, `01_<step-name>.png`, etc.
-- **TRACES_BASE:** base directory for failure traces (default `traces/`). Tracing is record-then-stop: recording starts right after `open` (Setup Step c), and on any step failure the trace is saved to `{TRACES_BASE}/<story-id>/<ISO-timestamp>.zip` via `trace stop` BEFORE closing the session. A trace cannot be captured retroactively — if recording never started, there is nothing to save.
+- **TRACES_BASE:** base directory for failure traces (default `.claude-tweaks/artifacts/traces/`). Tracing is record-then-stop: recording starts right after `open` (Setup Step c), and on any step failure the trace is saved to `{TRACES_BASE}/<story-id>/<ISO-timestamp>.zip` via `trace stop` BEFORE closing the session. A trace cannot be captured retroactively — if recording never started, there is nothing to save.
 
 ## Test Isolation
 
@@ -326,7 +326,7 @@ FAIL
 RESULT: FAIL | ID: <story-id> | Steps: X/N
 TRACE: {TRACES_BASE}/<story-id>/<timestamp>.zip
 
-<!-- REPORT_JSON {"id":"<story-id>","status":"FAIL","steps_passed":1,"steps_total":3,"error":"Step 2: <brief error>","caveats":[],"recovered_locators":[],"trace":"traces/<story-id>/<timestamp>.zip","page_inventories":[{"url":"...","interactive_elements":{"buttons":2,"links":5,"inputs":1,"selects":0,"checkboxes":0},"forms":{"count":1,"fields_per_form":[2]},"navigation":{"nav_elements":1,"breadcrumbs":false,"tabs":0},"accessibility":{"aria_landmarks":1,"heading_levels":[1,2],"missing_labels":1},"layout":{"viewport_overflow":false,"scroll_height":800}}]} -->
+<!-- REPORT_JSON {"id":"<story-id>","status":"FAIL","steps_passed":1,"steps_total":3,"error":"Step 2: <brief error>","caveats":[],"recovered_locators":[],"trace":".claude-tweaks/artifacts/traces/<story-id>/<timestamp>.zip","page_inventories":[{"url":"...","interactive_elements":{"buttons":2,"links":5,"inputs":1,"selects":0,"checkboxes":0},"forms":{"count":1,"fields_per_form":[2]},"navigation":{"nav_elements":1,"breadcrumbs":false,"tabs":0},"accessibility":{"aria_landmarks":1,"heading_levels":[1,2],"missing_labels":1},"layout":{"viewport_overflow":false,"scroll_height":800}}]} -->
 ```
 
 The orchestrator's Phase 4 collector reads the `RESULT:` and `TRACE:` lines and the `REPORT_JSON` comment to assemble the run report. Use these exact line formats.

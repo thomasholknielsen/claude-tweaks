@@ -88,7 +88,7 @@ The parent dir uses a single `spec-` prefix at the start of the slug segment so 
 
 **Each `spec-{N}/` carries its own `config.yml`** — a byte-for-byte copy of the parent's, written immediately before that spec's pipeline starts. Per-spec skills resolve levers via `resolve-policy.js --run "$PIPELINE_RUN_DIR"` where `PIPELINE_RUN_DIR` is the subdirectory — without its own `config.yml` that call resolves `source: default` and silently drops the Manifesto's answers for the whole spec. The step that writes it, its ordering rule, and the `#678`/`#925` history behind it are under "Scaffold the per-spec subdirectory" below.
 
-`manifest.yml` lists the records in execution order plus their status as the run progresses — written exclusively through `node plugin/bin/hooks.js spec-status` (see "Phase-progress banner and per-spec completion summary" below); nothing else writes this file. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — so `multispec-batch-curation.md`'s registry pass has a stable pre-batch baseline to read back rather than re-deriving it after N specs' worth of commits have landed:
+`manifest.yml` lists the records in execution order plus their status as the run progresses — written exclusively through `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" spec-status` (see "Phase-progress banner and per-spec completion summary" below); nothing else writes this file. When `MULTISPEC_CURATION_DEFER=1` is set, it also carries `baseSha` — the shared worktree's starting commit (the value `worktree-setup.md`'s Step 0 captures as `EXPECTED_BASE` when the worktree is created, i.e. the commit before spec 1's materialize commit) — kept as diagnostic provenance (the batch's true starting commit). `multispec-batch-curation.md`'s registry pass no longer reads it as a diff base: its batch diff derives from `git merge-base` so boundary freshness merges (`multispec-freshness.md`) don't pollute the batch scope:
 
 ```yaml
 multispec:
@@ -123,6 +123,8 @@ This does not replace each spec's own `/test` gate — every spec still runs ver
 
 Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
 
+**Boundary freshness check (spec 2 onward)** — before each spec's per-spec scaffold below, read `multispec-freshness.md` in this skill's directory and run its per-boundary check: trivial drift merges automatically with a parent-`decisions.md` entry; a merge conflict, or a clean merge whose incoming diff overlaps run-modified paths or the remaining specs' Key Files, escalates as a run-level HARD-GATE (fires in `auto`; `MULTISPEC_KEEP_GOING` does not bypass it). Spec 1 needs no check — the creation-time catch-up (Shared-worktree Step 1) just ran.
+
 **Scaffold the per-spec subdirectory before exporting its `PIPELINE_RUN_DIR`** — read `multispec-config-scaffold.md` in this skill's directory for the concrete `mkdir`/`cp`/`touch` step, its ordering rule, and why the parent-level Manifesto (Step 3) does not itself perform this copy (`#678`; `#925`).
 
 For each per-spec invocation, `/flow` exports these environment variables (the last is conditional on the caller, not always set):
@@ -146,7 +148,23 @@ For every phase of every spec, `/flow`'s Step 4 "Announce" bullet writes `manife
 
 When `worktree` is specified, a sequential run uses **one shared worktree for the whole run — NOT one per record.** All records build and commit into the same worktree on a single feature branch, and the branch is finished **once** at the end of the run.
 
-1. **Create once, up front** — `/flow` creates a single worktree from the current local HEAD following `skills/build/worktree-setup.md` (including its Step 4 unconditional catch-up with the integration branch). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs longer than 3, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list) — `{N}` is the record id, the same keying as the run directory layout above. This branch slug is exactly the kind `build/worktree-setup.md`'s "Worktree name derivation" section requires sanitizing before it reaches `EnterWorktree` — pass it through that section's `sanitizeWorktreeName()` (`bin/lib/worktree/name.js`), not the raw `flow/spec-{N1}-…` string, since the `/` alone is already outside `EnterWorktree`'s accepted charset. `/flow` then `cd`s into the worktree.
+1. **Create once, up front** — before calling `EnterWorktree(name=...)`, run
+   `_shared/worktree-setup.md`'s "Adopt-or-create" gate (an interactive session under this
+   project's `worktree-always` policy is always already isolated by the time `/flow` runs, so
+   this call would otherwise refuse every time). **Adopted** (already isolated, clean tree): the
+   branch is whichever branch the session was already on — recorded as-is, not renamed to match
+   the convention below. **Created** (not isolated, or dirty): `/flow` creates a single worktree
+   from the current local HEAD
+   following `skills/build/worktree-setup.md` (including its Step 4 unconditional catch-up with
+   the integration branch). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs
+   longer than 3, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list) — `{N}` is the
+   record id, the same keying as the run directory layout above. This branch slug is exactly the
+   kind `build/worktree-setup.md`'s "Worktree name derivation" section requires sanitizing before
+   it reaches `EnterWorktree` — pass it through that section's `sanitizeWorktreeName()`
+   (`bin/lib/worktree/name.js`), not the raw `flow/spec-{N1}-…` string: `/` is a valid segment
+   delimiter in `EnterWorktree`'s accepted charset, but the characters within each segment still
+   need sanitizing (#814). Either way, `/flow` ends this step `cd`'d into the worktree — adopted
+   or created.
 2. **Per-record builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every record's pipeline inside the shared worktree. Each per-record `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by `MULTISPEC_SHARED_WORKTREE`) and **skips worktree creation**, committing into the shared branch. Every record — the first included — materializes as part of its own build step, writing `{parent}/spec-{N}/work/{N}-spec.md` directly into the already-existing shared worktree. This is just `materialize.md`'s worktree-first ordering applied once at the run level instead of once per record: the worktree exists before any materialization, so no record is a special case. It does NOT call `/superpowers:finishing-a-development-branch` between records.
 3. **Finish once at the end** — after the last record's pipeline and the consolidated Review Console, `/flow` finishes the single feature branch via `/superpowers:finishing-a-development-branch` (merge / PR / discard). Re-check `main` divergence immediately before this step, not just at the Step 2.5 pre-flight (a point-in-time check at pipeline *start*) — a long-running multi-record run has a real window for `main` to move again while records 2..N build. If it has, rebase onto the new tip inside the worktree first (checking for real file overlap, not just presence in the diff — see the git-diff-merge-base gotcha in CLAUDE.md's Don'ts) so the branch stays fast-forward-mergeable, then proceed with the finish.
 
@@ -163,6 +181,15 @@ A multi-spec run shares one PR (`_shared/pr-early-run-lifecycle.md`); its checkl
 ## Failure handling (default vs `keep-going`)
 
 Default mode stops the remaining specs on a HARD-GATE failure (compounding-risk default). `keep-going` inverts that — opt-in, for genuinely independent specs, so the consolidated console can surface every outcome together instead of stopping at the first failure. Read `multispec-failure-handling.md` in this skill's directory for the full behavior: the default-vs-`keep-going` console output shapes, the dependency-conflict warning, and the shared-worktree interaction (a failed spec's commits stay in the shared branch either way; only whether later specs keep building atop them differs).
+
+## Artifact-overwrite completion check (#786)
+
+`journeys/SKILL.md` and `stories/SKILL.md` namespace their generated artifact filenames by spec
+id inside a multi-spec shared worktree, so two specs can't silently overwrite each other's
+journey/story file. Read `multispec-artifact-namespacing.md` in this skill's directory for the
+namespacing rule's cross-reference and the completion-time check (a `git log --name-status`
+walk over the run's own commit range) that verifies no overwrite happened, run before the
+Consolidated Review Console renders and HARD-GATE on a detected collision.
 
 ## Consolidated Review Console (end of run)
 

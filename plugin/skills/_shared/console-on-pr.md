@@ -132,6 +132,10 @@ primary. `stagedHash` is each item's staged-file content hash at render time —
 own drift check (not this file's concern) compares it against the file's hash at act-time to
 detect a staged proposal that changed underneath an already-rendered tick.
 
+Two optional fields arrive only after execution, never at render time: `executedAt` (ISO
+timestamp) and `resolved: true`, both written by `console-execution.md`'s Write order — see that
+file for the write order and what reads them.
+
 A stale or deleted comment id (the human deleted it, or it's simply gone) — recreate the comment
 fresh and update `console.json` with the new id; do not treat a missing comment as "already
 resolved."

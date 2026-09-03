@@ -92,8 +92,8 @@ This pass is the only place in the skill where an unbounded fan-out would meet t
 >    Finding: {finding text}
 >    Cached evidence: {evidence text}
 >
->    [Use: Capable] — refutation agent. Independent run; fresh file read, not the
->    lens's original context. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable` (contract § Model Selection).
+>    [Use: Capable — refutation agent. Independent run; fresh file read, not the
+>    lens's original context. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable` (contract § Model Selection).]
 >    ```
 
 5. **Resolve.** First check the dispatched agent's own status line, per the Subagent Contract (`_shared/subagent-output-contract.md`): a `BLOCKED`/`NEEDS_CONTEXT` status, or a response with no parseable `Verdict:` line, means the refutation attempt itself failed — do not fabricate a verdict for `resolveRefutation`. Treat this case directly: downgrade to `unconfirmed` and write `AUTO {HH:MM:SS} — Refutation: {path}:{line} — dispatch failed ({status}/unparseable verdict), not genuinely re-examined. Downgraded to unconfirmed out of caution. Reversibility: high.` A failed dispatch must never be logged as if a real falsification attempt happened.

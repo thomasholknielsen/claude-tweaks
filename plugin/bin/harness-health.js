@@ -48,7 +48,7 @@ function validateConfidenceArg(value) {
     `(must be one of ${Object.keys(CONFIDENCE_RANK).join('|')}) — an unrecognized value silently ` +
     'files every finding regardless of confidence, same as omitting the flag.\n',
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 function parseArgs(argv) {
@@ -92,7 +92,8 @@ function cmdNextTarget(args) {
   if (args.kind === 'memory') {
     if (!args.memoryDir) {
       process.stderr.write('harness-health.js: next-target --kind memory requires --memory-dir <path>\n');
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     }
     const memCursors = durableCursors;
 
@@ -156,10 +157,12 @@ function cmdValidateFindings(args) {
     process.stderr.write(
       'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan] [--min-confidence <low|med|high>] [--run-id <id>] [--dry-run]\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   validateConfidenceArg(args.minConfidence);
+  if (process.exitCode) return;
 
   // buildValidateFindingsUpdate only patches a cursor when both target AND
   // kind are present (see lib/harness-health/cache.js), or when gapScan is
@@ -174,7 +177,8 @@ function cmdValidateFindings(args) {
       'without one of them, no audit cursor advances and rotation state silently drifts. ' +
       'Pass --dry-run to preview without it.\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   let raw;
@@ -182,11 +186,13 @@ function cmdValidateFindings(args) {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
   } catch {
     process.stderr.write(`validate-findings: could not read or parse findings file: ${findingsPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (!Array.isArray(raw)) {
     process.stderr.write('validate-findings: findings file must contain a JSON array\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const survivors = [];
@@ -286,7 +292,7 @@ function main(argv) {
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, status, ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 if (require.main === module) main(process.argv.slice(2));

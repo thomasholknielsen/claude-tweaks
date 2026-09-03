@@ -1,4 +1,4 @@
-// bin/lib/model-profiles/tests/table-pinning.test.js
+// tests/bin-lib/model-profiles/table-pinning.test.js
 //
 // Pins the contract's Model Selection table to PROFILES, the GATE_COVERAGE
 // precedent. Reads live prose deliberately (IL-80 exception): the coverage

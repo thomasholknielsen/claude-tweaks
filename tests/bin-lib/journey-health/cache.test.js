@@ -35,19 +35,19 @@ test('cachePath points under .claude-tweaks/journey-health/cache.json', () => {
 // ../cache.js), which bin/journey-health.js's cmdValidateFindings hands to
 // writeDurableState as its mutator. It is unit tested directly with
 // plain-object fixtures in
-// bin/lib/journey-health/tests/build-validate-findings-update.test.js — no
+// tests/bin-lib/journey-health/build-validate-findings-update.test.js — no
 // git/gh involved. That extraction was necessary because
-// bin/lib/journey-health/tests/durable-integration.test.js and the CLI-level
+// tests/bin-lib/journey-health/durable-integration.test.js and the CLI-level
 // tests in cli-validate-findings.test.js only ever exercise the read side
 // (readDurableState) or a run that fails its `git fetch origin health-state`
 // (no real GitHub-hosted remote configured in any test) and never actually
 // invokes the mutator itself. The write path's own git/gh mechanics
 // (blob/tree/commit/ref calls) are covered by
-// bin/lib/health-core/tests/durable-state.test.js's fake-runner tests, using
+// tests/bin-lib/health-core/durable-state.test.js's fake-runner tests, using
 // trivial synthetic mutators (not this one); those tests cannot be
 // re-exercised for real without live GitHub credentials. computeChurn is a
 // pure function shared with harness-health and is fully covered by
-// bin/lib/health-core/tests/runs.test.js — no need to duplicate it here.
+// tests/bin-lib/health-core/runs.test.js — no need to duplicate it here.
 
 const { readDurableState, writeDurableState } = require('../../../plugin/bin/lib/journey-health/cache');
 
@@ -57,7 +57,7 @@ test('readDurableState/writeDurableState are exported and bound to journey-healt
   // (both are functions). Their actual read/write behavior against a
   // fresh/empty branch, a populated branch, CAS retries, and bootstrap is
   // exercised thoroughly, with a real fake command-runner, by
-  // bin/lib/health-core/tests/durable-state.test.js — no need to duplicate
+  // tests/bin-lib/health-core/durable-state.test.js — no need to duplicate
   // that here.
   assert.strictEqual(typeof readDurableState, 'function');
   assert.strictEqual(typeof writeDurableState, 'function');

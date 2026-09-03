@@ -52,6 +52,46 @@ standard step in implementing the handler.
    `plugin/bin/lib/hooks/post-tool-use.js`'s `extractToolResponseText` for the pattern this project
    already uses for exactly this reason.
 
+## A fixture is a claim, not ground truth
+
+The same gap one level over: a fixture's literal values are an assertion about the real shape,
+made by whoever wrote the fixture — usually the same person writing the code under test, at the
+same moment, from the same mental model. When that assertion is wrong, the fixture does not fail;
+it agrees with the bug, and the suite certifies the exact regression class it was written to catch.
+
+Record #900 hit this three times inside one record's own fresh code:
+
+- Every archive-path fixture in `tests/bin-lib/wrap-up/engine-verify.test.js` used a timestamp-free
+  run id (`test-archived-parent-900`), while every real archived run's basename is
+  ISO-timestamped. A fix-round change that stripped the timestamp prefix broke
+  `resolveArchivedRunDir` for *every* real run and passed the whole suite. Caught by a
+  whole-branch re-review reading the production path, not by a test.
+- A worktree match-key fixture had been "fixed" to match the buggy code rather than the real path
+  shape, so the defect and its test agreed.
+- Acceptance-labeling fixtures never modeled a resolvable parent or a pr-first PR, though every
+  real run of this pipeline has both.
+
+So: before trusting a fixture as the reference shape, ask whether its literal values **occur in
+production** — is a run id always ISO-timestamped, is a worktree always nested under a resolvable
+parent, does a record always have a parent? Where the answer is "unknown", the fixture is suspect
+until a real instance is found: a live run directory under `.claude-tweaks/pipelines/`, a real
+issue via `gh issue view`, or this session's own transcript per the procedure above. A fixture
+built to satisfy the code is worth less than one sampled from the world.
+
+**The sharpest form: a fixture standing in for the producer the bug lives in.** A hand-built
+stand-in for one component's output is a claim about how that *producer* behaves — so when the
+defect is in the producer, the test cannot see it: it passes identically before and after the
+fix. Record #1410's `resolveRun` fix (`plugin/bin/lib/hooks/context.js`) is the instance. The
+contaminated `events.jsonl` entry came from `resolveRun` guessing a concurrent sibling
+worktree's run dir, and the obvious test for it — hand-build a `ctx.ownedRun` and feed it to
+`post-tool-use.js`'s `logAskUserQuestion` — would have exercised only the consumer and stayed
+green through the entire bug. The shipped test in
+`tests/hooks-post-tool-use-ask-user-question.test.js` instead calls the real `resolveRun`
+against real `gitRepo()`/`linkedWorktreeOf()` worktrees and pipes its actual return value into
+the consumer, reproducing the full path the bad entry travelled. So before hand-building any
+input, ask which component produced it in the incident being pinned — if that component is the
+suspect, the fixture must be its real output, not your model of it.
+
 ## When to use
 
 - Implementing a hook handler, integration, or any code that parses a tool's input/output payload
@@ -62,8 +102,9 @@ standard step in implementing the handler.
 
 ## When not to use
 
-- The payload's shape is already directly testable (a real API you can call, a fixture already
-  checked into the repo) — call it or read the fixture instead of hunting through a transcript
+- The payload's shape is already directly testable against the real thing (an API you can call, a
+  live instance you can read) — call it instead of hunting through a transcript. A fixture checked
+  into the repo does **not** qualify; see "A fixture is a claim, not ground truth" below
 - No relevant transcript exists yet (the tool/hook has never fired in any session available to
   you) — there is nothing to verify against; note the gap and proceed defensively, or trigger the
   tool once deliberately to generate a sample first

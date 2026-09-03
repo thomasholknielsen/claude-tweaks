@@ -103,6 +103,37 @@ test('no lazy-loaded sub-file exceeds the ceiling either', () => {
   );
 });
 
+// ── /specify lazy-loaded sub-file ceiling (#611). A sub-file over this size
+// costs multiple extra tool calls to read once (a `cat`/Read call above it
+// gets truncated and needs a follow-up slice) — a tighter, single-read-call
+// concern distinct from the 40 KB per-session context-budget ceiling above.
+// #611 verified empirically during its own build: a 19.4 KB and a 24.4 KB
+// file each rendered in one call; a 34.3 KB file truncated. 28 KB sits
+// between those two known points, comfortably above the post-#611-split
+// decomposition-mode.md (~25.6 KB) with headroom for incidental growth.
+const SPECIFY_SUBFILE_CEILING_BYTES = 28 * 1024;
+
+// record-creation.md, shaping-mode.md, and next-mode.md all exceeded this ceiling —
+// filed as #1346, out of #611's own scope (which only split decomposition-mode.md).
+// #1346 split all three (record-creation.md -> record-creation.md + record-creation-subissues.md
+// + record-creation-linking.md; shaping-mode.md -> shaping-mode.md + shaping-mode-stamping.md;
+// next-mode.md -> next-mode.md + next-mode-shape.md), landing every resulting sub-file under
+// the ceiling — the exception set is empty again. New growth on any /specify sub-file
+// crossing the ceiling still fails below.
+const SPECIFY_SUBFILE_LEGACY_EXCEPTIONS = new Set([]);
+
+test('no /specify lazy-loaded sub-file exceeds the ~20-28 KB single-read ceiling (legacy exceptions aside)', () => {
+  const specifySubFiles = measureSubFiles(REPO).filter((e) => e.skill === 'specify');
+  const over = specifySubFiles.filter(
+    (e) => e.bytes > SPECIFY_SUBFILE_CEILING_BYTES && !SPECIFY_SUBFILE_LEGACY_EXCEPTIONS.has(e.file),
+  );
+  assert.deepStrictEqual(
+    over.map((s) => `${s.file} ${kb(s.bytes)} KB`),
+    [],
+    'a /specify sub-file over this ceiling costs multiple extra tool calls to read once (#611) — split it',
+  );
+});
+
 test('reports the payload total and the tightest headroom', () => {
   const skills = measureSkills(REPO);
   const total = totalBytes(skills);

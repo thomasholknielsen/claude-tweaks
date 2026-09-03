@@ -73,7 +73,7 @@ silently degrades the check to unverified:
 ```bash
 export INTEGRATION_BRANCH="<Step F1's resolved branch, or empty if nothing resolved>"
 node -e "
-  const { compareRoutineRecords, freshnessNote } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/routine-template-parser.js');
+  const { compareRoutineRecords, freshnessNote } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/routine-template-parser.js');
   const r = compareRoutineRecords({ branch: process.env.INTEGRATION_BRANCH || undefined, fetch: false });
   console.log(JSON.stringify({ ...r, note: freshnessNote(r) }, null, 2));
 "

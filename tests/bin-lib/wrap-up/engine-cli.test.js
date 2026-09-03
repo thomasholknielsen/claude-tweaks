@@ -1,5 +1,5 @@
 'use strict';
-// bin/lib/wrap-up/tests/engine-cli.test.js — exercises bin/wrap-up-engine.js
+// tests/bin-lib/wrap-up/engine-cli.test.js — exercises bin/wrap-up-engine.js
 // end to end: `plan` against a real fixture git repo (same builder shape as
 // facts.test.js), `record` reading a payload off stdin, and `render`
 // including the --strict completeness gate. Spawns the CLI as a real child

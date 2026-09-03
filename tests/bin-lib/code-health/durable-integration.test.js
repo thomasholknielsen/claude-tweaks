@@ -28,7 +28,7 @@ test('retry-queue drain prints [] against a repo with no health-state branch (re
 // rebase). A typo in that rebase (e.g. `.slice(2)`, or dropping it) would
 // make args._[1] resolve to the literal string 'update' instead of the real
 // results-file path, so this real-CLI (argv-parsed) invocation is what
-// actually exercises that dispatch line — bin/lib/health-core/tests/
+// actually exercises that dispatch line — tests/bin-lib/health-core/
 // retry-cli.test.js calls makeRetryQueueCommands directly and bypasses argv
 // parsing entirely, so it can't catch this class of bug.
 test('retry-queue update <results.json> dispatches correctly against a repo with no health-state branch', () => {

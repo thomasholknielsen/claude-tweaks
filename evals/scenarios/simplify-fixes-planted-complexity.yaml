@@ -9,6 +9,6 @@ skill_invocation:
   prompt: "/claude-tweaks:simplify"
 assertions:
   - type: test-passes
-    command: "node --test test/"
+    command: "node --test test/*.test.js"
   - type: tool-count
     max: 40

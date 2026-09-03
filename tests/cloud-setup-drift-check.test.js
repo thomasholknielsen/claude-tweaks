@@ -24,7 +24,7 @@ const MARKETPLACES_JSON = '/tmp/cc-marketplaces.json';
 // Structurally anchored on the shell substitution markers around the VERDICT node -e block,
 // not on any prose sentence inside it — a rewording of the comments cannot break extraction.
 function extractVerdictSnippet(scriptSource) {
-  const m = scriptSource.match(/VERDICT=\$\(node -e '\n([\s\S]*?)\n {2}' "\$spec" \|\| true\)/);
+  const m = scriptSource.match(/VERDICT=\$\(node -e '\n([\s\S]*?)\n {2}' "\$spec" "\$CC_INSTALLED" "\$CC_MARKETPLACES" \|\| true\)/);
   assert.ok(
     m,
     'extraction pattern is out of sync with scripts/claude-cloud-setup.sh — the VERDICT node -e block moved or was reworded',
@@ -103,9 +103,12 @@ function writeFixtures({ pluginId, installedVersion, catalogPlugin, marketplaceN
 
 // Runs a VERDICT node -e body (live or frozen) against whatever fixtures are currently at
 // INSTALLED_JSON / MARKETPLACES_JSON, with `curlDir` prepended to PATH so a stubbed `curl`
-// answers the sha-resolution fetch.
+// answers the sha-resolution fetch. The live body (#923) reads the two session-scoped
+// snapshot paths from process.argv[2]/[3] rather than hardcoding them (_shared/
+// session-tmp-root.md) — the frozen pre-#860 body ignores the extra args harmlessly, since it
+// still hardcodes its own literals internally.
 function runVerdict(body, spec, curlDir) {
-  const result = spawnSync('node', ['-e', body, spec], {
+  const result = spawnSync('node', ['-e', body, spec, INSTALLED_JSON, MARKETPLACES_JSON], {
     encoding: 'utf8',
     env: { ...process.env, PATH: `${curlDir}:${process.env.PATH}` },
     timeout: 15_000,

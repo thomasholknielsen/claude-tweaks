@@ -24,43 +24,47 @@ fetch ends up skipped (ceiling below `trusted` and no `--trust`) is accepted ove
 canonical read is simpler than conditioning the resolve call itself on the value it exists to
 produce.
 
-**Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `/tmp/backlog-refine-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-refine-faceted.json`) — reading through the session-scoped record snapshot, whose union field set always carries `body` (no `{EXTRA_FIELDS}` request needed) for this pass's synthesis. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
+**Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `session-scoped backlog-refine-open.json`, `{tmp-faceted-file}` = `session-scoped backlog-refine-faceted.json`) — reading through the session-scoped record snapshot, whose union field set always carries `body` (no `{EXTRA_FIELDS}` request needed) for this pass's synthesis. Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_UNSYNCED=backlog-refine-unsynced.json)"
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   const records = queryRecords('specs', { unsynced: true });
   console.log(JSON.stringify(records));
-" > /tmp/backlog-refine-unsynced.json
+" > "$ST_BACKLOG_REFINE_UNSYNCED"
 ```
 
 For each unsynced record, attach a `createdAt` from its own last-commit date (the local driver carries no timestamp facet — same approach `/claude-tweaks:tidy`'s Step 1 staleness clock already uses) via `backlog.js`'s shared `deriveCreatedAtFromGit` helper (the same staleness-clock approach `_shared/record-queue-fetch.md` documents for the `local-files` driver):
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_UNSYNCED=backlog-refine-unsynced.json ST_BACKLOG_REFINE_UNSYNCED_DATED=backlog-refine-unsynced-dated.json ST_BACKLOG_REFINE_FACETED=backlog-refine-faceted.json ST_BACKLOG_REFINE_FACETED_MERGED=backlog-refine-faceted-merged.json)"
 node -e "
-  const { deriveCreatedAtFromGit } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
-  const records = require('/tmp/backlog-refine-unsynced.json');
+  const { deriveCreatedAtFromGit } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
+  const records = require('$ST_BACKLOG_REFINE_UNSYNCED');
   console.log(JSON.stringify(deriveCreatedAtFromGit(records)));
-" > /tmp/backlog-refine-unsynced-dated.json
+" > "$ST_BACKLOG_REFINE_UNSYNCED_DATED"
 node -e "
-  const { mergeUnsyncedRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
-  const github = require('/tmp/backlog-refine-faceted.json');
-  const unsynced = require('/tmp/backlog-refine-unsynced-dated.json');
+  const { mergeUnsyncedRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
+  const github = require('$ST_BACKLOG_REFINE_FACETED');
+  const unsynced = require('$ST_BACKLOG_REFINE_UNSYNCED_DATED');
   console.log(JSON.stringify(mergeUnsyncedRecords(github, unsynced)));
-" > /tmp/backlog-refine-faceted.json
+" > "$ST_BACKLOG_REFINE_FACETED_MERGED"
+mv "$ST_BACKLOG_REFINE_FACETED_MERGED" "$ST_BACKLOG_REFINE_FACETED"
 ```
 
-This last script reads `{tmp-faceted-file}`'s github-only content and overwrites the same path with the fully merged (github + unsynced) set — Step 2 below reads `/tmp/backlog-refine-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker in rendered output wherever `facets.unsynced === true`.
+The merge writes to a **distinct** path and `mv`s it over the original — `>` truncates its target before the reader opens it (docs/skill-authoring.md, Executable snippets). Step 2 below reads `session-scoped backlog-refine-faceted.json` expecting the merge to already be complete. Tag every fetched record with a **not yet synced** marker in rendered output wherever `facets.unsynced === true`.
 
 **Grant fetch (`work-backend: github-issues` only, skipped per Preflight under `local-files`).** Fetch per the same shared fragment, this time server-side filtered:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_READY=backlog-refine-ready.json ST_BACKLOG_REFINE_READY_FACETED=backlog-refine-ready-faceted.json)"
 LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
 export FETCH_LIMIT="$LIMIT"
-gh issue list --label ready --state open --json number,title,labels,updatedAt --limit "$LIMIT" > /tmp/backlog-refine-ready.json
+gh issue list --label ready --state open --json number,title,labels,updatedAt --limit "$LIMIT" > "$ST_BACKLOG_REFINE_READY"
 node -e "
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const issues = require('/tmp/backlog-refine-ready.json');
+  const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
+  const issues = require('$ST_BACKLOG_REFINE_READY');
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + issues.length + ' ready-labeled issues (backlog-fetch-limit) — there may be more. See .claude-tweaks/policy.yml.');
   }
@@ -70,35 +74,36 @@ node -e "
     rows = rows.filter((r) => (originFilter === 'human' ? r.facets.origin === null : r.facets.origin === originFilter));
   }
   console.log(JSON.stringify(rows));
-" > /tmp/backlog-refine-ready-faceted.json
+" > "$ST_BACKLOG_REFINE_READY_FACETED"
 ```
 
 Immediately after, compute the whole refine worklist in one pass — this is what Step 2 and Step 3 below both read, in place of their own inline split/slice scripts:
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" ST_BACKLOG_REFINE_FACETED=backlog-refine-faceted.json ST_BACKLOG_REFINE_READY_FACETED=backlog-refine-ready-faceted.json ST_BACKLOG_REFINE_WORKLIST=backlog-refine-worklist.json)"
 node -e "
-  const { refineWorklist } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/backlog.js');
+  const { refineWorklist } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/backlog.js');
   const fs = require('fs');
-  const allRows = require('/tmp/backlog-refine-faceted.json');
-  const p = '/tmp/backlog-refine-ready-faceted.json';
+  const allRows = require('$ST_BACKLOG_REFINE_FACETED');
+  const p = '$ST_BACKLOG_REFINE_READY_FACETED';
   const readyRows = fs.existsSync(p) ? require(p) : [];
   console.log(JSON.stringify(refineWorklist({
     allRows, readyRows,
     priorityBudget: Number(process.env.PRIORITY_BUDGET || 40),
     grantBudget: Number(process.env.GRANT_BUDGET || 40),
   })));
-" > /tmp/backlog-refine-worklist.json
+" > "$ST_BACKLOG_REFINE_WORKLIST"
 ```
 
-Under `work-backend: local-files`, the grant fetch above never ran (Preflight skips it), so `/tmp/backlog-refine-ready-faceted.json` doesn't exist; `readyRows` defaults to `[]` and the compute block still produces every priority-path field (`missingPriority`, `missingRiskSize`, `prioritySlice`) from `allRows` — the grant lanes (`fresh`/`blocked`/`inProgress`/`grantSlice`) are simply empty.
+Under `work-backend: local-files`, the grant fetch above never ran (Preflight skips it), so `session-scoped backlog-refine-ready-faceted.json` doesn't exist; `readyRows` defaults to `[]` and the compute block still produces every priority-path field (`missingPriority`, `missingRiskSize`, `prioritySlice`) from `allRows` — the grant lanes (`fresh`/`blocked`/`inProgress`/`grantSlice`) are simply empty.
 
-**Decomposition parents are in the priority population, deliberately.** `refineWorklist`'s `missingPriority` and `missingRiskSize` are computed over `allRows` with no `facets.isParentIssue` filter, so an open decomposition parent reaches the Priority lane like any other unlabelled record. This is the one place `refine` and `overview` treat parents differently: `funnelBuckets` routes parents to their own mutually-exclusive `parents` bucket (`overview-mode.md`'s third annotation line), keeping them out of `captured`/`scored` and therefore out of the Score and Shape paste blocks — a parent is never `ready` and never scored (`_shared/work-record.md`'s Decomposition rules: "Only sub-issue records get `ready` (+ scoring)"). Priority is not scoring: a parent legitimately carries a `priority:*` tier to rank the decomposition as a whole, so it stays in this lane. What must NOT happen here is a risk/size ask or a `flag back (needs scoring)` recommendation against a parent — those are sub-issue-only, and `missingRiskSize` counting parents is a count artifact, not a work item. Never emit a `/claude-tweaks:specify #{N}` grooming command for a parent from any lane; its close-out path is `wrap-up/verification-brief.md`'s Parent-Gate Procedure (backstopped by `/claude-tweaks:tidy`'s `Open parent gate`) or `/claude-tweaks:demo`.
+**Decomposition parents are in the priority population, deliberately.** `refineWorklist`'s `missingPriority` and `missingRiskSize` are computed over `allRows` with no `facets.isParentIssue` filter, so an open decomposition parent reaches the Priority lane like any other unlabelled record. This is the one place `refine` and `overview` treat parents differently: `funnelBuckets` routes parents to their own mutually-exclusive `parents` bucket (`overview-mode.md`'s third annotation line), keeping them out of `captured`/`prioritized` and therefore out of the Prioritize and Specify paste blocks — a parent is never `ready` and never scored (`_shared/work-record.md`'s Decomposition rules: "Only sub-issue records get `ready` (+ scoring)"). Priority is not scoring: a parent legitimately carries a `priority:*` tier to rank the decomposition as a whole, so it stays in this lane. What must NOT happen here is a risk/size ask or a `flag back (needs scoring)` recommendation against a parent — those are sub-issue-only, and `missingRiskSize` counting parents is a count artifact, not a work item. Never emit a `/claude-tweaks:specify #{N}` grooming command for a parent from any lane; its close-out path is `wrap-up/verification-brief.md`'s Parent-Gate Procedure (backstopped by `/claude-tweaks:tidy`'s `Open parent gate`) or `/claude-tweaks:demo`.
 
 (If the intended behavior is instead that parents leave the Priority lane entirely, that is a code change to `refineWorklist` and belongs in its own work record rather than in this note.)
 
 When `--budget <n>` was passed (see `SKILL.md`'s Input), set `PRIORITY_BUDGET=<n> GRANT_BUDGET=<n>` in the **same Bash invocation** as the compute block above (e.g. `PRIORITY_BUDGET=<n> GRANT_BUDGET=<n> node -e "..."`) — shell environment does not survive between separate Bash calls, so exporting them in an earlier call and relying on the compute block's later call to inherit them silently resolves both to the `|| 40` default instead. Omitted, both are unset and the block's own `|| 40` defaults apply — Step 2's priority/Related synthesis pass and Step 3's grant-check pass stay independently budgeted, exactly as before.
 
-When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the fetch script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the compute block above resolves the split three ways: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `grant-mode.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
+When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the fetch script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the compute block above resolves the split three ways: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `refine-headless.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
 
 **These are two separate fetches, not one.** The priority/Related fetch is unfiltered (needs the whole backlog); the grant fetch is server-side filtered to `--label ready` (preserves today's exact starvation-avoidance guarantee — an unfiltered pull risks pushing older `ready`-labeled issues out of a shared result window on a large backlog). Both route through the same `backlog-fetch-limit` config key and truncation-warning pattern, just as two independent invocations of it.
 
@@ -110,7 +115,7 @@ Over the **missing-priority** population — records carrying no `priority:*` la
 population Step 1's compute block actually keys on via `refineWorklist`'s `missingPriority` (refs
 #460: the old split kept scored-on-any-facet records out of this pass even when they still lacked
 a `priority:*` label; keying on the label directly is the fix) — read `.prioritySlice.selected` and
-`.prioritySlice.remaining` from `/tmp/backlog-refine-worklist.json`, already bounded to `--budget`
+`.prioritySlice.remaining` from `session-scoped backlog-refine-worklist.json`, already bounded to `--budget`
 (default 40, independent of the grant pass's own budget in Step 3) by Step 1's compute block. No
 separate script runs here.
 
@@ -119,7 +124,7 @@ Read every selected body in one pass and produce:
 - A narrative summary + thematic clusters (group by shared theme/origin/root cause, not just by label — the same read a human gets from reading a handful of related issues side by side).
 - A per-record `priority:*` suggestion with a one-line rationale.
 - A per-record, **non-binding** tier guess (`quick`/`full`) — purely to help a human eyeball a batch before deciding what to send to `/specify` next. This is never written as a label; only `/specify`'s own `ceremony-check` (a separate, authoritative computation with deeper context — the record's fully shaped Deliverables/Acceptance Criteria, not this pass's rougher read) writes `ceremony:*`. Rationale was `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`.
-- Detected `**Related:**` cross-references — pairs of selected records whose bodies reference each other's context in prose without a formal link (`**Related:**` is `/capture`'s own body-template line; nothing else reads or maintains it — `_shared/work-record.md`). Never suggest `Blocked by #N` here — that's the formally-parsed hard-dependency mechanism, out of scope for this skill (`_shared/work-record.md`'s permission matrix).
+- Detected `**Related:**` cross-references — pairs of selected records whose bodies reference each other's context in prose without a formal link (`**Related:**` is `/capture`'s own body-template line, and `/specify`'s independent-2-unit collapse is its one other producer — that pass writes the same bolded line onto each of the two cross-linked records, so Step 5's replace updates it in place rather than adding a second one — `_shared/work-record.md`). Never suggest `Blocked by #N` here — that's the formally-parsed hard-dependency mechanism, out of scope for this skill (`_shared/work-record.md`'s permission matrix).
 
 If `.prioritySlice.remaining > 0`, state it plainly in the report: "`{remaining}` more records missing priority exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them.
 
@@ -135,7 +140,7 @@ the sole path back to a clear breaker.
 
 Bound the grant-check LLM pass independently of Step 2's budget. Read `.grantSlice.selected` and
 `.grantSlice.remaining` (already bounded to `--budget`, default 40, by Step 1's compute block) and
-`.blocked` from `/tmp/backlog-refine-worklist.json` — no separate script runs here. Below, `selected`
+`.blocked` from `session-scoped backlog-refine-worklist.json` — no separate script runs here. Below, `selected`
 and `blocked` refer to these two fields.
 
 For every record in `selected`, invoke `/claude-tweaks:assess-agent-autonomy` in `grant-check` mode, once per record, every backlog refine session — never pre-filtered to "borderline" records:
@@ -153,11 +158,8 @@ afterward, not be computed and then silently discarded. `blocked` rows (below) h
 `assess-agent-autonomy` call to draw a rationale from — their Evidence column reads a fixed
 string instead, per Step 4.
 
-- **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
-  `true`).
-- **`RECOMMEND_BUILD: false`** → `flag back (needs scoring)`. The human may supply scoring inline as
-  a free-text override instead of flagging back — the gate then stamps the supplied `risk:*`/
-  `size:*` labels alongside the grant (Step 5).
+Read `grant-lane-decision.md` in this skill's directory for its `RECOMMEND_BUILD: false`-branch
+outcome table and Step 5's write mechanics for each — not restated here.
 
 For every record in `blocked` (unaffected by the budget — the retry-ceiling population is
 typically small and its re-authorization recommendation needs no `grant-check` call at all), skip
@@ -186,20 +188,26 @@ fetch/render this sub-stage advises with, and how it never changes what the gate
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-For every record the grant-check pass recommends **granting** (not flag-back/blocked rows) — fetch the body and re-verify spec shape immediately before writing any label, using the same cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check` already fetched and cached the body at `/tmp/assess-grant-{n}.json`; reuse it instead of a second API round-trip).
+For every record recommended for granting (Step 3) or resolved to `needs:decision` per
+`grant-lane-decision.md`'s outcome table — fetch the body and re-verify spec shape immediately
+before writing any label, using the same
+cached-body-reuse trick the retired `/claude-tweaks:triage` skill's old Step 3.5 used (`grant-check`
+already fetched and cached the body at this run's session-scoped `assess-grant-{n}.json` —
+`_shared/session-tmp-root.md`; reuse it instead of a second API round-trip).
 
 ```bash
-if [ -f "/tmp/assess-grant-${ISSUE}.json" ]; then
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "ASSESS_GRANT=assess-grant-${ISSUE}.json" "BACKLOG_REFINE_BODY=backlog-refine-body-${ISSUE}.md")"
+if [ -f "$ASSESS_GRANT" ]; then
   # Fresh row already went through Step 3's grant-check, which fetched and cached the
   # body — reuse it instead of a second GitHub API round-trip for the same content.
-  node -e "console.log(require('/tmp/assess-grant-${ISSUE}.json').body)" > /tmp/backlog-refine-body-${ISSUE}.md
+  node -e "console.log(require(process.argv[1]).body)" "$ASSESS_GRANT" > "$BACKLOG_REFINE_BODY"
 else
   # Blocked row skipped grant-check entirely (Step 3), so no cached body exists yet.
-  gh issue view "$ISSUE" --json body -q .body > /tmp/backlog-refine-body-${ISSUE}.md
+  gh issue view "$ISSUE" --json body -q .body > "$BACKLOG_REFINE_BODY"
 fi
 ```
 
-Check per `_shared/work-record.md`'s spec-shaped body definition: the sections `## Current State`, `## Deliverables`, and `## Acceptance Criteria` are present and each non-empty, and no unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) remains anywhere in the body. This is structural-plus-minimal — whether the deliverables are the *right* ones stays human judgment (the batch table just confirmed), not this check.
+Check per `_shared/work-record.md`'s spec-shaped body definition: the sections `## Current State`, `## Deliverables`, and `## Acceptance Criteria` are present and each non-empty, and no unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) remains anywhere outside the verbatim-preserved `## Original request` section (exempt per that definition's #1240 clause). This is structural-plus-minimal — whether the deliverables are the *right* ones stays human judgment (the batch table just confirmed), not this check.
 
 A failing row auto-downgrades to flag-back, using Step 5's flag-back mechanics with this exact comment (substitute the missing/empty section list and issue number):
 
@@ -208,7 +216,8 @@ Flagged back by /claude-tweaks:backlog refine: body is not spec-shaped — missi
 ```
 
 ```bash
-node -e "console.log(\`Flagged back by /claude-tweaks:backlog refine: body is not spec-shaped — missing/empty: \${process.argv[1]}. Run /claude-tweaks:specify #\${process.argv[2]} to shape it, then re-add 'ready'.\`)" "$MISSING_LIST" "$ISSUE" > /tmp/backlog-refine-flagback-${ISSUE}.md
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_REFINE_FLAGBACK=backlog-refine-flagback-${ISSUE}.md")"
+node -e "console.log(\`Flagged back by /claude-tweaks:backlog refine: body is not spec-shaped — missing/empty: \${process.argv[1]}. Run /claude-tweaks:specify #\${process.argv[2]} to shape it, then re-add 'ready'.\`)" "$MISSING_LIST" "$ISSUE" > "$BACKLOG_REFINE_FLAGBACK"
 ```
 
 Report every downgrade to the user before proceeding — a silent downgrade would look like the grant simply never happened.
@@ -238,9 +247,8 @@ born-`ready` by this path and this step does nothing.
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-One lane per record, precedence: Re-authorize → Grant → Flag-back → Priority → Dependency repair →
-Needs you. A record already laned above (Re-authorize/Grant/Flag-back) keeps its priority/Related
-suggestion as an annotation line under its row — a suggestion is never silently dropped.
+One lane per record, precedence: Re-authorize → Grant → Flag-back → Needs-decision → Priority →
+Dependency repair → Needs you.
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
 and paste-block templates, the consequence-line trust and `solution:unjustified` annotation templates, the
@@ -259,7 +267,7 @@ Local-files driver: the equivalent re-read is `readRecord(path).facets` immediat
 
 Local-files driver: the equivalent re-read is `readRecord(path).body` immediately before either write — same skip-on-mismatch rule and log line, since a concurrent session's edit to the tracked file is exactly the same class of stale-premise race; a `readRecord` failure (missing/corrupt file) skips the same way — don't write.
 
-**General rule.** Any batch-confirm-then-apply flow with a long-lived `AskUserQuestion` gate between building a row's premise and writing it needs this same pre-write reverify — the gate's wait time is unbounded and nothing else in this plugin guards the window. `/claude-tweaks:tidy`'s Step 6 auto-apply table already applies the identical rule to its own gated `[parent-gate]` finding (`skills/tidy/step-6-auto.md`, which re-verifies the gate before acting rather than trusting the scan's own snapshot) — same shape, not new.
+**General rule.** This is an instance of `_shared/reverify-before-write.md`'s pattern: any batch-confirm-then-apply flow with a long-lived `AskUserQuestion` gate between building a row's premise and writing it needs the same pre-write reverify. `/claude-tweaks:tidy`'s Step 6 auto-apply table (`skills/tidy/step-6-auto.md`) applies the identical rule to its own gated `[parent-gate]` finding — same shape, not new.
 
 **Priority/Related rows:** For every record the priority decision resolved to apply:
 
@@ -329,98 +337,18 @@ Stripping `bot:blocked` in the same edit as the grant matters: without it, the r
 **Flag-back rows:** For every row flagged back — Step 3.5's auto-downgrade, a row missing risk/size accepted as recommended, or a human override in Step 4 — remove `ready` and post a comment. Step 3.5's downgrade always uses its exact wording above; every other flag-back uses a shorter comment: `Flagged back by /claude-tweaks:backlog refine: {reason}. Re-add 'ready' once addressed.`, where `{reason}` is `needs scoring` for the recommended case or the human's own free-text reason for an explicit override.
 
 ```bash
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" "BACKLOG_REFINE_FLAGBACK=backlog-refine-flagback-${ISSUE}.md")"
 gh issue edit "$ISSUE" --remove-label ready
-gh issue comment "$ISSUE" --body-file /tmp/backlog-refine-flagback-${ISSUE}.md
+gh issue comment "$ISSUE" --body-file "$BACKLOG_REFINE_FLAGBACK"
 ```
 
-Check each write's own result before logging it — a non-zero exit from any `gh`/`writeRecord` call
-above is a failure, not a success, regardless of which lane produced it (a reverify fetch above
-is not itself a write; it follows its own skip rule instead). Log every action to this
-run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md`) via the matching
-template below, success, failure, or skipped-before-write:
+**Needs-decision rows:** `grant-lane-decision.md`'s Write mechanics — label, comment, keep `ready`,
+no `auto:*`. Logged the same as any row above.
 
-```
-AUTO {time} — Backlog refine: set priority:{tier} on #{n}.
-AUTO {time} — Backlog refine: updated **Related:** on #{n} to reference #{m}.
-AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, size:{sizeTier}). Rationale: {grant-check RATIONALE}.
-AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
-AUTO {time} — Backlog refine: repaired dependency on #{n} — {wired native blocked-by referencing #{m} | appended Blocked by #{m} line}.
-AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
-AUTO {time} — Backlog refine: skipped #{n} — premise changed since confirmation ({what changed}); dropped without writing.
-FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back} write failed on #{n}: {error}.
-```
-
-The closing summary below counts these lines by type — `FAILED` feeds the tally's `failed` count and per-failure lines; `AUTO … skipped …` (including a reverify-fetch failure) feeds `skipped` and its per-skip lines; a write with no matching line was never attempted and counts toward neither.
-
-**Closing summary (required, rendered as assistant text — never delegated to tool output; a
-shell print of the tally does not satisfy this):** after the apply pass above completes, render
-a closing block from the same per-write outcomes already logged to `decisions.md` above — no
-second bookkeeping channel:
-
-1. **Per-type tally line** — one count per write type applied this run, with `skipped` and `failed` always
-   present, even at zero:
-
-   ```
-   34 priority set · 2 Related updated · 7 granted · 5 flagged back · 1 dependency-repair · 0 skipped · 0 failed
-   ```
-
-2. **One line per failed write** — the record ref and the error, followed by a paste-ready retry
-   command on its own line (this repo's report-line convention: no inline/same-line comments).
-   The retry command reproduces that write type's own Step 5 mechanics above, not a generic
-   `gh issue edit --add-label`:
-
-   ```
-   #123 — priority write failed: {error}
-   gh issue edit 123 --add-label priority:high
-   ```
-
-   (assumes the removal already landed and only the add failed — see the caveat below before
-   pasting this literally)
-
-   For a priority write, re-derive the conditional swap from the failure point: re-read the
-   record's current `priority:*` label state and emit the add-only form only when no prior-tier
-   label remains — safe when the removal already landed and only the add failed; before any
-   removal it leaves two contradictory labels, exactly what the swap above exists to prevent.
-   Grant rows (up to four chained `gh` calls) and Related/Flag-back rows (a `--body-file` edit)
-   retry as the single failed call from that row's own mechanics, not the whole row.
-
-3. **One line per skipped write** — the record ref and what changed, informational only (no retry command needed — the human re-runs refine to pick it up fresh next time):
-
-   ```
-   #123 — skipped: premise changed since confirmation (lost ready label)
-   ```
-
-4. **The run-directory path, absolute** — never relative (a bare relative
-   `.claude-tweaks/pipelines/` path silently shadows the main-checkout copy when run from a
-   worktree):
-
-   ```
-   Audit trail: /abs/path/to/.claude-tweaks/pipelines/{run-id}/decisions.md
-   ```
-
-A fully clean run still renders `0 failed` explicitly (and `0 skipped` alongside it), omitting
-both the per-failure and per-skip lines — that's the only signal a clean run needs.
-
-**Close the run dir.** After the closing summary above renders, close this run's standalone run
-directory so resume/reconcile paths can classify it as terminal instead of `status: unknown`:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run <absolute-run-dir>
-```
-
-Always pass an explicit `--run <absolute-run-dir>` — the run directory itself: the closing summary's
-audit-trail line above names the `decisions.md` *file* inside it, so strip the trailing
-`/decisions.md` to get the directory `close-run` requires (it rejects a file path outright).
-Omitting `--run` falls back to the newest non-terminal run dir under the
-project's `.claude-tweaks/pipelines/` — `close-run` already refuses to close it when that run's
-`run-state.json` carries a `sessionId` stamp differing from the caller's own
-`CLAUDE_CODE_SESSION_ID`, but a fallback run never stamped with one (or a caller with none set)
-still closes silently even when it belongs to a different, active session — passing an explicit
-`--run` avoids the ambiguity entirely. `close-run`
-creates `run-state.json` when the run dir never had one — every refine standalone run — and stamps
-it `status: clean`, so no separate direct write is needed. A "no recorded wrap-up invocation"
-warning line is expected here and not an error; refine runs standalone and never invokes
-`/claude-tweaks:wrap-up`.
+Once every write type above has been attempted, log each result and render the closing summary
+and run closure per `backlog/refine-closing-summary.md` (#1512) — the per-action log-line
+templates, the required tally/failed/skipped closing summary, and the final `close-run` call all
+live there now, split out to keep this file under the 40 KB per-file lazy-load ceiling.
 
 ## Concurrency
 

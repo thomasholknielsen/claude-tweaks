@@ -6,6 +6,14 @@
 
 **Gate:** same GHE-safe two-tier remote check Step 9 uses — no remote at all, skip this step entirely (there is nothing to recommend; forge detection will correctly resolve `local-merge` on its own).
 
+**Probe (informational, read-only — runs whenever the gate passes, regardless of which option is chosen below):** `pr-first`'s arm step (`_shared/pr-first-merge.md`'s Step 3) needs the repository's `Allow auto-merge` setting on to arm `--auto` directly; when it's off, that same Step 3 already degrades gracefully (poll-then-merge or ready+comment) rather than failing loudly. Check and report it before the question below, so the choice to pin `pr-first` is made with the setting's actual state in view, not silently:
+
+```bash
+gh api repos/{owner}/{repo} -q .allow_auto_merge
+```
+
+`true` → no comment needed. `false` → report: `"Allow auto-merge" is off for this repo — arming a PR falls back to _shared/pr-first-merge.md's documented degrade path (poll-then-merge or ready+comment) rather than a live --auto arm. Pinning pr-first still works either way; this only affects which merge path each run takes.` A failed probe (no `gh`, no access, API error) is skipped silently — this is an informational aside, not a gate.
+
 **If a remote is reachable, call `AskUserQuestion`:**
 
 - `question`: `"Pin integration-model to pr-first in policy.yml? Without it, the value is re-detected per environment — a local gh session and an MCP-only sandbox can resolve differently for the same repo."`, `header`: `"Integration model"`, `multiSelect`: `false`

@@ -9,6 +9,7 @@
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { LARGE_MAX_BUFFER_BYTES } = require('./lib/shared-primitives');
 const { MANIFEST_PATHS } = require('./lib/manifest-path');
 const { resolveScope } = require('./lib/residue/scope');
 const { hasTestScript } = require('./lib/residue/detect-test-script');
@@ -18,6 +19,7 @@ const { probeForge } = require('./lib/residue/probes/forge');
 const { probeSuite } = require('./lib/residue/probes/suite');
 const { probeRelease } = require('./lib/residue/probes/release');
 const { probePipelineRuns } = require('./lib/residue/probes/pipeline-runs');
+const { probeArtifacts } = require('./lib/residue/probes/artifacts');
 const { renderOutstanding } = require('./lib/residue/render');
 const { filterResultsByScope } = require('./lib/residue/scope-filter');
 
@@ -41,9 +43,21 @@ function parseArgs(argv) {
 }
 
 function runner(cwd) {
-  return (argv) => {
+  // `opts` lets a caller pass extra `execFileSync` options (e.g. `timeout`)
+  // for a specific command without changing every other call through this
+  // shared seam — a probe that needs to contact a remote (unlike the
+  // local-only checks every probe currently runs) needs a bound; the
+  // existing catch-all below already treats a timeout kill the same as any
+  // other failure (returns null), so no new error handling is needed here.
+  // `maxBuffer` defaults to 64 MiB (mirrors suiteRun()'s own bound below) —
+  // Node's execFileSync default is 1 MiB, and CHANGELOG.md alone (read via
+  // `git show HEAD:CHANGELOG.md` in probeRelease) is already a quarter of
+  // that and growing; an overflow past the default silently fell into the
+  // bare catch below and read as an ordinary degraded probe. `opts` can
+  // still override it per call through the same spread.
+  return (argv, opts = {}) => {
     try {
-      return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      return execFileSync(argv[0], argv.slice(1), { cwd, encoding: 'utf8', maxBuffer: LARGE_MAX_BUFFER_BYTES, stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
     } catch {
       return null;
     }
@@ -69,20 +83,22 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (!opts.base) {
     process.stderr.write('usage: residue.js --base <commit-ish> [--scope repo|blast-radius] [--integration-branch <ref>] [--no-suite] [--json]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const cwd = process.cwd();
   const run = runner(cwd);
-  const git = (args) => run(['git', ...args]);
+  const git = (args, execOpts) => run(['git', ...args], execOpts);
   const scope = resolveScope({ base: opts.base, run: git });
 
   const manifest = readProjectManifest(cwd);
 
   const suiteRun = () => {
     try {
-      return { code: 0, stdout: execFileSync('npm', ['test'], { cwd, encoding: 'utf8', timeout: 600000, stdio: ['ignore', 'pipe', 'ignore'] }) };
+      return { code: 0, stdout: execFileSync('npm', ['test'], { cwd, encoding: 'utf8', timeout: 600000, maxBuffer: LARGE_MAX_BUFFER_BYTES, stdio: ['ignore', 'pipe', 'ignore'] }) };
     } catch (err) {
-      if (err && err.killed) return { code: null, stdout: '', timedOut: true };
+      if (err && (err.killed || err.code === 'ETIMEDOUT')) return { code: null, stdout: '', timedOut: true };
+      if (err && err.code === 'ENOBUFS') return { code: null, stdout: '', bufferOverflowed: true };
       if (err && typeof err.status === 'number') return { code: err.status, stdout: String(err.stdout || '') };
       return null;
     }
@@ -97,11 +113,20 @@ function main() {
   // code, so check the script exists BEFORE ever invoking npm — verified
   // live: a directory with no package.json used to report a fabricated
   // "test suite exit 254" finding instead of `unknown`.
-  const suiteResult = opts.noSuite
-    ? { ran: false, reason: 'skipped via --no-suite', findings: [] }
-    : hasTestScript(cwd)
-      ? probeSuite({ scope, run: suiteRun })
-      : { ran: false, reason: 'no test command detected', findings: [] };
+  let suiteResult;
+  if (opts.noSuite) {
+    suiteResult = { ran: false, reason: 'skipped via --no-suite', findings: [] };
+  } else if (!hasTestScript(cwd)) {
+    suiteResult = { ran: false, reason: 'no test command detected', findings: [] };
+  } else {
+    suiteResult = probeSuite({ scope, run: suiteRun });
+  }
+
+  // A blank or whitespace-only value (the shape an unset $PIPELINE_RUN_DIR
+  // expands to in shell) is treated as no value at all — same shape as
+  // materialize.js's --run-dir and resolve-policy.js's --run (#1118).
+  const pipelineRunDir = process.env.PIPELINE_RUN_DIR;
+  const pipelineRunId = pipelineRunDir && pipelineRunDir.trim() !== '' ? path.basename(pipelineRunDir) : null;
 
   // NOTE the runner shapes differ and are NOT interchangeable. probeBranches
   // calls run(['branch', ...]) — bare git args, so it gets the `git` wrapper.
@@ -115,7 +140,18 @@ function main() {
     probeForge({ scope, run }),
     suiteResult,
     probeRelease({ scope, manifest, run }),
-    probePipelineRuns({ cwd }),
+    probePipelineRuns({
+      cwd,
+      // The invoking run's identity, when one is threaded (wrap-up runs
+      // inside a pipeline run; standalone invocations have none) — #1118.
+      runId: pipelineRunId,
+      worktreeRoot: git(['rev-parse', '--show-toplevel']),
+      // #1328: lets the probe cross-check a status: clean finding's
+      // recorded worktree against the already-resolved locked-worktree
+      // list, instead of re-invoking git from inside the probe itself.
+      scope,
+    }),
+    probeArtifacts({ cwd, run: git }),
   ], opts.scope);
 
   if (opts.json) {

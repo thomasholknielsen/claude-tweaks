@@ -58,11 +58,12 @@ An aggregate line lists one `defer-reason` value per item, comma-separated in it
 
 ## Entry schema
 
-**`bin/log-decision.js --run-dir <dir> [--spec <n>] [--skill <name>] <STATUS> <message>`** is the
-canonical appender for this schema — it timestamps and status-prefixes `message` (composed by the
-caller per the shape below) and inserts it under the given `--skill` heading (creating the section
+**`bin/log-decision.js --run <run-dir> --status <STATUS> --text "<message>" [--spec <n>] [--step <text>] [--reversibility high|med|low|n/a] [--lever "<key>=<value> (<source>)"] [--section "/<skill>"]`** is the
+canonical appender for this schema — it timestamps and status-prefixes `--text` (composed by the
+caller per the shape below) and inserts it under the given `--section` heading (creating the section
 if absent) or at end of file otherwise. Every consumer of this file writes through it instead of
-hand-appending a formatted line per call site.
+hand-appending a formatted line per call site — with one documented exception: `FAILED`, which is
+hand-composed by its two writers (see the `STATUS` row below).
 
 Each entry follows this shape:
 
@@ -72,12 +73,12 @@ Each entry follows this shape:
 
 | Field | Required | Format |
 |---|---|---|
-| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`) |
+| `STATUS` | yes | `AUTO` (auto-applied), `STAGED` (logged but not acted; needs Review Console), `KEPT-PROMPT` (auto would not apply; asked user inline), `SCANNED` (scan completed — reports scope/outcome, whether or not anything was found), `REFUSED` (a queue-write proposal blocked at creation — no valid `Defer-reason:`; see `wrap-up/refused-proposals.md`), `SKIP` (a documented conditional action was skipped or degraded — no staged artifact; see the Degrade-trace rule below), `FAILED` (a batch write attempt that errored — no "revert" or "no valid Defer-reason" semantics, so it's kept separate from `AUTO`/`REFUSED`; hand-composed by `backlog/refine-mode.md` and `apply-refine-labels.js` rather than gated through `append.js`'s `STATUSES`/`formatEntry`, a deliberate choice from #1072's review that extending that enum would touch multiple consumers; `decisions-classifier.js`'s `KIND_RE` and the wrap-up console's Empty-console fast path both recognize it on the read side) |
 | `HH:MM:SS` | yes | Local time of the decision |
 | Step or location | yes | Skill step name OR file:line if relevant |
 | Short action | yes | One sentence: what was decided |
 | Detail line | optional | Wraps to second line if needed; explain rationale |
-| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED and REFUSED entries: N/A — nothing to revert) |
+| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED, REFUSED, SKIP, and FAILED entries: N/A — nothing to revert) |
 | Commit ref / stage path | when reversible | `commit abc1234` or `stage path: staged/...` |
 
 ## Lever attribution (optional trailing field)
@@ -97,6 +98,7 @@ The bracketed field is **always last** — after the existing optional `{; commi
 - **Keys are literal:** copy lever names from `POLICY_KEYS` (`bin/lib/policy-schema.js`) verbatim; never paraphrase.
 - **List-valued levers** render the configured comma-joined string truncated at 60 chars with `…`; an unset list renders `[]`.
 - **Table-cell rendering:** inside any markdown table cell the field renders as an inline code span (backticks), which neutralizes `|` and brackets — e.g. `` `[lever: scope-creep=add-to-plan (policy)]` `` as a suffix in the cell that carries the entry's detail.
+- **One trailing annotation clause, optional:** after the semicolon-separated `key=value (source)` list, a logging site may append exactly one more semicolon-separated free-text clause — not a second `key=value` pair — when it needs to name *how* a lever was applied, not just its value. Example (`review/step3-routing.md`'s prose-exempt bump, #660): `[lever: review-auto-apply-ceiling=low (default); prose-exempt bump applied]`.
 
 Worked examples:
 
@@ -120,6 +122,41 @@ The third example is a decision whose outcome was driven by the findings' own se
 | `REFUSED` | Console blocked a reason-less queue-write proposal at creation; kept staged (or flipped its ledger item back to `open`). | Shown under "Refused — no defer reason". No default; human edits the staged header or drops via Override → Skip. |
 | `KEPT-PROMPT` | Skill could not auto-resolve (floor failed or item is in "not silenced" list). Asked user inline. | Already resolved — informational entry only. |
 | `SCANNED` | Skill ran its independent scan/gap-detection and is reporting the scan's scope and outcome — emitted on every run of a scanning step, whether or not the scan found anything actionable. Not itself a decision — the decision, if any, is a separate AUTO/STAGED entry. | Shown in "Auto-applied" section as an informational line (no action to override). |
+| `SKIP` | A documented conditional action (a skill step whose text states a skip/no-op/degrade condition) was skipped or degraded during this run attempt — no staged artifact. Not itself a decision — see the Degrade-trace rule below. | Shown alongside `SCANNED` as an informational trace line (no action to override). |
+| `FAILED` | A batch write attempt errored — the write was neither applied nor refused for a content reason, so nothing landed and nothing is staged. Hand-composed by its two writers (see the `STATUS` row above). | Shown in "Auto-applied" section as an informational failure line (no commit ref, nothing to revert). Decision-bearing for the Empty-console fast path — a log holding one never skips the console — but the remedy is the producing skill's own paste-ready retry, not an Override. |
+
+## Degrade-trace rule (SKIP)
+
+Applies whenever a documented conditional action is actually skipped or degraded during a run attempt. Two things it is **not**:
+
+- **Not a normal run.** A step that executes as documented writes nothing — a clean pass is silent, exactly like `worktree-setup.md`'s post-creation catch-up (which logs only when the merge advanced the branch). Never log "ran fine."
+- **Not `STAGED`'s territory.** `STAGED` and `SKIP` are disjoint by the presence of a staged artifact: a deferral that produces a proposal in `staged/` for the Review Console is `STAGED`, never `SKIP`, regardless of how the deferral is described in prose. `SKIP` covers only actions not performed with **no** staged artifact — a full skip or a degrade to a lesser fallback.
+
+**Entry shape** — a specialization of the Entry schema above, where `{step or location}` carries the outcome-kind tag:
+
+```
+- SKIP {HH:MM:SS} — {step-name} ({skipped|degraded}): {condition that fired} → {fallback taken}. Reversibility: n/a.
+```
+
+`skipped` = the step did not run at all; `degraded` = the step ran, but to a lesser fallback than its documented default. Worked example — the pr-first draft-PR bootstrap's `local-merge` no-op (`integration-model` — `_shared/integration-model.md`), the #778 incident class this rule exists to make traceable instead of silent:
+
+```
+- SKIP 09:14:02 — Spec Step 1 draft-PR bootstrap (skipped): condition: integration-model=local-merge → fallback: no-op, no draft PR opened. Reversibility: n/a.
+```
+
+One line per documented conditional action per run attempt — append-only, same as every other status: a resumed or retried attempt that re-evaluates the same condition appends its own line, never a dedupe check.
+
+Write via the canonical appender (`--section`/`--spec` as usual):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --status SKIP \
+  --section "/{skill-name}" --step "{step-name} ({skipped|degraded})" \
+  --text "condition: {condition that fired} → fallback: {fallback taken}" --reversibility n/a
+```
+
+**No-run-dir carrier.** A standalone run with no `$PIPELINE_RUN_DIR` has no `decisions.md` to append to — list the skip inline in the handoff instead (`build/handoff-template.md`'s inline-skip listing) rather than dropping it silently.
+
+**Self-adoption obligation.** This rule is not scoped to the conditional steps it is initially adopted in (`/build`'s Common Steps 1.7/4.5/5.5/6.5, Spec Steps 1/2.5, and Common Step 7's phase-exit push) — any *new* documented conditional action added to any skill after this rule lands adopts a SKIP-write instruction at introduction, not as a later follow-up.
 
 ## Append protocol
 
@@ -159,19 +196,7 @@ that every existing `staged/` writer already goes through this CLI; several pre-
 `test/SKILL.md`'s `test-fix-*.patch`, `reflect/SKILL.md`'s `reflect-*.md`) and migrate on their own
 schedule.
 
-**Under `worktree-always: true`, before a worktree exists for this run.** Every standalone-auto skill (`_shared/pipeline-run-dir.md`'s step 4 allowlist: `/tidy`, `/init`, `/capture`, `/dispatch`, `/backlog`) writes its own `decisions.md` directly against the main checkout — there is no per-run worktree the way a `/build`/`/flow` pipeline has one. The `worktree-always` PreToolUse gate blocks `Edit`/`Write`/`NotebookEdit` there, so the Read+Write pattern above is denied. Use `bin/log-decision.js` (above) or a Bash append instead — the gate's Bash coverage is the `cp`/`mv`/`tee` shapes only, not a Node process or output redirection (see CLAUDE.md's Hooks section):
-
-```bash
-HEADING="## /{skill-name}"
-if [ ! -f "$RUN_DIR/decisions.md" ] || ! grep -qF "$HEADING" "$RUN_DIR/decisions.md" 2>/dev/null; then
-  printf '%s\n' "$HEADING" >> "$RUN_DIR/decisions.md"
-fi
-cat >> "$RUN_DIR/decisions.md" <<'EOF'
-AUTO 14:32:14 — {step or location}: {short action}. Reversibility: high.
-EOF
-```
-
-This produces the identical entry format (Entry schema, above) and end state as the Read+Write pattern — it's a mechanical substitution for *how* the write lands under this specific policy condition, not a different log format. A skill already running inside a `/flow`/`/build`-created worktree is unaffected and keeps using the Read+Write pattern — the worktree already satisfies the gate.
+**Regardless of worktree state.** `bin/log-decision.js` (above) is the sole append path for `decisions.md` — unconditional, regardless of whether the session sits in a worktree or the main checkout. The run directory is always anchored to the main checkout (`_shared/pipeline-run-dir.md`'s Anchoring section); a worktree session's `Edit`/`Write`/heredoc/redirect attempts against a file under it are refused by the harness regardless of whether a worktree exists for this run — worktree existence was never the deciding factor, and there is no separate append shape for the worktree case.
 
 ## Reading the log (for /wrap-up Review Console)
 
@@ -179,7 +204,7 @@ The Review Console reads the log file for the current pipeline run:
 
 1. Resolve `PIPELINE_RUN_DIR` env var, or find the most recent run matching the current spec
 2. Read `{run-dir}/decisions.md`
-3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED
+3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED / REFUSED / SKIP / FAILED
 4. List staged artifacts from `{run-dir}/staged/`
 5. Present in the Review Console (see `/wrap-up`'s Phase 4)
 
@@ -206,7 +231,7 @@ The archive preserves the decision log, the staged directory (if any items were 
 | Logging the full reasoning chain | The entry is a one-liner. Detail line is optional and short. Long rationale belongs in the staged file under `{run-dir}/staged/`. |
 | Reading the log to make decisions | The log is for the user (via Review Console). Skills don't read their own log to decide what to do — they read pipeline config and project policy. |
 | Logging KEPT-PROMPT for decisions that were never auto candidates | KEPT-PROMPT is only for "auto would have applied but a floor failed." For decisions inherently not silenceable (capture routing), don't log — they're not auto-decisions. |
-| Writing the log to `docs/plans/` or any git-tracked path | The log is runtime state. Pipeline runs are not committed history. Use `.claude-tweaks/pipelines/{run-id}/`. |
+| Writing the log to `docs/plans/` or any git-tracked path | The log is runtime state. Pipeline runs are not committed history. Use `.claude-tweaks/pipelines/{run-id}/`. Carve-out: `*-tidy-standalone*` runs commit their own run directory by design (#1493 — the pr-first residue-survival mechanism; the narrow `.gitignore` carve-out is the implementation) — every other run's log remains uncommitted runtime state. `*-sweep-standalone*` runs share the identical carve-out (#1494 — sweep's Step 1 runs tidy inside the shared run dir). |
 
 ## Consumers
 

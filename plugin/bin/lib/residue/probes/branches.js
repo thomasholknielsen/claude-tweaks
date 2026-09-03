@@ -43,6 +43,22 @@ function probeBranches({ scope, integrationBranch, run } = {}) {
     return { ran: false, reason: (scope && scope.reason) || 'scope unresolved', findings: [] };
   }
   const remoteRef = resolveRemoteRef(integrationBranch, run);
+  const remoteName = remoteRef.split('/')[0];
+  // No `git remote prune` here: this probe's findings are read-only
+  // report output — a `kind: branch` finding is never deleted off the back
+  // of this call. The actual deletion of a proven-merged remote branch runs
+  // through reconcile's own `remote-prune` check (`bin/lib/reconcile/
+  // prune-remote.js`), which fetches and prunes origin itself, immediately
+  // before it deletes, using its own (stronger) merged-PR-plus-cherry-
+  // equivalence evidence — see that module's header. `/tidy`'s Step 6 auto
+  // table states this split explicitly: a merged remote branch reconcile
+  // did not already dispose of Stages at every tier rather than
+  // auto-deleting, because a pushed branch deletion is an outward-facing
+  // write `/tidy` never applies on its own. A prune here bought this probe
+  // nothing but an up-to-15s network round-trip and a destructive,
+  // reflog-less ref mutation on every read-only invocation (`--scope
+  // blast-radius`, `residue.js --json` for reporting) — including runs
+  // whose findings this same scope guarantees get filtered out below.
   const cmd = ['branch', '-r', '--format=%(refname:short)', '--merged', remoteRef];
   const out = run(cmd);
   if (out === null) {
@@ -53,16 +69,23 @@ function probeBranches({ scope, integrationBranch, run } = {}) {
   // `local-check/main`, `local/main-check`, and a bare `origin`. Restrict to
   // the integration branch's own remote — proposing a delete on another
   // remote's main is the worst thing this probe could produce.
-  const remotePrefix = `${remoteRef.split('/')[0]}/`;
+  const remotePrefix = `${remoteName}/`;
   const findings = [];
   for (const name of out.split('\n').filter(Boolean)) {
     if (name === remoteRef) continue;
     if (!name.startsWith(remotePrefix)) continue;
     if (name.endsWith('/HEAD')) continue;
     if (scope.headBranch && name.endsWith(`/${scope.headBranch}`)) continue;
+    // Anything reaching this point has already survived the scope.headBranch
+    // exclusion above, so — mirroring probeWorktrees's identical fallthrough
+    // contrast — it is never definitively this run's own blast radius under
+    // a strict reading: 'observed', not 'blast-radius'. See branches.js's
+    // header comment and #499 for why an unconditional 'blast-radius' tag
+    // here let a wrap-up's `--scope blast-radius` auto-remedy leak into
+    // unrelated, separately-completed sessions' merged branches.
     findings.push(makeFinding({
       kind: 'branch',
-      scope: 'blast-radius',
+      scope: 'observed',
       subject: name,
       remedy: 'auto',
       evidence: `git ${cmd.join(' ')} — merged, not deleted`,

@@ -34,3 +34,4 @@ reads the full diffs of that set.
 | Restating the ladder in a consumer skill | Five copies drift independently — the exact ambiguity this file retired |
 | "Against the base branch or recent commits" | Which base? How recent? Unspecified choices make scope nondeterministic |
 | Composing rung 2 as one `$(...)` command | Worktree sessions refuse composed forms; the two-command form works everywhere |
+| Two-dot `git diff {integration-branch} HEAD` as a shortcut for rung 2 | Two-dot diffs HEAD against wherever that ref points *now*, not against the fork point. Every worktree of a repo shares one `.git`, so a sibling session's fetch or merge advances `origin/{integration-branch}` under you mid-run and silently pulls another branch's files into your scope. Rung 2's merge-base form is immune — `{merge-base}..HEAD` and `{integration-branch}...HEAD` are equivalent; a bare two-dot against a live ref is not |

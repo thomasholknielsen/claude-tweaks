@@ -106,13 +106,35 @@ done
 # (claude-tweaks #129: a Routine ran a build predating a shipped fix for days, reporting the
 # pre-fix behavior as though it were current). Resolve each plugin's version from the
 # directory a session would actually load, compare it against the catalog, and repair drift.
-claude plugin list --json > /tmp/cc-installed.json 2>/dev/null || echo '[]' > /tmp/cc-installed.json
-claude plugin marketplace list --json > /tmp/cc-marketplaces.json 2>/dev/null || echo '[]' > /tmp/cc-marketplaces.json
+# Session-scoped destination, reimplemented inline rather than delegating to
+# bin/lib/session-tmp.js (_shared/session-tmp-root.md's mechanism) — this generated script's
+# whole job is bootstrapping claude-tweaks onto a sandbox that doesn't have it yet, so it can
+# never assume ${CLAUDE_PLUGIN_ROOT} resolves to an installed payload at the point this line
+# runs. The collision this convention exists to prevent doesn't apply here either way: each
+# cloud sandbox this script provisions is its own isolated container with its own /tmp, so
+# there is no concurrent-session race to close — this mirrors the mechanism (and its degrade
+# rule) defensively, in case the script is ever re-run inside a live session that does export
+# CLAUDE_CODE_SESSION_ID, rather than because a collision has ever been observed here.
+CC_TMP_DIR="${TMPDIR:-/tmp}"
+if [ -n "$CLAUDE_CODE_SESSION_ID" ]; then
+  CC_TMP_DIR="$CC_TMP_DIR/ct-session-$CLAUDE_CODE_SESSION_ID"
+  mkdir -p "$CC_TMP_DIR"
+fi
+CC_INSTALLED="$CC_TMP_DIR/cc-installed.json"
+CC_MARKETPLACES="$CC_TMP_DIR/cc-marketplaces.json"
+claude plugin list --json > "$CC_INSTALLED" 2>/dev/null || echo '[]' > "$CC_INSTALLED"
+claude plugin marketplace list --json > "$CC_MARKETPLACES" 2>/dev/null || echo '[]' > "$CC_MARKETPLACES"
 
 for spec in $PLUGIN_SPECS; do
   VERDICT=$(node -e '
     const fs = require("fs");
     const spec = process.argv[1];
+    // The two session-scoped snapshot paths reach the script as process.argv args rather
+    // than spliced into this single-quoted JS source (_shared/session-tmp-root.md) — a
+    // path containing a quote character would otherwise break out of the string literal,
+    // the same reason code-health/focus-mode.mds F1 block passes its own values that way.
+    const installedPath = process.argv[2];
+    const marketplacesPath = process.argv[3];
     const [pluginName, marketplaceName] = spec.split("@");
     const read = (p) => { try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; } };
 
@@ -120,11 +142,11 @@ for spec in $PLUGIN_SPECS; do
     // `version` is metadata recorded beside that directory rather than read out of it, and
     // `installed_plugins.json`s `gitCommitSha` is not refreshed by `claude plugin update`
     // at all — neither can be trusted to describe the files actually on disk.
-    const entry = (read("/tmp/cc-installed.json") || []).find((p) => p.id === spec);
+    const entry = (read(installedPath) || []).find((p) => p.id === spec);
     const manifest = entry && read(entry.installPath + "/.claude-plugin/plugin.json");
     const installed = (manifest && manifest.version) || "none";
 
-    const mkt = (read("/tmp/cc-marketplaces.json") || []).find((m) => m.name === marketplaceName);
+    const mkt = (read(marketplacesPath) || []).find((m) => m.name === marketplaceName);
     const catalog = mkt && read(mkt.installLocation + "/.claude-plugin/marketplace.json");
     const declared = catalog && (catalog.plugins || []).find((p) => p.name === pluginName);
     // Not every marketplace declares a per-plugin version (claude-plugins-official does not).
@@ -156,7 +178,7 @@ for spec in $PLUGIN_SPECS; do
 
     const drift = installed === "none" || (expected !== "unversioned" && installed !== expected);
     console.log([installed, expected, drift ? "DRIFT" : "ok", (entry && entry.installPath) || "-"].join("\t"));
-  ' "$spec" || true)
+  ' "$spec" "$CC_INSTALLED" "$CC_MARKETPLACES" || true)
   # `|| true` inside the substitution, because this loop is diagnostic-and-repair, not a
   # prerequisite: under `set -e` an unreadable manifest would otherwise abort the script
   # here and take the agent-browser/Chrome install below down with it.
@@ -239,7 +261,7 @@ chmod +x "${CHROME_DIR}/chrome-linux64/chrome"
 
 Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on every marketplace-**add** line — a duplicate add is the expected no-op on a re-run. Marketplace-**update** lines are not silenced: they fall through to a `WARNING` echo instead, because a failed catalog refresh is not a harmless no-op here but the precondition that makes the version comparison downstream measure the sandbox against itself. The plugin install-or-update branch and the `npm install -g agent-browser`/Chrome-install lines are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
 
-**Offer to apply the Setup script to a dedicated project environment.** Writing the script is not what makes it run — an environment has to reference it. Derive `REPO_SLUG` the same way `/claude-tweaks:routine`'s CREATE Step 2 does — this step's own Gate/Branch check above resolves only branch-name and remote-existence, not a repo URL, so run `git remote get-url origin` here and derive `REPO_SLUG` from its `{repo}` segment: lowercase, runs of characters outside `[a-z0-9]` collapsed to a single `-`, leading/trailing `-` trimmed (`skills/routine/create-and-update.md` CREATE Step 2). Immediately after writing the file, call `AskUserQuestion` with two options: apply it now via the browser (**Recommended** when `claude-in-chrome` is likely available), or print the line for the user to paste manually. On "apply now", invoke `skills/routine/guided-environment-creation.md`'s **Ensure-setup-script** procedure with `environment_name = "claude-tweaks: <REPO_SLUG>"` — the same naming convention `/claude-tweaks:routine`'s dedicated per-project environment already uses (see that file's "Naming convention" section). This both creates the environment (with the canonical script already set) if it doesn't exist yet, and makes it the session composer's current selection — so an interactive cloud session and every routine this project's Step 15 goes on to create land on the *same* environment: one Setup script to maintain per project instead of two. (Step 15 always runs after this step in a normal `/init` pass — see this step's own header — precisely so the environment this step ensures already exists by the time any routine is created; `guided-environment-creation.md`'s Create procedure's own step 4 checks the environment dropdown for it before provisioning a second one.) Report its `{success, environment_name, had_script, field_action}` back under Phase 9 — `field_action` lets the human tell "already had the script" (`unchanged`) apart from "created it just now" (`created`) or an in-place edit (`typed`/`upgraded`/`appended`). On failure or when the browser is unavailable, fall through to the manual instruction rather than blocking — this step's other outputs are already committed and useful on their own. Skipping this is the one place where every other part of this step can be correct and cloud sessions still get nothing.
+**The dedicated-environment offer is deferred to Step 15, not asked here.** Writing the script is not what makes it run — an environment has to reference it — but whether a *dedicated* environment is worth creating right now depends on whether this same `/init` pass ends up selecting any Routine (Step 15): an interactive cloud session doesn't need a dedicated environment the same way a scheduled Routine does, and asking here — before Step 15 has even run — risks steering the user toward creating one for a reason (Routines) they're about to decline. Rather than calling `AskUserQuestion` at this position, this step's file/settings.json writes above are its complete output; the "apply the Setup script to a dedicated environment now via browser" offer itself is issued from Step 15 instead, once its routine picklist selection is fully known — see `step-15-routine-installation.md`'s "Apply the Setup script to a dedicated environment (deferred from Step 14)" section for the full procedure, its two outcome branches (one or more routines selected: same offer, options, and Recommended default as before — no behavior change; zero selected: no offer is asked, falling straight through to the manual instruction line), and the `REPO_SLUG`/`environment_name`/reporting details this paragraph used to own. Step 15 still runs after this step in a normal `/init` pass (see this step's own header) — that ordering is unchanged and is what lets Step 15's deferred offer, on success, resolve to the same environment every routine it goes on to create then reuses. When Step 15 itself is skipped entirely (no routine templates shipped, or every candidate already has a record), the deferred offer never fires either — the `## Cloud parity` CLAUDE.md section below still documents the manual Setup-script line permanently, so nothing about cloud parity is lost, only the proactive browser-automation offer.
 
 **Why the verify loop exists (#129).** `claude plugin update` is a version-string comparison against the local catalog, not a content check — confirmed live by emptying a cached plugin directory of its files and re-running `update`, which reported `already at the latest version` and exit 0 while repairing nothing. Three separate conditions therefore produce an identical, successful-looking log: a catalog that failed to refresh, a plugin directory restored from an older snapshot, and a genuinely current install. The verify loop separates the second from the third, and the un-silenced marketplace `update` separates the first. What none of it covers is the case where this script never runs at all in a given sandbox — that one is caught from the other side, by the resolved-build line every routine prompt now prints at startup (`_shared/routine-template-schema.md`'s standard prompt kernel). The two together are what make a stale sandbox self-identifying instead of merely suspected.
 

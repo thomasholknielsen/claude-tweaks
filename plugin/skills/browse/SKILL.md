@@ -75,20 +75,20 @@ Examples: `checkout-flow`, `signup-neg-1`, `pricing-page-review`, `qa-cart-empty
 ### Screenshot path
 
 ```
-screenshots/browse/<session>/<NN>_<description>.png
+.claude-tweaks/artifacts/screenshots/browse/<session>/<NN>_<description>.png
 ```
 
-`<NN>` is a zero-padded sequence number; `<description>` is a short kebab-case label. Example: `screenshots/browse/checkout-flow/02_payment-error.png`.
+`<NN>` is a zero-padded sequence number; `<description>` is a short kebab-case label. Example: `.claude-tweaks/artifacts/screenshots/browse/checkout-flow/02_payment-error.png`.
 
 Minimum two screenshots per task: one after initial load, one at the final state. Annotated screenshots (numbered overlays matching snapshot refs) follow the same path convention. `--quick` (human-invoked, direct ad-hoc use only) relaxes this minimum — see Input.
 
 ### Trace path
 
 ```
-traces/<session>/<timestamp>.zip
+.claude-tweaks/artifacts/traces/<session>/<timestamp>.zip
 ```
 
-Capture a trace before closing a session whenever a step fails. Failure reports must include the trace path. There is no automatic retention policy — users manage cleanup. `--quick` (human-invoked, direct ad-hoc use only) waives mandatory trace-on-failure for the current invocation — see Input. `/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, and Routines never set `--quick`; the full evidentiary discipline stays mandatory for those consumers regardless of how they invoke browser ops.
+Capture a trace before closing a session whenever a step fails. Failure reports must include the trace path. Artifacts older than 30 days are surfaced for deletion by `/tidy`'s residue sweep (the `artifact` residue finding). `--quick` (human-invoked, direct ad-hoc use only) waives mandatory trace-on-failure for the current invocation — see Input. `/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, and Routines never set `--quick`; the full evidentiary discipline stays mandatory for those consumers regardless of how they invoke browser ops.
 
 ### Lifecycle
 
@@ -108,7 +108,7 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 
 > **Parallel execution:** Dispatch independent browser walks as parallel Task agents — each opens its own session, runs its ops, and returns a per-session result. Assemble results after all agents complete.
 >
-> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. [Use: Standard] — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-profile mechanical extraction. Upgrade to Capable only if the walk requires synthesis of subjective UX judgment. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection).
+> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. [Use: Standard] — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-profile mechanical extraction. Upgrade to Capable only if the walk requires synthesis of subjective UX judgment. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection). Dispatch shape: single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) applies.
 >
 > **Output template:** a browse walk that reports issues/findings uses `_shared/subagent-output-contract.md`'s
 > Template A; one that reports navigation locations/references uses its Template B. Read that file

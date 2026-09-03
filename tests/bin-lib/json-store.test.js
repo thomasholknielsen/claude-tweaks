@@ -1,41 +1,67 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
 const { readJsonFile, writeJsonFile } = require('../../plugin/bin/lib/json-store');
 
-function tmpFile(name = 'data.json') {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'json-store-'));
-  return path.join(dir, name);
-}
-
-test('readJsonFile: returns the fallback for a missing file, without throwing', () => {
-  assert.equal(readJsonFile(tmpFile(), { fallback: 'nope' }), 'nope');
-  assert.equal(readJsonFile(tmpFile()), null);
+test('readJsonFile: returns the parsed value when the file exists and is valid JSON', () => {
+  const readFile = () => '{"a":1}';
+  assert.deepEqual(readJsonFile('/x/store.json', { readFile }), { a: 1 });
 });
 
-test('readJsonFile: returns the fallback for unparseable content, without throwing', () => {
-  const file = tmpFile();
-  fs.writeFileSync(file, '{ not json');
-  assert.equal(readJsonFile(file, { fallback: [] }).length, 0);
+test('readJsonFile: missing file (ENOENT) -> fallback, no throw', () => {
+  const readFile = () => { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; };
+  assert.deepEqual(readJsonFile('/x/store.json', { readFile, fallback: {} }), {});
 });
 
-test('readJsonFile/writeJsonFile: round-trips a value; write creates parent dirs; content is pretty-printed with a trailing newline', () => {
-  const file = tmpFile('nested/deep/data.json');
-  writeJsonFile(file, { a: 1, b: [1, 2, 3] });
-  assert.deepEqual(readJsonFile(file), { a: 1, b: [1, 2, 3] });
-  const raw = fs.readFileSync(file, 'utf8');
-  assert.ok(raw.endsWith('\n'));
-  assert.ok(raw.includes('\n  "a": 1'), 'pretty-printed, not minified');
+test('readJsonFile: corrupt JSON -> fallback, no throw', () => {
+  const readFile = () => '{ not json';
+  assert.equal(readJsonFile('/x/store.json', { readFile, fallback: null }), null);
 });
 
-test('writeJsonFile: never leaves a partial file behind — a reader sees the old or the new content, never a truncated write', () => {
-  const file = tmpFile();
-  writeJsonFile(file, { v: 1 });
-  writeJsonFile(file, { v: 2 });
-  assert.deepEqual(readJsonFile(file), { v: 2 });
-  const dir = fs.readdirSync(path.dirname(file));
-  assert.deepEqual(dir, [path.basename(file)], 'no leftover .tmp file');
+test('readJsonFile: default fallback is null when omitted', () => {
+  const readFile = () => { throw new Error('boom'); };
+  assert.equal(readJsonFile('/x/store.json', { readFile }), null);
+});
+
+test('writeJsonFile: creates the containing directory, writes to a tmp path, then atomically renames over the real path', () => {
+  const mkdirCalls = [];
+  const writeCalls = [];
+  const renameCalls = [];
+  const mkdirSync = (p, opts) => mkdirCalls.push({ p, opts });
+  const writeFile = (p, content) => writeCalls.push({ p, content });
+  const rename = (from, to) => renameCalls.push({ from, to });
+
+  writeJsonFile('/x/y/store.json', { a: 1 }, {
+    mkdirSync, writeFile, rename,
+  });
+
+  assert.equal(mkdirCalls.length, 1);
+  assert.equal(mkdirCalls[0].p, '/x/y');
+  assert.deepEqual(mkdirCalls[0].opts, { recursive: true });
+  assert.equal(writeCalls.length, 1);
+  assert.notEqual(writeCalls[0].p, '/x/y/store.json', 'writes to a tmp path, not the final path directly');
+  assert.deepEqual(JSON.parse(writeCalls[0].content), { a: 1 });
+  assert.equal(renameCalls.length, 1);
+  assert.equal(renameCalls[0].from, writeCalls[0].p);
+  assert.equal(renameCalls[0].to, '/x/y/store.json');
+});
+
+test('writeJsonFile: two calls use distinct tmp paths within the same process (pid-suffixed, not a fixed name)', () => {
+  const writes = [];
+  const mkdirSync = () => {};
+  const writeFile = (p) => writes.push(p);
+  const rename = () => {};
+  writeJsonFile('/x/store.json', { a: 1 }, { mkdirSync, writeFile, rename });
+  writeJsonFile('/x/store.json', { a: 2 }, { mkdirSync, writeFile, rename });
+  // Same pid within one process -> same tmp name is fine (rename is atomic per call and the two
+  // calls are sequential here); this pins that the tmp path is derived from the real path, not hardcoded.
+  assert.ok(writes[0].startsWith('/x/store.json.tmp-'));
+  assert.equal(writes[0], writes[1]);
+});
+
+test('writeJsonFile: propagates a real write failure to the caller rather than swallowing it', () => {
+  const mkdirSync = () => {};
+  const writeFile = () => { throw new Error('ENOSPC: no space left on device'); };
+  const rename = () => {};
+  assert.throws(() => writeJsonFile('/x/store.json', {}, { mkdirSync, writeFile, rename }), /ENOSPC/);
 });

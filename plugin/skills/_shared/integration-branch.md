@@ -25,7 +25,7 @@ Take the **first** source that yields a branch name; once one does, the rest are
 5. **Git — the current branch, checked against the GitHub default:**
 
    ```bash
-   node -e "const { repoInfo } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/hooks/worktree-detect.js'); console.log(repoInfo(process.cwd()).isLinkedWorktree ? 'WORKTREE' : 'PRIMARY')"
+   node -e "const { repoInfo } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/hooks/worktree-detect.js'); console.log(repoInfo(process.cwd()).isLinkedWorktree ? 'WORKTREE' : 'PRIMARY')"
    git branch --show-current
    gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || git remote show origin | sed -n '/HEAD branch/s/.*: //p'
    ```

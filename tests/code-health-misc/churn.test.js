@@ -6,9 +6,9 @@ const { computeChurn } = require('../../plugin/bin/lib/code-health/cache');
 // recordRun/readRuns (local-disk run-log persistence) were removed by the
 // health-state migration — run history now lives on the durable health-state
 // branch (bin/lib/health-core/durable-state.js). See
-// bin/lib/code-health/tests/churn-v2.test.js for real, gh-free coverage of
+// tests/bin-lib/code-health/churn-v2.test.js for real, gh-free coverage of
 // the durable read path (a locally-seeded health-state branch) and
-// bin/lib/health-core/tests/durable-state.test.js for the write mechanics
+// tests/bin-lib/health-core/durable-state.test.js for the write mechanics
 // (fake-runner). computeChurn itself is a pure function, unaffected by the
 // migration — the tests below still exercise it directly.
 

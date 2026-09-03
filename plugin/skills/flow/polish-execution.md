@@ -22,8 +22,8 @@ Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specifi
 
   | `kind` | Staged file body | `decisions.md` line |
   |---|---|---|
-  | `manual-only` | `{command} {files} — named by an audit finding's suggestion, manual-only, not auto-dispatched` | `- STAGED {HH:MM:SS} — Polish phase: audit suggested {command} on {files} (manual-only, not auto-dispatched). Staged at staged/polish-suggestion-{n}.md. Surface at Review Console.` |
-  | `unclassified` | `{category} finding {id} on {files} — no usable suggestion, no command named: {description}` | `- STAGED {HH:MM:SS} — Polish phase: audit finding {id} ({category}) on {files} had no usable suggestion — no command dispatched. Staged at staged/polish-suggestion-{n}.md. Surface at Review Console for routing.` |
+  | `manual-only` | `{command} {files} — named by an audit finding's suggestion, manual-only, not auto-dispatched` | `- STAGED {HH:MM:SS} — Polish phase: audit suggested {command} on {files} (manual-only, not auto-dispatched). Staged at staged/polish-suggestion-{n}.md. Reversibility: high (staged only). Surface at Review Console.` |
+  | `unclassified` | `{category} finding {id} on {files} — no usable suggestion, no command named: {description}` | `- STAGED {HH:MM:SS} — Polish phase: audit finding {id} ({category}) on {files} had no usable suggestion — no command dispatched. Staged at staged/polish-suggestion-{n}.md. Reversibility: high (staged only). Surface at Review Console for routing.` |
 
   This fulfills the "so the caller can surface it" promise `design-wrapper/modes/polish.md` Step 5 makes — the Wrap-Up Review Console (`wrap-up/review-console.md`) reads every file under `staged/` generically, so this is the same pattern already used for other staged proposals (e.g. review findings' `.patch` files).
 - When polish modified code, set the in-memory `re_verify_ran: true` marker and invoke `/claude-tweaks:test skip-qa`. The wrapper runs types + lint + tests, skips QA story validation (irrelevant after stylistic-only polish), but still runs the Design CLI gate (CLI is not QA).

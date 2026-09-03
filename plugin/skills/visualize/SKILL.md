@@ -57,7 +57,16 @@ Routing shape: Steps 2-3 run for both the enhanced and baseline paths (resolved 
 
 ### Step 1: Resolve type, topic, and generation path
 
-Resolve `<type>` from Input. Look up the generation path — **enhanced** when the `d2` binary is installed (`d2 --version` exits 0) and the type has a D2-native mapping; **baseline** otherwise (always available):
+Resolve `<type>` from Input. Assess content richness alongside it: judge how much source material actually backs this topic — a one-line description or a couple of sentences vs. several dense documents (specs, design docs, strategy/risk writeups) or a conversation that has already surfaced multiple workstreams and tradeoffs. Map the judgment to one of two density tiers, carried forward to Step 4 (baseline) or `d2-enhanced-path.md` (enhanced):
+
+| Tier | Source material | Output density |
+|---|---|---|
+| **Minimal** (default) | A short description, one topic, few components | Today's plain node-and-arrow construct: short labels, a handful of small callout cards |
+| **Rich** | Multiple dense documents, or several workstreams/strategy/risk topics already surfaced | A documentation-style page: more detail per node, explanatory callout panels drawn into the canvas, a legend/context section, longer descriptive labels — see Step 4's and `d2-enhanced-path.md`'s own richness-scaling instructions |
+
+This is a judgment call, not a mechanical line-count threshold — weigh breadth (how many distinct components/workstreams the source material covers) over raw length. Default to Minimal when in doubt; scaling up an under-specified topic invents detail the source material never supported. Never scale by adding visual noise at the same information density (more boxes of the same size, more filler) — richness means more genuine explanatory content, not clutter.
+
+Look up the generation path — **enhanced** when the `d2` binary is installed (`d2 --version` exits 0) and the type has a D2-native mapping; **baseline** otherwise (always available):
 
 | Type | Path | D2 construct |
 |---|---|---|
@@ -90,6 +99,8 @@ Branch per the routing shape above: enhanced → read `d2-enhanced-path.md` in t
 ### Step 4: Generate the core fragment (baseline path)
 
 Author the `<svg>` content directly for the diagram type and topic, binding every color to `var(--token-name)` from Step 2's extracted (or neutral fallback) palette. Follow `visual-html-output.md` Step 3's scoping rule — every custom class prefixed with a unique per-diagram slug.
+
+Scale the authored content to Step 1's density tier. **Minimal** — the construct as already described in Step 1's table: short labels, small callout cards. **Rich** — expand the same canvas rather than replacing the construct: richer per-node detail (a short description line under each label, not just the label), explanatory callout panels for the diagram's key decisions/tradeoffs drawn as their own SVG groups alongside the main graph, and a legend/context panel when the diagram introduces notation a reader wouldn't already know. Every added element still binds through the same token palette and scoped-class rule above — richness is more genuine content at the same visual polish, never a second unstyled layer bolted onto a themed diagram.
 
 ### Step 5: Write wrapper outputs
 

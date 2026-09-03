@@ -30,7 +30,7 @@ Removal condition: the shared predicate above, with `{key}` = `review-diff-heuri
 
 ## `promise-register-min-leaves` (retired, no replacement, #331)
 
-Now: reports as retirement — same audit/init/resolver behavior as the entry above. The value `4` is hardcoded at its read sites (`skills/specify/record-creation.md`, `skills/wrap-up/verification-brief.md`, `skills/_shared/work-record.md`).
+Now: reports as retirement — same audit/init/resolver behavior as the entry above. The value `4` is hardcoded at its read sites (`skills/specify/record-creation-linking.md` — #1346's split of `record-creation.md`, `skills/wrap-up/verification-brief.md`, `skills/_shared/work-record.md`).
 
 Removal condition: the shared predicate above, with `{key}` = `promise-register-min-leaves`.
 

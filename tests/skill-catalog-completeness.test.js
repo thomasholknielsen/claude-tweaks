@@ -17,7 +17,7 @@
 // file already carries).
 //
 // Directory names, not the frontmatter `name:` field, are the source of truth
-// (mirrors bin/lib/skill-audit/tests/house-structure.test.js) -- a frontmatter
+// (mirrors tests/bin-lib/skill-audit/house-structure.test.js) -- a frontmatter
 // typo would otherwise hide a skill from this test instead of failing it.
 
 const { test } = require('node:test');

@@ -9,7 +9,10 @@ starts from the identical fetch below before branching into its own consumer-spe
 classification (dashboard bucket counts for `/help`; the per-shape finding classification for `/tidy`;
 priority/Related synthesis plus the grant worklist for `/backlog refine`, lens routing plus the
 build recommendation for `/backlog overview`; stage-column bucketing plus six-axis encoding for
-`/visualize record-graph`).
+`/visualize record-graph`). `/claude-tweaks:backlog`'s `attention` mode (`attention-mode.md`'s
+Step 1) is a narrower fifth consumer — it reads only the Session-scoped record snapshot section
+below for its `needs:*`/`bot:blocked` fetch, never the full `work-backend: github-issues`/
+`local-files` fetch sections the other four consumers run.
 Subagents cannot read this file — the dispatcher inlines this section into the scan agent's
 prompt, the same pattern already used for `_shared/github-pr-scan.md`.
 
@@ -38,7 +41,7 @@ snapshot instead of shelling out on every call.
   as before this section existed. Nothing breaks; only the caching benefit is unavailable to a
   session-id-less caller.
 - **Field set** — the union every consumer needs, so one fetch covers all of them:
-  `number,title,labels,body,state,stateReason,closedAt,comments,updatedAt,milestone`
+  `number,title,labels,body,state,stateReason,createdAt,closedAt,comments,updatedAt,milestone`
   (`record-snapshot.js`'s `UNION_FIELDS` — the code twin of this line; cite the constant, never
   retype the field list).
 - **Freshness** — the snapshot file's mtime younger than `record-snapshot-ttl-seconds` seconds
@@ -56,16 +59,16 @@ snapshot instead of shelling out on every call.
 ```bash
 SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
 TTL=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values record-snapshot-ttl-seconds)
-SNAPSHOT=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').snapshotPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
+SNAPSHOT=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').snapshotPath(process.env.CLAUDE_CODE_SESSION_ID) || '')")
 if [ -n "$SNAPSHOT" ] && node -e "
-  const { isFresh } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js');
+  const { isFresh } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js');
   process.exit(isFresh(process.argv[1], Number(process.argv[2])) ? 0 : 1)
 " "$SNAPSHOT" "$TTL"; then
   cp "$SNAPSHOT" {tmp-records-file}
 else
   LIMIT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit)
   export FETCH_LIMIT="$LIMIT"
-  FIELDS=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-snapshot.js').UNION_FIELDS)")
+  FIELDS=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record-snapshot.js').UNION_FIELDS)")
   gh issue list --state all --json "$FIELDS" --limit "$LIMIT" > {tmp-records-file}
   [ -n "$SNAPSHOT" ] && cp {tmp-records-file} "$SNAPSHOT"
 fi
@@ -93,7 +96,7 @@ internal to this fetch.
 LIMIT=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values backlog-fetch-limit)
 export FETCH_LIMIT="$LIMIT"
 node -e "
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseRecordFacets } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const issues = require('{tmp-records-file}').filter((i) => i.state === 'OPEN');
   if (issues.length === Number(process.env.FETCH_LIMIT)) {
     console.error('WARNING: fetched exactly ' + issues.length + ' open issues (the configured backlog-fetch-limit) — there may be more beyond this cap. Consider raising backlog-fetch-limit in .claude-tweaks/policy.yml, or running /claude-tweaks:tidy to reduce backlog volume.');
@@ -126,7 +129,7 @@ since the spread above (`...i`) preserves every original field alongside the der
 
 ```bash
 node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
   console.log(JSON.stringify(queryRecords('specs', {})));
 " > {tmp-faceted-file}
 ```

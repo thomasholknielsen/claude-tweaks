@@ -270,6 +270,7 @@ For the full staleness procedure (locator-resolution checks via `agent-browser f
 
 4. File naming: `{OUTPUT_DIR}/{site-name}-{persona-or-area}.yaml`
     - Examples: `stories/myapp-customer.yaml`, `stories/myapp-admin.yaml`, `stories/myapp-customer-negative.yaml`
+    - **Multi-spec shared worktree (#786):** when this invocation is running inside a multi-spec `/flow` run's shared worktree (`MULTISPEC_SHARED_WORKTREE=1` is set, or `$PIPELINE_RUN_DIR`'s basename is `spec-{N}`), suffix the filename with `-{N}` before the extension — `{OUTPUT_DIR}/{site-name}-{persona-or-area}-{N}.yaml` — so two specs generating stories for the same site/persona in the same run never overwrite each other's file. `{N}` is the record id, same as `flow/multi-spec.md`'s `spec-{N}/` subdirectory keying. Outside a multi-spec shared worktree, write the unsuffixed filename exactly as before.
 
 5. Close all browser sessions when done writing (Step 5 re-opens fresh sessions for refinement).
 
@@ -348,7 +349,7 @@ Judgment rules the numbered steps don't already state (mechanical rules live in 
 - Prefer verifiable assertions ("Verify at least 3 items visible") over vague ones ("Verify page looks right")
 - Use `depends_on` sparingly — only when story B literally cannot run without story A succeeding first
 - Don't generate stories for flows that require real credentials unless an Auth Vault entry exists or the user has agreed to save one
-- `traces/` and `screenshots/` are tooling residue, not project content — ensure both are gitignored (add the entries if missing), and never commit trace zips
+- `.claude-tweaks/artifacts/` (the screenshots/traces home) is tooling residue, not project content — ensure it is gitignored (init's suggested block covers it; add the entry if missing), and never commit trace zips
 
 ## Next Actions
 

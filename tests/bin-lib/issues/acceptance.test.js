@@ -7,6 +7,8 @@ const {
   verificationSurface,
   needsBackstop,
   parentGateState,
+  approvalProvenance,
+  APPROVAL_PROVENANCE_LABEL,
 } = require('../../../plugin/bin/lib/issues/acceptance.js');
 
 test('dispositionState reads each acceptance label', () => {
@@ -111,21 +113,21 @@ const CLOSED = (n) => ({ number: n, state: 'CLOSED' });
 const OPEN = (n) => ({ number: n, state: 'OPEN' });
 
 test('parentGateState is incomplete while any sub-issue is open', () => {
-  assert.equal(parentGateState({ leaves: [CLOSED(1), OPEN(2)], parentLabels: [] }), 'incomplete');
+  assert.equal(parentGateState({ subIssues: [CLOSED(1), OPEN(2)], parentLabels: [] }), 'incomplete');
 });
 
 test('parentGateState is due when every sub-issue is closed and the parent is unlabelled', () => {
-  assert.equal(parentGateState({ leaves: [CLOSED(1), CLOSED(2)], parentLabels: [] }), 'due');
+  assert.equal(parentGateState({ subIssues: [CLOSED(1), CLOSED(2)], parentLabels: [] }), 'due');
 });
 
 test('parentGateState is gated once the parent carries demo:pending', () => {
-  assert.equal(parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:pending'] }), 'gated');
+  assert.equal(parentGateState({ subIssues: [CLOSED(1)], parentLabels: ['demo:pending'] }), 'gated');
 });
 
 test('parentGateState is resolved once a verdict is recorded', () => {
-  assert.equal(parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:approved'] }), 'resolved');
+  assert.equal(parentGateState({ subIssues: [CLOSED(1)], parentLabels: ['demo:approved'] }), 'resolved');
   assert.equal(
-    parentGateState({ leaves: [CLOSED(1)], parentLabels: ['demo:changes-requested'] }),
+    parentGateState({ subIssues: [CLOSED(1)], parentLabels: ['demo:changes-requested'] }),
     'resolved',
   );
 });
@@ -133,13 +135,42 @@ test('parentGateState is resolved once a verdict is recorded', () => {
 test('parentGateState reports gated even if a sub-issue reopens after gating', () => {
   // The label is the authoritative record of what was applied; a reopened sub-issue
   // must not cause the sweep to re-gate an already-gated parent.
-  assert.equal(parentGateState({ leaves: [OPEN(1)], parentLabels: ['demo:pending'] }), 'gated');
+  assert.equal(parentGateState({ subIssues: [OPEN(1)], parentLabels: ['demo:pending'] }), 'gated');
 });
 
 test('parentGateState never reports due for a parent with no discoverable sub-issues', () => {
   // A parent whose sub-issues cannot be resolved is a resolution failure, not a
   // complete parent — gating it would demand a verdict on work nobody built.
-  assert.equal(parentGateState({ leaves: [], parentLabels: [] }), 'incomplete');
+  assert.equal(parentGateState({ subIssues: [], parentLabels: [] }), 'incomplete');
   assert.equal(parentGateState({}), 'incomplete');
   assert.equal(parentGateState(), 'incomplete');
+});
+
+test('approvalProvenance is null for a record with no approved disposition', () => {
+  assert.equal(approvalProvenance(['demo:pending']), null);
+  assert.equal(approvalProvenance(['demo:changes-requested']), null);
+  assert.equal(approvalProvenance([]), null);
+  assert.equal(approvalProvenance(undefined), null);
+});
+
+test('approvalProvenance reads walkthrough by default on an approved record', () => {
+  // Orthogonal-category check: a demo:approved record carrying an unrelated
+  // label (ready) still reads walkthrough-backed absent the batch marker —
+  // this is the backward-compatible default for every demo:approved label
+  // applied before the provenance signal existed.
+  assert.equal(approvalProvenance(['demo:approved']), 'walkthrough');
+  assert.equal(approvalProvenance(['demo:approved', 'ready']), 'walkthrough');
+});
+
+test('approvalProvenance reads batch when the marker label is present', () => {
+  assert.equal(APPROVAL_PROVENANCE_LABEL, 'demo:approved-batch');
+  assert.equal(approvalProvenance(['demo:approved', 'demo:approved-batch']), 'batch');
+});
+
+test('approvalProvenance ignores the batch marker on a non-approved record', () => {
+  // The marker only ever means something stacked alongside demo:approved — a
+  // stray demo:approved-batch label with no demo:approved is not itself an
+  // approval, so this must not be misread as one.
+  assert.equal(approvalProvenance(['demo:approved-batch']), null);
+  assert.equal(approvalProvenance(['demo:pending', 'demo:approved-batch']), null);
 });

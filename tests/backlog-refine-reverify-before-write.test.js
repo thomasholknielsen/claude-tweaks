@@ -54,8 +54,19 @@ test('Step 5 states this as a general rule for other batch-confirm-then-apply fl
 });
 
 test('Step 5 cross-references tidy\'s existing identical pattern', () => {
+  // #843 extracted the shared rationale into skills/_shared/reverify-before-write.md;
+  // refine-mode.md now cites that contract instead of restating "already applies the
+  // identical rule" inline, but the tidy cross-reference (naming step-6-auto.md as the
+  // sibling instance) survives as consumer-owned wording — still pinned here.
   assertClaimPinned(
-    /Step 6 auto-apply table already applies the identical rule[\s\S]{0,150}step-6-auto\.md/,
+    /Step 6 auto-apply table[\s\S]{0,150}step-6-auto\.md[\s\S]{0,150}identical rule/,
     'cross-reference to skills/tidy/step-6-auto.md missing from refine-mode.md Step 5',
+  );
+});
+
+test('Step 5 cites the shared reverify-before-write contract', () => {
+  assertClaimPinned(
+    /_shared\/reverify-before-write\.md/,
+    'citation of _shared/reverify-before-write.md missing from refine-mode.md Step 5',
   );
 });

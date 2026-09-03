@@ -166,7 +166,7 @@ Pass `--source visual-review` on every call this skill makes into `/claude-tweak
 
 Pass:
 - The file list scoped to the review (from `git diff --name-only` or the spec's file list).
-- The annotated screenshot paths captured during review (`screenshots/browse/<session>/*.png`) — the wrapper analyzes each per the criteria table in `command-map.md`.
+- The annotated screenshot paths captured during review (`.claude-tweaks/artifacts/screenshots/browse/<session>/*.png`) — the wrapper analyzes each per the criteria table in `command-map.md`.
 
 Handle the wrapper's return:
 

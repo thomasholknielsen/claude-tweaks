@@ -31,6 +31,13 @@
           { "type": "command", "if": "Bash(git -c *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(git --exec-path=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(env git commit *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(env git push *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(env git -C *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(env git -c *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(env git --exec-path=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(env git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(env -*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(cp *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(mv *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(mkdir *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
@@ -78,7 +85,14 @@
           { "type": "command", "if": "Bash(git -C *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
           { "type": "command", "if": "Bash(git -c *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
           { "type": "command", "if": "Bash(git --exec-path=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
-          { "type": "command", "if": "Bash(git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
+          { "type": "command", "if": "Bash(git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(env git commit *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(env git push *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(env git -C *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(env git -c *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(env git --exec-path=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(env git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(env -*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
         ]
       },
       {
@@ -95,6 +109,12 @@
       },
       {
         "matcher": "AskUserQuestion",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
+        ]
+      },
+      {
+        "matcher": "EnterWorktree",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
         ]

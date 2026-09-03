@@ -174,7 +174,7 @@ Its default is confirmed instead by a parenthetical in a *different* field's doc
 
 ## Live-run commands for the two judgment-eval matrices (2026-08-09, refs #115 #180)
 
-Both matrices are wired and proven offline (`node --test tests/` from `evals/`); actually
+Both matrices are wired and proven offline (`npm test` from `evals/`); actually
 measuring the judgments spends real money, one billed agent run per corpus case:
 
     cd evals && node runner.js run assess-merge-check-matrix          # 8 cases (merge-check verdicts)

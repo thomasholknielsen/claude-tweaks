@@ -9,6 +9,7 @@
 // per-check properties, not by a global lock.
 'use strict';
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
+const { findNonCanonicalRunDirs } = require('../hooks/context');
 const { resolveIntegrationBranch, reapWorktrees: legacyReapWorktrees } = require('../hooks/worktree-reap');
 const { resolveIntegrationModel } = require('../policy-schema');
 const { mirrorFastForward } = require('./mirror-ff');
@@ -19,8 +20,9 @@ const { archiveMerged } = require('./archive-merged');
 const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
-const { sharedFetch } = require('./shared-fetch');
+const { sharedFetch, sharedFetchAsync } = require('./shared-fetch');
 const { readCache, writeCache, isFresh } = require('./cache');
+const { formatReconcileSummary, archivedCountFromRunsResult } = require('./residue-summary');
 
 // Execution order (mirror, red-tip, console, release, archive,
 // archive-branches, remote-prune, reap) is significant — see the ordering
@@ -32,8 +34,13 @@ const { readCache, writeCache, isFresh } = require('./cache');
 // determine dispatch order.
 const ALL_CHECKS = ['mirror', 'red-tip', 'reap', 'release', 'archive', 'archive-branches', 'remote-prune', 'console'];
 
-// opts: { dryRun?: boolean, checks?: string[], cwd?: string }
+// opts: { dryRun?: boolean, checks?: string[], cwd?: string, sessionId?: string }
 // -> { mirror, worktrees, claims, runs, branches, console, skipped }
+// `sessionId`, when the caller has one, threads through to archiveMerged's
+// own `isAbandonedInterrupted` ownership check (archive-merged.js) — omitted
+// (undefined), archiveMerged falls back to its own
+// `process.env.CLAUDE_CODE_SESSION_ID` default, unchanged from before this
+// option existed.
 // This module is gh-CLI-only by design (a Node subprocess cannot reach an
 // agent session's MCP tools), so a gh-absent environment reports that reason
 // per-check rather than attempting an MCP fallback (see
@@ -44,10 +51,34 @@ async function reconcile(opts = {}) {
   const cwd = opts.cwd || process.cwd();
   const result = { mirror: null, redTip: null, worktrees: null, claims: null, runs: null, branches: null, remoteBranches: null, console: null, skipped: [] };
 
+  // Declined-learning store prune (#1399) — local, gitignored bookkeeping unrelated to git/
+  // GitHub reachability, so it runs unconditionally on every reconcile pass regardless of
+  // `checks`, the integration model, or whether this even resolves to a repo — the store's own
+  // path is process.cwd()-relative (no root param on this module today, matching every existing
+  // caller: /feedback and /reflect never pass one either), so this deliberately does not thread
+  // `root` through. Best-effort: a prune failure never blocks the rest of the pass.
+  try {
+    require('../declined-learning/store').pruneDeclines();
+  } catch {
+    /* best-effort — never break reconcile over declined-learning maintenance */
+  }
+
   const root = mainCheckoutRoot(cwd);
   if (!root) {
     result.skipped.push({ check: 'all', reason: 'no-repo' });
     return result;
+  }
+
+  // #848: a non-canonical (dash-less) run-dir name is invisible to
+  // iterRunDirsWithState's RUN_ID_RE filter, so every check below silently
+  // omits it forever — surface it once, unconditionally, ahead of every
+  // other gate (skipIfFresh, no-remote, local-merge, gh preflight, budget),
+  // since it's a pure fs read and every one of those gates can otherwise
+  // return before a check that would have found it ever runs. Report-only:
+  // never renamed, never adopted as a run.
+  const nonCanonical = findNonCanonicalRunDirs(root);
+  if (nonCanonical.length) {
+    result.skipped.push({ check: 'all', reason: 'non-canonical-run-dir', names: nonCanonical });
   }
 
   // Whole-pass freshness short-circuit (#820, D7) — opt-in only (default
@@ -72,7 +103,17 @@ async function reconcile(opts = {}) {
     return result;
   }
 
-  const model = resolveIntegrationModel(root);
+  // #1558: forwards the caller's own already-confirmed MCP-reachability
+  // verdict into detectIntegrationModel's mcpReachable override (the same
+  // deps-seam bin/resolve-policy.js's --mcp-reachable flag already uses),
+  // so a gh-absent-but-GitHub-MCP-reachable sandbox doesn't silently
+  // downgrade to local-merge. Undefined/false by default — every internal,
+  // hook-context caller of reconcile() (session-start.js, pre-compact) has
+  // no agent turn to probe from and is unaffected, matching the same
+  // permanent, structural gap pre-tool-use.js's own PR-stamp branch already
+  // documents (IL-63) rather than working around it there.
+  const resolveModel = opts.resolveIntegrationModel || resolveIntegrationModel;
+  const model = resolveModel(root, { mcpReachable: opts.mcpReachable === true });
   if (model !== 'pr-first') {
     // local-merge / no-forge: only `reap` has a defined fallback here — the
     // long-standing content-identical ancestry check worktree-reap.js has
@@ -113,13 +154,36 @@ async function reconcile(opts = {}) {
   // so a test's `require('./preflight').ghHealthCheck = fn` monkeypatch
   // actually reaches this call site.
   const ghDependentChecks = checks.filter((c) => c !== 'mirror');
+  // #872: the FAST_CHECKS shape (mirror requested, remote-prune not — the
+  // same "mirror only" shape shared-fetch.js's own header names) runs this
+  // preflight and the shared git fetch below concurrently via Promise.all,
+  // instead of paying for both serially — sibling code in the same diff
+  // (pr-state.js's resolvePrStateAsync) already established the async
+  // execFile pattern this reuses (ghHealthCheckAsync, sharedFetchAsync).
+  // Computed from `checks` BEFORE the narrowing below, so a request that
+  // ever included remote-prune stays on the sequential path even if a
+  // preflight failure later narrows `checks` down to mirror-only —
+  // ALL_CHECKS/mixed and BACKGROUND_CHECKS are explicitly out of scope for
+  // this concurrency and must not gain it incidentally through narrowing.
+  const fastChecksShape = checks.includes('mirror') && !checks.includes('remote-prune');
+  let health = null;
+  // Set only by the concurrent branch below — the sequential fetch dispatch
+  // further down reuses it instead of fetching a second time.
+  let concurrentFetch = null;
   if (ghDependentChecks.length) {
-    const health = require('./preflight').ghHealthCheck();
-    if (!health.ok) {
-      result.skipped.push({ check: ghDependentChecks.join(','), reason: `preflight-${health.reason}` });
-      checks = checks.filter((c) => c === 'mirror');
-      if (!checks.length) return result;
+    if (fastChecksShape) {
+      [health, concurrentFetch] = await Promise.all([
+        require('./preflight').ghHealthCheckAsync(),
+        sharedFetchAsync(root, { integration }),
+      ]);
+    } else {
+      health = require('./preflight').ghHealthCheck();
     }
+  }
+  if (health && !health.ok) {
+    result.skipped.push({ check: ghDependentChecks.join(','), reason: `preflight-${health.reason}` });
+    checks = checks.filter((c) => c === 'mirror');
+    if (!checks.length) return result;
   }
 
   // Overall wall-clock ceiling for the rest of this pass (#820, D4) — bounds
@@ -153,7 +217,10 @@ async function reconcile(opts = {}) {
   // below: red-tip is included even though it triggers no fetch itself,
   // because it reads the ref this fetch (formerly mirror's own) just
   // refreshed — see the ordering comment on red-tip's dispatch below. A
-  // failed fetch is recorded once here rather than once per check.
+  // failed fetch is recorded once here rather than once per check. For the
+  // FAST_CHECKS shape (#872), `concurrentFetch` already carries this
+  // fetch's result — it ran above, concurrently with the preflight, rather
+  // than being dispatched here a second time.
   let sharedFetchOk = true;
   const wantsMirror = checks.includes('mirror');
   const wantsRemotePrune = checks.includes('remote-prune');
@@ -167,7 +234,7 @@ async function reconcile(opts = {}) {
   // gate should say so rather than rely on that pairing holding forever).
   const fetchRan = wantsMirror || wantsRemotePrune;
   if (fetchRan) {
-    const fetched = sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
+    const fetched = concurrentFetch || sharedFetch(root, { integration, mirror: wantsMirror, remotePrune: wantsRemotePrune });
     if (fetched.failure) {
       sharedFetchOk = false;
       const affected = ['mirror', 'red-tip', 'remote-prune'].filter((c) => checks.includes(c));
@@ -240,7 +307,7 @@ async function reconcile(opts = {}) {
 
   if (overBudget(DISPATCH_ORDER.slice(4))) return result;
   if (checks.includes('archive')) {
-    const r = archiveMerged({ cwd: root, dryRun });
+    const r = archiveMerged({ cwd: root, dryRun, sessionId: opts.sessionId });
     result.runs = r.archived.map((d) => ({ runDir: d, action: 'archived' }))
       .concat(r.skipped.map((s) => ({ runDir: s.runDir, action: 'skipped', reason: s.reason })));
   }
@@ -274,7 +341,19 @@ async function reconcile(opts = {}) {
 
   if (overBudget(DISPATCH_ORDER.slice(7))) return result;
   if (checks.includes('reap')) {
-    const r = reapMerged({ cwd: root, dryRun });
+    // #644 review fix: pass the caller's actual `cwd`, not the already-
+    // resolved `root` every other dispatch line above uses. reapMerged's own
+    // `isOwnCwd` guard (#644 Deliverable 1) exists specifically to detect
+    // "the calling session is standing inside this candidate worktree right
+    // now" — that's only knowable from the real caller cwd. reapMerged
+    // re-derives `root` from `cwd` internally the same way this function
+    // did above, so passing `cwd` costs nothing for every other candidate's
+    // git-worktree-list-driven logic; passing `root` here instead made the
+    // own-cwd guard permanently unreachable through this entry point (`here`
+    // was always the main checkout, never inside any worktree), even though
+    // reap-merged.test.js's isolated calls (which pass a worktree path
+    // directly) still exercised and passed.
+    const r = reapMerged({ cwd, dryRun });
     if (r.failure) {
       result.skipped.push({ check: 'reap', reason: r.failure });
     } else {
@@ -288,10 +367,37 @@ async function reconcile(opts = {}) {
   // preflight failure, budget-exceeded, and the skipIfFresh short-circuit
   // itself) exits above this line and never reaches it, so a failed or
   // partial pass never gets recorded as "fresh" for a future skipIfFresh
-  // check (#820, D7).
-  const cache = readCache(root);
-  writeCache(root, { ...cache, lastRunAt: Date.now() });
+  // check (#820, D7). `opts.skipCacheStamp` (#644 review fix) is the one
+  // exception: `bin/hooks.js reconcile-summary`'s own internal
+  // `checks: ['mirror']` call sets it, since this stamp is keyed on
+  // `lastRunAt` alone — it cannot distinguish "the FULL requested subset
+  // just finished" from "a narrow mirror-only probe just finished" — and
+  // `session-start.js`'s FAST_CHECKS call reads the exact same key via its
+  // own `skipIfFresh` gate. Without this opt-out, every `/claude-tweaks:flow`
+  // closing report would silently stamp the shared cache as fresh, and the
+  // next SessionStart within `DEFAULT_TTL_MS` would skip its own
+  // mirror/red-tip/console pass believing it already ran — silently
+  // suppressing red-tip's CI-failure surfacing for up to 7 minutes after
+  // every successful flow completion. No other caller sets this option, so
+  // every existing stamp-dependent behavior (including session-start.js's
+  // own FAST_CHECKS call, which both stamps and reads this key by design)
+  // is unchanged.
+  if (!opts.skipCacheStamp) {
+    const cache = readCache(root);
+    writeCache(root, { ...cache, lastRunAt: Date.now() });
+  }
+
+  // #644 Deliverable 3 — the one-line residue summary /claude-tweaks:flow's
+  // closing report renders, attached to the same JSON this function already
+  // returns (never a second data source): archived count from this pass's
+  // own `runs`, stuck count/age from the residue cache `archive`/`reap`
+  // (Deliverable 2) just finished updating, mirror ff outcome from this
+  // pass's own `mirror` when `mirror` was among the requested checks.
+  result.residueSummary = formatReconcileSummary(root, {
+    archivedCount: archivedCountFromRunsResult(result),
+    mirror: result.mirror,
+  });
   return result;
 }
 
-module.exports = { reconcile, ALL_CHECKS };
+module.exports = { reconcile, ALL_CHECKS, formatReconcileSummary };

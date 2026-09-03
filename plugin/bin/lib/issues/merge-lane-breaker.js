@@ -6,7 +6,7 @@
 // 5-gate chain: gates 1-5 answer "does this record earn a grant" (unchanged
 // by this module); this module answers "is the merge lane itself currently
 // trusted" — a whole-run fact, checked once per firing
-// (skills/backlog/grant-mode.md's Step 0.5), not folded into the per-record
+// (skills/backlog/refine-headless.md's Step 0.5), not folded into the per-record
 // gate loop. Independent from, not a replacement for, #268's per-class
 // revocation (trust.js's resolveOperationalOutcome/trustRows) — a class can
 // read 'clean' while this breaker is tripped, and vice versa. See
@@ -74,7 +74,7 @@ function readBreakerState(root, opts) {
 }
 
 // mutatorFn: (currentBreaker) -> nextBreaker. The only two callers of this
-// are grant-mode.md's Step 0.5 (trip on a watched-record classification) and
+// are refine-headless.md's Step 0.5 (trip on a watched-record classification) and
 // refine-mode.md's grant sub-stage (the sole reset-to-false path — see
 // classifyWatchedRecord below and skills/backlog/refine-mode.md).
 function writeBreakerState(root, mutatorFn, opts) {
@@ -85,16 +85,19 @@ function readWatched(root, opts) {
   return store(opts).readStateWithMeta(root).values.watched;
 }
 
-// mutatorFn: (currentWatched) -> nextWatched. Phase C (grant-mode.md) is the
-// only write path that ADDS an entry (seeded with { grantedAt }); Step 0.5
-// is the only path that updates an existing entry's lastKnownState or prunes
-// a resolved-good one — both go through this same function.
+// mutatorFn: (currentWatched) -> nextWatched. As of #309, the two maturation
+// sites ADD an entry (seeded with { grantedAt }, at the moment a pending grant
+// matures): dispatch's Auto-merge gate (settle-and-merge.md's Phase 2) and
+// wrap-up's singleton short-circuit (auto-merge-short-circuit.md's
+// Authorization step) — refine-headless.md's own Step 4 no longer seeds it directly.
+// Step 0.5 is the only path that updates an existing entry's lastKnownState or
+// prunes a resolved-good one — all go through this same function.
 function writeWatched(root, mutatorFn, opts) {
   return store(opts).writeState(root, (current) => ({ ...current, watched: mutatorFn(current.watched) }));
 }
 
 // Pure classification of one watched record against fresh evidence — no I/O,
-// reused directly by grant-mode.md's Step 0.5 per-entry loop.
+// reused directly by refine-headless.md's Step 0.5 per-entry loop.
 //
 // entry: {
 //   number,                    // record number
@@ -166,6 +169,13 @@ function classifyWatchedRecord(entry, gitLog, now, windowDays) {
   }
 
   const closedAtMs = typeof rec.closedAt === 'string' ? Date.parse(rec.closedAt) : NaN;
+  // An unparseable/missing closedAt deliberately resolves ageDays to 0 rather
+  // than an "unknown age" branch (contrast grant-maturation.js's
+  // evaluateMaturation, which early-returns 'unknown-age' before ever
+  // dividing) — both are fail-safe in the same direction, just shaped
+  // differently for what each caller does next: age 0 here means "never
+  // ages out on bad data," so the record stays watched (`update`/`CLOSED`
+  // below) rather than being silently pruned from tracking.
   const ageDays = Number.isFinite(closedAtMs) ? (now - closedAtMs) / MS_PER_DAY : 0;
   if (ageDays >= windowDays) {
     return { action: 'prune' };

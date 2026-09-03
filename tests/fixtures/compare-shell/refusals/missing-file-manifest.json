@@ -1,0 +1,7 @@
+{
+  "scope": "layout",
+  "seedKey": "seed-missing",
+  "variants": [
+    { "id": "a", "name": "A", "files": ["does-not-exist.html"] }
+  ]
+}

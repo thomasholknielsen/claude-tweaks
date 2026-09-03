@@ -66,7 +66,7 @@ The qualifier adds specificity when a skill produces multiple finding types, but
 
 | Phase | Source | Typical Items |
 |-------|--------|---------------|
-| `ops` | `/claude-tweaks:build` | Manual steps from spec that survived auto-classification triage (only items with a `reason-not-auto` qualifier — see below) |
+| `ops` | `/claude-tweaks:build` | Manual steps from spec that survived auto-classification triage, or discovered at AC-verification time inside the build itself (only items with a `reason-not-auto` qualifier — see below) |
 | `build` | `/claude-tweaks:build` | Architecture deviations, blocked work, shared constants |
 | `build/ops` | `/claude-tweaks:build` | Operational requirements that survived the platform probe — auto-executable items do not appear here |
 | `build/skill` | `/claude-tweaks:build` | Skill update candidates from build observations |
@@ -91,6 +91,7 @@ All `ops`-phase items must embed a `(reason-not-auto: {value})` qualifier in the
 | `requires-judgment` | A name, value, or copy decision someone must make at execution time |
 | `requires-signoff` | Security, legal, change-management, or product approval gates the action |
 | `auth-not-configured` | A CLI exists but credentials aren't set up on this machine. After the user runs the login command, the item should be re-triaged — it often becomes auto-executable. |
+| `live-verification` | The AC's own verification is itself a real, side-effecting, hard-to-reverse action against shared state (a live PR/merge/delete cycle, an irreversible external API call) — never executed inline during an autonomous run to prove the AC; deferred here instead. See `_shared/auto-mode-contract.md`'s Never-reversible list. Worked example: #683's AC4 (a live worktree/PR/merge/teardown cycle). |
 
 Items without a `reason-not-auto` qualifier are classification errors (the spec writer or the build skill missed the triage). If you encounter one, propose the correct classification rather than appending as-is — most "outside the codebase" tasks have a CLI and should not land here.
 
@@ -111,6 +112,8 @@ The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 a
 ### Phase 1 — Exhaust fixes (agent, silent)
 
 **Re-check before attempting a fresh fix.** An item can already be resolved outside this run — the commit/issue/PR reference in its own Item text (or the `Ledger:` back-reference on a staged patch that already applied per `_shared/staged-patch.md`) may point at something that landed since this item was appended: a self-contained follow-up PR, a backlog issue filed by an earlier Phase 2/3 pass and since closed, or a Review Console apply this same run already logged. Check each `open` item's cited reference (`gh pr view` / `gh issue view` on any `#N` it names, or a `git log --grep` on any commit hash it names) before spending a fix attempt on it: already merged/closed/applied → skip straight to updating status (`fixed` with the resolving commit/PR, or the terminal status the closed reference itself establishes) and move to the next item, exactly as if Phase 1 had fixed it. This is the mechanism that covers a low-confidence finding deliberately left `open` for human attention that later gets fixed in a separate PR outside this gate's own view — no live auto-sync is needed (the fix is inherently post-hoc), only that this gate stops proposing a redundant fix (or a redundant Phase 2 drill question) for work that is already done.
+
+**Exclusion: an item with an unapplied staged proposal.** An `open` item whose text carries its own `Ledger:` back-reference to an unapplied `staged/{name}` proposal (e.g. a `review-{n}.patch` from `/claude-tweaks:review`'s Step 3 Routing) is excluded from this phase's fix-exhaust and from Phase 2's per-item drill below, even when it would otherwise qualify under the Fix-now criteria — its resolution path is the Review Console's apply step (`_shared/staged-patch.md`), which is where the finding's own routing disposition (e.g. `review-auto-apply-ceiling`'s STAGED gate) is meant to get a human's explicit sign-off. Applying it silently here would bypass that gate for exactly the findings it was staged to protect.
 
 For each remaining item with status `open`, attempt to fix it now. **The default is fix; defer is the exception.** Whether an item qualifies for fix-now, and which reasons for skipping a fix are never legitimate, are defined once in `_shared/deferral-gate.md` (its Fix-now criteria and Bad reasons to skip a fix sections) — apply that gate here exactly as written there. If the item qualifies, fix it, commit it, update status to `fixed` with the commit hash. Do this BEFORE presenting anything to the user.
 

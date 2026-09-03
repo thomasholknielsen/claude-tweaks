@@ -33,6 +33,17 @@ function makeDeps(overrides = {}) {
       if (key.startsWith('show origin/main:')) return manifest('6.70.1');
       if (key.startsWith('show main:')) return manifest('6.70.1');
       if (key.startsWith('worktree list')) return 'worktree /repo\nbranch refs/heads/main\n';
+      // unnamed-records gate: no bump history and nothing materialized by default —
+      // a no-op gate that leaves every existing precheck/compose/push test unaffected.
+      // `overrides.bumpSha` (a root-commit bump at v6.70.1, matching the manifest/
+      // CHANGELOG fixtures above) lets a gate-specific test opt into a real bump history.
+      if (key.startsWith('cat-file -e main:')) return '';
+      if (key.startsWith('log --format=%H --topo-order main --')) return overrides.bumpSha || '';
+      if (overrides.bumpSha && key === `show ${overrides.bumpSha}:plugin/.claude-plugin/plugin.json`) return manifest('6.70.1');
+      if (overrides.bumpSha && key.startsWith(`show ${overrides.bumpSha}^:`)) {
+        throw new Error(`fatal: path 'plugin/.claude-plugin/plugin.json' does not exist in '${overrides.bumpSha}^'`);
+      }
+      if (key.startsWith('diff --name-status')) return overrides.gateDiff || '';
       if (key.startsWith('add ')) return '';
       if (key === 'diff --cached --name-only') {
         return (state.staged || ['plugin/.claude-plugin/plugin.json', 'CHANGELOG.md', 'docs/shipped-versions.tsv']).join('\n');
@@ -121,4 +132,42 @@ test('aborts before push when origin/main moved during compose', () => {
   const { deps, state } = makeDeps({ ancestorOk: false });
   assert.throws(() => runRelease(deps, { part: 'minor', summary: 'S', date: '2026-08-08', dryRun: false, log: () => {} }), /moved between pre-check and push[\s\S]*do NOT re-run/i);
   assert.ok(!state.gitCalls.some((c) => c.startsWith('push')), 'must not push over divergence');
+});
+
+// #768: refuse to bump while a merge since the last bump is unnamed in the
+// summary/CHANGELOG — the prevention companion to `status`'s post-merge detection.
+const UNNAMED_700 = 'A\t.claude-tweaks/pipelines/2026-08-01T000000-record-700/work/700-spec.md\n';
+
+test('unnamed-records gate: live run aborts before writing anything, naming the record [AC1]', () => {
+  const { deps, state } = makeDeps({ gateDiff: UNNAMED_700, bumpSha: 'bump1' });
+  assert.throws(
+    () => runRelease(deps, { part: 'minor', summary: 'unrelated', date: '2026-08-08', dryRun: false, log: () => {} }),
+    /release gate: unnamed merges since v6\.70\.1: #700/,
+  );
+  assert.deepStrictEqual(state.writes, [], 'must write nothing when the gate aborts');
+  assert.ok(!state.gitCalls.some((c) => c.startsWith('commit')), 'must not commit when the gate aborts');
+});
+
+test('unnamed-records gate: naming the record in the summary lets the release proceed [AC2]', () => {
+  const { deps, state } = makeDeps({ gateDiff: UNNAMED_700, bumpSha: 'bump1' });
+  const out = runRelease(deps, { part: 'minor', summary: 'Ships #700', date: '2026-08-08', dryRun: false, log: () => {} });
+  assert.strictEqual(out.pushed, true);
+  assert.deepStrictEqual(state.appended, ['6.71.0@2026-08-08']);
+});
+
+test('unnamed-records gate: --dry-run reports the unnamed set without aborting or writing [AC3]', () => {
+  const { deps, state } = makeDeps({ gateDiff: UNNAMED_700, bumpSha: 'bump1' });
+  const logs = [];
+  const out = runRelease(deps, { part: 'minor', summary: 'unrelated', date: '2026-08-08', dryRun: true, log: (m) => logs.push(m) });
+  assert.strictEqual(out.version, '6.71.0');
+  assert.deepStrictEqual(state.writes, []);
+  assert.ok(logs.some((l) => l.includes('[dry-run] release gate:') && l.includes('#700')), logs.join(' | '));
+});
+
+test('unnamed-records gate: --allow-unnamed proceeds and records the override in the commit message', () => {
+  const { deps, state } = makeDeps({ gateDiff: UNNAMED_700, bumpSha: 'bump1' });
+  const out = runRelease(deps, { part: 'minor', summary: 'unrelated', date: '2026-08-08', dryRun: false, allowUnnamed: [700], log: () => {} });
+  assert.strictEqual(out.pushed, true);
+  const commitCall = state.gitCalls.find((c) => c.startsWith('commit'));
+  assert.ok(commitCall.includes('allow-unnamed: #700'), commitCall);
 });

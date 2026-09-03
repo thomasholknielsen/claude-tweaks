@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { resolveScope } = require('../../../plugin/bin/lib/residue/scope');
 
-// Same stub shape as bin/lib/wrap-up/tests/state.test.js: a map of
+// Same stub shape as tests/bin-lib/wrap-up/state.test.js: a map of
 // joined-args -> output, with null modelling a failing git invocation.
 function stubRunner(responses) {
   return (args) => (Object.prototype.hasOwnProperty.call(responses, args.join(' ')) ? responses[args.join(' ')] : null);

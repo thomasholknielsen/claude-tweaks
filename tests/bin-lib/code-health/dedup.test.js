@@ -23,9 +23,9 @@ test('closed non-wontfix issue with same fingerprint -> reopen (regressed)', () 
   assert.ok(typeof result.note === 'string' && result.note.length > 0, 'note should be a non-empty string');
 });
 
-test('wontfix-labelled issue -> suppress (standing decision)', () => {
+test('wontfix-labelled issue -> suppress (standing decision), tagged reason: wontfix-label so the caller can persist it durably (#171)', () => {
   const index = { 'codehealth-ccc': { number: 9, state: 'open', labels: ['bug', 'wontfix'] } };
-  assert.deepStrictEqual(decide(F('codehealth-ccc'), index, {}), { action: 'suppress', issue: 9 });
+  assert.deepStrictEqual(decide(F('codehealth-ccc'), index, {}), { action: 'suppress', issue: 9, reason: 'wontfix-label' });
 });
 
 test('wontfix in cache, no issue on record -> suppress with issue: null', () => {
@@ -63,4 +63,36 @@ test('decide falls back to finding.id when finding.fingerprint is absent', () =>
   const finding = { id: 'codehealth-iii', risk: 'high' };
   const index = { 'codehealth-iii': { number: 12, state: 'open', labels: [] } };
   assert.deepStrictEqual(decide(finding, index, {}), { action: 'skip', issue: 12 });
+});
+
+// #171 — durable twin of the cache-level wontfix check: honors a wontfix
+// suppression persisted on an earlier firing (health-state branch's
+// `declined` slice) even when the local cache is empty (a fresh
+// scheduled-Routine container) and no live issueIndex match exists this run.
+test('durable declined match, empty local cache, no issueIndex match -> suppress with issue: null', () => {
+  const durableDeclined = { 'codehealth-jjj': { lastSeenMs: 123, origin: 'wontfix-label' } };
+  assert.deepStrictEqual(
+    decide(F('codehealth-jjj'), {}, {}, { durableDeclined }),
+    { action: 'suppress', issue: null },
+  );
+});
+
+test('durable declined is consulted only after the local cache and issueIndex — an issueIndex match still wins', () => {
+  const durableDeclined = { 'codehealth-kkk': { lastSeenMs: 123, origin: 'wontfix-label' } };
+  const index = { 'codehealth-kkk': { number: 13, state: 'open', labels: [] } };
+  assert.deepStrictEqual(
+    decide(F('codehealth-kkk'), index, {}, { durableDeclined }),
+    { action: 'skip', issue: 13 },
+  );
+});
+
+test('no durableDeclined match and no cache/issueIndex match -> falls through to threshold logic as before (backward compatible)', () => {
+  assert.deepStrictEqual(
+    decide(F('codehealth-lll', 'high'), {}, {}, { durableDeclined: {} }),
+    { action: 'file' },
+  );
+});
+
+test('durableDeclined omitted entirely (opts has no durableDeclined key) -> behaves exactly as before this fix', () => {
+  assert.deepStrictEqual(decide(F('codehealth-mmm', 'high'), {}, {}, { threshold: 'high' }), { action: 'file' });
 });

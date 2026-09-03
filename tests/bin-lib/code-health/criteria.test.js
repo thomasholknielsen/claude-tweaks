@@ -280,4 +280,4 @@ test('scalability co-loads wherever migration-safety does', () => {
 
 // description was removed from CRITERIA entries — criteria no longer bootstrap their own
 // GitHub label (see bin/lib/code-health/issue-payload.js); the 100-char-cap check now lives
-// in bin/lib/issues/tests/labels.test.js as a property of ensureLabelPayload itself.
+// in tests/bin-lib/issues/labels.test.js as a property of ensureLabelPayload itself.

@@ -1,0 +1,8 @@
+{
+  "scope": "layout",
+  "seedKey": "seed-dup",
+  "variants": [
+    { "id": "a", "name": "A1", "files": ["a.html"] },
+    { "id": "a", "name": "A2", "files": ["a.html"] }
+  ]
+}

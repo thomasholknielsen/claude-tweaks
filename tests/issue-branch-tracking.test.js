@@ -94,15 +94,62 @@ test('generateWorkflowYaml declares a per-ref concurrency group so overlapping p
   assert.ok(yaml.includes('  cancel-in-progress: false'));
 });
 
-test('generateWorkflowYaml skips posting a duplicate tracking comment when one for this SHA already exists', () => {
+test('generateWorkflowYaml skips posting a duplicate tracking comment when a branch-scoped marker already exists', () => {
   const yaml = generateWorkflowYaml();
   assert.ok(
-    yaml.includes("-q '.comments[].body' | grep -F \"$SHA\" || true)"),
-    'must check existing comments for this commit SHA before posting a new one'
+    yaml.includes('MARKER="<!-- track-issue-fixes:${BRANCH} -->"'),
+    'must define a branch-scoped marker for dedup'
+  );
+  assert.ok(
+    yaml.includes("-q '.comments[].body' | grep -F \"$MARKER\" || true)"),
+    'must check existing comments for the branch marker, not the commit SHA, before posting a new one'
   );
   assert.ok(
     yaml.includes('if [ -z "$EXISTING" ]; then'),
-    'must only post the tracking comment when no existing comment for this SHA was found'
+    'must only post the tracking comment when no existing marker was found'
+  );
+  assert.ok(
+    yaml.includes('${MARKER}'),
+    'the posted comment body must embed the marker so a later push can find it'
+  );
+  assert.ok(
+    !yaml.includes('grep -F "$SHA"'),
+    'dedup must no longer match on the unstable commit SHA (breaks under amend/force-push)'
+  );
+});
+
+test('generateWorkflowYaml excludes revert commits from closing-keyword extraction in both jobs', () => {
+  const yaml = generateWorkflowYaml();
+  const needle = 'select(.message | startswith("Revert \\"") | not) | .message';
+  const occurrences = yaml.split(needle).length - 1;
+  assert.strictEqual(
+    occurrences,
+    2,
+    'both jobs\' extract step must drop commits whose message starts with `Revert "` (git\'s default revert subject re-contains the original closing keyword)'
+  );
+});
+
+test('generateWorkflowYaml skips label/comment on a closing-keyword number that resolves to a pull request', () => {
+  const yaml = generateWorkflowYaml();
+  assert.ok(
+    yaml.includes(`IS_PR=$(gh api "repos/$REPO/issues/$ISSUE" --jq 'has("pull_request")' || echo "")`),
+    'must probe whether the extracted number is a PR via the has("pull_request") key'
+  );
+  assert.ok(
+    yaml.includes('echo "::warning::#$ISSUE is a pull request, not an issue -- skipping label/comment"'),
+    'a PR match must log a visible warning instead of silently swallowing via || true'
+  );
+});
+
+test('generateWorkflowYaml removes fix-on-* labels one call per label instead of one batched call', () => {
+  const yaml = generateWorkflowYaml();
+  assert.ok(
+    yaml.includes('gh issue edit "$ISSUE" --remove-label "$LABEL" --repo "$REPO" || true'),
+    'must issue a separate gh issue edit call per label so one rejected label cannot block removal of the others'
+  );
+  assert.ok(
+    !yaml.includes('REMOVE_ARGS=()') && !yaml.includes('"${REMOVE_ARGS[@]}"'),
+    'must not batch every label into one REMOVE_ARGS[] array/call (the atomicity bug this replaces) -- a comment may still name REMOVE_ARGS for context'
   );
 });
 
@@ -217,4 +264,22 @@ test('extraction pipeline (literal generated script): does not falsely join two 
   const issues = runExtractStep(t, commits);
   if (issues === null) return; // skipped — see runExtractStep
   assert.strictEqual(issues, '', `two unrelated commit messages must not be joined across their NUL boundary, got: "${issues}"`);
+});
+
+test('extraction pipeline (literal generated script): a revert of a fix commit does not re-surface the reverted issue', (t) => {
+  // git's default revert subject for an original commit that said `fixes #42`.
+  const commits = [{ message: 'Revert "fixes #42"' }];
+  const issues = runExtractStep(t, commits);
+  if (issues === null) return; // skipped — see runExtractStep
+  assert.strictEqual(issues, '', `a revert commit must be excluded from closing-keyword extraction, got: "${issues}"`);
+});
+
+test('extraction pipeline (literal generated script): a revert commit alongside a real fix still surfaces the real one', (t) => {
+  const commits = [
+    { message: 'Revert "fixes #42"' },
+    { message: 'fixes #7' },
+  ];
+  const issues = runExtractStep(t, commits);
+  if (issues === null) return; // skipped — see runExtractStep
+  assert.strictEqual(issues, '7', `expected only the non-revert commit's issue to surface, got: "${issues}"`);
 });

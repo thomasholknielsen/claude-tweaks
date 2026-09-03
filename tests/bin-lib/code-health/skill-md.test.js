@@ -73,14 +73,26 @@ registerRequiredTokenTests(test, assert, read, [
 registerNoEmojiTest(test, assert, read);
 
 // ── P4 Task 6: new section anchors ────────────────────────────────────────────
+//
+// #923: both sections moved out to ci-integration.md (a lazy-loaded sub-file,
+// same pattern as filing.md/focus-mode.md) to bring SKILL.md back under the
+// 40 KB per-invocation ceiling — SKILL.md now points to them instead of
+// carrying the content inline.
 
-test('v2 SKILL.md: contains section \'## Regression and Risk Gating\'', () => {
+const ciIntegrationPath = path.join(__dirname, '..', '..', '..', 'plugin', 'skills', 'code-health', 'ci-integration.md');
+
+test('v2 SKILL.md: points to ci-integration.md for CI hooks', () => {
   const content = fs.readFileSync(skillMdPath, 'utf8');
+  assert.ok(content.includes('ci-integration.md'), 'missing pointer to ci-integration.md');
+});
+
+test('ci-integration.md: contains section \'## Regression and Risk Gating\'', () => {
+  const content = fs.readFileSync(ciIntegrationPath, 'utf8');
   assert.ok(content.includes('## Regression and Risk Gating'), 'missing section: ## Regression and Risk Gating');
 });
 
-test('v2 SKILL.md: contains section \'## Fingerprint Churn\'', () => {
-  const content = fs.readFileSync(skillMdPath, 'utf8');
+test('ci-integration.md: contains section \'## Fingerprint Churn\'', () => {
+  const content = fs.readFileSync(ciIntegrationPath, 'utf8');
   assert.ok(content.includes('## Fingerprint Churn'), 'missing section: ## Fingerprint Churn');
 });
 

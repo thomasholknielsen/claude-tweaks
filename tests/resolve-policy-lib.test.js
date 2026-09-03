@@ -27,6 +27,13 @@ test('health-open-cap is schema-registered — default 10, configured value wins
   assert.deepStrictEqual(set['health-open-cap'], { value: 25, source: 'policy' });
 });
 
+test('dispatch-group-size-guard is schema-registered — default 10, configured value wins', () => {
+  const unset = resolvePolicyKeys(['dispatch-group-size-guard'], { policyRaw: null });
+  assert.deepStrictEqual(unset['dispatch-group-size-guard'], { value: 10, source: 'default' });
+  const set = resolvePolicyKeys(['dispatch-group-size-guard'], { policyRaw: 'dispatch-group-size-guard: 25\n' });
+  assert.deepStrictEqual(set['dispatch-group-size-guard'], { value: 25, source: 'policy' });
+});
+
 test('policy-source value resolves with source: "policy"', () => {
   const result = resolvePolicyKeys(['tidy-aggressiveness'], {
     policyRaw: 'tidy-aggressiveness: aggressive\n',
@@ -151,6 +158,40 @@ test('boolean coercion through the #602 alias: a worktree.always line resolves w
   assert.strictEqual(result['worktree-always'].value, true);
   assert.strictEqual(result['worktree-always'].source, 'policy');
   assert.strictEqual(result['worktree-always']['renamed-from'], 'worktree.always');
+});
+
+test('review-auto-apply-prose-exempt defaults to true (source: default) when unset', () => {
+  const result = resolvePolicyKeys(['review-auto-apply-prose-exempt'], { policyRaw: null, runConfigRaw: null });
+  assert.deepStrictEqual(result['review-auto-apply-prose-exempt'], { value: true, source: 'default' });
+});
+
+test('review-auto-apply-prose-exempt: false in policy.yml resolves to native boolean false', () => {
+  const result = resolvePolicyKeys(['review-auto-apply-prose-exempt'], { policyRaw: 'review-auto-apply-prose-exempt: false\n' });
+  assert.deepStrictEqual(result['review-auto-apply-prose-exempt'], { value: false, source: 'policy' });
+});
+
+test('review-auto-apply-prose-exempt: run-config (config.yml) wins over policy.yml, same precedence as review-auto-apply-ceiling', () => {
+  const result = resolvePolicyKeys(['review-auto-apply-prose-exempt'], {
+    policyRaw: 'review-auto-apply-prose-exempt: false\n',
+    runConfigRaw: 'review-auto-apply-prose-exempt: true\n',
+  });
+  assert.deepStrictEqual(result['review-auto-apply-prose-exempt'], { value: true, source: 'run-config' });
+});
+
+test('specify-auto-continue defaults to false (source: default) when unset', () => {
+  const result = resolvePolicyKeys(['specify-auto-continue'], { policyRaw: null, runConfigRaw: null });
+  assert.deepStrictEqual(result['specify-auto-continue'], { value: false, source: 'default' });
+});
+
+test('specify-auto-continue: true in policy.yml resolves to native boolean true', () => {
+  const result = resolvePolicyKeys(['specify-auto-continue'], { policyRaw: 'specify-auto-continue: true\n' });
+  assert.deepStrictEqual(result['specify-auto-continue'], { value: true, source: 'policy' });
+});
+
+test('specify-auto-continue: resolves with no runConfigRaw at all (the no-run-dir standalone read this key is designed for)', () => {
+  const result = resolvePolicyKeys(['specify-auto-continue'], { policyRaw: 'specify-auto-continue: true\n' });
+  assert.deepStrictEqual(result['specify-auto-continue'], { value: true, source: 'policy' });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(result['specify-auto-continue'], 'renamed-from'), false);
 });
 
 test('a key with no schema default, absent everywhere, resolves to value: null, source: "default"', () => {

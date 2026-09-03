@@ -1,8 +1,15 @@
-# 14. A hook-read policy key rename ships with a transitional twin in this repo's own policy.yml
+# 0014. A hook-read policy key rename ships with a transitional twin in this repo's own policy.yml
 
 - **Status:** accepted
 - **Date:** 2026-08-16
 - **Context:** #602, applying #332's naming rule (`skills/_shared/policy-key-naming.md`) to `worktree.always`, the last dotted key
+
+> **Resolved.** The transitional twin this decision installs has since been removed from this
+> repo's `.claude-tweaks/policy.yml` — a fresh session detected a running build at or above the
+> release that shipped #602 and deleted the old-spelling line, per the removal condition in the
+> Decision section below. Only `worktree-always: true` remains; the Decision section describes
+> the now-closed transitional window, not current file contents. Left unedited below on purpose,
+> per `[ADR-0013]`'s superseded-rather-than-edited convention.
 
 ## Context
 

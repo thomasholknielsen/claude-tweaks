@@ -24,7 +24,7 @@ const USAGE = 'usage: blast-radius.js (--base <ref> | --integration-branch <bran
 function fail(msg) {
   const firstLine = String(msg).split('\n')[0];
   process.stderr.write(`blast-radius: ${firstLine}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 function isDirectory(dirPath) {

@@ -5,8 +5,26 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 
+const { pathToFileURL } = require('node:url');
+
 const STATUSLINE = path.join(__dirname, '..', 'plugin', 'bin', 'claude-tweaks-statusline.js');
 const sl = require('../plugin/bin/claude-tweaks-statusline.js');
+const color = require('../plugin/bin/lib/color');
+
+// The project segment wraps text in OSC 8 hyperlinks (\x1b]8;;URL\x07text\x1b]8;;\x07).
+// Assertions about segment order/content strip those wrappers first; the link
+// URLs themselves are asserted by the dedicated link tests below.
+function stripLinks(s) {
+  return s.replace(/\x1b\]8;;[^\x07]*\x07/g, '');
+}
+
+// Expected project segment for a dir with no GitHub origin remote: the
+// basename wrapped in a file:// hyperlink to the (resolved) project dir.
+// The URL must end with "/" — a directory URL without it makes macOS reveal
+// the folder in its parent instead of opening the folder itself.
+function linkedName(dir) {
+  return color.link(`${pathToFileURL(dir).href}/`, path.basename(dir));
+}
 
 // Hermetic: a throwaway $HOME, and the running session's own CLAUDE_CONFIG_DIR
 // dropped so the acct segment sees only what `seedHome` put in that HOME.
@@ -159,16 +177,22 @@ test('renderModel returns null when missing', () => {
   assert.strictEqual(sl.renderModel({}), null);
 });
 
-test('renderProject: uses workspace.project_dir basename', () => {
-  assert.strictEqual(sl.renderProject({ workspace: { project_dir: '/Users/x/Code/claude-tweaks' } }), 'claude-tweaks');
+test('renderProject: uses workspace.project_dir basename, hyperlinked to the dir', () => {
+  assert.strictEqual(
+    sl.renderProject({ workspace: { project_dir: '/Users/x/Code/claude-tweaks' } }),
+    linkedName('/Users/x/Code/claude-tweaks'),
+  );
 });
 
 test('renderProject: falls back to current_dir when project_dir missing', () => {
-  assert.strictEqual(sl.renderProject({ workspace: { current_dir: '/Users/x/Code/other-proj' } }), 'other-proj');
+  assert.strictEqual(
+    sl.renderProject({ workspace: { current_dir: '/Users/x/Code/other-proj' } }),
+    linkedName('/Users/x/Code/other-proj'),
+  );
 });
 
 test('renderProject: falls back to input.cwd when workspace missing', () => {
-  assert.strictEqual(sl.renderProject({ cwd: '/Users/x/Code/fallback' }), 'fallback');
+  assert.strictEqual(sl.renderProject({ cwd: '/Users/x/Code/fallback' }), linkedName('/Users/x/Code/fallback'));
 });
 
 test('renderProject returns null when no directory or fallback available', () => {
@@ -176,7 +200,87 @@ test('renderProject returns null when no directory or fallback available', () =>
 });
 
 test('renderProject: falls back to explicit fallbackCwd when nothing else available', () => {
-  assert.strictEqual(sl.renderProject({}, '/Users/x/Code/fallback-cwd'), 'fallback-cwd');
+  assert.strictEqual(sl.renderProject({}, '/Users/x/Code/fallback-cwd'), linkedName('/Users/x/Code/fallback-cwd'));
+});
+
+test('renderProject: percent-encodes spaces in the file:// link (real project dirs contain them)', () => {
+  const out = sl.renderProject({ workspace: { project_dir: '/Users/x/Code Workspaces/my-proj' } });
+  assert.ok(out.includes('file:///Users/x/Code%20Workspaces/my-proj/'), `expected encoded file URL: ${out}`);
+  assert.strictEqual(stripLinks(out), 'my-proj');
+});
+
+test('renderProject: the file:// link ends with a trailing slash (opens the folder, not a reveal in its parent)', () => {
+  const out = sl.renderProject({ workspace: { project_dir: '/Users/x/Code/claude-tweaks' } });
+  assert.ok(out.includes('file:///Users/x/Code/claude-tweaks/\x07'), `expected trailing slash before terminator: ${out}`);
+});
+
+test('color.link emits the documented OSC 8 byte shape (BEL-terminated)', () => {
+  assert.strictEqual(
+    color.link('https://github.com/o/r', 'text'),
+    '\x1b]8;;https://github.com/o/r\x07text\x1b]8;;\x07',
+  );
+});
+
+test('githubRepoUrl normalizes the three GitHub remote forms to a browse URL', () => {
+  assert.strictEqual(sl.githubRepoUrl('git@github.com:owner/repo.git'), 'https://github.com/owner/repo');
+  assert.strictEqual(sl.githubRepoUrl('ssh://git@github.com/owner/repo.git'), 'https://github.com/owner/repo');
+  assert.strictEqual(sl.githubRepoUrl('https://github.com/owner/repo.git'), 'https://github.com/owner/repo');
+  assert.strictEqual(sl.githubRepoUrl('https://github.com/owner/repo'), 'https://github.com/owner/repo');
+});
+
+test('githubRepoUrl returns null for non-GitHub remotes and garbage', () => {
+  assert.strictEqual(sl.githubRepoUrl('git@gitlab.com:owner/repo.git'), null);
+  assert.strictEqual(sl.githubRepoUrl('https://gitlab.com/owner/repo.git'), null);
+  assert.strictEqual(sl.githubRepoUrl('not a url'), null);
+  assert.strictEqual(sl.githubRepoUrl(''), null);
+  assert.strictEqual(sl.githubRepoUrl(null), null);
+});
+
+test('githubRepoUrl rejects a github.com remote whose path is not owner/repo shaped', () => {
+  assert.strictEqual(sl.githubRepoUrl('https://github.com/owner'), null);
+  assert.strictEqual(sl.githubRepoUrl('https://github.com/a/b/c'), null);
+});
+
+// Fixture: an init'd repo with one commit and, optionally, an origin remote.
+function withRepo(remoteUrl, fn) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sl-repo-'));
+  const repoDir = path.join(base, 'glyph-project');
+  fs.mkdirSync(repoDir);
+  const git = (args) => execFileSync('git', args, { cwd: repoDir, encoding: 'utf8' });
+  git(['init', '-q', '-b', 'main']);
+  git(['config', 'user.email', 'test@example.com']);
+  git(['config', 'user.name', 'Test']);
+  fs.writeFileSync(path.join(repoDir, 'README.md'), 'hi');
+  git(['add', '.']);
+  git(['commit', '-q', '-m', 'init']);
+  if (remoteUrl) git(['remote', 'add', 'origin', remoteUrl]);
+  try {
+    return fn(repoDir);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+}
+
+test('renderProject: GitHub origin remote adds a glyph hyperlinked to the repo page', () => {
+  withRepo('git@github.com:owner/repo.git', (repoDir) => {
+    const out = sl.renderProject({ workspace: { project_dir: repoDir } });
+    assert.strictEqual(
+      out,
+      `${linkedName(repoDir)} ${color.link('https://github.com/owner/repo', '')}`,
+    );
+  });
+});
+
+test('renderProject: non-GitHub origin remote renders no glyph', () => {
+  withRepo('git@gitlab.com:owner/repo.git', (repoDir) => {
+    assert.strictEqual(sl.renderProject({ workspace: { project_dir: repoDir } }), linkedName(repoDir));
+  });
+});
+
+test('renderProject: repo with no origin remote renders no glyph', () => {
+  withRepo(null, (repoDir) => {
+    assert.strictEqual(sl.renderProject({ workspace: { project_dir: repoDir } }), linkedName(repoDir));
+  });
 });
 
 test('renderProject: resolves a linked worktree to the main project name', () => {
@@ -190,15 +294,20 @@ test('renderProject: resolves a linked worktree to the main project name', () =>
   fs.writeFileSync(path.join(mainDir, 'README.md'), 'hi');
   git(['add', '.'], mainDir);
   git(['commit', '-q', '-m', 'init'], mainDir);
+  git(['remote', 'add', 'origin', 'git@github.com:owner/real-project.git'], mainDir);
   const worktreeDir = path.join(base, 'worktree-branch-name');
   git(['worktree', 'add', '-q', worktreeDir, '-b', 'feature'], mainDir);
   try {
     // EnterWorktree pivots workspace.project_dir to the worktree path — the
     // statusline must still surface the real project's name, not the
-    // worktree folder's.
+    // worktree folder's. The file:// link and the GitHub glyph must likewise
+    // resolve against the main checkout, not the worktree folder.
+    // git rev-parse reports the physical path (macOS /var → /private/var),
+    // so the expected file:// URL is built from the realpath, not the
+    // symlinked mkdtemp path.
     assert.strictEqual(
       sl.renderProject({ workspace: { project_dir: worktreeDir } }),
-      'real-project-name',
+      `${linkedName(fs.realpathSync(mainDir))} ${color.link('https://github.com/owner/real-project', '')}`,
     );
   } finally {
     git(['worktree', 'remove', '--force', worktreeDir], mainDir);
@@ -647,7 +756,7 @@ test('end-to-end: project segment renders before model', () => {
     },
     { NO_COLOR: '1' },
   );
-  assert.ok(out.startsWith('claude-tweaks'), `expected project first: ${out}`);
+  assert.ok(stripLinks(out).startsWith('claude-tweaks'), `expected project first: ${out}`);
   assert.ok(out.includes('Sonnet 5'), `missing model: ${out}`);
 });
 
@@ -692,7 +801,7 @@ test('end-to-end: project segment is always present, even with empty input', () 
   }).trim();
   const absCommonDir = path.isAbsolute(commonDir) ? commonDir : path.resolve(process.cwd(), commonDir);
   const expectedName = path.basename(path.dirname(absCommonDir));
-  assert.ok(out.startsWith(expectedName), `expected project segment: ${out}`);
+  assert.ok(stripLinks(out).startsWith(expectedName), `expected project segment: ${out}`);
 });
 
 test('end-to-end: transcript_path under .claude-accounts renders the acct segment at the end', () => {

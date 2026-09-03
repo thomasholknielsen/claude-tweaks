@@ -20,6 +20,8 @@ test('GRANT_AUDIT_RE matches the landed grant-mode audit marker shape', () => {
     '<!-- grant-mode-audit: date=2026-08-14T09:00:12Z auto-merge=false -->'));
   assert.ok(GRANT_AUDIT_RE.test(
     '<!--  grant-mode-audit:  date=2026-08-14T09:00:12Z  auto-merge=true  -->'));
+  assert.ok(GRANT_AUDIT_RE.test(
+    '<!-- grant-mode-audit: date=2026-08-22T11:00:00Z auto-merge=pending -->'));
   assert.ok(!GRANT_AUDIT_RE.test('Machine-granted by /claude-tweaks:backlog grant (headless).'));
 });
 

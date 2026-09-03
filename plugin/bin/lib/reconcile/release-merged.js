@@ -10,19 +10,19 @@
 const path = require('path');
 const { execFileSync, execFile } = require('child_process');
 const { promisify } = require('util');
-const { runGit } = require('../hooks/git-exec');
+const { runGit, repoSlugOf } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { readRunState } = require('../hooks/context');
 const { classifyClaimBlob, releasePayload } = require('../issues/claims');
 const claimStore = require('../issues/claim-store');
 const { resolvePrStateAsync } = require('./pr-state');
-const { writeTombstone: writeTombstoneShared } = require('../release-claim/release');
+const { writeTombstone: writeTombstoneShared, GRANT_LABELS } = require('../release-claim/release');
+const { resolveTarget, appendEntry, formatEntry } = require('../log-decision/append');
 const { readCache, writeCache } = require('./cache');
 const { runWithConcurrency } = require('./gh-pool');
+const { GH_TIMEOUT_MS, runClassified, runClassifiedAsync } = require('../shared-primitives');
 
 const execFileAsync = promisify(execFile);
-
-const GH_TIMEOUT_MS = 5000;
 
 // One claim's classified state + the branch's PR state (+ optionally the
 // issue's own state) -> what to do. Pure — no I/O — so the whole decision
@@ -84,28 +84,31 @@ function classifyGhExecError(e) {
   return claimStore.classifyGhApiError(e).failure === 'gh-absent' ? 'gh-absent' : 'network-failure';
 }
 
+// Shared by both ghApi and ghApiAsync below — defined once so the two
+// twins' success/failure shape cannot silently drift (#1652, mirrors
+// git-exec.js's runGit/runGitAsync and preflight.js's ghHealthCheck/
+// ghHealthCheckAsync consolidation).
+function buildSuccess(stdout) {
+  return { stdout, failure: null };
+}
+
+function buildFailure(e) {
+  return { stdout: null, failure: classifyGhExecError(e) };
+}
+
 function ghApi(args) {
-  try {
-    const stdout = execFileSync('gh', ['api', ...args], {
+  return runClassified(
+    () => buildSuccess(execFileSync('gh', ['api', ...args], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, windowsHide: true,
-    });
-    return { stdout, failure: null };
-  } catch (e) {
-    return { stdout: null, failure: classifyGhExecError(e) };
-  }
+    })),
+    buildFailure,
+  );
 }
 
 // Raw `gh` runner for the shared write path below (ghApi prepends `api` and
 // swallows failures; writeTombstoneShared composes its own argv and needs the throw).
 function ghRunner(args) {
   return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GH_TIMEOUT_MS, windowsHide: true });
-}
-
-function repoSlugOf(repoRoot) {
-  const remote = runGit(['remote', 'get-url', 'origin'], repoRoot);
-  if (remote.failure || !remote.stdout) return null;
-  const m = /[:/]([^/]+\/[^/]+?)(\.git)?$/.exec(remote.stdout);
-  return m ? m[1] : null;
 }
 
 // Both delegate to claim-store.js's one contents-API implementation.
@@ -130,7 +133,7 @@ function issueNumberOf(name) {
 }
 
 function readClaim(repoSlug, name, api = ghApi) {
-  const r = claimStore.readClaimBlob(api, repoSlug, issueNumberOf(name));
+  const r = claimStore.readClaimBlob({ ghApi: api }, repoSlug, issueNumberOf(name));
   return { content: r.content, sha: r.sha, failure: r.failure };
 }
 
@@ -143,12 +146,13 @@ function readClaim(repoSlug, name, api = ghApi) {
 // execFileSync, which blocks the whole event loop regardless of how the
 // calling code is structured.
 async function ghApiAsync(args) {
-  try {
-    const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true });
-    return { stdout, failure: null };
-  } catch (e) {
-    return { stdout: null, failure: classifyGhExecError(e) };
-  }
+  return runClassifiedAsync(
+    async () => {
+      const { stdout } = await execFileAsync('gh', ['api', ...args], { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true });
+      return buildSuccess(stdout);
+    },
+    buildFailure,
+  );
 }
 
 // Issue-state lookup, async — same contract/timeout as the rest of this
@@ -197,6 +201,37 @@ function writeTombstone(repoSlug, name, sha, tombstoneContent, reason, runner = 
 function removeInProgressLabel(repoSlug, issueNumber, api = ghApi) {
   const r = api(['--method', 'DELETE', `repos/${repoSlug}/issues/${issueNumber}/labels/bot%3Ain-progress`]);
   return r.failure === null;
+}
+
+// Best-effort, same posture as removeInProgressLabel above — a failed removal never
+// blocks or reverts the release. Strips every GRANT_LABELS entry (imported from
+// release-claim/release.js — the same canonical list bin/release-claim.js's own
+// --remove-grants path uses, never redefined here) via the DELETE-API shape, one
+// call per label, through this module's own injectable `api` seam so tests never
+// shell to a real `gh` binary (#1378).
+function removeGrantLabels(repoSlug, issueNumber, api = ghApi) {
+  for (const label of GRANT_LABELS) {
+    api(['--method', 'DELETE', `repos/${repoSlug}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`]);
+  }
+}
+
+// Best-effort bookkeeping only — a decisions.md write failure never blocks or
+// reverts the label removal or the release itself. A merged claim's run dir is
+// commonly already archived by this same reconcile pass (the mirror fast-forward
+// step runs earlier), so a resolveTarget miss (missing/not-anchored) is expected,
+// not a failure to surface (#1378).
+function logGrantRemoval(runDir, root, reason) {
+  let target;
+  try { target = resolveTarget({ runDir, cwd: root }); } catch { return; }
+  if (!target.ok) return;
+  const entry = formatEntry({
+    status: 'AUTO',
+    now: Date.now(),
+    step: 'reconcile',
+    text: `stripped auto:build/auto:merge grants on convergent release (${reason})`,
+    reversibility: 'high',
+  });
+  try { appendEntry({ runDir, entry }); } catch { /* best-effort, never gates the release */ }
 }
 
 // opts: { cwd?, ghApi? } — `ghApi` is an injectable override for this
@@ -323,7 +358,7 @@ async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
     // authoritative for its conditional write, and the same distinction
     // the `!isActive` cache-write above draws for exactly the same reason.
     candidates.push({
-      issueNumber, runId, name: entry.name, sha: claim.sha, classifiedState: classified.state, prState: null, joinFailure, branch,
+      issueNumber, runId, name: entry.name, sha: claim.sha, classifiedState: classified.state, prState: null, joinFailure, branch, runDir,
     });
   }
 
@@ -376,6 +411,10 @@ async function releaseMerged({ cwd, ghApi: ghApiOverride } = {}) {
     const ok = writeTombstone(repoSlug, c.name, c.sha, payload.tombstoneContent, reason);
     if (!ok) { skipped.push({ issueNumber: c.issueNumber, runId: c.runId, reason: 'release-write-failed' }); continue; }
     removeInProgressLabel(repoSlug, c.issueNumber, api); // best-effort, never gates the release
+    if (reason.startsWith('merged:')) {
+      removeGrantLabels(repoSlug, c.issueNumber, api); // best-effort, never gates the release
+      logGrantRemoval(c.runDir, root, reason);
+    }
     released.push(releasedEntry(c.issueNumber, c.runId, c.prState));
   }
 

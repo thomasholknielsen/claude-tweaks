@@ -79,11 +79,11 @@ Generate the next five sections — Skill updates, Documentation updates, Journe
 |---|---|---|---|---|
 | 14 | 159 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
-An `[adr-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — the row's mechanics are unchanged from the single-spec console (`wrap-up/review-console.md`'s Configuration updates section), only its aggregation is per-spec here, the same way Queue writes already aggregates.
+A `[{genre}-convention]` row renders inside its hosting section (Configuration updates for `[adr-convention]`, Documentation updates for a D2 Diátaxis-genre instance) but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — the row's mechanics are unchanged from the single-spec console (`wrap-up/console-template.md`), only its aggregation is per-spec here, the same way Queue writes already aggregates.
 
 #### Reference repairs (from each spec's Broken references curation row)
 
-Render this section whenever any spec's broken-reference sweep found a surviving reference, in either of two states — **applied** (already happened in that spec's own `Initiative-Fix:` commit) or **staged** (an ordinary approval row). Omit the section entirely when every spec's sweep found nothing.
+Render this section whenever any spec's broken-reference sweep found a surviving reference, in either of two states — **applied** (already happened, committed by the controller's serial-commit pass, `curation-engine.md` section 4, with the `Initiative-Fix:` trailer) or **staged** (an ordinary approval row). Omit the section entirely when every spec's sweep found nothing.
 
 | # | Spec | State | Target | Repair | Broken by | Why |
 |---|---|---|---|---|---|---|

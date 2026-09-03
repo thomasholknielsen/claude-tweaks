@@ -80,6 +80,32 @@ session later continues this pipeline" — it flips `status` back to `active` un
 session's identity, which is also what makes the "Own session" fast path above correct for any
 further probing inside the same now-resumed run.
 
+## Staged inventory reconciliation (non-blocking companion check, #1269)
+
+Run alongside `check-resume-freshness` at every call site that cites this file, not as a
+replacement for it:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" check-staged-inventory --run "{run-dir}"
+```
+
+Parses every `STAGED ... Stage path: staged/{name}` line in this run's `decisions.md` and checks
+whether the named file actually exists under `staged/` — catching the case where a session
+crashed between `log-decision.js`'s write of the `decisions.md` line and `stage-item.js`'s write
+of the actual staged file, leaving `decisions.md` claiming a proposal exists that was never
+written.
+
+**Never blocks the resume.** Unlike `check-resume-freshness`'s `OK`/`BLOCKED` verdict, this
+command always exits `0` and its result never stops a resume from proceeding — it only surfaces
+what it found:
+
+- `claude-tweaks: staged inventory OK for {run-id} ({N} STAGED entries)` — every named `staged/`
+  destination exists (or there are none). Proceed silently.
+- `claude-tweaks: staged inventory MISMATCH for {run-id} — {N} of {M} STAGED entries missing from
+  staged/: {paths}` — report this line verbatim alongside the resume's normal outcome so a human
+  or agent re-deriving the missing proposal(s) from `decisions.md`'s prose knows to do so, rather
+  than assuming `staged/` is complete.
+
 ## When blocked
 
 A `BLOCKED` result stops the resume; it does not mean the run is unrecoverable.

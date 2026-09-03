@@ -17,8 +17,6 @@ const GATE = read('plugin/skills/_shared/deferral-gate.md');
 const LEDGER = read('plugin/skills/_shared/ledger-format.md');
 const AUTONOMY_SRC = read('plugin/bin/lib/issues/autonomy.js');
 
-const REMOVAL_CONDITION = 'Remove CATEGORY_PATTERNS/UNRELATED_TESTS_RE once every consumer named in skills/_shared/deferral-gate.md stamps a structured Defer-reason: (#621, #624) and tests/deferral-gate-conformance.test.js has been green for one shipped release; tracked by the follow-up record filed at build time.';
-
 // The vocabulary is the first fenced block after the "## `Defer-reason:` vocabulary"
 // heading; each line is "{value} — {one-line definition}".
 function parseVocabulary(md) {
@@ -71,6 +69,10 @@ for (const anchor of BAD_REASON_ANCHORS) {
   });
 }
 
+test('deferral-gate.md\'s bundling exception cites materiality-floor.md by literal path', () => {
+  assert.ok(GATE.includes('_shared/materiality-floor.md'));
+});
+
 test('deferral-gate.md names its consumers, the hard gate, re-verification, and where the reason lives', () => {
   for (const consumer of [
     'skills/review/step3-routing.md', 'skills/reflect/full-mode.md', 'skills/reflect/hindsight-mode.md',
@@ -81,13 +83,6 @@ test('deferral-gate.md names its consumers, the hard gate, re-verification, and 
   assert.ok(GATE.includes('## Re-verification'));
   assert.ok(GATE.includes('## Where the reason lives'));
   assert.ok(GATE.includes('by key, never by position'));
-});
-
-// --- removal condition: prose == code comment ---
-
-test('deferral-gate.md and autonomy.js carry the removal condition in the same words', () => {
-  assert.ok(GATE.includes(REMOVAL_CONDITION), 'deferral-gate.md');
-  assert.ok(AUTONOMY_SRC.includes(REMOVAL_CONDITION), 'autonomy.js');
 });
 
 // --- STRUCTURED_FLOOR covers the whole vocabulary (a gap would fail silently to false) ---
@@ -211,13 +206,14 @@ test('auto-decision-log.md defines the REFUSED entry kind', () => {
 
 test('work-record.md carries the born-shaped rows for /wrap-up, /reflect, /review', () => {
   const wr = read('plugin/skills/_shared/work-record.md');
+  const matrix = read('plugin/skills/_shared/work-record-permission-matrix.md');
   for (const actor of ['/wrap-up', '/reflect', '/review']) {
-    const row = wr.split('\n').find((l) => l.startsWith(`| **\`${actor}\`**`));
+    const row = matrix.split('\n').find((l) => l.startsWith(`| **\`${actor}\`**`));
     assert.ok(row, `${actor} row`);
     assert.ok(row.includes('ready'), `${actor} Adds ready`);
     assert.ok(row.includes('specShapedBody'), `${actor} conditions on specShapedBody`);
   }
-  assert.ok(!wr.includes('is the only actor this covers'));
+  assert.ok(!matrix.includes('is the only actor this covers'));
   const bornReady = wr.slice(wr.indexOf('## Born-ready rule'));
   assert.ok(bornReady.includes('side-effect'));
 });
@@ -347,4 +343,15 @@ test('a shaped-branch born-ready filing composes the exact labels and body AC 1 
   assert.deepEqual(p.labels, ['by:capture', 'risk:low', 'size:medium', 'ready']);
   assert.strictEqual((p.body.match(/^Defer-reason: tangential$/gm) || []).length, 1);
   assert.ok(p.body.includes('via specShapedBody'));
+});
+
+// --- #1703: --source intake exemption from the deferral check ---
+
+test('capture/SKILL.md names --source intake in at least three places, the deferral-check exemption, and the CSC trust boundary', () => {
+  const c = read('plugin/skills/capture/SKILL.md');
+  assert.ok((c.match(/--source intake/g) || []).length >= 3, 'at least three --source intake mentions');
+  assert.ok(c.includes('other than `intake`'), 'deferral check names the intake exemption');
+  assert.ok(c.includes('any `--source`'), 'every non-intake --source value keeps today\'s rule');
+  const csc = c.slice(c.indexOf('## Component-Skill Contract'));
+  assert.ok(csc.includes('prose-trusted'), 'CSC states the trust boundary');
 });

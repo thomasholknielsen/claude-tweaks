@@ -11,6 +11,8 @@
 
 const { execFileSync } = require('child_process');
 const link = require('./lib/issues/link');
+const { invalidateSnapshot } = require('./lib/issues/record-snapshot');
+const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: link-records.js [--parent <n> --subs <n,n,...>] [--blocked-by "<dependent:blocker>,..."] [--repo owner/name] [--help]\n       at least one of --parent+--subs or --blocked-by is required\n';
 
@@ -43,15 +45,11 @@ function parseArgs(argv) {
   return opts;
 }
 
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
 const realDeps = {
   runner: link.defaultRunner,
   ghAvailable: () => { try { execFileSync('gh', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } },
   remoteUrl: () => execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }),
+  invalidateSnapshot,
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
 };
@@ -79,6 +77,16 @@ function run(argv, deps = realDeps) {
   const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(remote);
   if (!repoSpec) { deps.stderr('link-records.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
   const { owner, repo } = repoSpec;
+  // #1443: parseRepo's regex accepts any non-'/' owner/repo segment, including '.'/'..'
+  // (#1153 review finding). link.linkSubIssues/linkBlockedBy build a `repos/${owner}/${repo}/
+  // issues/.../sub_issues|dependencies/blocked_by` REST path via direct string interpolation
+  // rather than gh's bound-variable mechanism, so a crafted --repo value reaches that path
+  // string. Reject it here rather than narrowing the shared parseRepo, which 8 other CLIs also
+  // call — same guard shape as fetch-sub-issues.js's own #1153 fix.
+  if (owner === '.' || owner === '..' || repo === '.' || repo === '..') {
+    deps.stderr('link-records.js: invalid --repo value — owner/repo cannot be "." or ".."\n');
+    return 2;
+  }
   const numbers = [...(hasSubs ? [opts.parent, ...opts.subs] : []), ...opts.blockedBy.flatMap((e) => [e.dependent, e.blocker])];
   let ids;
   try {
@@ -90,6 +98,11 @@ function run(argv, deps = realDeps) {
   const subIssues = hasSubs
     ? link.linkSubIssues({ owner, repo, parent: opts.parent, subs: opts.subs, ids, runner: deps.runner })
     : { ok: [], failed: [] };
+  // A successful sub_issues link write changes the same parent/sub-issue facts
+  // _shared/trust-table.md's native branch caches in the session-scoped sub-issues
+  // snapshot — invalidate it so the next read re-fetches instead of serving a stale
+  // set for the rest of the TTL (#1097).
+  if (subIssues.ok.length > 0) deps.invalidateSnapshot(process.env.CLAUDE_CODE_SESSION_ID);
   const blockedBy = link.linkBlockedBy({ owner, repo, edges: opts.blockedBy, ids, runner: deps.runner });
   const idsObj = {}; for (const [n, id] of ids) idsObj[String(n)] = id;
   deps.stdout(JSON.stringify({ repo: `${owner}/${repo}`, ids: idsObj, subIssues, blockedBy }, null, 2) + '\n');

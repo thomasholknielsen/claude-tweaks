@@ -106,6 +106,8 @@ Need: actual file path of the auth middleware, or confirmation it doesn't exist.
 
 SubagentStop hook (E3) logs replies missing the status line to the run dir's `events.jsonl` (best-effort — the event fires unreliably for Task dispatches, claude-code#27755).
 
+**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) tests one regex against the last assistant text it can reach and has no way to know *which* agent replied or what contract that dispatch declared, so at least two non-violating cases land in the log identically: a dispatch whose own template specifies a different first line (its header comment names this one), and a **third-party agent exempt from this contract entirely** (see Exemption below — an exempt agent "is not violating a format it was never given", yet its reply still trips the regex; `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch is the everyday instance). Triage each entry against the dispatch that produced it before treating it as a finding — and never re-prompt an exempt agent on the strength of one.
+
 ## Model Selection
 
 Match the profile to the work. A **work profile** names the kind of work; this table — the single canonical resolution — says what runs it:
@@ -211,6 +213,15 @@ tail — either a non-blocking `TaskOutput` call read for its trailing `<error>`
 raw transcript internals (measured at ~6% of one run's total tool-result characters for zero
 net information when read in full).
 
+**The session-limit signature is a terminal, non-retryable-now failure class, distinct from a
+transient 5xx.** An agent whose trailing `<error>` block reads `Agent terminated early due to an
+API error: You've hit your session limit` will not succeed on an immediate retry the way a
+transient 5xx/timeout might — the caller's account-level limit, not the agent's own work, caused
+the termination. A dispatch site handling a reproduction-pair partner's death this way retries
+once (to rule out a spurious one-off) and, on a second failure, degrades rather than retrying
+again in a loop — see `review/step3-lens-dispatch.md`'s reproduction-pair section for the
+degrade procedure this classification feeds.
+
 ## Exemption: third-party agents
 
 **The condition is structural, not a judgment call.** An agent is exempt from this contract when **its definition file lives outside the `agents/` directory this plugin owns** — it ships with a third-party plugin and is invoked as a delegation. Everything under this repository's `agents/` (declared in `.claude-plugin/plugin.json`'s `agents` array) is claude-tweaks-authored and is **never** exempt, however awkward its output is to parse. "This agent's output is inconvenient" is not a reading this paragraph supports: a dispatch site settles its own eligibility by asking where the agent file lives, with no appeal to intent.
@@ -230,7 +241,7 @@ Re-prompting on format (below) does not apply to an exempt agent: it is not viol
 
 ## Re-prompt on violation
 
-When an agent returns malformed output (no table, narration before the table, wrong columns), the dispatcher re-prompts:
+When an agent returns malformed output — a wrong or missing status line, no table, narration before the table, wrong columns — the dispatcher re-prompts:
 
 ```
 Your output didn't match the required format. Re-emit using only this format:
@@ -239,6 +250,8 @@ Do not add explanation.
 ```
 
 Cap at one retry. If still malformed, accept what you got and move on (do not loop).
+
+**Check the status word's position, not merely its presence.** A reply that opens with narration and states the status word only later ("Based on my review, DONE") violates the Implementer Status Protocol even though the literal token appears somewhere in the reply. Verify line 1 is exactly the status word before accepting it: reading a reply for its content does not check this, and a dispatcher that trusts its own read-through accepts the violation silently. Observed twice — #606's wrap-up (a lens agent accepted on token presence alone), and record #1653, where 3 of 8 `/claude-tweaks:review` lens dispatches opened with narration and all three were accepted with no re-prompt, despite every prompt carrying the explicit `WRONG: "Based on my review, DONE"` example.
 
 ## Anti-Patterns
 
@@ -253,6 +266,8 @@ Cap at one retry. If still malformed, accept what you got and move on (do not lo
 | Skipping the "if no findings" literal text | Without it, agents pad empty results with explanation. |
 
 ## How to integrate at a dispatch site
+
+**Fan-out dispatch shape.** Emit all N `Agent`/`Task` calls of a fan-out as tool_use blocks in a single assistant message; a call per message is a serialized dispatch even when the prose says parallel — the harness only runs tool calls concurrently when they arrive as multiple `tool_use` blocks in one message. When a fan-out spans multiple independent units of work (e.g. several records, each needing its own persona set), batch by unit: one message per record's persona set, never one message per individual agent.
 
 In a Form B blockquote:
 
@@ -280,7 +295,7 @@ If no findings: return literal text "No findings."
 Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
 Do not add narration, headers, or summaries before or after the table.
 
-[Use: Standard model.]
+[Use: Standard]
 ```
 
 The blockquote above is the dispatch-site directive; the fenced block is what each `Task()` call's prompt actually contains.

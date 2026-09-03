@@ -8,10 +8,58 @@
 
 const { normalizeLabelNames } = require('./record');
 
+// A path referenced by at least this many items, OR at least this fraction
+// of the batch (whichever is larger — see the max() below), is treated as a
+// hub and excluded from union-find bridging: it still counts as a file the
+// item "has", but it can never be the shared file that merges two items into
+// one group. Tuned against the reported incident (#1365): a 139-record
+// eligible pool where tests/ appeared in 15 records, plugin/bin/hooks.js in
+// 7, plugin/bin/lib/hooks/pre-tool-use.js in 5, and docs/donts.md in 5 —
+// none of which represent real coupling between those records, just a common
+// generic path each happens to touch. The min-count floor keeps small
+// batches (the common case: 2-5 genuinely related records) from ever
+// tripping the fraction half by accident; the tradeoff, accepted
+// deliberately, is that a truly coincidental full-batch match (e.g. exactly
+// 3 unrelated items in a 3-item batch that all happen to cite one path) also
+// gets excluded — an "anomalously large fraction" is exactly what that is,
+// regardless of how small the batch happens to be.
+const HUB_PATH_MIN_COUNT = 3;
+const HUB_PATH_FRACTION = 0.1;
+
+// Shared by groupByFileOverlap and detectCrossPRFileOverlap: a path referenced
+// by at least `minCount` items in `items`, OR at least `fraction` of `items`
+// (whichever is larger), is a "hub" -- generic churn rather than a real
+// coupling/overlap signal. `getFiles(item)` extracts each item's file list;
+// counted once per item (a duplicate path within one item's own list must not
+// inflate its count) so hub detection reflects how many *distinct items* cite
+// it. Pure; returns a Set of hub paths.
+function computeHubPaths(items, getFiles, minCount, fraction) {
+  const fileCounts = new Map();
+  for (const item of items) {
+    for (const file of new Set(getFiles(item) || [])) {
+      fileCounts.set(file, (fileCounts.get(file) || 0) + 1);
+    }
+  }
+  const threshold = Math.max(minCount, Math.ceil(items.length * fraction));
+  const hubPaths = new Set();
+  for (const [file, count] of fileCounts) {
+    if (count >= threshold) hubPaths.add(file);
+  }
+  return hubPaths;
+}
+
 // Partitions items into groups whose keyFiles overlap, directly or
 // transitively (union-find over shared file paths). Items with no overlap
-// to anything else in the batch are singleton groups.
-function groupByFileOverlap(items) {
+// to anything else in the batch are singleton groups. A file path referenced
+// by an anomalously large fraction of the batch (see HUB_PATH_MIN_COUNT/
+// HUB_PATH_FRACTION above, overridable via options) is excluded from the
+// union-find step entirely — as is any bare directory-level entry, regardless
+// of count. Such a path can never bridge two items together, though each
+// item's other files still can.
+function groupByFileOverlap(items, options = {}) {
+  const hubPathMinCount = options.hubPathMinCount ?? HUB_PATH_MIN_COUNT;
+  const hubPathFraction = options.hubPathFraction ?? HUB_PATH_FRACTION;
+
   const parent = new Map();
   function find(x) {
     while (parent.get(x) !== x) {
@@ -28,9 +76,19 @@ function groupByFileOverlap(items) {
 
   for (const item of items) parent.set(item.id, item.id);
 
+  const hubPaths = computeHubPaths(items, (item) => item.keyFiles, hubPathMinCount, hubPathFraction);
+
+  // Two independent, additive exclusions from bridging. Neither removes a file
+  // from an item's keyFiles — only its eligibility to bridge two items here:
+  //   - a hub path (counted above, #1365);
+  //   - a bare directory-level entry (trailing "/", no filename component —
+  //     "tests/", "plugin/skills/"), which is syntactically generic no matter
+  //     how few records cite it, so two records sharing only one would
+  //     otherwise still union transitively below the hub threshold (#1420).
   const fileToId = new Map();
   for (const item of items) {
     for (const file of item.keyFiles || []) {
+      if (hubPaths.has(file) || file.endsWith('/')) continue;
       if (fileToId.has(file)) union(item.id, fileToId.get(file));
       else fileToId.set(file, item.id);
     }
@@ -43,6 +101,101 @@ function groupByFileOverlap(items) {
     groups.get(root).push(item.id);
   }
   return [...groups.values()];
+}
+
+// A group whose member count exceeds this threshold is oversized — a second,
+// independent line of defense alongside the hub-path/bare-directory bridging
+// exclusions above (#1228). Those two prevent most false unions at the
+// source; this catches whatever still slips through (a batch of genuinely
+// overlapping records that's just large, or a bridging rule this file
+// doesn't yet anticipate) before a caller commits to running it as one
+// build/test/review/wrap-up flow. Tuned the same way HUB_PATH_MIN_COUNT is
+// tuned above: the reported incident was a 52-record group against a queue
+// where a real bundle is size 2-3, so 10 comfortably separates "large but
+// plausible" from "clearly a false union."
+const GROUP_SIZE_GUARD_DEFAULT = 10;
+
+// Splits groups into those at-or-under the size guard and those over it.
+// Pure -- takes no action itself. `dispatch`'s queue-pull script (Step 2)
+// uses this to exclude an oversized group from `next`'s headless
+// auto-selection while still surfacing it, the same shape its existing
+// blocked-exclusion report already uses (#1228's Acceptance Criteria: never
+// auto-select a group above the guard without at least surfacing it).
+function partitionGroupsBySizeGuard(groups, options = {}) {
+  const threshold = options.groupSizeGuard ?? GROUP_SIZE_GUARD_DEFAULT;
+  const withinGuard = [];
+  const oversized = [];
+  for (const group of groups) {
+    (group.length > threshold ? oversized : withinGuard).push(group);
+  }
+  return { withinGuard, oversized, threshold };
+}
+
+// A path touched by this large a fraction of the *open-PR pool* is generic
+// churn (a re-edited SKILL.md, docs/donts.md, a shared test fixture) rather
+// than evidence two records fix the same root cause — the same rationale as
+// HUB_PATH_MIN_COUNT/HUB_PATH_FRACTION above (#1365), computed over open PRs
+// instead of over the candidate batch, since the pools being compared here
+// are different (an eligible dispatch candidate's keyFiles vs. an unrelated
+// open PR's changed files, not candidate-to-candidate).
+const CROSS_PR_HUB_MIN_COUNT = 3;
+const CROSS_PR_HUB_FRACTION = 0.2;
+
+// candidates: [{number, keyFiles}], openPRs: [{number, files, closingIssueNumbers}]
+// -> [{candidate, pr, files}], one entry per (candidate, PR) pair whose file
+// sets share at least one non-hub, non-directory path (#1579's AC1 signal).
+//
+// This is deliberately NOT the same check PR #1572 (fixing #1224) already
+// shipped: that one excludes a candidate from eligibility when its OWN linked
+// PR (a closing-keyword or "Development" reference to that same issue number)
+// is still open — a re-dispatch guard, issue-scoped and self-referential. It
+// says nothing about two DIFFERENT issues independently diagnosing the same
+// root cause (the #1410/#1402 case this record documents), where the open PR
+// in question belongs to the *other* issue, not the candidate. A PR that
+// already closes/links the candidate itself is excluded here via
+// `closingIssueNumbers` — that pair is #1224's exclusion to make, not a
+// cross-issue duplicate for this function to also flag.
+//
+// Pure and read-only. Per #1579's AC2, this never removes a candidate from
+// eligibility — it only reports a same-file overlap for a human (or a
+// headless firing's decisions.md) to see and choose to serialize. False-
+// positive sources evaluated: (1) generic/hub paths, excluded by the
+// hub-path threshold above; (2) bare directory-level entries (no filename
+// component), excluded the same way groupByFileOverlap excludes them (#1420);
+// (3) a candidate's own linked PR, excluded via closingIssueNumbers so this
+// never doubles up on #1224's own signal. What's left — two independent
+// records whose declared/inferred key files hit the same specific,
+// non-generic path while an unrelated PR referencing neither of them is
+// still open — is a small, deliberately noisy-favoring residual: a real
+// coincidence (two unrelated fixes to one busy-but-not-hub file) still
+// surfaces, but only as an informational line, never a block, exactly what
+// AC2 asks for ("a documented fallback for 'unclear'").
+function detectCrossPRFileOverlap(candidates, openPRs, options = {}) {
+  const hubMinCount = options.hubPathMinCount ?? CROSS_PR_HUB_MIN_COUNT;
+  const hubFraction = options.hubPathFraction ?? CROSS_PR_HUB_FRACTION;
+  const pool = openPRs || [];
+  const hubPaths = computeHubPaths(pool, (pr) => pr.files, hubMinCount, hubFraction);
+
+  // A path specific enough to carry the signal: a real filename (not a bare
+  // directory entry, #1420) that isn't generic open-PR churn (a hub path).
+  function isSignal(file) {
+    if (typeof file !== 'string' || file === '' || file.endsWith('/')) return false;
+    return !hubPaths.has(file);
+  }
+
+  const overlaps = [];
+  for (const candidate of candidates || []) {
+    // Every member is already a signal path, so the PR-side filter below needs
+    // no second isSignal check.
+    const keyFiles = new Set((candidate.keyFiles || []).filter(isSignal));
+    if (keyFiles.size === 0) continue;
+    for (const pr of pool) {
+      if ((pr.closingIssueNumbers || []).includes(candidate.number)) continue;
+      const shared = (pr.files || []).filter((file) => keyFiles.has(file));
+      if (shared.length > 0) overlaps.push({ candidate: candidate.number, pr: pr.number, files: shared });
+    }
+  }
+  return overlaps;
 }
 
 const ANCHOR_RE = /Anchor:\s*`([^`#]+)/;
@@ -192,12 +345,40 @@ function extractKeyFiles(issue) {
 // explicit-list dispatch form, e.g. "#123, #124,#130") into an array of
 // issue numbers. Non-numeric entries are dropped, not thrown — a malformed
 // entry in an otherwise-valid list shouldn't abort the whole parse.
+// Parses a dispatch `#N[,#M...]` explicit-list argument per
+// `_shared/record-batch-input.md`'s grammar: split on comma, trim each
+// element, classify. Returns `{ numbers, invalid }` — `numbers` is every
+// element that classified as a record reference (parsed to a positive
+// integer; the `#` sigil is optional), in list order; `invalid` is every
+// element that did not, also in list order, each `{ token, reason }` —
+// `token` the trimmed (possibly empty) element as typed, `reason` the
+// contract's canonical naming ("'{element}' is not a record reference" /
+// "empty element after #{prev}"). This function performs classification
+// only — whether dispatch reports `invalid` and proceeds with `numbers`
+// anyway, or aborts entirely, is dispatch's own execution semantics
+// (`_shared/record-batch-input.md`'s Out-of-scope section), decided by the
+// caller, never by this function.
 function parseExplicitIssueList(argString) {
-  return (argString || '')
-    .split(',')
-    .map((s) => s.trim().replace(/^#/, ''))
-    .map(Number)
-    .filter((n) => Number.isInteger(n) && n > 0);
+  const trimmedArg = (argString || '').trim();
+  if (trimmedArg === '') return { numbers: [], invalid: [] };
+  const numbers = [];
+  const invalid = [];
+  let prev = null;
+  for (const raw of trimmedArg.split(',')) {
+    const el = raw.trim();
+    if (el === '') {
+      invalid.push({ token: el, reason: prev !== null ? `empty element after #${prev}` : 'empty element' });
+      continue;
+    }
+    const n = Number(el.replace(/^#/, ''));
+    if (Number.isInteger(n) && n > 0) {
+      numbers.push(n);
+      prev = n;
+    } else {
+      invalid.push({ token: el, reason: `'${el}' is not a record reference` });
+    }
+  }
+  return { numbers, invalid };
 }
 
 // Given a set of requested issue numbers and dispatch Step 2's already-
@@ -220,4 +401,4 @@ function selectGroupsForExplicitList(requestedNumbers, groups) {
   return { selectedGroups, notFound };
 }
 
-module.exports = { groupByFileOverlap, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin };
+module.exports = { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin, detectCrossPRFileOverlap, CROSS_PR_HUB_MIN_COUNT, CROSS_PR_HUB_FRACTION };

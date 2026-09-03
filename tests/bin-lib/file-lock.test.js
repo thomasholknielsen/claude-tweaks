@@ -4,76 +4,90 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawn } = require('child_process');
 const { acquireLock, releaseLock, withLock } = require('../../plugin/bin/lib/file-lock');
 
-function tmpLock() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'file-lock-'));
-  return path.join(dir, 'x.lock');
+function tmpDir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'ct-file-lock-'));
 }
 
-test('acquireLock/releaseLock: acquire succeeds once, fails while held, succeeds again after release', () => {
-  const lock = tmpLock();
-  assert.equal(acquireLock(lock), true);
-  assert.equal(acquireLock(lock, { waitMs: 50 }), false);
-  releaseLock(lock);
-  assert.equal(acquireLock(lock), true);
-  releaseLock(lock);
+test('acquireLock: creates the lock directory and returns its path', () => {
+  const dir = tmpDir();
+  const lockPath = path.join(dir, '.x.lock');
+  const held = acquireLock(lockPath);
+  assert.equal(held, lockPath);
+  assert.ok(fs.existsSync(lockPath));
 });
 
-test('acquireLock: reclaims a lock older than staleMs', () => {
-  const lock = tmpLock();
-  fs.mkdirSync(lock);
-  const old = Date.now() - 10_000;
-  fs.utimesSync(lock, old / 1000, old / 1000);
-  assert.equal(acquireLock(lock, { waitMs: 200, staleMs: 100 }), true);
-  releaseLock(lock);
+test('acquireLock: parent directory missing -> creates it and still acquires the lock (#1269 follow-up)', () => {
+  // A missing parent is the common case on a brand-new store's first-ever write, not an
+  // unexpected failure -- treating it as "nothing to lock" let every concurrent caller skip
+  // locking entirely on a fresh project (the declined-learning/store-concurrency.test.js
+  // regression this follow-up fixes).
+  const lockPath = path.join(tmpDir(), 'nonexistent-subdir', '.x.lock');
+  const held = acquireLock(lockPath);
+  assert.equal(held, lockPath);
+  assert.ok(fs.existsSync(lockPath));
 });
 
-test('withLock: runs fn while holding the lock and releases it after (sync fn)', () => {
-  const lock = tmpLock();
-  let ranWhileHeld = false;
-  const result = withLock(lock, () => {
-    ranWhileHeld = fs.existsSync(lock);
-    return 'ok';
-  });
-  assert.equal(ranWhileHeld, true);
+test('releaseLock: removes the lock directory; a no-op on null is safe', () => {
+  const dir = tmpDir();
+  const lockPath = path.join(dir, '.x.lock');
+  acquireLock(lockPath);
+  releaseLock(lockPath);
+  assert.ok(!fs.existsSync(lockPath));
+  assert.doesNotThrow(() => releaseLock(null));
+});
+
+test('withLock: runs fn while holding the lock, releases it afterward even on throw', () => {
+  const dir = tmpDir();
+  const lockPath = path.join(dir, '.x.lock');
+
+  const result = withLock(lockPath, () => 'ok');
   assert.equal(result, 'ok');
-  assert.equal(fs.existsSync(lock), false);
+  assert.ok(!fs.existsSync(lockPath), 'released after a normal return');
+
+  assert.throws(() => withLock(lockPath, () => { throw new Error('boom'); }), /boom/);
+  assert.ok(!fs.existsSync(lockPath), 'released even when fn throws');
 });
 
-test('withLock: releases the lock after an async fn resolves', async () => {
-  const lock = tmpLock();
-  const result = await withLock(lock, async () => {
-    await new Promise((r) => setImmediate(r));
-    return 'done';
-  });
-  assert.equal(result, 'done');
-  assert.equal(fs.existsSync(lock), false);
-});
+test('withLock: a second acquirer waits for the first to release, under real cross-process concurrency (no lost updates)', async () => {
+  // Reproduces the shape declined-learning/store.js's recordDecline relies on: many real OS
+  // processes racing a read-modify-write against the same JSON file, each appending its own key.
+  // Without the lock, one writer's stale-snapshot write would silently drop another's entry.
+  const dir = tmpDir();
+  const lockPath = path.join(dir, '.x.lock');
+  const dataPath = path.join(dir, 'data.json');
+  fs.writeFileSync(dataPath, '{}');
 
-test('withLock: releases the lock when fn throws, and rethrows', () => {
-  const lock = tmpLock();
-  assert.throws(() => withLock(lock, () => { throw new Error('boom'); }), /boom/);
-  assert.equal(fs.existsSync(lock), false);
-});
+  const WORKERS = 8;
+  const fileLockModule = path.join(__dirname, '..', '..', 'plugin', 'bin', 'lib', 'file-lock.js');
+  const workerScript = (i) => `
+    const fs = require('fs');
+    const { withLock } = require(${JSON.stringify(fileLockModule)});
+    withLock(${JSON.stringify(lockPath)}, () => {
+      const current = JSON.parse(fs.readFileSync(${JSON.stringify(dataPath)}, 'utf8'));
+      current['w${i}'] = true;
+      fs.writeFileSync(${JSON.stringify(dataPath)}, JSON.stringify(current));
+    });
+  `;
 
-test('withLock: default is fail-open — fn still runs unlocked when the lock cannot be acquired', () => {
-  const lock = tmpLock();
-  fs.mkdirSync(lock); // pre-held by "someone else", fresh (not stale)
-  let ran = false;
-  withLock(lock, () => { ran = true; }, { waitMs: 30 });
-  assert.equal(ran, true);
-  fs.rmdirSync(lock);
-});
+  const procs = [];
+  for (let i = 0; i < WORKERS; i++) {
+    procs.push(new Promise((resolve, reject) => {
+      const p = spawn(process.execPath, ['-e', workerScript(i)], {
+        env: { ...process.env, CLAUDE_TWEAKS_LOCK_WAIT_MS: '60000' },
+      });
+      let stderr = '';
+      p.stderr.on('data', (d) => { stderr += d; });
+      p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`worker ${i} exited ${code}: ${stderr}`))));
+      p.on('error', reject);
+    }));
+  }
+  await Promise.all(procs);
 
-test('withLock: failClosed throws LOCK_TIMEOUT instead of running fn', () => {
-  const lock = tmpLock();
-  fs.mkdirSync(lock);
-  let ran = false;
-  assert.throws(
-    () => withLock(lock, () => { ran = true; }, { waitMs: 30, failClosed: true }),
-    (err) => err.code === 'LOCK_TIMEOUT',
-  );
-  assert.equal(ran, false);
-  fs.rmdirSync(lock);
+  const final = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+  for (let i = 0; i < WORKERS; i++) {
+    assert.equal(final[`w${i}`], true, `worker ${i}'s key must not be lost to a concurrent writer's stale snapshot`);
+  }
 });

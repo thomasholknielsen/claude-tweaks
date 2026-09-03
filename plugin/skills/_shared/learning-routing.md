@@ -91,7 +91,7 @@ contract introduces no index.
 | **D1** | `CLAUDE.md` is loaded into every session as project instructions — its `Don't` bullets are already resident. Compare against them directly; no read needed. |
 | **D2** | Not resident. Dedup against a read the routing row is already doing: the Skills row's domain-overlap scan, the Docs row's doc scan, and the Journeys row's frontmatter overlap each open the candidate target before writing. Compare there — never write a D2 learning without having read the file it lands in. |
 | **D4** | Read `MEMORY.md` in the supplied memory directory — the harness maintains it as a one-line-per-memory index. |
-| **D5** | Content fingerprint plus `gh issue list --search`. See `/claude-tweaks:feedback`. |
+| **D5** | A component-name search at draft time, plus an exact content-fingerprint marker match at filing time. See `/claude-tweaks:feedback`. |
 
 `docs/incident-log.md` (or any project's equivalent narrative store) is **not**
 read wholesale. Grep it only when the resident-CLAUDE.md check is ambiguous.

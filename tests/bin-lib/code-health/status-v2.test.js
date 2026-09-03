@@ -26,9 +26,9 @@ function writeV2Cache(root, entries) {
 // (cmdStatus derives its remembered count from readDurableState(root).remembered).
 // readDurableState's read path is pure git plumbing (fetch + show), so it can
 // be exercised for real without gh/network via the shared seedDurableState
-// helper (bin/lib/code-health/tests/seed-durable-state.js) — the same
-// technique bin/lib/code-health/tests/cli-nextslice.test.js uses for cursors
-// and bin/lib/code-health/tests/churn-v2.test.js uses for runs.
+// helper (tests/bin-lib/code-health/seed-durable-state.js) — the same
+// technique tests/bin-lib/code-health/cli-nextslice.test.js uses for cursors
+// and tests/bin-lib/code-health/churn-v2.test.js uses for runs.
 function seedDurableRemembered(root, remembered) {
   seedDurableState(root, 'remembered.json', remembered);
 }

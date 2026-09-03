@@ -2,7 +2,7 @@
 
 Canonical contract for the question no doc-creating path used to ask: **does this repo already have its own convention for the genre I am about to write?**
 
-Read by `/claude-tweaks:wrap-up`'s Decision records curation row (`wrap-up/adr-curation.md`) before it proposes an ADR path. The per-genre declarations it keys off live in `_shared/diataxis-genre-templates.md`.
+Read by `/claude-tweaks:wrap-up`'s Decision records curation row (`wrap-up/adr-curation.md`) before it proposes an ADR path, `/claude-tweaks:wrap-up`'s Docs curation row (`wrap-up/docs-health-integration.md` D2) before it proposes a path for one of the four core Diátaxis genres, and `/claude-tweaks:journeys` Step 2 before it writes a new journey file. The per-genre declarations it keys off live in `_shared/diataxis-genre-templates.md`.
 
 ## Why this exists
 
@@ -22,7 +22,7 @@ Skip entirely when that genre's answer is already recorded in `.claude-tweaks/po
 
 1. **Glob** the intended directory plus the genre's declared aliases.
 2. **Fewer than 3 files — no existing convention.** Use the plugin's form and emit nothing. An empty or near-empty directory cannot establish a convention, and a one-file sample is exactly where inference misleads.
-3. **Parse** the filenames for a grammar: prefix, separator, numbering, zero-pad width. A conflict requires **at least 3 files agreeing** on a grammar that differs from the plugin's. Fewer agreeing, or no parseable grammar, is not a conflict — proceed with the plugin's form.
+3. **Parse** the filenames for a grammar via `bin/lib/doc-conventions/parse-grammar.js`'s `parseGrammar(filenames)` — prefix, separator, numbering, zero-pad width, and how many files agree on it. It returns `null` below the 3-file floor or when nothing in the corpus carries parseable numbering; otherwise a `{ prefix, separator, padWidth, agreeing, total }` struct. The module reports the split — it does not decide what the split means. A conflict requires **at least 3 files agreeing** on a grammar that differs from the plugin's. Fewer agreeing, or no parseable grammar, is not a conflict — proceed with the plugin's form.
 4. **Look for a project skill** covering the genre: glob `.claude/skills/*/SKILL.md` and read only each file's frontmatter `description` — the same cheap pass `harness-health/library-shape-analysis.md` specifies, not a full-body read. A description matching the genre's declared keywords means that skill states the project's convention for **shape**.
 5. **Emit a conflict record** carrying: genre, the plugin's form, the found form, one sample filename, the file count, and the project-skill path when one was found.
 

@@ -1,10 +1,8 @@
-# 12. The autonomy ceiling's top tier ships defined but shut
+# 0012. The autonomy ceiling's top tier ships defined but shut
 
-Date: 2026-08-07
-
-## Status
-
-Accepted
+- **Status:** accepted
+- **Date:** 2026-08-07
+- **Context:** Earned-autonomy tier design (`docs/superpowers/specs/2026-08-07-earned-autonomy-tier-design.md`), Phase 3
 
 ## Context
 
@@ -68,8 +66,8 @@ it, which is exactly the property that stops being meaningful.
 
 ## Update (2026-08-10, #269)
 
-Open question 4 is answered: `/claude-tweaks:backlog`'s headless `grant` mode
-(`skills/backlog/grant-mode.md`) is the one path that reads `grantOriginationEnabled` (surfaced as
+Open question 4 is answered: `/claude-tweaks:backlog`'s `refine` mode, in its headless posture
+(`skills/backlog/refine-headless.md`), is the one path that reads `grantOriginationEnabled` (surfaced as
 the `grant-origination-enabled` policy key) and acts on it. The opt-in is still `false` by
 default — a project opts in deliberately, in `policy.yml`, and reaching `unattended` alone still
 does nothing extra by itself. What changed is that a live consumer now exists behind the opt-in,

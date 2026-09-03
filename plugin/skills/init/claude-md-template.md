@@ -80,11 +80,15 @@ How to execute any task here. These apply project-wide unless a more specific ru
 
 **Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No multi-phase plan files (`*-P1.md`, `*-P2.md`, …); a single plan per spec via `/superpowers:writing-plans`, stopped before its execution-choice offer, is expected and normal.
 
+**Spec close-out:** `specs/` is a working directory, not a permanent historical index — once a spec ships and is verified, promote any durable reference content to `docs/reference/*.md` or a skill, repoint by-number citations elsewhere in the repo to the closing commit or PR, then delete the spec file. A permanent tracker file (e.g. `specs/INDEX.md`) is an anti-pattern here, not a convention to preserve.
+
 **Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or a backlog work-record ref.
 
 **`/claude-tweaks:flow`:** specs only — it rejects design docs. Defaults to `auto` (hands-off); pass `confirm`, `interactive`, or `hybrid` to change that.
 
-**Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/claude-tweaks:specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
+**Auto mode:** in default `auto`, the Pipeline Config Manifesto renders as a read-only FYI — it computes and displays the policy levers, then proceeds without stopping — so the only user-facing stop is the Wrap-Up Review Console at the end. Pass `confirm` (or `hybrid`) to turn the Manifesto into a real approval gate; the rest of the pipeline still runs as `auto` once approved.
+
+**Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/claude-tweaks:specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`. Before any merge decision — `/superpowers:finishing-a-development-branch`'s prompt, or `_shared/pr-first-merge.md`'s `gh pr merge` path — for work whose acceptance depends on rendered UI behavior (`Surface:`/`surface:` web/mobile/desktop, or acceptance criteria naming visual/interactive behavior — the signal `frontend-detection.md`'s Layer 2/3, in the `/claude-tweaks:design-wrapper` skill's directory, defines and `/claude-tweaks:specify`'s/`/claude-tweaks:build`'s Next Actions table both reuse), run a real browser-based visual check first — `/claude-tweaks:review {N} full` or `/claude-tweaks:demo`'s Validate step — or have the user explicitly decline it; raw HTML inspection does not satisfy this, and a check that silently self-skipped (no browser backend, no dev server) is not a satisfied precondition — surface it as an explicit decline instead. Backend/infra work with no UI surface is not blocked; a non-web frontend surface (mobile/desktop) with no automated rendered-check channel is satisfied by an explicit decline too (#808).
 
 ## Don'ts
 
@@ -147,7 +151,7 @@ These apply regardless of project maturity:
 - **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
 - **Assume zero cost.** Decide as if implementation is free. Never choose an inferior design because the better one "isn't worth the effort."
 - **Assume zero time.** Decide as if implementation is instant. Never choose a shortcut because the proper approach "takes too long."
-- **No implicit deferrals.** When something needs doing, either do it now or explicitly file a backlog work record via `/claude-tweaks:capture` — with a spec-shaped body (Current State / Deliverables / Acceptance Criteria) and a `Defer-reason:` from `_shared/deferral-gate.md` when an agent holds the context; a stub is for a human typing an idea. Never silently skip work or leave TODO comments without a corresponding backlog record.
+- **No implicit deferrals.** When something needs doing, either do it now, explicitly file a backlog work record via `/claude-tweaks:capture` — with a spec-shaped body (Current State / Deliverables / Acceptance Criteria) and a `Defer-reason:` from `_shared/deferral-gate.md` when an agent holds the context; a stub is for a human typing an idea — or, below the materiality floor, log it to the digest per `_shared/materiality-floor.md`. Never silently skip work or leave TODO comments without a corresponding backlog record or digest entry.
 
 ### Maturity-dependent principles (adapt to classification)
 

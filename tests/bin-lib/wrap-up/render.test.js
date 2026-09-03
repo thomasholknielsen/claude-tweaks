@@ -1,4 +1,4 @@
-// bin/lib/wrap-up/tests/render.test.js
+// tests/bin-lib/wrap-up/render.test.js
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { renderState } = require('../../../plugin/bin/lib/wrap-up/render');

@@ -8,7 +8,7 @@ unconditionally revokes `auto:merge`."
 ```bash
 gh api "repos/{owner}/{repo}/issues/${N}/comments?per_page=100" > /tmp/assess-failure-comments-${N}.json
 node -e "
-  const { countFailedAttempts } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+  const { countFailedAttempts } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
   const comments = require('/tmp/assess-failure-comments-${N}.json');
   console.log(JSON.stringify({ priorAttempts: countFailedAttempts(comments) }));
 "

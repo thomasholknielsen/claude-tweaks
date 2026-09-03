@@ -75,10 +75,91 @@ async function run(ctx) {
         } catch { /* integrity check is advisory — never break the scan */ }
         return base;
       });
+      // #803: the banner previously had no designated consumer — a session could
+      // receive it and never triage or relay it. This trailing sentence is that
+      // consumer: an explicit, model-facing instruction (same pattern as the
+      // worktree-always banner below) to relay the list once, in the session's
+      // first reply, rather than leaving detection with no assigned follow-through.
       parts.push(
         'claude-tweaks: unfinished pipeline run(s) detected under .claude-tweaks/pipelines/:\n' +
           lines.join('\n') +
-          `\nReview {run}/decisions.md and staged/ to resume, or close a finished run with: node "${pluginRoot}/bin/hooks.js" close-run --run <dir>`,
+          `\nReview {run}/decisions.md and staged/ to resume, or close a finished run with: node "${pluginRoot}/bin/hooks.js" close-run --run <dir>` +
+          '\nRelay this list once, in your first reply to the user, one line per run naming its close-run command — do not proceed silently without mentioning it.' +
+          '\nSay with it that only the session owning a run should close it: a listed run may be live in a sibling session right now, and closing it ends that run enforcement and event logging mid-flight.',
+      );
+    }
+  } catch { /* best-effort */ }
+  try {
+    // #1493 AC5 (spec-1493, filed alongside #803 — the SAME designated
+    // consumer this file's stale-run block above already names): a
+    // standalone run (name matches `*-standalone`, the archival-compaction
+    // naming convention `step-6-auto.md` already uses) can finish cleanly and
+    // STILL carry human-facing work — un-actioned proposals under `staged/`
+    // (a `--dry-run` preview, or a staged-but-never-approved tidy firing).
+    // `_shared/pipeline-run-dir.md`'s run-dir layout section names exactly
+    // one terminal status value: "run-state.json (hook-maintained
+    // status/worktree assignment; terminal = status `clean`)" — that is the
+    // ONLY cleanly-finished value used anywhere in this codebase (verified:
+    // no other terminal status string, e.g. "complete", is ever written to
+    // run-state.json), so this checks for it by name rather than "anything
+    // other than interrupted", which would silently also match a future or
+    // unrecognized status value.
+    //
+    // This is a SEPARATE scan from the stale-runs block above, not a branch
+    // inside it: ctxLib.iterRunDirsWithState deliberately excludes status
+    // `clean` runs (context.js: "if (state && state.status === 'clean')
+    // continue;") because for THAT block's purpose (interrupted/still-live
+    // runs) a clean run is correctly done, not stale. Here the opposite
+    // signal matters — clean AND non-empty `staged/` — so it needs its own
+    // directory read rather than reusing that iterator's output.
+    const pipelinesRoot = wtDetect.mainCheckoutRoot(ctx.cwd) || ctx.cwd;
+    const pipelinesDir = path.join(pipelinesRoot, '.claude-tweaks', 'pipelines');
+    let pipelineEntries = [];
+    try { pipelineEntries = fs.readdirSync(pipelinesDir, { withFileTypes: true }); } catch { /* no pipelines dir yet */ }
+    // Only a `*-tidy-standalone*` run dir — or, since sweep's shared run dir
+    // (#1494), a `*-sweep-standalone*` one, whose Step 1 runs tidy inside it
+    // and stages the same residue shape — is `tidy --approve`-resolvable
+    // (`approve-mode.md`'s own glob match) — narrowed from the earlier
+    // `endsWith('-standalone')` match, which also matched every OTHER
+    // standalone-auto skill's run dir (`-init-standalone`, `-capture-standalone`,
+    // etc.), none of which `tidy --approve` can ever resolve or apply.
+    //
+    // Capped at MAX_REPORTED via an early-break for-loop, mirroring the
+    // stale-runs block three lines up (this file's own precedent, whose
+    // own comment a few lines above prescribes exactly this lazy pattern):
+    // the per-name check below costs two fs reads, so only the names
+    // actually reported pay for it, instead of eagerly filtering every
+    // tidy-standalone/sweep-standalone run dir that exists and slicing at the end.
+    const candidateNames = pipelineEntries
+      .filter((e) => e.isDirectory() && /-(tidy|sweep)-standalone/.test(e.name))
+      .map((e) => e.name)
+      .sort()
+      .reverse();
+    const approvable = [];
+    for (const name of candidateNames) {
+      const dir = path.join(pipelinesDir, name);
+      let state;
+      try { state = JSON.parse(fs.readFileSync(path.join(dir, 'run-state.json'), 'utf8')); } catch { continue; }
+      if (!state || state.status !== 'clean') continue;
+      let staged;
+      try { staged = fs.readdirSync(path.join(dir, 'staged')); } catch { continue; }
+      if (!staged.length) continue;
+      approvable.push(name);
+      if (approvable.length >= MAX_REPORTED) break;
+    }
+    if (approvable.length) {
+      const lines = approvable.map(
+        (name) => `- ${name} — staged proposal(s) awaiting approval: /claude-tweaks:tidy --approve "${path.join(pipelinesDir, name)}"`,
+      );
+      // #1493/#803: the same designated-consumer relay directive the
+      // stale-runs banner above already carries — without it this banner
+      // reproduces #803's original defect (detected, never assigned a
+      // follow-through).
+      parts.push(
+        'claude-tweaks: standalone run(s) finished with unapproved staged proposal(s) under staged/:\n' +
+          lines.join('\n') +
+          '\nReview and apply with /claude-tweaks:tidy --approve <dir>, or clear staged/ to dismiss.' +
+          '\nRelay this list once, in your first reply to the user, one line per run naming its tidy --approve command — do not proceed silently without mentioning it.',
       );
     }
   } catch { /* best-effort */ }
@@ -106,8 +187,22 @@ async function run(ctx) {
     // NOT gated on this same stamp — it keys off
     // reconcile-background-status.json's own `completedAt` (see the spawn
     // block below and its comment for why conflating the two was a bug).
+    // `ctx.input.session_id` is the hook payload's own session id — the same
+    // field hooks.js's dispatcher already reads for `ownedRun` (`ctxLib.resolveRun(cwd,
+    // process.env, input.session_id)`), unlike `process.env.CLAUDE_CODE_SESSION_ID`,
+    // which hooks.js's own header comment documents as not reliably present for a
+    // hook-spawned process. FAST_CHECKS never includes 'archive' (see this file's own
+    // constant above), so this has no effect on archive-merged.js's ownership gate
+    // today — that check only ever runs off the detached `reconcile-background`
+    // child process (spawned below), which receives no stdin and therefore has no
+    // session id to thread through at all. Passed here anyway for correctness: this
+    // is the one call site in this file that actually calls reconcile(), and a real
+    // session id is genuinely reachable at it.
+    const sessionId = typeof ctx.input === 'object' && ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id
+      ? ctx.input.session_id
+      : undefined;
     const result = await reconcile({
-      cwd: ctx.cwd, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: DEFAULT_TTL_MS, cache,
+      cwd: ctx.cwd, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: DEFAULT_TTL_MS, cache, sessionId,
     });
 
     // One added summary line for what the fast path did — today just mirror

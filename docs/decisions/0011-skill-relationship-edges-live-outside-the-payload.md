@@ -1,10 +1,8 @@
-# 11. Skill relationship edges live outside the shipped payload
+# 0011. Skill relationship edges live outside the shipped payload
 
-Date: 2026-08-04
-
-## Status
-
-Accepted
+- **Status:** accepted
+- **Date:** 2026-08-04
+- **Context:** SKILL.md context-budget measurement (relationship tables were 13.8% of every SKILL.md byte)
 
 ## Context
 

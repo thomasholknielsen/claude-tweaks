@@ -76,15 +76,49 @@ test('gitInfo derives sha and dirty from the injected exec', () => {
   assert.deepStrictEqual(gitInfo(clean), { sha: 'abc123', dirty: false });
 });
 
-test('writeReportAtomic writes a temp file then renames it over the target (AC3)', () => {
+test('testCountRegression is omitted when null (#881, mirrors counts-never-guessed convention)', () => {
+  const report = composeReport({
+    checks: [PASSING], startedAt: 'x', durationMs: 1, git: { sha: null, dirty: null },
+  });
+  assert.ok(!('testCountRegression' in report));
+});
+
+test('testCountRegression is carried on the report when non-null (#881)', () => {
+  const regression = { previousTests: 10, currentTests: 8, droppedBy: 2 };
+  const report = composeReport({
+    checks: [PASSING], startedAt: 'x', durationMs: 1, git: { sha: null, dirty: null },
+    testCountRegression: regression,
+  });
+  assert.deepStrictEqual(report.testCountRegression, regression);
+});
+
+test('writeReportAtomic writes a pid-suffixed temp file then renames it over the target (AC3)', () => {
   const calls = [];
-  const fakeFs = {
-    writeFileSync: (p, content) => calls.push(['write', p, content]),
-    renameSync: (from, to) => calls.push(['rename', from, to]),
-  };
-  writeReportAtomic({ pass: true }, '/out/report.json', fakeFs);
+  const writeFile = (p, content) => calls.push(['write', p, content]);
+  const rename = (from, to) => calls.push(['rename', from, to]);
+  writeReportAtomic({ pass: true }, '/out/report.json', { writeFile, rename });
   assert.strictEqual(calls[0][0], 'write');
-  assert.strictEqual(calls[0][1], '/out/report.json.tmp');
+  assert.ok(calls[0][1].startsWith('/out/report.json.tmp-'), 'tmp path is pid-suffixed, not a fixed name');
   assert.deepStrictEqual(JSON.parse(calls[0][2]), { pass: true });
-  assert.deepStrictEqual(calls[1], ['rename', '/out/report.json.tmp', '/out/report.json']);
+  assert.deepStrictEqual(calls[1], ['rename', calls[0][1], '/out/report.json']);
+});
+
+test('writeReportAtomic: two different-pid writers no longer collide on the tmp filename (fixes the shared `.tmp` bug)', () => {
+  const writePaths = [];
+  const writeFile = (p) => writePaths.push(p);
+  const rename = () => {};
+
+  const originalPid = process.pid;
+  try {
+    Object.defineProperty(process, 'pid', { value: 111, configurable: true });
+    writeReportAtomic({ pass: true }, '/out/report.json', { writeFile, rename });
+    Object.defineProperty(process, 'pid', { value: 222, configurable: true });
+    writeReportAtomic({ pass: true }, '/out/report.json', { writeFile, rename });
+  } finally {
+    Object.defineProperty(process, 'pid', { value: originalPid, configurable: true });
+  }
+
+  assert.notStrictEqual(writePaths[0], writePaths[1], 'two different-pid writers use two different tmp paths');
+  assert.ok(writePaths[0].endsWith('.tmp-111'));
+  assert.ok(writePaths[1].endsWith('.tmp-222'));
 });

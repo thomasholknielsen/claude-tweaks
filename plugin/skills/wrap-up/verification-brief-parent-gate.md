@@ -88,8 +88,9 @@ Resolve the sub-issue's parent the same way `/claude-tweaks:review` Step 1.6 doe
 from this sub-issue's own side; `work-backend: github-issues` + `work-links: body-text` — the
 `Parent: #N` line in this sub-issue's own body.
 
-**No parent resolvable** (a record human-filed or `/capture`d directly, not produced by a
-`/specify` decomposition) — skip this section entirely: fall through to Steps 1-4 in
+**No parent resolvable** (a record human-filed or `/capture`d directly, or one produced by a
+`/specify` decomposition whose Step 2.6 collapse decision created no parent —
+`specify/decomposition-mode.md`) — skip this section entirely: fall through to Steps 1-4 in
 `verification-brief.md` and apply `demo:pending` to this record itself, exactly as today.
 
 ## Enumerate the parent's sub-issues
@@ -110,32 +111,35 @@ WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-li
 # work-links: native
 gh api "repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues" --jq '.[].number'
 
-# work-links: body-text — parse the parent's own task list
-gh issue view $PARENT_NUM --json body -q .body > /tmp/wrapup-parent-body.md
+# work-links: body-text — parse the parent's own task list. Resolve this run's
+# session-scoped temp path first (_shared/session-tmp-root.md, cited throughout
+# this file rather than restated).
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" WRAPUP_PARENT_BODY=wrapup-parent-body.md)"
+gh issue view $PARENT_NUM --json body -q .body > "$WRAPUP_PARENT_BODY"
 node -e "
-  const { parseSubIssues } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseSubIssues } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const fs = require('fs');
-  console.log(JSON.stringify(parseSubIssues(fs.readFileSync('/tmp/wrapup-parent-body.md','utf8'))));
+  console.log(JSON.stringify(parseSubIssues(fs.readFileSync('$WRAPUP_PARENT_BODY','utf8'))));
 "
 ```
 
-`work-backend: local-files` — the parent body carries no task list (`specify/record-creation.md`'s
-local-files branch writes only `facets.parent` on each sub-issue, never a checklist on the parent), so
+`work-backend: local-files` — the parent body carries no task list (`specify/record-creation-linking.md`'s
+local-files branch — #1346's split of `record-creation.md` — writes only `facets.parent` on each sub-issue, never a checklist on the parent), so
 query the reverse relationship instead — every record whose own `facets.parent` matches, open and
-closed alike (the same two-call merge `specify/record-creation.md:35` already uses):
+closed alike (the same two-call merge `specify/record-creation.md:44` already uses):
 
 ```js
-const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const { queryRecords } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
 const subIssueRecords = [...queryRecords('specs', { parent: PARENT_ID }), ...queryRecords('specs', { parent: PARENT_ID, closed: true })];
-const leaves = subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', facets: r.facets }));
+const subIssues = subIssueRecords.map((r) => ({ number: r.id, state: r.facets.closed ? 'CLOSED' : 'OPEN', facets: r.facets }));
 ```
 
 For each sub-issue number resolved above (`work-backend: github-issues`), fetch its current state
-**and labels** in one call — `gh issue view {n} --json state,labels` — to build the `leaves`
-array `parentGateState({leaves, parentLabels})` (`bin/lib/issues/acceptance.js`) reads, with each
-leaf's `facets` (`parseRecordFacets(labels)`, `bin/lib/issues/record.js`) attached alongside
+**and labels** in one call — `gh issue view {n} --json state,labels` — to build the `subIssues`
+array `parentGateState({subIssues, parentLabels})` (`bin/lib/issues/acceptance.js`) reads, with each
+sub-issue's `facets` (`parseRecordFacets(labels)`, `bin/lib/issues/record.js`) attached alongside
 `state`. `facets` is fetched here, once, and reused by the Oversight-floor check's `maxRiskTier`
-call below — no second per-leaf round-trip.
+call below — no second per-sub-issue round-trip.
 
 Then fetch the **parent's** own current labels — the other argument that predicate takes, and
 the one nothing above has produced yet. Both entry shapes need this: the parent-side entry
@@ -154,7 +158,7 @@ gh issue view $PARENT_NUM --json labels -q '[.labels[].name]'
 **Sub-issue-side entries only** — see "Two entry shapes" above. The parent-side entry never has a
 sub-issue mid-close, so every sub-issue's live state is read as-is, with no special-casing.
 
-**Every sub-issue number in `$CLOSING_SUB_ISSUES` counts as `CLOSED`** when building the `leaves`
+**Every sub-issue number in `$CLOSING_SUB_ISSUES` counts as `CLOSED`** when building the `subIssues`
 array, regardless of what `gh` reports for it. `$CLOSING_SUB_ISSUES` is the set of sub-issues
 *this run* is closing, supplied by the caller. Every sub-issue-side caller evaluates the gate
 while its own sub-issues are still open — all three label **before** the close lands — so reading
@@ -163,7 +167,7 @@ fires.
 
 The set overrides state; it never adds sub-issues. Only members of `$CLOSING_SUB_ISSUES` that
 the enumeration above already returned are affected — a member belonging to a different parent,
-or to no parent at all, is simply irrelevant to this parent's `leaves` array.
+or to no parent at all, is simply irrelevant to this parent's `subIssues` array.
 
 **A sub-issue-side entry arriving without an explicit `$CLOSING_SUB_ISSUES` defaults to the
 one-element set `{the sub-issue in hand}` — never to the empty set.** That default is what keeps
@@ -188,6 +192,15 @@ For the group gate the set's size is the difference between the eager gate firin
 at all: count only the sub-issue in hand and a group holding two or more sub-issues of one parent
 evaluates `incomplete` on every one of them, labeling nothing — not the sub-issues, not the parent.
 
+**Ruling (`#205`): stays a prose contract, not a shared helper.** A fifth caller inherits the
+"default to `{the sub-issue in hand}`, never `{}`" rule above with nothing to catch a wrong value
+if it passes one — the risk this table exists to flag. Given only three callers exist today, each
+already reading this table before writing its own `$CLOSING_SUB_ISSUES` line, and a shared helper
+would mean threading a new call through every one of them for a hazard the default clause already
+closes (an omitted set can no longer silently label nothing — see above), the cost doesn't clear
+the bar yet. Revisit as a real code change once a fourth sub-issue-side caller is added, when the
+table stops being small enough to audit by eye on every new caller.
+
 **The gate still fires once per parent.** The group gate's later invocations for the same
 parent re-fetch the parent's labels (**Enumerate the parent's sub-issues** above does this
 per invocation), read `gated`, and no-op — one brief and one `demo:pending`, never a second.
@@ -197,7 +210,7 @@ because the symptom is a silent no-op.
 
 ## Evaluate the gate
 
-Call `parentGateState({ leaves, parentLabels })`, where `parentLabels` is the parent's current
+Call `parentGateState({ subIssues, parentLabels })`, where `parentLabels` is the parent's current
 labels (`work-backend: github-issues`) or, under `work-backend: local-files`, the one-element
 translation of its `facets.acceptance` (`parent.facets.acceptance ? ['demo:' + parent.facets.acceptance] : []`):
 
@@ -215,9 +228,9 @@ way the non-parent path's Oversight-floor gate does:
 node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values risk-floor size-floor
 ```
 
-Compute `maxTier = maxRiskTier(leaves.map((l) => l.facets))` (`bin/lib/issues/oversight-floor.js`
-— each leaf's already-fetched `risk:*` facets from **Enumerate the parent's sub-issues** above;
-a leaf missing `risk` entirely, or carrying an out-of-vocabulary value, makes `maxTier` `undefined`
+Compute `maxTier = maxRiskTier(subIssues.map((s) => s.facets))` (`bin/lib/issues/oversight-floor.js`
+— each sub-issue's already-fetched `risk:*` facets from **Enumerate the parent's sub-issues** above;
+a sub-issue missing `risk` entirely, or carrying an out-of-vocabulary value, makes `maxTier` `undefined`
 so the call below fails closed as `unscored` rather than being silently outvoted by its siblings).
 Call:
 
@@ -233,7 +246,7 @@ own (`specify/record-creation.md`'s Parent record section), so there is nothing 
 regardless.
 
 - **`exceeds: false`** — the parent closes cleanly: no `demo:pending`, no brief, same as a
-  below-floor leaf record on the non-parent path. Stop here; do not compose the parent brief.
+  below-floor sub-issue record on the non-parent path. Stop here; do not compose the parent brief.
 - **`exceeds: true`** — proceed to **Compose the parent brief** below, exactly as `due` alone
   used to trigger before this gate existed.
 
@@ -288,11 +301,16 @@ a parent that may already be partially applied, before even composing it above. 
 comment landed but whose label add failed still reads `due`, so `/tidy`'s `Open parent gate`
 action re-enters this section for that parent on every future run. Fetch the parent's comments
 (`gh issue view $PARENT_NUM --json comments`, the same lookup `/claude-tweaks:demo`'s Step 1
-already does) and test whether **any** of them contains a `## Verification Brief` heading — every
-comment on the parent, not just the most recent one, which a human reply or a bot notification
-will routinely have displaced (this population is long-lived open records that other people
-comment on, so a most-recent-only test reports "no brief" on a parent that plainly has one, and
-posts a duplicate).
+already does) and test whether **any** of them contains a `## Verification Brief` heading **with
+a `### Confirmed` section** — every comment on the parent, not just the most recent one, which a
+human reply or a bot notification will routinely have displaced (this population is long-lived
+open records that other people comment on, so a most-recent-only test reports "no brief" on a
+parent that plainly has one, and posts a duplicate). The `### Confirmed` requirement matches
+`execution-and-verification.md`'s verify check exactly (`#205`) — a hand-written comment that
+merely quotes the `## Verification Brief` heading, with no `### Confirmed` section, no longer
+counts as "already posted" here: skipping the real post on that input would leave the record
+`demo:pending` with a brief that then fails verification, which is worse than the rare double-post
+this guard exists to avoid.
 
 If a brief is already present, the recovery is to **skip the comment entirely and apply only the
 missing label**:
@@ -304,11 +322,12 @@ gh issue edit $PARENT_NUM --add-label demo:pending
 That completes the gate — the rest of this subsection is already done for that parent. Never
 blindly re-post.
 
-Otherwise write the rendered template composed above (**Compose the parent brief**) to
-`/tmp/parent-verification-brief.md`, then:
+Otherwise write the rendered template composed above (**Compose the parent brief**) to this run's
+session-scoped `parent-verification-brief.md` (`_shared/session-tmp-root.md`), then:
 
 ```bash
-gh issue comment $PARENT_NUM --body-file /tmp/parent-verification-brief.md
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" PARENT_VERIFICATION_BRIEF=parent-verification-brief.md)"
+gh issue comment $PARENT_NUM --body-file "$PARENT_VERIFICATION_BRIEF"
 gh issue edit $PARENT_NUM --add-label demo:pending
 ```
 
@@ -333,7 +352,7 @@ itself carries no `facets.parent`, so this is a fresh query, not the sub-issue l
 filtered to the entry whose `.id === PARENT_ID`:
 
 ```js
-const { readRecord, writeRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+const { readRecord, writeRecord } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/local-store.js');
 const parentRecord = readRecord(parentPath);
 parentRecord.facets.acceptance = 'pending';
 parentRecord.body = parentRecord.body + '\n\n' + parentBriefTemplate;

@@ -17,6 +17,7 @@ const LIKELIHOOD_VALUES = new Set(TIER_VALUES);
 const EFFORT_VALUES = new Set(TIER_VALUES);
 
 const { getCriterion } = require('./criteria');
+const { requireNonEmptyStrings } = require('../health-core/finding-validation');
 
 // Confidence ordering for floor comparison. Higher index = higher confidence.
 const CONFIDENCE_ORDER = TIER_VALUES;
@@ -49,12 +50,7 @@ function validateFindingV2(obj) {
     return { ok: false, errors: ['finding: must be an object'] };
   }
 
-  for (const field of V2_REQUIRED_STRINGS) {
-    const v = obj[field];
-    if (typeof v !== 'string' || v.trim() === '') {
-      errors.push(`${field}: required non-empty string (got ${JSON.stringify(v)})`);
-    }
-  }
+  errors.push(...requireNonEmptyStrings(obj, V2_REQUIRED_STRINGS));
 
   // relatedAnchors is optional: when present, every entry must be a non-empty string
   // (same shape as `anchor` — sibling occurrences of the same root cause).
