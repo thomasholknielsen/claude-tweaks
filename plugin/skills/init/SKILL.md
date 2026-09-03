@@ -382,23 +382,30 @@ If Step 6 queued a `worktree-always` decision, write it now, bundled into "Isola
 
 ## Next Actions
 
-Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or rendered as one of the markdown lines below. Resolve signals top-to-bottom; the first matching row is the recommendation. The last row is also the catch-all: the signal rows above it are not exhaustive over every possible post-init state (e.g. Update Mode completing a full pass with zero drift and no backlog writes matches none of them), so anything that doesn't match falls through to it, guaranteeing there is always a defined recommendation.
-
-| Signal | Recommended Next Action |
-|--------|------------------------|
-| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and backlog items before resuming feature work |
-| Backlog has work records written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /claude-tweaks:init just captured |
-| Initial Mode ran AND backlog is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into the backlog for triage |
-| Everything is clean (Update Mode early-exit or a full pass ending with zero drift, OR Initial Mode with nothing routed to the backlog), or no row above matches | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
-
-Once resolved to a single recommended row, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — the resolved recommendation first, bolded, with `(recommended)`, plus the two "Always" lines below:
-
-**{the resolved recommendation's full command text from the matched row}** — {short one-line summary of it} (recommended)
-`/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature
-`/claude-tweaks:tidy` — review backlog entries
-
-If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it and the last line refer to the same command — collapse them into a single `(recommended)` line rather than repeating `/claude-tweaks:tidy` twice, leaving 2 lines for that render instead of 3.
+Read `next-actions.md` in this skill's directory for the signal-resolution table and render rules.
 
 ## Anti-Patterns
 
-Read `anti-patterns.md` in this skill's directory for the full table.
+| Pattern | Why It Fails |
+|---------|-------------|
+| Modifying existing backlog work records | Phase 0 is additive — never overwrite user content |
+| Skipping CLAUDE.md generation | /claude-tweaks:review can't find verification commands |
+| Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up need git — surface the degradation |
+| Installing browser tools without asking | Optional — surface the install command, never run `npm install` |
+| Prompting for a browser backend choice | Only one backend exists (`agent-browser`) |
+| Generating generic skills (e.g., `auth.md`, `api-routes.md`) | Feature names, not conventions — skills encode rules, anti-patterns, or "why this way" insights observed in the codebase. No WebSockets, no realtime skill; no tests, testing is a backlog item, not a SKILL.md file. |
+| Generating generic skills not grounded in the codebase | Generic advice adds noise, not value |
+| Rewriting CLAUDE.md in Update Mode | Update Mode patches — existing config embeds hard-won lessons |
+| Over-generating skills (15 mediocre > 5 excellent) | Each skill must encode knowledge otherwise lost |
+| Skipping team input | Code archaeology misses social conventions — PR process, deploy cadence, naming |
+| Aspirational Don'ts for things that don't exist | Don'ts guard existing patterns — "No CI" is a backlog item |
+| Putting improvement ideas in CLAUDE.md | It describes the codebase as it is — improvements go to the backlog with Phase 2 context |
+| Generating skills for patterns that don't exist yet | Aspirational skills (testing with no tests) become backlog records with Phase 2 evidence, not SKILL.md files |
+| Hardcoding greenfield philosophy for all projects | Philosophy adapts to detected maturity — greenfield advice is dangerous on an established project |
+| Creating doc files with only TODO placeholders | Phase 2 recon has the data — generate real content; under 20 lines of it belongs in README |
+| Skipping journey discovery for user-facing features | `/review` tests against journeys — without them visual QA has no anchor |
+| Writing journey "should feel" without using the app | Codebase-only skeletons have a weaker "should feel" — mark them as skeletons |
+| Auto-copying local MCP server configs (`~/.claude.json`) into the committed `.mcp.json` | They can carry credentials — committing leaks secrets. Step 14's MCP-parity check is report-only; the user adds any that matter, manually. |
+| Hand-editing `scripts/claude-cloud-setup.sh` | Regenerated on every `/init` run from `.claude/settings.json` — edits are silently overwritten. Customize via `enabledPlugins`/`extraKnownMarketplaces`, then re-run. |
+| Assuming `/init` can set the cloud environment's Setup-script field | No API or CLI sets it remotely (`RemoteTrigger`'s schema covers only `/v1/code/triggers`) — always a manual one-time paste per environment in the claude.ai/code settings UI |
+| Assuming Step 9 can authenticate `gh` non-interactively | `gh auth login --web` is device-flow — it always requires the user's own browser; no headless path exists |
