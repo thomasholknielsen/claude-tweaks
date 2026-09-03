@@ -88,5 +88,8 @@
   },
   "doc:plans/2026-08-26-record-327-ledger": {
     "lastAuditedMs": 1788329710894
+  },
+  "doc:plans/2026-08-27-1368-subagent-contract-violation-investigation-ledger": {
+    "lastAuditedMs": 1788415543903
   }
 }
