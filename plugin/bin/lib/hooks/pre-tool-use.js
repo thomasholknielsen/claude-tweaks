@@ -102,7 +102,12 @@ function toPosix(p) {
 // is the drift this whole binding exists to prevent.
 const GATE_COVERAGE = Object.freeze({
   tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
-  gitActions: Object.freeze(['commit', 'push']),
+  // #976 (IL-141): widened to include git-command.js's PLUMBING_WRITE_SUBCOMMANDS
+  // (mv, rm, update-ref, apply) — see that constant's own header comment for
+  // why these four and not a broader set. A git-plumbing write outside the
+  // isolated worktree now trips the same E1/worktree-always enforcement a
+  // commit/push would, closing the bypass IL-141 documented.
+  gitActions: Object.freeze(['commit', 'push', 'mv', 'rm', 'update-ref', 'apply']),
   bashWriteShapes: WRITE_SHAPES,
   // These have their own prose-binding block — skills/_shared/policy-schema-coverage.md's
   // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins

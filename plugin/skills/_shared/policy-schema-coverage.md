@@ -8,7 +8,7 @@ That binding exists because the list has drifted before. The gate was widened tw
 
 <!-- gate-coverage:begin -->
 - Tools: `Edit`, `Write`, `NotebookEdit`
-- Git actions: `commit`, `push`
+- Git actions: `commit`, `push`, `mv`, `rm`, `update-ref`, `apply`
 - Bash write shapes: `cp`, `mv`, `tee`, `sed`, `perl`, `install`, `ln`, `truncate`, `dd`
 - Exemptions: `.claude-tweaks/pipelines/`, `.claude-tweaks/policy.yml`, an allowlisted `policy-only` commit, an allowlisted `delete-only` push, and a write target that is `gitignored` in its own repo
 <!-- gate-coverage:end -->
@@ -19,7 +19,7 @@ That binding exists because the list has drifted before. The gate was widened tw
 
 **What the gate can see at all.** It is a `PreToolUse` hook, so it inspects *tool calls* — `Edit`/`Write`/`NotebookEdit` inputs and the command string of a `Bash` call. Git and filesystem work performed by the plugin's own Node code via `execFileSync` never passes through a tool call and is therefore never gated: `bin/lib/health-core/durable-state.js`'s `git push` to the `health-state` branch is the standing example, and it is correct as written. Do not "fix" such a call by routing it through Bash.
 
-**Not covered — deliberately, and measured.** `git merge`, `git checkout`, `git pull`, `git fetch`, and every other git subcommand pass freely. Two write shapes also remain uncovered, for two different reasons (#70):
+**Not covered — deliberately (#976/IL-141).** `git commit`/`git push`/`git mv`/`git rm`/`git update-ref`/`git apply` are the only git subcommands this gate classifies as a write; `git merge`, `git rebase`, `git cherry-pick`, `git reset`, `git checkout`, `git switch`, `git restore`, `git stash`, `git pull`, `git fetch`, and every other git subcommand pass freely. The four plumbing verbs above were added because each is UNAMBIGUOUSLY a write in every ordinary invocation; the excluded ones each have a common, genuinely non-mutating shape (`git stash list`/`show`, a path-less `git reset`, `git checkout <branch>` with no path args, …) that this gate's one-level subcommand check cannot distinguish from the mutating form without resolving a second token — the coverage stays narrow rather than pattern-matching every git subcommand indiscriminately. Extend evidence-driven, on a real incident, not speculatively (`bin/lib/hooks/git-command.js`'s `PLUMBING_WRITE_SUBCOMMANDS` carries the same rationale). Two write shapes also remain uncovered, for two different reasons (#70):
 
 - **Bare shell redirection** (`>`, `>>`). It has no command word, and `hooks/hooks.json`'s if-matcher can only recognize a named command — so catching it requires an unconditional `Bash` matcher that spawns the hook on *every* Bash tool call in every session. Measured on `bin/hooks.js pre-tool-use` with a no-target payload, 30 invocations: **42.0 ms idle, 67.9 ms under three concurrent test suites**. The contention figure is the operative one, since parallel worktree sessions are the normal working mode here. Declined on that cost, not on principle — revisit if the hook ever gets meaningfully cheaper.
 - **Opaque program strings** (`python -c`, `sh -c`, `awk`). The write target lives inside a program this cannot parse, so no matcher and no latency budget would help.
