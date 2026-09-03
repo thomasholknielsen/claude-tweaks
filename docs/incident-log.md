@@ -1336,3 +1336,33 @@ verified to fail red on the pre-fix code (42/44, only the two new tests failing)
 restored (44/44 green). The recurring-pattern cost is that this project's own `pre-tool-use.js`
 already has one hardened precedent (`realTarget()`) for exactly this bypass class, and it still had
 to be independently rediscovered rather than reused when a new exemption was authored nearby.
+
+## IL-151 — Working Directory Discipline sanctioned a `cd` form that trips the harness's own permission checker
+
+Reported by the user as recurring, unexpected permission prompts from dispatched subagents even
+under `--dangerously-skip-permissions` — two review-agent examples, one running a plain `grep` on
+a test file, one running `git diff origin/master...HEAD`, both prefixed with `cd <worktree> && `.
+Root cause traced to `subagent-output-contract.md`'s Working Directory Discipline section, which
+listed `cd "/absolute/path" && <command>` and `git -C "/absolute/path" <command>` as two
+interchangeable, equally-valid ways to anchor a dispatched agent's working directory ("Both forms
+work; pick one and use it consistently"). Only the `cd` form is unsafe: the harness's Bash
+permission checker statically scans a command for paths before running it, and when a path-like
+argument follows a `cd` it cannot always resolve, it cannot prove the read stays clear of any
+configured `Read()` deny rule — the user's own baseline hardening (`.env`, `.ssh/**`, `*.pem`),
+unrelated to the actual file being read. A git revision range (`origin/master...HEAD`) compounds
+this, since its `/` gets misread as a path token on top of the unresolved `cd` target. Once
+unresolvable, the checker escalates to the user rather than auto-approving — a hard block that
+`--dangerously-skip-permissions` does not lift, by design, for deny rules specifically. This
+project's own `worktree-always` policy amplifies exposure: lifecycle skills fan out many
+subagents into worktrees, and the contract gave each one a coin flip between the safe and unsafe
+form. Caught by the user hitting it repeatedly across independent dispatches, not by review or a
+test — the contract's own prose had no test pinning either form, so nothing would have flagged the
+ambiguity mechanically.
+
+Fixed by rewriting the section to forbid the `cd &&` shape outright for path-sensitive commands:
+`git -C "<path>" <subcommand>` for git, and an absolute path passed as the command's own argument
+for everything else (`grep`, `node --test`, ...), with the mechanism spelled out so a future editor
+doesn't reintroduce `cd` as a third "equally valid" option (`plugin/skills/_shared/subagent-output-contract.md`
+Working Directory Discipline). Doc-only change to a `_shared` contract every Form B/C dispatch site
+already cites by reference, so no per-consumer migration was needed. Cost: low — user-reported
+friction, not a shipped defect; the fix is a prose change with no code path to regress.
