@@ -9,8 +9,9 @@ The dispatcher reads this file **whole** and inlines it into the Work Records ag
 subagents cannot read sibling files, so everything that agent needs is either here or in the
 `_shared/` fragments this file names for the dispatcher to inline alongside it.
 
-Every other scan step (3, 4, 4.5, 4.6, 4.7, 4.8, 4.9, 5, 5.5) and the Collection routing table
-stay in `scan-procedures.md`; every reference below to one of those steps means that file.
+Every other scan step (3, 4, 4.5, 4.6, 4.7, 4.8, 4.9, 5, 5.5) stays in `scan-procedures.md`;
+every reference below to one of those steps means that file. The Collection routing table is a
+further extraction from that file, in `collection-routing.md`.
 
 ---
 

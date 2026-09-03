@@ -18,6 +18,7 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const SCAN = read('plugin', 'skills', '_shared', 'github-pr-scan.md');
 const STEP6 = read('plugin', 'skills', 'tidy', 'step-6-auto.md');
 const TIDY_SKILL = read('plugin', 'skills', 'tidy', 'SKILL.md');
+const TIDY_STEP75_WORKTREE = read('plugin', 'skills', 'tidy', 'step-7-5-worktree-always.md');
 const ACTIONS_GH = read('plugin', 'skills', 'tidy', 'actions-github-issues.md');
 const POLICY_SCHEMA_MD = read('plugin', 'skills', '_shared', 'policy-schema.md');
 const { POLICY_KEYS } = require('../plugin/bin/lib/policy-schema');
@@ -338,29 +339,29 @@ test('tidy/SKILL.md registers Arm ready PR in the Action Vocabulary table', () =
 });
 
 test('tidy/SKILL.md Step 7 documents the marker and grant, and states the marker is stamped under pr-first + worktree-always (#424)', () => {
-  assert.match(TIDY_SKILL, /<!-- tidy-housekeeping-pr -->/);
-  assert.match(TIDY_SKILL, /`housekeeping-auto-merge` set project-wide/);
-  assert.match(TIDY_SKILL, /this run's commit is pushed as a PR by the `worktree-always` handling above/);
+  assert.match(TIDY_STEP75_WORKTREE, /<!-- tidy-housekeeping-pr -->/);
+  assert.match(TIDY_STEP75_WORKTREE, /`housekeeping-auto-merge` set project-wide/);
+  assert.match(TIDY_STEP75_WORKTREE, /this run's commit is pushed as a PR by the `worktree-always` handling above/);
   assert.doesNotMatch(TIDY_SKILL, /As of this writing, Step 7 above does not itself open a PR/);
 });
 
 test('tidy/SKILL.md Step 7.5 opens a marker-stamped PR under pr-first + worktree-always, reusing pr-early-run-lifecycle.md rather than a second implementation (#424)', () => {
-  assert.match(TIDY_SKILL, /skip §5-6's merge-back/);
-  assert.match(TIDY_SKILL, /reusing `_shared\/pr-early-run-lifecycle\.md`'s Step 1 shape/);
-  assert.match(TIDY_SKILL, /Step 3 shape \(compose the body, `gh pr create --base/);
-  assert.match(TIDY_SKILL, /never `--draft` here/);
-  assert.match(TIDY_SKILL, /Stamp `<!-- tidy-housekeeping-pr -->` in the body at creation/);
-  assert.match(TIDY_SKILL, /never Step 4's `record-pr`\/phase-checklist machinery/);
+  assert.match(TIDY_STEP75_WORKTREE, /skip §5-6's merge-back/);
+  assert.match(TIDY_STEP75_WORKTREE, /reusing `_shared\/pr-early-run-lifecycle\.md`'s Step 1 shape/);
+  assert.match(TIDY_STEP75_WORKTREE, /Step 3 shape \(compose the body, `gh pr create --base/);
+  assert.match(TIDY_STEP75_WORKTREE, /never `--draft` here/);
+  assert.match(TIDY_STEP75_WORKTREE, /Stamp `<!-- tidy-housekeeping-pr -->` in the body at creation/);
+  assert.match(TIDY_STEP75_WORKTREE, /never Step 4's `record-pr`\/phase-checklist machinery/);
 });
 
 test("tidy/SKILL.md Step 7.5 opens the pr-first PR ready (not draft), since tidy's own judgment layer already passed by creation time (#424)", () => {
-  assert.match(TIDY_SKILL, /Arm ready PR action explicitly never touches Step 2 \(Mark the PR ready\)/);
-  assert.match(TIDY_SKILL, /item 9's own filter skips any PR still in draft/);
+  assert.match(TIDY_STEP75_WORKTREE, /Arm ready PR action explicitly never touches Step 2 \(Mark the PR ready\)/);
+  assert.match(TIDY_STEP75_WORKTREE, /item 9's own filter skips any PR still in draft/);
 });
 
 test('tidy/SKILL.md Step 7.5 leaves the local-merge / no-worktree-always path unchanged and falls back to it if the PR-open path fails (#424)', () => {
-  assert.match(TIDY_SKILL, /\*\*`local-merge`\*\* \(including an unresolved\/undetectable model/);
-  assert.match(TIDY_SKILL, /fall through to the `local-merge` branch above and merge back locally instead/);
+  assert.match(TIDY_STEP75_WORKTREE, /\*\*`local-merge`\*\* \(including an unresolved\/undetectable model/);
+  assert.match(TIDY_STEP75_WORKTREE, /fall through to the `local-merge` branch above and merge back locally instead/);
 });
 
 // --- integration-model.md conformance (mirrors the repo-wide test.js's own check) ---
