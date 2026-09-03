@@ -815,7 +815,11 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
       // here. Weakening either upstream gate would silently weaken this
       // bypass too.
       const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', path.basename(dir));
-      const closeResult = closeRunState(archiveDir, { explicit: true, sessionId });
+      // #1012: closeRunState now takes callerIdentity ({ sessionId, cwd })
+      // instead of a bare sessionId — explicit: true still bypasses the
+      // foreign-owner refusal regardless (see the comment above), so this
+      // is a signature-consistency update, not a behavior change here.
+      const closeResult = closeRunState(archiveDir, { explicit: true, callerIdentity: { sessionId, cwd } });
       if (!closeResult.writeOk) {
         // The move already succeeded — never roll it back over a close-write
         // failure; the run is physically archived either way. Just make the
