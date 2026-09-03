@@ -158,6 +158,13 @@ test('the kernel block carries its four parts in order', () => {
     `kernel parts out of order: branch-sync@${posBranch} ladder@${posLadder} self-heal@${posSelfHeal} fallback@${posFallback} closing@${posClosing}`);
   assert.ok(block.includes('{{TARGET_BRANCH}}'));
   assert.ok(block.includes('If it has diverged rather than just fallen behind, stop'));
+  // Unattended framing opens the kernel (kernel_version 2): a firing has nobody
+  // to answer "Shall I…?", so the prompt says so before any step that could
+  // tempt the model to stop and ask. Must precede the branch-sync paragraph.
+  const posUnattended = block.indexOf('You are running unattended. Nobody is watching this firing in real time');
+  assert.ok(posUnattended > -1 && posUnattended < posBranch,
+    `unattended framing must open the kernel: unattended@${posUnattended} branch-sync@${posBranch}`);
+  assert.ok(block.includes('Report what you did and what you left undone, never a plan for what you would do next.'));
   assert.ok(block.includes('claude-tweaks v{version} @ {path} (resolved via:'));
 });
 

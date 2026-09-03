@@ -206,6 +206,8 @@ Execution depends on the chosen execution strategy (see Build Options).
 
 "Pre-existing behavior" is judged by the implementer subagent itself, per task, using the same judgment it already applies deciding what to test under normal TDD — this does not introduce new mechanical file-existence or lexical-verb detection to make that call for it.
 
+**Scope and edit discipline (both strategies, every maturity):** fold this second instruction into the same execution skill, verbatim and unconditionally — it restates the Working Approach block a `/claude-tweaks:init`-generated CLAUDE.md carries, for implementers in projects whose CLAUDE.md has none: "If, while working or testing, you find a pre-existing bug, a performance concern, or behavior the task doesn't mention, don't fix, optimize or extend it in this change unless the requested behavior cannot work without it; report it as a follow-up in your summary. Commit tests only where the task asks for them or this repository already keeps tests for this kind of change, sized like the neighboring test files — roughly one focused test per stated behavior — and don't turn scratch checks into additional permanent test files. Edit a file surgically rather than rewriting it whenever the result is the same. This is about extras only: implement every behavior the task asks for, completely."
+
 #### Superpowers Failure Handling
 
 If the execution skill (or `/superpowers:writing-plans` in Step 3) fails, read `failure-recovery.md` in this skill's directory for the full recovery table (not-installed, timeout/partial output, malformed plan, subagent failures, batch rejection) and the project-specific context CLAUDE.md should document for implementer subagents.
