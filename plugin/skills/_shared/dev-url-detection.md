@@ -21,11 +21,24 @@ Before probing ports, check if a URL was previously detected and persisted:
 1. Read `stories/servers.yml` (or `{STORIES_DIR}/servers.yml`) using the Glob tool to check existence first
 2. If file exists and has a `servers.default.url` entry:
    a. Probe the persisted URL with the same HTTP check used in Step 1
-   b. If it responds (2xx or 3xx) → before accepting it, run the worktree-awareness check from Step 2.7 (MATCH/FOREIGN) against the persisted URL's port. A persisted URL is exactly as fallible as a freshly-probed port here — `stories/servers.yml` is "safe to commit," so it is present and identical in the worktree's own checkout, and a URL it persisted from an earlier run against the main checkout can still be responding. On **MATCH** (or non-worktree) → use it. Set `APP_URL = {persisted URL}`. Log: "Using persisted dev URL: {url}". Skip Steps 1-2. On **FOREIGN** (or PID/cwd can't be resolved) → treat the persisted URL as not responding for this worktree. Log: "Persisted URL {url} responds but serves a foreign checkout — probing ports..." and continue to Step 1.
+   b. If it responds (2xx or 3xx) → before accepting it, apply the same lease-first rule Step 0.5/2.7 use against the persisted URL's port: with a lease (run Step 0.5's `bin/ports.js env` first if it hasn't run yet this invocation), accept iff the port is a member of `LEASE_PORTS`; with no lease, run the worktree-awareness check from Step 2.7's no-lease branch (MATCH/FOREIGN) instead. A persisted URL is exactly as fallible as a freshly-probed port here — `stories/servers.yml` is "safe to commit," so it is present and identical in the worktree's own checkout, and a URL it persisted from an earlier run against the main checkout can still be responding. On **member of `LEASE_PORTS`**, **MATCH**, or non-worktree-with-no-lease → use it. Set `APP_URL = {persisted URL}`. Log: "Using persisted dev URL: {url}". Skip Steps 1-2.7. On **not a member of `LEASE_PORTS`**, **FOREIGN**, or PID/cwd unresolvable → treat the persisted URL as not responding for this worktree, discard it, and fall through to Step 1's fresh probe rather than trusting it. Log: "Persisted URL {url} responds but serves a foreign checkout — probing ports..." and continue to Step 1.
    c. If it doesn't respond → log: "Persisted URL {url} not responding — probing ports..." and continue to Step 1
 3. If no file or no `servers` section → continue to Step 1
 
 > **File split:** `stories/servers.yml` holds server URLs only — safe to commit and share between runs. Credentials live in the encrypted Auth Vault (saved via `agent-browser auth save`), never in a file under `stories/` — `stories/servers.yml` must not be gitignored.
+
+### Step 0.5: Lease-First Probe
+
+Before falling through to Step 1's guesswork, check whether this checkout has a port-isolation lease (#1791-#1793) — a lease *is* the worktree-awareness proof, so it makes Steps 1-2.7's probing/config-reading/lsof machinery unnecessary when it hits.
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" env
+```
+
+- **No lease** (the command prints nothing and exits 0 — `bin/ports.js env`'s own documented contract for an unleased path): treat this as "no lease" and fall through to Step 1 as before. No `LEASE_PORTS` is set.
+- **A lease exists**: parse every printed `KEY=value` line into `LEASE_PORTS` — the full *set* of port values across every line (`PORT`, and every `{NAME}_PORT`), not just the `PORT` line. Then HTTP-probe `http://localhost:{PORT}` (the value from the `PORT` line specifically) with the same check Step 1 uses:
+  - **Responds (2xx/3xx)** → set `APP_URL = http://localhost:{PORT}`. Skip Steps 1 through 2.7 entirely.
+  - **No response** → continue to Step 1, carrying `LEASE_PORTS` forward (Step 2.7 below reads it).
 
 ### Step 1: Probe Common Ports
 
@@ -67,7 +80,14 @@ If no ports responded (or to validate the best match), check project configurati
 
 A responding port is **not** proof that the server is serving *this* checkout. When the pipeline runs inside a git worktree (the default for `/flow` and `/build`), a dev server on a common port is most likely the **main checkout's** server — pointing the browser at it would review the wrong code and report false confidence.
 
-Detect a linked worktree (CWD is a worktree, not the primary checkout) by reusing this repo's own linked-worktree heuristic — `bin/lib/hooks/worktree-detect.js`'s `repoInfo()`, the same submodule guard and symlink-safe path resolution the `worktree-always` policy gate relies on — rather than hand-rolling git's own worktree-vs-primary-checkout comparison in raw bash:
+**With a lease** (`LEASE_PORTS` set by Step 0.5): the MATCH rule is lease membership, no `lsof` involved. For **each responding port**:
+
+- **MATCH** — the port is a member of `LEASE_PORTS`. Accept it as in Step 3.
+- **FOREIGN** — the port is not a member of `LEASE_PORTS`. Treat it as **not responding for this worktree**. Do not use it. Fall through to the "no usable server" rows in Step 3 so an ephemeral worktree server can be started instead.
+
+This lease-membership check applies regardless of `PRIMARY`/`WORKTREE` status — a lease is per-checkout by construction (#1791: keyed by the checkout's own realpath), so it is exactly as meaningful for the main checkout as for a worktree.
+
+**With no lease:** fall back to the pre-#1795 heuristic — POSIX-only, since it shells out to `lsof`. Detect a linked worktree (CWD is a worktree, not the primary checkout) by reusing this repo's own linked-worktree heuristic — `bin/lib/hooks/worktree-detect.js`'s `repoInfo()`, the same submodule guard and symlink-safe path resolution the `worktree-always` policy gate relies on — rather than hand-rolling git's own worktree-vs-primary-checkout comparison in raw bash:
 
 ```bash
 node -e "const { repoInfo } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/hooks/worktree-detect.js'); console.log(repoInfo(process.cwd()).isLinkedWorktree ? 'WORKTREE' : 'PRIMARY')"
@@ -88,6 +108,8 @@ WT_ROOT=$(git rev-parse --show-toplevel)
 
 In the `PRIMARY` (non-worktree) case, skip this check — a responding port is assumed to serve the current checkout.
 
+**Windows outcome (accepted trade-off, no-lease path only):** `lsof` doesn't exist on Windows, so the PID is always unresolvable there → always `FOREIGN` → always start a fresh ephemeral server. On Windows, an unleased project never reuses an already-running dev server, unlike POSIX where `lsof` can still find a same-cwd match. A leased checkout (Step 0.5) does not hit this at all — lease membership needs no `lsof` call on any platform, which is exactly what makes worktree-awareness work at all on Windows.
+
 ### Step 3: Resolve
 
 | Scenario | Action |
@@ -102,7 +124,7 @@ In the `PRIMARY` (non-worktree) case, skip this check — a responding port is a
 
 When starting a server (auto mode, or interactive with consent):
 
-1. **Pick a free port** — probe upward from the framework's default (e.g. 3001, 3002, …) until one is free, skipping any port already found responding in Step 1. Use the `node -e` check from Step 1 inverted (free = connection refused).
+1. **Pick a port** — **with a lease:** re-run `node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" env` now, at start time (not the `LEASE_PORTS` snapshot cached from Step 0.5, to avoid acting on a stale read), and pass every printed `KEY=value` line into the spawned server's environment verbatim — no allowlist beyond "whatever this checkout's own managed region currently contains," so sibling services (a backend on `API_PORT`, say) resolve to their own block too. Use the `PORT` value as the port to start on. **Without a lease:** keep the pre-#1795 rule — probe upward from the framework's default (e.g. 3001, 3002, …) until one is free, skipping any port already found responding in Step 1, using the `node -e` check from Step 1 inverted (free = connection refused).
 2. **Anchor to the worktree root** — run the dev command from `git rev-parse --show-toplevel`, never from an assumed CWD (CWD does not propagate reliably — see "Working Directory Discipline" in `subagent-output-contract.md`). Pass the port via the framework's env var when arg-passing is unreliable (e.g. `PORT={port}` for Next.js — `next dev` respects `PORT`).
 3. **Run in the background** and poll the port until it responds (2xx/3xx) or a timeout (~90s for first compile). Set `APP_URL = http://localhost:{free-port}` once reachable.
 4. **Record the PID + port** for teardown: write `{run-dir}/ephemeral-server.txt` (one line: `{pid} {port} {worktree-root}`) when a pipeline run dir exists. This is what `/wrap-up` cleanup reads to stop the server. Outside a pipeline (standalone), the calling skill stops it at the end of its own run.
@@ -146,4 +168,4 @@ Server URLs are written to `stories/servers.yml` (safe to commit). Credentials, 
 If `SERVER_STARTED = true`, the ephemeral server must be stopped once visual work completes:
 
 - **In a pipeline** (`{run-dir}/ephemeral-server.txt` was written): `/claude-tweaks:wrap-up` cleanup (Section D in `wrap-up/cleanup-procedures.md`) reads the file and kills the PID at end-of-run. In multi-spec runs the server stays up across specs and is torn down once at the consolidated end (deferred under `MULTISPEC_REVIEW_DEFER=1`). The calling skill does not stop it mid-pipeline — later steps may also need it.
-- **Standalone** (no run dir): the calling skill stops the server (`lsof -ti tcp:{port} | xargs kill`) before it returns, and notes that it was started for automation.
+- **Standalone** (no run dir): the calling skill stops the server before it returns, and notes that it was started for automation. Cleanup always trusts the `{pid}` captured in `ephemeral-server.txt` at start time — `kill {pid}` — and never re-reads the live lease, so a lease that has since changed or expired cannot desync the kill; `lsof -ti tcp:{port} | xargs kill` is the fallback only when no lease exists (matching Section D's rule in `wrap-up/cleanup-procedures-execution.md`).
