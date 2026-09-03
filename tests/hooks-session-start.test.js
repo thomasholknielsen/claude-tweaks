@@ -735,3 +735,133 @@ test('AC1 (#381): one worktree-list spawn and one origin/HEAD spawn per SessionS
   assert.ok(originHeadCalls.length <= 1, `expected <=1 'git rev-parse --abbrev-ref origin/HEAD' spawn, got ${originHeadCalls.length}`);
   assert.ok(worktreeListCalls.length >= 1, 'expected the worktree-list spawn to happen at least once');
 });
+
+// #1792: port-services -> ensure() -> a rendered claude-tweaks: ports line.
+// portsEnsure.ensure is called as `portsEnsure.ensure(...)` (a property
+// access, not a destructured import), so patching the property directly on
+// the already-required module is observed by session-start.js's own call —
+// no require.cache-busting needed (contrast the reconcile() stub above,
+// which destructures at load time).
+const portsEnsureMod = require('../plugin/bin/lib/ports/ensure');
+const portsRegistryMod = require('../plugin/bin/lib/ports/registry');
+
+// AC2: no port-services -> ensure() never called, no ports line.
+test('#1792 AC2: no port-services policy -> ensure() is never called, no ports line', async () => {
+  const project = gitProject();
+  let called = false;
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async () => { called = true; return { active: false }; };
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.equal(called, false);
+    if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /claude-tweaks: ports/);
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});
+
+// AC3 (session-start's rendering half — ensure()'s own AC3 is pinned in
+// tests/bin-lib/ports/ensure.test.js): a fresh block renders exactly one
+// line in the documented format.
+test('#1792 AC3: port-services set -> ensure() called with the valid service list, one ports line rendered', async () => {
+  const project = gitProject();
+  withPolicy(project, 'port-services: web,api\n');
+  let calledWith = null;
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async (cwd, opts) => {
+    calledWith = { cwd, opts };
+    return {
+      active: true, base: 20000, ports: [20000, 20001, 20002, 20003, 20004, 20005, 20006, 20007, 20008, 20009],
+      vars: [['PORT', '20000'], ['API_PORT', '20001']], reallocated: null, envWriteError: null,
+    };
+  };
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.deepEqual(calledWith.opts.policyServices, ['web', 'api']);
+    const lines = out.json.hookSpecificOutput.additionalContext.split('\n\n');
+    const portsLine = lines.find((l) => l.startsWith('claude-tweaks: ports '));
+    assert.match(portsLine, /^claude-tweaks: ports 20000-20009 \(PORT=20000 API_PORT=20001\)$/);
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});
+
+// AC5: a reallocation renders the loud REALLOCATED line, never silently.
+test('#1792 AC5: a reallocation renders the REALLOCATED line with old and new blocks', async () => {
+  const project = gitProject();
+  withPolicy(project, 'port-services: web\n');
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async () => ({
+    active: true, base: 20010, ports: [20010, 20011, 20012, 20013, 20014, 20015, 20016, 20017, 20018, 20019],
+    vars: [['PORT', '20010']], reallocated: { from: 20000, to: 20010 }, envWriteError: null,
+  });
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.match(
+      out.json.hookSpecificOutput.additionalContext,
+      /claude-tweaks: ports REALLOCATED 20000→20010 — a foreign process took the old block; URLs moved: 20010-20019 \(PORT=20010\)/,
+    );
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});
+
+// AC6: ensure() throwing is caught, reported, and never breaks the hook —
+// every other SessionStart part (here, the worktree-always verdict) still renders.
+test('#1792 AC6: ensure() throwing is caught and reported; every other SessionStart part still renders; hook never throws', async () => {
+  const project = gitProject();
+  withPolicy(project, 'worktree-always: true\nport-services: web\n');
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async () => { throw new Error('registry unwritable (simulated)'); };
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.match(out.json.hookSpecificOutput.additionalContext, /worktree-always: ON/, 'other parts of the hook still render');
+    assert.match(out.json.hookSpecificOutput.additionalContext, /claude-tweaks: ports ensure failed — registry unwritable \(simulated\)/);
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});
+
+// AC7: an invalid service name is dropped and reported, while valid entries
+// still activate port isolation.
+test('#1792 AC7: an invalid service name is dropped and reported; valid entries still activate', async () => {
+  const project = gitProject();
+  withPolicy(project, 'port-services: web,BAD_NAME,api\n');
+  let calledWith = null;
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async (cwd, opts) => {
+    calledWith = opts;
+    return { active: true, base: 20000, ports: [20000, 20001], vars: [['PORT', '20000'], ['API_PORT', '20001']], reallocated: null, envWriteError: null };
+  };
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.deepEqual(calledWith.policyServices, ['web', 'api'], 'the invalid entry is dropped, valid ones still activate');
+    assert.match(
+      out.json.hookSpecificOutput.additionalContext,
+      /claude-tweaks: ports — invalid service name 'BAD_NAME' ignored \(services must match \^\[a-z\]\[a-z0-9-\]\*\$\)/,
+    );
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});
+
+// AC7 (capacity clause): more valid entries than BLOCK_SIZE disables port
+// isolation entirely for the session, reported rather than partially applied.
+test('#1792 AC7: more than BLOCK_SIZE valid services disables port isolation for the session', async () => {
+  const project = gitProject();
+  const names = Array.from({ length: portsRegistryMod.BLOCK_SIZE + 1 }, (_, i) => `svc${i}`);
+  withPolicy(project, `port-services: ${names.join(',')}\n`);
+  let called = false;
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async () => { called = true; return { active: false }; };
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.equal(called, false, 'ensure() must not be called when the list cannot fit one block');
+    assert.match(
+      out.json.hookSpecificOutput.additionalContext,
+      new RegExp(`claude-tweaks: ports — port-services lists ${names.length} services, more than one block \\(${portsRegistryMod.BLOCK_SIZE}\\) can hold`),
+    );
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});

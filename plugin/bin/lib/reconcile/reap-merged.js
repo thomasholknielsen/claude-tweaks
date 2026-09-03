@@ -20,6 +20,7 @@ const { mainCheckoutRoot, safeReal } = require('../hooks/worktree-detect');
 const { parseWorktreeList, isWorktreeLocked, HARNESS_WORKTREE_DIR, QUIET_SKIP_REASONS } = require('../hooks/worktree-reap');
 const { resolvePrState } = require('./pr-state');
 const { findRunByWorktreePath, appendEvent } = require('../hooks/context');
+const { release: releasePortsDefault } = require('../ports/registry');
 const { trackResidue } = require('./cache');
 const { escalateResidue } = require('./escalate-residue');
 const { repoSlugOf } = require('./release-merged');
@@ -88,17 +89,20 @@ function isOwnCwd(here, real) {
   return here === real || here.startsWith(real + path.sep);
 }
 
-function reapMerged({ cwd, dryRun = false } = {}) {
+function reapMerged({ cwd, dryRun = false, releasePorts = releasePortsDefault } = {}) {
   const reaped = [];
   const skipped = [];
+  // See worktree-reap.js's reapWorktrees for the shape rationale: only ever
+  // populated on a release throw, never for the common success/no-lease case.
+  const portsRelease = [];
   const start = cwd || process.cwd();
   const root = mainCheckoutRoot(start);
-  if (!root) return { reaped, skipped };
+  if (!root) return { reaped, skipped, portsRelease };
   const here = safeReal(start);
   const repoSlug = repoSlugOf(root);
 
   const list = runGit(['worktree', 'list', '--porcelain'], root);
-  if (list.failure) return { reaped, skipped, failure: list.failure };
+  if (list.failure) return { reaped, skipped, portsRelease, failure: list.failure };
 
   const domain = safeReal(path.join(root, HARNESS_WORKTREE_DIR)) || path.join(root, HARNESS_WORKTREE_DIR);
   for (const wt of parseWorktreeList(list.stdout)) {
@@ -146,8 +150,13 @@ function reapMerged({ cwd, dryRun = false } = {}) {
     trackReapResidue(root, repoSlug, real, { failed: false });
     logReapEvent(owningRunDir, 'worktree-reaped', { prNumber: prState.number });
     reaped.push(real);
+    try {
+      releasePorts(real);
+    } catch (err) {
+      portsRelease.push({ path: real, note: `failed: ${(err && err.message) || err}` });
+    }
   }
-  return { reaped, skipped };
+  return { reaped, skipped, portsRelease };
 }
 
 module.exports = { reapMerged, decideReap, isOwnCwd, trackReapResidue };

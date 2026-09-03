@@ -103,8 +103,11 @@ test('POLICY_KEYS entries are unique', () => {
   // attempt-count budget for a bare /specify drain invocation, sibling of
   // dispatch-batch-size; the shared n/all --budget semantics are canonical in
   // _shared/record-batch-input.md, not restated here.
-  assert.strictEqual(POLICY_KEYS.length, 64);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 64);
+  // 64 -> 65, #1792 (port isolation): port-services — names the services
+  // that get a port from this checkout's leased block; read directly by
+  // SessionStart, not an auto-mode lever.
+  assert.strictEqual(POLICY_KEYS.length, 65);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 65);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

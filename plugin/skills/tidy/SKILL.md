@@ -162,7 +162,7 @@ Execute each approved action per the Action Vocabulary table above, plus the Act
 
 Cross-action housekeeping (apply once per run after all actions execute):
 
-- Remove worktrees with `git -C "{REPO_ROOT}" worktree remove {path}`; delete branches with `git -C "{REPO_ROOT}" branch -d {name}` — `-D` only for a `net-empty — delete via -D` finding (#613), never to force past an ordinary `-d` refusal (see Step 4.5 working-directory discipline).
+- Remove worktrees with `git -C "{REPO_ROOT}" worktree remove {path}`; delete branches with `git -C "{REPO_ROOT}" branch -d {name}` — `-D` only for a `net-empty — delete via -D` finding (#613), never to force past an ordinary `-d` refusal (see Step 4.5 working-directory discipline). After a successful worktree removal, best-effort release its port lease: `node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" release --path {path}` — on failure, print to stderr only; never blocks the action.
 
 ## Step 7.5: Verify Execution
 

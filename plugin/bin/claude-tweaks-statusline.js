@@ -212,6 +212,52 @@ function renderGit(cwd) {
   }
 }
 
+// Spawn-free git-toplevel walk: the nearest ancestor (including `dir`
+// itself) carrying a `.git` entry, file or directory alike — a linked
+// worktree's `.git` is a FILE pointing at the real gitdir, but the toplevel
+// is still the directory CONTAINING that file, not anything derived from
+// where it points. This intentionally does NOT resolve to the main
+// checkout (unlike bin/lib/hooks/worktree-detect.js's mainCheckoutRoot): a
+// port lease is keyed by each checkout's OWN toplevel — main or worktree
+// alike — since that's the same path `git rev-parse --show-toplevel`
+// resolves to, and therefore what registry.allocate keys leases on.
+function nearestGitToplevel(dir) {
+  let cur = path.resolve(dir);
+  for (;;) {
+    let exists = false;
+    try {
+      fs.statSync(path.join(cur, '.git'));
+      exists = true;
+    } catch { /* not here — keep walking up */ }
+    if (exists) return cur;
+    const parent = path.dirname(cur);
+    if (parent === cur) return null;
+    cur = parent;
+  }
+}
+
+// Renders `:{base}` for the port block leased to this cwd's checkout, `''`
+// when there is none (or none can be determined). No `execFileSync` for
+// git, no lock acquisition — the statusline runs on every prompt render, so
+// this must stay spawn-free and side-effect-free beyond what the file
+// already does. The whole thing — including the `require` itself, so an
+// older wrapper install missing the ports module degrades identically to a
+// present-but-unreadable registry — is one try/catch.
+function renderPorts(cwd, { home = os.homedir() } = {}) {
+  try {
+    const toplevel = nearestGitToplevel(cwd);
+    if (!toplevel) return '';
+    const real = fs.realpathSync(toplevel);
+    // eslint-disable-next-line global-require
+    const { readRegistry } = require('./lib/ports/registry');
+    const registry = readRegistry({ home });
+    const entry = Object.entries((registry && registry.leases) || {}).find(([, lease]) => lease.path === real);
+    return entry ? `:${entry[0]}` : '';
+  } catch {
+    return '';
+  }
+}
+
 function renderRateLimit(label, period, now) {
   if (!period) return null;
   const pct = period.used_percentage;
@@ -362,6 +408,7 @@ async function main() {
     renderContext(input),
     renderEffort(input),
     renderGit(cwd),
+    renderPorts(cwd),
     renderRateLimit('sess', rateLimits.five_hour, now),
     renderRateLimit('week', rateLimits.seven_day, now),
     findActiveSpec(cwd),
@@ -384,6 +431,8 @@ module.exports = {
   renderContext,
   renderEffort,
   renderGit,
+  renderPorts,
+  nearestGitToplevel,
   renderRateLimit,
   findActiveSpec,
   findOpenLedger,

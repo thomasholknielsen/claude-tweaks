@@ -114,6 +114,10 @@ Confirm the directory is a git repo; warn if not (review and wrap-up will be deg
 
 Ensure `.worktrees/` exists in the project root for the git-fallback path; leave any `.claude/worktrees/` directory alone as a separate, harness-owned convention that needs no migration. Also offers the `worktree-always` policy opt-in (recommended default: on) — the decision is queued here but the file write is deferred to avoid this same run denying its own later writes; see "Finalizing the worktree-always Decision" and "Worktree Policy Finalization" below. Read `bootstrap/step-06-worktree-configuration.md` for the full procedure.
 
+### Step 6.5: Port Isolation
+
+Detects literal dev-server ports across the project's config, offers a reviewable rewrite to env reads (never applied without the gate below, even in `auto`), and queues a `port-services` policy decision through the same deferred-write mechanism `worktree-always` uses (see "Finalizing the worktree-always Decision"). Read `bootstrap/step-06-5-port-isolation.md` for the full procedure.
+
 ### Step 7: Browser Integration
 
 Detect `agent-browser`; surface the install command if missing. Never block init, never auto-install, never prompt for backend choice. Read `bootstrap/step-07-browser-integration.md` for the full procedure.

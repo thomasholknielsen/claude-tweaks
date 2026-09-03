@@ -201,7 +201,13 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    checks before allowing an `ExitWorktree`/`git worktree remove` call — skipping this step is the
    pattern the gate exists to deny (`[IL-116]`), and its own deny message points back here as the
    fix. Skip silently if no run directory resolves (a pre-v4.6 pipeline that never created one).
-4. Remove the worktree. Use **`ExitWorktree`** (`action: "remove"`) for the worktree this
+4. **Before removing it**, best-effort release the worktree's port lease with the path captured
+   explicitly (the CLI's own cwd-based `--path` default stops resolving once `ExitWorktree` has
+   moved the session out, or the directory is gone) — release before `ExitWorktree`, not after,
+   since either order is equally correct with an explicit `--path` but this is the one stated
+   sequence: `node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" release --path {worktree-path}` — on
+   failure, print to stderr only, never blocks teardown. Then remove the worktree. Use
+   **`ExitWorktree`** (`action: "remove"`) for the worktree this
    session is standing in: the harness holds a live lock on it, so raw `git worktree remove`
    fails with exit 128 (`[IL-58]`), and `SessionStart`'s reaper never touches a live-pid lock
    either — it returns `in-use` and skips, correctly, because a session's own worktree at
@@ -255,7 +261,7 @@ If no worktree exists for this spec, skip this section silently.
 If `/visual-review` or `/stories` auto-started a dev server during this run (`dev-url-detection.md` "Ephemeral server start"), it recorded the PID, port, and worktree root in `{run-dir}/ephemeral-server.txt`.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section** — the server is shared across all specs in the run. The parent `/flow` kills it once after the consolidated Review Console (otherwise each later spec's visual review would have to restart it).
-2. Read `{run-dir}/ephemeral-server.txt`. Stop the process: `kill {pid}` (fall back to `lsof -ti tcp:{port} | xargs kill` if the PID is stale).
+2. Read `{run-dir}/ephemeral-server.txt`. Stop the process: `kill {pid}` — with a port-isolation lease (#1795), the recorded port is known and the PID kill alone is sufficient; the `lsof -ti tcp:{port} | xargs kill` fallback for a stale PID is a no-lease/POSIX-only path (see `dev-url-detection.md`'s Step 0.5).
 3. Confirm the port is free, then delete `ephemeral-server.txt`.
 
 This only stops servers *this pipeline started*. A dev server the user was already running (or one on the main checkout) is never touched — it was never recorded in `ephemeral-server.txt`.

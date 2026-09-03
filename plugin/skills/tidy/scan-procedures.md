@@ -151,7 +151,7 @@ never `Remove/delete` or `--force`. `dirty: unknown` (the status check itself fa
 **not** trigger the override — a read failure is never proof of uncommitted work
 (`probes/worktrees.js`) — but still appears in the evidence line.
 
-Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
+Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. After a successful removal, best-effort release its port lease: `node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" release --path {path}` — on failure, print to stderr only; never blocks the finding.
 
 A **locked** worktree will refuse to remove. Do not force it: a live lock means a session
 is using it. Surface it as `locked — manual review required`.

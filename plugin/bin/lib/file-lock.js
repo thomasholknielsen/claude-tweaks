@@ -68,16 +68,41 @@ function releaseLock(lockPath) {
   try { fs.rmdirSync(lockPath); } catch { /* best-effort */ }
 }
 
-// Runs `fn` (synchronously) holding the lock at `lockPath`, always releasing
-// in a finally — fail-open: `fn` still runs even when the lock couldn't be
-// acquired in time, matching acquireLock's own fail-open contract.
-function withLock(lockPath, fn) {
+// Runs `fn` — synchronous, or returning a Promise, either way — holding the
+// lock at `lockPath`. Default posture is fail-open, matching acquireLock's
+// own contract: `fn` still runs even when the lock couldn't be acquired in
+// time. `opts.failClosed: true` overrides that for a caller whose own
+// invariant a missed lock would violate (e.g. "no two racing writers may
+// both proceed") — it throws a `LOCK_TIMEOUT`-coded error instead of running
+// `fn` unlocked. When `fn`'s return value is thenable, the lock is held
+// until that promise settles (release happens in `.then`/`.catch`, not
+// synchronously after the call) — a synchronous `finally` would otherwise
+// release the lock before an async `fn`'s own work (e.g. a probe-then-write
+// sequence) has actually finished, reopening the exact race the lock exists
+// to close.
+function withLock(lockPath, fn, opts = {}) {
+  const { failClosed = false } = opts;
   const held = acquireLock(lockPath);
-  try {
-    return fn();
-  } finally {
-    releaseLock(held);
+  if (held === null && failClosed) {
+    const err = new Error(`could not acquire lock within the configured wait: ${lockPath}`);
+    err.code = 'LOCK_TIMEOUT';
+    throw err;
   }
+  let result;
+  try {
+    result = fn();
+  } catch (err) {
+    releaseLock(held);
+    throw err;
+  }
+  if (result && typeof result.then === 'function') {
+    return result.then(
+      (value) => { releaseLock(held); return value; },
+      (err) => { releaseLock(held); throw err; },
+    );
+  }
+  releaseLock(held);
+  return result;
 }
 
 module.exports = { acquireLock, releaseLock, withLock };

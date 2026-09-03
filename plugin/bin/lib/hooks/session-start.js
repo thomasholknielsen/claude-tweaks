@@ -11,6 +11,8 @@ const wtDetect = require('./worktree-detect');
 const runIntegrity = require('./run-integrity');
 const { reconcile } = require('../reconcile');
 const { DEFAULT_TTL_MS } = require('../reconcile/cache');
+const portsEnsure = require('../ports/ensure');
+const { BLOCK_SIZE: PORTS_BLOCK_SIZE } = require('../ports/registry');
 
 const MAX_REPORTED = 3;
 // The fast/background split (#820, D8, corrected): SessionStart's own
@@ -364,6 +366,39 @@ async function run(ctx) {
               'invoke /superpowers:using-git-worktrees to set one up, then follow ' +
               "`_shared/worktree-setup.md`'s post-creation catch-up before any other action.",
           );
+        }
+
+        // #1792: turns Unit 1's registry on for this checkout. Reuses the
+        // repoRoot already resolved above rather than forking git a second
+        // time for the same answer. `port-services` is not an auto-mode
+        // lever (no Manifesto question — see that record's Non-Goals), so
+        // this reads policy.yml directly, the same way the worktree-always
+        // verdict above does.
+        const { services, invalidNames, overCapacity, requestedCount } = policy.resolvePortServices(repoRoot);
+        for (const name of invalidNames) {
+          parts.push(`claude-tweaks: ports — invalid service name '${name}' ignored (services must match ^[a-z][a-z0-9-]*$)`);
+        }
+        if (overCapacity) {
+          parts.push(
+            `claude-tweaks: ports — port-services lists ${requestedCount} services, more than one block ` +
+              `(${PORTS_BLOCK_SIZE}) can hold; port isolation is off for this session`,
+          );
+        } else if (services.length) {
+          try {
+            const result = await portsEnsure.ensure(ctx.cwd, { policyServices: services });
+            if (result.active) {
+              const range = `${result.base}-${result.base + result.ports.length - 1}`;
+              const vars = result.vars.map(([k, v]) => `${k}=${v}`).join(' ');
+              // Reallocation moves URLs — this line must never be silent
+              // (see #1792's Gotchas: "never make the reallocation silent").
+              parts.push(result.reallocated
+                ? `claude-tweaks: ports REALLOCATED ${result.reallocated.from}→${result.reallocated.to} — ` +
+                  `a foreign process took the old block; URLs moved: ${range} (${vars})`
+                : `claude-tweaks: ports ${range} (${vars})`);
+            }
+          } catch (err) {
+            parts.push(`claude-tweaks: ports ensure failed — ${(err && err.message) || err}`);
+          }
         }
       }
     }

@@ -21,6 +21,7 @@ const path = require('path');
 const { runGit } = require('./git-exec');
 const { mainCheckoutRoot, safeReal } = require('./worktree-detect');
 const policy = require('../policy');
+const { release: releasePortsDefault } = require('../ports/registry');
 
 const PID_RE = /\(pid\s+(\d+)\b/;
 
@@ -224,13 +225,21 @@ function harnessDomainOf(root) {
   return safeReal(dir) || dir;
 }
 
-function reapWorktrees({ cwd, integration, dryRun = false, now = Date.now() } = {}) {
+function reapWorktrees({
+  cwd, integration, dryRun = false, now = Date.now(), releasePorts = releasePortsDefault,
+} = {}) {
   const reaped = [];
   const skipped = [];
   let deferred = 0;
+  // Release notes only — reaped/skipped/deferred above are unaffected by a
+  // release failure (#1793): a lease-release throw is never a reason to
+  // treat the worktree removal itself as failed. Only ever populated on a
+  // throw — a no-lease path is a no-op release, reported here as nothing,
+  // matching #1791 AC6's release contract.
+  const portsRelease = [];
   const start = cwd || process.cwd();
   const root = mainCheckoutRoot(start);
-  if (!root) return { reaped, skipped, deferred };
+  if (!root) return { reaped, skipped, deferred, portsRelease };
 
   // Fail CLOSED on an unresolvable cwd. This guard exists to keep the caller's
   // own ground out of the candidate set, so "we cannot tell where the caller
@@ -238,10 +247,10 @@ function reapWorktrees({ cwd, integration, dryRun = false, now = Date.now() } = 
   // `here` (the original `here && ...` form) turned a fail-closed predicate
   // into a fail-open one at exactly the point it matters most.
   const here = safeReal(start);
-  if (!here) return { reaped, skipped, deferred };
+  if (!here) return { reaped, skipped, deferred, portsRelease };
 
   const { stdout, failure } = runGit(['worktree', 'list', '--porcelain'], root);
-  if (failure) return { reaped, skipped, deferred };
+  if (failure) return { reaped, skipped, deferred, portsRelease };
 
   const domain = harnessDomainOf(root);
   let examined = 0;
@@ -284,8 +293,13 @@ function reapWorktrees({ cwd, integration, dryRun = false, now = Date.now() } = 
     const rm = runGit(['worktree', 'remove', real], root);
     if (rm.failure) { skipped.push({ path: real, reason: 'removal failed' }); continue; }
     reaped.push(real);
+    try {
+      releasePorts(real);
+    } catch (err) {
+      portsRelease.push({ path: real, note: `failed: ${(err && err.message) || err}` });
+    }
   }
-  return { reaped, skipped, deferred };
+  return { reaped, skipped, deferred, portsRelease };
 }
 
 // The canonical ladder in `skills/_shared/integration-branch.md`, restricted to
