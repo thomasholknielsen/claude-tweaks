@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-25T0831-tidy-standalone",
-  "reason": "swept: stale claim (tidy backstop, batch-approved via /tidy --approve)",
-  "releasedAt": "2026-09-02T11:15:17.924Z"
+  "runId": "2026-09-03T021608-record-976",
+  "sessionId": "e5e195bc-9d22-51ba-b6d3-d8825d9652c8",
+  "claimedAt": "2026-09-03T02:25:11.716Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
