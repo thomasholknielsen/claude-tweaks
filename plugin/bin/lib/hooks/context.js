@@ -288,7 +288,17 @@ function resolveRun(cwd, env, sessionId, opts = {}) {
   let unowned = null;
   for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
-    if (owner === me) return { dir, attribution: 'session' };
+    // #1099: session-id equality alone is not sufficient — a sibling agent of
+    // this same session, bound to a DIFFERENT live worktree, must not be
+    // returned as this caller's own run. classifyOwnership's 'foreign' verdict
+    // is the only one that skips here; 'mine' (the ordinary case: cwd inside
+    // the recorded worktree, or a binding-less run from the main checkout) and
+    // 'indeterminate' (unprovable — a deleted binding, an unresolved cwd) both
+    // preserve today's behavior and still return 'session' attribution, which
+    // is what keeps single-session resolution byte-identical (#1099's Deliverables).
+    if (owner === me && classifyOwnership({ sessionId: me, cwd: resolvedCwd }, state) !== 'foreign') {
+      return { dir, attribution: 'session' };
+    }
     // Newest-first, so the first unowned, worktree-compatible run is the one
     // the old code returned unconditionally.
     if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) unowned = dir;

@@ -505,9 +505,15 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
     if (!hit || !hit.state) continue;
     const status = hit.state.status;
     if (status !== 'active' && status !== 'interrupted') continue;
-    const owner = typeof hit.state.sessionId === 'string' && hit.state.sessionId ? hit.state.sessionId : null;
     const caller = ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id ? ctx.input.session_id : null;
-    if (owner && caller && owner !== caller) {
+    // #1099: classify the TARGET run (hit.state) against this caller via the
+    // composite session+worktree-binding predicate instead of raw session-id
+    // equality — a sibling of this same session, bound to a DIFFERENT live
+    // worktree than hit.state records, must take the foreign branch (warn +
+    // allow) rather than the same-session deny. 'mine' and 'indeterminate'
+    // both preserve today's fall-through-to-deny behavior.
+    const ownershipVerdict = ctxLib.classifyOwnership({ sessionId: caller, cwd: ctx.cwd || process.cwd() }, hit.state);
+    if (ownershipVerdict === 'foreign') {
       // Provably foreign-owned: allow + warn, event to the TARGET run's dir
       // (the wd-foreign-session precedent — enforcement-target, not
       // ownedRun). Collected, not returned — see the function header.
@@ -519,7 +525,7 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
       );
       continue;
     }
-    // Same session, unowned run, or identity missing on either side -> deny.
+    // Same session ('mine'), or identity/binding unprovable ('indeterminate') -> deny.
     return denyResult(
       `claude-tweaks teardown gate: worktree ${target} is still assigned to non-terminal pipeline run ` +
       `${hit.runDir}. Tearing it down now skips the documented cleanup sequence (skills/wrap-up/cleanup-procedures.md ` +
@@ -1417,7 +1423,14 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
     }
     const owner = typeof ctx.runState.sessionId === 'string' ? ctx.runState.sessionId : '';
     const caller = typeof ctx.input.session_id === 'string' ? ctx.input.session_id : '';
-    if (owner && caller && owner !== caller) {
+    // #1099: classify the caller's OWN resolved run (ctx.runState) via the
+    // composite session+worktree-binding predicate instead of raw session-id
+    // equality — a sibling of this same session, committing from a DIFFERENT
+    // live worktree than ctx.runState records, must take the foreign branch
+    // (allow + systemMessage) rather than falling through to wd-deny.
+    // 'mine' and 'indeterminate' both preserve today's fall-through-to-deny.
+    const ownershipVerdict = ctxLib.classifyOwnership({ sessionId: caller, cwd: ctx.cwd || process.cwd() }, ctx.runState);
+    if (ownershipVerdict === 'foreign') {
       ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { expected: assigned, actual, owner, caller, command: command.slice(0, 200) });
       return {
         exit: 0,
