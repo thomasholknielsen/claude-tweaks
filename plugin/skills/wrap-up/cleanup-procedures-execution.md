@@ -180,7 +180,13 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    checks before allowing an `ExitWorktree`/`git worktree remove` call — skipping this step is the
    pattern the gate exists to deny (`[IL-116]`), and its own deny message points back here as the
    fix. Skip silently if no run directory resolves (a pre-v4.6 pipeline that never created one).
-4. Remove the worktree. Use **`ExitWorktree`** (`action: "remove"`) for the worktree this
+4. **Before removing it**, best-effort release the worktree's port lease with the path captured
+   explicitly (the CLI's own cwd-based `--path` default stops resolving once `ExitWorktree` has
+   moved the session out, or the directory is gone) — release before `ExitWorktree`, not after,
+   since either order is equally correct with an explicit `--path` but this is the one stated
+   sequence: `node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" release --path {worktree-path}` — on
+   failure, print to stderr only, never blocks teardown. Then remove the worktree. Use
+   **`ExitWorktree`** (`action: "remove"`) for the worktree this
    session is standing in: the harness holds a live lock on it, so raw `git worktree remove`
    fails with exit 128 (`[IL-58]`), and `SessionStart`'s reaper never touches a live-pid lock
    either — it returns `in-use` and skips, correctly, because a session's own worktree at

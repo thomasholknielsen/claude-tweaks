@@ -114,3 +114,53 @@ test('reapMerged: an in-use (locked) worktree is skipped silently — no events.
 
   assert.equal(fs.existsSync(path.join(runDir, 'events.jsonl')), false, 'a quiet skip reason must never write events.jsonl at all');
 });
+
+// ─── #1793: port-lease release after a successful reap ────────────────────
+// Same rationale as worktree-reap.test.js's #1793 block for not forcing a
+// removal failure: no existing test in this file does either.
+
+test('#1793: reapMerged calls releasePorts with the removed realpath after a successful reap', () => {
+  const { root, wtPath } = buildReapableFixture();
+  const wrapper = installGhWrapper([{ number: 42, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]);
+  const calls = [];
+  let result;
+  try {
+    result = reapMerged({ cwd: root, releasePorts: (p) => calls.push(p) });
+  } finally {
+    wrapper.restore();
+  }
+  assert.deepEqual(result.reaped, [wtPath]);
+  assert.deepEqual(calls, [wtPath]);
+  assert.deepEqual(result.portsRelease, [], 'no note on a successful release');
+});
+
+test('#1793: a releasePorts throw is recorded as a portsRelease note and never changes the reap outcome', () => {
+  const { root, wtPath } = buildReapableFixture();
+  const wrapper = installGhWrapper([{ number: 42, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]);
+  let result;
+  try {
+    result = reapMerged({ cwd: root, releasePorts: () => { throw new Error('registry unwritable'); } });
+  } finally {
+    wrapper.restore();
+  }
+  assert.deepEqual(result.reaped, [wtPath], 'the reap outcome is unaffected by a release failure');
+  assert.equal(fs.existsSync(wtPath), false, 'the worktree is still gone — release failing does not undo the removal');
+  assert.deepEqual(result.portsRelease, [{ path: wtPath, note: 'failed: registry unwritable' }]);
+});
+
+test('#1793: a removed path with no lease is a no-op release with no note', () => {
+  const { root, wtPath } = buildReapableFixture();
+  const wrapper = installGhWrapper([{ number: 42, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]);
+  // registry.release() itself no-ops for an unknown path (#1791 AC6) — the
+  // real release function proves the "no note" half of this without a fake.
+  const { release } = require('../../../plugin/bin/lib/ports/registry');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-reap-merged-ports-home-'));
+  let result;
+  try {
+    result = reapMerged({ cwd: root, releasePorts: (p) => release(p, { home }) });
+  } finally {
+    wrapper.restore();
+  }
+  assert.deepEqual(result.reaped, [wtPath]);
+  assert.deepEqual(result.portsRelease, []);
+});

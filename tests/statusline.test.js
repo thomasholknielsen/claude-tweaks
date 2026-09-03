@@ -726,3 +726,100 @@ test('end-to-end: NO_COLOR strips ANSI codes even at high context', () => {
   );
   assert.doesNotMatch(out, /\x1b\[/);
 });
+
+// #1793 AC1: renderPorts and its toplevel-resolution helper.
+function tmpRepoDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
+function writeRegistry(home, leases) {
+  fs.mkdirSync(path.join(home, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude-tweaks', 'ports.json'), JSON.stringify({ version: 1, leases }));
+}
+
+test('nearestGitToplevel: walks up from a subdirectory to the nearest .git entry (dir), and returns null with none found', () => {
+  const repoDir = tmpRepoDir('ct-sl-toplevel-');
+  fs.mkdirSync(path.join(repoDir, '.git'));
+  const sub = path.join(repoDir, 'a', 'b');
+  fs.mkdirSync(sub, { recursive: true });
+  assert.strictEqual(sl.nearestGitToplevel(sub), repoDir);
+  assert.strictEqual(sl.nearestGitToplevel(repoDir), repoDir);
+
+  const bare = tmpRepoDir('ct-sl-nogit-');
+  assert.strictEqual(sl.nearestGitToplevel(bare), null);
+});
+
+test('nearestGitToplevel: a linked worktree\'s `.git` FILE (not directory) is treated the same as a `.git` directory', () => {
+  const wt = tmpRepoDir('ct-sl-wt-');
+  fs.writeFileSync(path.join(wt, '.git'), 'gitdir: /somewhere/.git/worktrees/wt\n');
+  assert.strictEqual(sl.nearestGitToplevel(wt), wt);
+});
+
+test('renderPorts: no registry file at all -> empty string', () => {
+  const home = tmpRepoDir('ct-sl-ports-home-');
+  const repoDir = tmpRepoDir('ct-sl-ports-repo-');
+  fs.mkdirSync(path.join(repoDir, '.git'));
+  assert.strictEqual(sl.renderPorts(repoDir, { home }), '');
+});
+
+test('renderPorts: registry exists but carries no lease for this checkout -> empty string', () => {
+  const home = tmpRepoDir('ct-sl-ports-home-');
+  const repoDir = tmpRepoDir('ct-sl-ports-repo-');
+  fs.mkdirSync(path.join(repoDir, '.git'));
+  writeRegistry(home, { 20000: { path: '/some/other/checkout', project: 'x', services: ['web'], leased: 'x' } });
+  assert.strictEqual(sl.renderPorts(repoDir, { home }), '');
+});
+
+// AC1
+test('renderPorts: a lease for this checkout\'s toplevel renders :{base} between git and rate-limit segments', () => {
+  const home = tmpRepoDir('ct-sl-ports-home-');
+  const repoDir = tmpRepoDir('ct-sl-ports-repo-');
+  fs.mkdirSync(path.join(repoDir, '.git'));
+  const real = fs.realpathSync(repoDir);
+  writeRegistry(home, { 20010: { path: real, project: 'x', services: ['web', 'api'], leased: 'x' } });
+  assert.strictEqual(sl.renderPorts(repoDir, { home }), ':20010');
+
+  // Same lease found from a subdirectory of the checkout (toplevel walk-up).
+  const sub = path.join(repoDir, 'a', 'b');
+  fs.mkdirSync(sub, { recursive: true });
+  assert.strictEqual(sl.renderPorts(sub, { home }), ':20010');
+});
+
+// AC1's linked-worktree fixture — a `.git` FILE, not directory — proving the
+// toplevel resolution matches the registry's own realpath normalization.
+test('renderPorts: a linked-worktree fixture (.git FILE) resolves the same lease its own realpath was registered under', () => {
+  const home = tmpRepoDir('ct-sl-ports-home-');
+  const wt = tmpRepoDir('ct-sl-ports-wt-');
+  fs.writeFileSync(path.join(wt, '.git'), 'gitdir: /somewhere/.git/worktrees/wt\n');
+  const real = fs.realpathSync(wt);
+  writeRegistry(home, { 20020: { path: real, project: 'x', services: ['web'], leased: 'x' } });
+  assert.strictEqual(sl.renderPorts(wt, { home }), ':20020');
+});
+
+// AC1: unreadable/corrupt registry, or a missing `ports` module, degrades to
+// byte-identical (empty) output — never throws.
+test('renderPorts: a corrupt registry degrades to empty string rather than throwing', () => {
+  const home = tmpRepoDir('ct-sl-ports-home-');
+  const repoDir = tmpRepoDir('ct-sl-ports-repo-');
+  fs.mkdirSync(path.join(repoDir, '.git'));
+  fs.mkdirSync(path.join(home, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude-tweaks', 'ports.json'), '{ not json');
+  assert.doesNotThrow(() => assert.strictEqual(sl.renderPorts(repoDir, { home }), ''));
+});
+
+test('renderPorts: no toplevel resolvable (no cwd, no ancestor .git) -> empty string', () => {
+  const home = tmpRepoDir('ct-sl-ports-home-');
+  const bare = tmpRepoDir('ct-sl-ports-bare-');
+  assert.strictEqual(sl.renderPorts(bare, { home }), '');
+});
+
+// AC1's "between the git and rate-limit segments" placement is proven by
+// construction (main()'s segments array literally inserts renderPorts(cwd)
+// directly after renderGit(cwd)) rather than by an end-to-end subprocess
+// spawn: this suite's existing HOME-env-override technique for controlling
+// os.homedir() in a child process (see runStatusline) is already unreliable
+// on this Windows machine — the pre-existing 'default ~/.claude layout
+// renders the acct segment from ~/.claude.json' end-to-end test above fails
+// the same way, leaking the real account email instead of the seeded fake
+// home, because os.homedir() on Windows reads USERPROFILE, not HOME. A new
+// end-to-end test built on the same technique would be flaky for the same
+// reason, not a meaningful check of this feature's own logic.

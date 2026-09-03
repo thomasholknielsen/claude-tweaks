@@ -40,6 +40,17 @@ function freshRegistry() {
   return { version: REGISTRY_VERSION, leases: {} };
 }
 
+// Pure degrade-open read — no gc, no write, no lock acquisition. For a
+// caller (the statusline, #1793) that runs on every prompt render and must
+// never mutate anything or block on a lock: a missing or corrupt file reads
+// as "no leases," the same as a caller that only cares whether ITS OWN
+// checkout has a lease, never as a thrown error. Unlike `status()`, this
+// never persists a gc'd view — a caller that needs the pruned, canonical
+// view (and can tolerate a write) uses `status()` instead.
+function readRegistry({ home = os.homedir() } = {}) {
+  return readJsonFile(registryPath({ home }), { fallback: freshRegistry() });
+}
+
 // Load the registry, handling a corrupt (unparseable) file per AC7: rename
 // it aside with a Windows-safe timestamp suffix (colons illegal in Windows
 // filenames), report the rename on stderr's caller-visible return value, and
@@ -246,5 +257,5 @@ function status({ home = os.homedir() } = {}) {
 
 module.exports = {
   POOL_BASE, POOL_END, BLOCK_SIZE,
-  registryPath, allocate, reallocate, release, status, gc, freshRegistry,
+  registryPath, readRegistry, allocate, reallocate, release, status, gc, freshRegistry,
 };

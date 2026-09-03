@@ -120,7 +120,7 @@ otherwise indistinguishable from "needs -D" and would get the wrong remedy.
 | `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
 | `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** — this is the only case that actually means unmerged work |
 
-Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
+Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. After a successful removal, best-effort release its port lease: `node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" release --path {path}` — on failure, print to stderr only; never blocks the finding.
 
 A **locked** worktree will refuse to remove. Do not force it: a live lock means a session
 is using it. Surface it as `locked — manual review required`.
