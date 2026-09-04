@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-02T17:42:02.955Z",
+  "computedAt": "2026-09-04T06:58:20.192Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -51,11 +51,6 @@
       {
         "number": 1570,
         "updatedAt": "2026-08-29T16:19:04Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1568,
-        "updatedAt": "2026-09-02T13:06:13Z",
         "state": "OPEN"
       },
       {
@@ -180,7 +175,7 @@
       },
       {
         "number": 903,
-        "updatedAt": "2026-09-02T11:15:10Z",
+        "updatedAt": "2026-09-03T04:19:56Z",
         "state": "OPEN"
       },
       {
@@ -2787,82 +2782,6 @@
           "risk": "low",
           "size": "low",
           "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Overview\n\nPlan Audit (`/build` Common Step 1.5, procedure in `plugin/skills/build/plan-audit.md`) is executed by the model following prose — deterministic path checks and greps hand-run at plan time, a per-run cost in both context and reliability. Mechanize the deterministic checks into a Node CLI, `plugin/bin/plan-audit.js`, and shrink `plan-audit.md` to invocation, result interpretation, and policy handling. Adds a fourth deterministic check — size-headroom for near-ceiling files — absorbing #553 outright and the check half of #641.\n\n**Complexity:** Medium\n**Estimated tasks:** 8\n\n## Non-Goals\n\n- Judgment checks stay prose in `plan-authoring.md` (deictic re-resolution, degrade-clause convention, #734's gate-over-producers) — they are not mechanically checkable\n- No change to Common Step 1.5's skip-gate conditions in `build/SKILL.md`\n- No change to scope-creep policy resolution or the interactive prompt (both remain skill-level interpretation)\n- No insertion-size estimation in the headroom check — v1 reports current bytes + headroom only; projecting a planned insertion's size is unreliable and the plan author judges borderline cases\n- #641's pr-early-run-lifecycle merge-time half (re-scoped into #641's remainder after this lands)\n\n## Prerequisites\n\n| Spec | Title | Status |\n|------|-------|--------|\n| #257 | build: pre-dispatch verification pass over each task's own stated acceptance command | **Hard block — do not start until #257's PR merges.** Check C's field shape is pinned from its merged diff (never its issue text) as this record's first plan task. |\n| #897 | build: extract plan-authoring checks and Common Step 2 dispatch detail into lazy-loaded sub-files | **Hard block — lands first.** Current State's byte figures and check locations here are pre-#897/pre-#257 and must be re-derived from the post-merge files at plan time. |\n\n## Current State\n\n(Figures below are as of 2026-08-18, pre-#257/pre-#897 — re-derive at plan time.)\n\n- `plugin/skills/build/plan-audit.md` (4,585 B) — Check A (every `Files:` path exists, or parent dir for Create), Check B (`Scope keywords:` repo sweep listing matched-but-unplanned files), the `scope-keywords-required` policy row, the auto-mode `scope-creep` policy table, and the interactive three-option prompt. #257 (in flight) is adding a Check C (per-task acceptance-command pre-check) to this same file.\n- `plugin/skills/build/SKILL.md` Common Step 1.5 — the skip gate (fewer than 3 file references AND no `Scope keywords:`, or `ceremony-profile: fast-lane`) and the summary; the gate must stay decidable without loading `plan-audit.md`.\n- Plan format: plans are written by `/superpowers:writing-plans` to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`; there is no formal grammar for `Files:` sections or the `Scope keywords:` field today — this CLI's test fixtures become the first formalization (see Technical Approach).\n- `plugin/bin/` conventions — multi-file modules live in `plugin/bin/lib/{name}/` as flat sibling directories (never a nested `_shared/`); `resolve-policy.js` is the policy reader. #892 (`bin/verify.js` — deterministic verification runner + `verification.md` migration) is the same mechanization pattern for a sibling skill file, `ready` but not started: no dependency, but align output-envelope conventions with it if it lands first.\n- Ceiling constant: 40,960 bytes — `CEILING_BYTES` sourced from `context-cost.js`, pinned separately by `tests/bin-lib/harness-health/skill-md.test.js`; its governed set is the skill corpus (`plugin/skills/**/*.md`). Reuse the constant; never restate the literal.\n- #553 (closed as superseded by this record): asked for a Check A warning when a plan adds prose to a file near the 40 KB ceiling. Incident behind it: #535's plan specified a 636-byte insertion into a file with 349 B of headroom, caught only at the final whole-branch review.\n- Tests: `tests/bin-lib/{module}/` suites are auto-discovered by `npm test`'s recursive glob.\n\n## Deliverables\n\n- [ ] Plan task 0: pin Check C's field shape from #257's merged diff — recorded in the plan before any implementation task\n- [ ] `plugin/bin/plan-audit.js` — CLI taking a plan file path: Check A (path existence / parent-dir-for-Create), Check B (scope-keyword sweep, matched files absent from the plan), Check C (per the pinned shape from task 0), Headroom (for each existing file the plan adds prose to: current `wc -c` and headroom against the ceiling constant — files in the constant's governed skill-corpus set plus any other `.md` file the ceiling test covers; scope pinned in task 0 alongside Check C)\n- [ ] Structured output: JSON envelope with per-check status + offending paths, plus a one-line human summary\n- [ ] `plugin/skills/build/plan-audit.md` rewritten: CLI invocation, result interpretation, policy handling only — no hand-run grep/ls procedures for the mechanized checks\n- [ ] `tests/bin-lib/plan-audit/` — fixtures: missing path, unswept scope keyword, near-ceiling file, already-breaching file, a Check C failure per its pinned shape, clean plan. The near-ceiling fixture's test carries a comment naming #553 (so a future edit surfaces the supersede coupling)\n- [ ] `build/SKILL.md` Common Step 1.5 invokes the CLI (skip gate untouched)\n\n## Acceptance Criteria\n\n1. A fixture plan naming a missing `Files:` path → Check A failure naming that path, exit non-zero\n2. A fixture plan whose `Scope keywords:` match a repo file absent from the plan → Check B failure naming that file, exit non-zero\n3. A fixture plan adding prose to a governed file with < 1,024 B headroom → `nearCeiling` soft flag naming the file, its current bytes, and remaining headroom; exit 0 when nothing else fails (the flag is informational — the skill layer surfaces it per policy)\n4. A fixture plan adding prose to a file already at/over the ceiling → `breach` entry, exit non-zero\n5. A clean fixture plan → no failures, no flags, exit 0\n6. A Check C fixture exercising its pinned failure shape → the corresponding structured failure, exit non-zero\n7. The headroom check derives the ceiling from `context-cost.js`'s constant, not a repeated literal\n8. `npm test` green; the near-ceiling test names #553 in a comment\n9. `plan-audit.md` contains no hand-run procedure for Checks A/B/C or headroom\n\n## Technical Approach\n\nThe CLI parses the plan markdown for `Files:` sections and the `Scope keywords:` field, then checks paths via `fs` and sweeps keywords via an fs-walk — never a gitignore-honoring grep, so gitignored-but-relevant files can't silently vanish from a sweep. Exit non-zero when any check fails (`nearCeiling` alone does not fail); the skill layer maps failures onto the existing scope-creep policy / interactive prompt.\n\n**Parser grammar:** no formal plan grammar exists — the fixtures ARE the contract. The parser tolerates: `Files:` or `**Files:**` labels; `-` or `*` bullets; backticked or bare paths; one path per bullet line; `Scope keywords:` as a line-anchored field. Derive the tolerated shapes from real plans in `docs/superpowers/plans/` and encode each in a fixture.\n\n**Walk scope:** rooted at `--repo-root`; excluded: `.git/`, `node_modules/` (any depth), `.claude/`, `.claude-tweaks/`, `evals/node_modules/`. `--repo-root` defaults to `git rev-parse --show-toplevel` of the cwd, falling back to the cwd itself outside a repo.\n\n### Data / API Surface\n\n- `node plugin/bin/plan-audit.js <plan-path> [--repo-root <path>]` → stdout JSON: `{checkA: {ok, missing: []}, checkB: {ok, unplanned: []}, checkC: {…pinned from #257's merged diff in plan task 0}, headroom: {ok, nearCeiling: [{file, bytes, headroom}], breaches: [{file, bytes}]}}`; exit 0 iff every check `ok` (with `nearCeiling` entries allowed)\n\n### Key Files\n\n- `plugin/bin/plan-audit.js` — new CLI entry\n- `plugin/bin/lib/plan-audit/` — module files when multi-file (flat sibling dir, per `plugin/bin/lib/{name}/` convention)\n- `plugin/skills/build/plan-audit.md` — rewrite\n- `plugin/skills/build/SKILL.md` — Common Step 1.5 invocation wording\n- `tests/bin-lib/plan-audit/` — new suite\n\n## Gotchas\n\n- Re-read #257's landed diff FIRST (Prerequisites hard block) — pin Check C from what actually merged, never its issue text\n- Recursive grep honors `.gitignore` (ugrep) — Check B must use the fs-walk with the stated exclusion set, plus a control match in tests, or gitignored-but-plan-relevant files audit as clean\n- `grep -c` counts lines, not occurrences — occurrence assertions need `grep -o | wc -l` semantics\n- Sweep/check matching: case-insensitive and content-anchored; count mismatches in fixtures are usually fixture bugs, not code bugs\n- The ceiling is pinned twice today (`context-cost.js` + the harness-health test) — import, don't triplicate\n\n## Decision Rationale\n\nSee #896 (parent) — mechanization follows extraction (#897) because headroom is the enabler, and mechanizing the deterministic checks is the strongest fix for the instruction-efficacy finding (prose checks the model can route around become exit codes it cannot).\n\n\n<!-- work-fingerprint: build-objectives-restructure:build-mechanize-plan-audit-checks-a-b-c-plus-a-size-headroom -->",
-        "createdAt": "2026-08-18T13:51:29Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2oaA",
-            "name": "type:feature",
-            "description": "Type: new capability or enhancement",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          }
-        ],
-        "number": 903,
-        "state": "OPEN",
-        "title": "build: mechanize plan-audit Checks A/B/C plus a size-headroom check into bin/plan-audit.js",
-        "updatedAt": "2026-09-02T11:15:10Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "medium",
