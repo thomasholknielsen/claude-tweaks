@@ -21,7 +21,7 @@ Derive a kebab-case session name from the review target: `pricing-page-review`, 
 All screenshots in this skill are annotated and written to:
 
 ```
-screenshots/browse/<session>/<NN>_<description>.png
+.claude-tweaks/artifacts/screenshots/browse/<session>/<NN>_<description>.png
 ```
 
 `<NN>` is a zero-padded sequence number per session (`01_landing`, `02_pricing`, ...). Annotated screenshots overlay numbered markers tied to the most recent `snapshot` refs — write findings using those overlay numbers, never spatial language like "the button on the right."
@@ -57,7 +57,7 @@ Before starting the review steps, check whether QA data is available from a rece
 
 > **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations below are independent and should run concurrently.
 
-1. **Find the latest QA run directory:** Glob for `screenshots/qa/*/report.json` and take the most recent by timestamp prefix.
+1. **Find the latest QA run directory:** Glob for `.claude-tweaks/artifacts/screenshots/qa/*/report.json` and take the most recent by timestamp prefix.
 2. **Read `report.json`:** Extract `page_inventories`, `caveats`, `findings`, and `stories` (for screenshot directories).
 3. **Collect screenshots:** List screenshot files across story subdirectories in the QA run directory.
 
@@ -190,8 +190,8 @@ Present findings from the review in a single structure that serves as both the r
 **Performance:** LCP {value} | CLS {value} | INP {value} | TTFB {value} | FCP {value}
 **First Impression:** {The honest 5-second reaction in 1-2 sentences. Keep the raw tone.}
 **Interaction Feel:** Speed: {snappy/acceptable/sluggish} | Feedback: {clear/inconsistent/missing} | Transitions: {smooth/janky/none}
-**Screenshots:** {paths under screenshots/browse/<session>/}
-**Trace (if failure):** {path under traces/<session>/ — omit if no failure}
+**Screenshots:** {paths under .claude-tweaks/artifacts/screenshots/browse/<session>/}
+**Trace (if failure):** {path under .claude-tweaks/artifacts/traces/<session>/ — omit if no failure}
 **QA context:** {QA run dir, stories covering this page, QA status — or "No QA data"}
 ```
 
@@ -222,18 +222,31 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 **Hard gate.** Check the response you are about to send: does it already contain the Findings & Ideas table above as literal rendered markdown, with a row for every finding? If not, render it now, in this response, before the tool call — "Apply all" with no table above it leaves the user approving an unnamed set of UI findings.
 
+**Evaluated against `_shared/visual-decision.md` — not adopted (#1208).** This step's decision is
+an N-row findings triage (Apply all / Override specific items), not a single-target accept/reject
+and not an N-variant comparison — the two shapes that contract's pick/reroll/steer/exit vocabulary
+is built for. There is no "candidate" here to render as a compare-shell frame: findings are text
+rows referencing overlay markers already shown inline in this report, not rendered variants
+competing for a pick. Unlike `/claude-tweaks:demo`'s Show step (which hands the browser to the
+human directly, making a browser-hosted verdict control a natural fit — see that skill's Verdict
+step), this report's findings are already fully rendered in the terminal conversation the human is
+reading, so there is no separate browser tab already holding their attention to relocate the
+verdict into. Wrapping this table in a one-candidate compare-shell round would relocate an
+identical two-option question into the browser for no functional gain. This terminal
+`AskUserQuestion` stays exactly as it is above.
+
 The **Source** column traces each finding to its origin step (Health, Performance, First Impression, Persona, Analyze, Reimagine). This replaces the separate "Functional Issues," "Visual & Content Issues," and "UX Observations" report sections.
 
 **Recommendation rules for Issues:**
 - **All severities** — default "Fix now." Close the gap now.
-- **Defer** (new work record — born-ready, or `parked` on a concrete wake condition) — the fix is understood but bigger and not relevant to the current work. Gated by `_shared/deferral-gate.md` (fix-now first; a valid `Defer-reason:` or the item stays open). Compose via `specShapedBody` exactly as review Step 3's Defer does (`review/step3-routing.md`), with `filedBy: 'visual review'`, `provenance: { origin: 'visual review', deferReason }` and footer `_Filed by \`visual review\` via specShapedBody._`, then create it via the unified record contract (`_shared/work-record.md`).
-- **Capture** — the issue is complex or uncertain and needs brainstorming/exploration before it can be acted on. Invoke `/claude-tweaks:capture` with the shaped body and `--defer-reason={value} --source visual-review` (capture's Shaped-body branch — `capture/SKILL.md`), plus `--needs-definition` when it names an open choice.
+- **Defer** (new work record — born-ready, or `parked` on a concrete wake condition) — the fix is understood but bigger and not relevant to the current work. Gated by `_shared/deferral-gate.md` (fix-now first; a valid `Defer-reason:` or the item stays open). Compose via `specShapedBody` exactly as review Step 3's Defer does (`review/step3-routing.md`), with `filedBy: 'visual review'`, `provenance: { origin: 'visual review', deferReason }` and footer `_Filed by \`visual review\` via specShapedBody._`, then create it via the unified record contract (`_shared/work-record.md`). Before creating the record, apply `_shared/materiality-floor.md`'s floor test: an item that fails to clear the materiality floor, with a non-`tangential` `Defer-reason:`, shows "Digest — below floor" in the Recommended column instead, and only writes the digest entry once the human approves that row (or an auto path applies it).
+- **Capture** — the issue is complex or uncertain and needs brainstorming/exploration before it can be acted on. Invoke `/claude-tweaks:capture` with the shaped body and `--defer-reason={value} --source visual-review` (capture's Shaped-body branch — `capture/SKILL.md`), plus `--needs-definition` when it names an open choice. This branch is subject to `_shared/materiality-floor.md`'s floor test like any other filing branch: `Defer-reason: tangential` always clears the materiality floor per that contract's Overrides section, but a different reason applies the ordinary test before invoking capture, same as the Issues Defer bullet above.
 - **"Accept as-is"** — only for intentional design choices. If it's a genuine defect, fix it or route it.
 
 **Recommendation rules for Ideas:**
 - **Fix now** — the strong default. If the idea can be implemented in the current session, do it. Add to the current spec scope if applicable.
-- **Defer** (new work record, `parked`) — the idea is clear but bigger and not relevant to the current work. Same gate and composition as the Issues Defer above (`_shared/deferral-gate.md`; an idea is by nature `tangential` unless it blocks on something concrete — a concrete wake condition makes it `parked` with a `Trigger:` header).
-- **Capture** — the idea is complex or uncertain and needs brainstorming/exploration before it can be acted on. Invoke `/claude-tweaks:capture` with the shaped body and `--defer-reason={value} --source visual-review` (capture's Shaped-body branch — `capture/SKILL.md`), plus `--needs-definition` when it names an open choice (an idea's usual reason is `tangential`).
+- **Defer** (new work record, `parked`) — the idea is clear but bigger and not relevant to the current work. Same gate and composition as the Issues Defer above (`_shared/deferral-gate.md`; an idea is by nature `tangential` unless it blocks on something concrete — a concrete wake condition makes it `parked` with a `Trigger:` header). Since an Ideas-Defer item is `tangential` by default, `_shared/materiality-floor.md`'s override clears the materiality floor for the common case; only the less-common `parked`-with-Trigger path (a non-`tangential` reason) is ever eligible for "Digest — below floor" in the Recommended column, following the same before-render check as the Issues Defer bullet above.
+- **Capture** — the idea is complex or uncertain and needs brainstorming/exploration before it can be acted on. Invoke `/claude-tweaks:capture` with the shaped body and `--defer-reason={value} --source visual-review` (capture's Shaped-body branch — `capture/SKILL.md`), plus `--needs-definition` when it names an open choice (an idea's usual reason is `tangential`, which always clears the materiality floor per `_shared/materiality-floor.md`'s Overrides section; a non-`tangential` Capture-routed idea, the rarer case, is still subject to the ordinary floor test before invoking capture, same as the Ideas Defer bullet above).
 
 > **Routing bias:** Fix it now — always the recommended default. Defer when the fix is bigger and not relevant now. Capture when the issue/idea needs exploration. Cosmetic issues accumulate into a feeling of low quality — fix them while they're fresh.
 

@@ -67,6 +67,10 @@ function fakeDeps(root, { body, gitRevListCount, gitCommitDate }) {
     cwd: () => process.cwd(),
     mainRoot: (cwd) => wtDetect.mainCheckoutRoot(cwd),
     isAnchored: (resolvedPath, mainRoot) => wtDetect.isAnchoredUnderRoot(resolvedPath, mainRoot),
+    cwdWorktreeRoot: (cwd) => {
+      const info = wtDetect.repoInfo(cwd);
+      return info.isLinkedWorktree ? info.repoRoot : null;
+    },
     mkdirp: (dir) => fs.mkdirSync(dir, { recursive: true }),
     writeFile: (file, content) => fs.writeFileSync(file, content),
     stdout: (s) => stdout.push(s),

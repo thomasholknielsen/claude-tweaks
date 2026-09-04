@@ -42,10 +42,11 @@ const path = require('path');
 const { resolve, PROFILES } = require('./lib/model-profiles/profiles');
 const { parsePolicyModelConfig } = require('./lib/model-profiles/policy-fragment');
 const { readFailedModels, recordFailure, invalidateFailures } = require('./lib/model-profiles/session-failures');
+const { anchoredOrOutsideMessage } = require('./lib/run-dir-guard');
 
 function fail(msg) {
   process.stderr.write(`resolve-profile: ${msg}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 // A value-taking flag must be followed by a value. Without this, `--stance`
@@ -53,7 +54,11 @@ function fail(msg) {
 // --unattended` eats the next flag as the stance — both silent.
 function requireValue(args, flag) {
   const v = args.shift();
-  if (v === undefined || v.startsWith('--')) fail(`${flag} requires a value`);
+  // A blank or whitespace-only value (the shape an unset $PIPELINE_RUN_DIR
+  // expands to in shell) is rejected the same as a genuinely missing one —
+  // it must never reach the --run-dir anchoring check or tally path
+  // composition below as a blank string (#1138).
+  if (v === undefined || v.startsWith('--') || v.trim() === '') fail(`${flag} requires a value`);
   return v;
 }
 
@@ -93,10 +98,20 @@ function main(argv) {
   let runDir;
   while (args.length) {
     const a = args.shift();
-    if (a === '--stance') stance = requireValue(args, '--stance');
+    if (a === '--stance') { stance = requireValue(args, '--stance'); if (process.exitCode) return; }
     else if (a === '--unattended') unattended = true;
-    else if (a === '--run-dir') runDir = requireValue(args, '--run-dir');
+    else if (a === '--run-dir') { runDir = requireValue(args, '--run-dir'); if (process.exitCode) return; }
     else { fail(`unknown argument "${a}"`); return; }
+  }
+
+  // #1065: anchored-or-outside guard — reject a worktree-shadow run dir
+  // before any policy read or tally I/O. Outside-any-checkout paths (the
+  // journey's /tmp demo, tmp-fixture tests) stay accepted with no flag; the
+  // raw runDir string is kept for all downstream use — the reject message
+  // names the realpath-resolved candidate instead.
+  if (runDir !== undefined) {
+    const message = anchoredOrOutsideMessage(runDir, process.cwd(), '--run-dir');
+    if (message) { fail(message); return; }
   }
 
   let policy = {};

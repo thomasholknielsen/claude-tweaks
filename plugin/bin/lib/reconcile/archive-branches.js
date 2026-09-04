@@ -19,11 +19,26 @@
 // it catches squash merges that ancestry checks and `git branch -d` both
 // miss; that is why execution uses `-D` behind this decision table and
 // never trusts `-d`'s verdict.
+//
+// Screen-then-confirm (#1083, adopting #1082's shape): in-scope branches are
+// screened in one bulk call (resolvePrStatesBulk) before any per-branch
+// work, and only a destructive provisional verdict (delete or
+// tag-and-delete) re-reads PR state per-branch to confirm. NO preferOpen
+// here, on screen or confirm: #664 deliberately scoped the destructive
+// tie-break to prune-remote — archive's deletes are local-only and
+// recoverable from origin.
+//
+// A screen failure degrades to per-branch gh-absent/network-failure skips
+// (the pre-#1083 shape) rather than a check-level failure: the archive-tag
+// aging sweep is wholly gh-independent and keeps running — a permanently
+// gh-absent environment must not lose tag GC (#1083 review). prune-remote's
+// check-level pr-screen-failed differs deliberately: it guards no secondary
+// sweep.
 'use strict';
 
 const { runGit } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
-const { resolvePrState } = require('./pr-state');
+const { resolvePrState, resolvePrStatesBulk } = require('./pr-state');
 
 const BRANCH_AGE_DAYS = 14; // hardcoded by design — no policy lever
 const TAG_AGE_DAYS = 90; // matches git's default reflog window: past it, the tag's marginal recovery value is zero
@@ -108,10 +123,11 @@ function isCherryEquivalent(root, integration, branch) {
   return lines.every((l) => l.startsWith('-'));
 }
 
-function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
+function archiveBranches({ cwd, integration, dryRun, now, resolvePr, resolvePrBulk } = {}) {
   const root = cwd || process.cwd();
   const nowMs = now || Date.now();
   const resolve = resolvePr || resolvePrState;
+  const resolveBulk = resolvePrBulk || resolvePrStatesBulk;
   const entries = [];
 
   const wtList = runGit(['worktree', 'list', '--porcelain'], root);
@@ -121,36 +137,88 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr } = {}) {
   const refs = runGit(['for-each-ref', '--format=%(refname:short)\t%(committerdate:iso8601-strict)\t%(objectname)', 'refs/heads'], root);
   if (refs.failure) return { entries, failure: 'git-failure' };
 
+  // Collect in-scope branches (with their committerDate/tip) first — the
+  // screen is one bulk call (#1083, adopting #1082's screen-then-confirm).
+  // No preferOpen, screen or confirm — deliberate; see the module header (#664 census).
+  const candidates = [];
   for (const line of refs.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
     const [branch, committerDate, tip] = line.split('\t');
-    if (!inScope(branch, worktrees)) continue; // scope guard: namespace + worktree attachment — never reaches the decision fn
-    const tipAgeDays = (nowMs - Date.parse(committerDate)) / (24 * 60 * 60 * 1000);
-    const cherryEquivalent = isCherryEquivalent(root, integration, branch);
-    if (cherryEquivalent === null) {
-      entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'cherry-failed' });
-      continue;
+    if (!inScope(branch, worktrees)) continue;
+    candidates.push({ branch, committerDate, tip });
+  }
+
+  const screen = candidates.length > 0
+    ? resolveBulk(root, candidates.map((c) => c.branch))
+    : new Map();
+
+  if (screen === 'gh-absent' || screen === 'network-failure') {
+    // Degrade to per-branch skips (the pre-#1083 shape) rather than a
+    // check-level failure: the archive-tag aging sweep below is wholly
+    // gh-independent and must keep running in a gh-absent environment
+    // (#1083 review, reproduced) — unlike prune-remote, whose check-level
+    // pr-screen-failed return guards no such secondary sweep.
+    for (const { branch } of candidates) {
+      entries.push({ name: branch, kind: 'branch', action: 'skip', reason: screen });
     }
-    const prState = resolve(root, branch);
-    const decision = decideArchive({ branch, tipAgeDays, cherryEquivalent, prState });
-    if (decision.action === 'skip' || dryRun) {
-      entries.push({ name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
-      continue;
-    }
-    if (decision.action === 'tag-and-delete') {
-      // Annotated + force-created: -f also fixes the retry dead-end where a
-      // pre-existing archive/{encoded-branch} tag from an earlier failed
-      // pass would permanently block archival — the tag is simply recreated
-      // at the same tip.
-      const tag = runGit(['tag', '-a', '-f', '-m', `archive of ${branch}`, `archive/${encodeArchiveTagSuffix(branch)}`, tip], root);
-      if (tag.failure) {
-        entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'tag-failed' }); // fail closed: never delete untagged
+  } else {
+    for (const { branch, committerDate, tip } of candidates) {
+      const tipAgeDays = (nowMs - Date.parse(committerDate)) / (24 * 60 * 60 * 1000);
+      const screenPr = screen.get(branch) || null;
+
+      // OPEN-screened branches skip before cherry: decideArchive checks OPEN
+      // before cherryEquivalent (order pinned by the existing 'open PR -> skip,
+      // even when cherry-equivalent' test), so cherryEquivalent: true here is a
+      // documented sentinel that never reaches the cherry-driven branches.
+      if (screenPr && screenPr.state === 'OPEN') {
+        // Provisional verdict on screen evidence, through the UNCHANGED decision
+        // table — same shape as prune-remote's screen fast path. Falling through
+        // (provisional.action !== 'skip') is never expected for an OPEN-screened
+        // branch (decideArchive checks OPEN before cherryEquivalent), but is
+        // deliberately NOT a silent skip: it drops to the normal cherry path below.
+        const provisional = decideArchive({ branch, tipAgeDays, cherryEquivalent: true, prState: screenPr });
+        if (provisional.action === 'skip') {
+          entries.push({ name: branch, kind: 'branch', action: provisional.action, reason: provisional.reason });
+          continue;
+        }
+      }
+
+      const cherryEquivalent = isCherryEquivalent(root, integration, branch);
+      if (cherryEquivalent === null) {
+        entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'cherry-failed' });
         continue;
       }
+      const provisional = decideArchive({ branch, tipAgeDays, cherryEquivalent, prState: screenPr });
+      if (provisional.action === 'skip') {
+        entries.push({ name: branch, kind: 'branch', action: 'skip', reason: provisional.reason });
+        continue;
+      }
+
+      // Destructive candidate (delete or tag-and-delete): re-read PR state
+      // per-branch — today's exact evidence — and re-decide. Cherry is reused,
+      // not recomputed: same pass, same local refs, deterministically identical.
+      // Runs under dryRun too, so dry-run reasons are confirmed reasons.
+      const prState = resolve(root, branch);
+      const decision = decideArchive({ branch, tipAgeDays, cherryEquivalent, prState });
+      if (decision.action === 'skip' || dryRun) {
+        entries.push({ name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
+        continue;
+      }
+      if (decision.action === 'tag-and-delete') {
+        // Annotated + force-created: -f also fixes the retry dead-end where a
+        // pre-existing archive/{encoded-branch} tag from an earlier failed
+        // pass would permanently block archival — the tag is simply recreated
+        // at the same tip.
+        const tag = runGit(['tag', '-a', '-f', '-m', `archive of ${branch}`, `archive/${encodeArchiveTagSuffix(branch)}`, tip], root);
+        if (tag.failure) {
+          entries.push({ name: branch, kind: 'branch', action: 'skip', reason: 'tag-failed' }); // fail closed: never delete untagged
+          continue;
+        }
+      }
+      const del = runGit(['branch', '-D', branch], root); // -D behind the decision table's evidence — -d's verdict is explicitly not trusted
+      entries.push(del.failure
+        ? { name: branch, kind: 'branch', action: 'skip', reason: 'delete-failed' }
+        : { name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
     }
-    const del = runGit(['branch', '-D', branch], root); // -D behind the decision table's evidence — -d's verdict is explicitly not trusted
-    entries.push(del.failure
-      ? { name: branch, kind: 'branch', action: 'skip', reason: 'delete-failed' }
-      : { name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
   }
 
   // Tag aging — archive/* tags whose age (from tagger date for annotated

@@ -21,7 +21,7 @@ If the run aborted early (one spec hit a HARD-GATE, no `keep-going`), still run 
 
 Run once, against the union of every completed spec's changed files:
 
-1. **Scope** — `git diff --name-only` from `manifest.yml`'s `baseSha` to the current worktree `HEAD` (covers every completed spec's commits on the shared branch — see `multi-spec.md`'s "Shared worktree" section for why one branch accumulates every spec).
+1. **Scope** — `git diff --name-only` from `$(git merge-base --end-of-options HEAD "origin/{integration-branch}")` to the current worktree `HEAD`, `{integration-branch}` per `skills/_shared/integration-branch.md`'s ladder (covers every completed spec's commits on the shared branch — see `multi-spec.md`'s "Shared worktree" section for why one branch accumulates every spec). The merge-base equals `manifest.yml`'s `baseSha` when no boundary freshness merge (`multispec-freshness.md`) landed, and correctly excludes merged-in upstream commits when one did.
 2. **Ledger phase** — `wrap-up` (same phase tag the per-spec call would have used).
 3. **Seed context** — the aggregated Key Learnings sections from every completed spec's `/claude-tweaks:review` summary, concatenated in spec execution order.
 4. **`--source wrap-up`** — same as the per-spec call.
@@ -34,14 +34,17 @@ If any insight is "Implement now", the reflect skill handles it before returning
 Run once, against the **parent** run directory — never any `spec-{N}/` — so its `engine-state.json` and row records can't collide with (or be silently skipped by) any per-spec engine state:
 
 ```bash
+# deliberately no @{upstream} fallback: inside the shared worktree it names the run's own pushed branch — merge-base against it ≈ HEAD, an empty batch diff
+INTEGRATION_BRANCH=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch)
+[ -n "$INTEGRATION_BRANCH" ] || INTEGRATION_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')
 node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-engine.js" plan --run-dir "$MULTISPEC_PARENT_DIR" \
-  --base "$(yq '.multispec.baseSha' "$MULTISPEC_PARENT_DIR/manifest.yml")" \
+  --base "$(git merge-base --end-of-options HEAD "origin/${INTEGRATION_BRANCH}")" \
   --ceremony "{ceremony-profile from config.yml}" --signals '{...}'
 ```
 
 Then the same `record` (once per open row) / `render --section trace` sequence `curation-engine.md` documents for the single-spec path — this file doesn't restate that mechanics, only the scope difference (parent dir, batch `--base`, batch `--signals`). Ordering is load-bearing exactly as it is per-spec: Memory and Upstream feedback rows are judged last, since their input is "learnings no earlier row claimed" — this holds across the aggregated batch signal set, not per-spec.
 
-**Shadow sweep after the batch fan-out.** The batch judges run inside the shared worktree, so `curation-engine.md` §4's post-fan-out shadow sweep runs here too — once against the parent run dir and once per `spec-{N}/` subdirectory a judge may have been handed (the registry pass itself stays parent-only — the per-spec sweeps clean up the *earlier* per-spec fan-outs) — before this file's `record` calls and before `multispec-review-console.md`'s step 2 reads any `staged/`. A judge that wrote its proposal to the worktree's relative shadow of `.claude-tweaks/pipelines/…/staged/` (observed in run 2026-08-16T164927's Skills judge, which then misreported sibling specs' staged files as dangling) is caught and relocated by that sweep as routine, not by chance inspection; its payload's `stagePath` is required to be the absolute anchored path per `curation-engine.md` §3, verified by the judge with `test -f`.
+**Shadow sweep after the batch fan-out.** The batch judges run inside the shared worktree, so `curation-engine.md` §4's post-fan-out shadow sweep runs here too — once against the parent run dir and once per `spec-{N}/` subdirectory a judge may have been handed (the registry pass itself stays parent-only — the per-spec sweeps clean up the *earlier* per-spec fan-outs) — before this file's `record` calls and before `multispec-review-console.md`'s step 2 reads any `staged/`. A judge that wrote its proposal to the worktree's relative shadow of `.claude-tweaks/pipelines/…/staged/` (observed in run 2026-08-16T164927's Skills judge, which then misreported sibling specs' staged files as dangling) is caught and relocated by that sweep as routine, not by chance inspection; its payload's `stagePath` is required to be the absolute anchored path per `curation-engine.md` §3, verified by the judge with `test -f`. `curation-engine.md` §4's serial-commit pass runs next, after the shadow sweep and still before this file's `record` calls, so every `"action": "applied"` finding from this batch fan-out is committed before the registry pass records it.
 
 The result is a single `$MULTISPEC_PARENT_DIR/engine-state.json`, alongside the parent's own `decisions.md`/`staged/` (already created by the Manifesto at run start).
 

@@ -112,3 +112,56 @@ test('an unrelated Write inside a linked worktree (outside .claude-tweaks/pipeli
   const out = pre.run({ input: writeInput(target), runDir: null, runState: null, cwd: wt });
   assertAllowed(out);
 });
+
+// #959: the one documented worktree-local exception — work/{n}-spec.md — must
+// be reachable via a normal Write/Bash mkdir even though the run-id directory
+// does not exist yet in the worktree. Before this fix these five cases were
+// all denied identically to the "NEW run directory" tests above.
+
+test('#959 AC: a Write of a NEW work/{n}-spec.md into a worktree with no existing run dir is allowed', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const target = path.join(wt, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-959', 'work', '959-spec.md');
+  const out = pre.run({ input: writeInput(target), runDir: null, runState: null, cwd: wt });
+  assertAllowed(out);
+});
+
+test('#959 AC: mkdir -p of the work/ directory itself, run dir absent, is allowed', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const target = path.join(wt, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-959', 'work');
+  const out = pre.run({ input: bashInput(`mkdir -p "${target}"`, wt), runDir: null, runState: null, cwd: wt });
+  assertAllowed(out);
+});
+
+test('#959 AC: the multi-record spec-{N}/work/{n}-spec.md shape is allowed', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const target = path.join(wt, '.claude-tweaks', 'pipelines', '2026-01-01T000000-spec-959-960', 'spec-959', 'work', '959-spec.md');
+  const out = pre.run({ input: writeInput(target), runDir: null, runState: null, cwd: wt });
+  assertAllowed(out);
+});
+
+test('#959 negative control: a NEW run dir file named work/notes.md (not {n}-spec.md) is still denied', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const target = path.join(wt, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-959b', 'work', 'notes.md');
+  const out = pre.run({ input: writeInput(target), runDir: null, runState: null, cwd: wt });
+  assertDenied(out);
+});
+
+test('#959 negative control: a NEW run dir file one level below work/ (work/sub/959-spec.md) is still denied', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const target = path.join(wt, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-959c', 'work', 'sub', '959-spec.md');
+  const out = pre.run({ input: writeInput(target), runDir: null, runState: null, cwd: wt });
+  assertDenied(out);
+});
+
+test('#959 negative control: a NEW run dir file elsewhere (decisions.md) is still denied even though work/ is exempt', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  const target = path.join(wt, '.claude-tweaks', 'pipelines', '2026-01-01T000000-record-959d', 'decisions.md');
+  const out = pre.run({ input: writeInput(target), runDir: null, runState: null, cwd: wt });
+  assertDenied(out);
+});

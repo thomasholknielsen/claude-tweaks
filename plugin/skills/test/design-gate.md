@@ -6,7 +6,7 @@ After types/lint/tests pass (or if they were skipped via `VERIFICATION_PASSED`),
 
 ## Invocation
 
-Invoke `/claude-tweaks:design-wrapper test <changed-files>`. Resolve `<changed-files>` from `git diff --name-only` (the wrapper handles its own filtering and detection).
+Resolve `<changed-files>` from `git diff --name-only` (the wrapper handles its own filtering and detection). Before invoking the wrapper, run `_shared/design-wrapper-handling.md`'s "Caller-side pre-check" with `--mode test` and this run's own resolved `--surface` (the single in-scope record's materialized `surface:` header field, when one is resolvable; omitted for a multi-record or standalone run) — so a run that the wrapper would have no-opped on anyway never pays for loading `design-wrapper/SKILL.md`. On `decision: "skip"`, treat exactly like the wrapper's own `{skipped: reason}` return in the Result handling table below — do not invoke `Skill(claude-tweaks:design-wrapper)` at all. On `decision: "proceed"`, invoke `/claude-tweaks:design-wrapper test <changed-files>` as before.
 
 ## Result handling
 
@@ -14,7 +14,7 @@ Invoke `/claude-tweaks:design-wrapper test <changed-files>`. Resolve `<changed-f
 |----------------|-------------------|
 | `{result: "pass", findings: [...]}` (zero findings, or advisory only) | Proceed. Surface advisory findings in the test output as informational. |
 | `{result: "fail", findings: [...]}` (any `severity: warning`) | **Fail the test gate.** Surface the findings table in the test report. Do NOT auto-fix — design findings require human judgment. |
-| `{skipped: ...}` | Note the skip in test output and proceed. |
+| `{skipped: ...}` (from the wrapper, or from the pre-check's `decision: "skip"` above) | Note the skip reason in test output and proceed. |
 | `{deferred: ...}` (should not happen for `test` mode) | Treat as skip and proceed. |
 
 See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.

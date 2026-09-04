@@ -1,9 +1,9 @@
 'use strict';
 
-// Pure: the gate chain `/claude-tweaks:backlog grant` (the headless machine-grant
-// mode) evaluates per candidate record. Five floors, ALL must hold, evaluated in
+// Pure: the gate chain `/claude-tweaks:backlog refine`'s headless posture (the headless
+// machine-grant chain) evaluates per candidate record. Five floors, ALL must hold, evaluated in
 // a fixed order with the first failure short-circuiting into a logged skip — the
-// order is load-bearing (see skills/backlog/grant-mode.md and this record's own
+// order is load-bearing (see skills/backlog/refine-headless.md and this record's own
 // #269 Deliverables). Callers apply labels/comments; this module only decides.
 //
 // Two-phase call, because gate 4 (assess-agent-autonomy grant-check) is a
@@ -15,7 +15,7 @@
 // since they're pure).
 //
 // Was docs/superpowers/specs/2026-08-09-self-maintaining-fleet-design.md —
-// decomposed into #265 + #267-#276 (bc1de29d) — and #269 (backlog grant mode:
+// decomposed into #265 + #267-#276 (bc1de29d) — and #269 (refine's headless posture:
 // headless machine-grant unit behind the unattended ceiling).
 
 const { normalizeLabelNames, parseRecordFacets } = require('./record.js');
@@ -66,12 +66,19 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
     return deny('grant-origination-opt-in', 'ceiling is unattended, but grant-origination-enabled is not set — machine-originated grants need their own explicit opt-in');
   }
 
-  // Gate 1c: needs:definition — cheapest possible per-record disqualifier (no
+  // Gate 1c: needs:* — cheapest possible per-record disqualifier (no
   // trustVerdicts row lookup, independent of origin), so it runs first among the
   // per-record checks, before any trust-row computation is spent on a record
-  // this gate would refuse anyway.
+  // this gate would refuse anyway. Generalized (#1488) to match the worklist rule
+  // in `_shared/work-record.md` (see '### Worklist rule'). needs:definition keeps
+  // its own named failedKey for backward compatibility with existing callers; any
+  // other needs:* label denies under the generic 'needs-label' key.
   if (facets.needsDefinition === true) {
     return deny('needs-definition', 'record carries needs:definition — an open choice has not been decided yet; run /claude-tweaks:specify to route through brainstorming first');
+  }
+  const needsLabel = names.find((n) => n.startsWith('needs:'));
+  if (needsLabel) {
+    return deny('needs-label', `record carries ${needsLabel} — a headless unit is waiting on a human decision; see the record's newest unresolved decision comment`);
   }
 
   // Gate 2: record class trust reads 'clean'.
@@ -119,6 +126,19 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   if (floorResult.exceeds) {
     return deny('oversight-floor', `record exceeds the oversight floor (reason: ${floorResult.reason}) — a human review is required`, { classKey, verdict });
   }
+  // Provenance-aware floor (#969): a record no human reviewed (shaped:headless,
+  // #968) is additionally evaluated against a fixed medium floor on both axes —
+  // stricter than the configured floor above, never looser. This branch may only
+  // ever narrow auto-granting, never widen it: it runs after the configured-floor
+  // deny (so that key keeps winning when both would fire, #969 AC4) and never
+  // short-circuits a later deny into a pass. Human-shaped records (no
+  // shapedHeadless facet) are untouched by this branch.
+  if (facets.shapedHeadless === true) {
+    const provenanceFloor = exceedsOversightFloor(facets, { riskFloor: 'medium', sizeFloor: 'medium' });
+    if (provenanceFloor.exceeds) {
+      return deny('shaped-headless-floor', `record was shaped headlessly (no human review) and exceeds the fixed medium provenance floor (reason: ${provenanceFloor.reason}) — run /claude-tweaks:backlog refine to grant it`, { classKey, verdict, risk: facets.risk, size: facets.size, floorReason: provenanceFloor.reason });
+    }
+  }
   const hasCap = typeof pol.dailyGrantCap === 'number' && pol.dailyGrantCap > 0;
   if (hasCap) {
     const issuedToday = typeof pol.grantsIssuedToday === 'number' ? pol.grantsIssuedToday : 0;
@@ -133,6 +153,10 @@ function evaluateGrantGate({ record, policy, trustVerdicts, grantCheck } = {}) {
   // call needs was already independently verified by gates 1-3 above, so this
   // call is confirmatory, not a new judgment.
   const permitted = permittedGrants({ ceiling, row, grantOriginationEnabled: pol.grantOriginationEnabled });
+  // NOTE (#309): this boolean means "this class of record earns merge trust" —
+  // it does NOT decide which label carries it. The caller (backlog/refine-headless.md
+  // Step 4) applies `auto:merge-pending`, never `auto:merge` directly; the
+  // promotion happens later, at dispatch's Auto-merge gate.
   let autoMerge = permitted.grants.bornAuthorized.granted === true;
 
   // Global merge-lane circuit breaker (#311) — a second, independent,

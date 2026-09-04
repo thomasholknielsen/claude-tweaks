@@ -6,9 +6,9 @@ The Manifesto is the **first bookend** of the pipeline (see `_shared/auto-mode-c
 
 In every mode except `interactive`, the Manifesto **computes the levers and writes `config.yml`** (downstream skills need a value to read). What changes by mode is whether it stops for approval:
 
-- **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. This is the everyday path.
-- **`confirm` mode** — **approval gate.** Present the full Manifesto with the `Approve all / Override / Cancel` block and wait. After approval the rest of the pipeline runs as `auto`. Use when the user wants to inspect/tweak levers first.
-- **`hybrid` mode** — approval gate (same as `confirm`); policies set here are honored, but skills still prompt for non-floor decisions.
+- **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. This is the everyday path, and the only content it ever needs is in this file — never open `manifesto-confirm.md` for an `auto` run.
+- **`confirm` mode** — **approval gate.** Present the full Manifesto with the `Approve all / Override / Cancel` block and wait. After approval the rest of the pipeline runs as `auto`. Use when the user wants to inspect/tweak levers first. Additionally read `manifesto-confirm.md` in this skill's directory — the `AskUserQuestion` call, the Rendering rules for the preview, and the On-override/On-cancel branches live there, split out so an `auto` run's own read of this file never has to load them (#657).
+- **`hybrid` mode** — approval gate (same as `confirm`, including `manifesto-confirm.md`); policies set here are honored, but skills still prompt for non-floor decisions.
 - **`interactive` mode** — no Manifesto, and this step creates no run directory; skills present each decision in-flow (they prompt rather than read `config.yml`). The run does still acquire a run directory before it ends: `/claude-tweaks:wrap-up`'s Phase 1 creates one unconditionally, in every mode, because its Review Console runs in every mode. That one carries no `config.yml` — nothing ran a Manifesto to write one — so the in-flow prompting above is unaffected.
 
 ## Compute recommendations
@@ -112,20 +112,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 {Override semantics: see manifesto-overrides.md — loaded on Override in confirm/hybrid}
 ```
 
-Immediately after presenting the Manifesto table above, call `AskUserQuestion` with:
-
-- `question`: `"Approve these pipeline levers, override specific ones, or cancel the pipeline?"`, `header`: `"Pipeline Config Manifesto"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Approve all (Recommended)"`, `description`: `"Run the pipeline with the recommended lever values shown above."`
-- Option 2 — `label`: `"Override"`, `description`: `"Reply with one or more #=value pairs from the valid-overrides list (e.g., 2=stop-and-ask, 7=medium) — see Override semantics (manifesto-overrides.md)."`
-- Option 3 — `label`: `"Cancel pipeline"`, `description`: `"Abort; do not create the run directory."`
-
-If "Override" is chosen, the `#=value` pairs are ordinary free-text chat in the next message, per docs/skill-authoring.md's Multi-item decisions convention — not the tool's `Other` field. At least one pair is required; a bare selection with no pairs is invalid and will re-prompt for the pair(s).
-
-### Rendering rules for the preview
-
-- **All-skip single-spec run:** replace the preview table with one line — e.g., `Preview: spec 42 (infra) — pipeline runs without polish / stories / QA. No friction expected.`
-- **Mixed-surface multi-spec run:** keep the table; per-spec rows make the contrast visible (one frontend, two backend, etc.).
-- **Friction note column:** only populate when a recommended lever value will introduce a mid-flow prompt for *this* spec under the *recommended* values. If "Approve all" runs silently for that spec, leave the column as `—`.
+**`confirm`/`hybrid` only, from here to the end of "Present the Manifesto":** immediately after presenting the Manifesto table above, read `manifesto-confirm.md` in this skill's directory for the `AskUserQuestion` call (the exact question, its three options, and the override-reply convention) and the Rendering rules for the preview. An `auto`-mode run never reaches this point — its own FYI variant above already rendered and is continuing straight to Step 4.
 
 ## Source values
 
@@ -188,9 +175,7 @@ Suppressed levers are still written to `config.yml` with their default values �
 
 Initialize `decisions.md` in the same directory with the config snapshot header (see `_shared/auto-decision-log.md`). Create the `staged/` subdirectory.
 
-**On override (option 2):** read `manifesto-overrides.md` in this skill's directory for each pair's semantics, then parse the user's `#=value` pairs, apply them to the recommendation set, validate each value against the lever's option vocabulary (reject typos with an inline retry), write the final config to `config.yml`. Do not loop on the Manifesto itself — the user gives all overrides in one reply. If validation fails on any pair, present a single retry line listing the invalid pairs only (`Invalid: 2=foo (must be add-to-plan / stop-and-ask / drop)`).
-
-**On cancel (option 3):** abort the pipeline. Do not create the run directory.
+**On override (option 2) / On cancel (option 3):** `confirm`/`hybrid` only — read `manifesto-confirm.md` in this skill's directory for both branches (override parsing/validation and the `config.yml` write, cancel handling).
 
 ## Path conventions
 

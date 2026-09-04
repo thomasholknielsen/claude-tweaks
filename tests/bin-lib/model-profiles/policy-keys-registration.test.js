@@ -1,4 +1,4 @@
-// bin/lib/model-profiles/tests/policy-keys-registration.test.js
+// tests/bin-lib/model-profiles/policy-keys-registration.test.js
 //
 // #219: pins POLICY_KEYS_READ (profiles.js's authoritative export of the four
 // resolver-read policy.yml keys) against POLICY_KEYS (policy-schema.js's

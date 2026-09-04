@@ -274,3 +274,47 @@ test('--all spot-check: scope-creep entry matches a plain single-key invocation 
     { value: singleOut['scope-creep'].value, source: singleOut['scope-creep'].source },
   );
 });
+
+test('comma-joined --values resolves identically to the space-separated multi-key form', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const commaJoined = runCli(['--values', 'autonomy,dispatch-retry-ceiling,worktree-always'], tmp);
+  const spaceSeparated = runCli(['--values', 'autonomy', 'dispatch-retry-ceiling', 'worktree-always'], tmp);
+  assert.strictEqual(commaJoined.status, 0);
+  assert.strictEqual(commaJoined.stderr, '');
+  assert.strictEqual(commaJoined.stdout, spaceSeparated.stdout);
+  assert.strictEqual(commaJoined.stdout, 'unattended\n5\ntrue\n');
+});
+
+test('comma-joined default JSON-envelope mode resolves identically to the space-separated multi-key form', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const commaJoined = runOk(['autonomy,worktree-always'], tmp);
+  const spaceSeparated = runOk(['autonomy', 'worktree-always'], tmp);
+  assert.deepStrictEqual(commaJoined, spaceSeparated);
+  assert.deepStrictEqual(commaJoined, {
+    autonomy: { value: 'unattended', source: 'policy' },
+    'worktree-always': { value: true, source: 'policy' },
+  });
+});
+
+test('comma-joined list with one unknown key: that key still errors, siblings still resolve', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const out = runOk(['made-up-lever,autonomy'], tmp);
+  assert.deepStrictEqual(out['made-up-lever'], { error: 'unknown-key' });
+  assert.deepStrictEqual(out.autonomy, { value: 'unattended', source: 'policy' });
+});
+
+test('--all rejects a comma-joined key argument the same as a plain one', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const res = runCli(['--all', 'autonomy,worktree-always'], tmp);
+  assert.notStrictEqual(res.status, 0);
+  assert.match(res.stderr, /resolve-policy:/);
+  assert.strictEqual(res.stdout, '');
+});
+
+test('--values with a comma-joined list containing model-profiles still trips the no-scalar-form rejection', () => {
+  const { tmp } = makeFixtureRepo({ policy: 'policy-basic.yml' });
+  const res = runCli(['--values', 'autonomy,model-profiles'], tmp);
+  assert.strictEqual(res.status, 1);
+  assert.match(res.stderr, /no scalar form/);
+  assert.strictEqual(res.stdout, '');
+});

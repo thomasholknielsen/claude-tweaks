@@ -13,6 +13,7 @@ import { findingsExcludeFalsePositive } from './findings-exclude-false-positive.
 import { localRecordFacet } from './local-record-facet.js';
 import { absolutePathExists } from './absolute-path-exists.js';
 import { toolInputIncludes } from './tool-input-includes.js';
+import { toolInputExcludes } from './tool-input-excludes.js';
 import { contextCostRegression } from './context-cost-regression.js';
 import { routingDestinationMatches } from './routing-destination-matches.js';
 import { verdictMatches } from './verdict-matches.js';
@@ -38,6 +39,7 @@ const ASSERTIONS = {
   'local-record-facet': (ctx, params) => localRecordFacet(ctx.repoDir, params),
   'absolute-path-exists': (ctx, params) => absolutePathExists(ctx, params),
   'tool-input-includes': (ctx, params) => toolInputIncludes(ctx, params),
+  'tool-input-excludes': (ctx, params) => toolInputExcludes(ctx, params),
   'context-cost-regression': (ctx, params) => contextCostRegression(ctx, params),
   'routing-destination-matches': (ctx, params) => routingDestinationMatches(ctx.resultText, params),
   'verdict-matches': (ctx, params) => verdictMatches(ctx.resultText, params),

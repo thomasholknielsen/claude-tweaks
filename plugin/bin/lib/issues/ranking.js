@@ -109,111 +109,6 @@ function findUnresolvedDependencyProse(candidates) {
   return hits;
 }
 
-// candidates[] -> Map<id, count>: for each candidate, how many OTHER candidates
-// in the set are transitively blocked behind it — the chain-head payout the
-// batch emitter ranks terminal blocks by. In-set scoping is deliberate: the
-// payout answers "of the records you can currently act on, how many are behind
-// this one" — an out-of-set blocker can't be dispatched from this report
-// anyway (accepted limitation, recorded in the spec). Cycle-safe via a visited
-// set: a cyclic pair yields finite counts, never an infinite walk. Blocker
-// precedence comes from blockersOf — never re-implemented here.
-function transitiveUnblocksCount(candidates) {
-  const ids = new Set(candidates.map((c) => c.id));
-  const dependents = new Map(candidates.map((c) => [c.id, []]));
-  for (const c of candidates) {
-    for (const blockerId of blockersOf(c)) {
-      if (ids.has(blockerId) && blockerId !== c.id) dependents.get(blockerId).push(c.id);
-    }
-  }
-  const counts = new Map();
-  for (const id of ids) {
-    const seen = new Set();
-    const stack = [...dependents.get(id)];
-    while (stack.length > 0) {
-      const next = stack.pop();
-      if (next === id || seen.has(next)) continue;
-      seen.add(next);
-      stack.push(...dependents.get(next));
-    }
-    counts.set(id, seen.size);
-  }
-  return counts;
-}
-
-// candidates[] -> { chains: number[][], independents: number[], cycles:
-// {ids: number[]}[] } — the single authoritative shape (cycles always
-// present, [] when none). Partitions the set into dependency components
-// (undirected depth-first traversal over in-set blocker edges), then linearizes each
-// multi-member component topologically: repeatedly emit ids whose in-set
-// blockers are all already emitted, ready-batch ties broken by priority band
-// then id for determinism. A component that stalls before emitting every
-// member is cyclic — it lands whole under cycles (ids sorted), never
-// partially in chains, never an infinite loop. Singleton components are
-// independents. Precondition: candidates are the buildable subset
-// (funnelBuckets dispatchable ∪ granted) carrying whatever blockedBy the
-// caller attached; blocker precedence comes from blockersOf. Candidate ids
-// must be unique and each candidate must carry `.facets` (same precondition
-// as rankNextToBuild) — duplicate ids are undefined behavior (last-write-wins
-// internally, since byId/adjacency/seen are all keyed by id). Ids are numbers
-// at every carrier (GraphQL's `.number`, the local-store driver's `Number()`
-// parse) — the strict-equality/Set comparisons above (`ids.has(b)`,
-// `componentSet.has(b)`, `emitted.has(b)`) rely on that; a stringified id
-// would silently drop its edge instead of throwing.
-function buildChains(candidates) {
-  const ids = new Set(candidates.map((c) => c.id));
-  const byId = new Map(candidates.map((c) => [c.id, c]));
-  const inSetBlockers = new Map(candidates.map((c) => [
-    c.id, blockersOf(c).filter((b) => ids.has(b) && b !== c.id),
-  ]));
-  const adjacency = new Map(candidates.map((c) => [c.id, new Set()]));
-  for (const [id, blockers] of inSetBlockers) {
-    for (const b of blockers) {
-      adjacency.get(id).add(b);
-      adjacency.get(b).add(id);
-    }
-  }
-  const seen = new Set();
-  const chains = [];
-  const independents = [];
-  const cycles = [];
-  for (const c of candidates) {
-    if (seen.has(c.id)) continue;
-    const component = [];
-    const stack = [c.id];
-    while (stack.length > 0) {
-      const id = stack.pop();
-      if (seen.has(id)) continue;
-      seen.add(id);
-      component.push(id);
-      stack.push(...adjacency.get(id));
-    }
-    if (component.length === 1) {
-      independents.push(component[0]);
-      continue;
-    }
-    const componentSet = new Set(component);
-    const emitted = new Set();
-    const order = [];
-    let progressed = true;
-    while (order.length < component.length && progressed) {
-      progressed = false;
-      const ready = component
-        .filter((id) => !emitted.has(id)
-          && inSetBlockers.get(id).filter((b) => componentSet.has(b)).every((b) => emitted.has(b)))
-        .sort((a, b) => priorityBandOf(byId.get(a)) - priorityBandOf(byId.get(b)) || a - b);
-      for (const id of ready) {
-        emitted.add(id);
-        order.push(id);
-        progressed = true;
-      }
-    }
-    if (order.length < component.length) cycles.push({ ids: component.slice().sort((a, b) => a - b) });
-    else chains.push(order);
-  }
-  independents.sort((a, b) => a - b);
-  return { chains, independents, cycles };
-}
-
 function rankNextToBuild(candidates) {
   const unblocksCountOf = computeUnblocksCount(candidates);
   const overlapping = computeOverlapSet(candidates);
@@ -227,5 +122,5 @@ function rankNextToBuild(candidates) {
 }
 
 module.exports = {
-  rankNextToBuild, blockersOf, findUnresolvedDependencyProse, transitiveUnblocksCount, buildChains,
+  rankNextToBuild, blockersOf, findUnresolvedDependencyProse, priorityBandOf,
 };

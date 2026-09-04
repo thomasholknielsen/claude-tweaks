@@ -1,7 +1,10 @@
 // tests/hooks-archive-terminal.test.js — #208: "archived is terminal" invariant. Once a run-id
 // exists under archive/{run-id}/, resolve() (the writer) must never create or reuse a live copy
-// of it, and iterRunDirsWithState (the SessionStart reader) must never surface one either,
-// regardless of what a resurrected active-side run-state.json claims.
+// of it. #1103's fix-wave-1 narrowed the reader-side half: iterRunDirsWithState (the SessionStart
+// reader) no longer treats mere existence of archive/{run-id}/ as proof of a completed archive —
+// that existence-only check stranded any INCOMPLETE archive attempt as permanently "done" (see
+// tests/hooks-context.test.js). It now hides a run only when the archive twin's OWN
+// run-state.json genuinely reads status: 'clean'.
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -79,16 +82,30 @@ test('AC4: an unreadable archive/ (not ENOENT) fails OPEN — the writer still c
   assert.strictEqual(fs.existsSync(out.path), true);
 });
 
-test('AC3: iterRunDirsWithState never yields an archived run-id, regardless of its resurrected active-side run-state.json', () => {
+test('AC3 (superseded by #1103 fix-wave-1): iterRunDirsWithState now yields a resurrected run-id whose archive twin has no run-state.json of its own — an incomplete/failed archive, not a completed one', () => {
   const main = gitRepo();
-  mkDir(main, 'archive', RUN_ID);
+  mkDir(main, 'archive', RUN_ID); // no run-state.json of its own — an incomplete archive, not a completed one
   const resurrected = mkDir(main, RUN_ID);
   fs.writeFileSync(path.join(resurrected, 'run-state.json'), JSON.stringify({ status: 'active' }));
   const other = mkDir(main, '2026-08-01T090000-spec-99');
   fs.writeFileSync(path.join(other, 'run-state.json'), JSON.stringify({ status: 'active' }));
 
   const dirs = [...iterRunDirsWithState(main)].map((e) => e.dir);
-  assert.ok(!dirs.includes(resurrected), 'the archived run-id must never be yielded');
+  assert.ok(dirs.includes(resurrected), 'an archive twin with no run-state.json of its own must not permanently hide the live run dir (#1103)');
+  assert.ok(dirs.includes(other), 'an unrelated genuinely-active run must still be reported');
+});
+
+test('AC3: iterRunDirsWithState still never yields a run-id whose archive twin genuinely reads status: clean', () => {
+  const main = gitRepo();
+  const archiveTwin = mkDir(main, 'archive', RUN_ID);
+  fs.writeFileSync(path.join(archiveTwin, 'run-state.json'), JSON.stringify({ status: 'clean' }));
+  const resurrected = mkDir(main, RUN_ID);
+  fs.writeFileSync(path.join(resurrected, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const other = mkDir(main, '2026-08-01T090000-spec-99');
+  fs.writeFileSync(path.join(other, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const dirs = [...iterRunDirsWithState(main)].map((e) => e.dir);
+  assert.ok(!dirs.includes(resurrected), 'a genuinely clean archive twin must still hide the live run dir');
   assert.ok(dirs.includes(other), 'an unrelated genuinely-active run must still be reported');
 });
 

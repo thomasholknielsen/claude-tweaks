@@ -33,7 +33,8 @@ function main() {
   const { since, json } = parseArgs(process.argv.slice(2));
   if (!since) {
     process.stderr.write('usage: wrap-up-state.js --since <base-sha> [--json]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const cwd = process.cwd();
   const state = readState({ cwd, since });
@@ -57,7 +58,8 @@ function main() {
     sinceDate = git(['show', '-s', '--format=%cI', since], cwd);
     if (!sinceDate) {
       process.stderr.write(`wrap-up-state.js: --since value is not a resolvable commit-ish: ${since}\n`);
-      process.exit(2);
+      process.exitCode = 2;
+      return;
     }
   }
   const head = git(['reflog', '--date=iso', `--since=${sinceDate}`], cwd) || '';

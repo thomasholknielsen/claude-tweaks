@@ -36,7 +36,7 @@ assertions:
   - type: commit-count
     max: 2
   - type: test-passes
-    command: "node --test test/"
+    command: "node --test test/*.test.js"
   # Decline memory: the passed-on candidate persists across runs.
   - type: file-exists
     path: .claude-tweaks/deepen/declines.md

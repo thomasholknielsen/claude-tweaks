@@ -51,10 +51,52 @@ test('CLI --json round-trips the same numbers as the text report', () => {
   assert.match(textOut, /Refused proposals: 0/);
 });
 
+test('CLI renders a named Failed writes bucket, not silent other', () => {
+  const root = makeFixtureRoot();
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', 'run-1');
+  fs.writeFileSync(
+    path.join(dir, 'decisions.md'),
+    '- AUTO 12:00:00 — Review Console: terminal decision approve-all. Reversibility: n/a.\n' +
+    '- FAILED 09:00:00 — apply-refine-labels: priority write failed on #42: HTTP 500.\n',
+  );
+  const jsonOut = JSON.parse(run(['--json'], root));
+  const textOut = run([], root);
+  assert.strictEqual(jsonOut.failedCount, 1);
+  assert.match(textOut, /Failed writes: 1/);
+});
+
 test('missing TSV exits 0 with an explicit "no telemetry yet" line', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'calib-empty-'));
   const out = run([], root);
   assert.match(out, /no telemetry yet/);
+});
+
+test('#917: a partially-pruned archive still reports the TSV row whose runId has no archived dir', () => {
+  // run-1's archive dir was pruned (deleted) while its wrap-up-outcomes.tsv
+  // row persists; run-2's archive dir still exists. Before #917, only the
+  // fully-empty-archive case synthesized a stub row — a partial prune left
+  // run-1 permanently and silently stuck at "no runs in window" even though
+  // run-2 (a real archived run) was loaded fine.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'calib-partial-'));
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.claude-tweaks', 'wrap-up-outcomes.tsv'),
+    '2026-08-01\trun-1\tskills\tclosed\t0\tna\n2026-08-02\trun-2\tskills\tclosed\t0\tna\n',
+  );
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive');
+  // Only run-2's archive dir exists — run-1's was pruned.
+  const dir = path.join(archiveDir, 'run-2');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'decisions.md'), '- AUTO 12:00:00 — Review Console: terminal decision approve-all. Reversibility: n/a.\n');
+  fs.writeFileSync(path.join(dir, 'events.jsonl'), '{"type":"gate-denial"}\n');
+
+  const jsonOut = JSON.parse(run(['--json'], root));
+  assert.ok(jsonOut.window.runIds.includes('run-1'), 'run-1 (pruned archive) must still appear in the window');
+  assert.ok(jsonOut.window.runIds.includes('run-2'), 'run-2 (real archived run) must still appear in the window');
+  // run-2's real decision line must still be counted — the stub-synthesis
+  // for run-1 must not clobber or dilute run-2's actually-loaded data.
+  assert.strictEqual(jsonOut.consoleDist['approve-all'], 1);
+  assert.strictEqual(jsonOut.frictionCounts['gate-denial'], 1);
 });
 
 test('no archive dir is stated explicitly', () => {

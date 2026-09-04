@@ -14,8 +14,9 @@ and Step 5 already scopes to `git diff --name-only` only, with no "look beyond t
 to cap. Standalone review (no pipeline run directory) always runs every step, matching
 `/claude-tweaks:reflect`/`/claude-tweaks:wrap-up`'s own standalone-defaults-to-full rule. A Review
 finding at any severity still triggers the existing ceremony escape hatch
-(`/claude-tweaks:wrap-up`'s Phase 1 ceremony escape hatch downgrades `ceremony-profile` to `standard` for the rest of
-the run) — unchanged. Full rationale was in
+(`/claude-tweaks:wrap-up`'s Phase 1 ceremony escape hatch downgrades `ceremony-profile` to
+`standard` for the rest of the run via `bin/set-config.js` — the sanctioned run-config writer;
+the runnable invocation lives in that hatch, refs #1376) — unchanged. Full rationale was in
 `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`, deleted `70849915`.
 
 ## Step 1: Spec Compliance Check (spec-based only)
@@ -30,6 +31,16 @@ If a spec number was provided, read the spec file and verify the implementation 
 1. **Deliverables** — for each deliverable checkbox in the spec, search the codebase for the implementation. Mark each as `done`, `partial`, or `missing`.
 2. **Acceptance Criteria** — for each criterion, determine whether it's verifiable from the code and tests. Mark as `met`, `partially met`, or `not met`.
 3. **Non-Goals** — verify the implementation didn't accidentally include work scoped out by the spec's Non-Goals section.
+4. **Risk-Marker Verification** — runs alongside check 2 above (Acceptance Criteria). Scan the
+   spec (the same materialized file this step already reads — no separate fetch) for unresolved
+   risk markers left over from `/claude-tweaks:specify`: Gotchas bullets whose validation status
+   is not "validated" (contains "unvalidated," "assumed," or "unconfirmed" —
+   `shaping-mode-stamping.md`'s framing-check fold, #1346's split of `shaping-mode.md`), inline `<!-- ambiguity: ... -->` markers
+   (`red-team.md`'s per-sentence write-back), and `## Open Questions` rows (`red-team.md`'s
+   general-finding table). For each marker found, independently verify it against the artifact's
+   real external validator/schema/tool — **a structural or syntax check alone (e.g. "the config
+   parses," "the file exists") is necessary but not sufficient; the value itself must be confirmed
+   against ground truth**, not merely well-formed. Mark each as `verified` or `unresolved`.
 
 ### Gate:
 
@@ -37,6 +48,7 @@ If a spec number was provided, read the spec file and verify the implementation 
 |--------|--------|
 | All deliverables done + all criteria met | Proceed to Step 1.5 |
 | Minor gaps (1-2 partial items) | Flag gaps, proceed — they may be addressed in Implementation Hindsight |
+| Any risk marker `unresolved` after independent verification | **BLOCKED** — same tier as Significant gaps. Name the unverified marker(s) (file:line or table row) so the user knows exactly what still needs ground-truth confirmation |
 | Significant gaps (missing deliverables or criteria) | **BLOCKED** — the spec isn't fully built yet. List what's missing so the user can resume `/claude-tweaks:build` |
 
 If blocked, skip the rest of the review. Present the gap analysis so the user knows exactly what to finish.
@@ -246,7 +258,7 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 
 **When this step runs:**
 - **Code mode:** Delegate to `/claude-tweaks:visual-review --mode=recommendation` — it detects UI changes via `git diff` and identifies affected journeys, returning a structured recommendation without opening a browser (no `agent-browser` dependency). Do not stop to ask; note any recommendation in the summary (Step 7). This is `recommendation` mode, not `discover` mode — `discover` actually opens a browser and walks the app, which would contradict this step's "recommendation only, non-blocking" design.
-- **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications.
+- **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications. When the diff has zero UI-file matches (the same trigger-extension check `/claude-tweaks:visual-review` already uses for its own detection), fall back to `--mode=recommendation` instead — same as code mode above — rather than opening a full browser mode on a diff with nothing to visually review.
 
 **Routing (optional):** actionable full-mode visual findings the user wants to action inline route through Step 6.7 below, in one consolidated pass with Step 6.5's design findings — Step 3 Routing has already completed by this point. When the user opts not to action a finding inline, it remains in the Step 7 summary's "Visual Review" section as informational. (`/claude-tweaks:visual-review`'s own Step 5 Boost fix/defer/accept flow does not apply here — it runs only when `/claude-tweaks:visual-review` is standalone and interactive, never when invoked BY `/claude-tweaks:review`.)
 
@@ -264,14 +276,14 @@ Invoke `/claude-tweaks:design-wrapper review <spec>` to run Impeccable's `critiq
 
 **Invocation:**
 
-Pass the spec number (or paths) used for this review run. The wrapper resolves changed UI files via its own detection and runs `/impeccable:impeccable critique` + `/impeccable:impeccable audit`.
+Before invoking the wrapper, run `_shared/design-wrapper-handling.md`'s "Caller-side pre-check" with `--mode review`, `--files` from the diff scope this run already resolved (Step 2's own-work file list when merge commits were detected, otherwise the full `git diff --name-only` set), and `--surface` from this record's materialized `surface:` header field — so a non-frontend record, or a project with the design kill-switch off, never pays for loading `design-wrapper/SKILL.md` plus `modes/review.md`. On `decision: "skip"`, treat exactly like the wrapper's own `{skipped: ...}` return in the Result handling table below and skip straight to Step 6.7. On `decision: "proceed"`, pass the spec number (or paths) used for this review run — the wrapper resolves changed UI files via its own detection and runs `/impeccable:impeccable critique` + `/impeccable:impeccable audit`.
 
 **Result handling:**
 
 | Wrapper return | Review behavior |
 |----------------|-----------------|
 | `{result: "advisory", findings: [...], score_trend?: {...}}` | Include findings in the summary as a "Design Quality" section (see Step 7's template). When `score_trend` is present, the section also renders a Design/Audit Health trend line above the findings table (current score vs. the last captured score, per `review-summary-template.md`). Findings are advisory — they inform the verdict, but no auto-fixes. A `decisions_staged` field (present when the wrapper staged `target: "decisions"` findings to `{run-dir}/staged/design-decision-*.md`) means those findings await the Review Console — render them under the section's **Decisions** sub-heading only when the field is absent (nothing was staged — standalone review, or no `decisions` findings this run). |
-| `{skipped: ...}` | Omit the "Design Quality" section from the summary. Note the skip reason in the summary footer. |
+| `{skipped: ...}` (from the wrapper, or from the pre-check's `decision: "skip"` above) | Omit the "Design Quality" section from the summary. Note the skip reason in the summary footer. |
 | `{deferred: ...}` (should not happen for `review` mode) | Treat as skip and omit the section. |
 
 See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.

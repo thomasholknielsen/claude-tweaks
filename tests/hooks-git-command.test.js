@@ -356,3 +356,90 @@ test('mkdirTargets: an unresolvable target (variable, backtick, tilde) yields no
 test('mkdirTargets: a non-mkdir command yields no target', () => {
   assert.deepStrictEqual(mkdirTargets('cp a b', '/repo'), []);
 });
+
+// #590: env-prefixed and path-qualified git invocations bypass the
+// `t[0] !== 'git'` check the same way a bare `git commit`/`git push` proves a
+// target — a real shell treats these shapes identically.
+test('an env-var-prefixed git commit still resolves a target', () => {
+  assert.deepStrictEqual(gitTargets('FOO=1 git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('a path-qualified git commit still resolves a target', () => {
+  assert.deepStrictEqual(gitTargets('/usr/bin/git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('env-wrapped git (with and without env\'s own flags/assignments) still resolves a target', () => {
+  assert.deepStrictEqual(gitTargets('env git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env -i git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env FOO=1 git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('env-prefixed/path-qualified git push resolves too, not just commit', () => {
+  assert.deepStrictEqual(gitTargets('FOO=1 git push origin main', '/repo'), [{ action: 'push', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('/usr/bin/git push origin main', '/repo'), [{ action: 'push', dir: '/repo' }]);
+});
+
+test('env-var-prefix and path-qualification compose: both together still resolve a target', () => {
+  assert.deepStrictEqual(gitTargets('FOO=1 /usr/bin/git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env FOO=1 /usr/bin/git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('an executable merely ending in "git"-like text but not the literal git basename is not mistaken for git', () => {
+  assert.deepStrictEqual(gitTargets('/usr/bin/mygit commit -m "x"', '/repo'), []);
+});
+
+test('a bare unrelated NAME=value prefix on a non-git command still yields nothing', () => {
+  assert.deepStrictEqual(gitTargets('FOO=bar npm test', '/repo'), []);
+});
+
+test('an env-var-prefixed cd changes the effective cwd, matching real bash — a following bare commit targets the new dir', () => {
+  // Verified empirically: `FOO=1 cd /x` really does change the shell's cwd
+  // (cd is a regular, not a POSIX "special", builtin — it has no subprocess
+  // to scope the assignment to, so cd still runs against the current shell).
+  assert.deepStrictEqual(gitTargets('FOO=1 cd /var && git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/var' }]);
+});
+
+test('an env-WRAPPED cd (as opposed to env-var-PREFIXED) does not change cwd, matching real bash — env execs a nonexistent "cd" binary and errors, so a following bare commit still targets the stale cwd', () => {
+  assert.deepStrictEqual(gitTargets('env cd /var; git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+// env's arg-taking flags: skipping `-C`/`--chdir` without consuming the value
+// made the dir token the presumed command word ("not git" → silent allow),
+// while GNU env really runs git with that dir as its cwd — the exact bypass
+// shape for a worktree session mutating the protected main checkout.
+test("env -C <dir> git commit resolves the target to env's chdir dir, not the caller cwd", () => {
+  assert.deepStrictEqual(gitTargets('env -C /main-checkout git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/main-checkout' }]);
+});
+
+test('env --chdir=<dir> and env --chdir <dir> both resolve the target to the chdir dir', () => {
+  assert.deepStrictEqual(gitTargets('env --chdir=/main-checkout git push', '/repo'), [{ action: 'push', dir: '/main-checkout' }]);
+  assert.deepStrictEqual(gitTargets('env --chdir /main-checkout git push', '/repo'), [{ action: 'push', dir: '/main-checkout' }]);
+});
+
+test('a relative env -C value resolves against the effective cwd, and stacks with git\'s own -C', () => {
+  assert.deepStrictEqual(gitTargets('env -C sub git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo/sub' }]);
+  assert.deepStrictEqual(gitTargets('env -C /a git -C b commit -m "x"', '/repo'), [{ action: 'commit', dir: '/a/b' }]);
+});
+
+test('an unresolvable env -C value ($VAR, ~) yields no target — never a fabricated one', () => {
+  assert.deepStrictEqual(gitTargets('env -C "$DIR" git commit -m "x"', '/repo'), []);
+  assert.deepStrictEqual(gitTargets('env -C ~/x git commit -m "x"', '/repo'), []);
+});
+
+test('env -u NAME consumes its value — the unset name is not mistaken for the command word', () => {
+  assert.deepStrictEqual(gitTargets('env -u GIT_DIR git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('env -u FOO npm test', '/repo'), []);
+});
+
+test('the ATTACHED-value env -C<dir> form resolves the target like the separate form — not skipped as a generic flag', () => {
+  // Real env (macOS and GNU alike) honors `-C/dir` with the value attached;
+  // treating it as a valueless flag left the resolved dir at the caller's
+  // cwd while git was still detected as lead — a silent-allow bypass.
+  assert.deepStrictEqual(gitTargets('env -C/main-checkout git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/main-checkout' }]);
+  assert.deepStrictEqual(gitTargets('env -Csub git push', '/repo'), [{ action: 'push', dir: '/repo/sub' }]);
+  assert.deepStrictEqual(gitTargets('env -C"$DIR" git commit -m "x"', '/repo'), []);
+});
+
+test('an attached env -uNAME form is consumed whole — git is still found as lead', () => {
+  assert.deepStrictEqual(gitTargets('env -uFOO git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});

@@ -83,6 +83,31 @@ test('warns with the commit count and a pointer to worktree-setup.md when the wo
   assert.match(out.json.systemMessage, new RegExp(`origin/${base}`));
 });
 
+// #1464: none of this file's other fixtures exercise resolveIntegrationBranch's
+// other fallback rank — a project with no `integration-branch:` pinned in
+// policy.yml relies entirely on `origin/HEAD` resolving offline. Deliberately
+// does NOT use setupProject() (every one of its callers pins the policy value),
+// and explicitly runs `git remote set-head origin -a` — adding the remote alone
+// does not set origin/HEAD, so omitting this step would silently fall through to
+// the "no integration branch resolved" no-op path and this test would prove
+// nothing.
+test('falls back to origin/HEAD resolution when no integration-branch policy is pinned', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  execFileSync('git', ['remote', 'add', 'origin', main], { cwd: main });
+  // `set-head -a` auto-detects via the remote's own advertised HEAD, but only
+  // once refs/remotes/origin/* actually exist locally — a bare `remote add`
+  // does not fetch, so `-a` alone fails with "Not a valid ref" here.
+  execFileSync('git', ['fetch', 'origin'], { cwd: main });
+  execFileSync('git', ['remote', 'set-head', 'origin', '-a'], { cwd: main });
+  const wt = harnessWorktreeOf(main);
+  advance(main, 3);
+  const out = post.run(enterWorktreeCtx(wt, { toolResponse: createdAt(wt, `wt-branch-${path.basename(wt)}`) }));
+  assert.ok(out.json && typeof out.json.systemMessage === 'string', 'expected a systemMessage warning via the origin/HEAD fallback');
+  assert.match(out.json.systemMessage, /\b3\b/);
+  assert.match(out.json.systemMessage, new RegExp(`origin/${base}`));
+});
+
 test('does not warn when the worktree is not behind', () => {
   const { main } = setupProject();
   const wt = harnessWorktreeOf(main);

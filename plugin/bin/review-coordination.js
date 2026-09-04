@@ -103,7 +103,7 @@ function run(argv, deps = realDeps) {
 }
 
 if (require.main === module) {
-  process.exit(run(process.argv.slice(2)));
+  process.exitCode = run(process.argv.slice(2));
 }
 
 module.exports = { run };

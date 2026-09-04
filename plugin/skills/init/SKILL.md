@@ -82,13 +82,13 @@ Fast, idempotent structural setup. Creates directories, starter files, and verif
 
 ### Core Bootstrap Version Check (runs before Step 1)
 
-Before running Steps 1-8, read `.claude-tweaks/init-state.yml` (treat as absent if missing or malformed) and compare its `core-bootstrap.plugin-version` against `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `version` field (the same field `/claude-tweaks:help` treats as the sole source of truth) via `bin/lib/changelog.js`'s `compareVersions`. Read `bootstrap/version-check.md` for the exact commands.
+Before running Steps 1-8.5, read `.claude-tweaks/init-state.yml` (treat as absent if missing or malformed) and compare its `core-bootstrap.plugin-version` against `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `version` field (the same field `/claude-tweaks:help` treats as the sole source of truth) via `bin/lib/changelog.js`'s `compareVersions`. Read `bootstrap/version-check.md` for the exact commands.
 
-Marker missing or unreadable → run Steps 1-8 fully, no changelog notice. Marker version equal to (or newer than) the installed version → skip Steps 1-8 entirely and print a one-line confirmation. Marker older → run Steps 1-8 fully, then surface a filtered changelog notice for the version range. The marker-state table, the changelog-notice procedure, and the rule for when the marker itself is written all live in `bootstrap/version-check.md` alongside the commands above — one read covers the whole check.
+Marker missing or unreadable → run Steps 1-8.5 fully, no changelog notice. Marker version equal to (or newer than) the installed version → skip Steps 1-8.5 entirely and print a one-line confirmation. Marker older → run Steps 1-8.5 fully, then surface a filtered changelog notice for the version range. The marker-state table, the changelog-notice procedure, and the rule for when the marker itself is written all live in `bootstrap/version-check.md` alongside the commands above — one read covers the whole check.
 
-**Exception:** an explicitly-named `bootstrap` Phase scope (see `## Input`) always runs Steps 1-8 fully, regardless of the marker — `bootstrap` documents itself as "run Phase 0 only (structure + deps)," and a version-match skip would silently turn an explicit request for exactly that into a near no-op.
+**Exception:** an explicitly-named `bootstrap` Phase scope (see `## Input`) always runs Steps 1-8.5 fully, regardless of the marker — `bootstrap` documents itself as "run Phase 0 only (structure + deps)," and a version-match skip would silently turn an explicit request for exactly that into a near no-op.
 
-**Core Bootstrap (Steps 1–8):**
+**Core Bootstrap (Steps 1–8.5):**
 
 ### Step 1: Check Plugin Dependencies
 
@@ -114,19 +114,27 @@ Confirm the directory is a git repo; warn if not (review and wrap-up will be deg
 
 Ensure `.worktrees/` exists in the project root for the git-fallback path; leave any `.claude/worktrees/` directory alone as a separate, harness-owned convention that needs no migration. Also offers the `worktree-always` policy opt-in (recommended default: on) — the decision is queued here but the file write is deferred to avoid this same run denying its own later writes; see "Finalizing the worktree-always Decision" and "Worktree Policy Finalization" below. Read `bootstrap/step-06-worktree-configuration.md` for the full procedure.
 
+### Step 6.5: Port Isolation
+
+Detects literal dev-server ports across the project's config, offers a reviewable rewrite to env reads (never applied without the gate below, even in `auto`), and queues a `port-services` policy decision through the same deferred-write mechanism `worktree-always` uses (see "Finalizing the worktree-always Decision"). Read `bootstrap/step-06-5-port-isolation.md` for the full procedure.
+
 ### Step 7: Browser Integration
 
 Detect `agent-browser`; surface the install command if missing. Never block init, never auto-install, never prompt for backend choice. Read `bootstrap/step-07-browser-integration.md` for the full procedure.
 
 ### Step 8: Statusline & Dependencies
 
-Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap/step-08-statusline-and-dependencies.md` for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
+Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap/step-08-statusline-and-dependencies.md` for the full procedure.
+
+### Step 8.5: Dependency Read-Only Permissions
+
+Seeds a read-only `Read`/`Grep` allowlist for the project's `node_modules` (plus `.pnpm/**` on pnpm workspaces) in `.claude/settings.json`, idempotently — also repairs a missing entry on re-run. Read `bootstrap/step-08-5-dependency-read-permissions.md` for the full procedure.
 
 **Optional Enhancements (Steps 9 onward):** Skipped when `--core-only` is set — every offer below is treated as declined, no prompt shown, and the invocation proceeds straight to whatever runs after Phase 0 (Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset by Enhancement filter tokens — see `## Input`'s token list for the full set and each token's ordering/hard-depends notes.
 
 ### Step 9: Establish GitHub Remote (Optional)
 
-Interactive-only — never runs in `auto`/non-interactive mode. When no git remote is configured at all (any existing remote, GitHub or not, skips this step), offers to get the `gh` CLI installed and authenticated, then offers to create a GitHub repository (personal/org account, confirmed name, private/public) and link it as `origin`. Establishes the remote that Steps 10/14/16/17/20 below each independently check for — declining falls through to existing behavior. Read `bootstrap/step-09-establish-github-remote.md` for the full procedure.
+Interactive-only — never runs in `auto`/non-interactive mode. When no git remote is configured at all (any existing remote, GitHub or not, skips this step), offers to get the `gh` CLI installed and authenticated, then offers to create a GitHub repository and link it as `origin`. Establishes the remote that Steps 10/14/16/17/20 below each independently check for — declining falls through to existing behavior. Read `bootstrap/step-09-establish-github-remote.md` for the full procedure.
 
 ### Step 10: GitHub Issue Form Template (Optional)
 
@@ -146,11 +154,11 @@ When frontend signals are detected and `components.json` doesn't exist (or exist
 
 ### Step 14: Cloud/Routine Parity Setup (Optional)
 
-Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9). Warns on a current-vs-default branch mismatch, declares the plugin set in `.claude/settings.json#enabledPlugins` (what a cloud sandbox may load — not what installs it), generates the committed `scripts/claude-cloud-setup.sh` that actually materializes plugins in a fresh sandbox, offers to attach it to the session environment, and writes the `## Cloud parity` CLAUDE.md section. Runs before Step 15 deliberately — a Routine created first would silently fail its first cloud firing. Idempotent ("already configured"; the branch check itself still runs every time). Read `bootstrap/step-14-cloud-routine-parity.md` for the full procedure.
+Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9). Warns on a current-vs-default branch mismatch, declares the plugin set in `.claude/settings.json#enabledPlugins` (what a cloud sandbox may load — not what installs it), generates the committed `scripts/claude-cloud-setup.sh` that actually materializes plugins in a fresh sandbox, and writes the `## Cloud parity` CLAUDE.md section. Idempotent ("already configured"; the branch check itself still runs every time). Read `bootstrap/step-14-cloud-routine-parity.md` for the full procedure.
 
 ### Step 15: Routine Installation (Optional Companion)
 
-Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, present them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, and invoke `/claude-tweaks:routine create <skill> --defaults --environment=<id> --source init` for each selected candidate — no per-candidate interactive walkthrough. Idempotent: candidates with an existing record are never re-offered — but Update Mode does audit existing records for drift, relevance, and environment dedication; see `update-mode.md`'s Routine Drift/Relevance/Environment Dedication entries. Read `bootstrap/step-15-routine-installation.md` for the full procedure.
+Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, present them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, and invoke `/claude-tweaks:routine create <skill> --defaults --environment=<id> --source init` for each selected candidate — no per-candidate interactive walkthrough. Also issues (or skips, when none selected) the dedicated-environment offer deferred from Step 14. Idempotent: candidates with an existing record are never re-offered — but Update Mode does audit existing records for drift, relevance, and environment dedication; see `update-mode.md`'s Routine Drift/Relevance/Environment Dedication entries. Read `bootstrap/step-15-routine-installation.md` for the full procedure.
 
 ### Step 16: Non-Default-Branch Issue Tracking (Optional Companion)
 
@@ -272,7 +280,7 @@ Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosop
 
 > **Parallel execution:** Use parallel tool calls aggressively — scoring of independent skill candidates is read-only (re-checking grep/glob signals from Phase 2) and should run concurrently.
 >
-> **Parallel execution (conditional):** When the candidate list has ≥ 8 skills, dispatch scoring as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`). Otherwise, run the scoring inline in the main thread.
+> **Parallel execution (conditional):** When the candidate list has ≥ 8 skills, dispatch scoring as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`). Otherwise, run the scoring inline in the main thread. Fan-out: single-assistant-message rule applies.
 >
 > **Model profile:** [Use: Standard] — three-dimension judgment against Phase 2 evidence; not mechanical enough for Fast, not synthesis-heavy enough for Capable. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection).
 
@@ -374,22 +382,7 @@ If Step 6 queued a `worktree-always` decision, write it now, bundled into "Isola
 
 ## Next Actions
 
-Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or rendered as one of the markdown lines below. Resolve signals top-to-bottom; the first matching row is the recommendation. The last row is also the catch-all: the signal rows above it are not exhaustive over every possible post-init state (e.g. Update Mode completing a full pass with zero drift and no backlog writes matches none of them), so anything that doesn't match falls through to it, guaranteeing there is always a defined recommendation.
-
-| Signal | Recommended Next Action |
-|--------|------------------------|
-| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and backlog items before resuming feature work |
-| Backlog has work records written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /claude-tweaks:init just captured |
-| Initial Mode ran AND backlog is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into the backlog for triage |
-| Everything is clean (Update Mode early-exit or a full pass ending with zero drift, OR Initial Mode with nothing routed to the backlog), or no row above matches | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
-
-Once resolved to a single recommended row, render as plain markdown (docs/skill-authoring.md's Skill handoffs convention) — the resolved recommendation first, bolded, with `(recommended)`, plus the two "Always" lines below:
-
-**{the resolved recommendation's full command text from the matched row}** — {short one-line summary of it} (recommended)
-`/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature
-`/claude-tweaks:tidy` — review backlog entries
-
-If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it and the last line refer to the same command — collapse them into a single `(recommended)` line rather than repeating `/claude-tweaks:tidy` twice, leaving 2 lines for that render instead of 3.
+Read `next-actions.md` in this skill's directory for the signal-resolution table and render rules.
 
 ## Anti-Patterns
 

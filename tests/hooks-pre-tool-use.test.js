@@ -137,6 +137,39 @@ test('missing or malformed session identity on either side falls back to deny (s
   assert.strictEqual(corruptOut.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+// #1563: this gate's own ownership check (owner && caller && owner !== caller
+// -> foreign-allow-warn, else deny) is deliberately NOT classifyOwnership
+// (#1098) — unlike context.js's resolveRun fallback (#1410), which does use
+// it, this gate has no worktree-binding "foreign" bypass. The scenario above
+// ("missing or malformed session identity... falls back to deny") uses the
+// MAIN checkout as the caller's cwd, which classifyOwnership would ALSO
+// classify 'indeterminate' (not 'foreign') via its own !isLinkedWorktree
+// check — so it doesn't actually distinguish the two behaviors. THIS test
+// puts the caller in a genuinely different LINKED worktree (not main, not
+// the run's own assigned worktree) — the one case where classifyOwnership's
+// binding comparison alone would return 'foreign' regardless of session id.
+// Pinned here so #1099 (still open at the time this test was added), if it
+// ever swaps this gate onto classifyOwnership, cannot silently regress an
+// owner-absent + different-live-worktree caller from "denied" to "allowed
+// with a warning" without this test forcing that decision to be made
+// explicitly.
+test('#1563: commit from a genuinely different LIVE worktree, run has no recorded owner, is still denied — with and without a caller session_id', () => {
+  const { main, wt: assignedWt } = mainAndWorktree();
+  const callerWt = linkedWorktreeOf(main); // a second, genuinely different live worktree of the same repo
+  const { run, state } = mkRun(assignedWt); // no sessionId recorded
+
+  const withoutSessionId = pre.run({
+    input: bashInput('git commit -m "x"', callerWt), runDir: run, runState: state, cwd: callerWt,
+  });
+  assert.strictEqual(withoutSessionId.json.hookSpecificOutput.permissionDecision, 'deny');
+
+  const withSessionId = pre.run({
+    input: { ...bashInput('git commit -m "x"', callerWt), session_id: 'caller-session' },
+    runDir: run, runState: state, cwd: callerWt,
+  });
+  assert.strictEqual(withSessionId.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 test('git -C into the assigned worktree from elsewhere is allowed', () => {
   const wt = gitRepo();
   const other = gitRepo();
@@ -182,6 +215,32 @@ test('two live runs: commit in the OLDER run\'s own worktree is allowed even whe
   const events = fs.readFileSync(path.join(newer.run, 'events.jsonl'), 'utf8');
   assert.match(events, /"type":"wd-ambiguous"/);
   assert.match(events, new RegExp(esc(olderWt)));
+});
+
+test('three concurrent live runs: a commit in THIS run\'s own assigned worktree never logs wd-ambiguous, even with multiple unrelated sibling worktrees registered as live candidates (#1329)', () => {
+  const project = tmpProject();
+  const main = gitRepoWithCommit();
+  const ownWt = linkedWorktreeOf(main);
+  const siblingWtA = linkedWorktreeOf(main);
+  const siblingWtB = linkedWorktreeOf(main);
+  // Two unrelated concurrent sibling runs registered BEFORE the resolved
+  // run, and the resolved run's own worktree is a real, resolvable exact
+  // match for the target — the exact-match short-circuit (actual ===
+  // assigned) must win over the otherWorktrees ambiguous-match branch for
+  // every target in this command, regardless of how many other live
+  // worktrees exist to potentially (mis)match against.
+  mkRunAt(project, '2026-07-01T090000-spec-1', siblingWtA);
+  mkRunAt(project, '2026-07-02T090000-spec-2', siblingWtB);
+  const own = mkRunAt(project, '2026-07-03T090000-spec-3', ownWt);
+
+  const out = pre.run({
+    input: bashInput(`git -C ${ownWt} commit -m "x"`, project),
+    runDir: own.run,
+    runState: own.state,
+    cwd: project,
+  });
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(own.run, 'events.jsonl')), 'no wd-ambiguous (or any) event should be logged for a genuine exact match');
 });
 
 test('two live runs: commit in a THIRD repo matching neither worktree is still denied, reason mentions both worktrees', () => {
@@ -734,4 +793,324 @@ test('worktree-required: an unexpanded glob still resolves against the cwd and i
   const repo = policedRepo();
   const out = pre.run({ input: bashInput("sed -i 's/x/y/' *.js", repo), runDir: null, runState: null, cwd: repo });
   assert.strictEqual(decisionOf(out), 'deny', 'a glob rooted in the main checkout writes to the main checkout');
+});
+
+// --- gitignored-target exemption (#1395) ---
+//
+// A gitignored runtime config (a .env docker compose reads from the main
+// checkout) is not the project work this gate exists to isolate. Covers both
+// file-tool (Edit/Write) and Bash write-shape (cp/sed -i/tee) targets, per
+// the issue's "keyed on exemptible, not fileTool" instruction.
+//
+// The issue also asked for a second, standalone "untracked, but NOT
+// gitignored" branch (via `git ls-files --error-unmatch`). That branch was
+// built during triage, then DELIBERATELY REVERTED — see isUntrackedOrIgnored's
+// header comment in pre-tool-use.js for the full rationale — after it broke
+// three existing security tests in tests/hooks-policy-exemption.test.js by
+// blanket-exempting any existing-but-uncommitted file, including
+// `.claude-tweaks/policy.yml` itself before its first commit (defeating both
+// its Bash-write-shape gating and its symlink-swap identity defense) and
+// ordinary real project content (CLAUDE.md) that simply had not been `git
+// add`ed yet. Git has no signal that distinguishes those from a genuine
+// deploy/scratch artifact. The tests below cover the gitignored branch that
+// WAS implemented, plus regression guards proving the reverted branch stays
+// reverted.
+
+test('worktree-required: a gitignored write target is exempt (Edit/Write and cp/sed -i/tee)', () => {
+  const repo = policedRepo();
+  fs.writeFileSync(path.join(repo, '.gitignore'), '*.env\n');
+  const target = path.join(repo, 'deploy.env');
+
+  assert.deepStrictEqual(
+    pre.run({ input: { tool_name: 'Write', tool_input: { file_path: target } }, runDir: null, runState: null, cwd: repo }),
+    {}, 'Write to a gitignored path must be exempt',
+  );
+  assert.deepStrictEqual(
+    pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: target } }, runDir: null, runState: null, cwd: repo }),
+    {}, 'Edit of a gitignored path must be exempt',
+  );
+  assert.deepStrictEqual(
+    pre.run({ input: bashInput(`cp source.txt ${target}`, repo), runDir: null, runState: null, cwd: repo }),
+    {}, 'cp writing a gitignored destination must be exempt',
+  );
+  assert.deepStrictEqual(
+    pre.run({ input: bashInput(`sed -i 's/x/y/' ${target}`, repo), runDir: null, runState: null, cwd: repo }),
+    {}, 'sed -i against a gitignored path must be exempt',
+  );
+  assert.deepStrictEqual(
+    pre.run({ input: bashInput(`echo hi | tee ${target}`, repo), runDir: null, runState: null, cwd: repo }),
+    {}, 'tee writing a gitignored path must be exempt',
+  );
+});
+
+test('worktree-required: an EXISTING untracked-but-NOT-gitignored write target is still denied (reverted-branch regression guard, #1395)', () => {
+  // An existing, never-`git add`ed scratch file that is NOT covered by any
+  // .gitignore pattern must stay denied — proving the exemption really is
+  // gitignored-only. See the block comment above for the full history: a
+  // standalone untracked branch was built, then reverted, because it could
+  // not be told apart from real uncommitted project content.
+  const repo = policedRepo();
+  const target = path.join(repo, 'scratch.txt');
+  fs.writeFileSync(target, 'pre-existing, never git-added, not ignored');
+  const out = pre.run({ input: bashInput(`cp source.txt ${target}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(out), 'deny', 'untracked status alone must never exempt a write — only a gitignore match does');
+});
+
+test('worktree-required: a NOT-YET-EXISTING file write is still denied', () => {
+  const repo = policedRepo();
+  const target = path.join(repo, 'brand', 'new-file.js');
+  const out = pre.run({ input: { tool_name: 'Write', tool_input: { file_path: target } }, runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(out), 'deny', 'a not-yet-existing, non-ignored file must stay denied');
+});
+
+test('worktree-required: a tracked, non-ignored path is STILL denied exactly as today — the exemption never widens for real repo-tracked writes', () => {
+  const repo = policedRepo();
+  const target = path.join(repo, 'tracked.js');
+  fs.writeFileSync(target, 'x');
+  execFileSync('git', ['-C', repo, 'add', 'tracked.js']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 't', '-q']);
+
+  const editOut = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: target } }, runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(editOut), 'deny');
+  const sedOut = pre.run({ input: bashInput(`sed -i 's/x/y/' ${target}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(decisionOf(sedOut), 'deny');
+});
+
+test('worktree-required: cp realfile.js .env — a tracked source alongside a gitignored destination resolves on the DESTINATION only (#1395 gotcha)', () => {
+  const repo = policedRepo();
+  fs.writeFileSync(path.join(repo, '.gitignore'), '.env\n');
+  const source = path.join(repo, 'realfile.js');
+  fs.writeFileSync(source, 'x');
+  execFileSync('git', ['-C', repo, 'add', 'realfile.js']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 't', '-q']);
+  const dest = path.join(repo, '.env');
+  const out = pre.run({ input: bashInput(`cp ${source} ${dest}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.deepStrictEqual(out, {}, 'cp only ever tracks the destination — a tracked source must not defeat the gitignored destination\'s exemption');
+});
+
+test('worktree-required: gitignored-target exemption is allowed inside a worktree too (no regression for the compliant case)', () => {
+  const repo = policedRepo();
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({ input: bashInput(`cp source.txt ${path.join(wt, 'a.js')}`, wt), runDir: null, runState: null, cwd: wt });
+  assert.deepStrictEqual(out, {}, 'inside a worktree, everything is already allowed regardless of this exemption');
+});
+
+test('isUntrackedOrIgnored fails closed on anything it cannot prove, and is gitignored-only (#1395)', () => {
+  const repo = gitRepoWithCommit();
+  fs.writeFileSync(path.join(repo, '.gitignore'), 'ignored.txt\n');
+  const ignored = path.join(repo, 'ignored.txt');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, ignored), true, 'the positive (gitignored) case must actually match');
+
+  const existingUntrackedNotIgnored = path.join(repo, 'scratch.txt');
+  fs.writeFileSync(existingUntrackedNotIgnored, 'x');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, existingUntrackedNotIgnored), false,
+    'untracked alone (not gitignored) is never exempt — the reverted branch stays reverted');
+
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, 'ignored.txt'), false, 'relative path is unprovable');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, ''), false, 'empty path');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, null), false, 'null path');
+  assert.strictEqual(pre.isUntrackedOrIgnored(null, ignored), false, 'null repoRoot');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, path.join(repo, 'never', 'created.txt')), false,
+    'a not-yet-existing, non-ignored path is never exempt');
+  // A path resolving outside repoRoot is a real git failure (exit 128, with
+  // stderr) for check-ignore — indeterminate, not a clean negative, so it
+  // must fail closed rather than being read as "not ignored".
+  const outsideRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-outside-'));
+  fs.writeFileSync(path.join(outsideRepo, 'x.txt'), 'x');
+  assert.strictEqual(pre.isUntrackedOrIgnored(repo, path.join(outsideRepo, 'x.txt')), false,
+    'a path outside repoRoot is a git fatal error, not a clean negative — fails closed');
+});
+
+// --- hasMaterializeCommit range bound (#1674) ---
+//
+// hasMaterializeCommit is exercised directly (exported, same precedent as
+// isPipelineBookkeeping/isUntrackedOrIgnored above) rather than through
+// pre.run(), since driving it through the full bookkeeping-stamps gate would
+// require standing up run-state.json, stamp files, and integration-model
+// resolution just to reach a single git-log call this function makes on its
+// own. `hasMaterializeCommit` only ever reads `path.basename(runDir)`, so a
+// runDir need not exist on disk — only its basename (the run id) matters.
+
+const MATERIALIZE_RUN_ID = '2026-08-29T120000-spec-1674';
+
+function runDirForId(id) {
+  return path.join(os.tmpdir(), 'ct-e1-materialize-runs', id);
+}
+
+function currentBranch(repo) {
+  return execFileSync('git', ['-C', repo, 'branch', '--show-current']).toString().trim();
+}
+
+// Commits `.claude-tweaks/policy.yml` with `integration-branch: {branch}` —
+// linked worktrees only ever see a COMMITTED policy.yml (same reason
+// repoWithCommittedPolicy() above commits it), so this must land before any
+// worktree is branched off `repo`.
+function commitIntegrationBranchPolicy(repo, branch) {
+  withPolicy(repo, `integration-branch: ${branch}\n`);
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+}
+
+// Commits a materialize-commit-shaped spec file for `runId` into `repo`'s
+// CURRENT branch — the sentinel hasMaterializeCommit's pathspec matches.
+function commitMaterializeFile(repo, runId) {
+  const rel = path.join('.claude-tweaks', 'pipelines', runId, 'work', '1-spec.md');
+  const full = path.join(repo, rel);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, 'spec\n');
+  execFileSync('git', ['-C', repo, 'add', rel.split(path.sep).join('/')]);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'materialize', '-q']);
+}
+
+test('hasMaterializeCommit: AC1 — inherited history (materialize commit already merged into integration by an earlier run) must NOT arm the gate', () => {
+  // The materialize commit lands on `main` (the integration branch) itself —
+  // simulating an earlier attempt under the SAME run id whose commit already
+  // shipped and merged — BEFORE the worktree branches off. The fresh worktree
+  // therefore has zero commits beyond the integration branch: everything it
+  // sees, including the materialize commit, is inherited, not its own.
+  //
+  // What this test does and does not pin: it proves bounded-vs-unbounded (it
+  // fails against the pre-#1674 unbounded walk), but NOT the range *direction*.
+  // Both agents of this record's lens-3f pair demonstrated that inverting the
+  // range to `HEAD..{integration}` leaves this test green — the worktree branch
+  // and the integration branch point at the same commit here, so both
+  // directions are empty ranges. AC2 below is the test that actually pins
+  // direction; an earlier version of this comment claimed the two were
+  // symmetric, which was wrong.
+  const main = gitRepoWithCommit();
+  const branch = currentBranch(main);
+  commitIntegrationBranchPolicy(main, branch);
+  commitMaterializeFile(main, MATERIALIZE_RUN_ID);
+  const wt = linkedWorktreeOf(main); // branches off main's CURRENT HEAD, which already includes the materialize commit
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), false,
+    'a materialize commit inherited from the integration branch must not arm the gate — against the unbounded implementation this returns true, which is the bug');
+});
+
+test('hasMaterializeCommit: AC2 — regression guard: a worktree carrying its OWN unmerged materialize commit still arms the gate (#991)', () => {
+  // The materialize commit lands on the WORKTREE's own branch, strictly after
+  // it branches off `main` — inside `{integration}..HEAD`, never merged back.
+  // This is the opposite direction from AC1 and is what must stay true.
+  const main = gitRepoWithCommit();
+  const branch = currentBranch(main);
+  commitIntegrationBranchPolicy(main, branch);
+  const wt = linkedWorktreeOf(main);
+  commitMaterializeFile(wt, MATERIALIZE_RUN_ID);
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
+    'a materialize commit unique to this worktree (record #991\'s original fix) must still arm the gate');
+});
+
+test('hasMaterializeCommit: AC3 — an unresolvable integration branch falls back to the unbounded walk, keeping the gate armed', () => {
+  // No policy.yml (no integration-branch key) and no origin remote (no
+  // origin/HEAD) — resolveIntegrationBranch's two sources both come up empty,
+  // so it returns null. Reuses AC2's own-commit setup so the only variable is
+  // whether an integration branch resolves.
+  //
+  // #1674's AC3 originally specified `false` here, reading "fail open" as
+  // "never a false denial". That is the wrong direction for THIS function:
+  // `false` means the IL-131 gate is not armed, and the gate is a protection,
+  // not an alarm. Returning `false` disabled it for every repo without a
+  // resolvable integration branch — every no-remote / `local-merge` project —
+  // and turned 20 pre-existing gate tests red, which is what surfaced it.
+  // The unbounded fallback is exactly the pre-#1674 behavior, so it is
+  // strictly non-regressive, and it forfeits nothing #1674 set out to fix:
+  // the false positive #1674 targets needs a materialize commit merged INTO
+  // an integration branch, which cannot exist when none does.
+  const main = gitRepoWithCommit(); // no policy.yml committed
+  const wt = linkedWorktreeOf(main);
+  commitMaterializeFile(wt, MATERIALIZE_RUN_ID);
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
+    'with no integration branch to bound against, the check must fall back to the unbounded walk and stay armed — never silently disable IL-131');
+});
+
+test('hasMaterializeCommit: the unresolvable-integration fallback still RUNS the pathspec check, rather than arming unconditionally', () => {
+  // The review's lens-3f pair proved AC3 above could not tell the intended
+  // fallback (re-run the same git log unbounded) from a degenerate one
+  // (`if (!integration) return true`) — injecting the degenerate form left all
+  // three AC tests green, and only the separate bookkeeping-stamps-gate suite
+  // caught it. This is the missing half: same unresolvable-integration repo,
+  // but NO materialize commit anywhere. An unconditional arm returns true here;
+  // a real pathspec check returns false.
+  const main = gitRepoWithCommit(); // no policy.yml, no origin -> integration unresolvable
+  const wt = linkedWorktreeOf(main);
+  const runDir = runDirForId(MATERIALIZE_RUN_ID); // nothing ever committed for it
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), false,
+    'the fallback must still be a real pathspec query — arming unconditionally would deny every covered call in any no-origin repo');
+});
+
+test('hasMaterializeCommit: a resolvable-but-nonexistent integration-branch policy value falls back instead of disarming the gate', () => {
+  // `policy.readIntegrationBranch` returns the raw `integration-branch:` value
+  // with no ref-existence check, so a stale/renamed/mistyped key yields a
+  // truthy name for which `git log {bogus}..HEAD` exits 128. Before this
+  // guard, the blanket `if (failure) return false` collapsed that into "gate
+  // not armed" — disarming IL-131 on a config typo. Found by both agents of
+  // the review's lens-3c pair.
+  const main = gitRepoWithCommit();
+  const wt = linkedWorktreeOf(main);
+  // The policy file must live in the WORKTREE, not the main checkout:
+  // hasMaterializeCommit is called with the worktree root, linkedWorktreeOf
+  // places that outside the main checkout, and readIntegrationBranch walks up
+  // from the path it is given. Writing it to `main` instead made this test
+  // pass for the wrong reason — integration resolved `null` (the AC3 path)
+  // rather than the bogus name — which a mutation probe caught.
+  fs.mkdirSync(path.join(wt, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(wt, '.claude-tweaks', 'policy.yml'), 'integration-branch: no-such-branch-here\n');
+  commitMaterializeFile(wt, MATERIALIZE_RUN_ID);
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
+    'a bad integration-branch value must fall back to the unbounded walk, not silently disarm the gate');
+});
+
+// #1501: the #989 exemption's repro-resistant failure needs a byte-for-byte
+// diff between a real hook invocation and a synthetic replay to pin down —
+// this is the debug-capture instrumentation added for that, not a fix for
+// the failure itself (unreproducible from static analysis; see the record's
+// Investigation Findings).
+test('CT_HOOKS_DEBUG_CAPTURE: unset by default, no file is written', () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-capture-'));
+  const captureFile = path.join(scratch, 'capture.jsonl');
+  delete process.env.CT_HOOKS_DEBUG_CAPTURE;
+  pre.run({ input: bashInput('ls', scratch), cwd: scratch });
+  assert.strictEqual(fs.existsSync(captureFile), false, 'no CT_HOOKS_DEBUG_CAPTURE set -> no capture file written');
+});
+
+test('CT_HOOKS_DEBUG_CAPTURE: when set, appends one JSON line per call with input/cwd/runDir/runState/ownedRun', () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-capture-'));
+  const captureFile = path.join(scratch, 'capture.jsonl');
+  const { run, state } = mkRun(scratch, 'sess-1');
+  process.env.CT_HOOKS_DEBUG_CAPTURE = captureFile;
+  try {
+    pre.run({
+      input: bashInput('git push origin feature-x', scratch), cwd: scratch, runDir: run, runState: state, ownedRun: { dir: run },
+    });
+    pre.run({ input: bashInput('ls', scratch), cwd: scratch });
+  } finally {
+    delete process.env.CT_HOOKS_DEBUG_CAPTURE;
+  }
+  const lines = fs.readFileSync(captureFile, 'utf8').trim().split('\n');
+  assert.strictEqual(lines.length, 2, 'one capture line per pre.run() call, including calls with no runDir');
+  const first = JSON.parse(lines[0]);
+  assert.strictEqual(first.input.tool_name, 'Bash');
+  assert.match(first.input.tool_input.command, /git push origin feature-x/);
+  assert.strictEqual(first.cwd, scratch);
+  assert.strictEqual(first.runDir, run);
+  assert.strictEqual(first.runState.sessionId, 'sess-1');
+  assert.deepStrictEqual(first.ownedRun, { dir: run });
+  assert.ok(first.at, 'each line carries a capture timestamp');
+  const second = JSON.parse(lines[1]);
+  assert.strictEqual(second.runDir, undefined, 'a call with no runDir captures it as absent, not fabricated');
+});
+
+test('CT_HOOKS_DEBUG_CAPTURE: an unwritable target never breaks the real gate call', () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-capture-'));
+  process.env.CT_HOOKS_DEBUG_CAPTURE = path.join(scratch, 'no-such-parent-dir', 'capture.jsonl');
+  try {
+    assert.doesNotThrow(() => pre.run({ input: bashInput('ls', scratch), cwd: scratch }));
+  } finally {
+    delete process.env.CT_HOOKS_DEBUG_CAPTURE;
+  }
 });

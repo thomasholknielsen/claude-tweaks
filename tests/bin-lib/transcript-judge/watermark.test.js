@@ -12,11 +12,14 @@ function makeStore() {
   const store = {};
   const mkdirSync = () => {};
   const writeFile = (p, content) => { store[p] = content; };
+  const rename = (from, to) => { store[to] = store[from]; delete store[from]; };
   const readFile = (p) => {
     if (!(p in store)) { const e = new Error(`ENOENT: no such file, open '${p}'`); e.code = 'ENOENT'; throw e; }
     return store[p];
   };
-  return { store, mkdirSync, writeFile, readFile };
+  return {
+    store, mkdirSync, writeFile, rename, readFile,
+  };
 }
 
 const TRANSCRIPT = '/Users/x/.claude/projects/foo/session-abc123.jsonl';
@@ -58,25 +61,31 @@ test('readWatermark: corrupt/malformed JSON -> null, no throw', () => {
 
 // ---- writeWatermark + read-back round trip ---------------------------------
 
-test('writeWatermark: creates the watermarks directory and writes JSON at the derived path', () => {
+test('writeWatermark: creates the watermarks directory and writes JSON at the derived path (via an atomic tmp-file rename)', () => {
   const mkdirCalls = [];
   const writeCalls = [];
+  const renameCalls = [];
   const mkdirSync = (p, opts) => mkdirCalls.push({ p, opts });
   const writeFile = (p, content) => writeCalls.push({ p, content });
+  const rename = (from, to) => renameCalls.push({ from, to });
   const data = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 1024, evaluatedAt: '2026-08-17T00:00:00Z', filedRecords: [], dismissedFingerprints: [] };
 
-  watermark.writeWatermark(TRANSCRIPT, data, { mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, data, { mkdirSync, writeFile, rename });
 
   assert.equal(mkdirCalls.length, 1);
   assert.equal(mkdirCalls[0].p, path.dirname(WATERMARK_REL));
   assert.deepEqual(mkdirCalls[0].opts, { recursive: true });
   assert.equal(writeCalls.length, 1);
-  assert.equal(writeCalls[0].p, WATERMARK_REL);
   assert.deepEqual(JSON.parse(writeCalls[0].content), data);
+  assert.equal(renameCalls.length, 1);
+  assert.equal(renameCalls[0].from, writeCalls[0].p);
+  assert.equal(renameCalls[0].to, WATERMARK_REL);
 });
 
 test('read-back round trip: write then read returns the exact data written', () => {
-  const { mkdirSync, writeFile, readFile } = makeStore();
+  const {
+    mkdirSync, writeFile, rename, readFile,
+  } = makeStore();
   const data = {
     transcriptPath: TRANSCRIPT,
     bytesAtDispatch: 6815744,
@@ -85,19 +94,21 @@ test('read-back round trip: write then read returns the exact data written', () 
     dismissedFingerprints: ['feedback-deadbeef'],
   };
 
-  watermark.writeWatermark(TRANSCRIPT, data, { mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, data, { mkdirSync, writeFile, rename });
   const result = watermark.readWatermark(TRANSCRIPT, { readFile });
 
   assert.deepEqual(result, data);
 });
 
 test('writeWatermark: overwrites an existing watermark (the --full reset primitive)', () => {
-  const { mkdirSync, writeFile, readFile } = makeStore();
+  const {
+    mkdirSync, writeFile, rename, readFile,
+  } = makeStore();
   const first = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 100, evaluatedAt: 'a', filedRecords: ['#1'], dismissedFingerprints: [] };
   const second = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 9999, evaluatedAt: 'b', filedRecords: [], dismissedFingerprints: [] };
 
-  watermark.writeWatermark(TRANSCRIPT, first, { mkdirSync, writeFile });
-  watermark.writeWatermark(TRANSCRIPT, second, { mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, first, { mkdirSync, writeFile, rename });
+  watermark.writeWatermark(TRANSCRIPT, second, { mkdirSync, writeFile, rename });
   const result = watermark.readWatermark(TRANSCRIPT, { readFile });
 
   assert.deepEqual(result, second);
@@ -106,19 +117,22 @@ test('writeWatermark: overwrites an existing watermark (the --full reset primiti
 test('writeWatermark: propagates a real write failure to the caller rather than swallowing it', () => {
   const mkdirSync = () => {};
   const writeFile = () => { throw new Error('ENOSPC: no space left on device'); };
+  const rename = () => {};
   assert.throws(
-    () => watermark.writeWatermark(TRANSCRIPT, { transcriptPath: TRANSCRIPT }, { mkdirSync, writeFile }),
+    () => watermark.writeWatermark(TRANSCRIPT, { transcriptPath: TRANSCRIPT }, { mkdirSync, writeFile, rename }),
     /ENOSPC/,
   );
 });
 
 test('readWatermark/writeWatermark: consumer round-trip is isolated per consumer', () => {
-  const { mkdirSync, writeFile, readFile } = makeStore();
+  const {
+    mkdirSync, writeFile, rename, readFile,
+  } = makeStore();
   const feedbackData = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 10, evaluatedAt: 'a', filedRecords: [], dismissedFingerprints: [] };
   const reflectData = { transcriptPath: TRANSCRIPT, bytesAtDispatch: 20, evaluatedAt: 'b', filedRecords: ['insight-1'] };
 
-  watermark.writeWatermark(TRANSCRIPT, feedbackData, { consumer: 'feedback', mkdirSync, writeFile });
-  watermark.writeWatermark(TRANSCRIPT, reflectData, { consumer: 'reflect', mkdirSync, writeFile });
+  watermark.writeWatermark(TRANSCRIPT, feedbackData, { consumer: 'feedback', mkdirSync, writeFile, rename });
+  watermark.writeWatermark(TRANSCRIPT, reflectData, { consumer: 'reflect', mkdirSync, writeFile, rename });
 
   assert.deepEqual(watermark.readWatermark(TRANSCRIPT, { consumer: 'feedback', readFile }), feedbackData);
   assert.deepEqual(watermark.readWatermark(TRANSCRIPT, { consumer: 'reflect', readFile }), reflectData);
@@ -159,20 +173,69 @@ test('byteOffsetToLine: readFile returning a plain string (not a Buffer) still w
 
 // ---- formatOffsetClause ------------------------------------------------------
 
-test('formatOffsetClause: exact literal wording, with filed records', () => {
-  const s = watermark.formatOffsetClause({ bytesAtDispatch: 6815744, line: 41203, filedRecords: ['#681', '#682'] });
+test('formatOffsetClause: exact literal wording, with filed records and dismissed subjects', () => {
+  const s = watermark.formatOffsetClause({
+    bytesAtDispatch: 6815744,
+    line: 41203,
+    filedRecords: ['#681', '#682'],
+    dismissedSubjects: ['watermark.js: stale offset text', 'store.js: missing subject field'],
+  });
   assert.equal(
     s,
-    'Evaluate from byte offset 6815744 (line 41203); these records already exist: #681, #682; omit findings they cover.',
+    'Evaluate from byte offset 6815744 (line 41203); these records already exist: #681, #682; '
+    + 'omit findings they cover. A human previously declined findings about: watermark.js: stale offset text; '
+    + 'store.js: missing subject field; omit any new finding whose symptom matches one of these in substance, '
+    + 'even if the wording differs.',
   );
 });
 
-test('formatOffsetClause: empty filedRecords renders "none"', () => {
-  const s = watermark.formatOffsetClause({ bytesAtDispatch: 100, line: 3, filedRecords: [] });
-  assert.equal(s, 'Evaluate from byte offset 100 (line 3); these records already exist: none; omit findings they cover.');
+test('formatOffsetClause: empty filedRecords and dismissedSubjects render "none"', () => {
+  const s = watermark.formatOffsetClause({ bytesAtDispatch: 100, line: 3, filedRecords: [], dismissedSubjects: [] });
+  assert.equal(
+    s,
+    'Evaluate from byte offset 100 (line 3); these records already exist: none; omit findings they cover. '
+    + 'A human previously declined findings about: none; omit any new finding whose symptom matches one of '
+    + 'these in substance, even if the wording differs.',
+  );
 });
 
-test('formatOffsetClause: missing filedRecords (undefined) also renders "none"', () => {
-  const s = watermark.formatOffsetClause({ bytesAtDispatch: 50, line: 1, filedRecords: undefined });
+test('formatOffsetClause: missing filedRecords and dismissedSubjects (both undefined) also render "none"', () => {
+  const s = watermark.formatOffsetClause({ bytesAtDispatch: 50, line: 1 });
   assert.match(s, /records already exist: none;/);
+  assert.match(s, /previously declined findings about: none;/);
+});
+
+test('formatOffsetClause: dismissedSubjects present, filedRecords empty — independent segments', () => {
+  const s = watermark.formatOffsetClause({ bytesAtDispatch: 10, line: 1, filedRecords: [], dismissedSubjects: ['reflect: stale spec-slug derivation'] });
+  assert.match(s, /records already exist: none;/);
+  assert.match(s, /previously declined findings about: reflect: stale spec-slug derivation;/);
+});
+
+test('formatOffsetClause: a subject containing a comma is preserved, not split by the "; " join', () => {
+  const s = watermark.formatOffsetClause({
+    bytesAtDispatch: 1, line: 1, filedRecords: [], dismissedSubjects: ['component: does X, Y, and Z incorrectly'],
+  });
+  assert.match(s, /previously declined findings about: component: does X, Y, and Z incorrectly;/);
+});
+
+// ---- isTranscriptUnchanged (#701 skip-before-dispatch check) ---------------
+
+test('isTranscriptUnchanged: no watermark (null) -> false, nothing to skip against', () => {
+  assert.equal(watermark.isTranscriptUnchanged(null, 500), false);
+});
+
+test('isTranscriptUnchanged: current size equal to bytesAtDispatch -> true (no growth)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 500), true);
+});
+
+test('isTranscriptUnchanged: current size smaller than bytesAtDispatch -> true (still covered)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 480), true);
+});
+
+test('isTranscriptUnchanged: current size larger than bytesAtDispatch -> false (grown, dispatch)', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 500 }, 501), false);
+});
+
+test('isTranscriptUnchanged: malformed watermark (non-numeric bytesAtDispatch) -> false, degrade to dispatch', () => {
+  assert.equal(watermark.isTranscriptUnchanged({ bytesAtDispatch: 'not-a-number' }, 500), false);
 });

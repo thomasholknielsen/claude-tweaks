@@ -13,7 +13,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { gitRepo, linkedWorktreeOf, harnessWorktreeOf } = require('./helpers/git-fixtures');
-const { resolve } = require('../plugin/bin/lib/hooks/run-dir-resolve');
+const { resolve, formatTimestamp } = require('../plugin/bin/lib/hooks/run-dir-resolve');
 
 function mkRunDir(main, name) {
   const dir = path.join(main, '.claude-tweaks', 'pipelines', name);
@@ -107,6 +107,23 @@ test('standalone fallback with --create mints a directory with decisions.md and 
   assert.ok(fs.statSync(out.path).isDirectory());
   assert.ok(fs.statSync(path.join(out.path, 'staged')).isDirectory());
   assert.ok(fs.existsSync(path.join(out.path, 'decisions.md')));
+});
+
+// #848: record #764's run dir was minted as `20260817T173343-spec-764` — no
+// dashes — invisible to context.js's RUN_ID_RE-filtered enumeration.
+// formatTimestamp is the one implementation every one of the three mint
+// sites (flow/claim-targets.md Step 2.8, flow/manifesto.md, dispatch/SKILL.md
+// Step 4) now reaches through `resolve-run-dir --create`, so pinning its
+// output shape here — rather than only the mint sites' own prose citation —
+// mechanically guarantees AC1 at the one place the format is actually
+// produced, regardless of what any given skill's prose says.
+test('formatTimestamp always produces a dash-containing YYYY-MM-DDTHHMMSS timestamp (#848)', () => {
+  assert.strictEqual(formatTimestamp(new Date('2026-03-04T05:06:07Z')), '2026-03-04T050607');
+  // Single-digit month/day/hour/minute/second all zero-pad — the exact seam
+  // a hand-typed `date -u +%Y%m%dT%H%M%S` (dashes dropped) could otherwise
+  // diverge from without a caller noticing.
+  assert.strictEqual(formatTimestamp(new Date('2026-01-02T03:04:05Z')), '2026-01-02T030405');
+  assert.match(formatTimestamp(new Date('2026-08-17T17:33:43Z')), /^\d{4}-\d{2}-\d{2}T\d{6}$/);
 });
 
 test('plain spec-slug fallback with --create mkdir-only mints a bare run directory (the /flow and /dispatch mint shape) — no decisions.md/staged', () => {

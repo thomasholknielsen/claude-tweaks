@@ -39,26 +39,28 @@ exactly as it always has for any other unlabeled record, no code change needed f
 ## When to Use
 
 - You just finished ad hoc work in this same conversation — no `/capture`, no work record — and want a clean recap plus an explicit sign-off gate before moving on; `/demo`'s session-recall source (Step 1) picks this up automatically, no filing required.
-- `/claude-tweaks:help`'s dashboard told you a specific `#N` is awaiting sign-off (Stage 4.7) — including an autonomously `auto:merge`'d record already closed — and you want to walk through that one record now.
+- `/claude-tweaks:help`'s dashboard told you a specific `#N` is awaiting sign-off (Stage 4.7 — fires on either driver) — including an autonomously `auto:merge`'d record already closed — and you want to walk through that one record now.
 - `/claude-tweaks:tidy`'s `acceptance-gap` rows — Step 4.8 under `work-backend: github-issues`, Step 1's Shape 8 under `local-files` — named a record that closed with no disposition at all: no brief, no label or `acceptance:` facet, and typically no session anywhere that remembers it. Step 1 reconstructs one from the closing commit.
 - You keep having to ask "how do I test this" days after a build finished — this skill surfaces the brief `/wrap-up` already wrote at build time, so you never re-derive it.
 - Some of what you're reviewing has no interactive surface at all (docs, config, a harness or skill file) — this skill still gives it a lightweight human look, just not a click-through.
 
-Not for: discovering what's outstanding across the backlog (`/claude-tweaks:help`'s job — Stage 4.7 lists every `#N`), merging or opening PRs (`/superpowers:finishing-a-development-branch`'s job), re-running mechanical checks (`/test`'s job), or code-quality judgment (`/review`'s job). `/demo` only ever resolves the Acceptance axis, one item at a time.
+Not for: discovering what's outstanding across the backlog (`/claude-tweaks:help`'s job — Stage 4.7 lists every `#N` on either driver), merging or opening PRs (`/superpowers:finishing-a-development-branch`'s job), re-running mechanical checks (`/test`'s job), or code-quality judgment (`/review`'s job). `/demo` only ever resolves the Acceptance axis, one item at a time.
 
 ## Input
 
 `$ARGUMENTS` — *(none)* resolves this session's own unrecorded work via session-recall (Step 1);
 `#N` resolves that single record's Verification Brief, falling back — when no `demo:pending`
 label exists on it — first to the record's closing commit in git history, then to session-recall
-scoped to that `#N` (Step 1); `#N[,#M...]` — a comma-separated list of record refs, no spaces
-(a space after a comma is tolerated and trimmed) — is an explicit human-supplied batch: each ref
+scoped to that `#N` (Step 1); `#N[,#M...]` — grammar (notation, tokenization) is `_shared/record-batch-input.md`'s contract —
+is an explicit human-supplied batch: each ref
 runs the `#N` path in list order,
 Step 1 → Step 2 → Step 3 to completion before the next ref begins, so a batch aborted part-way
 has already applied every verdict given so far and lost nothing.
 Per-item failure isolation: a ref that resolves to nothing — no such record, wrong repo, a
-malformed or empty token from a stray comma — is reported and skipped, and the remaining
-refs still run; the batch never aborts on one bad element. One verdict question per item —
+malformed or empty token from a stray comma (`_shared/record-batch-input.md`'s classification
+failures) — is reported and skipped, and the remaining
+refs still run; the batch never aborts on one bad element — demo's own execution semantics,
+that contract's Out-of-scope section. One verdict question per item —
 never a combined verdict, never cross-item merging, never a Task fan-out.
 A batch is the human's own list — never a sweep: `/demo` still never scans the backlog for what
 to include, and the no-argument session-recall path cannot be combined with refs. Never sweeps
@@ -179,6 +181,11 @@ verification wasn't available in this environment.
 - `diff` — render the diff named by Entry point: full under ~200 lines, else the stat summary plus
   the 2-3 hunks most central to the record's Acceptance Criteria.
 
+**Full verification** — when this record's Observation plan carries a `Full verification:`
+block (`_shared/observation-plan.md`), render it verbatim right after Show, before Failure
+posture and the Verdict question. The block is a pointer to the parent's eventual end-to-end
+check, not a substitute for it — the Verdict question below still asks only about this slice.
+
 **Failure posture:** a Prepare or Validate failure is evidence for Request changes, never a
 debugging detour to chase mid-conversation — capture what broke (screenshot, console error,
 command output) and fold it directly into this record's brief as grounds for the verdict.
@@ -193,8 +200,52 @@ with fresh Prepare/Validate.
 
 ### Verdict
 
-Call `AskUserQuestion` with `question`: `"Does {title} do what you asked
-for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
+**Browser verdict (optional, `rendered-page`/`app-route` only):** applies only to the URL surfaces
+Validate above already gates on — `cli`/`flow`/`diff` plans go straight to the terminal question
+below; there is no browser session already in play for them, and opening one solely to click a
+button is pure overhead over just asking. Follows `_shared/visual-decision.md`'s contract —
+cited here, never restated.
+
+Available whenever browser tools resolve (the same gate Validate uses above — unavailable → skip
+straight to the terminal question below, no error). Compose a single-variant `layout`-scope
+manifest: one variant, whose one file is a small recap page (this record's title, an "Open {entry
+point}" link, and the `### Confirmed`/design-contract text already rendered above) — **not** a
+live embed of the entry point itself. Show already handed that to the human directly, and
+compare-shell's manifest schema requires a real local file per variant, never an arbitrary origin.
+Seed it live (`seed-compare.mjs --manifest <manifest.json> --mode live --out <demo-dir>/index.html`),
+start the server (`visual-decide.js start --dir <demo-dir> --state <demo-dir>/.vd-state`), present
+the keyed URL, and end the turn — the contract's turn loop takes over from here.
+
+On resume, read `{state}/events` and act on the last non-tweak event per the contract's Turn loop:
+
+- **Pick** (the round's only variant) — Approve, applied immediately via Step 3's Approve action.
+  The browser round **replaces** the terminal question for this outcome.
+- **Exit** — ambiguous between Request changes and Skip (the contract's vocabulary has no way to
+  say which) — **falls back** to the terminal question below, with the Approve option omitted
+  since the explicit exit signal already rules it out.
+- **Reroll / Steer** — not meaningful here: one built artifact, not N candidates to reroll or
+  steer toward another one. Falls back to the full terminal question below, unchanged.
+- **Tweak** — never a verdict, per the contract's Turn loop; the hue/spacing/corner-radius sliders
+  are compare-shell's fixed shared UI and preview against nothing meaningful on a recap page with
+  no design candidate in play. Trailing tweak events are ignored on resume exactly as the contract
+  specifies.
+- **Empty or absent events file, an unparsable-only file, or an ambiguous terminal-text/events-file
+  conflict** — the contract's own documented fallback: the terminal question below, unchanged.
+
+Stop the server (`visual-decide.js stop --state <demo-dir>/.vd-state`) before proceeding to Step
+3, on every exit path — pick, exit, or any error that aborts the round — per the contract's
+Lifecycle ownership; never rely on the idle timeout. This is a fresh server per verdict attempt,
+never reused across records or across a re-demo of the same one.
+
+**No auto-mode path reaches this.** `/claude-tweaks:demo` has no `$PIPELINE_RUN_DIR` to begin
+with — it is never invoked from within an `auto`-mode pipeline (`## Component-Skill Contract`
+below) — so this whole browser-verdict path is structurally unreachable from `auto`, the same
+constraint `_shared/visual-decision.md` requires of every consumer.
+
+**Fallback — terminal `AskUserQuestion`, reused every round (unchanged from before this
+adoption):** Call `AskUserQuestion` with `question`: `"Does {title} do what you asked
+for?"`, `header`: `"Verdict"`, `multiSelect`: `false`. On an exit-triggered fallback above, omit
+Option 1 (Approve) — the browser round already ruled it out:
 
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
 - Option 2 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
@@ -244,11 +295,25 @@ For a `#N[,#M...]` batch this step runs per item, immediately after that item's 
 batched across items — so the next ref's Step 1 starts only once this ref's label swap (or
 follow-up filing) has landed.
 
-**Label-backed entries** (Step 1's `#N` lookup): bootstrap `demo:approved` and
-`demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
-the first swap this run.
+**Label-backed entries** (Step 1's `#N` lookup): bootstrap `demo:approved`,
+`demo:changes-requested`, and `demo:approved-batch` via the check-then-create loop from
+`_shared/label-bootstrap.md` before the first swap this run.
 
-- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant. For a decomposition parent — `parent-issue` in its labels (`work-backend: github-issues`) or `facets.isParentIssue === true` (`work-backend: local-files`) — close it too: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the parent issue was ever accepted. `work-backend: github-issues`: `gh issue close {n} --reason completed`. `work-backend: local-files`: `closeRecord(path)` (`bin/lib/issues/local-store.js`), run **after** the `writeRecord` call above — `closeRecord` does its own fresh read of the file, so calling it second means it preserves the `acceptance: 'approved'` facet just written rather than racing it.
+**Provenance signal (Approve only).** A single-record verdict and a `#N,#M` batch-list verdict
+are otherwise byte-identical on the wire — both run Step 2's per-item walkthrough in full — so
+the Approve action below records which invocation shape produced this verdict: a bare `#N`
+invocation or the no-argument session-recall path is single-record-backed, the default, nothing
+extra written. A `#N,#M...` batch invocation (more than one ref in this run's list — see Input)
+is batch-sourced — the Approve action additionally applies `demo:approved-batch`, so
+`bin/lib/issues/trust.js`'s coverage/verdict computation (via `acceptance.js`'s
+`approvalProvenance`) can tell a rapid multi-item batch pass apart from a dedicated single-record
+session. This is a `work-backend: github-issues`-only signal — the trust table it feeds is
+already github-issues-only (`_shared/trust-table.md`'s framing note), so `work-backend: local-files`
+writes no equivalent facet. A pre-existing `demo:approved` label carries no such marker and reads
+as single-record-backed — the safer default, since promoting an unlabeled historical approval to
+"batch" would understate coverage rather than overstate it.
+
+- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` — for a batch-sourced verdict (per the Provenance signal note above), add `--add-label demo:approved-batch` to the same invocation. `work-backend: local-files`: set `facets.acceptance = 'approved'` via `writeRecord` — no equivalent provenance facet on this driver (see the Provenance signal note above). One command covers both entry shapes: `--remove-label` on a label the record does not carry is a silent no-op — verified on this repo, exit 0, and `--add-label` in the same invocation still lands — so a closing-commit reconstruction, which never had `demo:pending`, needs no variant. For a decomposition parent — `parent-issue` in its labels (`work-backend: github-issues`) or `facets.isParentIssue === true` (`work-backend: local-files`) — close it too: nothing else in the system ever closes a parent, so without this the parent stays open forever and the acceptance label is the only trace the parent issue was ever accepted. `work-backend: github-issues`: `gh issue close {n} --reason completed`. `work-backend: local-files`: `closeRecord(path)` (`bin/lib/issues/local-store.js`), run **after** the `writeRecord` call above — `closeRecord` does its own fresh read of the file, so calling it second means it preserves the `acceptance: 'approved'` facet just written rather than racing it.
 - **Request changes** — prompt for a short reason inline, then:
   1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`. For a decomposition parent — `parent-issue` in its labels (`work-backend: github-issues`) or `facets.isParentIssue === true` (`work-backend: local-files`), the same two-driver test the Approve branch above uses — nothing further follows this: the parent stays open, since a changes-requested verdict means the parent issue's work is not done.
   2. File a linked follow-up record: backlog stage (no `ready` — a one-line reason isn't
@@ -321,6 +386,7 @@ always renders.
 | Merging or opening a PR from within this skill | Those belong to `/superpowers:finishing-a-development-branch` — `/demo` only resolves the Acceptance axis |
 | Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be restated before shifting topic — see Step 2's Task-anchor discipline |
 | Treating a record with no interactive surface as not needing sign-off | A `cli`/`flow`/`diff` plan still gets a real human look — it pairs the diff/rationale with concrete pointers, not just "review the diff" |
+| Handing a sub-issue's `cli`/`diff` plan to a human as if the slice were the feature | The plan must say which siblings gate the real check and what that check is — render the Full verification block when the record carries one |
 | Debugging or fixing an application bug a Prepare/Validate check uncovers | Out of scope like code-quality judgment — capture it as a Request-changes candidate |
 | Leaving a live browser session open after Validate or Show finishes | Leaked sessions consume resources — Validate's own session must close before Show runs; Show's `open`/`xdg-open` hands the browser off to the human, it never holds a session open itself |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | No record holds it — the verdict lives in the conversation, not a label; only Request-changes produces a real record |

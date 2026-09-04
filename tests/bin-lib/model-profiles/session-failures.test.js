@@ -95,13 +95,13 @@ test('recordFailure writes via a temp file + atomic rename, never a direct write
   }
   assert.ok(!writeCalls.includes(p), 'writeFileSync must never target the real path directly');
   assert.strictEqual(writeCalls.length, 1);
-  assert.strictEqual(writeCalls[0], `${p}.${process.pid}.tmp`);
+  assert.strictEqual(writeCalls[0], `${p}.tmp-${process.pid}`);
   assert.strictEqual(renameCalls.length, 1);
-  assert.deepStrictEqual(renameCalls[0], [`${p}.${process.pid}.tmp`, p]);
+  assert.deepStrictEqual(renameCalls[0], [`${p}.tmp-${process.pid}`, p]);
   // The rename happened for real — the real path now holds the recorded model,
   // and no leftover temp file remains.
   assert.deepStrictEqual(readFailedModels(id), new Set(['fable']));
-  assert.ok(!fs.existsSync(`${p}.${process.pid}.tmp`));
+  assert.ok(!fs.existsSync(`${p}.tmp-${process.pid}`));
   cleanup(id);
 });
 

@@ -19,6 +19,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const preflight = require('./lib/preflight-records/preflight-records');
 const { resolvePolicyKeys } = require('./lib/policy-schema');
+const { parseRepo } = require('./lib/repo-resolve');
 
 const USAGE = 'usage: preflight-records.js <n> [<n> ...] [--work-links native|body-text] [--repo owner/name] [--help]\n';
 
@@ -44,11 +45,6 @@ function parseArgs(argv) {
     }
   }
   return opts;
-}
-
-function parseRepo(url) {
-  const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url || '').trim());
-  return m ? { owner: m[1], repo: m[2] } : null;
 }
 
 function repoRoot() {

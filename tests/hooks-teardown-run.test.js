@@ -159,3 +159,31 @@ test('AC6: refuses to delete the integration branch itself when the run\'s recor
   assert.strictEqual(calls.length, 0);
   assert.notStrictEqual(git(root, 'branch', '--list', 'trunk').trim(), '', 'the integration branch must survive');
 });
+
+test('AC7 (#1323): --run pointed at an already-archived path (4 levels below root, not the live 3-level pipelines/{run-id} shape) resolves root correctly and never doubles .claude-tweaks', () => {
+  const { root } = fixtureRepo();
+  // A run dir shaped like `{root}/.claude-tweaks/pipelines/archive/{run-id}` — one level deeper
+  // than the live-run shape every other test in this file uses. The old fixed-depth
+  // `path.resolve(runDir, '..', '..', '..')` only climbs 3 levels regardless of actual depth, so
+  // given this 4-level path it landed on `{root}/.claude-tweaks` instead of `{root}` and then
+  // re-joined `.claude-tweaks/pipelines/archive/{run-id}` onto that wrong root — producing
+  // `{root}/.claude-tweaks/.claude-tweaks/pipelines/archive/{run-id}`.
+  const archivedRunId = 'already-archived-run';
+  const archivedRunDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', archivedRunId);
+  fs.mkdirSync(path.join(archivedRunDir, 'work'), { recursive: true });
+  fs.writeFileSync(path.join(archivedRunDir, 'work', 'x.md'), '# x\n');
+  git(root, 'add', path.join('.claude-tweaks', 'pipelines', 'archive', archivedRunId, 'work', 'x.md'));
+  git(root, 'commit', '-q', '-m', 'pre-existing archived content');
+  writeRunState(archivedRunDir, { status: 'clean', worktree: null });
+
+  const result = teardownRun(archivedRunDir, { mode: null, sessionId: 'me' });
+
+  const doubledDir = path.join(root, '.claude-tweaks', '.claude-tweaks');
+  assert.ok(!fs.existsSync(doubledDir), `must not create a doubled .claude-tweaks path: ${doubledDir}`);
+  // With root correctly resolved, `archiveDir` computed from an already-archived `runDir` lands
+  // on `runDir` itself (same basename, same parent) — a same-path collision that `git mv` refuses
+  // ("can not move directory into itself"), so archival correctly no-ops rather than corrupting
+  // anything; content stays exactly where it was, not lost and not duplicated.
+  assert.match(result.lines.join('\n'), /archive: skipped —/);
+  assert.ok(fs.existsSync(path.join(archivedRunDir, 'work', 'x.md')), 'original content must survive untouched');
+});

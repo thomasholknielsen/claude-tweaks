@@ -10,6 +10,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { writeFileAtomic } = require('../atomic-write');
 
 const VALID_STATUSES = ['pending', 'running', 'complete', 'failed', 'not-run'];
 
@@ -86,21 +87,18 @@ function readManifest(runDir) {
   return parseManifestYaml(text);
 }
 
-// Write to a per-process tmp file, then atomically rename over the real path —
-// same pattern as bin/lib/hooks/context.js's writeRunState, for the same reason:
+// Write via bin/lib/atomic-write.js's writeFileAtomic (#1653) — same pattern
+// as bin/lib/hooks/context.js's writeRunState, for the same reason:
 // fs.renameSync is atomic on every platform Node supports (same dir, same
 // filesystem), so a crash mid-write during a long multi-spec run (the exact
 // scenario #690 exists to survive) leaves the previous manifest.yml intact
 // instead of a torn/partial file.
 function writeManifest(runDir, manifest) {
   const finalPath = manifestPath(runDir);
-  const tmpPath = path.join(runDir, `manifest.yml.tmp-${process.pid}`);
   try {
-    fs.writeFileSync(tmpPath, serializeManifestYaml(manifest));
-    fs.renameSync(tmpPath, finalPath);
+    writeFileAtomic(finalPath, serializeManifestYaml(manifest));
     return true;
   } catch {
-    try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
     return false;
   }
 }

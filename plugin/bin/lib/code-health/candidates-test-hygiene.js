@@ -18,10 +18,12 @@
 //     "configurable" beyond `opts.exclude`): (1) explicit import/require of
 //     the source module from a test file, (2) filename-convention pairing
 //     (`foo.test.js` <-> `foo.js`), (3) directory-convention pairing
-//     (`dir/tests/*` <-> `dir/*`). These three cover this repo's own layout
-//     (`tests/` + `bin/lib/{name}/tests/`) and the widespread sibling
-//     `*.test.js` convention; a repo whose test layout matches none of the
-//     three under-reports coverage — an accepted false-negative in the
+//     (`dir/tests/*` <-> `dir/*`). Heuristics 1-2 (import, filename) cover
+//     this repo's own layout — a top-level `tests/bin-lib/{name}/` mirror,
+//     not a nested per-module `tests/` sibling; heuristic 3 remains for the
+//     widespread sibling-directory convention other repos use. A
+//     repo whose test layout matches none of the three under-reports
+//     coverage — an accepted false-negative in the
 //     "prefer missing a gap over flagging a covered module" direction the
 //     spec states.
 //   - File-level pairing gates symbol-level gap detection: a file-level gap
@@ -161,11 +163,14 @@ function pairedByFilename(sourceRel, testFiles) {
 }
 
 // Heuristic 3 — directory convention: a `tests/` (or `test/`) subdirectory
-// alongside or above the source file contains ANY test file — this repo's
-// own `bin/lib/{name}/tests/*.test.js` <-> `bin/lib/{name}/*.js` shape,
-// deliberately coarse (any test file in the sibling tests/ dir pairs the
-// whole directory's source files) since the finer filename/import
-// heuristics above already catch the precise pairing when it exists.
+// alongside or above the source file contains ANY test file — the
+// `dir/tests/*.test.js` <-> `dir/*.js` sibling shape some repos use (this
+// repo's own layout no longer has it: `tests/bin-lib/{name}/` mirrors
+// `plugin/bin/lib/{name}/` at the top level instead, already caught by
+// Heuristics 1-2). Deliberately coarse (any test file in the sibling
+// tests/ dir pairs the whole directory's source files) since the finer
+// filename/import heuristics above already catch the precise pairing when
+// it exists.
 function pairedByDirectory(sourceRel, testFiles) {
   const sourceDir = path.dirname(sourceRel);
   const siblingTestsDir = path.join(sourceDir, 'tests').split(path.sep).join('/');

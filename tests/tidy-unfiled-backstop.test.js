@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const SCAN = path.join(__dirname, '..', 'plugin', 'skills', 'tidy', 'scan-procedures.md');
+const COLLECTION_ROUTING = path.join(__dirname, '..', 'plugin', 'skills', 'tidy', 'collection-routing.md');
 const BACKSTOPS = path.join(__dirname, '..', 'plugin', 'skills', 'tidy', 'issue-claims-backstops.md');
 const FEEDBACK = path.join(__dirname, '..', 'plugin', 'skills', 'feedback', 'SKILL.md');
 const GRAPH = path.join(__dirname, '..', 'docs', 'skill-graph.md');
@@ -41,8 +42,7 @@ test('issue-claims-backstops.md carries the unfiled-drafts backstop', () => {
 });
 
 test('scan-procedures.md routes [unfiled] to Yours, no mutation staged', () => {
-  const text = fs.readFileSync(SCAN, 'utf8');
-  const routingSection = text.slice(text.indexOf('## Collection routing'));
+  const routingSection = fs.readFileSync(COLLECTION_ROUTING, 'utf8');
   assert.ok(
     /\[unfiled\]/.test(routingSection),
     '[unfiled] tag missing from the Collection routing table',

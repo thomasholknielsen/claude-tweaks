@@ -2,6 +2,7 @@
 files:
   - plugin/bin/link-records.js
   - plugin/bin/lib/issues/link.js
+  - plugin/bin/lib/issues/record-snapshot.js
   - plugin/skills/specify/record-creation.md
 ---
 
@@ -18,8 +19,8 @@ files:
 - **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/link-records.js" --parent 592 --subs 595,597,598 --blocked-by "598:595,598:597"`
 - **Action:** Run once with the parent, every sub-issue, and every `dependent:blocker` edge (blockers may be records outside the batch).
 - **Should feel:** One command where there used to be a dozen — no per-edge assembly, no manual `databaseId` lookup.
-- **Should understand:** Both native endpoints take the target's integer database ID in the body, never its issue number; the CLI resolves every number in one aliased GraphQL call (`resolveDatabaseIds`) and then POSTs each edge independently, so one failed edge never aborts the rest. The envelope's `ids` map shows the resolved IDs; `subIssues`/`blockedBy` each carry `{ok, failed}`.
-- **Red flags:** Exit 1 (`missing databaseId for #N`) — a number that resolves to no issue; check the numbers, don't retry blindly. Exit 2 with usage — malformed flags (a negative/zero number, a `598:` pair with a missing side, `--repo` with no value).
+- **Should understand:** Both native endpoints take the target's integer database ID in the body, never its issue number; the CLI resolves every number in one aliased GraphQL call (`resolveDatabaseIds`) and then POSTs each edge independently, so one failed edge never aborts the rest. The envelope's `ids` map shows the resolved IDs; `subIssues`/`blockedBy` each carry `{ok, failed}`. A successful sub-issue link write also drops this session's cached record snapshots (`record-snapshot.js`'s `invalidateSnapshot`, which since #1097 clears the sub-issues snapshot `_shared/trust-table.md`'s native branch reads too), so the next `/claude-tweaks:backlog` in the same session sees the edges you just wrote instead of the pre-link set for the rest of the snapshot TTL.
+- **Red flags:** Exit 1 (`missing databaseId for #N`) — a number that resolves to no issue; check the numbers, don't retry blindly. Exit 2 with usage — malformed flags (a negative/zero number, a `598:` pair with a missing side, `--repo` with no value). A `/claude-tweaks:backlog` run right after a non-empty `subIssues.ok` still reporting the pre-link parent/sub-issue counts — the invalidation didn't reach the snapshot.
 
 ### 2. Re-run safely — idempotency
 - **URL:** the same command again

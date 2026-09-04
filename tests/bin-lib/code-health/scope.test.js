@@ -93,6 +93,61 @@ test('listSlices excludes .claude and .worktrees (other sessions\' live worktree
   assert.ok(!ids.includes('.worktrees'), '.worktrees must be excluded');
 });
 
+test('listSlices excludes a dot-directory with zero SOURCE_EXTS files (config dot-dirs)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  fs.mkdirSync(path.join(root, '.github', 'workflows'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.github', 'workflows', 'test.yml'), 'name: test\n');
+  fs.mkdirSync(path.join(root, '.vscode'));
+  fs.writeFileSync(path.join(root, '.vscode', 'settings.json'), '{}\n');
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.ok(ids.includes('src'), 'src should be included');
+  assert.ok(!ids.includes('.github'), '.github must be excluded — no SOURCE_EXTS files, only YAML');
+  assert.ok(!ids.includes('.vscode'), '.vscode must be excluded — no SOURCE_EXTS files, only JSON');
+});
+
+test('listSlices still includes a dot-directory that holds real SOURCE_EXTS source', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  fs.mkdirSync(path.join(root, '.config'));
+  fs.writeFileSync(path.join(root, '.config', 'index.js'), 'module.exports = {};\n');
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.ok(ids.includes('.config'), 'a dot-directory with real source must not be excluded');
+});
+
+// Review finding (whole-branch review, e90376a4..HEAD): the dot-directory rotation-exclusion
+// check treated sourceFiles()===[] as "genuinely empty", but sourceFiles' own catch collapses a
+// real scan failure (permission denial, spawn failure, timeout) into the same []. A transient
+// failure therefore silently excluded a dot-directory that actually holds real source, with no
+// error surfaced. isEmptySourceDir now fails SAFE — a scan failure keeps the directory in
+// rotation rather than excluding it — and reports the failure to stderr. Simulated here via a
+// real permission-denied `find` failure (chmod 000 makes it un-listable), not a mock.
+test('listSlices keeps (does not exclude) a dot-directory whose scan genuinely fails, and reports it to stderr', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  const dotDir = path.join(root, '.broken');
+  fs.mkdirSync(dotDir);
+  fs.writeFileSync(path.join(dotDir, 'x.js'), 'module.exports = {};\n');
+  fs.chmodSync(dotDir, 0o000);
+
+  const origWrite = process.stderr.write;
+  let stderrOut = '';
+  process.stderr.write = (chunk) => { stderrOut += chunk; return true; };
+  let ids;
+  try {
+    ids = listSlices(root).map((s) => s.id).sort();
+  } finally {
+    process.stderr.write = origWrite;
+    fs.chmodSync(dotDir, 0o755);
+  }
+
+  assert.ok(ids.includes('.broken'), 'a dot-directory whose scan failed must be kept in rotation, not silently excluded');
+  assert.match(stderrOut, /dot-directory scan failed/, 'the failure must be reported, not swallowed');
+});
+
 test('listSlices slice.path is the absolute path', () => {
   const root = tmp();
   fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');

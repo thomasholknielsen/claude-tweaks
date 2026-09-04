@@ -70,35 +70,98 @@ does for every other ledger producer (build, test, review, reflect):
 
 ## `remedy: auto` findings and the scratch worktree
 
-A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a merged-but-undeleted
-branch, a claim blob for a closed issue, a missing release-triple entry, an un-archived pipeline
-run dir whose `run-state.json` reached `status: clean`) is naturally a Phase 1 fix-now candidate —
-its `Item` description should say so. When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
+A finding the CLI marked `remedy: auto` (an unlocked stale worktree, a claim blob for a closed
+issue, a missing release-triple entry, an un-archived pipeline run dir of this run's own whose `run-state.json`
+reached `status: clean`) is naturally a Phase 1 fix-now candidate — its `Item` description should
+say so. A merged-but-undeleted branch carries `remedy: auto` too, but never reaches here under
+this preamble's `--scope blast-radius` (above): `probeBranches` only ever tags a branch
+`scope: 'observed'` once it survives the `scope.headBranch` exclusion (#499), so it's filtered
+out before Phase 1 sees it — same as any other `observed` finding, and still visible under
+`--scope repo` (`/tidy`'s job, not this preamble's).
+An un-archived clean run dir belonging to another session never reaches here either (#1118):
+`probePipelineRuns` tags a run dir `blast-radius` only when it is attributable to the invoking
+run (its name matches this run's own id, or its `run-state.json` `worktree` field resolves to
+this checkout's toplevel) — a sibling session's orphan is `observed`, visible under
+`--scope repo` and compacted by `/tidy`'s own 30-day archival-compaction rule (`tidy/step-6-auto.md`) — reconcile's own sweep never sees a clean dir at all. When Phase 1 (or a user's "Fix anyway" choice in Phase 2)
 applies it and the write is not legal from wherever this session currently sits, provision a
-worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own commit, then
-merge back, and record the resulting sha as that item's `fixed` resolution. This applies to the
-pipeline-run-dir finding too: the directory lives in the main checkout, so the move (archive it
-under `.claude-tweaks/pipelines/archive/`) is usually illegal from wherever the run currently
-sits.
+worktree via `skills/_shared/scratch-worktree.md` — apply each remedy as its own commit. This
+applies to the pipeline-run-dir finding too: the directory lives in the main checkout, so the move
+(archive it under `.claude-tweaks/pipelines/archive/`) is usually illegal from wherever the run
+currently sits.
+
+**Landing the batch — branches on `integration-model` (`_shared/integration-model.md`), the same
+shape `tidy/SKILL.md` Step 7.5 uses for its own Step 7 commit (#424, cross-checked and fixed here
+for this caller by #435):**
+
+- **`local-merge`** (including an unresolved/undetectable model — fail toward the behavior that
+  predates this branch): unchanged — `_shared/scratch-worktree.md` §5-6 merges the batch back into
+  the main checkout's integration branch, tear down via `ExitWorktree`, and record the landed
+  `sha` as each item's `fixed` resolution.
+- **`pr-first`**: skip §5-6's merge-back. Push the scratch worktree's branch
+  (`git -C "{worktree-path}" push origin {branch}`, its own Bash call) and open — or reuse/reopen
+  on a resumed run — a PR, reusing `_shared/pr-early-run-lifecycle.md`'s Step 1 (existing-PR
+  check) and Step 3 (compose-and-create) shapes exactly as `tidy/SKILL.md` Step 7.5 does. Stamp
+  `<!-- wrap-up-residue-pr -->` in the body at creation — a marker distinct from tidy's own
+  `<!-- tidy-housekeeping-pr -->`, since this is a separate call site producing a separate PR
+  shape, even though it shares that PR's semantic (an unreviewed, auto-generated housekeeping
+  commit). Record each landed item's `fixed` resolution as the PR reference (`PR #{n}`) rather
+  than a merge sha, since the commit hasn't reached the integration branch yet. **Arming**: this
+  reuses tidy's own `housekeeping-auto-merge` lever rather than introducing a new one — both call
+  sites gate the identical decision ("may an auto-generated housekeeping PR merge itself without a
+  human looking at it") and a residue-sweep-originated commit carries the same low-judgment,
+  purely-mechanical shape as a tidy Step-7 commit. Resolve it fresh (`resolve-policy.js`, JSON
+  mode, capturing `source`) before `ExitWorktree`: `false` → no action; `true` → arm now via
+  `_shared/pr-first-merge.md` Step 3's initial `gh pr merge --auto` call (not its degrade chain —
+  failure leaves it unarmed, reported). Log the outcome to `decisions.md`
+  (`_shared/auto-decision-log.md`, lever-attributed `[lever: housekeeping-auto-merge={true|false}
+  ({source})]`). **Sweep backstop**: `github-pr-scan.md`'s `repo-wide` item 9 recognizes
+  `<!-- wrap-up-residue-pr -->` on the same footing as tidy's own `<!-- tidy-housekeeping-pr -->` —
+  creation-time arming is the common case, but if the initial `gh pr merge --auto` call fails to
+  arm for a reason other than the push/create failure handled below (branch protection, a
+  transient API blip), this PR does not sit unarmed indefinitely: the next `repo-wide` sweep finds
+  it and re-attempts the arm under the same `housekeeping-auto-merge` lever, exactly like a tidy
+  housekeeping PR. **If the push or both create attempts fail** (`pr-early-run-lifecycle.md`'s own
+  degrade path — network, auth, `gh` absent), don't strand the commit in a worktree nobody returns
+  to: fall through to the `local-merge` branch above and merge back locally instead, logging the
+  PR-open failure to `decisions.md`.
+
+Skip this entire branch decision when no `remedy: auto` finding was actually applied — nothing to
+land, nothing to push.
 
 ## `remedy: record` findings
 
 A finding the CLI marked `remedy: record` (an open PR outside this run's own blast radius, a red
-suite, a locked worktree a live session still holds) is not Phase 1's to fix. Its `Item`
+suite, a locked worktree a live session still holds, a clean pipeline-run dir whose recorded
+worktree is one of those locks) is not Phase 1's to fix. Its `Item`
 description should say so plainly, so Phase 1 correctly leaves it `open` for Phase 2's per-item
 drill, where "Route to a record" or "Close out" is the natural landing choice — the CLI's `remedy`
 field is a hint for that drill, not a rule the gate is bound to follow. `_shared/deferral-gate.md`
 governs the routing: a proposal routed from here carries a `Defer-reason:` per this mapping — a
-locked worktree a live session holds → `blocked-external`; an open PR outside this run's blast
+locked worktree a live session holds → `blocked-external`; a clean pipeline-run dir whose
+recorded worktree is one of those locks → `blocked-external`; an open PR outside this run's blast
 radius → `blocked-external`; a red suite this run cannot fix → `genuinely-larger`; anything else
-stays `open` for Phase 2's drill, where the human picks the value. A `remedy: record` item Phase 2
-routes to a record composes exactly as ledger Phase 3's branches do (`_shared/ledger-format.md`) —
-`specShapedBody`, the #621 mapping above supplying its `Defer-reason:`, landing born-ready, parked,
-or `needs:definition` by the same rules.
+stays `open` for Phase 2's drill, where the human picks the value. A `remedy: record` item that
+reaches Phase 2's per-item drill first applies `_shared/materiality-floor.md`'s floor test: an
+item that fails to clear the materiality floor, with a `Defer-reason:` other than `tangential`, has
+its Step 1 option relabeled `"Digest — below floor"` in place of `"Route to a record"` — so the
+human sees the actual destination before choosing it, never silently substituted after approval;
+choosing it appends a digest entry instead of a record, skipping the composition below for that
+item. For an item whose reason the drill itself picks (the "anything else" case above), apply the
+test once that value is chosen, before the record is composed. Otherwise it composes exactly as ledger Phase
+3's branches do (`_shared/ledger-format.md`) — `specShapedBody`, the #621 mapping above supplying
+its `Defer-reason:`, landing born-ready, parked, or `needs:definition` by the same rules.
+
+**Not on the ledger-narrowing path.** `_shared/ledger-format.md`'s Phase 2 narrowing step
+(`ledgerNarrowing` at `trusted`+, `ledgerRouteRemainder` at `unattended`) removes an item whose
+blocker reason passes `clearsFloor` from this phase's remaining set entirely and auto-routes it to
+`Route to a record → Keep (backlog)` — it never reaches the Step 1 option above, so the materiality
+floor is not consulted on that path. `_shared/ledger-format.md` is deliberately not an adopter of
+the floor (#1262's own Current State names it a non-adopter); closing that gap is tracked on #1279
+alongside the digest's other coverage items.
 
 ## The judgment class — named triggers
 
-Two observable classes resolve mechanically (the suite re-run above; a resolved gate denial, once
+Two observable classes resolve mechanically (the suite re-run above; a resolved gate denial —
 `events.jsonl` carries `gate-denial` entries). A third does not: something this session noticed by
 reading, not by running a command. Add either of these as an `open` ledger item by hand (`Phase:
 wrap-up`), same as any CLI-sourced finding:

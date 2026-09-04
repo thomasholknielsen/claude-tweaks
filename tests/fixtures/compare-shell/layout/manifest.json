@@ -1,0 +1,13 @@
+{
+  "scope": "layout",
+  "seedKey": "seed-layout-1",
+  "rerollCount": 0,
+  "steerHistory": [],
+  "variants": [
+    { "id": "a", "name": "Layout A", "files": ["variant-a.html"] },
+    { "id": "b", "name": "Layout B", "files": ["variant-b.html"] },
+    { "id": "hostile", "name": "Hostile", "files": ["variant-hostile.html"] },
+    { "id": "d", "name": "Degraded D", "degraded": true, "reason": "render timed out", "files": [] }
+  ],
+  "outcome": { "winner": "a", "date": "2026-08-21T00:00:00.000Z" }
+}

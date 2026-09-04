@@ -1,4 +1,4 @@
-# 4. Treat `.worktrees/` and `.claude/worktrees/` as two permanently separate domains, not one convention to converge on
+# 0004. Treat `.worktrees/` and `.claude/worktrees/` as two permanently separate domains, not one convention to converge on
 
 - **Status:** accepted
 - **Date:** 2026-07-09

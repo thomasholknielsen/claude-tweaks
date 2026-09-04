@@ -1,12 +1,12 @@
-// plugin/bin/lib/verify/report.js — report.json composition + atomic write
-// (#892 AC3). The atomic write is load-bearing: a crashed run must never
-// leave a half-written report.json a downstream gate reads as pass evidence.
-// gitInfo fails toward null — sha alone is not proof on a dirty tree, which
-// is why dirty rides alongside it.
+// plugin/bin/lib/verify/report.js — report.json composition (#892). The write
+// itself is atomic-write.js's writeJsonAtomic, called by bin/verify.js: a
+// crashed run must never leave a half-written report.json a downstream gate
+// reads as pass evidence (#892 AC3). gitInfo fails toward null — sha alone is
+// not proof on a dirty tree, which is why dirty rides alongside it.
 'use strict';
 
-const fs = require('fs');
 const { execFileSync } = require('child_process');
+const { writeFileAtomic } = require('../atomic-write');
 
 function gitInfo(execImpl = execFileSync) {
   let sha = null;
@@ -39,23 +39,25 @@ function entryFor(check) {
   return entry;
 }
 
-function composeReport({ checks, startedAt, durationMs, git }) {
+function composeReport({ checks, startedAt, durationMs, git, testCountRegression = null }) {
   const byName = {};
   for (const check of checks) byName[check.name] = entryFor(check);
   const pass = checks
     .filter((c) => !c.skipped)
     .every((c) => c.exitCode === 0);
-  return {
+  const report = {
     sha: git.sha, dirty: git.dirty,
     startedAt, durationMs, pass,
     checks: byName,
   };
+  // Omitted when null (#881) — mirrors entryFor's own counts convention:
+  // never guessed/partial, absence over a fabricated non-regression.
+  if (testCountRegression !== null) report.testCountRegression = testCountRegression;
+  return report;
 }
 
-function writeReportAtomic(report, jsonPath, fsImpl = fs) {
-  const tmpPath = `${jsonPath}.tmp`;
-  fsImpl.writeFileSync(tmpPath, `${JSON.stringify(report, null, 2)}\n`);
-  fsImpl.renameSync(tmpPath, jsonPath);
+function writeReportAtomic(report, jsonPath, deps = {}) {
+  writeFileAtomic(jsonPath, `${JSON.stringify(report, null, 2)}\n`, deps);
 }
 
 module.exports = { gitInfo, composeReport, writeReportAtomic };

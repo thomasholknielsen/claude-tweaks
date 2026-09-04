@@ -5,7 +5,7 @@ Referenced by `skills/wrap-up/review-console-interactive.md`'s "Present the cons
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. Every section below — the named batch sections, plus Queue writes, Memory updates, and Upstream feedback — resolves via the same terminal Approve all / Override / Stop choice. Approve all applies each section's own default (batch sections: apply; `Q#`/`M#`: their pre-checked `Apply` default; `U#`: its unchecked/declined default) with no further prompts. Override is what still drills `Q#`/`M#`/`U#` individually — one or more chunked `multiSelect` calls, `_shared/batched-item-drill.md` for `Q#`/`M#`, `_shared/upstream-feedback-batch.md` for `U#` (see `review-console-interactive.md`'s Hard requirements for why).
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. Every section below — the named batch sections, plus Queue writes, Memory updates, and Upstream feedback — resolves via the same terminal Approve all / Override / Stop choice. Approve all applies each section's own default (batch sections: apply; `Q#`/`M#`: their pre-checked `Apply` default; `U#`: its unchecked/declined default) with no further prompts, except rows marked drills-individually (listed above the terminal options when present — see `review-console-interactive.md`'s Hard requirements). Override is what still drills `Q#`/`M#`/`U#` individually — one or more chunked `multiSelect` calls, `_shared/batched-item-drill.md` for `Q#`/`M#`, `_shared/upstream-feedback-batch.md` for `U#` (see `review-console-interactive.md`'s Hard requirements for why).
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -17,6 +17,8 @@ The pipeline auto-resolved {N} decisions and staged {M} items for your review. E
 | 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
 
 A `SCANNED` entry (the scan-summary log line the engine writes for any curation row — Skills, Docs, Journeys, CLAUDE.md & rules, and the rest — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the registry row it ran for (no commit ref, since nothing was applied) — there is nothing to revert for these rows. The `What` cell paraphrases the `SCANNED` line into reader language (what ran, what it found) rather than quoting it — the raw line, with its internal fragments (`gap detection:`, the routing codes, and the rest of section 5's exempt vocabulary), stays in `decisions.md`, never in this table.
+
+A `FAILED` entry (a batch write that errored — see `_shared/auto-decision-log.md`'s Status semantics) renders in this section too, with `Status` = `Failed`, `Where` = the record ref or call site the write targeted (no commit ref — nothing landed), and the `What` cell naming the write type and the error. It is never an approve-or-revert row: nothing was applied, so Override has nothing to act on and Approve all resolves it to a no-op. It still counts as decision-bearing for the Empty-console fast path (`review-console.md`), so a run whose only decision-bearing line is a `FAILED` one renders this section with that row alone — which is the point: the operator sees the failed write and retries it from the producing skill's own closing summary (`backlog/refine-mode.md` Step 5's paste-ready retry).
 
 #### Pending review (staged — apply, skip, or modify per item)
 
@@ -48,7 +50,7 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 Generate the next five sections — Skill updates, Documentation updates, Journey updates, Configuration updates, and Reference repairs, in that order, matching `engine-render.js`'s `SECTION_SPECS` emission order — via `render --section console --start-at {n}` when the engine ran (`curation-engine.md` section 2, with `{n}` the next number in this console's global sequence).
 
-The engine's real output shape is plainer than the per-section shapes below: `renderConsoleSections` emits a bare `#### {title}` heading per section plus one uniform `| # | Target | Change | Disposition |` table (integer `#`, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same four columns for all five sections, no six-column Reference repairs shape and no `17a`/`17b` sub-lettering. The richer per-section shapes below (`| # | Skill | Section | Change |`, the six-column Reference repairs table, etc.) are the **prose-fallback template**, used when the engine did not run. On an engine run, insert `render`'s output verbatim into this response — do not hand-expand it into these shapes.
+The engine's real output shape is plainer than the per-section shapes below: `renderConsoleSections` emits a bare `#### {title}` heading per section plus one uniform `| # | Target | Change | Disposition |` table (integer `#`, `finding.targetPath`, `finding.summary`, and `applied ({commit})` / `staged ({stagePath})`) — the same four columns for all five sections, no six-column Reference repairs shape and no `18a`/`18b` sub-lettering. The richer per-section shapes below (`| # | Skill | Section | Change |`, the six-column Reference repairs table, etc.) are the **prose-fallback template**, used when the engine did not run. On an engine run, insert `render`'s output verbatim into this response — do not hand-expand it into these shapes.
 
 #### Skill updates (from the Skills curation row)
 
@@ -63,22 +65,24 @@ The engine's real output shape is plainer than the per-section shapes below: `re
 |---|---|---|---|
 | 13 | doc | docs/api.md | Document new /auth/refresh endpoint |
 
+A `[{genre}-convention]` row (see the Configuration updates section below for its full render shape) also renders inside this section on a D2 `conflict` outcome for one of the four core Diátaxis genres, taking its own next number in the global sequence like any other finding — e.g. `#14  how-to-convention  docs/guides/  — this repo's how-to guides disagree with the plugin's convention`, keyed against that genre's own `doc-convention-{genre}` policy key. It blocks every `[doc]` row for that same genre from the same run until answered.
+
 #### Journey updates (from the Journeys curation row)
 
 | # | Type | Target | Change |
 |---|---|---|---|
-| 14 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
+| 15 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
 
 #### Configuration updates (from the CLAUDE.md & rules and Decision records curation rows)
 
 | # | Type | Target | Change |
 |---|---|---|---|
-| 15 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
+| 16 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
-An `[adr-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below. Render it as:
+A `[{genre}-convention]` row renders inside this section but carries its own three-way prompt, following the same not-covered-by-"Approve all" rule as Queue writes below — this is the general row shape `_shared/existing-convention-detection.md` collects for **any** genre whose Detection is `active` (`_shared/diataxis-genre-templates.md`), not an ADR-specific one; `[adr-convention]` below is the canonical worked instance. A `[journey-convention]` row also renders here on a `conflict` `/claude-tweaks:journeys` Step 2 staged during this run (`journeys/SKILL.md`'s Step 2 auto-mode branch) — journeys is not part of `/claude-tweaks:wrap-up`'s curation engine, so this is the one row type in this section sourced from a different skill's staged file rather than a curation row's own scan; it resolves identically once it reaches here. Render it as:
 
 ```
-#16  adr-convention  docs/decisions/  — this repo's decision records disagree with the plugin's convention
+#17  adr-convention  docs/decisions/  — this repo's decision records disagree with the plugin's convention
 
      plugin form  : 0017-slack-transport.md
      found (16)   : ADR-016-slack-integration-strategy.md
@@ -89,19 +93,20 @@ An `[adr-convention]` row renders inside this section but carries its own three-
      3  Keep project form — resolve from this repo             -> doc-convention-adr: project
 ```
 
-Omit the `project skill` line when detection found none. "Approve all" leaves this row unanswered and blocks every `[adr]` row from the same run, since their resolved paths depend on the answer — state that explicitly rather than applying a default.
+A Diátaxis-genre instance (Tutorial/How-To/Reference/Explanation, surfaced in Documentation updates above rather than here) renders identically, substituting the genre name and its own `doc-convention-{genre}` key — e.g. `how-to-convention  docs/guides/  — this repo's how-to guides disagree with the plugin's convention`, with the same three numbered options against `doc-convention-how-to`. Omit the `project skill` line when detection found none. "Approve all" never applies a default to any `[{genre}-convention]` row — it belongs to the drills-individually class (`review-console-interactive.md`'s Hard requirements), so Approve all still fires this row's own three-way `AskUserQuestion` as part of the same console stop, and that answer resolves every `[doc]`/`[adr]` row for that same genre from the same run, since their resolved paths depend on it.
 
 #### Reference repairs (from the Broken references curation row)
 
 Render this section whenever the broken-reference sweep found a surviving reference, in either of
-two states. **Applied** rows are reported, not re-approved — they already happened, in their own
-`Initiative-Fix:` commit, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
+two states. **Applied** rows are reported, not re-approved — they already happened, committed by
+the controller's serial-commit pass (`curation-engine.md` section 4) with the `Initiative-Fix:`
+trailer, under a `trusted`/`unattended` ceiling (`_shared/initiative-budget.md`).
 **Staged** rows are ordinary approval rows like any other in this console.
 
 | # | State | Target | Repair | Broken by | Why |
 |---|-------|--------|--------|-----------|-----|
-| 17a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
-| 17b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
+| 18a | applied | docs/plugin-structure.md | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | pointer repair 1/3, 2 lines |
+| 18b | staged | tests/paths.test.js | `build/setup.md` → `build/worktree-setup.md` | skills/build/setup.md | test file — never auto-repaired |
 
 The `Why` column carries `permittedInitiative`'s own reason string verbatim for both states, so a
 run that tripped a cap reads differently from a run that found nothing — under the prose fallback
@@ -117,7 +122,7 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 
 | # | Type | Action | Details |
 |---|---|---|---|
-| 18 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
+| 19 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
 | ... | cleanup | ... | ... |
 
 #### Queue writes (Approve all applies the default; Override drills each item)

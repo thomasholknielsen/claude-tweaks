@@ -13,10 +13,24 @@ const { readManifest } = require('../plugin/bin/lib/flow/manifest');
 
 const HOOKS = path.join(__dirname, '..', 'plugin', 'bin', 'hooks.js');
 
-function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
+// #1130: never let an omitted cwd fall through to the spawned subprocess's
+// own process.cwd() — that is the test runner's real working directory, and
+// when npm test runs from a real checkout, hooks that walk
+// .claude-tweaks/pipelines/ from there write fixture events into REAL run
+// dirs (the #657 pollution incident). Calls that don't care about cwd get an
+// isolated, non-git sandbox instead.
+const HOOK_SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-specstatus-sandbox-'));
+
+function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
   try {
     const stdout = execFileSync('node', [HOOKS, ...args], {
-      input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
+      // #1130: `PIPELINE_RUN_DIR: ''` neutralizes any ambient run-dir env var
+      // so a call that doesn't explicitly pass one can't resolve against
+      // whatever real run happens to be ambient in this test runner's own
+      // process.env (e.g. when npm test itself runs inside a /flow-dispatched
+      // shell). A caller that needs a run dir still passes it explicitly via
+      // `env`, which wins because it spreads last.
+      input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', ...env },
     });
     return { code: 0, stdout };
   } catch (e) {
@@ -32,6 +46,11 @@ function runDirWithManifest(specs) {
   execFileSync('git', ['-C', project, 'init', '-q']);
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-08-16T210742-spec-1-2');
   fs.mkdirSync(run, { recursive: true });
+  // #1566: resolveRunArg now requires an initialized run dir (a real
+  // multi-spec parent already carries this from the Manifesto, before
+  // manifest.yml itself is ever written) — spec-status has no first-write
+  // exception of its own, so this fixture needs a marker too.
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
   const lines = ['multispec:', '  parent: x/', '  specs:'];
   for (const s of specs) {
     lines.push(`    - id: ${s.id}`, `      status: ${s.status}`, `      subdir: spec-${s.id}/`);
@@ -68,9 +87,13 @@ test('spec-status failed: also prints the summary line', () => {
 });
 
 test('a phase transition without the banner is not reachable through spec-status: every failure path prints no banner and writes nothing', () => {
-  // Missing manifest entirely.
+  // Missing manifest entirely — but otherwise an initialized run dir (#1566:
+  // resolveRunArg now requires an initialized target for spec-status, so
+  // this needs a marker file to isolate "no manifest.yml" from "uninitialized
+  // --run", which is a separate rejection covered in hooks-dispatcher.test.js).
   const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-specstatus-bare-'));
   execFileSync('git', ['-C', bareDir, 'init', '-q']); // #790: --run must resolve under a real git checkout
+  fs.writeFileSync(path.join(bareDir, 'decisions.md'), '');
   const rMissing = runHook(['spec-status', '--run', bareDir, '--spec', '1', '--status', 'running', '--phase', 'build'], { cwd: bareDir });
   assert.equal(rMissing.code, 0);
   assert.doesNotMatch(rMissing.stdout, /Flow: Running/);

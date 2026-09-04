@@ -143,16 +143,25 @@ test('a plain rename (--no-renames-shaped numstat) still trips the sensitive-pat
   const readFile = (p) => (p.endsWith('policy.yml') ? 'merge-sensitive-paths: plugin/bin/hooks.js\n' : null);
   const out = computeBlastRadius({ integrationBranch: 'main' }, { git, readFile });
   assert.deepStrictEqual(out.summary.sensitiveFilesTouched, ['plugin/bin/hooks.js']);
+  const diffCall = git.calls.find((c) => c[0] === 'diff');
+  assert.ok(
+    diffCall && diffCall.includes('--no-renames'),
+    '--no-renames must actually reach the git diff argv, not just the classification result'
+  );
 });
 
 // I-3 (#888 follow-up): merge-base resolution can succeed (no thrown error)
 // yet return an empty/whitespace-only string — the exact original #888
 // hazard shape. The guard must still hard-fail rather than let an empty
-// base silently proceed to a 0-file diff.
+// base silently proceed to a 0-file diff. The fixture's `diff` handler
+// deliberately succeeds (rather than being absent) so that removing the
+// guard would let the call through to a wrong success instead of
+// coincidentally throwing for an unrelated "unexpected git diff" reason.
 test('merge-base resolving successfully to an empty string throws BlastRadiusError', () => {
   const git = fakeGit({
     'merge-base': () => '\n',
     'rev-parse': () => '/repo\n',
+    diff: () => '',
   });
   assert.throws(
     () => computeBlastRadius({ integrationBranch: 'main' }, { git, readFile: () => null }),

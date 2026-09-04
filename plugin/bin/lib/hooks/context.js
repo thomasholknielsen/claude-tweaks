@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const wtDetect = require('./worktree-detect');
+const { writeFileAtomic } = require('../atomic-write');
 
 function readStdin() {
   try { return fs.readFileSync(0, 'utf8'); } catch { return ''; }
@@ -19,6 +20,21 @@ function readRunState(runDir) {
   try { return JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8')); } catch { return null; }
 }
 
+// How long an archive twin's 'archiving' claim (archive-merged.js's
+// archiveRunDir) blocks other archival attempts on the same run dir before
+// it's treated as abandoned. Minutes, not hours (unlike ORPHAN_MINT_TTL_MS,
+// archive-merged.js's own 24h constant for a different case) — a real
+// archival completes in seconds; anything still 'archiving' after this long
+// crashed or hung, and the run dir must become archivable again rather than
+// staying stuck behind a dead claim.
+const ARCHIVE_CLAIM_TTL_MS = 5 * 60 * 1000;
+
+function isStaleClaim(archiveState, now = Date.now()) {
+  const updatedAt = Date.parse(archiveState.updatedAt);
+  if (Number.isNaN(updatedAt)) return true;
+  return (now - updatedAt) > ARCHIVE_CLAIM_TTL_MS;
+}
+
 // An unadopted mint — a directory mkdir'd by dispatch Step 4 or flow Step 2.8
 // that no invocation ever initialized — carries neither run-state.json nor
 // decisions.md. Fallback attribution must never guess into one: a mint that
@@ -27,7 +43,8 @@ function readRunState(runDir) {
 // run-state.json is still an adopted run, and readRunState's null covers
 // both cases), never on config.yml — standalone run dirs legitimately carry
 // decisions.md but no config.yml. Consequence: hooks.js CLI verbs that rely
-// on this fallback with no --run (record-worktree, record-pr, close-run) now
+// on this fallback with no --run (record-pr, close-run — record-worktree no
+// longer does, #1124: it now hard-requires an explicit --run, never guessing)
 // only ever resolve an adopted run — safe because every sanctioned caller
 // runs after flow Step 3 has already initialized the run dir (decisions.md
 // or run-state.json already exists by then).
@@ -37,25 +54,52 @@ function isUnadoptedMint(dir, state) {
   return !fs.existsSync(path.join(dir, 'decisions.md'));
 }
 
+// #1177: best-effort removal of a mint's own layout (staged/, decisions.md,
+// then the directory itself) — used by post-tool-use.js's stampAdHocRunDir
+// when writeRunState fails after the mint has already touched decisions.md
+// (which isUnadoptedMint above would otherwise read as "adopted", leaving a
+// mis-attributable candidate behind for a different session, #721). Each
+// step is independently best-effort — an already-partial mint (e.g. no
+// staged/ dir yet) must not abort the later steps.
+function rollbackMint(dirPath) {
+  try { fs.rmdirSync(path.join(dirPath, 'staged')); } catch { /* best-effort */ }
+  try { fs.unlinkSync(path.join(dirPath, 'decisions.md')); } catch { /* best-effort */ }
+  try { fs.rmdirSync(dirPath); } catch { /* best-effort */ }
+}
+
 // Run dirs are named as ISO-timestamp-prefixed slugs (e.g. 2026-07-01T090000-spec-1).
 // Other siblings under pipelines/ — notably archive/, the wrap-up archival
 // destination — are not runs. archive/ sorts AFTER ISO names lexically, so an
 // unfiltered .sort().reverse() would rank it first and shadow live runs.
 const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T/;
 
-// #208: archived-is-terminal invariant, reader side. An archived run-id must never reach the
-// isUnadoptedMint/status inspection below regardless of what its resurrected active-side
-// run-state.json (if any) claims — that data is exactly the untrustworthy resurrected shell
-// described in the record's Current State. Fails OPEN on a read error other than "doesn't
-// exist" (a permission error, e.g.) — never silently suppress a genuinely unfinished run over
-// an unrelated read failure (this record's AC4); the caller reports it exactly as it would
-// have before this filter existed.
-function isArchivedRunId(root, runId) {
-  try {
-    return fs.statSync(path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId)).isDirectory();
-  } catch {
-    return false;
-  }
+// #848: a near-miss shape — the same 8-digit-date + T + 6-digit-time prefix
+// as a canonical run-id, minus the dashes (e.g. `20260817T173343-spec-764`,
+// the exact form a hand-composed `date -u +%Y%m%dT%H%M%S` mint produced
+// before every mint site delegated to run-dir-resolve.js's formatTimestamp()).
+// RUN_ID_RE silently excludes this shape from iterRunDirsWithState — by
+// design, that generator only yields directories it can confidently treat as
+// runs, since it drives both the fallback event-attribution scan and every
+// reconcile check's enumeration. findNonCanonicalRunDirs is the surfacing
+// half: report-only, never renamed or adopted, so a caller (reconcile) can
+// warn a human instead of silently omitting the run from every pass forever.
+const NON_CANONICAL_RUN_ID_RE = /^\d{8}T\d{6}/;
+
+// Directories under `.claude-tweaks/pipelines/` that look run-dir-shaped
+// (NON_CANONICAL_RUN_ID_RE) but don't match the canonical dash format
+// (RUN_ID_RE) and aren't `archive`. Anchored the same way
+// iterRunDirsWithState is — the main checkout, not raw cwd. Read-only: never
+// renames, deletes, or touches anything under the returned names.
+function findNonCanonicalRunDirs(cwd) {
+  const start = cwd || process.cwd();
+  const root = wtDetect.mainCheckoutRoot(start) || start;
+  const base = path.join(root, '.claude-tweaks', 'pipelines');
+  let entries;
+  try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return []; }
+  return entries
+    .filter((e) => e.isDirectory() && e.name !== 'archive' && !RUN_ID_RE.test(e.name) && NON_CANONICAL_RUN_ID_RE.test(e.name))
+    .map((e) => e.name)
+    .sort();
 }
 
 // Lazily yields each candidate run dir (newest-first) paired with its
@@ -94,7 +138,6 @@ function* iterRunDirsWithState(cwd) {
     .sort()
     .reverse();
   for (const name of names) {
-    if (isArchivedRunId(root, name)) continue;
     const dir = path.join(base, name);
     const state = readRunState(dir);
     if (state && state.status === 'clean') continue;
@@ -109,8 +152,35 @@ function* iterRunDirsWithState(cwd) {
     // every caller of this generator benefits: resolveRun's fallback scan,
     // the reconciler's archiveMerged pass, and session-start's unfinished-run
     // report all stop treating an already-archived run as still-open.
+    //
+    // #1103 fix-wave-1: this content-aware check is now the ONLY archive-twin
+    // check in this loop. An earlier existence-only check (`isArchivedRunId`,
+    // an fs.existsSync/statSync(...).isDirectory() probe with no read of the
+    // twin's own state) used to run first and skip on mere existence of
+    // archive/{name}/ — but archiveRunDir (archive-merged.js) creates that
+    // directory via fs.mkdirSync as its very FIRST action, before any
+    // content actually moves. Any failure after that point (git-mv-failed,
+    // commit-failed, tracked-entry, move-failed, …) left an empty or
+    // partially-populated archive/{name}/ with no cleanup path — which the
+    // existence-only check then treated as "already archived" forever,
+    // permanently stranding the live run dir and its real content (the
+    // literal double-nesting bug #1103 reports). Removed rather than
+    // reworked: this check already subsumes the sanctioned case (a
+    // genuinely completed archive) and, unlike the removed one, cannot be
+    // fooled by an incomplete archive attempt.
     const archiveState = readRunState(path.join(base, 'archive', name));
     if (archiveState && archiveState.status === 'clean') continue;
+    // #1103 follow-up: a fresh 'archiving' claim (archive-merged.js writes
+    // this the instant it mkdir's archiveDir, before moving anything) means
+    // another process is already mid-archival of this exact run dir right
+    // now — skip it here too, or a second unlocked `reconcile` invocation
+    // (dispatch/tidy's pre-step; `reconcile-background` holds its own lock
+    // and never races itself) racing the same run dir would double-move it.
+    // TTL-bounded, unlike the removed existence-only check, so a claim left
+    // behind by a crashed or failed attempt expires and stops blocking this
+    // run dir instead of stranding it forever — the exact failure mode the
+    // existence-only check's removal (above) fixed.
+    if (archiveState && archiveState.status === 'archiving' && !isStaleClaim(archiveState)) continue;
     yield { dir, state };
   }
 }
@@ -147,7 +217,35 @@ function listRunDirs(cwd) {
 // to the run dir and the PR regardless of this resolution, the same way
 // `bin/lib/reconcile/*` already reads and writes runs regardless of session
 // ownership. Do not "fix" this by tightening the ownership check.
-function resolveRun(cwd, env, sessionId) {
+//
+// #1410: a fallback candidate is also filtered on WORKTREE binding, via
+// classifyOwnership (#1098) — an axis orthogonal to the session-ownership
+// filtering the two comments below deliberately skip. A candidate whose
+// recorded `worktree` provably belongs to a different, still-live worktree
+// than the caller's own `cwd` classifies 'foreign' regardless of session id
+// (classifyOwnership degrades to 'indeterminate', never 'foreign', whenever
+// the caller's own repo/worktree can't be determined, so this never narrows
+// the fallback beyond what #62's original "newest non-terminal, not
+// session-foreign" guess already allowed for a candidate lacking a provable
+// worktree binding). This is what stops a concurrent sibling worktree's
+// event (e.g. an AskUserQuestion answered in one session) from landing in an
+// unrelated run's events.jsonl, without touching the 'env'/'session' arms
+// above, or #413's console-execution exception, at all.
+function isForeignWorktreeCandidate(cwd, sessionId, state) {
+  return classifyOwnership({ sessionId, cwd }, state) === 'foreign';
+}
+// Shared by both resolveRun fallback arms below: a candidate is never
+// eligible to be guessed into if it's an unadopted mint (#721). It is also
+// skipped as provably worktree-foreign (#1410) UNLESS `includeWorktreeForeign`
+// is set — the opt-out close-run's own fallback resolution passes (see the
+// resolveRun doc comment below), so the mint check still applies regardless
+// of the caller's own session id, but the worktree-binding axis does not.
+function isSkippableFallbackCandidate(cwd, sessionId, dir, state, includeWorktreeForeign) {
+  if (isUnadoptedMint(dir, state)) return true;
+  if (includeWorktreeForeign) return false;
+  return isForeignWorktreeCandidate(cwd, sessionId, state);
+}
+function resolveRun(cwd, env, sessionId, opts = {}) {
   if (env && env.PIPELINE_RUN_DIR) {
     try {
       if (fs.statSync(env.PIPELINE_RUN_DIR).isDirectory()) {
@@ -156,29 +254,115 @@ function resolveRun(cwd, env, sessionId) {
     } catch { /* fall through */ }
   }
   const me = typeof sessionId === 'string' && sessionId ? sessionId : null;
+  // includeWorktreeForeign (whole-branch review finding, pre-v6.110.0):
+  // close-run's implicit (no --run) fallback resolution passes this so it can
+  // still find and report on a run bound to a different, still-live worktree
+  // — closeRunState's own sessionId comparison is the actual safety net that
+  // decides whether it's safe to act on what's found, so filtering the
+  // worktree axis out here only hides the run from that check entirely,
+  // regressing close-run's "belongs to another session" report into a false
+  // "no run found." Every other caller (in particular post-tool-use.js's
+  // event-attribution fallback, which is what #1410 was written for) omits
+  // this and keeps the worktree filter.
+  const includeWorktreeForeign = opts.includeWorktreeForeign === true;
+  // Resolve once, up front, so the worktree-binding check below always sees
+  // the same cwd the candidate scan itself uses — iterRunDirsWithState falls
+  // back to process.cwd() internally on a falsy cwd, but isForeignWorktreeCandidate
+  // (via classifyOwnership) treats a falsy cwd as 'indeterminate', never
+  // 'foreign' — passing the raw, unresolved cwd there would silently no-op
+  // the filter for any falsy-cwd caller.
+  const resolvedCwd = cwd || process.cwd();
   if (!me) {
     // Caller identity unknown — behave exactly as before #62. Filtering by an
     // owner we cannot compare against would just be the old guess with fewer
     // candidates, and `record-worktree`/`close-run` deliberately resolve runs
-    // they do NOT own so they can report that fact (see bin/hooks.js).
-    for (const { dir, state } of iterRunDirsWithState(cwd)) {
-      if (isUnadoptedMint(dir, state)) continue;
+    // they do NOT own so they can report that fact (see bin/hooks.js). The
+    // worktree-binding check above is a different axis and applies here too,
+    // unless the caller opted out via includeWorktreeForeign.
+    for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
+      if (isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) continue;
       return { dir, attribution: 'fallback' };
     }
     return { dir: null, attribution: null };
   }
   let unowned = null;
-  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+  for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
     if (owner === me) return { dir, attribution: 'session' };
-    // Newest-first, so the first unowned run is the one the old code returned.
-    if (!owner && !unowned && !isUnadoptedMint(dir, state)) unowned = dir;
+    // Newest-first, so the first unowned, worktree-compatible run is the one
+    // the old code returned unconditionally.
+    if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) unowned = dir;
   }
   return unowned ? { dir: unowned, attribution: 'fallback' } : { dir: null, attribution: null };
 }
 
-function resolveRunDir(cwd, env, sessionId) {
-  return resolveRun(cwd, env, sessionId).dir;
+function resolveRunDir(cwd, env, sessionId, opts) {
+  return resolveRun(cwd, env, sessionId, opts).dir;
+}
+
+// Ownership classification (#1098): composite identity — session id AND
+// worktree binding. Session-id equality is NOT sufficient evidence of
+// ownership: CLAUDE_CODE_SESSION_ID is shared across all subagents of a
+// session (measured 2026-08-20, #965), so N parallel siblings are
+// indistinguishable by it — only the worktree binding separates them.
+// Fail-open: unprovable evidence (deleted binding, indeterminate git answer,
+// caller outside any known checkout, missing cwd) degrades to
+// 'indeterminate', never 'foreign' — preserving resolveRun's documented
+// asymmetry: an unowned run may still be ours; a provably-foreign run never is.
+// `caller.cwd` must be absolute (same convention as findRunByWorktreePath's
+// pre-resolved target). This predicate only classifies — it enforces
+// nothing; consumers (#1012, #1099) own what each verdict does.
+//
+// runState fields read — exactly two, nothing else: `sessionId` and
+// `worktree`.
+//
+// A binding match yields 'mine' even when the run records no sessionId —
+// binding outranks incomplete identity.
+//
+// A caller in any live worktree other than the one recorded in the binding
+// classifies 'foreign' — same repo or different, both trees provably exist and differ.
+//
+// Authoritative semantics table: .claude-tweaks/pipelines/archive/2026-08-20T185022-spec-1098/work/1098-spec.md
+// (committed on this branch).
+function classifyOwnership(caller, runState) {
+  const callerId = caller && typeof caller.sessionId === 'string' && caller.sessionId ? caller.sessionId : null;
+  const ownerId = runState && typeof runState.sessionId === 'string' && runState.sessionId ? runState.sessionId : null;
+  if (callerId && ownerId && callerId !== ownerId) return 'foreign';
+  const cwd = caller && typeof caller.cwd === 'string' && caller.cwd ? caller.cwd : null;
+  if (!cwd) return 'indeterminate';
+  if (!path.isAbsolute(cwd)) return 'indeterminate'; // relative input must never resolve against the hook process's own cwd
+  const binding = runState && typeof runState.worktree === 'string' && runState.worktree ? runState.worktree : null;
+  const info = wtDetect.repoInfo(cwd);
+  if (info.indeterminate) return 'indeterminate';
+  if (binding) {
+    // repoInfo already realpaths its answer; worktreeMatches realpaths the
+    // recorded side — a caller anywhere inside the recorded worktree
+    // resolves to that worktree's root and matches here.
+    // second and third args intentionally identical — repoInfo's answer is already canonical
+    if (info.repoRoot && worktreeMatches({ worktree: binding }, info.repoRoot, info.repoRoot)) return 'mine';
+    if (!info.repoRoot || !info.isLinkedWorktree) return 'indeterminate'; // outside any repo, or main checkout — cannot prove foreign
+    const real = wtDetect.safeReal(binding);
+    if (!real) return 'indeterminate'; // binding gone from disk — fail open
+    try { if (!fs.statSync(real).isDirectory()) return 'indeterminate'; } catch { return 'indeterminate'; }
+    return 'foreign'; // caller is in a different live worktree than a binding that provably exists
+  }
+  if (!callerId || !ownerId) return 'indeterminate'; // no binding and incomplete identity
+  // ids are both present and equal (different already returned foreign above)
+  if (info.isLinkedWorktree) return 'indeterminate'; // equal ids from inside a worktree prove nothing about an unbound run
+  if (info.repoRoot) return 'mine'; // main checkout + equal ids + no binding
+  return 'indeterminate'; // outside any repo
+}
+
+// Shared by findRunByWorktreePath/findRunsByWorktreePath below: does this
+// run-state's recorded `worktree` match targetPath? Realpath-canonicalizes
+// both sides where they exist on disk (recorded assignments are already
+// absolute; a torn-down worktree's path may no longer resolve, so the raw
+// string is kept as a fallback comparison rather than failing the match).
+function worktreeMatches(state, target, targetPath) {
+  if (!state || typeof state.worktree !== 'string' || !state.worktree) return false;
+  let recorded = state.worktree;
+  try { recorded = fs.realpathSync(recorded); } catch { /* keep recorded form */ }
+  return recorded === target || state.worktree === targetPath;
 }
 
 // Reverse lookup: which non-terminal run holds this worktree path as its
@@ -191,12 +375,47 @@ function findRunByWorktreePath(cwd, targetPath) {
   let target = targetPath;
   try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
   for (const { dir, state } of iterRunDirsWithState(cwd)) {
-    if (!state || typeof state.worktree !== 'string' || !state.worktree) continue;
-    let recorded = state.worktree;
-    try { recorded = fs.realpathSync(recorded); } catch { /* keep recorded form */ }
-    if (recorded === target || state.worktree === targetPath) return { runDir: dir, state };
+    if (worktreeMatches(state, target, targetPath)) return { runDir: dir, state };
   }
   return null;
+}
+
+// Plural sibling of findRunByWorktreePath (#500): every non-terminal run
+// dir — not just the first — assigned to this worktree path, newest first.
+// Exists for the reflect Friction Lens's ad-hoc-session fallback
+// (skills/reflect/full-mode.md): a worktree dev session that never reached a
+// formal pipeline can leave behind more than one lightweight ad-hoc run dir
+// (post-tool-use.js's stampAdHocRunDir, one per EnterWorktree that found no
+// owned run yet) before a later /claude-tweaks:wrap-up finally reads them —
+// a single first-match lookup would silently drop every ad-hoc run but the
+// newest. `excludeDir`, when given, omits that one directory from the
+// result (the caller's own primary/current run dir, already read via its
+// normal path — never double-counted as a second source here).
+function findRunsByWorktreePath(cwd, targetPath, excludeDir) {
+  if (typeof targetPath !== 'string' || !targetPath) return [];
+  let target = targetPath;
+  try { target = fs.realpathSync(targetPath); } catch { /* keep as-resolved */ }
+  // #1175: excludeDir must be realpath-canonicalized before comparing — a
+  // plain path.resolve() never matches when the caller's --run was spelled
+  // through a symlink (e.g. macOS /tmp, whose real path is /private/tmp), so
+  // the primary run's own events were never excluded and got re-emitted
+  // tagged `_source: 'adhoc'`. `dir` (from iterRunDirsWithState) is only
+  // realpath'd when mainCheckoutRoot resolves a real git repo — the raw-cwd
+  // fallback leaves it unresolved — so `dir` needs the same treatment at
+  // comparison time too, not just excludeDir, or the two sides stay on
+  // unequal footing whenever that fallback is the active path.
+  let excl = excludeDir ? path.resolve(excludeDir) : null;
+  if (excl) { try { excl = fs.realpathSync(excl); } catch { /* keep as-resolved */ } }
+  const out = [];
+  for (const { dir, state } of iterRunDirsWithState(cwd)) {
+    if (excl) {
+      let dirReal = path.resolve(dir);
+      try { dirReal = fs.realpathSync(dirReal); } catch { /* keep as-resolved */ }
+      if (dirReal === excl) continue;
+    }
+    if (worktreeMatches(state, target, targetPath)) out.push({ runDir: dir, state });
+  }
+  return out;
 }
 
 // True synchronous sleep (no CPU-spinning) for writeRunState's lock retry
@@ -236,6 +455,18 @@ const LOCK_STALE_MS = 5000; // a lock dir older than this is treated as abandone
 // machine) — see CLAUDE_TWEAKS_LOCK_WAIT_MS above for the test-only knob
 // that lets a test pin an effectively-unbounded budget to isolate the lock
 // mechanism from this wait cap.
+// #1348 checked this sibling for file-lock.js's acquireLock ENOENT-fail-open gap (#1269) and
+// found it NOT reachable here: every writeRunState caller passes a `runDir` that already
+// exists on disk — close-run-state.js/pre-compact.js/pre-tool-use.js/session-end.js and
+// hooks.js's record-worktree/record-pr verbs all pass an already-owned, already-discovered run
+// dir (resolveRunArg/resolveRunDir only ever return a directory that already exists);
+// post-tool-use.js's stampAdHocRunDir passes a runDir that runDirResolve.resolve({...,
+// create: true}) has just mkdirSync(..., {recursive:true})'d moments earlier; and
+// archive-merged.js's archiveRunDir passes archiveDir, which it mkdirSync(...,
+// {recursive:true})'d at its own top before either of its two writeRunState calls. Unlike
+// declined-learning's store (N concurrent *first-ever* writers racing a parent nobody had
+// created), acquireRunStateLock's ENOENT branch below is a genuine defensive fallback, not a
+// live race — left unchanged deliberately, not an oversight.
 function acquireRunStateLock(runDir) {
   const lockPath = path.join(runDir, '.run-state.lock');
   const deadline = Date.now() + LOCK_WAIT_MS;
@@ -270,23 +501,41 @@ function releaseRunStateLock(lockPath) {
 function writeRunState(runDir, patch) {
   const lock = acquireRunStateLock(runDir);
   const finalPath = path.join(runDir, 'run-state.json');
-  // Write to a per-process tmp file, then atomically rename over the real
-  // path. fs.renameSync is atomic on every platform Node supports (same
-  // dir, same filesystem), so a reader or a racing unlocked writer can
-  // never observe a torn/partial JSON file, and a crash mid-write leaves
-  // the previous state intact instead of a half-written file.
-  const tmpPath = path.join(runDir, `run-state.json.tmp-${process.pid}`);
   try {
     const next = { ...(readRunState(runDir) || {}), ...patch, updatedAt: new Date().toISOString() };
-    fs.writeFileSync(tmpPath, JSON.stringify(next, null, 2) + '\n');
-    fs.renameSync(tmpPath, finalPath);
+    // bin/lib/atomic-write.js's writeFileAtomic (#1653): writes a per-process
+    // tmp file then fs.renameSync's atomically over the real path, so a
+    // reader or a racing unlocked writer can never observe a torn/partial
+    // JSON file, and a crash mid-write leaves the previous state intact
+    // instead of a half-written file.
+    writeFileAtomic(finalPath, JSON.stringify(next, null, 2) + '\n');
     return next;
   } catch {
-    try { fs.unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
     return null;
   } finally {
     releaseRunStateLock(lock);
   }
+}
+
+// events.jsonl scan for skill_invoked / claude-tweaks:wrap-up events; missing
+// file or unreadable -> null (indeterminate). Shared by run-integrity.js's
+// checkRunIntegrity and close-run-state.js's closeRunState — the single
+// reader for the paired appendEvent writer above (#380).
+const WRAP_UP_SKILL = 'claude-tweaks:wrap-up';
+function scanWrapupEvents(runDir) {
+  let raw;
+  try { raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8'); } catch { return null; }
+  let any = false;
+  let wrapup = false;
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (!ev || ev.type !== 'skill_invoked') continue;
+    any = true;
+    if (ev.skill === WRAP_UP_SKILL) wrapup = true;
+  }
+  return { any, wrapup };
 }
 
 function appendEvent(runDir, type, data, attribution) {
@@ -310,6 +559,7 @@ function appendEvent(runDir, type, data, attribution) {
 }
 
 module.exports = {
-  readStdin, parseInput, resolveRun, resolveRunDir, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
-  readRunState, writeRunState, appendEvent, findRunByWorktreePath, RUN_ID_RE,
+  readStdin, parseInput, resolveRun, resolveRunDir, classifyOwnership, listRunDirs, listRunDirsWithState, iterRunDirsWithState,
+  readRunState, writeRunState, appendEvent, scanWrapupEvents, findRunByWorktreePath, findRunsByWorktreePath, RUN_ID_RE, findNonCanonicalRunDirs,
+  rollbackMint, isStaleClaim,
 };

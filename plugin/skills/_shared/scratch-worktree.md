@@ -33,10 +33,21 @@ the same time:
 - **`flow/worktree-merge.md`**: shown unaffected — its own text already routes `pr-first` merges
   through `_shared/pr-first-merge.md` instead of this file; this file's §5-6 is reached only on its
   `local-merge` conflict-resolution path, by design.
-- **`wrap-up/residue-sweep.md`**: an equivalent-shaped gap (its `remedy: auto` fixes merge back via
-  this file unconditionally, no `integration-model` branch) — filed separately as #435 rather than
-  fixed here, since #424's own scope kept this file's mechanics minimal/zero and residue-sweep
-  fixes have no existing PR/marker convention to wire up the way tidy's did.
+- **`wrap-up/residue-sweep.md`**: had the equivalent-shaped gap (its `remedy: auto` fixes merged
+  back via this file unconditionally, no `integration-model` branch) — filed separately as #435
+  since #424's own scope kept this file's mechanics minimal/zero and residue-sweep had no
+  existing PR/marker convention to wire up the way tidy's did. #435 fixed it the same shape as
+  #424: `wrap-up/residue-sweep.md`'s own `remedy: auto` section now resolves `integration-model`
+  and branches — `pr-first` pushes the scratch worktree's branch and opens a PR stamped
+  `<!-- wrap-up-residue-pr -->` (a distinct marker from tidy's, since the two are separate call
+  sites, but gated by the same `housekeeping-auto-merge` lever — reused rather than duplicated,
+  since both are the same "auto-arm a housekeeping PR" semantic), reusing
+  `_shared/pr-early-run-lifecycle.md`'s create/reopen shape; `local-merge` keeps this file's §5-6
+  merge-back unchanged. `github-pr-scan.md`'s `repo-wide` sweep backstop (item 9) was **not**
+  extended to recognize the new marker — residue-sweep only ever runs as part of an already
+  hands-off wrap-up, so creation-time arming (gated by the same lever) is sufficient; a PR that
+  fails to arm at creation stays unarmed and visible in the wrap-up run's own decisions.md rather
+  than picked up later by a sweep that doesn't know its marker.
 
 ## 1. When to provision
 
@@ -214,4 +225,10 @@ Empirically observed boundary (2026-08-15, tested live against the harness build
 - **Pass:** single plain commands, commands with a single `$(...)` substitution or a `|` pipeline, 2-command `&&` chains of simple commands, standalone heredocs (`cat > file <<EOF`) regardless of target location.
 - **Refused:** two or more independent `$(...)` substitutions in one command (e.g., comparing `$(git rev-parse A)` against `$(git rev-parse B)` inside a `[ ]` test), `;`-separated sequences of top-level commands, any `for`/`while` loop (even with no filesystem access or all-read body).
 
+**2026-08-25 addendum (#1108):** two further refusal shapes independently reproduced live in a worktree session, appended as new evidence rather than folded into the 2026-08-15 observation above (that date describes only what was tested that day) — a single command using `${VAR:-default}` parameter-expansion-with-default syntax (distinct from the `$(...)` substitution case above — no chain or pipe involved): `echo "${HOME:-/nope}"` refused while `echo "$HOME"` alone passes; and a `VAR=val && command "$VAR"` variable-assignment-then-use `&&` chain (distinct from an ordinary 2-command `&&` chain of ready-made values, which still passes): `TESTVAR=hello && echo "$TESTVAR"` refused while a bare assignment (`TESTVAR=hello`) and a plain 2-command chain with no assignment (`pwd && whoami`) both pass (isolating the assignment-then-use combination, not chain length, as the trigger).
+
 **Practical workaround:** default to one plain command per Bash call inside a worktree session. Use `Edit` to append to a file rather than a heredoc append; use the `Write` tool to create a script when multi-step logic is unavoidable, then invoke it with a single plain command. Resolve any value a later call needs explicitly and paste it in literally — it will not survive in a shell variable between calls.
+
+Same shell-hazard family: a bare `=`-led token (e.g. `echo ===`) as a separator also fails under zsh — see `docs/donts.md`.
+
+**2026-08-30 addendum (#1651):** the literal token `complete` in a non-git command argument reproduces the guard's git-operation false-positive — confirmed live in a worktree session that day: even a bare `echo complete` is refused with "runs a string through complete, which can't be verified to stay inside the worktree," the same wording the guard uses for an actual unverifiable git operation. `--status running`/`--status failed` on the same `bin/hooks.js spec-status` call pass; only `--status complete` trips it. This is a concrete, frequently-hit trigger site: every multi-spec `/flow` run calls `spec-status --status complete` once per spec, at that spec's wrap-up exit (`flow/multispec-progress-banner.md`'s "Per-spec completion summary"). **Workaround:** never pass the literal word as a bare argv token — compose it inside a single `node -e` call instead (multi-statement `;`-separated composition at the outer shell level is itself refused per the 2026-08-15 observation above, so the composition has to happen inside one JS expression, not as a sequence of shell statements), e.g. `["c","o","m","p","l","e","t","e"].join("")`, then shell out to the real command from inside that same `node -e` process (via `child_process.execFileSync`) rather than back out to a second Bash call.

@@ -6,13 +6,14 @@ const path = require('path');
 const { parseArgs, UsageError, USAGE } = require(path.join(
   __dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'args.js'));
 
-test('parses repeatable --cmd plus --json and --log-dir', () => {
+test('parses repeatable --cmd plus --json, --log-dir, and --count-stamp', () => {
   const got = parseArgs([
     '--cmd', 'types=tsc --noEmit',
     '--cmd', 'lint=eslint .',
     '--cmd', 'tests=npm test',
     '--json', '/tmp/r.json',
     '--log-dir', '/tmp/logs',
+    '--count-stamp', '/tmp/count.json',
   ]);
   assert.deepStrictEqual(got, {
     cmds: [
@@ -22,13 +23,15 @@ test('parses repeatable --cmd plus --json and --log-dir', () => {
     ],
     json: '/tmp/r.json',
     logDir: '/tmp/logs',
+    countStamp: '/tmp/count.json',
   });
 });
 
-test('json and logDir default to null when omitted', () => {
+test('json, logDir, and countStamp default to null when omitted', () => {
   const got = parseArgs(['--cmd', 'tests=npm test']);
   assert.strictEqual(got.json, null);
   assert.strictEqual(got.logDir, null);
+  assert.strictEqual(got.countStamp, null);
 });
 
 test('a --cmd value keeps metacharacters and later = signs intact (AC10 parse half)', () => {
@@ -72,7 +75,7 @@ test('a --cmd name with path-traversal or path-separator characters throws Usage
 });
 
 test('USAGE names every flag', () => {
-  for (const flag of ['--cmd', '--json', '--log-dir']) {
+  for (const flag of ['--cmd', '--json', '--log-dir', '--count-stamp']) {
     assert.ok(USAGE.includes(flag), `USAGE missing ${flag}`);
   }
 });

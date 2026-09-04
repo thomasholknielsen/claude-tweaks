@@ -57,6 +57,25 @@ function dispositionState(labels) {
   return 'none';
 }
 
+// Provenance modifier for an 'approved' disposition — always stacked alongside
+// demo:approved, never its own disposition state (see ACCEPTANCE_BY_LABEL above,
+// which never matches it). /claude-tweaks:demo's Step 3 Approve action applies
+// this label only for a #N,#M batch-invocation verdict; a single-record verdict
+// (bare #N, or no-argument session-recall) leaves it off — both run the same
+// per-item walkthrough, so this marks which invocation shape produced the
+// verdict, not whether a walkthrough happened. A record whose demo:approved
+// predates this signal (or was applied by any other path) carries no marker
+// and reads as 'walkthrough' (single-record-backed) — the safer default, since
+// promoting an unlabeled historical approval to 'batch' would understate
+// coverage rather than overstate it (bin/lib/issues/trust.js's sole consumer).
+const APPROVAL_PROVENANCE_LABEL = 'demo:approved-batch';
+
+function approvalProvenance(labels) {
+  if (dispositionState(labels) !== 'approved') return null;
+  const names = Array.isArray(labels) ? labels : [];
+  return names.includes(APPROVAL_PROVENANCE_LABEL) ? 'batch' : 'walkthrough';
+}
+
 function verificationSurface(changedPaths) {
   const paths = (Array.isArray(changedPaths) ? changedPaths : []).filter(Boolean);
   const anyInteractive = paths.some((path) => {
@@ -76,14 +95,17 @@ function needsBackstop(record) {
 // A parent issue's acceptance state across its sub-issues. Reads the parent's own label first:
 // the label is the authoritative record of what has already been applied, so a
 // sub-issue reopening after the gate went on never re-opens the gating decision.
-function parentGateState({ leaves, parentLabels } = {}) {
+function parentGateState({ subIssues, parentLabels } = {}) {
   const disposition = dispositionState(parentLabels);
   if (disposition === 'approved' || disposition === 'changes-requested') return 'resolved';
   if (disposition === 'pending') return 'gated';
 
-  const all = Array.isArray(leaves) ? leaves : [];
+  const all = Array.isArray(subIssues) ? subIssues : [];
   if (all.length === 0) return 'incomplete';
-  return all.every((leaf) => leaf && leaf.state === 'CLOSED') ? 'due' : 'incomplete';
+  return all.every((subIssue) => subIssue && subIssue.state === 'CLOSED') ? 'due' : 'incomplete';
 }
 
-module.exports = { dispositionState, verificationSurface, needsBackstop, parentGateState };
+module.exports = {
+  dispositionState, verificationSurface, needsBackstop, parentGateState,
+  approvalProvenance, APPROVAL_PROVENANCE_LABEL,
+};

@@ -14,7 +14,7 @@ const path = require('path');
 
 // The union field set every consumer needs, so one fetch covers all of them —
 // see record-queue-fetch.md's Deliverables for the field list this mirrors.
-const UNION_FIELDS = 'number,title,labels,body,state,stateReason,closedAt,comments,updatedAt,milestone';
+const UNION_FIELDS = 'number,title,labels,body,state,stateReason,createdAt,closedAt,comments,updatedAt,milestone';
 
 // A session id is required for the snapshot to mean anything — without one,
 // concurrent unrelated sessions would silently share (and race on) the same
@@ -36,6 +36,12 @@ function gitLogPath(sessionId) {
   const id = resolveSessionId(sessionId);
   if (!id) return null;
   return path.join(os.tmpdir(), `ct-gitlog-${id}.txt`);
+}
+
+function subIssuesPath(sessionId) {
+  const id = resolveSessionId(sessionId);
+  if (!id) return null;
+  return path.join(os.tmpdir(), `ct-subissues-${id}.json`);
 }
 
 // Fresh iff the file exists and its mtime is younger than ttlSeconds. Any stat
@@ -61,12 +67,14 @@ function writeSnapshot(filePath, records) {
   fs.writeFileSync(filePath, JSON.stringify(records));
 }
 
-// Deletes both the record snapshot and its companion git-log dump for a
-// session, tolerating either already being absent. Called after any
-// `gh issue create`/`edit`/`close` (or the MCP equivalent) — see
-// _shared/github-write-transport.md's note on the CRUD mapping table.
+// Deletes the record snapshot, its companion git-log dump, and the sub-issues
+// snapshot for a session, tolerating any of the three already being absent.
+// Called after any `gh issue create`/`edit`/`close` (or the MCP equivalent) —
+// see _shared/github-write-transport.md's note on the CRUD mapping table —
+// and after a sub_issues link write (bin/link-records.js), which changes the
+// same parent/sub-issue facts the sub-issues snapshot caches.
 function invalidateSnapshot(sessionId) {
-  for (const p of [snapshotPath(sessionId), gitLogPath(sessionId)]) {
+  for (const p of [snapshotPath(sessionId), gitLogPath(sessionId), subIssuesPath(sessionId)]) {
     if (!p) continue;
     try {
       fs.unlinkSync(p);
@@ -78,8 +86,10 @@ function invalidateSnapshot(sessionId) {
 
 module.exports = {
   UNION_FIELDS,
+  resolveSessionId,
   snapshotPath,
   gitLogPath,
+  subIssuesPath,
   isFresh,
   readSnapshot,
   writeSnapshot,

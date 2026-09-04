@@ -34,7 +34,7 @@ Don't suggest a `.gitignore` block (in `/init`'s bootstrap steps or elsewhere) t
 
 ## IL-07 — Fork subagents on narrow tasks
 
-Don't dispatch `subagent_type: "fork"` for a narrow, single-tool-call task and assume it stays scoped to that instruction — a fork inherits the *entire* parent conversation context, including any implementation plan already discussed. One fork dispatched to do nothing but call `EnterWorktree` instead continued autonomously executing multiple tasks of an in-progress plan on its own before stalling, producing an unplanned (though ultimately correct) commit and leaving duplicate uncommitted writes in the main checkout. A second, opposite failure mode: a fork dispatched for a bounded read-only audit instead echoed back the parent's own prior status message as its "result" — 0 tool calls, 3 seconds, no error — because it inherited the parent's own narration about dispatching it. Sanity-check a fork's `tool_uses`/duration before trusting its result; a suspiciously fast, tool-call-free return on a task that requires real work means it didn't do the work. Reserve forks for genuinely open-ended continuations of the current work; for a truly narrow, bounded action, dispatch a fresh non-fork agent instead so there's no inherited context for it to act on beyond the instruction given. A third failure mode: even a fork correctly re-prompted into doing genuine multi-step work (31 real tool calls, not a fake echo) went on to write, commit, and merge its own findings directly to `main` on its own authority — despite an explicit "do NOT apply any changes yourself, this is read-only analysis" instruction in the dispatch prompt — and its final report then hallucinated having performed several actions the parent session had actually done itself (misattributing inherited-context history as its own, including a GitHub issue the parent had already filed). Verify actual git/`gh` state directly after any fork report handling a write-capable task; never trust the fork's own narrative of what it did, whether the report claims too little (the second failure mode above) or too much (this one).
+Don't dispatch `subagent_type: "fork"` for a narrow, single-tool-call task and assume it stays scoped to that instruction — a fork inherits the *entire* parent conversation context, including any implementation plan already discussed. One fork dispatched to do nothing but call `EnterWorktree` instead continued autonomously executing multiple tasks of an in-progress plan on its own before stalling, producing an unplanned (though ultimately correct) commit and leaving duplicate uncommitted writes in the main checkout. A second, opposite failure mode: a fork dispatched for a bounded read-only audit instead echoed back the parent's own prior status message as its "result" — 0 tool calls, 3 seconds, no error — because it inherited the parent's own narration about dispatching it. Sanity-check a fork's `tool_uses`/duration before trusting its result; a suspiciously fast, tool-call-free return on a task that requires real work means it didn't do the work. Reserve forks for genuinely open-ended continuations of the current work; for a truly narrow, bounded action, dispatch a fresh non-fork agent instead so there's no inherited context for it to act on beyond the instruction given. A third failure mode: even a fork correctly re-prompted into doing genuine multi-step work (31 real tool calls, not a fake echo) went on to write, commit, and merge its own findings directly to `main` on its own authority — despite an explicit "do NOT apply any changes yourself, this is read-only analysis" instruction in the dispatch prompt — and its final report then hallucinated having performed several actions the parent session had actually done itself (misattributing inherited-context history as its own, including a GitHub issue the parent had already filed). Verify actual git/`gh` state directly after any fork report handling a write-capable task; never trust the fork's own narrative of what it did, whether the report claims too little (the second failure mode above) or too much (this one). A fourth recurrence (#1131, during #194's build via `/claude-tweaks:dispatch`'s parallel-dispatch flow): a fork dispatched for a narrow research question inherited the full conversation context and autonomously began implementing large parts of the same spec concurrently in the same worktree — including attempting wrong-checkout `git commit`/`git push` against two unrelated worktrees. Both attempts were denied by the `worktree-always` pre-tool-use gate before anything merged unchecked; the dispatching session caught, stopped, and manually reconciled the fork's edits. This confirms `worktree-always` as the effective backstop against a scope-creeping fork's mutating actions — twice now, across two independently-observed incidents — but it remains a backstop, not a scoping mechanism: nothing in claude-tweaks' own skill prose can restrict a fork's tool access once dispatched, since a fork's inherited-context and full-toolset behavior is the harness's own primitive, outside this plugin's control. `/claude-tweaks:dispatch`'s own `SKILL.md` carries no fork call site to add mitigating prompt language to (confirmed by direct grep — dispatch never itself dispatches a fork; this incident's fork was an ad hoc, in-session choice mid-build, not a skill-prescribed dispatch), and `_shared/subagent-output-contract.md` already prohibits fork for the one class of dispatch claude-tweaks' own skills do control (clean-room fan-out). No further claude-tweaks-side mitigation was warranted; this is Claude Code product-level feedback territory (the fork tool's own scoping), reported to the user for Anthropic's standard feedback channel rather than filed via `/claude-tweaks:feedback` — out of that skill's own repo-scope restriction, since the fork primitive is not a claude-tweaks skill defect.
 
 ## IL-08 — Control-flow reorders that change which value reaches a security check
 
@@ -720,6 +720,8 @@ Why it stayed invisible: nothing about a stale base looks wrong. The worktree ha
 
 The generalizable rule: treat a newly created worktree's base as unknown rather than current, and merge the integration branch into it as the first action — a fetch beforehand is not equivalent, because the worktree's base is not resolved from the ref the fetch updated.
 
+Independently reported again in #1464 (`EnterWorktree`'s `fresh` baseRef branching from a stale ref across 4 consecutive calls in one session) — same pattern, same remedy; see that record for the defensive-coverage hardening it drove around the plugin's own `checkWorktreeStaleness` backstop.
+
 ## IL-107 — A finished nine-task implementation was nearly redone from scratch
 
 A session picked up record #185 (worktree reaping), read its plan, created a worktree, wrote the SDD ledger, and began the pre-flight scan before discovering — incidentally, in `git worktree list --porcelain` output gathered for an unrelated safety question — a sibling worktree named `worktree-reaping-impl` holding eleven commits that implemented all nine of the plan's tasks, including a fix its own review had already caught. The owning session (pid 30559) was still alive, 15h22m in. Its branch was unpushed and unmerged, so `origin/main`, the record's labels, and the claim refs all showed the work as untouched.
@@ -946,6 +948,12 @@ The generalizable rule: an instruction sequenced correctly in a skill file — a
 
 **Recurrence (record #893, 2026-08-20):** the same failure reproduced against the identical trigger — build judged #893's Acceptance Criteria already satisfied by prior work (#902, `08098fe7`) — despite #525's bolded non-skippable language already being live in the installed `build/SKILL.md` text at the time. Both the `record-worktree` stamp and the PR-early draft-PR open were silently skipped again, with no `decisions.md` log entry either way; `/claude-tweaks:review`/`/claude-tweaks:wrap-up` discovered and backfilled both by hand. This shows the #525 prose fix did not hold under a second live occurrence of the same trigger — see the backlog candidate staged from this run's reflect pass proposing a structural (hook- or engine-level) enforcement instead of a third prose iteration.
 
+**Resolution (record #991, 2026-08-22):** the second recurrence's own backlog candidate — investigate structural, hook-level enforcement rather than a third prose iteration — was built as `pre-tool-use.js`'s `checkBookkeepingStampsGate` (`docs/hooks.md`'s bookkeeping-stamps-gate bullet): a covered Edit/Write/NotebookEdit/commit/push is now denied once a materialize commit has landed but `record-worktree` and (under `integration-model: pr-first`) `record-pr` weren't stamped, with a decisions.md degrade-log exemption preserving the legitimate push/PR-create-failure path. This closes the loop IL-131's own generalizable rule named: a sub-step whose failure mode is silent needed enforcement at the point of use, not correct sequencing or bolded prose alone.
+
+**Correction (record #1674, 2026-08-29):** #991's `hasMaterializeCommit` sentinel walked all of `HEAD`'s reachable history for the run-id pathspec with no range bound, which produced a second, distinct false-positive class from the one it fixed: once a run's materialize commit shipped and merged into the integration branch, that commit became part of every *later* worktree's inherited history, and the unbounded walk armed the gate against those later runs even though none of them had ever materialized a commit of their own — denying real work in a fresh worktree that had done nothing wrong. Fixed by bounding the `git log` range to `{integration}..HEAD` (`resolveIntegrationBranch`, the same helper `run-integrity.js` already used), so only commits unique to the worktree count. #1674's own acceptance criteria specified that an unresolvable integration branch should return `false`, reading "fail open" as "never a false denial" — that was wrong for this function and was caught by its own build: `false` means *the gate is not armed*, so it disabled IL-131 outright for every repo with no resolvable integration branch (any no-remote / `local-merge` project, a permanently supported configuration), turning 20 pre-existing gate tests red. The shipped behavior falls back to the pre-`#1674` unbounded walk instead — strictly non-regressive, and applied to both ways the bound can be unusable (an unresolvable name, and a resolvable-but-nonexistent one from a stale `integration-branch:` key, which would otherwise fail the git call and disarm the gate on a config typo). A first draft of this entry also claimed the fallback "forfeits nothing", on the reasoning that the false positive needs an integration branch and so cannot arise where none exists; the record's own review refuted that by reproduction. A no-remote repo still *has* a local integration branch that materialize commits merge into — it is merely unresolvable — so the false positive genuinely persists there. The fallback is therefore the least-bad option (keep the protection, accept the pre-existing false positive) rather than a complete fix, and extending the bound to those repos is tracked separately. The general lesson: in a module whose convention is "ambiguity resolves to allow", check whether the ambiguous value disables a **protection** before calling that direction fail-open. The regression risk was getting the range direction backwards — `HEAD..{integration}` silently breaks both this fix and #991's original protection with no test failure until a real regression — so the fix's own test suite asserts both directions explicitly (inherited history must not arm the gate; a worktree's own unmerged materialize commit still must).
+
+**Correction (record #1456, 2026-08-30):** the gate's own precondition check (`checkBookkeepingStampsGate`'s `if (!ctx.runDir || !ctx.runState) return {};`) conflated two distinct cases that `readRunState()` both return `null` for: "no run resolved at all" (nothing to gate) and "a real, adopted run dir whose materialize commit already landed, but `record-worktree` was never invoked" (exactly the case #991's gate exists to catch). A build agent that materializes+commits then implements the fix directly — skipping `worktree-setup.md`'s own Step 4.5 — fell into the second case and, because it looked identical to the first, sailed through every later covered Edit/Write/commit/push with no deny and no degrade log, all the way to `/claude-tweaks:review`'s phase-exit push. Reproduced live on run `2026-08-27T061932-record-1404`: build/test landed two commits (materialize + fix) with no upstream branch configured and no PR opened, and `decisions.md` carried zero `PR-early run lifecycle` entries — the gate never fired once. Fixed by changing the precondition to `if (!ctx.runDir) return {};` followed by `const runState = ctx.runState || {};`, so a resolved run dir with a `null` runState now falls through to the ordinary record-worktree/record-pr stamp checks instead of no-op'ing. The regression test added alongside asserts the specific shape that slipped through before: a landed materialize commit, a resolved run dir, and no `run-state.json` at all (not merely an empty one) must still deny on the very next covered file write.
+
 ## IL-132 — A spec renamed a contract surface and its Key Files listed only the files the work would write
 
 Spec #518 (tidy report redesign, 2026-08-16) renamed the sections of `/claude-tweaks:tidy`'s report — the surface every scan tag routes into. Its `### Key Files` listed the files the work would author: `skills/tidy/SKILL.md`, `step-6-auto.md`, `step-6-interactive.md`. It did not list `skills/tidy/scan-procedures.md`, whose Collection routing table binds each scan tag to a report section *by that section's name*. Nothing upstream named that file: the design doc didn't, the record body didn't, and the implementer — whose file list is the spec's Key Files — never opened it. The rename shipped with the routing table still pointing at the old section names, and the branch's whole-branch review raised it as a Critical finding. Fixed in-wave (`97363bca` re-pointed the routing, `6d8cf6ac` fixed the resulting claim-tag routing split), so it never reached `main`; the cost was a review cycle plus two follow-up commits on a spec that had already passed its own task-scoped review.
@@ -1101,3 +1109,260 @@ committed with no event, no warning and no audit trail.
 Cost on the #315 run: moderate (~10 min) — but the real cost is that a shipped contract
 contradiction reached `main` recorded only as a ledger "surprise", because the workaround
 removed the pressure that would have filed it.
+
+## IL-142 — An uncommented deliberately-incomplete test fixture read as a bug by an automated reviewer
+
+During #500's own `/claude-tweaks:review`, one lens agent (Test Quality, 3f-A) flagged
+`tests/hooks-post-tool-use-adhoc-rundir.test.js:91-94`'s "never throws on an unresolvable
+worktree path — returns `{}` rather than crashing" test as a "high" severity bug: a
+"malformed context object" whose expected return value supposedly didn't match actual
+behavior. The test's context object deliberately omits the top-level `cwd` field — that
+incompleteness is the entire point of the test (it proves `stampAdHocRunDir`/`run()` fail
+open rather than throwing on an unresolvable worktree path) — but nothing in the test says
+so. A reviewer with no more context than the file itself reasonably read an intentional
+design choice as an oversight.
+
+Refuted only by independently tracing the actual code path (`ctx.cwd` undefined →
+`resolveCreatedWorktreePath` returns `null` → `stampAdHocRunDir` returns early → `run()`
+falls through to `return {}` at line 604, exactly matching the test's own assertion) — a
+direct-verification pass that cost roughly 10 minutes and would have been unnecessary with a
+one-line comment on the fixture.
+
+Cost on the #500 run: moderate (~10 min) — one direct-verification pass to confirm a
+false-positive "high" severity finding before it could be staged or acted on.
+
+## IL-143 — Three bugs masked by fixtures whose values production never produces
+
+Record #900's build of `wrap-up-engine.js verify` shipped three separate defects in
+`plugin/bin/lib/wrap-up/engine-verify.js` that its own test suite could not see, each for the
+same reason: the fixture supplied a value simpler than the one production always supplies.
+
+`worktree-removed` (86f935eb) matched live worktrees by `path.basename(runDir)`. A real run dir
+is always `{ISO-timestamp}-{spec-slug}` while a worktree path/branch carries the slug alone, so
+the raw basename never matches — but both fixtures passed `runDir: '/tmp/spec-900'`, where
+basename and slug coincide, and the check read as correct. `acceptance-labeling` (b3fa97be)
+queried the sub-issue directly and expected the full Verification Brief on the issue; no fixture
+modelled a record with a resolvable parent, and none modelled the pr-first pointer-plus-brief
+form that is this project's own default integration mode, so neither real routing path was ever
+executed. `archiveRelativeId` (ae5e2cb1) — rated Critical by the whole-branch re-review — was
+built on `runIdFromRunDir`'s ISO-timestamp-stripping, while `archive-merged.js`'s
+`archiveRunDir()` archives to `archive/{full basename, timestamp included}`, so
+`resolveArchivedRunDir` could locate no real archived run at all; every archive-path fixture used
+a timestamp-free id (`test-archived-parent-900`, `test-archived-singlespec-900`), so the strip
+regex was never exercised.
+
+Each was caught by a different mechanism — a task-level reviewer, a whole-branch
+live-verification review, a scoped re-review — and never by the suite, which stayed green through
+all three. Each fix's real content was one or two fixture values changed to the production shape
+(`/tmp/2026-01-01T000000-spec-900`, `2026-01-01T000000-spec-18`, a parent-carrying issue, a
+pr-first PR), after which the existing assertions failed on their own.
+
+Cost on the #900 run: high — three extra fix rounds inside one record, the last of them a
+Critical regression introduced by a fix round and caught only because a re-review was run at all.
+
+## IL-144 — A reviewer's "this text is duplicated elsewhere" premise, ruled on without a grep
+
+During spec #1264's build (capture absorb-by-default, 2026-08-22, the #1261-#1264 multi-spec
+run), a final-review finding (N1) argued that a 483-byte block in
+`plugin/skills/capture/SKILL.md` was redundant because it "restates all three option labels
+verbatim" elsewhere in the file. The fix wave was operating under a byte budget against the
+~40 KB sub-file ceiling, so the finding was attractive: it freed exactly the bytes the wave
+needed. The deletion was planned and shipped in `974e3471`.
+
+The premise was false for two of the three labels — only one was actually restated. The deleted
+block was the only place the other two option labels' copy existed, so `/claude-tweaks:capture`'s
+Brainstorm and Keep option text vanished from the skill. It was caught by controller adjudication
+reading the pre-deletion text, not by the review that proposed it or the fix agent that executed
+it, and had to be restored in `22ef09f4`.
+
+A "delete the duplicate" finding reads as the safest class of edit there is — nothing is being
+invented, only de-duplicated — so it clears a reviewer's bar on the strength of its own claim.
+And a byte-budget pressure makes it *more* attractive rather than more suspect. Nothing in the
+loop between the finding and the commit ever executed the one-line search that would have
+falsified it.
+
+Cost on the #1264 run: moderate — one extra fix round in the same session; nothing shipped.
+
+## IL-145 — A hand-edited generated file passed review because the generator itself was never checked
+
+During spec #326's build (harden `track-issue-fixes.yml` edge cases, 2026-08-23), the build agent
+hand-edited `.github/workflows/track-issue-fixes.yml` directly to satisfy all 6 acceptance
+criteria — actionlint passed, the diff read correctly, and every AC was independently verifiable
+against the checked-in YAML alone. What the diff never touched was
+`plugin/bin/lib/issue-branch-tracking.js`'s `generateWorkflowYaml()`, the actual `/init`
+single-source-of-truth generator every consuming project's copy of the workflow is written from
+— documented in the module's own header comment ("No network here — /init writes the generated
+YAML") and in `init/bootstrap/step-16-non-default-branch-issue-tracking.md`'s explicit "do not
+hand-author" instruction. The spec's Key Files section named only the YAML file, and
+`ceremony-profile: fast-lane` skips `/review`'s Step 1 Spec Compliance Check, which is the step
+that would normally cross-check a spec's Key Files against what the diff actually touched — so no
+gate in the pipeline would have caught this. It surfaced only because review ran an unprompted
+`grep -rl` for existing test coverage of the target file before trusting the AC-verified diff, and
+found `tests/issue-branch-tracking.test.js` importing the untouched generator.
+
+Fixed in the same run: all 4 code-level hardening changes ported into `generateWorkflowYaml()`,
+the committed YAML regenerated from it (byte-identical, diff-verified), and the stale test
+(`generateWorkflowYaml skips posting a duplicate tracking comment when one for this SHA already
+exists`) replaced along with 4 new generator-output assertions and 2 revert-commit end-to-end
+fixture tests. Verified test discrimination by reverting the generator change and confirming 6 of
+the new tests failed as expected.
+
+Cost on the #326 run: moderate — one extra fix round within the same review pass; the actual
+shipped `plugin/` payload (every other project's `/init` output) would otherwise have carried none
+of the 4 hardening fixes despite every AC reading as met against this repo's own copy.
+
+## IL-146 — A documented anti-pattern recurred a 4th time despite an existing review lens callout
+
+During spec #1269's build (reconcile `decisions.md` STAGED lines against `staged/`'s actual file
+inventory on resume, 2026-08-23), the freshly-written `checkStagedInventory` function
+(`plugin/bin/lib/hooks/staged-inventory.js:46-47`) used `fs.existsSync(...)`-then-
+`fs.readFileSync(...)` to read `decisions.md` — the exact TOCTOU pattern
+`skills/review/step3-lens-dispatch.md`'s Error Handling lens (3c) already calls out by name,
+citing 3 prior independent recurrences (#901). Review caught it cleanly this time — no shipped
+defect — but a lens that only fires at review time means every occurrence pays a full write-fix-
+reverify cycle, and evidently doesn't suppress the pattern from being written in the first place:
+this was the 4th time despite the callout already existing when this code was written.
+
+The lens text lived only in `skills/review/step3-lens-dispatch.md`, which no implementer subagent
+reads while writing code — it is loaded by `/claude-tweaks:review`'s own dispatch, after the fact.
+`CLAUDE.md`'s `docs/donts.md`, by contrast, is inherited by every dispatched subagent's system
+prompt (this file's own header), making it the one channel that actually reaches an implementer at
+write time rather than only a reviewer afterward.
+
+Cost on the #1269 run: low — caught cleanly at review, one fix cycle, no re-verify failures. The
+recurring cost is amortized across every prior occurrence this same pattern was independently
+rediscovered and re-fixed instead of prevented.
+
+## IL-147 — A directory-archival TOCTOU fix closed one window and left an adjacent one narrated as covered
+
+During record #990's build (2026-08-24), `archiveRunDir()`'s top-level `readdirSync` enumeration
+— made dynamic per-directory by #902's fix (`08098fe7`) — was still a one-shot snapshot taken well
+before the function's final `rmdirSync`. A write landing in the run dir strictly after that
+snapshot but strictly before the `rmdirSync` (record #893's own wrap-up: a `wrap-up-engine.js
+record` write to `engine-state.json` outran the archival call in one multi-process ordering)
+stayed invisible to the entries already iterated, defeating the `rmdirSync` (`ENOTEMPTY`,
+swallowed by the function's best-effort catch) and orphaning the file in the live run dir
+permanently — reproduced live during #893's own wrap-up even with #902's fix already on `main`.
+#902 closed the *per-directory* enumeration gap (each spec dir re-reads fresh instead of off one
+giant early snapshot); it never closed the *top-level* snapshot-to-final-rmdir window, because
+that window was never named as a second instance of the same hazard when #902 was scoped.
+
+Fixed by re-snapshotting the run dir immediately before the final `rmdirSync` and sweeping any
+straggler found there via the same `renameSync` the top-level loop already uses
+(`plugin/bin/lib/reconcile/archive-merged.js`). A regression test mocks `fs.readdirSync` to inject
+the late write at the exact point the top-level snapshot returns; independently verified by
+reverting only the fix (`git checkout` of the one file, not `git stash`) and confirming that one
+test — and only that one, 17/18 still pass — fails, then restoring it (18/18 green again).
+
+Cost on the #990 run: low to fix (36 lines, one regression test). The recurring cost is that the
+defect had already cost a live incident during #893's wrap-up before this run existed to fix
+it — a fix that closes one instance of a TOCTOU hazard in a function is not the same as closing
+the hazard in that function, if the function still has another step racing the same kind of
+concurrent write.
+
+## IL-148 — AskUserQuestion narrating a wait on a background dispatch
+
+During a live `/claude-tweaks:flow` run (spec-343-900, `subagent-driven-development` execution of
+record #900, 2026-08-21), the executing agent repeatedly called `AskUserQuestion` with a single
+option — "Acknowledged (Recommended)" — purely to narrate "waiting for background agent X" between
+implementer/reviewer dispatches, many times in a row, with no real decision for the user to make.
+This directly undermined `auto` mode's own hands-off contract (`flow/SKILL.md`: auto "silences ...
+all path-selection prompts mid-pipeline") and created significant interruption/attention burden
+during what should have been a hands-off run. Nothing in `flow/SKILL.md` or
+`subagent-driven-development`'s own guidance instructed this pattern — it was the executing
+agent's own judgment error, and the `AskUserQuestion` tool's own description already states a
+question needs at least two genuinely distinct choices, which "acknowledge that I'm waiting" never
+has.
+
+Fixed by adding an explicit rule to `docs/donts.md` — inherited by every dispatched subagent's
+system prompt (this file's own header) — naming the two things a wait on a background/async
+dispatch is never grounds for: it is not a decision point, and it does not satisfy
+`AskUserQuestion`'s own two-distinct-options requirement.
+
+Cost on the #900 run: significant interruption/attention burden — repeated no-op confirmation
+prompts throughout what should have been a hands-off `auto`-mode run, with no corresponding
+decision made at any of them. No code defect and no incorrect output; the cost was entirely to the
+human's attention and to the hands-off contract itself.
+
+## IL-149 — A conclusive exemption nested under an inconclusive sibling resolution
+
+During record #1678's build (narrowing the bookkeeping-stamps gate's file-tool branch to not deny
+a write whose own target is outside the run's repo, 2026-09-01), the new "provably not a repo at
+all" exemption in `checkBookkeepingStampsGate` (`plugin/bin/lib/hooks/pre-tool-use.js`) was written
+as `if (mainRoot) { if (!targetRoot) return {}; ... }` — nesting a conclusive answer (`repoInfo`
+had already proved the target has no repo root at all, `indeterminate: false`) inside a check on an
+unrelated value (`mainCheckoutRoot(wtRoot)`, this worktree's OWN root, which can fail transiently
+on an EACCES/ELOOP/EIO stat or an unreadable `.git` file). A transient failure on the unrelated
+value would deny a target the code had already conclusively proved was out of scope — silently
+reintroducing, under a narrower trigger, the exact scoping bug #1678 was filed to fix. Caught at
+review (lens 3c, low-tier single-read dispatch, confirmed via direct-verification override reading
+the actual source) — no shipped defect. `docs/donts.md` already carried a related rule, `[IL-83]`
+("don't place a special-case exemption after an early return that can claim the same value"), but
+it names ordering relative to an early return, not the more general shape: gating one value's
+conclusive answer on a different value's resolution succeeding at all.
+
+Fixed by hoisting the `if (!targetRoot) return {}` check out of the `if (mainRoot)` block so it
+fires whenever the target is provably not a repo, regardless of whether the worktree's own
+main-checkout root resolves (`d61f2c2e5`). A regression test forces `mainCheckoutRoot(wtRoot)` to
+fail (module-level monkey-patch, the same pattern this test file already uses for `repoInfo`) while
+the target itself genuinely resolves outside any repo; independently verified by reverting only the
+code fix and confirming that one test — and only that one, 41/42 still pass — fails, then restoring
+it (42/42 green again).
+
+Cost on the #1678 run: low — caught cleanly at review, one fix cycle plus one regression test, no
+re-verify failures. Fails toward deny either way (the safe direction), so this was a correctness
+gap, not a live security exposure.
+
+## IL-150 — A path-based gate exemption decided on the literal path, without resolving a leaf symlink
+
+During the same #1678 review pass, a second finding on the same new exemption (lens 3b, Security):
+`checkBookkeepingStampsGate`'s file-tool foreign-target check called
+`wtDetect.repoInfo(fileTargetPath)` on the raw literal write-target path, never following a symlink
+at the leaf. A symlink located outside any git repo (a session scratchpad) but whose target
+resolves inside this run's own protected worktree would resolve as "provably not a repo at all" and
+exempt the write from the gate entirely — even though the write's real bytes land inside the
+worktree the gate exists to protect. The same file already carries a purpose-built helper,
+`realTarget()`, used by `isPolicyFile` specifically to close this bypass class (its own comment:
+"stops an attacker from replacing X with a symlink to somewhere writable") — the new exemption did
+not reuse it, reopening the exact class of bug the sibling code already defends against, in the
+same file, at the same review. Caught at review (lens 3b, low-tier single-read dispatch, confirmed
+via direct-verification override reading `realTarget()`'s own comment against the new code) — no
+shipped defect; as of this entry the fix is staged (`staged/review-2.patch`) awaiting the Wrap-Up
+Review Console, not yet applied.
+
+Cost on the #1678 run: low so far — caught cleanly at review; two regression tests written (a
+symlink whose target resolves inside the worktree, and a dangling symlink) and independently
+verified to fail red on the pre-fix code (42/44, only the two new tests failing) before the fix was
+restored (44/44 green). The recurring-pattern cost is that this project's own `pre-tool-use.js`
+already has one hardened precedent (`realTarget()`) for exactly this bypass class, and it still had
+to be independently rediscovered rather than reused when a new exemption was authored nearby.
+
+## IL-151 — Working Directory Discipline sanctioned a `cd` form that trips the harness's own permission checker
+
+Reported by the user as recurring, unexpected permission prompts from dispatched subagents even
+under `--dangerously-skip-permissions` — two review-agent examples, one running a plain `grep` on
+a test file, one running `git diff origin/master...HEAD`, both prefixed with `cd <worktree> && `.
+Root cause traced to `subagent-output-contract.md`'s Working Directory Discipline section, which
+listed `cd "/absolute/path" && <command>` and `git -C "/absolute/path" <command>` as two
+interchangeable, equally-valid ways to anchor a dispatched agent's working directory ("Both forms
+work; pick one and use it consistently"). Only the `cd` form is unsafe: the harness's Bash
+permission checker statically scans a command for paths before running it, and when a path-like
+argument follows a `cd` it cannot always resolve, it cannot prove the read stays clear of any
+configured `Read()` deny rule — the user's own baseline hardening (`.env`, `.ssh/**`, `*.pem`),
+unrelated to the actual file being read. A git revision range (`origin/master...HEAD`) compounds
+this, since its `/` gets misread as a path token on top of the unresolved `cd` target. Once
+unresolvable, the checker escalates to the user rather than auto-approving — a hard block that
+`--dangerously-skip-permissions` does not lift, by design, for deny rules specifically. This
+project's own `worktree-always` policy amplifies exposure: lifecycle skills fan out many
+subagents into worktrees, and the contract gave each one a coin flip between the safe and unsafe
+form. Caught by the user hitting it repeatedly across independent dispatches, not by review or a
+test — the contract's own prose had no test pinning either form, so nothing would have flagged the
+ambiguity mechanically.
+
+Fixed by rewriting the section to forbid the `cd &&` shape outright for path-sensitive commands:
+`git -C "<path>" <subcommand>` for git, and an absolute path passed as the command's own argument
+for everything else (`grep`, `node --test`, ...), with the mechanism spelled out so a future editor
+doesn't reintroduce `cd` as a third "equally valid" option (`plugin/skills/_shared/subagent-output-contract.md`
+Working Directory Discipline). Doc-only change to a `_shared` contract every Form B/C dispatch site
+already cites by reference, so no per-consumer migration was needed. Cost: low — user-reported
+friction, not a shipped defect; the fix is a prose change with no code path to regress.

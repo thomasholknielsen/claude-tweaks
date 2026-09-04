@@ -1,0 +1,13 @@
+{
+  "scope": "identity",
+  "seedKey": "seed-identity-1",
+  "rerollCount": 2,
+  "steerHistory": ["make it bolder"],
+  "sharedMarkup": "shared.html",
+  "variants": [
+    { "id": "a", "name": "Variant A", "files": ["skin-a.css"] },
+    { "id": "b", "name": "Variant B", "files": ["skin-b.css"] },
+    { "id": "c", "name": "Variant C", "files": ["skin-c.css"] }
+  ],
+  "outcome": { "winner": "b", "date": "2026-08-21T00:00:00.000Z" }
+}

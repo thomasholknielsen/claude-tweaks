@@ -62,9 +62,48 @@ test('session-evaluation.md documents its four consumer parameters (rubric, temp
 
 // --- 2. session-evaluation.md: feedback's own watermark payload shape survives the migration ---
 
-test('session-evaluation.md still documents the filedRecords/dismissedFingerprints watermark payload', () => {
+test('session-evaluation.md still documents the filedRecords/dismissedSubjects watermark payload', () => {
   assert.match(SESSION_EVAL, /filedRecords,\s*\/\/ the record numbers this run actually filed/);
-  assert.match(SESSION_EVAL, /dismissedFingerprints,\s*\/\/ fingerprints of findings the human declined/);
+  assert.match(
+    SESSION_EVAL,
+    /dismissedSubjects,\s*\/\/ bin\/lib\/declined-learning\/store\.js's listDeclined\(\{ source: 'feedback' \}\)/,
+  );
+  assert.match(
+    SESSION_EVAL,
+    /Filtered to source: 'feedback' so a reflect-sourced decline\s*\/\/ never suppresses a feedback finding/,
+  );
+});
+
+// #1033: dismissedSubjects must be documented as a LIVE read at offset-clause composition time,
+// never sourced from the previously written watermark object (the fix for the one-run lag).
+test('session-evaluation.md documents dismissedSubjects is computed live, never read off a written watermark', () => {
+  assert.match(SESSION_EVAL, /\*\*`dismissedSubjects` is computed live, immediately before composing/);
+  assert.match(SESSION_EVAL, /never read off a previously\s*\nwritten watermark/);
+});
+
+// --- 2b. #701: skip-before-dispatch check + the sessionId/findingsFiled/issueUrls payload fields ---
+
+test('session-evaluation.md documents the #701 Skip check section', () => {
+  assert.match(SESSION_EVAL, /## Skip check \(before dispatch\) — #701/);
+  assert.match(SESSION_EVAL, /isTranscriptUnchanged\(watermark, currentBytes\)/);
+});
+
+// #1119: the Skip check's mechanic (including the self-assessment exemption)
+// moved to _shared/transcript-judge.md — session-evaluation.md now cites it
+// rather than restating the exemption paragraph.
+test('session-evaluation.md cites the shared self-assessment exemption instead of restating it', () => {
+  assert.match(SESSION_EVAL, /Self-assessment\s*\nis exempted from the shared procedure's own check/);
+  assert.doesNotMatch(SESSION_EVAL, /Self-assessment is exempted, explicitly \(not an oversight\)/);
+});
+
+test('session-evaluation.md watermark payload documents sessionId/findingsFiled/issueUrls', () => {
+  assert.match(SESSION_EVAL, /sessionId,\s*\/\/ \$CLAUDE_CODE_SESSION_ID at dispatch time/);
+  assert.match(SESSION_EVAL, /findingsFiled,\s*\/\/ count of Gather-2-sourced findings/);
+  assert.match(SESSION_EVAL, /issueUrls,\s*\/\/ the URLs Step 8's `gh issue create` calls produced/);
+});
+
+test('SKILL.md Gather 2 paragraph points to the Skip check before describing dispatch', () => {
+  assert.match(SKILL, /its \*\*Skip check\*\* runs first/);
 });
 
 // --- 3. SKILL.md: --full at all three sites (table row, argument-hint frontmatter, $ARGUMENTS intro line) ---
@@ -88,6 +127,14 @@ test('SKILL.md Input table has a --full row', () => {
     SKILL,
     /\| `--full` \| Presence-only, meaningful only for bare\/`--queue` invocation \(Step 0's session-evaluation gather\): ignore any existing watermark/,
   );
+});
+
+// session-evaluation.md's Skip check cites "SKILL.md's Input table" as the
+// authority for --full bypassing it; pin that the table actually says so, so
+// the citation can't point at text that never makes the claim.
+test('SKILL.md --full row states it bypasses the Skip check', () => {
+  assert.match(SKILL, /bypasses `session-evaluation\.md`'s Skip check/);
+  assert.match(SESSION_EVAL, /`--full` bypasses this check entirely \(SKILL\.md's Input\s+table\)/);
 });
 
 // A prior agent caught and fixed a gap where the Input table had --full but
@@ -116,6 +163,20 @@ test("step-04-gitignore-suggestions.md's fenced suggestion block contains the ge
   assert.match(gitignoreSuggestionBlock(), /^\.claude-tweaks\/\*\/watermarks\/\*\.json$/m);
 });
 
+// #1561: this repo's own root .gitignore has ignored the wrap-up outcome
+// telemetry file since before this template line existed — a consumer
+// project seeded from an out-of-date template never got it, so `close-run`/
+// wrap-up telemetry can end up tracked and, under `worktree-always`,
+// permanently uncommittable. Pin both the template line itself and its
+// presence in the .gitignore/step-04 parity this file already checks above.
+test("step-04-gitignore-suggestions.md's fenced suggestion block contains the wrap-up-outcomes.tsv line (#1561)", () => {
+  assert.match(gitignoreSuggestionBlock(), /^\.claude-tweaks\/wrap-up-outcomes\.tsv$/m);
+});
+
+test('.gitignore contains the literal line .claude-tweaks/wrap-up-outcomes.tsv', () => {
+  assert.match(GITIGNORE, /^\.claude-tweaks\/wrap-up-outcomes\.tsv$/m);
+});
+
 // #856 deliberately makes these two lines diverge: root .gitignore keeps the
 // feedback-specific blanket line (existing on-disk state, unmigrated), while
 // step-04's suggestion for *new* projects is generalized to cover every
@@ -139,4 +200,37 @@ test('docs/plugin-structure.md: a bin/lib/transcript-judge/ family line names wa
 
 test('docs/plugin-structure.md: no stale bin/lib/feedback/ watermark.js reference remains', () => {
   assert.doesNotMatch(PLUGIN_STRUCTURE, /bin\/lib\/feedback\/watermark\.js/);
+});
+
+// --- 6. #1033: SKILL.md Step 4 Prior-decline annotation (the reachable half of the fix —
+// lookupDecline wired into feedback's own dedup step, not just the judge-dispatch offset clause) ---
+
+const UPSTREAM_FEEDBACK_BATCH = read('plugin', 'skills', '_shared', 'upstream-feedback-batch.md');
+
+test('SKILL.md Step 4 documents the Prior-decline annotation computing a fingerprint and calling lookupDecline', () => {
+  assert.match(SKILL, /\*\*Prior-decline annotation \(#1033\)\.\*\*/);
+  assert.match(SKILL, /look it up via `bin\/lib\/declined-learning\/store\.js`'s `lookupDecline\(fingerprint\)`/);
+});
+
+test('SKILL.md Step 4 carries priorDecline: { declinedAt, reason } on the drafted item for rendering', () => {
+  assert.match(SKILL, /carry `priorDecline:\s*\{ declinedAt, reason \}` on the drafted item/);
+});
+
+test('upstream-feedback-batch.md renders the priorDecline annotation on the drafted item', () => {
+  assert.match(UPSTREAM_FEEDBACK_BATCH, /\*\*Prior-decline annotation \(#1033\)\.\*\*/);
+  assert.match(UPSTREAM_FEEDBACK_BATCH, /_\(previously declined \{declinedAt date\}: \{reason\}\)_/);
+});
+
+test('upstream-feedback-batch.md chunking step also surfaces priorDecline in the AskUserQuestion option description', () => {
+  assert.match(
+    UPSTREAM_FEEDBACK_BATCH,
+    /\*\*previously\s*\ndeclined:\*\* \{declinedAt date\}: \{reason\}` on its own line within the same description/,
+  );
+});
+
+test('upstream-feedback-batch.md passes subject through on decline (fingerprintBasis.summary)', () => {
+  assert.match(
+    UPSTREAM_FEEDBACK_BATCH,
+    /recordDecline\(fingerprint, \{ reason, source: 'feedback',\s*\nsubject: draft\.fingerprintBasis\.summary \}\)/,
+  );
 });

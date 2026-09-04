@@ -10,6 +10,16 @@ const assert = require('node:assert/strict');
 const {
   run, BOT_IN_PROGRESS, ABORT_REASON,
 } = require('../../../plugin/bin/lib/claim-targets/claim-targets');
+// #787 residual finding (progress.md's parked "expectedContent has zero test
+// coverage" item): claim-targets.js requires this same module-level object,
+// so spying on it here observes the real call — pins that `run()`'s claim
+// write and `releaseClaimedThisRun`'s rollback write both thread
+// `expectedContent` from the read that produced the write decision, not a
+// value re-derived later. Deleting either `expectedContent: ...` at the call
+// site would leave every other test in this file green (none of them supply
+// a `gitRunner`, so claim-store.js never consults the field) while silently
+// reintroducing the I1/C1 false-contest / lost-update bug in production.
+const claimStore = require('../../../plugin/bin/lib/issues/claim-store');
 
 const REPO = 'acme/w';
 const NOW = Date.parse('2026-08-17T00:00:00.000Z');
@@ -49,8 +59,9 @@ function tombstoneMarker(runId) {
   });
 }
 // #315 — a `pr-opened:` tombstone carries a `link` to the PR that build
-// produced; `run()` must consult it (via `tombstoneInFlightPr`, shared with
-// claim-engine.js) before treating this like any other reclaimable tombstone.
+// produced; `run()` must consult it (via `tombstoneInFlightPr`, now
+// exported from claim-store.js — moved there from claim-engine.js, retired
+// #787) before treating this like any other reclaimable tombstone.
 function prOpenedTombstoneMarker(runId, link) {
   return JSON.stringify({
     released: true, runId, reason: 'pr-opened: spec 272', releasedAt: new Date(NOW).toISOString(), link,
@@ -147,7 +158,11 @@ test('(a) two absent targets: both claimed, create-only writes, label + comment 
   assert.equal(code, 0);
   const body = JSON.parse(io.out[0]);
   assert.deepEqual(body, {
-    claimed: [720, 721], alreadyOwned: [], skipped: [], labelFailures: [],
+    claimed: [720, 721],
+    alreadyOwned: [],
+    skipped: [],
+    labelFailures: [],
+    transportByIssue: { 720: 'contents-api', 721: 'contents-api' },
   });
   const w720 = apiCalls.find((a) => isWrite(a, '720'));
   const w721 = apiCalls.find((a) => isWrite(a, '721'));
@@ -158,6 +173,225 @@ test('(a) two absent targets: both claimed, create-only writes, label + comment 
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '720'));
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '721'));
   assert.ok(ghCalls.some((a) => a[0] === 'label' && a[1] === 'create'), 'label did not exist -> bootstrap create call made');
+});
+
+// (a5) #1486: a successful contents-API claim is permanently tagged as such
+// on the JSON envelope — no extra read, derived from write.commitSha's
+// absence on this transport.
+test('(a5) successful contents-API claims report transportByIssue: contents-api', () => {
+  const { ghApi } = makeGhApi({
+    reads: { 720: [readAbsent] },
+    writes: { 720: [writeOk] },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '720'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transportByIssue, { 720: 'contents-api' });
+});
+
+// (a2) the same absent target, but with a `gitRunner` dep (the real CLI's
+// shape — bin/claim-targets.js always supplies one): the create-only claim,
+// the fleet's most-contended write, must take the git-CAS path and never
+// touch the rate-limited contents-API PUT (#787's amendment — a
+// `classified.state !== 'absent'` sha gate previously kept every create-only
+// claim off git-CAS entirely).
+test('(a2) absent target with a gitRunner: create-only claim goes through git-CAS, contents-API PUT never called', () => {
+  const TIP = 'a'.repeat(40);
+  const gitCalls = [];
+  const gitRunner = (args) => {
+    gitCalls.push(args);
+    if (args[0] === 'fetch') return '';
+    // readClaimBlobGit fetches into a per-call scratch ref rather than
+    // FETCH_HEAD (#787 hindsight finding — see claims-git-cas.test.js) —
+    // match by shape, not the literal old 'FETCH_HEAD' name.
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') return `${TIP}\n`;
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
+    if (args[0] === 'show') throw new Error(`fatal: path 'claims/issue-720.json' does not exist in '${TIP}'`);
+    if (args[0] === 'hash-object') return 'deadbeef\n';
+    if (args[0] === 'read-tree') return '';
+    if (args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'newtree\n';
+    if (args[0] === 'commit-tree') return 'newcommit\n';
+    if (args[0] === 'push') return '';
+    throw new Error(`unexpected git ${args.join(' ')}`);
+  };
+  const ghApi = (args) => { throw new Error(`contents-API must not be called when git-CAS works: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = gitRunner;
+
+  const code = run(['--run-id', 'r1', '--targets', '720'], deps);
+
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(io.out[0]).claimed, [720]);
+  const push = gitCalls.find((a) => a[0] === 'push');
+  assert.ok(push, 'a create-only claim must reach the git-CAS push');
+  assert.ok(push.some((a) => String(a).startsWith(`--force-with-lease=refs/heads/claims-registry:${TIP}`)), 'the push must lease against the tip this run read');
+});
+
+// (a2b) #1486: the git-CAS counterpart to (a5) — a successful git-CAS claim
+// is tagged 'git', derived from write.commitSha being a real string on this
+// transport (never present on a contents-API success).
+test('(a2b) successful git-CAS claims report transportByIssue: git', () => {
+  const TIP = 'a'.repeat(40);
+  const gitRunner = (args) => {
+    if (args[0] === 'fetch') return '';
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') return `${TIP}\n`;
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
+    if (args[0] === 'show') throw new Error(`fatal: path 'claims/issue-720.json' does not exist in '${TIP}'`);
+    if (args[0] === 'hash-object') return 'deadbeef\n';
+    if (args[0] === 'read-tree') return '';
+    if (args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'newtree\n';
+    if (args[0] === 'commit-tree') return 'newcommit\n';
+    if (args[0] === 'push') return '';
+    throw new Error(`unexpected git ${args.join(' ')}`);
+  };
+  const ghApi = (args) => { throw new Error(`contents-API must not be called when git-CAS works: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = gitRunner;
+
+  const code = run(['--run-id', 'r1', '--targets', '720'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transportByIssue, { 720: 'git' });
+});
+
+// #1467: a fake git-CAS runner that tracks each call class separately (not
+// just a flat log) so a batch test can assert fetch/rev-parse counts
+// directly, and so `show`'s sha argument can be inspected to prove the
+// SECOND issue's read actually chained off the FIRST issue's write — not
+// just that fetch was skipped for some unrelated reason. `commit-tree`
+// returns a distinct, incrementing sha per call so that chain is observable.
+function makeBatchGitRunner() {
+  const fetchCalls = [];
+  const revParseCalls = [];
+  const showCalls = [];
+  const readTreeCalls = [];
+  const pushCalls = [];
+  let commitCounter = 0;
+  const runner = (args) => {
+    if (args[0] === 'fetch') { fetchCalls.push(args); return ''; }
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') { revParseCalls.push(args); return 'tip0\n'; }
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
+    if (args[0] === 'show') {
+      showCalls.push(args);
+      const [sha, ...pathParts] = String(args[1]).split(':');
+      const targetPath = pathParts.join(':');
+      throw new Error(`fatal: path '${targetPath}' does not exist in '${sha}'`);
+    }
+    if (args[0] === 'hash-object') return 'blobsha\n';
+    if (args[0] === 'read-tree') { readTreeCalls.push(args); return ''; }
+    if (args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'treesha\n';
+    if (args[0] === 'commit-tree') { commitCounter += 1; return `commit-${commitCounter}\n`; }
+    if (args[0] === 'push') { pushCalls.push(args); return ''; }
+    throw new Error(`unexpected git call: ${args.join(' ')}`);
+  };
+  return {
+    runner, fetchCalls, revParseCalls, showCalls, readTreeCalls, pushCalls,
+  };
+}
+
+// (a3) #1467's headline AC: a batch of N absent, uncontended targets performs
+// a bounded, sub-N number of `git fetch` calls — one for the whole batch,
+// not one per issue — because each issue after the first chains its read off
+// the PREVIOUS issue's own write, which is the only tip mutation this run
+// itself can cause.
+test('(a3) #1467: a two-issue no-contention batch performs exactly ONE git fetch, not two — the second read chains off the first write', () => {
+  const batch = makeBatchGitRunner();
+  const ghApi = (args) => { throw new Error(`contents-API must not be called when git-CAS works: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = batch.runner;
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721'], deps);
+
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(io.out[0]).claimed, [720, 721]);
+  assert.equal(batch.fetchCalls.length, 1, 'only the FIRST issue fetches — the second must chain off the first write instead of re-fetching');
+  assert.equal(batch.revParseCalls.length, 1, 'the scratch-ref rev-parse is paired 1:1 with the fetch it skipped for issue 2');
+  assert.equal(batch.showCalls.length, 2, 'both issues still each get their own read (absence check), just without a fetch');
+  const secondShaQueried = String(batch.showCalls[1][1]).split(':')[0];
+  assert.equal(secondShaQueried, 'commit-1', "issue 721's read must query the commit issue 720's write just produced, not the original fetched tip");
+  const secondReadTreeSha = batch.readTreeCalls[1][1];
+  assert.equal(secondReadTreeSha, 'commit-1', "issue 721's write must lease against the chained tip, matching what its own read just used");
+});
+
+// (a4) Mixed-outcome correctness (#1467's third AC): issue A's write is
+// rejected and verified as a genuine contest, which must discard the tip
+// chain — issue B's subsequent read must NOT trust A's now-stale believed
+// tip and must fetch fresh instead of trusting a tip that was never actually
+// confirmed current. `--keep-going` is required to observe this: a default
+// (non-keep-going) run aborts the whole batch on A's contest and never
+// reaches B at all.
+test('(a4) #1467: issue A rejected mid-batch discards the tip chain — issue B fetches fresh rather than trusting a stale tip', () => {
+  const HELD_BY_RIVAL = JSON.stringify({ runId: 'rival' });
+  const fetchCalls = [];
+  const pushCalls = [];
+  let fetchCount = 0;
+  // One tip per fetch: A's own read (absent), A's post-rejection write
+  // verification (rival landed — a genuine contest), claim-targets.js's own
+  // best-effort `holderFromFreshRead` re-read for the contested report
+  // (also a fresh fetch — it never threads a knownTip either), then B's read.
+  const tips = ['tip0', 'tip1', 'tip2', 'tip3'];
+  const runner = (args) => {
+    if (args[0] === 'fetch') { fetchCalls.push(args); fetchCount += 1; return ''; }
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') return `${tips[fetchCount - 1]}\n`;
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
+    if (args[0] === 'show') {
+      const [sha, ...pathParts] = String(args[1]).split(':');
+      const targetPath = pathParts.join(':');
+      if (sha === 'tip0' && targetPath === 'claims/issue-720.json') {
+        throw new Error(`fatal: path '${targetPath}' does not exist in '${sha}'`); // absent — reclaimable
+      }
+      if ((sha === 'tip1' || sha === 'tip2') && targetPath === 'claims/issue-720.json') {
+        return HELD_BY_RIVAL; // a rival genuinely landed — both post-rejection reads see it
+      }
+      if (sha === 'tip3' && targetPath === 'claims/issue-721.json') {
+        throw new Error(`fatal: path '${targetPath}' does not exist in '${sha}'`); // B, on its OWN fresh tip, is genuinely absent
+      }
+      throw new Error(`unexpected show ${sha}:${targetPath} — issue B must never be read against A's stale/rejected tip`);
+    }
+    if (args[0] === 'hash-object') return 'blobsha\n';
+    if (args[0] === 'read-tree' || args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'treesha\n';
+    if (args[0] === 'commit-tree') return 'commit-x\n';
+    if (args[0] === 'push') {
+      pushCalls.push(args);
+      if (pushCalls.length === 1) { // A's push: rejected
+        const e = new Error('! [rejected] claims-registry -> claims-registry (stale info)');
+        e.stderr = e.message;
+        throw e;
+      }
+      return ''; // B's push: succeeds cleanly
+    }
+    throw new Error(`unexpected git call: ${args.join(' ')}`);
+  };
+  const ghApi = (args) => { throw new Error(`contents-API must not be called: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = runner;
+  deps.sleep = () => {};
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.claimed, [721]);
+  assert.deepEqual(body.skipped, [{ issue: 720, reason: 'contested', holder: { runId: 'rival' } }]);
+  // The load-bearing assertion: A's rejection triggers its own fresh fetches
+  // (write-rejection verification + the contested report's holder re-read —
+  // 3 fetches for A alone), and B — despite following immediately after in
+  // the batch — gets its OWN fresh fetch rather than reusing anything from
+  // A's now-discarded, proven-wrong tip belief.
+  assert.equal(fetchCalls.length, 4, "B must fetch fresh after A's contest discarded the chain — reusing A's tip would be trusting a proven-stale belief");
 });
 
 // (b) tombstone target -> conditional PUT with sha
@@ -180,9 +414,9 @@ test('(b) tombstone target: conditional write carries the blob sha', () => {
 // ---- #315: pr-opened tombstone in-flight check -----------------------------
 // A `pr-opened:` tombstone whose linked PR is still OPEN means a build for
 // this issue already completed and is awaiting merge — `run()` must not
-// reclaim/re-write over it. Ported from claim-engine.js's `claimOne`, which
-// `bin/claim-targets.js` (the actual `/flow`/dispatch claim path) does not
-// call — this loop has its own inline classify-then-write sequence.
+// reclaim/re-write over it. Uses claim-store.js's `tombstoneInFlightPr`
+// (moved there from claim-engine.js's `claimOne`, retired #787) — this
+// loop has its own inline classify-then-write sequence.
 
 test('(k) pr-opened tombstone, linked PR OPEN, default mode: no reclaim write, exit 3, inFlight envelope', () => {
   const { ghApi, calls } = makeGhApi({
@@ -265,6 +499,34 @@ test('(k5) pr-opened tombstone whose link points at a DIFFERENT repo: falls thro
   const w = calls.find((a) => isWrite(a, '764'));
   assert.equal(fieldOf(w, 'sha'), 'sha764', 'a wrong-repo link must fall through to the ordinary conditional reclaim write');
   assert.ok(!ghCalls.some((a) => a[0] === 'pr' && a[1] === 'view'), 'a wrong-repo link must never trigger the PR-state check');
+});
+
+// #977: two targets released together from one multi-spec build tombstone
+// with the identical `link` — `tombstoneInFlightPr`'s `gh pr view` call must
+// be memoized per `$LINK` within this one `run()` invocation, so the second
+// target's check is answered from cache instead of a second real call.
+test('(k6) two targets sharing the identical in-flight link: only one `gh pr view` call for both', () => {
+  const link = 'https://github.com/acme/w/pull/309';
+  const { ghApi } = makeGhApi({
+    reads: {
+      765: [readOk(prOpenedTombstoneMarker('otherRun', link), 'sha765')],
+      766: [readOk(prOpenedTombstoneMarker('otherRun', link), 'sha766')],
+    },
+    writes: {},
+  });
+  const { gh, calls: ghCalls } = makeGh({ prState: 'OPEN' });
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '765,766', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.skipped, [
+    { issue: 765, reason: 'in-flight', link },
+    { issue: 766, reason: 'in-flight', link },
+  ]);
+  const prViewCalls = ghCalls.filter((a) => a[0] === 'pr' && a[1] === 'view');
+  assert.equal(prViewCalls.length, 1, 'the second target must reuse the first target\'s cached gh pr view result');
 });
 
 // (c) stale target -> conditional PUT (re-claim)
@@ -489,7 +751,11 @@ test('write conflict (lost race): contested exit 3, all-or-abort release, holder
   assert.equal(body.contested.length, 1);
   assert.equal(body.contested[0].issue, 721);
   assert.equal(body.contested[0].holder.runId, 'winnerRun');
-  assert.equal(calls.filter((a) => isRead(a, '721')).length, 2, 'expected the initial read plus one best-effort holder re-read');
+  // 3, not 2: the initial read, writeClaimBlob's own self-write recheck on
+  // the 422/409 rejection (#787 hindsight finding — tells a lost-ack retry
+  // of THIS write apart from a genuine rival), and claim-targets.js's own
+  // best-effort holder re-read afterward.
+  assert.equal(calls.filter((a) => isRead(a, '721')).length, 3, 'expected the initial read, writeClaimBlob\'s self-write recheck, and one best-effort holder re-read');
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
 });
 
@@ -518,7 +784,11 @@ test('write conflict (409 sha-mismatch on the conditional write): contested exit
   assert.equal(body.contested.length, 1);
   assert.equal(body.contested[0].issue, 721);
   assert.equal(body.contested[0].holder.runId, 'winnerRun');
-  assert.equal(calls.filter((a) => isRead(a, '721')).length, 2, 'expected the initial read plus one best-effort holder re-read');
+  // 3, not 2: the initial read, writeClaimBlob's own self-write recheck on
+  // the 422/409 rejection (#787 hindsight finding — tells a lost-ack retry
+  // of THIS write apart from a genuine rival), and claim-targets.js's own
+  // best-effort holder re-read afterward.
+  assert.equal(calls.filter((a) => isRead(a, '721')).length, 3, 'expected the initial read, writeClaimBlob\'s self-write recheck, and one best-effort holder re-read');
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
 });
 
@@ -564,6 +834,49 @@ test('write network failure: transient exit 4, no holder (distinct from a write-
   assert.deepEqual(body.released, []);
 });
 
+// AC4's observable behavior, end to end through `run()`: a secondary/abuse
+// rate limit on the claim write is TRANSIENT (exit 4), never contested (exit
+// 3). claim-store.js's own suite pins that `writeClaimBlob` reports
+// `{ok:false, secondaryRateLimit:true, failure:null}` for it, but nothing
+// pinned that `run()` routes that shape to the transient branch — and the
+// branch reads `write.failure || write.secondaryRateLimit`, so dropping the
+// second half would silently send a throttle down the contested path and
+// abort a whole group claim on a lie (record-697's incident, exactly).
+test('write secondary-rate-limit: transient exit 4 with a `secondary-rate-limit` transient entry, never contested exit 3', () => {
+  const { ghApi, calls } = makeGhApi({
+    reads: { 740: [readAbsent] },
+    writes: { 740: [{ stdout: null, failure: 'secondary-rate-limit', status: 403 }] },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '740'], deps);
+
+  assert.equal(code, 4, 'a throttle is transient — exit 4, not the contested exit 3');
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transient, [{ issue: 740, error: 'secondary-rate-limit' }]);
+  assert.equal(body.contested, undefined, 'no contested envelope — a throttle is not another agent holding the claim');
+  assert.equal(calls.filter((a) => isRead(a, '740')).length, 1, 'no best-effort holder re-read — that belongs to the contested path only');
+});
+
+test('write secondary-rate-limit under --keep-going: skipped as transient, exit 0, never a contested skip', () => {
+  const { ghApi } = makeGhApi({
+    reads: { 741: [readAbsent] },
+    writes: { 741: [{ stdout: null, failure: 'secondary-rate-limit', status: 403 }] },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '741', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.claimed, []);
+  assert.equal(body.skipped.length, 1);
+  assert.equal(body.skipped[0].reason, 'transient');
+  assert.equal(body.skipped[0].error, 'secondary-rate-limit');
+});
+
 // abort-release write failure: a target the release step can't safely tombstone
 // must be named in releaseFailed (not silently dropped from the envelope), and
 // the exit code stays the classification's own (3 here) — not a second abort.
@@ -592,6 +905,56 @@ test('abort-release write failure: target lands in releaseFailed, not released, 
   assert.match(fieldOf(releaseWrite, 'message'), new RegExp(ABORT_REASON.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   // best-effort label removal is still attempted even though the release write failed
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '720' && a.includes('--remove-label')));
+});
+
+// #787 residual finding: pin that `run()`'s claim write threads
+// `expectedContent` = the content this same write decision read — `null`
+// for a create-only (absent) target, the prior blob's content for a reclaim.
+test('claim write threads expectedContent = the content this write decision read, not undefined (#787 residual finding)', (t) => {
+  const staleContent = liveMarker('otherRun', new Date(NOW - 100 * 3600 * 1000).toISOString());
+  const { ghApi } = makeGhApi({
+    reads: { 760: [readAbsent], 761: [readOk(staleContent, 'sha761')] },
+    writes: { 760: [writeOk], 761: [writeOk] },
+  });
+  const { gh } = makeGh({});
+  const { deps } = baseDeps({ ghApi, gh });
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob');
+
+  const code = run(['--run-id', 'r1', '--targets', '760,761'], deps);
+
+  assert.equal(code, 0);
+  assert.equal(writeSpy.mock.calls.length, 2);
+  const opts760 = writeSpy.mock.calls[0].arguments[3];
+  const opts761 = writeSpy.mock.calls[1].arguments[3];
+  assert.equal(opts760.expectedContent, null, 'create-only (absent) target -> expectedContent null, the absence-based verification case');
+  assert.equal(opts761.expectedContent, staleContent, 'reclaim target -> expectedContent is the exact content this write decision read, not re-derived later');
+});
+
+// #787 residual finding: pin that the abort-release rollback write
+// (`releaseClaimedThisRun`) threads `expectedContent` = the fresh content
+// its own re-read saw — the path I1 identified as able to strand a live
+// claim with its label already stripped if a spurious git-CAS rejection
+// were ever (mis)treated as a genuine contest.
+test('abort-release rollback write threads expectedContent = the fresh content releaseClaimedThisRun re-read (#787 residual finding)', (t) => {
+  const { ghApi } = makeGhApi({
+    reads: {
+      720: [readAbsent, readOk('irrelevant', 'sha720-release')], // 2nd = rollback's fresh read
+      721: [readOk(liveMarker('otherRun'), 'sha721')],
+    },
+    writes: {
+      720: [writeOk, writeOk],
+    },
+  });
+  const { gh } = makeGh({});
+  const { deps } = baseDeps({ ghApi, gh });
+  const writeSpy = t.mock.method(claimStore, 'writeClaimBlob');
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721'], deps);
+
+  assert.equal(code, 3);
+  assert.equal(writeSpy.mock.calls.length, 2, 'the initial claim write plus the rollback release write');
+  const rollbackOpts = writeSpy.mock.calls[1].arguments[3];
+  assert.equal(rollbackOpts.expectedContent, 'irrelevant', "rollback write's expectedContent is the fresh read's content, not the original claim read's");
 });
 
 test('--help short-circuits before any gh call, exit 0', () => {

@@ -59,8 +59,16 @@ that survivable is that a run which *does* read the index hands its readings for
 finding suppressed because its matching issue carries `wontfix` is persisted to the durable
 `declined` slice on the `health-state` branch (`_shared/health-state.md`), which — unlike
 the local gitignored `cache.json` — survives a scheduled Routine firing's fresh, stateless
-container. See `bin/lib/health-core/mark.js`'s `mergeWontfixIntoDeclined` and
-`bin/lib/health-core/validate-findings-dispatch.js`'s `wontfixSuppressed` hand-off.
+container. See `bin/lib/health-core/mark.js`'s `mergeWontfixIntoDeclined`. Three of the four
+skills (harness-health, journey-health, docs-health) route the hand-off through
+`bin/lib/health-core/validate-findings-dispatch.js`'s shared `wontfixSuppressed` collection;
+code-health runs its own `decide()` (`bin/lib/code-health/dedup.js`'s `threshold`/`risk`/
+`remember` vocabulary has no equivalent in that shared module) and performs the equivalent
+hand-off itself — `dedup.js`'s `decide()` tags a fresh index-match suppression with
+`reason: 'wontfix-label'`, `bin/code-health.js`'s `cmdValidateFindings` collects those into
+its own `wontfixSuppressed` array, and `bin/lib/code-health/cache.js`'s
+`buildValidateFindingsUpdate` folds them into `declined` via the same `mergeWontfixIntoDeclined`
+(#171).
 
 So the two mechanisms cover different failures and both are needed:
 

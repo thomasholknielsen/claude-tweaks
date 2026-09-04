@@ -48,7 +48,7 @@ function validateConfidenceArg(value) {
     `validate-findings: --min-confidence "${value}" is not a recognized confidence tier ` +
     `(must be one of ${Object.keys(CONFIDENCE_RANK).join('|')}) — an unrecognized value silently files every finding instead of applying the floor.\n`,
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 function parseArgs(argv) {
@@ -125,10 +125,12 @@ function cmdValidateFindings(args) {
     process.stderr.write(
       'usage: journey-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--tier light|deep] [--coverage-scan] [--run-id <id>] [--min-confidence <level>] [--dry-run]\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   validateConfidenceArg(args['min-confidence']);
+  if (process.exitCode) return;
 
   // buildValidateFindingsUpdate only patches a cursor when target is present,
   // or sets __coverageScan when coverageScan is set (see
@@ -144,7 +146,8 @@ function cmdValidateFindings(args) {
       'without one of them, no audit cursor advances and rotation state silently drifts. ' +
       'Pass --dry-run to preview without it.\n',
     );
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   let raw;
@@ -152,11 +155,13 @@ function cmdValidateFindings(args) {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
   } catch {
     process.stderr.write(`validate-findings: could not read or parse findings file: ${findingsPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (!Array.isArray(raw)) {
     process.stderr.write('validate-findings: findings file must contain a JSON array\n');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const survivors = [];
@@ -245,14 +250,16 @@ function cmdQaEvidence(args) {
   const reportPath = args._[1];
   if (!reportPath) {
     process.stderr.write('usage: journey-health.js qa-evidence <report.json> --story-ids <id1,id2,...> [--now <ms>]\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   let report;
   try {
     report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
   } catch {
     process.stderr.write(`qa-evidence: could not read or parse report file: ${reportPath}\n`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const storyIds = args.storyIds ? args.storyIds.split(',').map((s) => s.trim()).filter(Boolean) : [];
   const now = args.now != null ? args.now : Date.now();
@@ -284,7 +291,7 @@ function main(argv) {
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
-  process.exit(2);
+  process.exitCode = 2;
 }
 
 if (require.main === module) main(process.argv.slice(2));

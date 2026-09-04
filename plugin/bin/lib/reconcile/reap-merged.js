@@ -3,7 +3,16 @@
 // `worktree-reap.js`'s existing content-identical ancestry check, which
 // stays the reap signal for local-merge / no-forge projects — see #407's
 // Non-Goals. Never touches a worktree a live session holds, regardless of
-// PR state (`isWorktreeLocked`, reused verbatim from worktree-reap.js).
+// PR state (`isWorktreeLocked`, reused verbatim from worktree-reap.js) —
+// and never touches the CALLING session's own cwd worktree either (#644):
+// `isWorktreeLocked` only catches a lock file another live session wrote,
+// which says nothing about whether THIS process is standing inside the
+// candidate right now (e.g. a session that just merged its own run's PR
+// from inside that run's worktree, then calls reconcile in the same
+// breath — no lock check catches that, since nothing about the lock
+// changed). worktree-reap.js's own `reapWorktrees` already carries this
+// exact guard (`here === real || here.startsWith(...)`, "never our own
+// ground") — mirrored here rather than restated with different wording.
 'use strict';
 const path = require('path');
 const { runGit } = require('../hooks/git-exec');
@@ -11,6 +20,10 @@ const { mainCheckoutRoot, safeReal } = require('../hooks/worktree-detect');
 const { parseWorktreeList, isWorktreeLocked, HARNESS_WORKTREE_DIR, QUIET_SKIP_REASONS } = require('../hooks/worktree-reap');
 const { resolvePrState } = require('./pr-state');
 const { findRunByWorktreePath, appendEvent } = require('../hooks/context');
+const { release: releasePortsDefault } = require('../ports/registry');
+const { trackResidue } = require('./cache');
+const { escalateResidue } = require('./escalate-residue');
+const { repoSlugOf } = require('./release-merged');
 
 // Best-effort audit-trail write to the OWNING run's own events.jsonl, so
 // wrap-up/residue tooling that reads a run's events can see that the
@@ -55,15 +68,41 @@ function decideReap(prState) {
   return { action: 'reap' };
 }
 
-function reapMerged({ cwd, dryRun = false } = {}) {
+// #644 Deliverable 2 — mirrors archive-merged.js's own `trackArchiveResult`;
+// both now call cache.js's shared `trackResidue` helper (#1233) rather than
+// duplicating the success/fail branch. `escalate` stays injectable so a test
+// can assert escalation fired (and how many times) without touching real
+// `gh`.
+function trackReapResidue(root, repoSlug, real, { failed, lastError }, { escalate = escalateResidue } = {}) {
+  trackResidue(root, repoSlug, 'removal-failed', real, { failed, lastError }, { escalate });
+}
+
+// A candidate worktree the CALLING process is standing inside (or under),
+// resolved from `cwd`/`process.cwd()` rather than any lock file — see the
+// module header comment for why `isWorktreeLocked` alone doesn't catch this.
+// An unresolvable `here` fails CLOSED to "cannot confirm it's not ours" —
+// same posture as every other predicate in this family
+// (worktree-reap.js's own header) — the caller below already treats a null
+// `here` as "compare against nothing matches" via the guard at the call site.
+function isOwnCwd(here, real) {
+  if (!here || !real) return false;
+  return here === real || here.startsWith(real + path.sep);
+}
+
+function reapMerged({ cwd, dryRun = false, releasePorts = releasePortsDefault } = {}) {
   const reaped = [];
   const skipped = [];
+  // See worktree-reap.js's reapWorktrees for the shape rationale: only ever
+  // populated on a release throw, never for the common success/no-lease case.
+  const portsRelease = [];
   const start = cwd || process.cwd();
   const root = mainCheckoutRoot(start);
-  if (!root) return { reaped, skipped };
+  if (!root) return { reaped, skipped, portsRelease };
+  const here = safeReal(start);
+  const repoSlug = repoSlugOf(root);
 
   const list = runGit(['worktree', 'list', '--porcelain'], root);
-  if (list.failure) return { reaped, skipped, failure: list.failure };
+  if (list.failure) return { reaped, skipped, portsRelease, failure: list.failure };
 
   const domain = safeReal(path.join(root, HARNESS_WORKTREE_DIR)) || path.join(root, HARNESS_WORKTREE_DIR);
   for (const wt of parseWorktreeList(list.stdout)) {
@@ -72,6 +111,9 @@ function reapMerged({ cwd, dryRun = false } = {}) {
     if (!real.startsWith(domain + path.sep)) continue; // out of harness domain — not this check's concern
 
     if (!wt.branch) { skipped.push({ path: real, reason: 'no-branch' }); continue; }
+    // Regardless of PR state, lock state, or anything else below — a
+    // worktree the caller is standing in is never a reap candidate (#644).
+    if (isOwnCwd(here, real)) { skipped.push({ path: real, reason: 'own-cwd' }); continue; }
     if (isWorktreeLocked(real, { cwd: root })) { skipped.push({ path: real, reason: 'in-use' }); continue; }
 
     const prState = resolvePrState(root, wt.branch);
@@ -96,12 +138,25 @@ function reapMerged({ cwd, dryRun = false } = {}) {
     if (rm.failure) {
       skipped.push({ path: real, reason: 'removal-failed', prNumber: prState.number });
       logReapEvent(owningRunDir, 'worktree-reap-skipped', { reason: 'removal-failed', prNumber: prState.number });
+      // #1341 — carry git's real stderr as lastError, falling back to the
+      // bare category only when git produced no stderr at all (e.g. an
+      // indeterminate timeout/spawn failure with nothing to say).
+      trackReapResidue(root, repoSlug, real, { failed: true, lastError: rm.stderr || rm.failure });
       continue;
     }
+    // A path that just succeeded has no more residue to track (#644) — clear
+    // any streak so a later failure on this same path (re-created worktree,
+    // reused path) starts counting fresh rather than resuming a stale one.
+    trackReapResidue(root, repoSlug, real, { failed: false });
     logReapEvent(owningRunDir, 'worktree-reaped', { prNumber: prState.number });
     reaped.push(real);
+    try {
+      releasePorts(real);
+    } catch (err) {
+      portsRelease.push({ path: real, note: `failed: ${(err && err.message) || err}` });
+    }
   }
-  return { reaped, skipped };
+  return { reaped, skipped, portsRelease };
 }
 
-module.exports = { reapMerged, decideReap };
+module.exports = { reapMerged, decideReap, isOwnCwd, trackReapResidue };

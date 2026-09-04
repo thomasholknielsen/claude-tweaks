@@ -1,4 +1,4 @@
-// bin/lib/issues/tests/labels.test.js
+// tests/bin-lib/issues/labels.test.js
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');

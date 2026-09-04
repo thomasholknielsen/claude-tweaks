@@ -95,6 +95,28 @@ test('session-evaluation.md cites the shared file rather than restating transcri
   assert.match(SESSION_EVAL, /_shared\/transcript-judge\.md/);
 });
 
+// --- 6b. #1119: Skip check (#701) promoted into the shared contract ---
+
+test('transcript-judge.md documents the Skip check section, positioned before the judge dispatch', () => {
+  const skipIdx = SHARED.indexOf('## Skip check (before dispatch)');
+  const dispatchIdx = SHARED.indexOf('## The judge dispatch');
+  assert.ok(skipIdx > 0, 'Skip check section must exist');
+  assert.ok(dispatchIdx > skipIdx, 'Skip check must come before the judge dispatch section');
+});
+
+test('transcript-judge.md documents isTranscriptUnchanged as the skip check\'s core call', () => {
+  assert.match(SHARED, /isTranscriptUnchanged\(watermark, currentBytes\)/);
+});
+
+test('transcript-judge.md documents the self-assessment exemption for the skip check', () => {
+  assert.match(SHARED, /Self-assessment is exempted, explicitly \(not an oversight\)/);
+});
+
+test('transcript-judge.md states the consumer\'s full-reset override and its own report are consumer-owned', () => {
+  assert.match(SHARED, /the consumer's own full-reset override was not passed/);
+  assert.match(SHARED, /is consumer-owned, named in the consumer's own file, never restated here/);
+});
+
 // --- 7. Byte ceiling ---
 
 test('transcript-judge.md stays under the 40KB sub-file ceiling', () => {

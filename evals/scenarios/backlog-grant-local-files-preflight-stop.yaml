@@ -1,11 +1,12 @@
 name: backlog-grant-local-files-preflight-stop
 description: >
   Boundary check for the machine-grant unit (#269/#270): does
-  /claude-tweaks:backlog grant actually stop under work-backend: local-files
+  /claude-tweaks:backlog refine's headless posture (`grant`, the deprecated
+  alias forcing it) actually stop under work-backend: local-files
   rather than proceeding to evaluate its gate chain and stamp grants on a
   record that would look eligible (ready, risk:low, agent origin) under
-  github-issues? grant mode's own Preflight (plugin/skills/backlog/SKILL.md,
-  plugin/skills/backlog/grant-mode.md Step 0) documents the same full stop refine's
+  github-issues? The headless posture's own Preflight (plugin/skills/backlog/SKILL.md,
+  plugin/skills/backlog/refine-headless.md Step 0) documents the same full stop refine's
   grant sub-stage has: machine-granting is github-issues-only, with no
   exception when no interactive human is present. This is the same
   Preflight-boundary class the backlog-refine-permission-matrix-compliance
@@ -35,7 +36,7 @@ assertions:
   # confirmed directly: first seeded local-record in an empty specs/ dir gets
   # id 1. grants.build must STAY false (seeded without any grants facet —
   # absent reads as false, same convention the compliance scenario asserts):
-  # for grant mode the violation direction is ADDING a grant, the exact
+  # for this posture the violation direction is ADDING a grant, the exact
   # inverse of dispatch's stay-authorized check.
   - type: local-record-facet
     recordPath: "specs/1-eligible-looking-candidate.md"
@@ -49,10 +50,12 @@ assertions:
     recordPath: "specs/1-eligible-looking-candidate.md"
     facet: "stage"
     equals: "ready"
-  # Unlike refine (whose priority/Related sub-stage legitimately writes even
-  # when its grant sub-stage stops), grant mode has no other sub-stage: a
-  # local-files firing stops completely at Preflight, so ONLY fixture-setup
-  # commit shapes are legitimate. Any other commit means the mode granted,
+  # Unlike a bare refine sweep (whose priority/Related sub-stage legitimately
+  # writes even when its grant sub-stage stops), the `grant` alias forces the
+  # headless posture with no labeling lanes at all (deprecated-aliases.md) —
+  # its stop is the whole invocation's behavior for this turn, so a
+  # local-files firing stops completely at Preflight, and ONLY fixture-setup
+  # commit shapes are legitimate. Any other commit means the posture granted,
   # built, or hand-edited something.
   - type: commit-messages-allowed
     allow:

@@ -12,6 +12,18 @@ test('a failing suite is reported as blast-radius residue', () => {
   assert.strictEqual(findings[0].scope, 'blast-radius', 'a red suite at close time is this run\'s own concern regardless of who caused it');
 });
 
+test('a suite with more than 5 failing lines signals the cap instead of silently dropping the rest', () => {
+  const stdout = ['# fail 8', ...Array.from({ length: 8 }, (_, i) => `not ok ${i + 1} - case ${i + 1}`)].join('\n');
+  const { findings } = probeSuite({ scope: SCOPE, run: () => ({ code: 1, stdout }) });
+  assert.match(findings[0].evidence, /\(\+3 more\)$/, `expected a +3 more cap signal, got ${JSON.stringify(findings[0].evidence)}`);
+});
+
+test('a suite with 5 or fewer failing lines carries no cap signal', () => {
+  const stdout = ['# fail 3', 'not ok 1 - a', 'not ok 2 - b', 'not ok 3 - c'].join('\n');
+  const { findings } = probeSuite({ scope: SCOPE, run: () => ({ code: 1, stdout }) });
+  assert.ok(!findings[0].evidence.includes('more'), `expected no cap signal, got ${JSON.stringify(findings[0].evidence)}`);
+});
+
 test('a passing suite produces no findings', () => {
   assert.deepStrictEqual(probeSuite({ scope: SCOPE, run: () => ({ code: 0, stdout: '# pass 8' }) }).findings, []);
 });
@@ -27,6 +39,13 @@ test('a timed-out suite does not run, rather than reporting green', () => {
   const r = probeSuite({ scope: SCOPE, run: () => ({ code: null, stdout: '', timedOut: true }) });
   assert.strictEqual(r.ran, false);
   assert.match(r.reason, /timed out/);
+});
+
+test('a buffer-overflowed suite run does not run, rather than reporting a fabricated failure', () => {
+  const r = probeSuite({ scope: SCOPE, run: () => ({ code: null, stdout: '', bufferOverflowed: true }) });
+  assert.strictEqual(r.ran, false);
+  assert.deepStrictEqual(r.findings, []);
+  assert.match(r.reason, /capture buffer/);
 });
 
 test('the release probe is inert outside claude-tweaks', () => {

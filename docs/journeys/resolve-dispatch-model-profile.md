@@ -1,6 +1,7 @@
 ---
 files:
   - plugin/bin/resolve-profile.js
+  - plugin/bin/lib/hooks/worktree-detect.js
   - plugin/bin/lib/model-profiles/profiles.js
   - plugin/bin/lib/model-profiles/policy-fragment.js
   - plugin/bin/lib/model-profiles/session-failures.js
@@ -34,8 +35,8 @@ files:
 - **URL:** `mkdir -p /tmp/mp-journey && node plugin/bin/resolve-profile.js frontier --run-dir /tmp/mp-journey` (run it four times)
 - **Action:** Run the command four times; inspect `/tmp/mp-journey/frontier-tally.log` between runs.
 - **Should feel:** Deterministic — three `fable` resolutions, each appending one `frontier\t{timestamp}` tally line, then a fourth returning `{"model":"opus",...,"source":"degraded:cap"}` with no fourth tally line.
-- **Should understand:** This is the per-run spend ceiling on the most expensive model tier: the cap (default 3, policy key `frontier-run-cap`) is enforced mechanically by the resolver, and degradation is visible in `source` rather than silent. `--unattended` degrades immediately the same way — headless contexts never resolve Frontier. The two are independent inputs, not one mechanism: the tally flags (`--run-dir`, `--frontier-used`) answer "how much Frontier has this run already spent", while `--unattended` answers "is a human present" — it resolves `{"source":"degraded:unattended"}` (never `degraded:cap`), reads no tally and appends no tally line even with `--run-dir` passed. Run `node plugin/bin/resolve-profile.js frontier --run-dir /tmp/mp-journey --unattended` on a fresh dir to see both: a degraded line and no `frontier-tally.log` at all.
-- **Red flags:** A fourth tally line appearing after the degraded resolution (the tally must only record actual Frontier results); the cap counting non-`frontier` lines in the log.
+- **Should understand:** This is the per-run spend ceiling on the most expensive model profile: the cap (default 3, policy key `frontier-run-cap`) is enforced mechanically by the resolver, and degradation is visible in `source` rather than silent. `--unattended` degrades immediately the same way — headless contexts never resolve Frontier. The two are independent inputs, not one mechanism: the tally flags (`--run-dir`, `--frontier-used`) answer "how much Frontier has this run already spent", while `--unattended` answers "is a human present" — it resolves `{"source":"degraded:unattended"}` (never `degraded:cap`), reads no tally and appends no tally line even with `--run-dir` passed. Run `node plugin/bin/resolve-profile.js frontier --run-dir /tmp/mp-journey --unattended` on a fresh dir to see both: a degraded line and no `frontier-tally.log` at all.
+- **Red flags:** A fourth tally line appearing after the degraded resolution (the tally must only record actual Frontier results); the cap counting non-`frontier` lines in the log. Running this step from a **linked worktree** with a *relative* `--run-dir` (or one pointing inside any checkout other than the main one) exits 1 with a "resolves outside the main checkout" message naming the resolved path — that is the anchored-or-outside guard (#1065, the `[IL-127]` shadow-copy protection) working as designed, not a defect; the documented `/tmp/mp-journey` form is outside any checkout and always passes.
 
 ### 4. Blacklist a failed model, then confirm the next resolution avoids it — terminal
 - **URL:** `CLAUDE_CODE_SESSION_ID=journey-probe-$$ node plugin/bin/resolve-profile.js record-failure fable`, then `CLAUDE_CODE_SESSION_ID=journey-probe-$$ node plugin/bin/resolve-profile.js frontier`

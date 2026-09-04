@@ -32,7 +32,7 @@ test('retry-queue drain prints [] against a repo with no health-state branch', (
 // contents — what's actually under test here is that the CLI routes
 // `retry-queue update <file>` to the right function with the right args,
 // not makeRetryQueueCommands' own internal enqueue/escalate logic (that's
-// covered by bin/lib/health-core/tests/retry-cli.test.js).
+// covered by tests/bin-lib/health-core/retry-cli.test.js).
 test('retry-queue update <results.json> dispatches correctly against a repo with no health-state branch', () => {
   const root = tmpRepo();
   execFileSync('git', ['init', '-q'], { cwd: root });

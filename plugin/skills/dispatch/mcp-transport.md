@@ -9,7 +9,7 @@ deleted `d83f0720`, and referred to by that short name for the rest of this file
 whole chain against a live cloud run and flipped Preflight's check 2 from a hard gate to a branch.
 CRUD mappings throughout are per `_shared/github-write-transport.md`. Settle and the Auto-merge gate
 have their own MCP notes in `settle-and-merge.md`; the self-report block's MCP mapping lives with
-that block, in `headless-self-report.md`.
+that block, in `_shared/headless-self-report.md`.
 
 ---
 
@@ -37,3 +37,7 @@ mistake, since every call site was bridged and verified before this line changed
 ## Step 2 — queue pull and per-dependency open-state check
 
 The queue pull uses the confirmed "list issues by label" mapping; the per-dependency open-state check (the `gh issue view "$DEP" --json state` loop) uses the confirmed "get single issue by number" mapping, checking the returned state field for `OPEN`. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
+
+## Step 2 — cross-PR overlap report (#1579)
+
+There is no confirmed MCP mapping for `gh pr list --json number,files,closingIssuesReferences` (a repo-wide open-PR listing with per-PR changed-file lists) yet. On the MCP transport, `queue-pull-script.md`'s cross-PR overlap fetch is skipped entirely and `dispatch-crosspr-overlap.json` is written as `[]` — the same fail-open posture as a `gh pr list` failure on the `gh` transport (SKILL.md Step 3's report renders nothing when its input is empty). This is a documented gap, not a silent one: the report is informational only (never a gate, per that section's AC2 fallback), so its absence on this transport costs a missed warning, not a missed exclusion.

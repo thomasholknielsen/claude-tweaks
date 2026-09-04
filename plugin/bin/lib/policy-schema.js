@@ -11,6 +11,11 @@ const PROFILE_NAMES = Object.keys(PROFILES);
 
 const POLICY_CATEGORIES = ['autonomy-trust', 'pipeline-behavior', 'merge-safety', 'health-sweeps', 'models', 'housekeeping'];
 
+// A `type: 'boolean'` entry's value — in policy.yml examples, routing-table prose, and
+// tests — must use the literal strings 'true'/'false', never 'on'/'off': resolveValue()
+// below does a strict string match and silently falls back to the entry's `default` on
+// any other spelling (#660 caught this on review, before merge, for a first-draft lever
+// documented with on/off wording that isValidValue() would have rejected).
 const POLICY_KEYS = [
   { key: 'worktree-always', type: 'boolean', default: false, summary: "Every covered edit and commit must happen inside a linked worktree — the hook denies it elsewhere.", category: 'pipeline-behavior', tier: 'core' },
   // One key, two value classes since #331: plain 'subagent'/'batched' are
@@ -40,11 +45,13 @@ const POLICY_KEYS = [
   // merge-authorization (#715): lets a human present at Manifesto time
   // pre-authorize "merge once every HARD-GATE is green" for this run only.
   // Deliberately excluded from the policy.yml source below (see the
-  // resolvePolicyKeys special case) — a project-wide standing default here
+  // `policySourceExcluded` special case in resolvePolicyKeys and the
+  // matching auditPolicy() category, both generic on this flag rather than
+  // hardcoded to this key — #839) — a project-wide standing default here
   // would remove the "a human decided, live, for this run" property the
   // interactive-human-only auto:* invariant depends on; see
   // _shared/auto-mode-contract.md's Bookend Architecture section.
-  { key: 'merge-authorization', type: 'enum', values: ['ask', 'pre-authorized'], default: 'ask', summary: "Lets a human pre-authorize, at Manifesto time, that this run merges itself once every HARD-GATE is green — never a standing default.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'merge-authorization', type: 'enum', values: ['ask', 'pre-authorized'], default: 'ask', policySourceExcluded: true, summary: "Lets a human pre-authorize, at Manifesto time, that this run merges itself once every HARD-GATE is green — never a standing default.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-retry-ceiling', type: 'integer', default: 3, summary: "Sets how many consecutive autonomous build failures a record tolerates before it is flagged blocked and pulled from auto-pilot.", category: 'merge-safety', tier: 'advanced' },
   { key: 'dispatch-batch-size', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence before leaving the rest for next time.", category: 'merge-safety', tier: 'advanced' },
   // Deprecated alias for dispatch-batch-size (renamed in #295 — the value is a
@@ -52,6 +59,7 @@ const POLICY_KEYS = [
   // project's existing policy.yml validates; removal condition in
   // skills/dispatch/deprecated-aliases.md.
   { key: 'dispatch-pick-max-concurrent', type: 'integer', default: 3, summary: "Caps how many queued records one dispatch run works through in sequence — an older name for the same cap, kept for migration.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'dispatch-group-size-guard', type: 'integer', default: 10, summary: "Caps how large a file-overlap dispatch group may be before headless `next` selection excludes it.", category: 'merge-safety', tier: 'advanced' },
   { key: 'auto-merge-max-lines', type: 'integer', default: 40, summary: "Bounds how large a diff an unattended merge will accept before a human is required — a weighted guideline, not a hard cutoff.", category: 'merge-safety', tier: 'core' },
   { key: 'auto-merge-max-files', type: 'integer', default: 2, summary: "Bounds how many changed files an unattended merge will accept before a human is required — the same weighted guideline, by file count.", category: 'merge-safety', tier: 'core' },
   { key: 'merge-sensitive-paths', type: 'list', default: [], summary: "Lists path patterns that always require a human to sign off on a merge, no matter how small the change looks.", category: 'merge-safety', tier: 'advanced' },
@@ -61,6 +69,7 @@ const POLICY_KEYS = [
   // 'unarmed ready PR' and 'unsettled run' checks.
   { key: 'pr-unarmed-age-hours', type: 'integer', default: 24, summary: "Sets how long a ready, passing pull request may sit without being armed to merge before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
   { key: 'unsettled-age-hours', type: 'integer', default: 24, summary: "Sets how long a claimed piece of work may sit with no visible progress before it is flagged as stalled.", category: 'merge-safety', tier: 'advanced' },
+  { key: 'grant-veto-window-hours', type: 'integer', min: 1, default: 24, summary: "Sets how long a machine-granted auto:merge-pending grant must sit unvetoed before the merge gate matures it to auto:merge.", category: 'merge-safety', tier: 'advanced' },
   // The row default (false) is the `supervised` base only: the EFFECTIVE
   // unset default is derived in resolvePolicyKeys from the resolved autonomy
   // ceiling — trusted/unattended derive true (#580; was opt-in-only, #414).
@@ -77,10 +86,13 @@ const POLICY_KEYS = [
   { key: 'scope-creep', type: 'enum', values: ['add-to-plan', 'stop-and-ask', 'drop'], default: 'add-to-plan', summary: "Decides what happens when new work surfaces mid-build that was not in the original plan: fold it in, pause and ask, or drop it.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'overlap', type: 'enum', values: ['companion', 'extend', 'skip', 'replace'], default: 'companion', summary: "Decides how a new spec is treated when it duplicates an existing one: run beside it, extend it, skip it, or replace it.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'design-intent', type: 'enum', values: ['none', 'bold', 'quiet', 'minimal', 'delightful', 'onboarding'], default: 'none', summary: "Sets the visual and UX ambition a build aims for — bold, quiet, minimal, delightful, onboarding-focused, or none at all.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'ui-stack', type: 'string', summary: "Names the UI component library / styling approach a frontend build should use, or an explicit no-preference answer.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'design-critique', type: 'enum', values: ['off', 'auto', 'full'], default: 'auto', summary: "Sets whether project-local design critics run at review time: never, when the project shows design investment or the record asks, or always.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'leftover-default', type: 'enum', values: ['defer', 'backlog', 'drop'], default: 'defer', summary: "Decides what happens to loose ends found at the end of a run: leave them for later, file them as backlog, or drop them.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-fix-threshold', type: 'enum', values: ['lint-only', 'lint+type', 'lint+type+test'], default: 'lint+type', summary: "Sets how much a test pass auto-fixes before stopping — lint alone, lint and types, or lint, types, and tests.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'review-auto-apply-ceiling', type: 'enum', values: ['none', 'low', 'medium'], default: 'low', summary: "Sets the severity cutoff at or below which review findings are applied without asking — anything above it is staged or prompted.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'review-auto-apply-prose-exempt', type: 'boolean', default: true, summary: "Lets a prose-only fix auto-apply one severity tier above the ceiling instead of the plain ceiling — see step3-routing.md.", category: 'pipeline-behavior', tier: 'advanced' },
+  { key: 'specify-auto-continue', type: 'boolean', default: false, summary: "Lets a session invoke /claude-tweaks:specify on an approved brainstorming design doc immediately instead of a manual command.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'moderate', summary: "Sets how boldly cleanup sweeps act on what they find — from keep-unless-certain to delete-unless-doubtful.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'auto-mode', type: 'enum', values: ['default-on', 'default-off'], summary: "Sets whether a standalone build or an unattended cleanup run starts hands-off by default, without being asked each time.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'backlog-fetch-limit', type: 'integer', default: 1000, summary: "Caps how many backlog issues one scan pulls before warning that the list was truncated.", category: 'housekeeping', tier: 'advanced' },
@@ -95,6 +107,10 @@ const POLICY_KEYS = [
   // true) — the old name collided with assess-agent-autonomy's merge-check
   // verdict mode, a different concept that keeps its name.
   { key: 'branch-divergence-check', type: 'boolean', default: true, summary: "Whether a build or pipeline run checks the current branch against its upstream and offers a rebase before starting.", category: 'pipeline-behavior', tier: 'advanced' },
+  // Default attempt-count budget for a bare /specify drain invocation (#1491).
+  // Sibling of dispatch-batch-size, same shape; the shared n/all --budget
+  // semantics live in _shared/record-batch-input.md, not restated here.
+  { key: 'specify-budget', type: 'integer', default: 5, summary: "Caps how many eligible backlog records one bare /specify drain attempts before stopping.", category: 'pipeline-behavior', tier: 'advanced' },
   { key: 'autonomy', type: 'enum', values: ['supervised', 'trusted', 'unattended'], default: 'supervised', summary: "Caps how much the pipeline may do without a human — trust that classes earn can never exceed this ceiling.", category: 'autonomy-trust', tier: 'core' },
   { key: 'trust-revert-window-days', type: 'integer', min: 1, default: 14, summary: "Sets how many days a closed record must age before its outcome counts as proven-good evidence toward earned trust.", category: 'autonomy-trust', tier: 'advanced' },
   // The reserved second opt-in named by skills/_shared/autonomy-ceiling.md —
@@ -109,7 +125,7 @@ const POLICY_KEYS = [
   { key: 'risk-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high', summary: "The risk tier at which machine-originated grants and demo fast-paths stop and require human review.", category: 'autonomy-trust', tier: 'core' },
   { key: 'size-floor', type: 'enum', values: ['low', 'medium', 'high', 'always'], default: 'high', summary: "The size tier at which machine-originated grants and demo fast-paths stop and require human review.", category: 'autonomy-trust', tier: 'core' },
   // Positive integer counting machine grants issued today (audit-comment
-  // markers dated today, UTC) — /claude-tweaks:backlog grant mode's own floor.
+  // markers dated today, UTC) — /claude-tweaks:backlog refine's headless posture's own floor.
   // Absent = uncapped (optional-when-absent, see #269's Deliverables).
   { key: 'fleet-daily-grant-cap', type: 'integer', min: 1, summary: "Caps how many machine-issued grants may be handed out across one calendar day; leave it unset for no cap.", category: 'autonomy-trust', tier: 'advanced' },
   // Sampling floor (#310): counts machine-granted merged records in closedAt
@@ -129,6 +145,11 @@ const POLICY_KEYS = [
   // matches is never emitted as a candidate, regardless of decision signals.
   { key: 'experiment-flag-exclude', type: 'list', default: [], summary: "Names extra flag-name substrings the experiment-cleanup sweep should never flag, on top of the built-in kill-switch defaults.", category: 'health-sweeps', tier: 'advanced' },
   { key: 'doc-convention-adr', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing decision-record convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-tutorial', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing Tutorial-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-how-to', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing How-To-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-reference', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing Reference-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-explanation', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing Explanation-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'doc-convention-journey', type: 'enum', values: ['plugin', 'project'], summary: "Records which side wins when this repo's existing Journey-genre convention disagrees with the plugin's own.", category: 'housekeeping', tier: 'advanced' },
   // Retention for docs/superpowers/plans/*.md at /wrap-up's cleanup-planning
   // item 1. Default keep-forever preserves today's unconditional-retention
   // behavior (ADR-0007's own convention) for every project that never sets
@@ -139,13 +160,21 @@ const POLICY_KEYS = [
   // registration here is schema/audit only, deliberately shallow (#219): this
   // file checks model-profiles' row keys are real profile names, never the
   // shape of a row's own fields — that's the resolver's job, at resolve time.
-  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default', summary: "Shifts every dispatched agent's reasoning effort one notch cheaper or more rigorous, without changing which model tier is chosen.", category: 'models', tier: 'advanced' },
-  { key: 'frontier-run-cap', type: 'integer', default: 3, summary: "Caps how many top-tier model dispatches one pipeline run may use before falling back to a cheaper tier.", category: 'models', tier: 'advanced' },
-  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES, summary: "Sets the highest model tier a skill's own default may resolve to, without limiting a person's explicit choice.", category: 'models', tier: 'advanced' },
+  { key: 'model-stance', type: 'enum', values: ['economy', 'default', 'max-rigor'], default: 'default', summary: "Shifts every dispatched agent's reasoning effort one notch cheaper or more rigorous, without changing which model profile is chosen.", category: 'models', tier: 'advanced' },
+  { key: 'frontier-run-cap', type: 'integer', default: 3, summary: "Caps how many Frontier model dispatches one pipeline run may use before falling back to a cheaper profile.", category: 'models', tier: 'advanced' },
+  { key: 'model-ceiling', type: 'enum', values: PROFILE_NAMES, summary: "Sets the highest model profile a skill's own default may resolve to, without limiting a person's explicit choice.", category: 'models', tier: 'advanced' },
   { key: 'model-profiles', type: 'map', keys: PROFILE_NAMES, summary: "Lets a project override which model and effort level each named profile resolves to, replacing the shipped table row by row.", category: 'models', tier: 'advanced' },
   // Read from /claude-tweaks:research's own `## Input` --mode= flag (IL-24:
   // that file is authoritative for the vocabulary, not this schema).
   { key: 'research-mode', type: 'enum', values: ['quick', 'standard', 'deep', 'ultradeep'], summary: "Sets the default depth of a research run — quick, standard, deep, or ultradeep — when nothing else specifies one.", category: 'pipeline-behavior', tier: 'advanced' },
+  // Port isolation (#1791/#1792): not an auto-mode lever — read directly by
+  // SessionStart (bin/lib/hooks/session-start.js), never surfaced as a
+  // Manifesto question. Per _shared/auto-mode-contract.md's "Adding a new
+  // policy lever" checklist: no Manifesto row (not an auto-mode behavior),
+  // no CLI arg (nothing about port allocation is per-invocation), no
+  // reversibility/confidence-floor entry (it writes .env.local, not code or
+  // history). It IS a POLICY_KEYS row (this one) and a policy-schema.md row.
+  { key: 'port-services', type: 'list', default: [], summary: "Names the services that get a port from this checkout's leased block; empty keeps port isolation off.", category: 'pipeline-behavior', tier: 'advanced' },
 ];
 
 const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
@@ -171,6 +200,8 @@ function migrateExecutionAlways(value) {
 // stray line); the resolver treats the old key's line as contributing nothing
 // and a request for the retired name as unknown-key.
 const RENAMED_KEYS = [
+  // Merged into the autonomy ceiling in #289, first shipped v6.76.0. Removal
+  // condition in skills/_shared/policy-deprecations.md.
   {
     key: 'unattended-tier',
     replacedBy: 'autonomy',
@@ -453,13 +484,18 @@ function resolvePolicyKeys(requestedKeys, { policyRaw, runConfigRaw } = {}) {
     if (canonical === 'housekeeping-auto-merge' && resolved.source === 'default') {
       resolved = { ...resolved, value: deriveHousekeepingAutoMerge(sources) };
     }
-    // merge-authorization (#715): policy.yml is never a valid source for this
-    // key — a standing project default would silently pre-authorize every
-    // future run's merge with no live human decision for that run. Only an
-    // explicit run-config value (a live Manifesto confirm/hybrid override
-    // answer) may set it; a policy.yml value is discarded, falling back to
-    // the schema default exactly as if nothing had set it at all.
-    if (canonical === 'merge-authorization' && resolved.source === 'policy') {
+    // policySourceExcluded (generalized from #715's merge-authorization-only
+    // special case — #839): a key so flagged is never validly sourced from
+    // policy.yml — a standing project default would silently make a
+    // this-run-only decision into a permanent one, defeating whatever
+    // per-run property the key exists to protect (for merge-authorization,
+    // "a human decided, live, for this run"). Only a source other than
+    // policy.yml (today, only run-config — a live Manifesto confirm/hybrid
+    // override answer) may set it; a policy.yml value is discarded, falling
+    // back to the schema default exactly as if nothing had set it at all.
+    // Registering a second such lever needs only this flag on its POLICY_KEYS
+    // entry — no change here or in auditPolicy()'s matching category below.
+    if (schemaEntry.policySourceExcluded && resolved.source === 'policy') {
       resolved = { value: defaultValue, source: 'default' };
     }
     result[requested] = resolved;
@@ -500,15 +536,29 @@ function extractMapEntry(raw, topKey) {
 // Never throws — fails open to 'local-merge' on any error, including no git
 // remote at all (checked first, so a local-files project with no remote never
 // shells out to gh). Each check runs under a 5s timeout.
-function detectIntegrationModel(repoRoot) {
-  const opts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8', windowsHide: true };
+//
+// `opts.mcpReachable` (optional, default undefined/falsy) is a caller-supplied
+// override — never resolved inside this function, per docs/incident-log.md
+// IL-63: a spawned-subprocess-style module cannot invoke MCP tools itself, so
+// this function can only accept the answer, never derive it. When true AND a
+// git remote exists, short-circuits straight to 'pr-first', skipping the `gh`
+// probe entirely — a remote is still required, since an MCP reachability
+// signal is meaningless with nothing to integrate through. The one caller
+// positioned to supply this (bin/resolve-policy.js's CLI, invoked inside an
+// agent turn) is documented in that file; pre-tool-use.js's hook call site
+// runs with no agent turn active and can never supply it (see
+// resolveRunPinnedIntegrationModel's own comment).
+function detectIntegrationModel(repoRoot, opts = {}) {
+  const { mcpReachable } = opts;
+  const execOpts = { cwd: repoRoot, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, encoding: 'utf8', windowsHide: true };
   try {
-    execFileSync('git', ['remote', 'get-url', 'origin'], opts);
+    execFileSync('git', ['remote', 'get-url', 'origin'], execOpts);
   } catch {
     return 'local-merge';
   }
+  if (mcpReachable === true) return 'pr-first';
   try {
-    execFileSync('gh', ['repo', 'view', '--json', 'owner,name'], opts);
+    execFileSync('gh', ['repo', 'view', '--json', 'owner,name'], execOpts);
   } catch {
     return 'local-merge';
   }
@@ -524,12 +574,14 @@ function detectIntegrationModel(repoRoot) {
 // key isn't cleanly set (absent, or set-but-invalid — a typo'd value still
 // gets a usable default here, unlike the raw resolvePolicyKeys/CLI path,
 // which surfaces `invalid: true` for a caller that wants to report it).
-function resolveIntegrationModel(repoRoot) {
+// `opts` (optional) forwards unchanged to detectIntegrationModel — see that
+// function's own comment for the mcpReachable override contract.
+function resolveIntegrationModel(repoRoot, opts = {}) {
   const policyRaw = readFileSafe(path.join(repoRoot, '.claude-tweaks', 'policy.yml'));
   const resolved = resolvePolicyKeys(['integration-model'], { policyRaw, runConfigRaw: null });
   const entry = resolved['integration-model'];
   if (entry && entry.source !== 'default') return entry.value;
-  return detectIntegrationModel(repoRoot);
+  return detectIntegrationModel(repoRoot, opts);
 }
 
 // Shared root-resolution + policy.yml/config.yml read + resolvePolicyKeys
@@ -595,10 +647,24 @@ function auditPolicy(repoRoot) {
 
   // policy.yml is the only config home, so it is the only thing worth validating.
   const invalidValues = [];
+  // sourceExcludedKeys (#839): a key that is recognized AND valid, but whose
+  // schema entry carries `policySourceExcluded: true` (resolvePolicyKeys'
+  // generalized special case above) — policy.yml is a structurally
+  // ineffective place to set it, so a value sitting here silently never
+  // takes effect. Distinct from invalidValues (a bad value for a key that
+  // *would* apply) and from unrecognizedKeys (a key nothing reads at all):
+  // this key is real and the value is well-formed, it simply never reaches
+  // the resolved value from this source. Generalizes to any future
+  // resolver-special-case-excluded lever with zero changes here — only
+  // registering `policySourceExcluded: true` on that lever's POLICY_KEYS row.
+  const sourceExcludedKeys = [];
   for (const [key, value] of Object.entries(policyEntries)) {
     const schemaEntry = SCHEMA_BY_KEY.get(key);
-    if (schemaEntry && !isValidValue(schemaEntry, value)) {
+    if (!schemaEntry) continue;
+    if (!isValidValue(schemaEntry, value)) {
       invalidValues.push({ key, value, expected: schemaEntry });
+    } else if (schemaEntry.policySourceExcluded) {
+      sourceExcludedKeys.push({ key, value });
     }
   }
 
@@ -619,7 +685,7 @@ function auditPolicy(repoRoot) {
     });
   }
 
-  return { unrecognizedKeys, invalidValues, migratableKeys, renamedKeys };
+  return { unrecognizedKeys, invalidValues, migratableKeys, renamedKeys, sourceExcludedKeys };
 }
 
 module.exports = {

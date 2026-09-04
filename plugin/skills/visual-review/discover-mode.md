@@ -80,7 +80,7 @@ Without `--budget`, behavior is unchanged — proceed to walk all `{N}` candidat
 
 ## Phase 3: Browser Walkthrough
 
-**Dispatcher column mapping (discover-mode use):** When assembling agent output for Phase 4 (journey file creation) and Phase 5 (coverage report), map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = recommendation urgency (`info` for documented page, `low` for nice-to-have journey, `medium` for canonical journey worth writing, `high` for broken/missing critical flow), Path:Line = the discovered route/page (`/checkout/payment`, `/admin/users/{id}`), Finding = the candidate journey + persona (`Returning user creates a new project`), Evidence = the screenshot path + key observations (`screenshots/browse/discover-public-pages/03_payment.png; LCP 1.8s; primary CTA at [3]`). The dispatcher merges all agents' tables into Phase 4 (journey file creation) and Phase 5 (coverage report).
+**Dispatcher column mapping (discover-mode use):** When assembling agent output for Phase 4 (journey file creation) and Phase 5 (coverage report), map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = recommendation urgency (`info` for documented page, `low` for nice-to-have journey, `medium` for canonical journey worth writing, `high` for broken/missing critical flow), Path:Line = the discovered route/page (`/checkout/payment`, `/admin/users/{id}`), Finding = the candidate journey + persona (`Returning user creates a new project`), Evidence = the screenshot path + key observations (`.claude-tweaks/artifacts/screenshots/browse/discover-public-pages/03_payment.png; LCP 1.8s; primary CTA at [3]`). The dispatcher merges all agents' tables into Phase 4 (journey file creation) and Phase 5 (coverage report).
 
 > **Parallel execution (conditional):** When multiple candidate journeys share no pages, dispatch each as a parallel Task agent — each agent runs its own session and `batch` invocation independently. Journeys that share state (login, form data) must remain sequential to avoid interference. A single journey's steps are always sequential within its batch.
 >
@@ -96,9 +96,9 @@ Without `--budget`, behavior is unchanged — proceed to walk all `{N}` candidat
 >
 > | Severity | Path:Line | Finding | Evidence |
 > |---|---|---|---|
-> | high | /checkout/payment | Returning user payment flow — broken: form clears on validation error | screenshots/browse/discover-payment/04_error.png; LCP 1.8s; missing "save card" affordance |
-> | medium | /admin/users/{id} | Admin user-detail journey worth documenting | screenshots/browse/discover-admin/02_user.png; 6 actions per page |
-> | low | /settings/notifications | Notifications page reachable but no journey covers it | screenshots/browse/discover-settings/01_landing.png |
+> | high | /checkout/payment | Returning user payment flow — broken: form clears on validation error | .claude-tweaks/artifacts/screenshots/browse/discover-payment/04_error.png; LCP 1.8s; missing "save card" affordance |
+> | medium | /admin/users/{id} | Admin user-detail journey worth documenting | .claude-tweaks/artifacts/screenshots/browse/discover-admin/02_user.png; 6 actions per page |
+> | low | /settings/notifications | Notifications page reachable but no journey covers it | .claude-tweaks/artifacts/screenshots/browse/discover-settings/01_landing.png |
 >
 > Severity scale: critical / high / medium / low / info
 > If no findings: return literal text "No findings."

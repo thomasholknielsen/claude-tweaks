@@ -59,9 +59,9 @@ future template change is picked up with no edit here. Run:
 
 ```bash
 node -e "
-const {checkConformance} = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/init/claude-md-conformance');
+const {checkConformance} = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/init/claude-md-conformance');
 const fs = require('fs');
-const tpl = fs.readFileSync(process.env.CLAUDE_PLUGIN_ROOT + '/skills/init/claude-md-template.md','utf8');
+const tpl = fs.readFileSync('${CLAUDE_PLUGIN_ROOT}/skills/init/claude-md-template.md','utf8');
 const project = fs.existsSync('CLAUDE.md') ? fs.readFileSync('CLAUDE.md','utf8') : '';
 console.log(JSON.stringify(checkConformance({templateSource: tpl, projectClaudeMd: project}), null, 2));
 "
@@ -132,7 +132,7 @@ fast path, since the fast path would suppress the very offer this check exists t
 Detect by calling the same module `/claude-tweaks:harness-health` uses:
 
 ```bash
-node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd()).migratableKeys))"
+node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd()).migratableKeys))"
 ```
 
 An empty array means nothing to do — omit this check from the Drift Report entirely rather than
@@ -204,7 +204,7 @@ been retired from `POLICY_KEYS` entirely (e.g. `unattended-tier`, merged into `a
 `node -e` invocation already returns both fields — no second call needed):
 
 ```bash
-node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); const r=auditPolicy(process.cwd()); console.log(JSON.stringify(r.renamedKeys))"
+node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); const r=auditPolicy(process.cwd()); console.log(JSON.stringify(r.renamedKeys))"
 ```
 
 An empty array means nothing to do — omit this check from the Drift Report entirely, matching the
@@ -264,6 +264,29 @@ declining leaves it exactly as it was.
 
 On any outcome except "Skip entirely," record the result in Phase 9's Actions Performed table as an
 `Operational` row.
+
+#### Source-excluded key drift (#839)
+
+A third check in the same Config Home Drift section, distinct from both above: a key that IS
+recognized and carries a VALID value in `.claude-tweaks/policy.yml`, but whose `POLICY_KEYS` entry
+carries `policySourceExcluded: true` — `policy.yml` is a structurally ineffective source for it
+(today, only `merge-authorization`; see `_shared/policy-schema.md`'s row). The value silently never
+takes effect, which looks identical to a working setting until read closely — the same silent-gap
+shape `migratableKeys`/`renamedKeys` fix for their own failure modes.
+
+```bash
+node -e "const {auditPolicy}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd()).sourceExcludedKeys))"
+```
+
+An empty array means nothing to do — omit this check, same convention as the checks above.
+Otherwise each `{key, value}` entry counts toward Phase 1u.6's Total drift count, the same
+self-classifying convention `migratableKeys`/`renamedKeys` already use. Present one line per entry:
+`` `{key}: {value}` in policy.yml never takes effect — not a valid source for this lever (see
+`_shared/policy-schema.md`). `` Warn-tier, informational only, like `renamedKeys`' retirement case
+above — there is no safe auto-fix to offer (the only "fix" is deleting the line; the lever's real
+setter, when one exists, is documented per-key elsewhere), so present the finding and let the user
+act manually. Never blocks; declining leaves the line untouched. On any manual removal the user
+reports back, record it in Phase 9's Actions Performed table as an `Operational` row.
 
 ### Policy Configuration Review
 
@@ -370,6 +393,15 @@ drift count — treat each Drifted record as an additional Contract Drift entry 
 the same self-classifying convention Work-Record Backend Drift
 both already use, so Phase 1u.6's own "Contract Drift entries from 1u.5" formula picks it up
 without that table needing its own edit.
+
+### Port Isolation Drift
+
+A literal port that crept back into a file `bootstrap/step-06-5-port-isolation.md`'s rewrite table
+already covers — most commonly a re-added `server.port: 3000` after a merge or a manual edit.
+
+| Signal | Detection | Surfacing |
+|---|---|---|
+| A file previously rewritten by Step 6.5 now contains a literal port again, at a location that rewrite table covers | Re-run the same detection list against the six rewrite-row locations only (not the hard-case ones, which were never rewritten) | "Port literal drift" finding naming the file and line, pointing back at Step 6.5 to re-offer the rewrite |
 
 ### Routine Relevance
 

@@ -119,6 +119,28 @@ test('decideConsoleExecute: already resolved -> skip, never re-detected as ready
   assert.deepStrictEqual(decideConsoleExecute(consoleJson, [], Date.now()), { action: 'skip', reason: 'already-resolved' });
 });
 
+// #1130 review: consoles written before the write order also set
+// `resolved: true` carry only `executedAt` — an executed console whose
+// executingAt claim has gone stale (past RECLAIM_STALE_MS, with the PR's
+// Resolve checkbox still ticked) must never re-detect as ready, or every
+// later reconcile pass re-applies Q#/M#/U# items that have no drift guard.
+// Same acceptance rule as archive-merged.js's readConsoleState.
+test('decideConsoleExecute: executedAt-only console (pre-resolved-field writer) -> skip already-resolved, even with a stale claim', () => {
+  const now = Date.now();
+  const consoleJson = {
+    executedAt: new Date(now - 60 * 60 * 1000).toISOString(),
+    executingAt: new Date(now - 60 * 60 * 1000).toISOString(), // stale — reclaimable
+    commentIds: ['IC_1'], prNumber: 1, items: [],
+  };
+  assert.deepStrictEqual(decideConsoleExecute(consoleJson, [], now), { action: 'skip', reason: 'already-resolved' });
+});
+
+test('decideConsoleExecute: whitespace-only executedAt is not a completion stamp -> falls through past already-resolved', () => {
+  const consoleJson = { executedAt: '   ', commentIds: [], prNumber: 1, items: [] };
+  // Falls past the completion check to the next ladder rung (no-comment-ids here).
+  assert.deepStrictEqual(decideConsoleExecute(consoleJson, [], Date.now()), { action: 'skip', reason: 'no-comment-ids' });
+});
+
 test('decideConsoleExecute: a fresh claim by another executor -> skip claimed', () => {
   const now = Date.now();
   const consoleJson = { resolved: false, executingAt: new Date(now - 1000).toISOString(), commentIds: ['IC_1'], prNumber: 1, items: [] };

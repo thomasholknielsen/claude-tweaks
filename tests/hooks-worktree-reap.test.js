@@ -509,3 +509,50 @@ test('reapWorktrees: a worktree locked by a live session is skipped, never remov
   assert.strictEqual(fs.existsSync(wt), true);
   assert.match(res.skipped.find((s) => s.path === fs.realpathSync(wt)).reason, /in use/);
 });
+
+// ─── #1793: port-lease release after a successful reap ────────────────────
+// "removal fails -> releasePorts is never called" is guaranteed by
+// construction (the call sits strictly after the `if (rm.failure) continue`
+// line, mirroring the pre-#1793 skip case for that branch — see this file's
+// header rationale for why every predicate fails closed) rather than by a
+// forced-failure test: no existing test in this file forces a genuine `git
+// worktree remove` failure either, since doing so deterministically across
+// platforms isn't practical with this fixture style.
+
+test('#1793: reapWorktrees calls releasePorts with the removed realpath after a successful reap', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = harnessWorktreeOf(main);
+  const calls = [];
+  const res = reapWorktrees({ cwd: main, integration: base, releasePorts: (p) => calls.push(p) });
+  assert.deepStrictEqual(res.reaped, [wt]);
+  assert.deepStrictEqual(calls, [wt]);
+  assert.deepStrictEqual(res.portsRelease, [], 'no note on a successful release');
+});
+
+test('#1793: a releasePorts throw is recorded as a portsRelease note and never changes the reap outcome', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = harnessWorktreeOf(main);
+  const res = reapWorktrees({
+    cwd: main,
+    integration: base,
+    releasePorts: () => { throw new Error('registry unwritable'); },
+  });
+  assert.deepStrictEqual(res.reaped, [wt], 'the reap outcome is unaffected by a release failure');
+  assert.strictEqual(fs.existsSync(wt), false, 'the worktree is still gone — release failing does not undo the removal');
+  assert.deepStrictEqual(res.portsRelease, [{ path: wt, note: 'failed: registry unwritable' }]);
+});
+
+test('#1793: a removed path with no lease is a no-op release with no note', () => {
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  const wt = harnessWorktreeOf(main);
+  // registry.release() itself no-ops for an unknown path (#1791 AC6) — the
+  // real release function proves the "no note" half of this without a fake.
+  const { release } = require('../plugin/bin/lib/ports/registry');
+  const home = fs.mkdtempSync(path.join(require('os').tmpdir(), 'ct-wt-ports-home-'));
+  const res = reapWorktrees({ cwd: main, integration: base, releasePorts: (p) => release(p, { home }) });
+  assert.deepStrictEqual(res.reaped, [wt]);
+  assert.deepStrictEqual(res.portsRelease, []);
+});

@@ -1,5 +1,5 @@
 'use strict';
-// bin/lib/wrap-up/tests/engine-render.test.js — phase-trace table, Review
+// tests/bin-lib/wrap-up/engine-render.test.js — phase-trace table, Review
 // Console sections, strict-mode completeness, and the forbidden-vocabulary
 // guard. Uses real buildWorklist() output (Task 3) as the worklist half of
 // the fixture state, per CLAUDE.md's Task 4 precedent — only `results` is

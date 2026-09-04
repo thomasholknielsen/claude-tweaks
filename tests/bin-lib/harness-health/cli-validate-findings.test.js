@@ -23,8 +23,8 @@ function runValidateFindings(root, findingsFile, extraArgs = []) {
 // GitHub credentials; the read path is pure git plumbing (fetch + show), so
 // it's exercised for real below via a local bare git remote seeded directly
 // with runs.json (no gh/network needed) — the same technique
-// bin/lib/harness-health/tests/cli-next-target.test.js's seedDurableCursors
-// uses for cursors, and bin/lib/code-health/tests/churn-v2.test.js uses for
+// tests/bin-lib/harness-health/cli-next-target.test.js's seedDurableCursors
+// uses for cursors, and tests/bin-lib/code-health/churn-v2.test.js uses for
 // its own runs.json.
 function seedDurableRuns(root, runs) {
   const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-vf-bare-'));
@@ -156,10 +156,10 @@ test('validate-findings: --dry-run without --target/--kind/--gap-scan still succ
 // --target/--kind or --gap-scan. The actual cursor-set semantics (namespaced
 // key set, gap-scan cursor set, unrelated cursor keys preserved) are unit
 // tested directly against the pure mutator in
-// bin/lib/harness-health/tests/build-validate-findings-update.test.js; the
+// tests/bin-lib/harness-health/build-validate-findings-update.test.js; the
 // read side (a durable cursor round-tripping back out via next-target) is
 // exercised for real via a locally-seeded health-state branch in
-// bin/lib/harness-health/tests/cli-next-target.test.js.
+// tests/bin-lib/harness-health/cli-next-target.test.js.
 test('validate-findings: --target <id> --kind <kind> still succeeds when durable persistence cannot complete, no local cursors.json is ever written', () => {
   const root = tmp();
   const findingsFile = path.join(root, 'findings.json');
@@ -329,7 +329,7 @@ test('churn-report: prints "no run logs found" when no runs exist', () => {
 // at all, so that write necessarily fails its `git fetch origin
 // health-state` first, non-fatally. What's exercised for real here instead
 // is churn-report's read side against a directly-seeded health-state branch,
-// mirroring bin/lib/code-health/tests/churn-v2.test.js.
+// mirroring tests/bin-lib/code-health/churn-v2.test.js.
 test('churn-report: a seeded durable run history prints a table row', () => {
   const root = tmp();
   seedDurableRuns(root, [

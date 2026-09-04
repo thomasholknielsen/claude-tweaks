@@ -65,7 +65,7 @@ skill_invocation:
 assertions:
   # (a) The fixes are real: the seeded tests only pass post-fix.
   - type: test-passes
-    command: "node --test test/"
+    command: "node --test test/*.test.js"
   # Defects 3-4 are test-invisible (a stray console.log, a wrong comment) —
   # pin their fixes directly in the source, which also keeps file-contains
   # exercised by a real scenario.

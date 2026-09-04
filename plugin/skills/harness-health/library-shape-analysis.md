@@ -10,7 +10,7 @@ Before Step 1's `next-target` call (which only knows about real skill/rule/claud
 
 ```bash
 node -e "
-  const {readDurableState} = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/harness-health/cache.js');
+  const {readDurableState} = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/harness-health/cache.js');
   const root = process.cwd();
   const cursors = readDurableState(root).cursors;
   const cur = cursors['library-shape:library-shape'];

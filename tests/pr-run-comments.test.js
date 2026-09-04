@@ -16,7 +16,6 @@ const COMMENTS = read('plugin', 'skills', '_shared', 'pr-run-comments.md');
 const LIFECYCLE = read('plugin', 'skills', '_shared', 'pr-early-run-lifecycle.md');
 const SETTLE = read('plugin', 'skills', 'dispatch', 'settle-and-merge.md');
 const BRIEF = read('plugin', 'skills', 'wrap-up', 'verification-brief.md');
-const WRAP_EXEC = read('plugin', 'skills', 'wrap-up', 'execution-and-verification.md');
 // /review's Step 7 (verdict comment) lives in the code-mode-steps.md sub-file since the
 // #887 dispatcher split — concatenate so this asserts against the documented text wherever
 // it currently lives, same pattern as multi-agent-coordination.test.js's REVIEW_SKILL.
@@ -96,10 +95,18 @@ test('verification-brief.md routes the full brief to the PR and leaves a one-lin
   );
 });
 
-test('wrap-up execution-and-verification.md verifies the pointer-plus-PR-brief shape under pr-first, not just the issue-only shape', () => {
-  assert.match(WRAP_EXEC, /the issue's last comment is the one-line PR pointer/);
-  assert.match(WRAP_EXEC, /run-comment: brief/);
-});
+// The pointer-plus-PR-brief hand-run check formerly pinned here moved into
+// engine-verify.js's `acceptance-labeling` check (record #900, Task 6 —
+// see plugin/skills/wrap-up/execution-and-verification.md's Verify
+// execution section, now a verb invocation rather than hand-run prose).
+// Task 6's initial cut only reproduced the label + full-brief-on-the-issue
+// path; a post-review fix (same task) added the actual pointer+PR-brief
+// handling — pointer found on the issue → fetch `gh pr view --json
+// comments` → require a comment carrying both `<!-- run-comment: brief -->`
+// and `### Confirmed` — plus parent redirection for decomposed sub-issues.
+// tests/bin-lib/wrap-up/engine-verify.test.js owns that check's coverage,
+// including the pr-first pointer+brief pass/fail cases and the parent-
+// redirect/dedup cases.
 
 test('review/SKILL.md posts a verdict comment reusing the findings-table shape, gated on the pr object', () => {
   assert.match(REVIEW_SKILL, /run-comment: verdict/);

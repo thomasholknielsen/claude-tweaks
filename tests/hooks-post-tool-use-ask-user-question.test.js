@@ -21,6 +21,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const post = require('../plugin/bin/lib/hooks/post-tool-use');
+const ctxLib = require('../plugin/bin/lib/hooks/context');
+const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 function readEvents(runDir) {
   const raw = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8');
@@ -170,4 +172,65 @@ test('never throws on malformed tool_input', () => {
   })));
   const events = readEvents(runDir).filter((e) => e.type === 'ask-user-question');
   assert.ok(events.length >= 5, 'every malformed call above should still log something, never throw');
+});
+
+// ─── concurrent sibling runs, neither ownership-stamped (#1410) ────────────
+//
+// #1194's own wrap-up found an ask-user-question event in its run's
+// events.jsonl whose question text belonged to unrelated records — resolveRun
+// (context.js) had guessed a sibling worktree's run dir because neither side
+// was yet ownership-stamped (no record-worktree call had landed). This
+// exercises the FULL chain — resolveRun's real fallback output fed straight
+// into post-tool-use.js's logAskUserQuestion — rather than a hand-built
+// ctx.ownedRun, since that's the actual call path #1194's contaminated log
+// went through. Needs real git worktrees: classifyOwnership only ever
+// answers 'foreign' when it can prove the caller's cwd resolves to a
+// different, still-live worktree than the recorded binding.
+
+function mkRun(mainCwd, id, state) {
+  const dir = path.join(mainCwd, '.claude-tweaks', 'pipelines', id);
+  fs.mkdirSync(dir, { recursive: true });
+  if (state) fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify(state));
+  return dir;
+}
+
+test("#1410: an ask-user-question event answered in this session's worktree never lands in a concurrent sibling worktree's unowned run dir", () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  // Newer, so the pre-#1410 "newest non-terminal, unowned" guess would have
+  // picked it — neither run is ownership-stamped (no sessionId), matching
+  // #1194's actual observed state (no record-worktree call had landed yet).
+  const foreignRun = mkRun(main, '2026-08-27T090000-foreign', { status: 'active', worktree: otherWt });
+
+  const toolInput = { questions: [{ question: 'Which branch strategy?', header: 'Git strategy', options: [{ label: 'rebase' }] }] };
+  const toolResponse = 'Your questions have been answered: "Which branch strategy?"="rebase". You can now continue with these answers in mind.';
+
+  // Caller's own session id is unknown to either run (fresh session, no
+  // ownership stamp yet) — exactly resolveRun's unknown-sessionId fallback arm.
+  const ownedRun = ctxLib.resolveRun(callerWt, {}, null);
+  assert.deepStrictEqual(ownedRun, { dir: null, attribution: null }, 'the only candidate is worktree-bound to a different session — must not be guessed into');
+
+  post.run(askCtx({ toolInput, toolResponse, ownedRun }));
+  assert.ok(!fs.existsSync(path.join(foreignRun, 'events.jsonl')), "the sibling worktree's own run must never receive this session's event");
+});
+
+test('#1410: the event lands in an older, worktree-compatible sibling run instead of a newer foreign-bound one', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const compatibleRun = mkRun(main, '2026-08-27T090000-mine', { status: 'active', worktree: callerWt });
+  const foreignRun = mkRun(main, '2026-08-27T090100-foreign', { status: 'active', worktree: otherWt });
+
+  const toolInput = { questions: [{ question: 'Which branch strategy?', header: 'Git strategy', options: [{ label: 'rebase' }] }] };
+  const toolResponse = 'Your questions have been answered: "Which branch strategy?"="rebase". You can now continue with these answers in mind.';
+
+  const ownedRun = ctxLib.resolveRun(callerWt, {}, null);
+  assert.deepStrictEqual(ownedRun, { dir: compatibleRun, attribution: 'fallback' }, 'the newer candidate is foreign-bound and must be skipped in favor of the compatible one');
+
+  post.run(askCtx({ toolInput, toolResponse, ownedRun }));
+  const events = readEvents(compatibleRun).filter((e) => e.type === 'ask-user-question');
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].attribution, 'fallback');
+  assert.ok(!fs.existsSync(path.join(foreignRun, 'events.jsonl')), "the foreign sibling's run must never receive this session's event");
 });

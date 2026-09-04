@@ -69,8 +69,19 @@ Run these mechanical checks first and treat their output as **evidence a later j
    # Use awk, not a sed range plus a trailing `sed '$d'`: when the section is the
    # LAST in the file, a range print runs to EOF and `$d` then deletes a genuine
    # content line instead of a heading.
-   awk '/^## <section heading>$/{p=1; print; next} /^## /{ if (p) exit } p' "{target.path}" > /tmp/harness-health-section.txt
-   grep -c '^- ' /tmp/harness-health-section.txt; wc -w /tmp/harness-health-section.txt
+   # Session-scoped destination, suffixed with this target's own id (_shared/
+   # session-tmp-root.md's "record-suffixed callers keep both suffixes" case) —
+   # the id keeps this scratch file distinct across sibling Task agents auditing
+   # different targets in the same parallel dispatch batch; the session segment
+   # keeps it distinct across separate firings. Degrades to the plain suffixed
+   # path when no $CLAUDE_CODE_SESSION_ID is visible, harmlessly.
+   HARNESS_HEALTH_SECTION=$(node -e "
+     const { sessionTmpPath } = require('{plugin-root}/bin/lib/session-tmp.js');
+     const name = 'harness-health-section-{target.id}.txt';
+     console.log(sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, name) || require('path').join(require('os').tmpdir(), name))
+   ")
+   awk '/^## <section heading>$/{p=1; print; next} /^## /{ if (p) exit } p' "{target.path}" > "$HARNESS_HEALTH_SECTION"
+   grep -c '^- ' "$HARNESS_HEALTH_SECTION"; wc -w "$HARNESS_HEALTH_SECTION"
    ```
 
    Divide word count by bullet count over the same extracted content. Above roughly 40 words/bullet is evidence — not a verdict — that specific bullets drifted from a terse constraint into an incident narrative. Feed it into dimension 8 rather than emitting it standalone.
@@ -90,6 +101,7 @@ Run these mechanical checks first and treat their output as **evidence a later j
 9. **Context-cost bloat scan** (all kinds). Run the mechanical detector over the target, with the target's siblings supplying the corpus baseline:
 
    ```bash
+   setopt nullglob 2>/dev/null || shopt -s nullglob 2>/dev/null
    node -e "
    const { bloatReport } = require('{plugin-root}/bin/lib/skill-audit/bloat.js');
    const [target, ...corpus] = process.argv.slice(1);
@@ -97,7 +109,7 @@ Run these mechanical checks first and treat their output as **evidence a later j
    " "{target.path}" "{root}"/.claude/skills/*.md "{root}"/.claude/skills/*/*.md
    ```
 
-   Both skill layouts are listed because a project uses one or the other; a glob matching nothing is skipped rather than erroring. Quote the substituted root but leave the `*` unquoted — a project path containing a space otherwise splits into several bad paths, and quoting the whole pattern would stop it globbing at all.
+   Both skill layouts are listed because a project uses one or the other. On zsh, an unmatched glob aborts the whole command with `no matches found` by default — it is bash, not zsh, where an unmatched glob is skipped. The `setopt nullglob 2>/dev/null || shopt -s nullglob 2>/dev/null` guard line normalizes this so an unmatched glob expands to nothing in both shells and only the layout that actually exists reaches `corpus`. Quote the substituted root but leave the `*` unquoted — a project path containing a space otherwise splits into several bad paths, and quoting the whole pattern would stop it globbing at all.
 
    Four signals: files over the 40 KB soft ceiling, Anti-Pattern rows more than twice the corpus median byte length, provenance-narration phrasing (text addressed to whoever edited the file rather than to the model running it), and adjacent table rows whose right-hand cells are identical or near-identical. Each reported line is evidence dimension 9 weighs, never a finding by itself. When the corpus yields fewer than 20 Anti-Pattern rows the report prints `NO BASELINE` and the row signal was **not evaluated** — read that as "not checked," never as "clean."
 

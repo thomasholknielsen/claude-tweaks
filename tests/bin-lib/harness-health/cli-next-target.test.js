@@ -20,9 +20,9 @@ function runNextTarget(args, root) {
 // branch (bin/lib/health-core/durable-state.js), not local disk. Its read
 // path (readDurableState) is pure git plumbing (fetch + show), so it CAN be
 // exercised for real without gh/network via the shared
-// bin/lib/health-core/tests/seed-durable-state.js helper. This same
+// tests/bin-lib/health-core/seed-durable-state.js helper. This same
 // git-fixture-seeding sequence was previously hand-duplicated here (as
-// seedDurableCursors) and in bin/lib/harness-health/tests/
+// seedDurableCursors) and in tests/bin-lib/harness-health/
 // cli-validate-findings.test.js's own seedDurableRuns (still its own copy —
 // out of this fix's scope); the extraction only migrates this file's copy.
 function seedDurableCursors(root, cursors) {
