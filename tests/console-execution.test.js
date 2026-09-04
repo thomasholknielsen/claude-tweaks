@@ -64,7 +64,11 @@ test('a PR-ticks-first race is detected before acting on a chat answer, never do
 
 test('consoleAutoResolve is a per-item loop, not a blanket flag, forward-compatible with #347', () => {
   assert.match(EXEC, /\*\*Per item, not a blanket flag:\*\*/);
-  assert.match(EXEC, /#347.*is expected to replace today's always-true per-item\s*\n?\s*check with a real floor predicate later/s);
+  // #1294 added the one narrower exception the per-item loop was originally written ahead
+  // of (the isMergeRow/needs-human carve-out) — #347's general floor predicate remains
+  // future work, not pre-implemented, which is the claim this test pins.
+  assert.match(EXEC, /#347.*is expected to add\s*\n?\s*later/s);
+  assert.match(EXEC, /do not generalize it\s*\n?\s*into a broader test or pre-implement #347's predicate here/);
 });
 
 test('consoleAutoResolve performs real comment edits, flagged AUTO, and only auto-ticks Resolve when every item is floor-clearing', () => {
