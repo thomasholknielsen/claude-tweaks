@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-04T064508-sweep-standalone",
-  "sessionId": "9070dc29-bb13-416f-b042-936b22c1509e",
-  "claimedAt": "2026-09-04T07:11:40.623Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "shaped: #1768",
+  "releasedAt": "2026-09-04T07:15:20.213Z"
 }
